@@ -57,7 +57,7 @@ fun CogniLogo(
         if (!imageLoadError) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data("file:///android_asset/cogni_logo.png")
+                    .data("file:///android_asset/Cogni_Icon.png")
                     .crossfade(true)
                     .build(),
                 contentDescription = "Cogni Logo",

@@ -148,45 +148,57 @@ fun StartupScreen(
                         )
                     }
 
+                    val strokeWidth = 3.dp.toPx() * (1f - pathProgress * 0.8f).coerceAtLeast(0.1f)
                     drawPath(
                         path = path,
                         color = accentColor.copy(alpha = 0.6f * (1f - pathProgress * 0.5f)), // Fade out tips
                         style = Stroke(
-                            width = 3.dp.toPx() * (1f - pathProgress * 0.8f), // Tapering
+                            width = strokeWidth,
                             cap = StrokeCap.Round
                         )
                     )
-                    
+
                     // Glowing tip
-                    drawCircle(
-                        color = accentColor.copy(alpha = 0.9f),
-                        radius = 4.dp.toPx() * (1f - pathProgress),
-                        center = Offset(endX, endY)
-                    )
+                    val tipRadius = 4.dp.toPx() * (1f - pathProgress)
+                    if (tipRadius > 0.01f) {
+                        drawCircle(
+                            color = accentColor.copy(alpha = 0.9f),
+                            radius = tipRadius,
+                            center = Offset(endX, endY)
+                        )
+                    }
                 }
             }
 
             // Draw "The Spark" (Central Core)
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        accentColor,
-                        accentColor.copy(alpha = 0.2f),
-                        Color.Transparent
+            val sparkRadius = 40.dp.toPx() * sparkScale.value
+            val coreRadius = 8.dp.toPx() * sparkScale.value
+
+            // Only draw if radius is positive to avoid crash
+            if (sparkRadius > 0.01f) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accentColor,
+                            accentColor.copy(alpha = 0.2f),
+                            Color.Transparent
+                        ),
+                        center = center,
+                        radius = sparkRadius
                     ),
-                    center = center,
-                    radius = 40.dp.toPx() * sparkScale.value
-                ),
-                radius = 40.dp.toPx() * sparkScale.value,
-                center = center
-            )
-            
+                    radius = sparkRadius,
+                    center = center
+                )
+            }
+
             // Core solid dot
-            drawCircle(
-                color = accentColor,
-                radius = 8.dp.toPx() * sparkScale.value,
-                center = center
-            )
+            if (coreRadius > 0.01f) {
+                drawCircle(
+                    color = accentColor,
+                    radius = coreRadius,
+                    center = center
+                )
+            }
         }
         
         // Final Logo Reveal (Standard CogniHeader but specialized)
