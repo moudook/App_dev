@@ -156,6 +156,8 @@ fun CogniLogo(
 
         // Shimmer overlay if enabled
         if (showShimmer) {
+            val shimmerWidth = 200f
+            val shimmerStartX = (shimmerOffset * (shimmerWidth * 2)) - shimmerWidth
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -166,14 +168,8 @@ fun CogniLogo(
                                 Color.White.copy(alpha = 0.2f),
                                 Color.Transparent
                             ),
-                            start = Offset(
-                                shimmerOffset * this@Box.hashCode() - 100f,
-                                0f
-                            ),
-                            end = Offset(
-                                shimmerOffset * this@Box.hashCode() + 100f,
-                                this@Box.hashCode().toFloat()
-                            )
+                            start = Offset(shimmerStartX, 0f),
+                            end = Offset(shimmerStartX + shimmerWidth, shimmerWidth)
                         )
                     )
             )
