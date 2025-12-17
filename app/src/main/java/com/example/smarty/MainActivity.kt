@@ -11,6 +11,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -19,6 +21,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
@@ -31,6 +36,7 @@ import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.viewmodel.AudioPlayerViewModel
 import com.example.smarty.viewmodel.CogniViewModel
 import com.example.smarty.viewmodel.SharedContent
+import com.example.smarty.ui.screens.StartupScreen
 
 class MainActivity : ComponentActivity() {
     private val viewModel: CogniViewModel by viewModels()
@@ -68,6 +74,9 @@ class MainActivity : ComponentActivity() {
             val isDarkThemeTop by viewModel.isDarkTheme.collectAsState()
 
             CogniTheme(darkTheme = isDarkThemeTop) {
+                // Splash Screen State
+                var showSplash by remember { mutableStateOf(true) }
+
                 val navController = rememberNavController()
                 val notes by viewModel.notes.collectAsState()
                 val categories by viewModel.categories.collectAsState()
@@ -119,151 +128,164 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    CogniNavHost(
-                    navController = navController,
-                    notes = notes,
-                    archivedNotes = archivedNotes,
-                    categories = categories,
-                    selectedNote = selectedNote,
-                    selectedCategory = selectedCategory,
-                    isProcessing = isProcessing,
-                    // API Key management
-                    providerConfigs = providerConfigs,
-                    onAddApiKey = { provider, key ->
-                        viewModel.addApiKey(provider, key)
-                    },
-                    onRemoveApiKey = { provider, key ->
-                        viewModel.removeApiKey(provider, key)
-                    },
-                    onUpdateApiKey = { provider, oldKey, newKey ->
-                        viewModel.updateApiKey(provider, oldKey, newKey)
-                    },
-                    onSetProviderEnabled = { provider, enabled ->
-                        viewModel.setProviderEnabled(provider, enabled)
-                    },
-                    onSetSelectedModel = { provider, model ->
-                        viewModel.setSelectedModel(provider, model)
-                    },
-                    onTestApiKey = { provider, key, callback ->
-                        viewModel.testApiKey(provider, key, callback)
-                    },
-                    // PIN management
-                    isPinConfigured = isPinConfigured,
-                    onSetPin = { pin ->
-                        viewModel.setPin(pin)
-                    },
-                    onVerifyPin = { pin ->
-                        viewModel.verifyPin(pin)
-                    },
-                    onChangePin = { oldPin, newPin ->
-                        viewModel.changePin(oldPin, newPin)
-                    },
-                    onClearPin = {
-                        viewModel.clearPin()
-                    },
-                    // Notes management
-                    onAddNote = { content, attachments ->
-                        viewModel.addNoteWithAttachments(content, attachments)
-                    },
-                    onSelectNote = { note ->
-                        viewModel.selectNote(note)
-                    },
-                    onSelectCategory = { category ->
-                        viewModel.selectCategory(category)
-                    },
-                    onCreateCategory = { name ->
-                        viewModel.createUserCategory(name)
-                    },
-                    onDeleteCategory = { category ->
-                        viewModel.deleteCategory(category)
-                    },
-                    onArchiveNote = { noteId ->
-                        viewModel.archiveNote(noteId)
-                    },
-                    onUnarchiveNote = { noteId ->
-                        viewModel.unarchiveNote(noteId)
-                    },
-                    onDeleteNote = { note ->
-                        viewModel.deleteNote(note)
-                    },
-                    onDeleteNoteById = { noteId ->
-                        viewModel.deleteNoteById(noteId)
-                    },
-                    onUpdateNoteTodos = { noteId, todos ->
-                        viewModel.updateNoteTodos(noteId, todos)
-                    },
-                    // Pending share management
-                    pendingShare = pendingShare,
-                    onConfirmShare = { category, instructions ->
-                        viewModel.confirmShare(category, instructions)
-                    },
-                    onCancelShare = {
-                        viewModel.cancelShare()
-                    },
-                    isShareFullPrivacy = isShareFullPrivacy,
-                    // Chat mode management
-                    isChatMode = isChatMode,
-                    chatMessages = chatMessages,
-                    isChatProcessing = isChatProcessing,
-                    onSendChatMessage = { content, attachments ->
-                        viewModel.sendChatMessage(content, attachments)
-                    },
-                    // Chat history management
-                    chatSessions = chatSessions,
-                    currentSessionId = currentSessionId,
-                    onSwitchChatSession = { sessionId ->
-                        viewModel.switchToChatSession(sessionId)
-                    },
-                    onNewChatSession = {
-                        viewModel.createNewChatSession()
-                    },
-                    onDeleteChatSession = { sessionId ->
-                        viewModel.deleteChatSession(sessionId)
-                    },
-                    // AI exclusion state
-                    isAiExcluded = isAiExcluded,
-                    onInputTextChange = { text ->
-                        viewModel.updateInputText(text)
-                    },
-                    // Audio player
-                    onPlayAudio = { track ->
-                        audioPlayerViewModel.playAudio(track)
-                    },
-                    // Theme management
-                    isDarkTheme = isDarkTheme,
-                    onToggleTheme = { isDark ->
-                        viewModel.setDarkTheme(isDark)
-                    },
-                    // Cache management
-                    cacheSizeBytes = cacheSizeBytes,
-                    onClearCache = {
-                        viewModel.clearCache()
-                    },
-                    isClearingCache = isClearingCache,
-                    modifier = Modifier.fillMaxSize()
-                    )
+                    Crossfade(
+                        targetState = showSplash,
+                        animationSpec = tween(600),
+                        label = "SplashScreenTransition"
+                    ) { isSplash ->
+                        if (isSplash) {
+                            StartupScreen(
+                                onComplete = { showSplash = false }
+                            )
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                CogniNavHost(
+                                    navController = navController,
+                                    notes = notes, 
+                                    archivedNotes = archivedNotes,
+                                    categories = categories,
+                                    selectedNote = selectedNote,
+                                    selectedCategory = selectedCategory,
+                                    isProcessing = isProcessing,
+                                    providerConfigs = providerConfigs,
+                                    onAddApiKey = { provider, key ->
+                                        viewModel.addApiKey(provider, key)
+                                    },
+                                    onRemoveApiKey = { provider, key ->
+                                        viewModel.removeApiKey(provider, key)
+                                    },
+                                    onUpdateApiKey = { provider, oldKey, newKey ->
+                                        viewModel.updateApiKey(provider, oldKey, newKey)
+                                    },
+                                    onSetProviderEnabled = { provider, enabled ->
+                                        viewModel.setProviderEnabled(provider, enabled)
+                                    },
+                                    onSetSelectedModel = { provider, model ->
+                                        viewModel.setSelectedModel(provider, model)
+                                    },
+                                    onTestApiKey = { provider, key, callback ->
+                                        viewModel.testApiKey(provider, key, callback)
+                                    },
+                                    // PIN management
+                                    isPinConfigured = isPinConfigured,
+                                    onSetPin = { pin ->
+                                        viewModel.setPin(pin)
+                                    },
+                                    onVerifyPin = { pin ->
+                                        viewModel.verifyPin(pin)
+                                    },
+                                    onChangePin = { oldPin, newPin ->
+                                        viewModel.changePin(oldPin, newPin)
+                                    },
+                                    onClearPin = {
+                                        viewModel.clearPin()
+                                    },
+                                    // Notes management
+                                    onAddNote = { content, attachments ->
+                                        viewModel.addNoteWithAttachments(content, attachments)
+                                    },
+                                    onSelectNote = { note ->
+                                        viewModel.selectNote(note)
+                                    },
+                                    onSelectCategory = { category ->
+                                        viewModel.selectCategory(category)
+                                    },
+                                    onCreateCategory = { name ->
+                                        viewModel.createUserCategory(name)
+                                    },
+                                    onDeleteCategory = { category ->
+                                        viewModel.deleteCategory(category)
+                                    },
+                                    onArchiveNote = { noteId ->
+                                        viewModel.archiveNote(noteId)
+                                    },
+                                    onUnarchiveNote = { noteId ->
+                                        viewModel.unarchiveNote(noteId)
+                                    },
+                                    onDeleteNote = { note ->
+                                        viewModel.deleteNote(note)
+                                    },
+                                    onDeleteNoteById = { noteId ->
+                                        viewModel.deleteNoteById(noteId)
+                                    },
+                                    onUpdateNoteTodos = { noteId, todos ->
+                                        viewModel.updateNoteTodos(noteId, todos)
+                                    },
+                                    // Pending share management
+                                    pendingShare = pendingShare,
+                                    onConfirmShare = { category, instructions ->
+                                        viewModel.confirmShare(category, instructions)
+                                    },
+                                    onCancelShare = {
+                                        viewModel.cancelShare()
+                                    },
+                                    isShareFullPrivacy = isShareFullPrivacy,
+                                    // Chat mode management
+                                    isChatMode = isChatMode,
+                                    chatMessages = chatMessages,
+                                    isChatProcessing = isChatProcessing,
+                                    onSendChatMessage = { content, attachments ->
+                                        viewModel.sendChatMessage(content, attachments)
+                                    },
+                                    // Chat history management
+                                    chatSessions = chatSessions,
+                                    currentSessionId = currentSessionId,
+                                    onSwitchChatSession = { sessionId ->
+                                        viewModel.switchToChatSession(sessionId)
+                                    },
+                                    onNewChatSession = {
+                                        viewModel.createNewChatSession()
+                                    },
+                                    onDeleteChatSession = { sessionId ->
+                                        viewModel.deleteChatSession(sessionId)
+                                    },
+                                    // AI exclusion state
+                                    isAiExcluded = isAiExcluded,
+                                    onInputTextChange = { text ->
+                                        viewModel.updateInputText(text)
+                                    },
+                                    // Audio player
+                                    onPlayAudio = { track ->
+                                        audioPlayerViewModel.playAudio(track)
+                                    },
+                                    // Theme management
+                                    isDarkTheme = isDarkTheme,
+                                    onToggleTheme = { isDark ->
+                                        viewModel.setDarkTheme(isDark)
+                                    },
+                                    // Cache management
+                                    cacheSizeBytes = cacheSizeBytes,
+                                    onClearCache = {
+                                        viewModel.clearCache()
+                                    },
+                                    isClearingCache = isClearingCache,
+                                    modifier = Modifier.fillMaxSize()
+                                )
 
-                    // Mini Audio Player overlay at bottom
-                    AnimatedMiniPlayer(
-                        visible = isMiniPlayerVisible && !isFullPlayerVisible,
-                        state = audioUiState,
-                        onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
-                        onExpandClick = { audioPlayerViewModel.expandToFullPlayer() },
-                        onCloseClick = { audioPlayerViewModel.stop() },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                    )
+                                // Mini Audio Player overlay at bottom
+                                AnimatedMiniPlayer(
+                                    visible = isMiniPlayerVisible && !isFullPlayerVisible,
+                                    state = audioUiState,
+                                    onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
+                                    onExpandClick = { audioPlayerViewModel.expandToFullPlayer() },
+                                    onCloseClick = { audioPlayerViewModel.stop() },
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .navigationBarsPadding()
+                                )
 
-                    // Full Audio Player modal
-                    if (isFullPlayerVisible) {
-                        FullAudioPlayer(
-                            state = audioUiState,
-                            sheetState = fullPlayerSheetState,
-                            onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
-                            onSeek = { progress -> audioPlayerViewModel.seekTo(progress) },
-                            onDismiss = { audioPlayerViewModel.collapseToMiniPlayer() }
-                        )
+                                // Full Audio Player modal
+                                if (isFullPlayerVisible) {
+                                    FullAudioPlayer(
+                                        state = audioUiState,
+                                        sheetState = fullPlayerSheetState,
+                                        onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
+                                        onSeek = { progress -> audioPlayerViewModel.seekTo(progress) },
+                                        onDismiss = { audioPlayerViewModel.collapseToMiniPlayer() }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

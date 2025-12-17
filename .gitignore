@@ -24,3 +24,13 @@ AUX
 prn
 PRN
 .claude
+
+# Reference files
+bad ai response.txt
+The features that I want to add I a.txt
+Cogni_Icon.svg
+docs/UI_ARCHITECTURE.md
+docs/UI_QUICK_REFERENCE.md
+nul
+NUL
+*.pdf
