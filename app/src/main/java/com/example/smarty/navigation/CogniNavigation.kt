@@ -23,7 +23,6 @@ import com.example.smarty.ui.screens.*
 import com.example.smarty.viewmodel.BackupViewModel
 
 sealed class Screen(val route: String) {
-    data object Splash : Screen("splash")
     data object Pin : Screen("pin")
     data object PinSetup : Screen("pin_setup")
     data object PinChange : Screen("pin_change")
@@ -100,27 +99,14 @@ fun CogniNavHost(
     isClearingCache: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // Always start with splash screen
-    val startDestination = Screen.Splash.route
+    // Start at PIN screen if configured, otherwise go to main input stream
+    val startDestination = if (isPinConfigured) Screen.Pin.route else Screen.InputStream.route
 
     NavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier
     ) {
-        // Splash Screen - shows every launch
-        composable(Screen.Splash.route) {
-            SplashScreen(
-                onSplashComplete = {
-                    // After splash, navigate to PIN or main screen
-                    val nextRoute = if (isPinConfigured) Screen.Pin.route else Screen.InputStream.route
-                    navController.navigate(nextRoute) {
-                        popUpTo(Screen.Splash.route) { inclusive = true }
-                    }
-                }
-            )
-        }
-
         // PIN Entry Screen (for existing PIN)
         composable(Screen.Pin.route) {
             PinScreen(
