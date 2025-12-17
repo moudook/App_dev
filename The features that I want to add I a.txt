@@ -1,0 +1,23 @@
+The features that I want to add but I am not able to delete a category.
+
+The QR code should be functional, The share button should Share that category to another person through quick share
+
+Improve the music section Don't make it too vertically long Currently I am seeing its two vertically long It's taking too much space + The music player is overlapping with the input section where the user inputs its notes and something brain dump else
+
+The setting Page UI is very lame To be honest it's not looking good in any way it's too blocky like there are multiple blocks we have to scroll it too much Of the work for the user It should be simple enough So that user don't have to do much work everything should be on his finger tip.
+
+The create category thing Should not pop up in the middle should pop up like music section from the bottom.
+
+Can you improve the chat section mode ui when it's empty.(add some moving elements)
+ 
+Can you increase the radius of the input block That is on the bottom
+
+Can you improve the animation for the cogni_ app Start up animation To be honest Apple won't allow this type of animation in their official app.
+
+The cognitive will adopt its theme according to the system theme or user can set it manually
+
+Instead of writing cogni on the main screen of the app on the top left corner You should use this logo That I created For this app Also use this logo for the app startup animation
+
+Add shimmering effect On this app.
+
+Make this app UI like Duolingo

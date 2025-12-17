@@ -1,0 +1,157 @@
+package com.example.smarty.ui.components
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.animation.CogniEasing
+import com.example.smarty.ui.animation.CogniMotion
+import com.example.smarty.ui.animation.StaggerCalculator
+import com.example.smarty.ui.theme.ComponentSpacing
+import kotlinx.coroutines.delay
+
+/**
+ * Attachment type options for the selector
+ */
+enum class AttachmentOption(
+    val label: String
+) {
+    IMAGE("Photo"),
+    VIDEO("Video"),
+    DOCUMENT("Doc"),
+    AUDIO("Audio"),
+    FILE("File"),
+    LINK("Link")
+}
+
+/**
+ * Animated attachment type selector panel
+ *
+ * Shows a row of attachment type buttons with staggered entry animation
+ * Apple-style spring physics for natural feel
+ */
+@Composable
+fun AttachmentTypeSelector(
+    visible: Boolean,
+    onSelectImage: () -> Unit,
+    onSelectVideo: () -> Unit,
+    onSelectDocument: () -> Unit,
+    onSelectAudio: () -> Unit,
+    onSelectFile: () -> Unit,
+    onSelectLink: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(
+            animationSpec = spring(
+                dampingRatio = 0.7f,
+                stiffness = 300f
+            ),
+            expandFrom = Alignment.Bottom
+        ) + fadeIn(
+            animationSpec = tween(200, easing = CogniEasing.appleEaseOut)
+        ),
+        exit = shrinkVertically(
+            animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
+            shrinkTowards = Alignment.Bottom
+        ) + fadeOut(
+            animationSpec = tween(150)
+        ),
+        modifier = modifier
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp, start = 16.dp, end = 16.dp), // Add padding for floating effect
+            contentAlignment = Alignment.Center
+        ) {
+            // Floating Glass Dock (Pill Shape)
+            Surface(
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = LocalAccentColor.current.copy(alpha = 0.08f), // Glassy accent background
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color = LocalAccentColor.current.copy(alpha = 0.15f) // Subtle border
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AttachmentOption.entries.forEachIndexed { index, option ->
+                        // Text Item
+                        Text(
+                            text = option.label,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 12.sp
+                            ),
+                            color = LocalAccentColor.current,
+                            modifier = Modifier
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                .clickable {
+                                    when (option) {
+                                        AttachmentOption.IMAGE -> onSelectImage()
+                                        AttachmentOption.VIDEO -> onSelectVideo()
+                                        AttachmentOption.DOCUMENT -> onSelectDocument()
+                                        AttachmentOption.AUDIO -> onSelectAudio()
+                                        AttachmentOption.FILE -> onSelectFile()
+                                        AttachmentOption.LINK -> onSelectLink()
+                                    }
+                                }
+                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                        )
+
+                        // Separator (if not last)
+                        if (index < AttachmentOption.entries.lastIndex) {
+                            Box(
+                                modifier = Modifier
+                                    .height(10.dp)
+                                    .width(1.dp)
+                                    .background(LocalAccentColor.current.copy(alpha = 0.2f))
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Removed AnimatedAttachmentButton as it's replaced by inline text items
+
+
+
