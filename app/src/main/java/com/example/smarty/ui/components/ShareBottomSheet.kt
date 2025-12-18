@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,6 +24,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -37,18 +40,41 @@ import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.MonoFont
 
 /**
- * Data class for pending share content
+ * Single file info for pending share
+ */
+data class PendingFileInfo(
+    val fileUri: String,
+    val fileName: String?,
+    val mimeType: String?,
+    val fileSize: Long?
+)
+
+/**
+ * Data class for pending share content - supports multiple files
  */
 data class PendingShareData(
     val text: String? = null,
-    val fileUri: String? = null,
+    val fileUri: String? = null,  // Legacy single file
     val fileName: String? = null,
     val mimeType: String? = null,
     val fileSize: Long? = null,
     val detectedType: NoteType = NoteType.FILE,
     val suggestedCategory: String? = null,
-    val relatedNotes: List<Note> = emptyList()
-)
+    val relatedNotes: List<Note> = emptyList(),
+    val files: List<PendingFileInfo> = emptyList()  // Multiple files
+) {
+    /** Get all files (combines legacy single + multiple) */
+    fun getAllFiles(): List<PendingFileInfo> {
+        if (files.isNotEmpty()) return files
+        if (fileUri != null) {
+            return listOf(PendingFileInfo(fileUri, fileName, mimeType, fileSize))
+        }
+        return emptyList()
+    }
+
+    /** Get the total file count */
+    fun getFileCount(): Int = getAllFiles().size
+}
 
 /**
  * Bottom sheet for configuring shared content before saving.
@@ -65,11 +91,9 @@ fun ShareBottomSheet(
     onSave: (selectedCategory: String?, aiInstructions: String) -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf<String?>(pendingShare.suggestedCategory) }
-    // In full privacy mode, AI cannot decide - always manual selection
     var letAIDecide by remember { mutableStateOf(!isFullPrivacy) }
     var aiInstructions by remember { mutableStateOf("") }
 
-    // Force letAIDecide to false when privacy mode changes
     LaunchedEffect(isFullPrivacy) {
         if (isFullPrivacy) {
             letAIDecide = false
@@ -84,7 +108,7 @@ fun ShareBottomSheet(
         dragHandle = {
             Surface(
                 modifier = Modifier.padding(vertical = 12.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
                 shape = RoundedCornerShape(2.dp)
             ) {
                 Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
@@ -96,212 +120,170 @@ fun ShareBottomSheet(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp)
+                .padding(bottom = 24.dp)
+                .navigationBarsPadding()
+                .imePadding() // Handle keyboard
         ) {
-            // Full Privacy Mode Banner - shows when shake activated
-            PrivacyModeBanner(
-                isActive = isFullPrivacy,
-                modifier = Modifier.fillMaxWidth()
-            )
-
             if (isFullPrivacy) {
-                Spacer(modifier = Modifier.height(16.dp))
+                PrivacyModeBanner(
+                    isActive = isFullPrivacy,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                )
             }
 
-            // Header
+            // Compact Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "save_to_cogni",
-                    style = MaterialTheme.typography.headlineSmall,
+                    text = "Save to Cogni",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                    ),
                     color = LocalAccentColor.current
                 )
-                IconButton(onClick = onDismiss) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(32.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Cancel",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // File/Content Preview Section
+            // Compact content preview
             SharePreviewCard(pendingShare)
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Category Selection Section
-            Text(
-                text = "Category",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Let AI decide toggle (hidden in full privacy mode)
-            AnimatedVisibility(
-                visible = !isFullPrivacy,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+            // Efficient Category Section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { letAIDecide = !letAIDecide }
-                        .border(
-                            1.dp,
-                            if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
-                            RoundedCornerShape(12.dp)
-                        )
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Text(
+                    text = "Category",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Inline AI Toggle
+                if (!isFullPrivacy) {
                     Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { letAIDecide = !letAIDecide }
+                            .padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
-                            tint = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            tint = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f),
+                            modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "Let AI decide",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
+                            text = "Auto-sort",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)
+                        )
+                        Switch(
+                            checked = letAIDecide,
+                            onCheckedChange = { letAIDecide = it },
+                            modifier = Modifier.scale(0.7f).height(32.dp),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = LocalAccentColor.current,
+                                checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.2f),
+                                checkedBorderColor = Color.Transparent,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
                         )
                     }
-                    Switch(
-                        checked = letAIDecide,
-                        onCheckedChange = { letAIDecide = it },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = LocalAccentColor.current,
-                            checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.3f)
-                        )
-                    )
                 }
             }
 
-            // Category chips (always visible in privacy mode, otherwise depends on letAIDecide)
+            // Chips show when AI is OFF or forced ON by privacy
             AnimatedVisibility(
                 visible = !letAIDecide || isFullPrivacy,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                Column {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(categories) { category ->
-                            FilterChip(
-                                selected = selectedCategory == category.name,
-                                onClick = {
-                                    selectedCategory = if (selectedCategory == category.name) null else category.name
-                                },
-                                label = { Text(category.name) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = LocalAccentColor.current.copy(alpha = 0.2f),
-                                    selectedLabelColor = LocalAccentColor.current
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Related Notes Section
-            if (pendingShare.relatedNotes.isNotEmpty()) {
-                Text(
-                    text = "Related Notes",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(
+                    modifier = Modifier.padding(top = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(pendingShare.relatedNotes.take(5)) { note ->
-                        RelatedNoteChip(note)
-                    }
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            // AI Instructions Section
-            Text(
-                text = "Instructions for AI (optional)",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        if (aiInstructions.isNotEmpty()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
-                        RoundedCornerShape(12.dp)
-                    ),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .heightIn(min = 80.dp)
-                ) {
-                    BasicTextField(
-                        value = aiInstructions,
-                        onValueChange = { aiInstructions = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = MonoFont,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(LocalAccentColor.current)
-                    )
-                    if (aiInstructions.isEmpty()) {
-                        Text(
-                            text = "e.g., \"This is for my project X\" or \"Summarize key points\"",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = MonoFont),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    items(categories) { category ->
+                        FilterChip(
+                            selected = selectedCategory == category.name,
+                            onClick = {
+                                selectedCategory = if (selectedCategory == category.name) null else category.name
+                            },
+                            label = { Text(category.name) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = LocalAccentColor.current.copy(alpha = 0.15f),
+                                selectedLabelColor = LocalAccentColor.current
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = selectedCategory == category.name,
+                                borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
                         )
                     }
                 }
             }
 
-            // Privacy hint (only show when not in privacy mode)
-            if (!isFullPrivacy) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Compact AI Instructions
+            Text(
+                text = "Add Context (Optional)",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow, // Distinct background
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (aiInstructions.isNotEmpty()) LocalAccentColor.current.copy(0.5f) else Color.Transparent
+                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                        .heightIn(min = 60.dp) // Reduced height
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Vibration,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Shake phone for Full Privacy Mode",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    if (aiInstructions.isEmpty()) {
+                        Text(
+                            text = "e.g. \"Summarize key points\"...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    }
+                    BasicTextField(
+                        value = aiInstructions,
+                        onValueChange = { aiInstructions = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        cursorBrush = SolidColor(LocalAccentColor.current)
                     )
                 }
             }
@@ -315,8 +297,12 @@ fun ShareBottomSheet(
             ) {
                 OutlinedButton(
                     onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(ComponentSpacing.buttonCornerRadius)
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(0.3f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
                 ) {
                     Text("Cancel")
                 }
@@ -326,12 +312,13 @@ fun ShareBottomSheet(
                         val category = if (letAIDecide) null else selectedCategory
                         onSave(category, aiInstructions)
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(ComponentSpacing.buttonCornerRadius),
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = LocalAccentColor.current,
                         contentColor = MaterialTheme.colorScheme.surface
-                    )
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Save,
@@ -339,168 +326,75 @@ fun ShareBottomSheet(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save")
+                    Text("Save Note")
                 }
             }
         }
     }
 }
 
-/**
- * Preview card showing the shared content
- */
 @Composable
 private fun SharePreviewCard(pendingShare: PendingShareData) {
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(12.dp)
-            ),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh) // Higher contrast container
+            .padding(vertical = 8.dp, horizontal = 12.dp), // Tighter vertical padding
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        // Compact Thumbnail
+        Box(
+            modifier = Modifier
+                .size(40.dp) // Smaller thumbnail (was 48dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(getTypeColor(pendingShare.detectedType).copy(alpha = 0.2f)), // Stronger background
+            contentAlignment = Alignment.Center
         ) {
-            // Preview thumbnail or icon
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                when {
-                    // Image preview
-                    pendingShare.fileUri != null && pendingShare.mimeType?.startsWith("image/") == true -> {
-                        AsyncImage(
-                            model = pendingShare.fileUri,
-                            contentDescription = "Image preview",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
-                    // Type icon for files
-                    pendingShare.fileUri != null -> {
-                        Surface(
-                            color = getTypeColor(pendingShare.detectedType).copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = getTypeIcon(pendingShare.detectedType),
-                                contentDescription = null,
-                                tint = getTypeColor(pendingShare.detectedType),
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            )
-                        }
-                    }
-                    // Text content icon
-                    else -> {
-                        Surface(
-                            color = LocalAccentColor.current.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.TextSnippet,
-                                contentDescription = null,
-                                tint = LocalAccentColor.current,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Content info
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = pendingShare.fileName ?: getTypeName(pendingShare.detectedType),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            if (pendingShare.fileUri != null && pendingShare.mimeType?.startsWith("image/") == true) {
+                AsyncImage(
+                    model = pendingShare.fileUri,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
-
-                if (pendingShare.text != null) {
-                    Text(
-                        text = pendingShare.text,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFont),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Type badge
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = getTypeColor(pendingShare.detectedType).copy(alpha = 0.2f)
-                    ) {
-                        Text(
-                            text = pendingShare.detectedType.name.lowercase().replace("_", " "),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = getTypeColor(pendingShare.detectedType),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-
-                    // File size
-                    if (pendingShare.fileSize != null && pendingShare.fileSize > 0) {
-                        Text(
-                            text = formatFileSize(pendingShare.fileSize),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            } else {
+                Icon(
+                    imageVector = getTypeIcon(pendingShare.detectedType),
+                    contentDescription = null,
+                    tint = getTypeColor(pendingShare.detectedType),
+                    modifier = Modifier.size(20.dp) // Smaller icon (was 24dp)
+                )
             }
         }
-    }
-}
 
-/**
- * Chip showing a related note
- */
-@Composable
-private fun RelatedNoteChip(note: Note) {
-    Surface(
-        modifier = Modifier.width(150.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp)
-        ) {
+        // Info
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = note.title,
-                style = MaterialTheme.typography.labelMedium,
+                text = pendingShare.fileName ?: getTypeName(pendingShare.detectedType),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = note.summary ?: note.content,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = pendingShare.detectedType.name.lowercase().replace("_", " ").replaceFirstChar { it.uppercase() },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (pendingShare.fileSize != null && pendingShare.fileSize > 0) {
+                    Text(
+                        text = "• ${formatFileSize(pendingShare.fileSize)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

@@ -24,6 +24,16 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.shadow
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.getTodos
@@ -241,35 +251,110 @@ fun NoteTodoSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Action buttons
+            // Action buttons with Premium Feel
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 24.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(ComponentSpacing.buttonCornerRadius)
+                // Interactive States
+                var isDiscardPressed by remember { mutableStateOf(false) }
+                var isSavePressed by remember { mutableStateOf(false) }
+
+                val discardScale by animateFloatAsState(
+                    targetValue = if (isDiscardPressed) 0.95f else 1f,
+                    animationSpec = spring(stiffness = 400f, dampingRatio = 0.6f),
+                    label = "discardScale"
+                )
+
+                val saveScale by animateFloatAsState(
+                    targetValue = if (isSavePressed) 0.95f else 1f,
+                    animationSpec = spring(stiffness = 400f, dampingRatio = 0.6f),
+                    label = "saveScale"
+                )
+
+                // Discard Button (Minimalist Tonal)
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .scale(discardScale)
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    isDiscardPressed = true
+                                    tryAwaitRelease()
+                                    isDiscardPressed = false
+                                },
+                                onTap = { onDismiss() }
+                            )
+                        },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
                 ) {
-                    Text("Cancel")
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Text(
+                            text = "Discard",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Button(
-                    onClick = { onSaveTodos(todos) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(ComponentSpacing.buttonCornerRadius),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LocalAccentColor.current,
-                        contentColor = MaterialTheme.colorScheme.surface
-                    )
+                // Save Button (Vibrant & Bold)
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .scale(saveScale)
+                        .shadow(
+                            elevation = 12.dp,
+                            shape = CircleShape,
+                            spotColor = LocalAccentColor.current.copy(alpha = 0.5f),
+                            ambientColor = LocalAccentColor.current.copy(alpha = 0.3f)
+                        )
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    isSavePressed = true
+                                    tryAwaitRelease()
+                                    isSavePressed = false
+                                },
+                                onTap = { onSaveTodos(todos) }
+                            )
+                        },
+                    shape = CircleShape,
+                    color = LocalAccentColor.current
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Save,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save")
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Save Changes",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = Color.White
+                        )
+                    }
                 }
             }
         }

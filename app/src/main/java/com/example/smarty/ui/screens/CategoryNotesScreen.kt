@@ -36,6 +36,7 @@ fun CategoryNotesScreen(
     onBackClick: () -> Unit,
     onNoteClick: (Note) -> Unit,
     onArchiveNote: (String) -> Unit,
+    bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -119,7 +120,7 @@ fun CategoryNotesScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + bottomContentPadding),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(

@@ -1,0 +1,514 @@
+package com.example.smarty.ui.components.viewers
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
+import android.net.Uri
+import android.os.ParcelFileDescriptor
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.NavigateBefore
+import androidx.compose.material.icons.automirrored.filled.NavigateNext
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+
+/**
+ * Full-screen document viewer supporting PDFs and text files.
+ *
+ * OPTIMIZATION: Completely dormant until shown.
+ * - PdfRenderer only created when Dialog opens
+ * - Bitmap recycled immediately on dismiss
+ * - No background threads when not visible
+ * - Lazy page rendering (only current page)
+ * - Minimal memory footprint
+ *
+ * Features:
+ * - PDF viewing with page navigation
+ * - Text file viewing
+ */
+@Composable
+fun FullScreenDocumentViewer(
+    documentUri: String,
+    mimeType: String?,
+    fileName: String?,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
+    ) {
+        when {
+            mimeType?.contains("pdf") == true -> {
+                PdfViewerContent(
+                    documentUri = documentUri,
+                    fileName = fileName,
+                    onDismiss = onDismiss
+                )
+            }
+            mimeType?.startsWith("text/") == true -> {
+                TextViewerContent(
+                    documentUri = documentUri,
+                    fileName = fileName,
+                    onDismiss = onDismiss
+                )
+            }
+            else -> {
+                UnsupportedDocumentContent(
+                    fileName = fileName,
+                    mimeType = mimeType,
+                    onDismiss = onDismiss
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PdfViewerContent(
+    documentUri: String,
+    fileName: String?,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    // State - only exists while viewer is open
+    var pdfRenderer by mutableStateOf<PdfRenderer?>(null)
+    var currentPage by rememberSaveable { mutableIntStateOf(0) }
+    var totalPages by mutableStateOf(0)
+    var pageBitmap by mutableStateOf<Bitmap?>(null)
+    var isLoading by mutableStateOf(true)
+    var errorMessage by mutableStateOf<String?>(null)
+
+    // Initialize PDF renderer - only when composable is active
+    LaunchedEffect(documentUri) {
+        withContext(Dispatchers.IO) {
+            try {
+                val fileDescriptor = getFileDescriptor(context, documentUri)
+                if (fileDescriptor != null) {
+                    val renderer = PdfRenderer(fileDescriptor)
+                    pdfRenderer = renderer
+                    totalPages = renderer.pageCount
+                    isLoading = false
+                } else {
+                    errorMessage = "Could not open PDF file"
+                    isLoading = false
+                }
+            } catch (e: Exception) {
+                errorMessage = "Error opening PDF: ${e.message}"
+                isLoading = false
+            }
+        }
+    }
+
+    // Render current page - lazy, only when needed
+    LaunchedEffect(currentPage, pdfRenderer) {
+        pdfRenderer?.let { renderer ->
+            withContext(Dispatchers.IO) {
+                try {
+                    if (currentPage < renderer.pageCount) {
+                        // Recycle previous bitmap to free memory
+                        pageBitmap?.recycle()
+
+                        val page = renderer.openPage(currentPage)
+                        // Use 2x scale for readability, but not excessive
+                        val bitmap = Bitmap.createBitmap(
+                            page.width * 2,
+                            page.height * 2,
+                            Bitmap.Config.ARGB_8888
+                        )
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        page.close()
+                        pageBitmap = bitmap
+                    }
+                } catch (e: Exception) {
+                    errorMessage = "Error rendering page: ${e.message}"
+                }
+            }
+        }
+    }
+
+    // Cleanup - release all resources immediately
+    DisposableEffect(Unit) {
+        onDispose {
+            pageBitmap?.recycle()
+            pageBitmap = null
+            pdfRenderer?.close()
+            pdfRenderer = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.DarkGray)
+    ) {
+        when {
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = Color.White
+                )
+            }
+            errorMessage != null -> {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = errorMessage ?: "Unknown error",
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            pageBitmap != null -> {
+                Image(
+                    bitmap = pageBitmap!!.asImageBitmap(),
+                    contentDescription = "PDF page ${currentPage + 1}",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 56.dp, bottom = 80.dp)
+                )
+            }
+        }
+
+        // Header - static
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter),
+            color = Color.Black.copy(alpha = 0.7f)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = Color.White
+                    )
+                }
+
+                Text(
+                    text = fileName ?: "PDF Document",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.width(48.dp))
+            }
+        }
+
+        // Page navigation - static controls
+        if (totalPages > 1) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter),
+                color = Color.Black.copy(alpha = 0.7f)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { if (currentPage > 0) currentPage-- },
+                        enabled = currentPage > 0
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
+                            contentDescription = "Previous page",
+                            tint = if (currentPage > 0) Color.White else Color.Gray
+                        )
+                    }
+
+                    Text(
+                        text = "${currentPage + 1} / $totalPages",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+
+                    IconButton(
+                        onClick = { if (currentPage < totalPages - 1) currentPage++ },
+                        enabled = currentPage < totalPages - 1
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                            contentDescription = "Next page",
+                            tint = if (currentPage < totalPages - 1) Color.White else Color.Gray
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TextViewerContent(
+    documentUri: String,
+    fileName: String?,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var textContent by mutableStateOf<String?>(null)
+    var isLoading by mutableStateOf(true)
+    var errorMessage by mutableStateOf<String?>(null)
+
+    // Load text only when composable is active
+    LaunchedEffect(documentUri) {
+        withContext(Dispatchers.IO) {
+            try {
+                val uri = Uri.parse(documentUri)
+                val inputStream = context.contentResolver.openInputStream(uri)
+                textContent = inputStream?.bufferedReader()?.readText()
+                inputStream?.close()
+                isLoading = false
+            } catch (e: Exception) {
+                errorMessage = "Error reading file: ${e.message}"
+                isLoading = false
+            }
+        }
+    }
+
+    // Cleanup
+    DisposableEffect(Unit) {
+        onDispose {
+            textContent = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Header
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 4.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close"
+                    )
+                }
+
+                Text(
+                    text = fileName ?: "Text Document",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.width(48.dp))
+            }
+        }
+
+        when {
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            errorMessage != null -> {
+                Text(
+                    text = errorMessage ?: "Unknown error",
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(32.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+            textContent != null -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 64.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = textContent ?: "",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnsupportedDocumentContent(
+    fileName: String?,
+    mimeType: String?,
+    onDismiss: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Close button
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close"
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Description,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = fileName ?: "Document",
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "This document type cannot be previewed",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+
+            if (mimeType != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Type: $mimeType",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Gets a ParcelFileDescriptor for the given URI.
+ */
+private fun getFileDescriptor(context: Context, uriString: String): ParcelFileDescriptor? {
+    return try {
+        val uri = Uri.parse(uriString)
+        when (uri.scheme) {
+            "content" -> {
+                context.contentResolver.openFileDescriptor(uri, "r")
+            }
+            "file" -> {
+                val file = File(uri.path ?: return null)
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            }
+            else -> {
+                if (uriString.startsWith("/")) {
+                    val file = File(uriString)
+                    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                } else {
+                    context.contentResolver.openFileDescriptor(uri, "r")
+                }
+            }
+        }
+    } catch (e: Exception) {
+        null
+    }
+}

@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="shared_qr" path="shared_qr/" />
+    <!-- Cache for decompressed files -->
+    <cache-path name="decompression_cache" path="decompression_cache/" />
+    <!-- Internal storage directories for copied attachments -->
+    <files-path name="attachments" path="attachments/" />
+    <files-path name="images" path="images/" />
+    <files-path name="audio" path="audio/" />
+    <files-path name="video" path="video/" />
+    <files-path name="documents" path="documents/" />
+    <!-- Local backup files for sharing -->
+    <files-path name="local_backups" path="local_backups/" />
+    <!-- External storage paths for viewing files -->
+    <external-path name="external_files" path="." />
+    <external-files-path name="external_app_files" path="." />
+    <external-cache-path name="external_cache" path="." />
+    <!-- Root path for all files (fallback) -->
+    <root-path name="root" path="." />
 </paths>

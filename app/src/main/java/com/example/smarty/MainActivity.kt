@@ -14,7 +14,9 @@ import androidx.activity.viewModels
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -26,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.smarty.navigation.CogniNavHost
@@ -36,6 +39,7 @@ import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.viewmodel.AudioPlayerViewModel
 import com.example.smarty.viewmodel.CogniViewModel
 import com.example.smarty.viewmodel.SharedContent
+import com.example.smarty.viewmodel.SharedFileInfo
 import com.example.smarty.ui.screens.StartupScreen
 
 class MainActivity : ComponentActivity() {
@@ -56,6 +60,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Hide standard status bar to replace with Dynamic Island
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+            systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
 
         // Request all necessary permissions
         requestRequiredPermissions()
@@ -66,6 +76,9 @@ class MainActivity : ComponentActivity() {
         // Schedule periodic cache cleanup
         CacheCleanupWorker.schedule(this)
 
+        // Detect if launched via share intent - skip splash animation
+        val isShareIntent = intent?.action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)
+
         // Handle share intent on launch
         handleIntent(intent)
 
@@ -74,8 +87,8 @@ class MainActivity : ComponentActivity() {
             val isDarkThemeTop by viewModel.isDarkTheme.collectAsState()
 
             CogniTheme(darkTheme = isDarkThemeTop) {
-                // Splash Screen State
-                var showSplash by remember { mutableStateOf(true) }
+                // Splash Screen State - Skip for share intents
+                var showSplash by remember { mutableStateOf(!isShareIntent) }
 
                 val navController = rememberNavController()
                 val notes by viewModel.notes.collectAsState()
@@ -259,12 +272,17 @@ class MainActivity : ComponentActivity() {
                                         viewModel.clearCache()
                                     },
                                     isClearingCache = isClearingCache,
+                                    bottomContentPadding = androidx.compose.animation.core.animateDpAsState(
+                                        targetValue = if (isMiniPlayerVisible && !isFullPlayerVisible && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) == 0) 84.dp else 0.dp,
+                                        label = "PlayerPadding"
+                                    ).value,
                                     modifier = Modifier.fillMaxSize()
                                 )
 
-                                // Mini Audio Player overlay at bottom
+                                // Mini Audio Player overlay at bottom (Hide when keyboard is open)
+                                val isKeyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
                                 AnimatedMiniPlayer(
-                                    visible = isMiniPlayerVisible && !isFullPlayerVisible,
+                                    visible = isMiniPlayerVisible && !isFullPlayerVisible && !isKeyboardOpen,
                                     state = audioUiState,
                                     onPlayPauseClick = { audioPlayerViewModel.togglePlayPause() },
                                     onExpandClick = { audioPlayerViewModel.expandToFullPlayer() },
@@ -346,6 +364,30 @@ class MainActivity : ComponentActivity() {
                                 )
                             )
                         }
+                    }
+                }
+            }
+            // Handle multiple files shared at once
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val mimeType = intent.type
+                val uriList: ArrayList<Uri>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                }
+
+                uriList?.let { uris ->
+                    if (uris.isNotEmpty()) {
+                        val files = uris.map { uri ->
+                            SharedFileInfo(
+                                fileUri = uri.toString(),
+                                fileName = getFileName(uri),
+                                mimeType = contentResolver.getType(uri) ?: mimeType,
+                                fileSize = getFileSize(uri)
+                            )
+                        }
+                        viewModel.interceptShareForPreview(SharedContent(files = files))
                     }
                 }
             }

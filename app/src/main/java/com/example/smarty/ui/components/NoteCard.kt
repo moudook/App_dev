@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
+import com.example.smarty.data.model.getAttachmentCount
+import com.example.smarty.data.model.getAttachments
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.animateCardTilt
@@ -44,6 +46,7 @@ import com.example.smarty.ui.animation.cardTilt3D
 import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.util.ContentTypeDetector
+import com.example.smarty.ui.animation.shimmerEffect
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -110,14 +113,14 @@ fun NoteCard(
             swipeOffset.value < -swipeThreshold * 0.5f -> LocalAccentColor.current.copy(alpha = 0.5f)
             else -> Color.Transparent // Clean look by default
         },
-        animationSpec = tween(200),
+        animationSpec = tween(160),
         label = "border"
     )
 
     // Swipe indicator alpha
     val swipeAlpha by animateFloatAsState(
         targetValue = (abs(swipeOffset.value) / swipeThreshold).coerceIn(0f, 1f),
-        animationSpec = tween(100),
+        animationSpec = tween(80),
         label = "swipeAlpha"
     )
 
@@ -190,18 +193,18 @@ fun NoteCard(
                     if (!isSelectionMode) {
                         detectHorizontalDragGestures(
                             onDragEnd = {
-                                coroutineScope.launch {
-                                    if (swipeOffset.value > swipeThreshold) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        swipeOffset.animateTo(0f, snapBackSpec)
-                                        if (isArchiveView) onDelete() else onArchive?.invoke()
-                                    } else if (swipeOffset.value < -swipeThreshold) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        swipeOffset.animateTo(0f, snapBackSpec)
-                                        if (isArchiveView) onUnarchive?.invoke() else onOpenTodo()
-                                    } else {
-                                        swipeOffset.animateTo(0f, snapBackSpec)
-                                    }
+                                if (swipeOffset.value > swipeThreshold) {
+                                    // INSTANT: Call action FIRST, then animate
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (isArchiveView) onDelete() else onArchive?.invoke()
+                                    coroutineScope.launch { swipeOffset.snapTo(0f) }
+                                } else if (swipeOffset.value < -swipeThreshold) {
+                                    // INSTANT: Call action FIRST, then animate
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (isArchiveView) onUnarchive?.invoke() else onOpenTodo()
+                                    coroutineScope.launch { swipeOffset.snapTo(0f) }
+                                } else {
+                                    coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
                                 }
                             },
                             onDragCancel = {
@@ -225,118 +228,168 @@ fun NoteCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(ComponentSpacing.cardPadding) // 24dp for airy feel
+                    .height(140.dp) // Fixed height for uniformity
+                    .padding(ComponentSpacing.cardPadding), // 24dp for airy feel
+                verticalArrangement = Arrangement.SpaceBetween // Distribute content
             ) {
-                // Header: Title + Category + Indicators combined
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    // Left: Title and Icon
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                if (note.processingStatus == ProcessingStatus.PROCESSING) {
+                    // Shimmering Skeleton Loader (YouTube Style)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Type Icon (Subtler)
-                        val iconTint = getNoteTypeColor(note.type)
-                        Icon(
-                            imageVector = getNoteTypeIcon(note.type),
-                            contentDescription = null,
-                            tint = iconTint,
+                        // Title skeleton
+                        Box(
                             modifier = Modifier
-                                .size(20.dp)
-                                .offset(y = 2.dp) // Optical alignment with text
+                                .fillMaxWidth(0.6f)
+                                .height(20.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                                .shimmerEffect()
                         )
-
-                        Column {
-                            // Title
-                            Text(
-                                text = note.title,
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = (-0.5).sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // Body skeleton - Line 1
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                                .shimmerEffect()
+                        )
+                        
+                        // Body skeleton - Line 2
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.75f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                                .shimmerEffect()
+                        )
+                    }
+                } else {
+                    // Standard Content
+                    // Header: Title + Category + Indicators combined
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        // Left: Title and Icon
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Type Icon (Subtler)
+                            val iconTint = getNoteTypeColor(note.type)
+                            Icon(
+                                imageVector = getNoteTypeIcon(note.type),
+                                contentDescription = null,
+                                tint = iconTint,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .offset(y = 2.dp) // Optical alignment with text
                             )
 
-                            // Status / Privacy Indicators (Inline with title area)
-                            if (note.processingStatus == ProcessingStatus.PROCESSING || note.isFullPrivacy || note.excludeFromAiChat) {
-                                Row(
-                                    modifier = Modifier.padding(top = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (note.processingStatus == ProcessingStatus.PROCESSING) {
-                                        ProcessingIndicator(modifier = Modifier.size(12.dp))
-                                        Text(
-                                            text = "Processing",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.secondary
-                                        )
-                                    }
-                                    if (note.isFullPrivacy) {
-                                        Icon(
-                                            imageVector = Icons.Default.Security,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.secondary,
-                                            modifier = Modifier.size(12.dp)
-                                        )
+                            Column {
+                                // Title
+                                Text(
+                                    text = note.title,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = (-0.5).sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1, 
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                // Privacy Indicators
+                                if (note.isFullPrivacy || note.excludeFromAiChat) {
+                                    Row(
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (note.isFullPrivacy) {
+                                            Icon(
+                                                imageVector = Icons.Default.Security,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.secondary,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
+
+                        // Right: Timestamp or Category (Minimal pill)
+                        note.categoryName?.let { category ->
+                            CategoryChip(
+                                name = category,
+                                isNew = note.processingStatus == ProcessingStatus.COMPLETED
+                            )
+                        }
                     }
 
-                    // Right: Timestamp or Category (Minimal pill)
-                    note.categoryName?.let { category ->
-                        CategoryChip(
-                            name = category,
-                            isNew = note.processingStatus == ProcessingStatus.COMPLETED
+                    // Body Content
+                    val displayText = note.summary ?: note.content
+                    // Only show body if we have content AND title isn't taking up everything
+                    // Or if title is empty/default
+                    if (displayText.isNotBlank()) {
+                        Text(
+                            text = displayText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                lineHeight = 22.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2, // Limit to 2 lines for compact fixed height
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 30.dp)
                         )
                     }
-                }
 
-                // Body Content
-                val displayText = note.summary ?: note.content
-                if (displayText.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = displayText,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            lineHeight = 22.sp
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 30.dp) // Indent to align with text above
-                    )
-                }
+                    // File Attachment Indicator
+                    val attachmentCount = note.getAttachmentCount()
+                    val hasAttachment = attachmentCount > 0 ||
+                        note.imageUri != null ||
+                        (note.fileUri != null && note.type != NoteType.AUDIO)
 
-                // YouTube Button - Check if note contains a YouTube video ID
-                val youtubeId = remember(note) {
-                    note.sourceUrl?.let { ContentTypeDetector.extractYouTubeId(it) }
-                        ?: ContentTypeDetector.extractYouTubeId(note.content)
-                        ?: note.summary?.let { ContentTypeDetector.extractYouTubeId(it) }
-                }
-
-                if (youtubeId != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Box(modifier = Modifier.padding(start = 30.dp)) {
-                        YouTubePlayButton(
-                            onClick = {
-                                // Open YouTube app or website directly
-                                val youtubeUrl = "https://www.youtube.com/watch?v=$youtubeId"
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl))
-                                context.startActivity(intent)
-                            },
-                            isCompact = true
+                    if (hasAttachment) {
+                        // Spacer(modifier = Modifier.height(12.dp)) // Managed by SpaceBetween
+                        NoteAttachmentIndicator(
+                            note = note,
+                            attachmentCount = attachmentCount,
+                            modifier = Modifier.padding(start = 30.dp)
                         )
+                    }
+
+                    // YouTube Button
+                    val youtubeId = remember(note) {
+                        note.sourceUrl?.let { ContentTypeDetector.extractYouTubeId(it) }
+                            ?: ContentTypeDetector.extractYouTubeId(note.content)
+                            ?: note.summary?.let { ContentTypeDetector.extractYouTubeId(it) }
+                    }
+
+                    if (youtubeId != null) {
+                         Box(modifier = Modifier.padding(start = 30.dp)) {
+                            YouTubePlayButton(
+                                onClick = {
+                                    val youtubeUrl = "https://www.youtube.com/watch?v=$youtubeId"
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl))
+                                    context.startActivity(intent)
+                                },
+                                isCompact = true
+                            )
+                        }
                     }
                 }
             }
+
         }
     }
 }
@@ -379,7 +432,7 @@ private fun ProcessingIndicator(modifier: Modifier = Modifier) {
         initialValue = 0.3f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = LinearEasing),
+            animation = tween(640, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "processingAlpha"
@@ -390,4 +443,120 @@ private fun ProcessingIndicator(modifier: Modifier = Modifier) {
             .clip(CircleShape)
             .background(LocalAccentColor.current.copy(alpha = alpha))
     )
+}
+
+/**
+ * Attachment indicator showing file type icon with badge number
+ * Compact design: icon with count badge overlay (e.g., "3" or "9+")
+ * Single file: icon only, no badge
+ */
+@Composable
+private fun NoteAttachmentIndicator(
+    note: Note,
+    attachmentCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val attachments = note.getAttachments()
+
+    // Determine icon and color based on file type
+    val (icon, iconColor) = when {
+        attachmentCount > 1 -> {
+            // Multiple files - determine type from attachments or note type
+            val mimeTypes = attachments.map { it.mimeType }
+            val allImages = mimeTypes.all { it.startsWith("image/") }
+            val allVideos = mimeTypes.all { it.startsWith("video/") }
+            val allAudio = mimeTypes.all { it.startsWith("audio/") }
+
+            when {
+                allImages || note.type == NoteType.IMAGE -> Icons.Default.Photo to ImageTeal
+                allVideos || note.type == NoteType.VIDEO -> Icons.Default.Videocam to VideoRed
+                allAudio -> Icons.Default.MusicNote to AudioPink
+                else -> Icons.Default.AttachFile to FileGray
+            }
+        }
+        else -> {
+            // Single file - determine icon by type
+            val mimeType = note.fileMimeType ?: attachments.firstOrNull()?.mimeType
+            val noteType = note.type
+
+            when {
+                noteType == NoteType.IMAGE || mimeType?.startsWith("image/") == true ->
+                    Icons.Default.Photo to ImageTeal
+                noteType == NoteType.VIDEO || mimeType?.startsWith("video/") == true ->
+                    Icons.Default.Videocam to VideoRed
+                mimeType?.contains("pdf") == true ->
+                    Icons.AutoMirrored.Filled.Article to DocumentBlue
+                mimeType?.contains("document") == true || mimeType?.contains("word") == true ->
+                    Icons.AutoMirrored.Filled.Article to DocumentBlue
+                mimeType?.contains("sheet") == true || mimeType?.contains("excel") == true ->
+                    Icons.Default.TableChart to SpreadsheetGreen
+                mimeType?.contains("presentation") == true || mimeType?.contains("powerpoint") == true ->
+                    Icons.Default.Slideshow to PresentationOrange
+                mimeType?.contains("zip") == true || mimeType?.contains("rar") == true || mimeType?.contains("tar") == true ->
+                    Icons.Default.FolderZip to ArchiveYellow
+                mimeType == "application/vnd.android.package-archive" ->
+                    Icons.Default.Android to ApkGreen
+                else -> Icons.Default.AttachFile to FileGray
+            }
+        }
+    }
+
+    Box(modifier = modifier) {
+        // File type icon in rounded square
+        Surface(
+            modifier = Modifier.size(36.dp),
+            shape = RoundedCornerShape(10.dp),
+            color = iconColor.copy(alpha = 0.12f)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = if (attachmentCount > 1) "$attachmentCount files" else "File",
+                    tint = iconColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // Badge for count > 1
+        if (attachmentCount > 1) {
+            Surface(
+                modifier = Modifier
+                    .size(20.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 6.dp, y = (-6).dp),
+                shape = CircleShape,
+                color = iconColor
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Text(
+                        text = if (attachmentCount > 9) "9+" else attachmentCount.toString(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Format file size in a compact way
+ */
+private fun formatFileSizeCompact(bytes: Long): String {
+    return when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+        bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+        else -> String.format("%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
+    }
 }

@@ -34,3 +34,27 @@ docs/UI_QUICK_REFERENCE.md
 nul
 NUL
 *.pdf
+
+# Reference/Notes
+REFERENCE.md
+NOTES.md
+TODO.md
+*.notes
+*.reference
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# IDE specific
+.idea/
+*.ipr
+*.iws
+
+# Build outputs
+app/release/
+app/debug/
+*.apk
+*.aab

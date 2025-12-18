@@ -16,7 +16,8 @@ data class AudioTrack(
     val fileName: String? = null,
     val duration: Long = 0L,  // Duration in milliseconds
     val sourceNoteId: String? = null,  // If from a Note
-    val sourceAttachmentId: String? = null  // If from an Attachment
+    val sourceAttachmentId: String? = null,  // If from an Attachment
+    val mimeType: String? = null
 ) : Parcelable
 
 /**
@@ -54,7 +55,12 @@ data class AudioPlayerUiState(
     val currentPositionFormatted: String = "0:00",
     val durationFormatted: String = "0:00",
     val waveformData: List<Float> = emptyList(),
-    val playbackState: PlaybackState = PlaybackState.IDLE
+    val playbackState: PlaybackState = PlaybackState.IDLE,
+    val currentAmplitude: Float = 0f,  // Real-time audio amplitude (0-1)
+    // Frequency band amplitudes for multi-band visualization
+    val bassAmplitude: Float = 0f,     // 20-250 Hz - Deep, punchy movements
+    val midAmplitude: Float = 0f,      // 250-2000 Hz - Melody, vocals
+    val trebleAmplitude: Float = 0f    // 2000-20000 Hz - Highs, sparkles
 ) {
     val hasTrack: Boolean get() = currentTrack != null
 }

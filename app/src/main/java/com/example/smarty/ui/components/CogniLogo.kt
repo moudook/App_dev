@@ -4,6 +4,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -178,6 +179,158 @@ fun CogniLogo(
 }
 
 /**
+ * Shimmer effect modifier for loading states.
+ * Use this to show decompression/loading progress on any composable.
+ */
+@Composable
+fun ShimmerBox(
+    modifier: Modifier = Modifier,
+    isLoading: Boolean = true,
+    content: @Composable BoxScope.() -> Unit
+) {
+    val accentColor = LocalAccentColor.current
+
+    // Shimmer animation
+    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+    val shimmerOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerOffset"
+    )
+
+    Box(modifier = modifier) {
+        content()
+
+        // Shimmer overlay when loading
+        if (isLoading) {
+            val shimmerWidth = 300f
+            val shimmerStartX = (shimmerOffset * (shimmerWidth * 3)) - shimmerWidth
+
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                accentColor.copy(alpha = 0.15f),
+                                Color.White.copy(alpha = 0.25f),
+                                accentColor.copy(alpha = 0.15f),
+                                Color.Transparent
+                            ),
+                            start = Offset(shimmerStartX, 0f),
+                            end = Offset(shimmerStartX + shimmerWidth, shimmerWidth * 0.5f)
+                        )
+                    )
+            )
+        }
+    }
+}
+
+/**
+ * Shimmer placeholder for content that's being decompressed/loaded.
+ * Shows a pulsing placeholder with shimmer effect.
+ */
+@Composable
+fun DecompressionPlaceholder(
+    modifier: Modifier = Modifier,
+    aspectRatio: Float = 16f / 9f
+) {
+    val accentColor = LocalAccentColor.current
+
+    // Pulse animation
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
+    val shimmerOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerOffset"
+    )
+
+    Box(
+        modifier = modifier
+            .aspectRatio(aspectRatio)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)),
+        contentAlignment = Alignment.Center
+    ) {
+        // Shimmer sweep
+        val shimmerWidth = 300f
+        val shimmerStartX = (shimmerOffset * (shimmerWidth * 3)) - shimmerWidth
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            accentColor.copy(alpha = 0.1f),
+                            Color.White.copy(alpha = 0.2f),
+                            accentColor.copy(alpha = 0.1f),
+                            Color.Transparent
+                        ),
+                        start = Offset(shimmerStartX, 0f),
+                        end = Offset(shimmerStartX + shimmerWidth, shimmerWidth * 0.5f)
+                    )
+                )
+        )
+
+        // Loading indicator
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Animated dots
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                repeat(3) { index ->
+                    val dotAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.3f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(600, delayMillis = index * 200, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "dot$index"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(accentColor.copy(alpha = dotAlpha))
+                    )
+                }
+            }
+
+            Text(
+                text = "Decompressing...",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+/**
  * Compact header with logo + text for main screen
  */
 @Composable
@@ -192,7 +345,7 @@ fun CogniHeader(
     ) {
         CogniLogo(
             size = 28.dp,
-            showShimmer = showShimmer
+            showShimmer = false // Disabled per user request
         )
 
         Text(

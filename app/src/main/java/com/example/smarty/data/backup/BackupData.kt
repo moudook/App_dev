@@ -348,3 +348,34 @@ data class AutoBackupConfig(
         val INTERVAL_OPTIONS = listOf(30, 60, 100, 180, 365)
     }
 }
+
+/**
+ * Metadata about a local backup file stored on device.
+ * Used for listing, sharing, and deleting local backups.
+ */
+data class LocalBackupMetadata(
+    val fileName: String,
+    val filePath: String,
+    val createdAt: Long,
+    val fileSize: Long,
+    val noteCount: Int,
+    val categoryCount: Int,
+    val attachmentCount: Int,
+    val deviceName: String,
+    val appVersion: String
+) {
+    val displayDate: String
+        get() {
+            val sdf = java.text.SimpleDateFormat("MMM dd, yyyy HH:mm", java.util.Locale.getDefault())
+            return sdf.format(java.util.Date(createdAt))
+        }
+
+    val displaySize: String
+        get() {
+            return when {
+                fileSize < 1024 -> "$fileSize B"
+                fileSize < 1024 * 1024 -> "${fileSize / 1024} KB"
+                else -> String.format("%.1f MB", fileSize / (1024.0 * 1024.0))
+            }
+        }
+}

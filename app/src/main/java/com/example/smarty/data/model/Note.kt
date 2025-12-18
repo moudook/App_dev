@@ -18,6 +18,18 @@ data class TodoItem(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+/**
+ * Attachment item stored as JSON within Note.attachmentsJson
+ * Supports multiple files per note
+ */
+data class NoteAttachment(
+    val id: String = UUID.randomUUID().toString(),
+    val uri: String,  // File URI as string
+    val fileName: String,
+    val mimeType: String,
+    val fileSize: Long = 0
+)
+
 enum class NoteType {
     BRAIN_DUMP,
     YOUTUBE,
@@ -85,7 +97,8 @@ data class Note(
     val isArchived: Boolean = false,
     val todoContent: String? = null,  // JSON string of List<TodoItem>
     val excludeFromAiChat: Boolean = false,  // Exclude this note from AI chat context
-    val isFullPrivacy: Boolean = false  // Full privacy mode - no AI processing at all
+    val isFullPrivacy: Boolean = false,  // Full privacy mode - no AI processing at all
+    val attachmentsJson: String? = null  // JSON string of List<NoteAttachment> for multiple files
 ) {
     companion object {
         @Ignore
@@ -97,6 +110,7 @@ data class Note(
 private object GsonHolder {
     val instance: Gson = Gson()
     val todoListType = object : TypeToken<List<TodoItem>>() {}.type!!
+    val attachmentListType = object : TypeToken<List<NoteAttachment>>() {}.type!!
 }
 
 /**
@@ -120,4 +134,48 @@ fun Note.withTodos(todos: List<TodoItem>): Note {
         todoContent = json,
         updatedAt = System.currentTimeMillis()
     )
+}
+
+/**
+ * Extension function to parse attachments from JSON
+ */
+fun Note.getAttachments(): List<NoteAttachment> {
+    if (attachmentsJson.isNullOrBlank()) return emptyList()
+    return try {
+        GsonHolder.instance.fromJson(attachmentsJson, GsonHolder.attachmentListType) ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+}
+
+/**
+ * Extension function to create a new Note with updated attachments
+ */
+fun Note.withAttachments(attachments: List<NoteAttachment>): Note {
+    val json = if (attachments.isEmpty()) null else GsonHolder.instance.toJson(attachments)
+    return copy(
+        attachmentsJson = json,
+        updatedAt = System.currentTimeMillis()
+    )
+}
+
+/**
+ * Get total attachment count (including legacy single attachment)
+ */
+fun Note.getAttachmentCount(): Int {
+    val multipleAttachments = getAttachments().size
+    val legacySingle = if (imageUri != null || fileUri != null) 1 else 0
+    return if (multipleAttachments > 0) multipleAttachments else legacySingle
+}
+
+/**
+ * Get all attachment URIs (combines legacy single + multiple attachments)
+ */
+fun Note.getAllAttachmentUris(): List<String> {
+    val attachments = getAttachments()
+    if (attachments.isNotEmpty()) {
+        return attachments.map { it.uri }
+    }
+    // Fall back to legacy single attachment
+    return listOfNotNull(imageUri ?: fileUri)
 }

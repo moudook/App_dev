@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.smarty.data.backup.BackupManager
 import com.example.smarty.data.backup.BackupMetadata
 import com.example.smarty.data.backup.BackupOperationState
+import com.example.smarty.data.backup.LocalBackupManager
+import com.example.smarty.data.backup.LocalBackupMetadata
 import com.example.smarty.data.local.CogniDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.DriveService
@@ -20,11 +22,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel for managing Google Drive backup operations.
+ * ViewModel for managing backup operations (both Google Drive and local).
  *
  * Handles:
  * - Google Sign-In state
- * - Backup/restore operations
+ * - Cloud backup/restore operations (Google Drive)
+ * - Local backup operations (shareable ZIP files)
  * - Available backups listing
  * - Auto-backup scheduling
  */
@@ -42,6 +45,13 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         driveService = driveService
     )
 
+    // Local backup manager
+    private val localBackupManager = LocalBackupManager(
+        context = application,
+        database = database,
+        securePreferences = securePreferences
+    )
+
     // Auth state
     val isSignedIn: StateFlow<Boolean> = authManager.isSignedIn
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -55,13 +65,20 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
     val signedInPhotoUrl: String?
         get() = authManager.getSignedInPhotoUrl()
 
-    // Backup state
+    // Cloud backup state
     val backupState: StateFlow<BackupOperationState> = backupManager.backupState
     val restoreState: StateFlow<BackupOperationState> = backupManager.restoreState
 
-    // Available backups
+    // Local backup state
+    val localBackupState: StateFlow<BackupOperationState> = localBackupManager.localBackupState
+
+    // Available cloud backups
     private val _availableBackups = MutableStateFlow<List<BackupMetadata>>(emptyList())
     val availableBackups: StateFlow<List<BackupMetadata>> = _availableBackups.asStateFlow()
+
+    // Available local backups
+    private val _localBackups = MutableStateFlow<List<LocalBackupMetadata>>(emptyList())
+    val localBackups: StateFlow<List<LocalBackupMetadata>> = _localBackups.asStateFlow()
 
     // Loading state for backup list
     private val _isLoadingBackups = MutableStateFlow(false)
@@ -78,10 +95,12 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
     val autoBackupIntervalDays: StateFlow<Int> = _autoBackupIntervalDays.asStateFlow()
 
     init {
-        // Load backups if signed in
+        // Load cloud backups if signed in
         if (authManager.isSignedIn.value) {
             loadAvailableBackups()
         }
+        // Always load local backups
+        loadLocalBackups()
     }
 
     /**
@@ -207,5 +226,52 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun refreshLastBackupTime() {
         _lastBackupTime.value = securePreferences.getLastBackupTime()
+    }
+
+    // ==================== Local Backup Methods ====================
+
+    /**
+     * Create a local backup ZIP file.
+     */
+    fun createLocalBackup() {
+        viewModelScope.launch {
+            val result = localBackupManager.createLocalBackup()
+            if (result.isSuccess) {
+                loadLocalBackups()
+            }
+        }
+    }
+
+    /**
+     * Load available local backups.
+     */
+    fun loadLocalBackups() {
+        viewModelScope.launch {
+            _localBackups.value = localBackupManager.listLocalBackups()
+        }
+    }
+
+    /**
+     * Delete a local backup.
+     */
+    fun deleteLocalBackup(metadata: LocalBackupMetadata) {
+        viewModelScope.launch {
+            localBackupManager.deleteLocalBackup(metadata)
+            loadLocalBackups()
+        }
+    }
+
+    /**
+     * Get a share intent for a local backup.
+     */
+    fun getLocalBackupShareIntent(metadata: LocalBackupMetadata): Intent {
+        return localBackupManager.createShareIntent(metadata)
+    }
+
+    /**
+     * Reset local backup state to idle.
+     */
+    fun resetLocalBackupState() {
+        localBackupManager.resetLocalBackupState()
     }
 }

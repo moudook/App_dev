@@ -18,10 +18,12 @@ import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.getTodos
+import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AgentService
 import com.example.smarty.data.remote.AIService
@@ -30,6 +32,7 @@ import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.util.ContentTypeDetector
+import com.example.smarty.util.FileStorageHelper
 import com.example.smarty.util.PDFTextExtractor
 import com.example.smarty.util.PDFExtractionResult
 import com.example.smarty.util.PrivacyGuard
@@ -44,13 +47,36 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * Single file info for sharing
+ */
+data class SharedFileInfo(
+    val fileUri: String,
+    val fileName: String?,
+    val mimeType: String?,
+    val fileSize: Long?
+)
+
+/**
+ * Shared content that can include text or multiple files
+ */
 data class SharedContent(
     val text: String? = null,
-    val fileUri: String? = null,
+    val fileUri: String? = null,  // Legacy single file
     val fileName: String? = null,
     val mimeType: String? = null,
-    val fileSize: Long? = null
-)
+    val fileSize: Long? = null,
+    val files: List<SharedFileInfo> = emptyList()  // Multiple files
+) {
+    /** Get all files (combines legacy single + multiple) */
+    fun getAllFiles(): List<SharedFileInfo> {
+        if (files.isNotEmpty()) return files
+        if (fileUri != null) {
+            return listOf(SharedFileInfo(fileUri, fileName, mimeType, fileSize))
+        }
+        return emptyList()
+    }
+}
 
 class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -259,6 +285,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Add note with attachments from the input field
      * Handles both text content and file attachments
+     * Groups multiple attachments into a SINGLE note with attachmentsJson
      *
      * @param content Text content of the note
      * @param attachments List of file attachments
@@ -274,88 +301,64 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
             val aiExcluded = excludeFromAiChat
 
             when {
-                // Only attachments, no text
-                content.isBlank() && attachments.isNotEmpty() -> {
-                    // Create a note for each attachment
-                    attachments.forEach { attachment ->
-                        val type = detectTypeFromMime(attachment.mimeType)
-                        val shouldProcess = shouldAnalyze(type)
+                // Attachments present (with or without text) - create SINGLE grouped note
+                attachments.isNotEmpty() -> {
+                    // Copy all attachments to internal storage
+                    val processedAttachments = mutableListOf<NoteAttachment>()
+                    var primaryCopied: Attachment? = null
 
-                        val note = Note(
-                            title = attachment.fileName,
-                            content = buildAttachmentDescription(attachment),
-                            fileUri = attachment.uri.toString(),
-                            fileName = attachment.fileName,
-                            fileMimeType = attachment.mimeType,
-                            fileSize = attachment.fileSize,
-                            imageUri = if (type == NoteType.IMAGE) attachment.uri.toString() else null,
-                            type = type,
-                            processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
-                            excludeFromAiChat = aiExcluded
+                    attachments.forEachIndexed { index, attachment ->
+                        val copied = copyAttachmentToStorage(attachment)
+                        if (index == 0) primaryCopied = copied
+
+                        processedAttachments.add(
+                            NoteAttachment(
+                                uri = copied.uri.toString(),
+                                fileName = copied.fileName,
+                                mimeType = copied.mimeType,
+                                fileSize = copied.fileSize
+                            )
                         )
-                        repository.insertNote(note)
-
-                        if (shouldProcess) {
-                            simulateAiProcessing(note)
-                        } else {
-                            storeWithoutAnalysis(note)
-                        }
                     }
-                }
 
-                // Text with attachments - create primary note with first attachment
-                content.isNotBlank() && attachments.isNotEmpty() -> {
-                    val primaryAttachment = attachments.first()
-                    val type = detectTypeFromMime(primaryAttachment.mimeType)
+                    val primary = primaryCopied ?: return@launch
+                    val type = detectTypeFromMime(primary.mimeType)
                     val shouldProcess = shouldAnalyze(type)
 
-                    // Primary note with text and first attachment
-                    val primaryNote = Note(
-                        title = extractTitle(content, type),
-                        content = content,
-                        fileUri = primaryAttachment.uri.toString(),
-                        fileName = primaryAttachment.fileName,
-                        fileMimeType = primaryAttachment.mimeType,
-                        fileSize = primaryAttachment.fileSize,
-                        imageUri = if (type == NoteType.IMAGE) primaryAttachment.uri.toString() else null,
+                    // Generate appropriate title
+                    val title = when {
+                        content.isNotBlank() -> extractTitle(content, type)
+                        attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
+                        else -> primary.fileName
+                    }
+
+                    // Build content description for multiple attachments
+                    val noteContent = if (content.isNotBlank()) {
+                        content
+                    } else {
+                        buildMultipleAttachmentsDescription(processedAttachments)
+                    }
+
+                    // Create SINGLE note with all attachments
+                    val note = Note(
+                        title = title,
+                        content = noteContent,
+                        fileUri = primary.uri.toString(),
+                        fileName = primary.fileName,
+                        fileMimeType = primary.mimeType,
+                        fileSize = primary.fileSize,
+                        imageUri = if (type == NoteType.IMAGE) primary.uri.toString() else null,
                         type = type,
                         processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
                         excludeFromAiChat = aiExcluded
-                    )
-                    repository.insertNote(primaryNote)
+                    ).withAttachments(processedAttachments)
+
+                    repository.insertNote(note)
 
                     if (shouldProcess) {
-                        simulateAiProcessing(primaryNote)
+                        simulateAiProcessing(note)
                     } else {
-                        storeWithoutAnalysis(primaryNote)
-                    }
-
-                    // Additional attachments become separate notes
-                    if (attachments.size > 1) {
-                        attachments.drop(1).forEach { attachment ->
-                            val attachType = detectTypeFromMime(attachment.mimeType)
-                            val shouldProcessAttach = shouldAnalyze(attachType)
-
-                            val attachNote = Note(
-                                title = attachment.fileName,
-                                content = buildAttachmentDescription(attachment),
-                                fileUri = attachment.uri.toString(),
-                                fileName = attachment.fileName,
-                                fileMimeType = attachment.mimeType,
-                                fileSize = attachment.fileSize,
-                                imageUri = if (attachType == NoteType.IMAGE) attachment.uri.toString() else null,
-                                type = attachType,
-                                processingStatus = if (shouldProcessAttach) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
-                                excludeFromAiChat = aiExcluded
-                            )
-                            repository.insertNote(attachNote)
-
-                            if (shouldProcessAttach) {
-                                simulateAiProcessing(attachNote)
-                            } else {
-                                storeWithoutAnalysis(attachNote)
-                            }
-                        }
+                        storeWithoutAnalysis(note)
                     }
                 }
 
@@ -367,6 +370,75 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
             // Reset pending note state after submission
             resetPendingNoteState()
+        }
+    }
+
+    /**
+     * Get plural name for a note type (for titles like "3 Images")
+     */
+    private fun getTypePluralName(type: NoteType): String {
+        return when (type) {
+            NoteType.IMAGE -> "Images"
+            NoteType.VIDEO -> "Videos"
+            NoteType.AUDIO -> "Audio Files"
+            NoteType.DOCUMENT -> "Documents"
+            NoteType.SPREADSHEET -> "Spreadsheets"
+            NoteType.PRESENTATION -> "Presentations"
+            NoteType.CODE -> "Code Files"
+            NoteType.ARCHIVE -> "Archives"
+            NoteType.APK -> "APK Files"
+            else -> "Files"
+        }
+    }
+
+    /**
+     * Build description for multiple attachments
+     */
+    private fun buildMultipleAttachmentsDescription(attachments: List<NoteAttachment>): String {
+        val sb = StringBuilder()
+        sb.append("${attachments.size} files attached:\n\n")
+        attachments.forEachIndexed { index, attachment ->
+            sb.append("${index + 1}. ${attachment.fileName}")
+            if (attachment.fileSize > 0) {
+                sb.append(" (${formatFileSize(attachment.fileSize)})")
+            }
+            if (index < attachments.lastIndex) sb.append('\n')
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Compresses and stores an attachment to internal storage for persistence.
+     * Uses optimal compression based on file type.
+     * Returns the original attachment if compression fails.
+     */
+    private suspend fun copyAttachmentToStorage(attachment: Attachment): Attachment {
+        return try {
+            val compressed = FileStorageHelper.compressAndStore(
+                context = getApplication(),
+                sourceUri = attachment.uri,
+                mimeType = attachment.mimeType,
+                originalFileName = attachment.fileName
+            )
+            if (compressed != null) {
+                // Log compression savings
+                if (compressed.isCompressed) {
+                    Log.i(TAG, "Attachment compressed: ${attachment.fileName} saved ${formatSize(compressed.savedBytes)} " +
+                            "(${String.format("%.1f", compressed.compressionRatio)}% reduction)")
+                }
+                attachment.copy(
+                    uri = Uri.parse(compressed.uri),
+                    fileName = compressed.fileName,
+                    fileSize = compressed.compressedSize,
+                    mimeType = compressed.mimeType
+                )
+            } else {
+                Log.w(TAG, "File compression returned null, using original URI: ${attachment.uri}")
+                attachment
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to compress attachment: ${e.message}")
+            attachment // Return original on failure
         }
     }
 
@@ -484,13 +556,73 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         val isFullPrivacy = _pendingShareFullPrivacy.value
 
         viewModelScope.launch {
+            // Get all files to process (handles both single and multiple)
+            val allFiles = pending.getAllFiles()
+
+            // Process all files - compress and store each one
+            val processedAttachments = mutableListOf<NoteAttachment>()
+            var firstFileUri: String? = null
+            var firstFileName: String? = null
+            var firstMimeType: String? = null
+            var firstFileSize: Long? = null
+
+            allFiles.forEachIndexed { index, file ->
+                try {
+                    val compressed = FileStorageHelper.compressAndStore(
+                        context = getApplication(),
+                        sourceUri = Uri.parse(file.fileUri),
+                        mimeType = file.mimeType,
+                        originalFileName = file.fileName
+                    )
+
+                    val finalUri = compressed?.uri ?: file.fileUri
+                    val finalName = compressed?.fileName ?: file.fileName ?: "file_${index + 1}"
+                    val finalMime = compressed?.mimeType ?: file.mimeType ?: "application/octet-stream"
+                    val finalSize = compressed?.compressedSize ?: file.fileSize ?: 0
+
+                    // Add to attachments list
+                    processedAttachments.add(NoteAttachment(
+                        uri = finalUri,
+                        fileName = finalName,
+                        mimeType = finalMime,
+                        fileSize = finalSize
+                    ))
+
+                    // Store first file info for backward compatibility
+                    if (index == 0) {
+                        firstFileUri = finalUri
+                        firstFileName = finalName
+                        firstMimeType = finalMime
+                        firstFileSize = finalSize
+                    }
+
+                    // Log compression savings
+                    compressed?.let {
+                        if (it.isCompressed) {
+                            Log.i(TAG, "File compressed: ${it.fileName} saved ${formatSize(it.savedBytes)} " +
+                                    "(${String.format("%.1f", it.compressionRatio)}% reduction)")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to compress and store file: ${e.message}")
+                }
+            }
+
+            // Build content description
             val content = buildString {
                 pending.text?.let { append(it) }
-                if (pending.fileUri != null) {
+                if (processedAttachments.isNotEmpty()) {
                     if (isNotEmpty()) append("\n\n")
-                    append("File: ${pending.fileName ?: "Unknown"}")
-                    pending.mimeType?.let { append("\nType: $it") }
-                    pending.fileSize?.let { append("\nSize: ${formatSize(it)}") }
+                    if (processedAttachments.size == 1) {
+                        append("File: ${processedAttachments[0].fileName}")
+                        append("\nType: ${processedAttachments[0].mimeType}")
+                        append("\nSize: ${formatSize(processedAttachments[0].fileSize)}")
+                    } else {
+                        append("${processedAttachments.size} files attached:")
+                        processedAttachments.forEachIndexed { idx, att ->
+                            append("\n${idx + 1}. ${att.fileName}")
+                        }
+                    }
                 }
                 // Only add AI instructions if NOT in full privacy mode
                 if (aiInstructions.isNotBlank() && !isFullPrivacy) {
@@ -498,19 +630,32 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
 
+            // Generate title
+            val title = when {
+                processedAttachments.size > 1 -> "${processedAttachments.size} ${getTypeNamePlural(pending.detectedType)}"
+                firstFileName != null -> firstFileName
+                else -> generateTitle(pending.text ?: "", pending.detectedType)
+            }
+
+            // Serialize attachments to JSON
+            val attachmentsJson = if (processedAttachments.size > 1) {
+                com.google.gson.Gson().toJson(processedAttachments)
+            } else null
+
             val note = Note(
-                title = pending.fileName ?: generateTitle(pending.text ?: "", pending.detectedType),
+                title = title,
                 content = content,
-                fileUri = pending.fileUri,
-                fileName = pending.fileName,
-                fileMimeType = pending.mimeType,
-                fileSize = pending.fileSize,
-                imageUri = if (pending.detectedType == NoteType.IMAGE) pending.fileUri else null,
+                fileUri = firstFileUri,
+                fileName = firstFileName,
+                fileMimeType = firstMimeType,
+                fileSize = firstFileSize,
+                imageUri = if (pending.detectedType == NoteType.IMAGE) firstFileUri else null,
                 type = pending.detectedType,
                 categoryName = if (isFullPrivacy) "Private Notes" else selectedCategory,
                 processingStatus = if (isFullPrivacy || selectedCategory != null) ProcessingStatus.PENDING else ProcessingStatus.PROCESSING,
                 isFullPrivacy = isFullPrivacy,
-                excludeFromAiChat = isFullPrivacy  // Full privacy notes are also excluded from AI chat
+                excludeFromAiChat = isFullPrivacy,
+                attachmentsJson = attachmentsJson
             )
 
             repository.insertNote(note)
@@ -536,6 +681,16 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
             _pendingShare.value = null
             _isActiveShareMode.value = false
             _pendingShareFullPrivacy.value = false
+        }
+    }
+
+    private fun getTypeNamePlural(type: NoteType): String {
+        return when (type) {
+            NoteType.IMAGE -> "Images"
+            NoteType.VIDEO -> "Videos"
+            NoteType.AUDIO -> "Audio Files"
+            NoteType.DOCUMENT -> "Documents"
+            else -> "Files"
         }
     }
 

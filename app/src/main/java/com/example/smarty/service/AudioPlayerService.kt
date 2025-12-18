@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.media.audiofx.Visualizer
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -56,6 +57,23 @@ class AudioPlayerService : MediaSessionService() {
         // Singleton state flow accessible from ViewModel
         private val _playerState = MutableStateFlow(AudioPlayerState())
         val playerState: StateFlow<AudioPlayerState> = _playerState.asStateFlow()
+
+        // Real-time audio amplitude (0-1 normalized)
+        private val _currentAmplitude = MutableStateFlow(0f)
+        val currentAmplitude: StateFlow<Float> = _currentAmplitude.asStateFlow()
+
+        // Frequency band amplitudes (0-1 normalized) for multi-band visualization
+        // Bass: 20-250 Hz - Deep, punchy movements
+        // Mid: 250-2000 Hz - Melody, vocals
+        // Treble: 2000-20000 Hz - Highs, sparkles
+        private val _bassAmplitude = MutableStateFlow(0f)
+        val bassAmplitude: StateFlow<Float> = _bassAmplitude.asStateFlow()
+
+        private val _midAmplitude = MutableStateFlow(0f)
+        val midAmplitude: StateFlow<Float> = _midAmplitude.asStateFlow()
+
+        private val _trebleAmplitude = MutableStateFlow(0f)
+        val trebleAmplitude: StateFlow<Float> = _trebleAmplitude.asStateFlow()
 
         private var currentTrack: AudioTrack? = null
 
@@ -114,6 +132,7 @@ class AudioPlayerService : MediaSessionService() {
 
     private var player: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
+    private var visualizer: Visualizer? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var positionUpdateJob: Job? = null
 
@@ -150,6 +169,7 @@ class AudioPlayerService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)  // Pause when headphones disconnected
             .build()
             .apply {
+                playWhenReady = true // Auto-play when ready
                 addListener(playerListener)
             }
 
@@ -196,6 +216,17 @@ class AudioPlayerService : MediaSessionService() {
 
             Log.d(TAG, "isPlaying changed: $isPlaying")
         }
+
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            Log.e(TAG, "Player error: ${error.message}", error)
+            updateState {
+                copy(
+                    isPlaying = false,
+                    playbackState = PlaybackState.ERROR
+                )
+            }
+            stopPositionUpdates()
+        }
     }
 
     private fun startPositionUpdates() {
@@ -218,6 +249,142 @@ class AudioPlayerService : MediaSessionService() {
     private fun stopPositionUpdates() {
         positionUpdateJob?.cancel()
         positionUpdateJob = null
+    }
+
+    private fun setupVisualizer() {
+        try {
+            val audioSessionId = player?.audioSessionId ?: return
+            if (audioSessionId == C.AUDIO_SESSION_ID_UNSET) {
+                Log.w(TAG, "Audio session ID not set yet")
+                return
+            }
+
+            // Release existing visualizer
+            releaseVisualizer()
+
+            visualizer = Visualizer(audioSessionId).apply {
+                // Use larger capture size for better frequency resolution
+                // 512 samples at 44100 Hz = ~86 Hz per bin (good for bass separation)
+                val sizes = Visualizer.getCaptureSizeRange()
+                captureSize = minOf(512, sizes[1]) // 512 or max available
+
+                setDataCaptureListener(
+                    object : Visualizer.OnDataCaptureListener {
+                        override fun onWaveFormDataCapture(
+                            visualizer: Visualizer?,
+                            waveform: ByteArray?,
+                            samplingRate: Int
+                        ) {
+                            waveform?.let { data ->
+                                // Calculate RMS amplitude from waveform
+                                var sum = 0.0
+                                for (byte in data) {
+                                    // Convert unsigned byte to signed value (-128 to 127 centered at 128)
+                                    val sample = (byte.toInt() and 0xFF) - 128
+                                    sum += sample * sample
+                                }
+                                val rms = kotlin.math.sqrt(sum / data.size)
+                                // Normalize to 0-1 range (max RMS for full scale is ~90)
+                                val normalizedAmplitude = (rms / 90.0).coerceIn(0.0, 1.0).toFloat()
+                                _currentAmplitude.value = normalizedAmplitude
+                            }
+                        }
+
+                        override fun onFftDataCapture(
+                            visualizer: Visualizer?,
+                            fft: ByteArray?,
+                            samplingRate: Int
+                        ) {
+                            fft?.let { data ->
+                                // FFT data format: [DC, bin1_real, bin1_imag, bin2_real, bin2_imag, ...]
+                                // Number of usable bins = captureSize / 2
+                                // Frequency per bin = samplingRate / captureSize
+                                val captureSize = data.size
+                                val freqPerBin = samplingRate.toFloat() / captureSize
+
+                                // Calculate frequency band boundaries
+                                // Bass: 20-250 Hz, Mid: 250-2000 Hz, Treble: 2000-20000 Hz
+                                val bassEndBin = (250 / freqPerBin).toInt().coerceIn(1, captureSize / 4)
+                                val midEndBin = (2000 / freqPerBin).toInt().coerceIn(bassEndBin + 1, captureSize / 2)
+                                val trebleEndBin = (captureSize / 2 - 1).coerceAtLeast(midEndBin + 1)
+
+                                // Calculate magnitude for each frequency band
+                                var bassSum = 0.0
+                                var midSum = 0.0
+                                var trebleSum = 0.0
+                                var bassCount = 0
+                                var midCount = 0
+                                var trebleCount = 0
+
+                                // Skip DC component (index 0), process real/imag pairs
+                                for (i in 1 until captureSize / 2) {
+                                    val realIndex = i * 2
+                                    val imagIndex = realIndex + 1
+
+                                    if (imagIndex >= data.size) break
+
+                                    // Get real and imaginary parts (signed bytes)
+                                    val real = data[realIndex].toInt()
+                                    val imag = data[imagIndex].toInt()
+
+                                    // Calculate magnitude: sqrt(real² + imag²)
+                                    val magnitude = kotlin.math.sqrt((real * real + imag * imag).toDouble())
+
+                                    // Assign to appropriate band
+                                    when {
+                                        i <= bassEndBin -> {
+                                            // Apply bass boost (low frequencies are naturally quieter)
+                                            bassSum += magnitude * 1.5
+                                            bassCount++
+                                        }
+                                        i <= midEndBin -> {
+                                            midSum += magnitude
+                                            midCount++
+                                        }
+                                        i <= trebleEndBin -> {
+                                            // Apply treble boost (high frequencies decay faster)
+                                            trebleSum += magnitude * 1.2
+                                            trebleCount++
+                                        }
+                                    }
+                                }
+
+                                // Average and normalize each band (max magnitude ~180 for byte range)
+                                val bassAvg = if (bassCount > 0) bassSum / bassCount else 0.0
+                                val midAvg = if (midCount > 0) midSum / midCount else 0.0
+                                val trebleAvg = if (trebleCount > 0) trebleSum / trebleCount else 0.0
+
+                                // Normalize to 0-1 with some headroom
+                                _bassAmplitude.value = (bassAvg / 120.0).coerceIn(0.0, 1.0).toFloat()
+                                _midAmplitude.value = (midAvg / 100.0).coerceIn(0.0, 1.0).toFloat()
+                                _trebleAmplitude.value = (trebleAvg / 80.0).coerceIn(0.0, 1.0).toFloat()
+                            }
+                        }
+                    },
+                    Visualizer.getMaxCaptureRate(), // Max capture rate for responsive visualization
+                    true,  // Waveform (for overall amplitude)
+                    true   // FFT (for frequency bands)
+                )
+                enabled = true
+            }
+            Log.d(TAG, "Visualizer setup complete for session: $audioSessionId, captureSize: ${visualizer?.captureSize}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to setup visualizer", e)
+        }
+    }
+
+    private fun releaseVisualizer() {
+        try {
+            visualizer?.enabled = false
+            visualizer?.release()
+            visualizer = null
+            _currentAmplitude.value = 0f
+            _bassAmplitude.value = 0f
+            _midAmplitude.value = 0f
+            _trebleAmplitude.value = 0f
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing visualizer", e)
+        }
     }
 
     private inline fun updateState(update: AudioPlayerState.() -> AudioPlayerState) {
@@ -261,18 +428,24 @@ class AudioPlayerService : MediaSessionService() {
 
         player?.apply {
             // Create MediaItem - works for both content:// URIs and http:// URLs
-            val mediaItem = if (track.uri.startsWith("http")) {
-                // For HTTP URLs, use URI directly
-                Log.d(TAG, "Playing HTTP stream: ${track.uri.take(100)}...")
-                MediaItem.fromUri(track.uri)
+            val uri = if (track.uri.startsWith("http")) {
+                android.net.Uri.parse(track.uri)
             } else {
-                // For local content URIs
-                MediaItem.fromUri(track.uri.toUri())
+                track.uri.toUri()
             }
+
+            val mediaItem = MediaItem.Builder()
+                .setUri(uri)
+                .apply {
+                    track.mimeType?.let { setMimeType(it) }
+                }
+                .build()
+
+            Log.d(TAG, "Setting media item: $uri, mimeType: ${track.mimeType}")
 
             setMediaItem(mediaItem)
             prepare()
-            play()
+            playWhenReady = true
         }
 
         updateState {
@@ -283,6 +456,9 @@ class AudioPlayerService : MediaSessionService() {
                 playbackState = PlaybackState.BUFFERING
             )
         }
+
+        // Setup visualizer for audio amplitude capture
+        setupVisualizer()
 
         // Start foreground service with notification
         startForeground(NOTIFICATION_ID, createNotification())
@@ -298,6 +474,7 @@ class AudioPlayerService : MediaSessionService() {
 
     private fun stop() {
         Log.d(TAG, "Stopping playback")
+        releaseVisualizer()
         player?.stop()
         player?.clearMediaItems()
         currentTrack = null
@@ -324,7 +501,7 @@ class AudioPlayerService : MediaSessionService() {
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(track?.title ?: "Audio")
             .setContentText(subtitle)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_media_play) // Safer system icon
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -334,6 +511,7 @@ class AudioPlayerService : MediaSessionService() {
 
     override fun onDestroy() {
         Log.d(TAG, "Service destroyed")
+        releaseVisualizer()
         stopPositionUpdates()
         mediaSession?.run {
             player.release()

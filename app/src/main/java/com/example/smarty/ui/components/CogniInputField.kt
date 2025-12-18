@@ -1,12 +1,21 @@
 package com.example.smarty.ui.components
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,8 +27,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,13 +44,18 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
@@ -48,6 +66,7 @@ import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.ui.theme.softCardShadow
+import com.example.smarty.util.SpeechRecognitionHelper
 import kotlinx.coroutines.delay
 
 /**
@@ -82,11 +101,68 @@ fun CogniInputField(
     isProcessing: Boolean = false,
     onOpenChatHistory: () -> Unit = {},
     // AI exclusion support
-    isAiExcluded: Boolean = false
+    isAiExcluded: Boolean = false,
+    // Search mode support
+    isSearchMode: Boolean = false,
+    onToggleSearch: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
+
+    // Speech recognition
+    val speechRecognizer = remember { SpeechRecognitionHelper(context) }
+    val isListening by speechRecognizer.isListening.collectAsState()
+    val partialResult by speechRecognizer.partialResult.collectAsState()
+    val rmsLevel by speechRecognizer.rmsLevel.collectAsState()
+    val speechError by speechRecognizer.error.collectAsState()
+
+    // Permission launcher for microphone
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                    PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasAudioPermission = granted
+        if (granted) {
+            speechRecognizer.startListening { recognizedText ->
+                // Append recognized text to current value
+                val newValue = if (value.isBlank()) recognizedText
+                else "$value $recognizedText"
+                onValueChange(newValue)
+            }
+        }
+    }
+
+    // Cleanup speech recognizer
+    DisposableEffect(Unit) {
+        onDispose {
+            speechRecognizer.destroy()
+        }
+    }
+
+    // Start/stop speech recognition
+    fun toggleSpeechRecognition() {
+        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (isListening) {
+            speechRecognizer.stopListening()
+        } else {
+            if (hasAudioPermission) {
+                speechRecognizer.startListening { recognizedText ->
+                    val newValue = if (value.isBlank()) recognizedText
+                    else "$value $recognizedText"
+                    onValueChange(newValue)
+                }
+            } else {
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
     var isFocused by remember { mutableStateOf(false) }
     var isButtonPressed by remember { mutableStateOf(false) }
     var isAddPressed by remember { mutableStateOf(false) }
@@ -199,7 +275,11 @@ fun CogniInputField(
     )
 
     // Use appropriate placeholder based on mode
-    val currentPlaceholder = if (isChatMode) chatPlaceholder else placeholder
+    val currentPlaceholder = when {
+        isSearchMode -> "Search notes..."
+        isChatMode -> chatPlaceholder
+        else -> placeholder
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         val shapes = LocalShapes.current
@@ -219,10 +299,10 @@ fun CogniInputField(
                 Surface(
                     modifier = Modifier.clickable { onOpenChatHistory() },
                     shape = androidx.compose.foundation.shape.CircleShape,
-                    color = LocalAccentColor.current.copy(alpha = 0.08f),
+                    color = LocalAccentColor.current.copy(alpha = 0.8f), // Increased opacity (+50%)
                     border = androidx.compose.foundation.BorderStroke(
                         width = 1.dp,
-                        color = LocalAccentColor.current.copy(alpha = 0.15f)
+                        color = LocalAccentColor.current.copy(alpha = 0.25f)
                     )
                 ) {
                     Row(
@@ -233,7 +313,7 @@ fun CogniInputField(
                         Icon(
                             imageVector = Icons.Default.ChatBubble,
                             contentDescription = null,
-                            tint = LocalAccentColor.current,
+                            tint = androidx.compose.ui.graphics.Color.White,
                             modifier = Modifier.size(14.dp)
                         )
 
@@ -244,7 +324,7 @@ fun CogniInputField(
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                             ),
-                            color = LocalAccentColor.current
+                            color = androidx.compose.ui.graphics.Color.White
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
@@ -254,7 +334,7 @@ fun CogniInputField(
                             modifier = Modifier
                                 .width(1.dp)
                                 .height(10.dp)
-                                .background(LocalAccentColor.current.copy(alpha = 0.3f))
+                                .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.3f))
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
@@ -262,7 +342,7 @@ fun CogniInputField(
                         Text(
                             text = "Tap for history",
                             style = MaterialTheme.typography.labelMedium,
-                            color = LocalAccentColor.current.copy(alpha = 0.7f)
+                            color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -374,16 +454,85 @@ fun CogniInputField(
                     .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Animated terminal prompt indicator
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = LocalAccentColor.current,
-                    modifier = Modifier
-                        .padding(start = 16.dp, end = 4.dp)
-                        .scale(promptScale)
-                        .size(20.dp)
+                // Animated Mode Toggle (Write/Search) OR Microphone (Chat Mode)
+                // In chat mode: Mic icon for speech-to-text
+                // In main page: Arrow/Search icon for search toggle
+                val leftIcon = when {
+                    isChatMode && isListening -> Icons.Default.MicOff
+                    isChatMode -> Icons.Default.Mic
+                    isSearchMode -> Icons.Default.Search
+                    else -> Icons.AutoMirrored.Filled.KeyboardArrowRight
+                }
+
+                // Mic button animations for chat mode
+                val micPulseTransition = rememberInfiniteTransition(label = "left_mic_pulse")
+                val leftMicPulseScale by micPulseTransition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 1.15f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(600, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "leftMicPulse"
                 )
+
+                val leftButtonColor by animateColorAsState(
+                    targetValue = when {
+                        isChatMode && isListening -> SafetyOrange
+                        else -> LocalAccentColor.current
+                    },
+                    animationSpec = tween(200),
+                    label = "leftButtonColor"
+                )
+
+                IconButton(
+                    onClick = {
+                        if (isChatMode) {
+                            // In chat mode, trigger speech recognition
+                            toggleSpeechRecognition()
+                        } else {
+                            // In main page, toggle search
+                            onToggleSearch()
+                        }
+                    },
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .scale(if (isChatMode && isListening) leftMicPulseScale else promptScale)
+                        .size(32.dp) // Slightly larger touch target
+                ) {
+
+                    if (isChatMode && isListening) {
+                        // Dynamic Waveform Visualizer
+                        WaveformVisualizer(
+                            rmsLevel = rmsLevel,
+                            color = leftButtonColor,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        // Standard Icon
+                        AnimatedContent(
+                            targetState = leftIcon,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
+                                    scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
+                                    .togetherWith(fadeOut(animationSpec = tween(90)))
+                            },
+                            label = "leftModeIcon"
+                        ) { icon ->
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = when {
+                                    isChatMode -> "Voice Input"
+                                    isSearchMode -> "Search Mode"
+                                    else -> "Write Mode"
+                                },
+                                tint = leftButtonColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+
 
                 // Input field with focus tracking
                 Box(
@@ -430,11 +579,34 @@ fun CogniInputField(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = LocalAccentColor.current
+                            // Custom Smooth Spinner (Exact 0-360 loop, no jumping)
+                            val spinnerTransition = rememberInfiniteTransition(label = "thinking_spinner")
+                            val angle by spinnerTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 360f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1000, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Restart
+                                ),
+                                label = "angle"
                             )
+                            val spinnerColor = LocalAccentColor.current
+
+                            Canvas(modifier = Modifier.size(16.dp)) {
+                                rotate(angle) {
+                                    drawArc(
+                                        color = spinnerColor,
+                                        startAngle = 0f,
+                                        sweepAngle = 270f,
+                                        useCenter = false,
+                                        style = Stroke(
+                                            width = 2.dp.toPx(),
+                                            cap = StrokeCap.Round
+                                        )
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Thinking...",
@@ -451,13 +623,16 @@ fun CogniInputField(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
+                // RMS level indicator (shows when listening in chat mode - visual feedback on left button)
+                // The microphone button is now on the left side in chat mode
+
                 // Animated send button - Filled circle style
                 val sendButtonContainerColor by animateColorAsState(
                     targetValue = if (buttonEnabled) LocalAccentColor.current else androidx.compose.ui.graphics.Color.Transparent,
                     animationSpec = tween(200),
                     label = "sendBtnContainer"
                 )
-                
+
                 val sendButtonContentColor by animateColorAsState(
                     targetValue = if (buttonEnabled) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     animationSpec = tween(200),
@@ -484,6 +659,8 @@ fun CogniInputField(
                                     onTap = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         showAttachmentPanel = false
+                                        // Stop listening if active before sending
+                                        if (isListening) speechRecognizer.stopListening()
                                         handleSubmit()
                                     }
                                 )
@@ -507,9 +684,47 @@ fun CogniInputField(
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.width(6.dp)) // Right padding inside container
             }
+        }
+    }
+}
+@Composable
+private fun WaveformVisualizer(
+    rmsLevel: Float,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Generate 5 bars with different sensitivities to simulate frequency bands
+        val multipliers = listOf(0.4f, 0.7f, 1.0f, 0.6f, 0.3f)
+        val speeds = listOf(200f, 300f, 400f, 250f, 150f) // Different stiffness for randomness
+
+        multipliers.forEachIndexed { index, multiplier ->
+            // Base height + RMS reaction
+            // Add some noise/randomness if RMS is low to keep it "alive"
+            val targetH = (rmsLevel * 2.5f * multiplier).coerceIn(4f, 24f) // Scale RMS to height
+            
+            val barHeight by animateDpAsState(
+                targetValue = targetH.dp,
+                animationSpec = spring(
+                    dampingRatio = 0.6f,
+                    stiffness = speeds[index]
+                ),
+                label = "barHeight$index"
+            )
+
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(barHeight)
+                    .background(color, androidx.compose.foundation.shape.CircleShape)
+            )
         }
     }
 }

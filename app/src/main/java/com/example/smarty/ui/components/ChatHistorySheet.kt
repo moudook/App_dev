@@ -9,11 +9,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.ChatBubble
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -178,89 +182,113 @@ private fun ChatSessionItem(
 ) {
     val accentColor = LocalAccentColor.current
     
-    // Minimalist Selection
-    val backgroundColor = if (isSelected) accentColor.copy(alpha = 0.1f) else androidx.compose.ui.graphics.Color.Transparent
-    val contentColor = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface
+    // UI Constants
+    // Apple Design: "Continuous" curves. For a 48dp Icon, ~10-12dp radius is the "Squircle" sweet spot.
+    // For the list item container, a subtle 14dp radius is cleaner than 16dp.
+    val containerShape = RoundedCornerShape(14.dp)
+    val iconShape = RoundedCornerShape(12.dp)
+    
+    val containerColor = if (isSelected) 
+        MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp) 
+    else 
+        MaterialTheme.colorScheme.surface
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(backgroundColor)
+            .clip(containerShape)
+            .background(containerColor)
             .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 12.dp),
+            .padding(all = 8.dp), // Tighter outer padding to allow internal breathing
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Simple Icon
-        Icon(
-            imageVector = if (isSelected) Icons.Default.ChatBubble else Icons.Default.ChatBubbleOutline,
-            contentDescription = null,
-            tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(20.dp)
-        )
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = session.title,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                    ),
-                    color = contentColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        // 1. Icon (Proper Squircle)
+        Surface(
+            modifier = Modifier.size(44.dp), // Slightly smaller, tighter
+            shape = iconShape,
+            color = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                // Smart Icon Logic
+                val isNewChat = session.title.isBlank() || session.title.equals("New Chat", ignoreCase = true) || session.title.equals("New Conversation", ignoreCase = true)
+                val icon = when {
+                    isNewChat -> Icons.Rounded.AutoAwesome // Sparkle for new/AI start
+                    isSelected -> Icons.Rounded.ChatBubble
+                    else -> Icons.Rounded.ChatBubbleOutline
+                }
                 
-                // Optional: Date if space permits, or put in next line
-                Spacer(modifier = Modifier.weight(1f))
-                
-                Text(
-                    text = formatRelativeTime(session.updatedAt),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
-            
-            if (session.lastMessagePreview.isNotBlank()) {
-                Text(
-                    text = session.lastMessagePreview,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
         
-        // Delete Action (Only show if necessary or on swipe? 
-        // For simplicity, we keep the button but make it very subtle)
-        /* 
-         * DESIGN CHOICE: To make it truly Apple-like, we might hide the delete button 
-         * until swipe, but swipe is complex. We'll keep a very faint X or Trash.
-         */
-        Spacer(modifier = Modifier.width(8.dp))
-        IconButton(
-            onClick = onDelete,
-            modifier = Modifier.size(24.dp)
+        Spacer(modifier = Modifier.width(14.dp))
+        
+        // 2. Center Text Column
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Close, // Close is cleaner than Trash for lists
-                contentDescription = "Delete",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                modifier = Modifier.size(14.dp)
+            Text(
+                text = session.title.ifBlank { "New Conversation" }, // "Conversation" sounds better than "Chat"
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Medium, // lighter than SemiBold for Apple look
+                    fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)
+                ),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            
+            Spacer(modifier = Modifier.height(2.dp))
+            
+            Text(
+                text = session.lastMessagePreview.ifBlank { "Start a new conversation" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-    }
-    
-    // Separator (Apple Style)
-    if (!isSelected) {
-        Divider(
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
-            thickness = 0.5.dp,
-            modifier = Modifier.padding(start = 48.dp) // Inset separator
-        )
+        
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // 3. Right Side: Date + Close visual group
+        // Configured to be perfectly aligned vertically
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = formatRelativeTime(session.updatedAt),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Delete Button (Small, subtle)
+            // Using a Box to expand click area without affecting visuals
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)) // Subtle backing
+                    .clickable(onClick = onDelete),
+                contentAlignment = Alignment.Center
+            ) {
+                 Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Delete",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
     }
 }
 

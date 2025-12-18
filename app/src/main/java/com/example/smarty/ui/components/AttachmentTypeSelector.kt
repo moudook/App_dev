@@ -98,10 +98,10 @@ fun AttachmentTypeSelector(
             // Floating Glass Dock (Pill Shape)
             Surface(
                 shape = androidx.compose.foundation.shape.CircleShape,
-                color = LocalAccentColor.current.copy(alpha = 0.08f), // Glassy accent background
+                color = LocalAccentColor.current.copy(alpha = 0.2f), // Reduced transparency (more visible)
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
-                    color = LocalAccentColor.current.copy(alpha = 0.15f) // Subtle border
+                    color = LocalAccentColor.current.copy(alpha = 0.25f) // Subtle border
                 )
             ) {
                 Row(

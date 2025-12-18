@@ -228,7 +228,7 @@ fun rememberStaggeredAnimationState(
  */
 @Composable
 fun rememberInfiniteRotation(
-    durationMs: Int = 1000,
+    durationMs: Int = 800,
     easing: Easing = LinearEasing
 ): Float {
     val infiniteTransition = rememberInfiniteTransition(label = "rotation")
@@ -251,7 +251,7 @@ fun rememberInfiniteRotation(
 fun rememberPulsingScale(
     minScale: Float = 0.95f,
     maxScale: Float = 1.05f,
-    durationMs: Int = 800
+    durationMs: Int = 640
 ): Float {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
@@ -272,7 +272,7 @@ fun rememberPulsingScale(
  */
 @Composable
 fun rememberShimmerOffset(
-    durationMs: Int = 1200
+    durationMs: Int = 960
 ): Float {
     val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
     val offset by infiniteTransition.animateFloat(
@@ -295,7 +295,7 @@ fun rememberShimmerOffset(
 fun rememberBreathingScale(
     baseScale: Float = 1f,
     amplitude: Float = 0.03f,
-    periodMs: Int = 2000
+    periodMs: Int = 1600
 ): Float {
     val infiniteTransition = rememberInfiniteTransition(label = "breathing")
     val progress by infiniteTransition.animateFloat(
@@ -413,7 +413,7 @@ fun animateShake(
 @Composable
 fun animateIntAsState(
     targetValue: Int,
-    animationSpec: AnimationSpec<Float> = tween(300, easing = CogniEasing.appleEaseOut)
+    animationSpec: AnimationSpec<Float> = tween(240, easing = CogniEasing.appleEaseOut)
 ): Int {
     val animatedFloat by animateFloatAsState(
         targetValue = targetValue.toFloat(),
@@ -430,7 +430,7 @@ fun animateIntAsState(
 @Composable
 fun animateProgressArc(
     progress: Float, // 0-1
-    durationMs: Int = 500
+    durationMs: Int = 400
 ): Float {
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),

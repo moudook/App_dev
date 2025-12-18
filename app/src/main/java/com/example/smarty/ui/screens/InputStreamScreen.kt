@@ -9,6 +9,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,7 +28,9 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
@@ -44,7 +47,12 @@ import com.example.smarty.ui.components.CogniHeader
 import com.example.smarty.ui.components.CogniInputField
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.NoteTodoSheet
+import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.ui.components.ChatEmptyState
+import com.example.smarty.ui.components.DynamicIsland
+import com.example.smarty.data.model.NoteType
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.components.ProcessingDotsIndicator
 import com.example.smarty.ui.components.ShareBottomSheet
@@ -86,6 +94,7 @@ fun InputStreamScreen(
     isAiExcluded: Boolean = false,
     onInputTextChange: (String) -> Unit = {},
     onPlayYouTube: (String) -> Unit = {},
+    bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -103,6 +112,38 @@ fun InputStreamScreen(
     // Multi-select state
     var isSelectionMode by remember { mutableStateOf(false) }
     var selectedNoteIds by remember { mutableStateOf(setOf<String>()) }
+
+    // Search Mode State
+    var isSearchMode by remember { mutableStateOf(false) }
+    
+    // File Type Categorization State
+    var selectedTypeFilter by remember { mutableStateOf<NoteType?>(null) }
+    val availableTypes by remember(notes) {
+        derivedStateOf {
+            notes.map { it.type }.toSet().sortedBy { it.name }
+        }
+    }
+
+    // Filtered Notes Logic
+    val displayedNotes by remember(notes, inputText, isSearchMode, selectedTypeFilter) {
+        derivedStateOf {
+            val typeFiltered = if (selectedTypeFilter != null) {
+                notes.filter { it.type == selectedTypeFilter }
+            } else {
+                notes
+            }
+
+            if (isSearchMode && inputText.isNotBlank()) {
+                typeFiltered.filter { note ->
+                    note.title.contains(inputText, ignoreCase = true) ||
+                    note.content.contains(inputText, ignoreCase = true) ||
+                    (note.summary?.contains(inputText, ignoreCase = true) == true)
+                }
+            } else {
+                typeFiltered
+            }
+        }
+    }
 
     // Selection handlers
     fun toggleSelection(noteId: String) {
@@ -223,6 +264,14 @@ fun InputStreamScreen(
         }
     }
 
+    // Dynamic Island State Logic
+    var showCategoryTransient by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedTypeFilter) {
+        showCategoryTransient = true
+        kotlinx.coroutines.delay(2000)
+        showCategoryTransient = false
+    }
+
     // Scroll to bottom when new chat message arrives
     LaunchedEffect(chatMessages.size) {
         if (chatMessages.isNotEmpty() && isChatMode) {
@@ -230,7 +279,8 @@ fun InputStreamScreen(
         }
     }
 
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
         modifier = Modifier.imePadding(), // This handles keyboard
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
@@ -261,20 +311,25 @@ fun InputStreamScreen(
                             modifier = Modifier.padding(end = 16.dp)
                         )
                         
-                        Text(
-                            text = "UNDO",
-                            color = LocalAccentColor.current,
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier
-                                .clickable {
-                                    lastArchivedNoteId?.let { noteId ->
-                                        onUnarchiveNote(noteId)
-                                        lastArchivedNoteId = null
-                                    }
-                                    data.dismiss()
+                        Surface(
+                            onClick = {
+                                lastArchivedNoteId?.let { noteId ->
+                                    onUnarchiveNote(noteId)
+                                    lastArchivedNoteId = null
                                 }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                                data.dismiss()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            color = LocalAccentColor.current.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "UNDO",
+                                color = LocalAccentColor.current,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -283,7 +338,7 @@ fun InputStreamScreen(
             AnimatedContent(
                 targetState = isSelectionMode,
                 transitionSpec = {
-                    fadeIn(tween(200)) togetherWith fadeOut(tween(150))
+                    fadeIn(tween(160)) togetherWith fadeOut(tween(120))
                 },
                 label = "topBarTransition"
             ) { inSelectionMode ->
@@ -325,66 +380,232 @@ fun InputStreamScreen(
                         )
                     )
                 } else {
-                    // Custom Premium Header
-                    Box(
+                    // Custom Premium Header with Categories
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .statusBarsPadding()
-                            .height(64.dp)
-                            .padding(horizontal = 24.dp) // More breathing room
+                            .background(MaterialTheme.colorScheme.background)
                     ) {
-                        // Branding (Left)
-                        CogniHeader(
-                            modifier = Modifier.align(Alignment.CenterStart),
-                            showShimmer = true
-                        )
-
-                        // Actions Pill (Right)
-                        Surface(
-                            modifier = Modifier.align(Alignment.CenterEnd),
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), // Glassy effect
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                            )
+                        // Top Branding Row
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .height(64.dp)
+                                .padding(horizontal = 24.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            // Branding (Left)
+                            CogniHeader(
+                                modifier = Modifier.align(Alignment.CenterStart),
+                                showShimmer = true
+                            )
+
+                            // Actions Pill (Right)
+                            val isDark = isSystemInDarkTheme()
+                            Surface(
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isDark) {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    } else {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                                    }
+                                )
                             ) {
-                                // Stacks Button
-                                IconButton(
-                                    onClick = onNavigateToStacks,
-                                    modifier = Modifier.size(36.dp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.GridView,
-                                        contentDescription = "View Stacks",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(20.dp)
+                                    // Stacks Button
+                                    IconButton(
+                                        onClick = onNavigateToStacks,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.GridView,
+                                            contentDescription = "View Stacks",
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    // Vertical Divider
+                                    Box(
+                                        modifier = Modifier
+                                            .width(1.dp)
+                                            .height(16.dp)
+                                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                                    )
+
+                                    // Settings Button
+                                    IconButton(
+                                        onClick = onNavigateToSettings,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Settings",
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // File Type Categorization Chips
+                        AnimatedVisibility(
+                            visible = availableTypes.isNotEmpty(),
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 12.dp),
+                                contentPadding = PaddingValues(horizontal = 24.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                item {
+                                    NoteTypeChip(
+                                        label = "All",
+                                        isSelected = selectedTypeFilter == null,
+                                        onClick = { selectedTypeFilter = null }
                                     )
                                 }
+                                items(availableTypes) { type ->
+                                    NoteTypeChip(
+                                        label = formatNoteType(type),
+                                        isSelected = selectedTypeFilter == type,
+                                        onClick = { selectedTypeFilter = type }
+                                    )
+                                }
+                            }
+                        }
+                    } // End Column
+                }
+            }
+        },
+        bottomBar = {
+            // Deprecated: Input field moved to main Box for floating transparency
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        // Clear focus when tapping outside the input field
+        val interactionSource = remember { MutableInteractionSource() }
+        val topPadding = paddingValues.calculateTopPadding()
 
-                                // Vertical Divider
-                                Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .height(16.dp)
-                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
-                                )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = topPadding) // Only respect top padding
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                }
+        ) {
+            // Animated content switching between notes and chat
+            AnimatedContent(
+                targetState = isChatMode,
+                transitionSpec = {
+                    fadeIn(tween(240)) togetherWith fadeOut(tween(160))
+                },
+                label = "chatModeTransition",
+                modifier = Modifier.fillMaxSize()
+            ) { showChat ->
+                val contentBottomPadding = PaddingValues(
+                    top = ComponentSpacing.listContentPadding,
+                    bottom = 140.dp + bottomContentPadding // Extra padding for floating input
+                )
 
-                                // Settings Button
-                                IconButton(
-                                    onClick = onNavigateToSettings,
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "Settings",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(20.dp)
+                if (showChat) {
+                    // Chat messages view
+                    if (chatMessages.isEmpty()) {
+                        ChatEmptyState(modifier = Modifier.fillMaxSize())
+                    } else {
+                        LazyColumn(
+                            state = chatListState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = contentBottomPadding,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(
+                                items = chatMessages,
+                                key = { it.id }
+                            ) { message ->
+                                ChatMessageItem(message = message)
+                            }
+                        }
+                    }
+                } else {
+                    // Notes list view
+                    if (displayedNotes.isEmpty()) {
+                        if (isSearchMode) {
+                             // Simple "No results" or keep empty (user didn't specify empty state)
+                             // Reusing Empty State but maybe we want a "No Results" specific one later.
+                             // For now, if searching and empty, show nothing or generic.
+                             // Let's just show nothing to avoid "Hello Himmu" popping up during search.
+                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("No matches found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                             }
+                        } else {
+                            com.example.smarty.ui.components.NotesEmptyState(modifier = Modifier.fillMaxSize())
+                        }
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                top = ComponentSpacing.listContentPadding,
+                                bottom = 140.dp + bottomContentPadding,
+                                start = 16.dp,
+                                end = 16.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
+                        ) {
+                            itemsIndexed(
+                                items = displayedNotes,
+                                key = { _, note -> note.id }
+                            ) { index, note ->
+                                Box(modifier = Modifier.animateItem()) {
+                                    AnimatedNoteItem(
+                                        note = note,
+                                        index = index,
+                                        onClick = {
+                                            if (isSelectionMode) toggleSelection(note.id)
+                                            else onNoteClick(note)
+                                        },
+                                        onDelete = {
+                                            noteToDelete = note
+                                            showDeleteDialog = true
+                                        },
+                                        onOpenTodo = { selectedNoteForTodo = note },
+                                        onArchive = {
+                                            lastArchivedNoteId = note.id
+                                            onArchiveNote(note.id)
+                                            scope.launch {
+                                                val result = snackbarHostState.showSnackbar(
+                                                    message = "Note archived",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                                if (result == SnackbarResult.Dismissed) {
+                                                    lastArchivedNoteId = null
+                                                }
+                                            }
+                                        },
+                                        isSelected = note.id in selectedNoteIds,
+                                        isSelectionMode = isSelectionMode,
+                                        onLongPress = {
+                                            isSelectionMode = true
+                                            selectedNoteIds = setOf(note.id)
+                                        },
+                                        onPlayYouTube = onPlayYouTube
                                     )
                                 }
                             }
@@ -392,29 +613,30 @@ fun InputStreamScreen(
                     }
                 }
             }
-        },
-        bottomBar = {
-            Surface(
+
+
+
+            // Floating Input Field Container (Overlaying content)
+            Box(
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .navigationBarsPadding(),
-                color = androidx.compose.ui.graphics.Color.Transparent,
-                tonalElevation = 0.dp
+                    .padding(bottom = bottomContentPadding)
+                    .navigationBarsPadding()
             ) {
-                // Golden ratio: padding 16dp, gaps 13dp/8dp (Fibonacci derived)
                 Column(
-                    modifier = Modifier.padding(ComponentSpacing.screenPadding)
+                    modifier = Modifier.padding(
+                        start = ComponentSpacing.screenPadding,
+                        end = ComponentSpacing.screenPadding,
+                        bottom = ComponentSpacing.screenPadding,
+                        top = 0.dp
+                    )
                 ) {
-                    // Processing indicator - show for both note processing and chat processing
+                    // Processing indicator
                     AnimatedVisibility(
                         visible = isProcessing || isChatProcessing,
-                        enter = fadeIn(tween(200)) + expandVertically(
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMedium
-                            )
-                        ),
-                        exit = fadeOut(tween(150)) + shrinkVertically()
+                        enter = fadeIn(tween(160)) + expandVertically(),
+                        exit = fadeOut(tween(120)) + shrinkVertically()
                     ) {
                         Row(
                             modifier = Modifier
@@ -443,12 +665,15 @@ fun InputStreamScreen(
                             if (inputText.isNotBlank() || attachments.isNotEmpty()) {
                                 if (isChatMode) {
                                     onSendChatMessage(inputText, attachments)
-                                } else {
+                                } else if (!isSearchMode) {
                                     onAddNote(inputText, attachments)
                                 }
-                                inputText = ""
-                                onInputTextChange("")
-                                attachments = emptyList()
+                                
+                                if (!isSearchMode) {
+                                    inputText = ""
+                                    onInputTextChange("")
+                                    attachments = emptyList()
+                                }
                             }
                         },
                         attachments = attachments,
@@ -466,134 +691,54 @@ fun InputStreamScreen(
                         },
                         onPickAudio = { audioPickerLauncher.launch("audio/*") },
                         onPickFile = { filePickerLauncher.launch("*/*") },
-                        onRemoveAttachment = { id ->
-                            attachments = attachments.filter { it.id != id }
-                        },
+                        onRemoveAttachment = { id -> attachments = attachments.filter { it.id != id } },
                         isChatMode = isChatMode,
                         isProcessing = isChatProcessing,
                         onOpenChatHistory = { showChatHistorySheet = true },
-                        isAiExcluded = isAiExcluded
+                        isAiExcluded = isAiExcluded,
+                        isSearchMode = isSearchMode,
+                        onToggleSearch = {
+                            isSearchMode = !isSearchMode
+                            inputText = "" 
+                            onInputTextChange("")
+                        }
                     )
                 }
             }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        // Clear focus when tapping outside the input field
-        val interactionSource = remember { MutableInteractionSource() }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null
-                ) {
-                    focusManager.clearFocus()
-                }
-        ) {
-            // Animated content switching between notes and chat
-            AnimatedContent(
-                targetState = isChatMode,
-                transitionSpec = {
-                    fadeIn(tween(300)) togetherWith fadeOut(tween(200))
-                },
-                label = "chatModeTransition"
-            ) { showChat ->
-                if (showChat) {
-                    // Chat messages view
-                    if (chatMessages.isEmpty()) {
-                        ChatEmptyState(modifier = Modifier.fillMaxSize())
-                    } else {
-                        LazyColumn(
-                            state = chatListState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                top = ComponentSpacing.listContentPadding,
-                                bottom = ComponentSpacing.listContentPadding
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(
-                                items = chatMessages,
-                                key = { it.id }
-                            ) { message ->
-                                ChatMessageItem(message = message)
-                            }
-                        }
-                    }
-                } else {
-                    // Notes list view
-                    if (notes.isEmpty()) {
-                        com.example.smarty.ui.components.NotesEmptyState(modifier = Modifier.fillMaxSize())
-                    } else {
-                        // Golden ratio: list padding 16dp, item gap 13dp (Fibonacci)
-                        LazyColumn(
-                            state = listState,
-                            modifier = modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(ComponentSpacing.listContentPadding),
-                            verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
-                        ) {
-                            itemsIndexed(
-                                items = notes,
-                                key = { _, note -> note.id }
-                            ) { index, note ->
-                                // Wrapper box for placement animation
-                                Box(modifier = Modifier.animateItem()) {
-                                    // Staggered entry animation for each item
-                                    AnimatedNoteItem(
-                                        note = note,
-                                        index = index,
-                                        onClick = {
-                                            if (isSelectionMode) toggleSelection(note.id)
-                                            else onNoteClick(note)
-                                        },
-                                        onDelete = {
-                                            noteToDelete = note
-                                            showDeleteDialog = true
-                                        },
-                                        onOpenTodo = { selectedNoteForTodo = note },
-                                        onArchive = {
-                                            // Archive with snackbar undo
-                                            lastArchivedNoteId = note.id
-                                            onArchiveNote(note.id)
-                                            scope.launch {
-                                                val result = snackbarHostState.showSnackbar(
-                                                    message = "Note archived",
-                                                    duration = SnackbarDuration.Short
-                                                )
-                                                // Only clear the ID after snackbar is dismissed (not when undo is clicked)
-                                                if (result == SnackbarResult.Dismissed) {
-                                                    lastArchivedNoteId = null
-                                                }
-                                            }
-                                        },
-                                        isSelected = note.id in selectedNoteIds,
-                                        isSelectionMode = isSelectionMode,
-                                        onLongPress = {
-                                            isSelectionMode = true
-                                            selectedNoteIds = setOf(note.id)
-                                        },
-                                        onPlayYouTube = onPlayYouTube
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Alphabet fast scroller overlay (only show when notes exist and not in chat mode)
-            if (notes.isNotEmpty() && !isChatMode) {
-                AlphabetFastScroller(
-                    notes = notes,
-                    lazyListState = listState,
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                )
-            }
+            // Dynamic Island moved to top z-order
         }
     }
+
+    // Dynamic Island (Floats on top, unclipped)
+    if (!isSelectionMode && !isChatMode) {
+        // MANUAL POSITION ADJUSTMENT: Tweak this to match punch hole
+        val verticalOffset = (10).dp 
+
+        // Compute Island State
+        val islandState = when {
+            isProcessing -> com.example.smarty.ui.components.DynamicIslandState.Processing
+            showCategoryTransient -> {
+                val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
+                val count = displayedNotes.size
+                com.example.smarty.ui.components.DynamicIslandState.Info(
+                    label = categoryName,
+                    secondaryLabel = count.toString(),
+                    icon = if (selectedTypeFilter == null) Icons.Default.GridView else null
+                )
+            }
+            else -> com.example.smarty.ui.components.DynamicIslandState.Contracted
+        }
+
+        DynamicIsland(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = verticalOffset)
+                .padding(top = 0.dp),
+            state = islandState
+        )
+    }
+}
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
@@ -711,11 +856,11 @@ private fun AnimatedNoteItem(
         appeared = true
     }
 
-    // Scale animation with spring
+    // Scale animation with spring - modified for "Orb Pop" effect
     val scale by animateFloatAsState(
-        targetValue = if (appeared) 1f else 0.85f,
+        targetValue = if (appeared) 1f else 0.4f, // Start smaller (orb size)
         animationSpec = spring(
-            dampingRatio = 0.7f,
+            dampingRatio = 0.6f, // Bouncy
             stiffness = 300f
         ),
         label = "itemScale"
@@ -724,13 +869,13 @@ private fun AnimatedNoteItem(
     // Alpha animation
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
+        animationSpec = tween(240, easing = CogniEasing.appleEaseOut),
         label = "itemAlpha"
     )
 
-    // Slide up animation
+    // Slide up animation - increased offset for dramatic entry
     val offsetY by animateFloatAsState(
-        targetValue = if (appeared) 0f else 20f,
+        targetValue = if (appeared) 0f else 100f,
         animationSpec = spring(
             dampingRatio = 0.8f,
             stiffness = 400f
@@ -743,19 +888,60 @@ private fun AnimatedNoteItem(
         onClick = onClick,
         onDelete = onDelete,
         onOpenTodo = onOpenTodo,
+        modifier = Modifier
+            .scale(scale)
+            .graphicsLayer {
+                this.alpha = alpha
+            }
+            .offset(y = offsetY.dp),
         index = index,
-        isArchiveView = false,  // Main view: swipe right = archive
         onArchive = onArchive,
         isSelected = isSelected,
         isSelectionMode = isSelectionMode,
         onLongPress = onLongPress,
-        onPlayYouTube = onPlayYouTube,
-        modifier = Modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                this.alpha = alpha
-                translationY = offsetY
-            }
+        onPlayYouTube = onPlayYouTube
     )
+}
+
+
+@Composable
+private fun NoteTypeChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = androidx.compose.foundation.shape.CircleShape,
+        color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+        contentColor = if (isSelected) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurface
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium
+            ),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+    }
+}
+
+private fun formatNoteType(type: NoteType): String {
+    return when (type) {
+        NoteType.BRAIN_DUMP -> "Notes"
+        NoteType.IMAGE -> "Images"
+        NoteType.VIDEO -> "Videos"
+        NoteType.AUDIO -> "Audio"
+        NoteType.DOCUMENT -> "Docs"
+        NoteType.YOUTUBE -> "YouTube"
+        NoteType.WEBSITE -> "Links"
+        NoteType.CODE -> "Code"
+        NoteType.TWITTER -> "X / Twitter"
+        NoteType.INSTAGRAM -> "Instagram"
+        NoteType.SPREADSHEET -> "Sheets"
+        NoteType.PRESENTATION -> "Slides"
+        NoteType.APK -> "APKs"
+        NoteType.ARCHIVE -> "Archives"
+        NoteType.FILE -> "Files"
+    }
 }

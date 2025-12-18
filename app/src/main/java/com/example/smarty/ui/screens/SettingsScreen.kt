@@ -31,6 +31,11 @@ import com.example.smarty.ui.screens.settings.ProviderSection
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 /**
  * Duolingo-style Settings Screen
@@ -248,6 +253,7 @@ fun SettingsScreen(
                 }
             }
         ) {
+            HideSystemBars()
             Box(
                 modifier = Modifier
                     .fillMaxHeight(0.5f) // Restrict height
@@ -284,6 +290,7 @@ fun SettingsScreen(
                 }
             }
         ) {
+            HideSystemBars()
             Box(
                 modifier = Modifier
                     .fillMaxHeight(0.5f)
@@ -320,6 +327,7 @@ fun SettingsScreen(
                 }
             }
         ) {
+            HideSystemBars()
             Box(
                 modifier = Modifier
                     .fillMaxHeight(0.5f)
@@ -499,6 +507,7 @@ private fun AIConfigBottomSheet(
         shape = shapes.bottomSheet,
         containerColor = MaterialTheme.colorScheme.surface
     ) {
+        HideSystemBars()
         Column(
             modifier = Modifier
                 .fillMaxHeight(0.5f)
@@ -591,5 +600,19 @@ private fun formatCacheSize(bytes: Long): String {
         bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
         bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
         else -> "%.1f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+@Composable
+private fun HideSystemBars() {
+    val view = LocalView.current
+    LaunchedEffect(view) {
+        val window = (view.parent as? DialogWindowProvider)?.window
+        window?.let {
+            WindowCompat.getInsetsController(it, view).apply {
+                hide(WindowInsetsCompat.Type.statusBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
     }
 }

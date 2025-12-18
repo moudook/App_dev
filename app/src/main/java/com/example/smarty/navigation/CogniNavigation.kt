@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -97,6 +98,7 @@ fun CogniNavHost(
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
+    bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     // Start at PIN screen if configured, otherwise go to main input stream
@@ -181,7 +183,8 @@ fun CogniNavHost(
                 onDeleteChatSession = onDeleteChatSession,
                 // AI exclusion
                 isAiExcluded = isAiExcluded,
-                onInputTextChange = onInputTextChange
+                onInputTextChange = onInputTextChange,
+                bottomContentPadding = bottomContentPadding
             )
         }
 
@@ -196,7 +199,8 @@ fun CogniNavHost(
                     navController.popBackStack()
                 },
                 onCreateCategory = onCreateCategory,
-                onDeleteCategory = onDeleteCategory
+                onDeleteCategory = onDeleteCategory,
+                bottomContentPadding = bottomContentPadding
             )
         }
 
@@ -212,7 +216,8 @@ fun CogniNavHost(
                         onSelectNote(note)
                         navController.navigate(Screen.KnowledgeCard.route)
                     },
-                    onArchiveNote = onArchiveNote
+                    onArchiveNote = onArchiveNote,
+                    bottomContentPadding = bottomContentPadding
                 )
             }
         }
@@ -232,7 +237,8 @@ fun CogniNavHost(
                         onDeleteNote(note)
                         navController.popBackStack()
                     },
-                    onPlayAudio = onPlayAudio
+                    onPlayAudio = onPlayAudio,
+                    bottomContentPadding = bottomContentPadding
                 )
             }
         }
@@ -332,6 +338,10 @@ fun BackupSettingsRoute(
     val autoBackupEnabled by viewModel.autoBackupEnabled.collectAsState()
     val autoBackupIntervalDays by viewModel.autoBackupIntervalDays.collectAsState()
 
+    // Local backup state
+    val localBackupState by viewModel.localBackupState.collectAsState()
+    val localBackups by viewModel.localBackups.collectAsState()
+
     // Activity result launcher for Google Sign-In
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -346,6 +356,11 @@ fun BackupSettingsRoute(
         }
     }
 
+    // Refresh local backups when screen appears
+    LaunchedEffect(Unit) {
+        viewModel.loadLocalBackups()
+    }
+
     BackupSettingsScreen(
         isSignedIn = isSignedIn,
         signedInEmail = viewModel.signedInEmail,
@@ -357,6 +372,8 @@ fun BackupSettingsRoute(
         lastBackupTime = lastBackupTime,
         autoBackupEnabled = autoBackupEnabled,
         autoBackupIntervalDays = autoBackupIntervalDays,
+        localBackupState = localBackupState,
+        localBackups = localBackups,
         onBackClick = onBackClick,
         onSignIn = {
             signInLauncher.launch(viewModel.getSignInIntent())
@@ -384,6 +401,18 @@ fun BackupSettingsRoute(
         },
         onResetRestoreState = {
             viewModel.resetRestoreState()
+        },
+        onCreateLocalBackup = {
+            viewModel.createLocalBackup()
+        },
+        onDeleteLocalBackup = { metadata ->
+            viewModel.deleteLocalBackup(metadata)
+        },
+        onShareLocalBackup = { metadata ->
+            viewModel.getLocalBackupShareIntent(metadata)
+        },
+        onResetLocalBackupState = {
+            viewModel.resetLocalBackupState()
         },
         isEmbedded = isEmbedded
     )

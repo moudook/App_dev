@@ -42,8 +42,20 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
     // UI state derived from service state
     val uiState: StateFlow<AudioPlayerUiState> = combine(
         AudioPlayerService.playerState,
-        _waveformData
-    ) { playerState, waveform ->
+        _waveformData,
+        AudioPlayerService.currentAmplitude,
+        AudioPlayerService.bassAmplitude,
+        AudioPlayerService.midAmplitude,
+        AudioPlayerService.trebleAmplitude
+    ) { flows ->
+        val playerState = flows[0] as com.example.smarty.data.model.AudioPlayerState
+        @Suppress("UNCHECKED_CAST")
+        val waveform = flows[1] as List<Float>
+        val amplitude = flows[2] as Float
+        val bass = flows[3] as Float
+        val mid = flows[4] as Float
+        val treble = flows[5] as Float
+
         val progress = if (playerState.duration > 0) {
             (playerState.currentPosition.toFloat() / playerState.duration).coerceIn(0f, 1f)
         } else 0f
@@ -55,7 +67,11 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
             currentPositionFormatted = formatDuration(playerState.currentPosition),
             durationFormatted = formatDuration(playerState.duration),
             waveformData = waveform,
-            playbackState = playerState.playbackState
+            playbackState = playerState.playbackState,
+            currentAmplitude = amplitude,
+            bassAmplitude = bass,
+            midAmplitude = mid,
+            trebleAmplitude = treble
         )
     }.stateIn(
         viewModelScope,
@@ -69,6 +85,14 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
             AudioPlayerService.playerState.collect { state ->
                 _isMiniPlayerVisible.value = state.currentTrack != null &&
                         state.playbackState != PlaybackState.IDLE
+
+                if (state.playbackState == PlaybackState.ERROR) {
+                    android.widget.Toast.makeText(
+                        getApplication(),
+                        "Unable to satisfy request. Use local file.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
     }

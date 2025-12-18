@@ -29,8 +29,8 @@ fun AudioWaveform(
     waveformData: List<Float>,
     progress: Float,
     modifier: Modifier = Modifier,
-    playedColor: Color = AudioPink,
-    unplayedColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+    activeColor: Color = AudioPink,
+    inactiveColor: Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
     barWidth: Dp = 3.dp,
     barGap: Dp = 2.dp,
     cornerRadius: Dp = 2.dp,
@@ -84,7 +84,7 @@ fun AudioWaveform(
             val barHeight = (amplitude.coerceIn(0.1f, 1f) * maxBarHeight).coerceAtLeast(4f)
             val halfHeight = barHeight / 2
 
-            val color = if (normalizedProgress <= progress) playedColor else unplayedColor
+            val color = if (normalizedProgress <= progress) activeColor else inactiveColor
 
             // Draw bar (rounded rect from center)
             drawRoundRect(

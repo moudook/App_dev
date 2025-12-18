@@ -32,6 +32,10 @@ import com.example.smarty.ui.theme.AudioPink
  * Compact mini audio player bar
  * Height reduced to 52dp, positioned above input field
  */
+/**
+ * Compact mini audio player bar
+ * Redesigned to match the "ChatSessionItem" aesthetic (Minimal, Squircle, Apple-like).
+ */
 @Composable
 fun MiniAudioPlayer(
     state: AudioPlayerUiState,
@@ -42,105 +46,154 @@ fun MiniAudioPlayer(
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = AudioPink
+    
+    // UI Constants for "Music Capsule" aesthetic
+    val containerShape = RoundedCornerShape(32.dp) // Fully rounded pill/capsule
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(72.dp) // Slightly taller to accommodate pill shape comfortable
+            .clip(containerShape)
             .clickable {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onExpandClick()
             },
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.97f),
-        tonalElevation = 2.dp
+        shape = containerShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest, // Darker, rich container
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Play/Pause button
-            IconButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onPlayPauseClick()
-                },
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(accentColor)
+            // 1. Visual Anchor: Living Orb Visualizer (reacts to music amplitude)
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (state.isPlaying) "Pause" else "Play",
-                    tint = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.size(18.dp)
+                LivingOrbVisualizer(
+                    isPlaying = state.isPlaying,
+                    progress = state.progress,
+                    amplitude = state.currentAmplitude,
+                    size = 48.dp,
+                    primaryColor = accentColor,
+                    secondaryColor = accentColor.copy(alpha = 0.5f),
+                    backgroundColor = accentColor.copy(alpha = 0.1f)
                 )
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Track info + Progress
+            // 2. Track Info & Progress (Middle)
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
                 verticalArrangement = Arrangement.Center
             ) {
+                // Title
                 Text(
-                    text = state.currentTrack?.title ?: "Audio",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = state.currentTrack?.title ?: "Not Playing",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)
+                    ),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                
+                Spacer(modifier = Modifier.height(6.dp))
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Progress bar
-                LinearProgressIndicator(
-                    progress = { state.progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(1.5.dp)),
-                    color = accentColor,
-                    trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                )
+                // Progress Row: Bar + Time
+                if (state.hasTrack) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                         // Slim Progress Bar
+                         LinearProgressIndicator(
+                            progress = { state.progress },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(3.dp) // Slightly thicker for visibility
+                                .clip(RoundedCornerShape(1.5.dp)),
+                            color = accentColor,
+                            trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                        )
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        // Time Text
+                        Text(
+                            text = state.durationFormatted, // Showing total duration like reference "2:49"
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp)
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                } else {
+                     Text(
+                        text = "Select a track...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Time
-            Text(
-                text = state.currentPositionFormatted,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // 3. Controls (Right)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Play/Pause (Prominent Circle)
+                FilledIconButton(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onPlayPauseClick()
+                    },
+                    modifier = Modifier.size(44.dp),
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), // Darker circle on dark background
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
+                    Icon(
+                        imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (state.isPlaying) "Pause" else "Play",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(4.dp))
 
-            // Close button
-            IconButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onCloseClick()
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Close",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
+                // Close (Subtle X)
+                IconButton(
+                    onClick = onCloseClick,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Animated container for mini player with slide animation
- * Now positioned above the input field with proper spacing
+ * Animated container for mini player with slide animation.
+ * IMPORTANT: This container assumes it's placed in a Box/Coordinator.
+ * To prevent overlap with input fields, the CONSUMER (MainActivity/Screen) must
+ * adjust the input field's padding based on `visible` state.
  */
 @Composable
 fun AnimatedMiniPlayer(
@@ -154,19 +207,19 @@ fun AnimatedMiniPlayer(
     AnimatedVisibility(
         visible = visible && state.hasTrack,
         enter = slideInVertically(
-            initialOffsetY = { it },
-            animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)
+            initialOffsetY = { it }, // Slide up from bottom
+            animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f)
         ) + fadeIn(),
         exit = slideOutVertically(
-            targetOffsetY = { it },
-            animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
+            targetOffsetY = { it }, // Slide down
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = 300f)
         ) + fadeOut(),
         modifier = modifier
     ) {
         Box(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 76.dp) // Space for input field (approx 68dp input + 8dp gap)
+                .padding(bottom = 16.dp) // Bottom margin floating above nav bar
         ) {
             MiniAudioPlayer(
                 state = state,

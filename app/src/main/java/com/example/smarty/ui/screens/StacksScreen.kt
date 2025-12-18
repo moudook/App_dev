@@ -52,6 +52,7 @@ fun StacksScreen(
     onBackClick: () -> Unit,
     onCreateCategory: (String) -> Unit,
     onDeleteCategory: (Category) -> Unit = {},
+    bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     var showCreateSheet by remember { mutableStateOf(false) }
@@ -109,7 +110,7 @@ fun StacksScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + bottomContentPadding),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalItemSpacing = 12.dp
             ) {
