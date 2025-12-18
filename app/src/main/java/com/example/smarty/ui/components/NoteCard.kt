@@ -307,8 +307,8 @@ fun NoteCard(
                                     overflow = TextOverflow.Ellipsis
                                 )
 
-                                // Privacy Indicators
-                                if (note.isFullPrivacy || note.excludeFromAiChat) {
+                                // Privacy & AI Indicators
+                                if (note.isFullPrivacy || note.excludeFromAiChat || note.isAiCreated) {
                                     Row(
                                         modifier = Modifier.padding(top = 4.dp),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -320,6 +320,15 @@ fun NoteCard(
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.secondary,
                                                 modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                        
+                                        // AI Created Indicator
+                                        if (note.isAiCreated) {
+                                            CategoryChip(
+                                                name = "AI",
+                                                isNew = false,
+                                                modifier = Modifier.height(16.dp)
                                             )
                                         }
                                     }

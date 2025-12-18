@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
@@ -34,29 +35,35 @@ fun DynamicIsland(
     modifier: Modifier = Modifier,
     state: DynamicIslandState = DynamicIslandState.Contracted
 ) {
-    // Apple-style Spring Physics
-    // Stiff but damped response for "solid" feel
+    // REQUIREMENT 1: In contracted mode, render nothing (hidden by punch hole)
+    val isVisible = state !is DynamicIslandState.Contracted
     
-    // Animate the "Gap" (Camera Dead Zone)
-    // Apple spec: tight when contracted, breathing room when expanded
-    val gapWidth by animateDpAsState(
-        targetValue = if (state is DynamicIslandState.Contracted) 30.dp else 48.dp, 
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f),
-        label = "gapWidth"
+    // REQUIREMENT 3: Natural spring animation specs
+    val expansionSpring = spring<Float>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMedium
+    )
+    val dpSpring = spring<Dp>(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMedium
+    )
+    
+    // Visibility animation (0 = invisible, 1 = visible)
+    val visibility by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = expansionSpring,
+        label = "visibility"
     )
 
-    // Animate Corner Radius (Circle -> Pill)
-    // Contracted: height/2 for perfect circle, Expanded: height/2 for perfect pill
-    val cornerRadius by animateDpAsState(
-        targetValue = if (state is DynamicIslandState.Contracted) 15.dp else 19.dp,
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f),
-        label = "cornerRadius"
-    )
-    
-    // Animate content opacity
+    // Don't render anything when fully contracted to avoid layout issues
+    if (visibility < 0.01f && !isVisible) {
+        return
+    }
+
+    // Content opacity (fades in after expansion starts)
     val contentAlpha by animateFloatAsState(
-        targetValue = if (state is DynamicIslandState.Contracted) 0f else 1f,
-        animationSpec = tween(150, delayMillis = 50),
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = tween(200, delayMillis = 80),
         label = "contentAlpha"
     )
 
@@ -71,118 +78,142 @@ fun DynamicIsland(
         ),
         label = "pulse"
     )
+    
+    // Gap width (camera dead zone) - animated
+    val gapWidth by animateDpAsState(
+        targetValue = if (isVisible) 48.dp else 30.dp,
+        animationSpec = dpSpring,
+        label = "gapWidth"
+    )
+
+    // Corner radius - half of height for perfect pill shape
+    val cornerRadius = 15.dp  // Half of punchHoleHeight (30dp / 2)
+    
+    // Fixed height to match punch hole diameter (Infinix Note 10: ~30dp)
+    // This ensures the Dynamic Island height matches the camera cutout exactly
+    val punchHoleHeight = 30.dp
+
+    // REQUIREMENT 2 & 4: Surface that expands from center in both directions
+    // Clamp scale to minimum 0.01 to prevent layout issues with zero-size
+    val safeScale = visibility.coerceAtLeast(0.01f)
 
     Surface(
         modifier = modifier
-            .animateContentSize(
-                animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f),
-                alignment = Alignment.Center // CRITICAL: Expands from center
-            ),
+            .graphicsLayer {
+                // Scale from center for symmetric expansion
+                scaleX = safeScale
+                scaleY = safeScale
+                alpha = visibility
+            }
+            .wrapContentSize(Alignment.Center),
         shape = RoundedCornerShape(cornerRadius),
         color = Color.Black,
-        shadowElevation = 0.dp
+        shadowElevation = 4.dp
     ) {
-        // Custom Layout for Center-Anchored Symmetry
-        // Custom Layout for Center-Anchored Symmetry
+        // Use custom symmetrical layout that adapts width to content
         SymmetricalIslandLayout(
-            gapWidth = gapWidth
+            gapWidth = gapWidth,
+            modifier = Modifier
+                .height(punchHoleHeight)
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    )
+                )
         ) {
-            // LEFT WING (Content Aligned Right, near Gap)
-            Box(contentAlignment = Alignment.CenterEnd) {
-                 if (state !is DynamicIslandState.Contracted) {
-                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.alpha(contentAlpha)
-                     ) {
-                         when (state) {
-                             is DynamicIslandState.Processing -> {
-                                 // Pulse Dot (Apple standard size)
-                                 Box(
-                                     modifier = Modifier
-                                         .size(8.dp)
-                                         .background(LocalAccentColor.current.copy(alpha = pulseAlpha), androidx.compose.foundation.shape.CircleShape)
-                                 )
-                             }
-                             is DynamicIslandState.Info -> {
-                                 // Icon + Count (Apple 14-15pt text)
-                                 if (state.icon != null) {
-                                     Icon(
-                                         imageVector = state.icon,
-                                         contentDescription = null,
-                                         tint = LocalAccentColor.current,
-                                         modifier = Modifier.size(16.dp)
-                                     )
-                                     Spacer(Modifier.width(5.dp))
-                                 }
-                                 Text(
-                                     text = state.secondaryLabel,
-                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                     color = LocalAccentColor.current,
-                                     maxLines = 1
-                                 )
-                             }
-                             is DynamicIslandState.Listening -> {
-                                 // Glowing Orb Visualizer
-                                 // Map RMS dB (-2..10) to scale (1.0..1.8)
-                                 val db = state.rmsDb.coerceIn(-2f, 10f)
-                                 val targetScale = 1f + ((db + 2f) / 12f) * 0.8f
-                                 val scale by animateFloatAsState(
-                                     targetValue = targetScale,
-                                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow), // Responsive but smooth
-                                     label = "voiceOrb"
-                                 )
-                                 
-                                 Box(
-                                     modifier = Modifier
-                                         .size(10.dp)
-                                         .scale(scale)
-                                         .background(LocalAccentColor.current, androidx.compose.foundation.shape.CircleShape)
-                                 )
-                             }
-                             else -> {}
-                         }
-                         Spacer(Modifier.width(8.dp)) // Apple standard gap from camera
-                     }
-                 }
-            }
-
-            // RIGHT WING (Content Aligned Left, near Gap)
-            Box(contentAlignment = Alignment.CenterStart) {
-                if (state !is DynamicIslandState.Contracted) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.alpha(contentAlpha)
-                    ) {
-                        Spacer(Modifier.width(8.dp)) // Apple standard gap from camera
-                        when (state) {
-                            is DynamicIslandState.Processing -> {
-                                Text(
-                                    text = "Processing",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = Color.White,
-                                    maxLines = 1
+            // LEFT WING (Content aligned to end, near gap)
+            Box(
+                modifier = Modifier
+                    .alpha(contentAlpha)
+                    .padding(start = 12.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                when (state) {
+                    is DynamicIslandState.Processing -> {
+                        // Pulsing dot
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    LocalAccentColor.current.copy(alpha = pulseAlpha),
+                                    androidx.compose.foundation.shape.CircleShape
                                 )
-                            }
-                            is DynamicIslandState.Info -> {
-                                Text(
-                                    text = state.label,
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    is DynamicIslandState.Info -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (state.icon != null) {
+                                Icon(
+                                    imageVector = state.icon,
+                                    contentDescription = null,
+                                    tint = LocalAccentColor.current,
+                                    modifier = Modifier.size(18.dp)
                                 )
+                                Spacer(Modifier.width(4.dp))
                             }
-                            is DynamicIslandState.Listening -> {
-                                Text(
-                                    text = "Listening...",
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = Color.White,
-                                    maxLines = 1
-                                )
-                            }
-                            else -> {}
+                            Text(
+                                text = state.secondaryLabel,
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = LocalAccentColor.current,
+                                maxLines = 1
+                            )
                         }
                     }
+                    is DynamicIslandState.Listening -> {
+                        // Voice-reactive orb
+                        val db = state.rmsDb.coerceIn(-2f, 10f)
+                        val targetScale = 1f + ((db + 2f) / 12f) * 0.8f
+                        val orbScale by animateFloatAsState(
+                            targetValue = targetScale,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "voiceOrb"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .scale(orbScale)
+                                .background(LocalAccentColor.current, androidx.compose.foundation.shape.CircleShape)
+                        )
+                    }
+                    else -> {}
+                }
+            }
+
+            // RIGHT WING (Content aligned to start, near gap)
+            Box(
+                modifier = Modifier
+                    .alpha(contentAlpha)
+                    .padding(end = 12.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                when (state) {
+                    is DynamicIslandState.Processing -> {
+                        Text(
+                            text = "Processing",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                    is DynamicIslandState.Info -> {
+                        Text(
+                            text = state.label,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    is DynamicIslandState.Listening -> {
+                        Text(
+                            text = "Listening...",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                    else -> {}
                 }
             }
         }

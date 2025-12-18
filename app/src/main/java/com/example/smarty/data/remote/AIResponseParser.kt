@@ -79,6 +79,7 @@ object AIResponseParser {
             val parsed = JsonParser.parseString(jsonStr).asJsonObject
 
             AIResponse(
+                title = parsed.get("title")?.asString?.trim() ?: "Parsed Note",
                 category = parsed.get("category")?.asString?.trim() ?: "Note",
                 summary = parsed.get("summary")?.asString?.trim() ?: "Content saved for later.",
                 whySaved = parsed.get("whySaved")?.asString?.trim() ?: "Reference",
@@ -426,27 +427,18 @@ object AIResponseParser {
         }
     }
 
-    // ==================== Fallback Categorization ====================
-
     /**
-     * Infer category from document text using keyword matching.
-     * Used as fallback when AI analysis is unavailable.
+     * Infer category from document text.
+     * Used by AIService for simple category inference.
      *
-     * @param text The document text to analyze
+     * @param text The text to analyze
      * @return Inferred category name
      */
     fun inferCategoryFromText(text: String): String {
         val lower = text.lowercase()
-        return when {
-            Regex("""(?i)\b(invoice|receipt|payment|transaction|balance|account)\b""").containsMatchIn(lower) -> "Finance"
-            Regex("""(?i)\b(contract|agreement|terms|legal|hereby|whereas)\b""").containsMatchIn(lower) -> "Legal"
-            Regex("""(?i)\b(recipe|ingredient|cook|bake|tablespoon|cup|oven)\b""").containsMatchIn(lower) -> "Recipe"
-            Regex("""(?i)\b(diagnosis|prescription|patient|medical|health|symptom)\b""").containsMatchIn(lower) -> "Health"
-            Regex("""(?i)\b(function|class|import|export|def |const |var |api)\b""").containsMatchIn(lower) -> "Code"
-            Regex("""(?i)\b(report|analysis|quarterly|annual|executive|summary)\b""").containsMatchIn(lower) -> "Work"
-            Regex("""(?i)\b(chapter|abstract|introduction|conclusion|research|study)\b""").containsMatchIn(lower) -> "Learn"
-            else -> "Read"
-        }
+        val urlCat = categorizeByUrl(lower)
+        if (urlCat != null) return urlCat.first
+        return categorizeByKeywords(lower).first
     }
 
     /**
@@ -462,16 +454,34 @@ object AIResponseParser {
      */
     fun smartFallbackCategorization(content: String): AIResponse {
         val lower = content.lowercase()
+        
+        // Generate a fallback title
+        val fallbackTitle = com.example.smarty.util.ContentTypeDetector.extractTitle(
+            content, 
+            com.example.smarty.util.ContentTypeDetector.detectContentType(content)
+        )
 
         // URL-based categorization
         val urlCategory = categorizeByUrl(lower)
         if (urlCategory != null) {
-            return AIResponse(urlCategory.first, urlCategory.second, urlCategory.third, success = true)
+            return AIResponse(
+                title = fallbackTitle,
+                category = urlCategory.first, 
+                summary = urlCategory.second, 
+                whySaved = urlCategory.third, 
+                success = true
+            )
         }
 
         // Keyword-based categorization
         val keywordCategory = categorizeByKeywords(lower)
-        return AIResponse(keywordCategory.first, keywordCategory.second, keywordCategory.third, success = true)
+        return AIResponse(
+            title = fallbackTitle,
+            category = keywordCategory.first, 
+            summary = keywordCategory.second, 
+            whySaved = keywordCategory.third, 
+            success = true
+        )
     }
 
     /**

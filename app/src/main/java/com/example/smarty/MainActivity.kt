@@ -257,6 +257,9 @@ class MainActivity : ComponentActivity() {
                                     onInputTextChange = { text ->
                                         viewModel.updateInputText(text)
                                     },
+                                    onInputAttachmentsChange = { attachments ->
+                                        viewModel.updateInputAttachments(attachments)
+                                    },
                                     // Audio player
                                     onPlayAudio = { track ->
                                         audioPlayerViewModel.playAudio(track)

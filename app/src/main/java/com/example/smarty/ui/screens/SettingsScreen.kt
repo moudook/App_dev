@@ -76,6 +76,7 @@ fun SettingsScreen(
     var showBackupSheet by remember { mutableStateOf(false) }
     var showPinSetupSheet by remember { mutableStateOf(false) }
     var showPinChangeSheet by remember { mutableStateOf(false) }
+    var showAboutSheet by remember { mutableStateOf(false) }  // Newly added state
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val isSystemDark = isSystemInDarkTheme()
@@ -195,8 +196,8 @@ fun SettingsScreen(
                 icon = Icons.Default.Info,
                 title = "About Cogni",
                 subtitle = "Version 1.0.0",
-                onClick = {},
-                showArrow = false
+                onClick = { showAboutSheet = true },
+                showArrow = true
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -396,6 +397,84 @@ fun SettingsScreen(
             },
             shape = LocalShapes.current.cardMedium
         )
+    }
+
+    // About Bottom Sheet
+    if (showAboutSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAboutSheet = false },
+            sheetState = subSettingSheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = LocalShapes.current.bottomSheet,
+            dragHandle = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    )
+                }
+            }
+        ) {
+            HideSystemBars()
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight(0.85f)
+                    .fillMaxWidth()
+            ) {
+                // Fixed Header
+                Text(
+                    text = "About Cogni",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 16.dp)
+                )
+
+                // Scrollable Content
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp)
+                ) {
+                    Text(
+                        text =  "hello I am moudook,\n\n" +
+                                "Initially, I tried to make Cogni a note-taking app for myself. That is why I added AI to it, so I do not get fussed with my notes and do not need to find them manually. I tried to add images, videos, documents like PDF and DOCX, links, and audio. I also tried to import an audio player and added more stuff.\n\n" +
+                                "Then I tried using this app properly. To be honest, it did not even come close to my expectations. The AI could not even handle notes properly. So I played with some system instructions and tried the app again and again, but the same issue still persisted.\n\n" +
+                                "After that, I tried to make the AI agentic and fully local, without any server. I am still working on it. When it is completed, it can refer to multiple note blocks, but never the private ones. Those are secure from AI in all ways possible. It can create new blocks, delete them, set up new to-dos for specific note blocks, and show citations so I know exactly where it is saying things from.\n\n" +
+                                "I am also trying to add a calendar option so users can manage their time more efficiently and try to reduce screen time. The calendar can be accessed by the user and the AI, and both can add things based on it. I added a Dynamic Island style UI. I copied the idea from Apple, and I give them credit for bringing this thing to life. It reacts to the current page, shows the time remaining for the next task or meeting, shows the number of items on the current page, and shows when the AI agent is working.\n\n" +
+                                "I also tried my best to keep the UI persistent. The startup animation has a cloud feel, not a solid bounding feel. The main page has a living orb animation. The chat page has an animation for personality, and when you shake the screen, the animation shifts to a more focused animation that stays on the chat page.\n\n" +
+                                "I also tried to give a shimmering effect with halftone in it on the input block of the chat page, so the user knows when the speech-to-text is working. One more thing is that I personally feel popups are irritating. That is why I added slide-in-from-bottom animations, so I can work around popups while taking minimal space.\n\n" +
+                                "I use this approach in the chat history section, the share-from-other-apps option, the settings, the to-do section, and the music player. I also tried to make a beautiful visualization for the music player so that it feels alive.\n\n" +
+                                "I searched for advanced methods and formulas to make the app run optimally on edge devices. I also used mathematical theorems to improve its efficiency.\n\n" +
+                                "I also added an in-app API section so users can set up API keys no matter the provider. I am planning to secure this section with a strong password so no other person can access it. I added speech recognition using Google’s API inside the app, added a search option, added chat history for the AI, and also added a shake-to-private-mode feature so users can be sure that AI can never access those blocks in any way possible.\n\n" +
+                                "The app also provides AI categorization based on text and images. I am working on document parsing on the device so documents can also be included in categorization. I added a local on-device layer to prevent prompt injection by sanitizing content across multiple languages. I do not use emojis, so I do not need them in this app.\n\n" +
+                                "I respect user data, so the app runs completely on the device, with only API calls to the AI and speech recognition APIs. The app also provides an option to create a backup ZIP that contains everything the user has contributed to this app.\n\n" +
+                                "I am still working on the UI and the agentic part, so please mention any issues you find using GitHub.\n\n" +
+                                "I will keep improving it and try to make it your app.\n" +
+                                "Thank you.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            lineHeight = androidx.compose.ui.unit.TextUnit(24f, androidx.compose.ui.unit.TextUnitType.Sp)
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
+            }
+        }
     }
 }
 

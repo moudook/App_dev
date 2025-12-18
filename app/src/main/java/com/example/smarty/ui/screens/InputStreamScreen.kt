@@ -16,10 +16,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.StickyNote2
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Photo
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -96,6 +104,7 @@ fun InputStreamScreen(
     // AI exclusion parameters
     isAiExcluded: Boolean = false,
     onInputTextChange: (String) -> Unit = {},
+    onInputAttachmentsChange: (List<Attachment>) -> Unit = {},
     onPlayYouTube: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
@@ -123,6 +132,13 @@ fun InputStreamScreen(
 
     // RESTORED VARIABLES that were accidentally deleted or need to be present
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
+
+    // Sync attachments to ViewModel for shake detection
+    // When attachments change, notify ViewModel so shake can trigger privacy mode
+    LaunchedEffect(attachments) {
+        onInputAttachmentsChange(attachments)
+    }
+
     val listState = rememberLazyListState()
     val chatListState = rememberLazyListState()
 
@@ -445,6 +461,7 @@ fun InputStreamScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
+                                .padding(top = 12.dp) // Extra spacing to harmonize with Dynamic Island
                                 .height(64.dp)
                                 .padding(horizontal = 24.dp)
                         ) {
@@ -511,9 +528,9 @@ fun InputStreamScreen(
                             }
                         }
 
-                        // File Type Categorization Chips
+                        // File Type Categorization Chips (Only show in main mode, not chat mode)
                         AnimatedVisibility(
-                            visible = availableTypes.isNotEmpty(),
+                            visible = availableTypes.isNotEmpty() && !isChatMode,
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut()
                         ) {
@@ -593,7 +610,11 @@ fun InputStreamScreen(
                                 items = chatMessages,
                                 key = { it.id }
                             ) { message ->
-                                ChatMessageItem(message = message)
+                                ChatMessageItem(
+                                    message = message,
+                                    getNote = { id -> notes.find { it.id == id } },
+                                    onNoteClick = onNoteClick
+                                )
                             }
                         }
                     }
@@ -794,10 +815,22 @@ fun InputStreamScreen(
             showCategoryTransient -> {
                 val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
                 val count = displayedNotes.size
+                // Determine icon based on selected filter type
+                val filterIcon = when (selectedTypeFilter) {
+                    null -> Icons.Default.GridView  // "All" filter
+                    com.example.smarty.data.model.NoteType.BRAIN_DUMP -> Icons.AutoMirrored.Filled.StickyNote2
+                    com.example.smarty.data.model.NoteType.YOUTUBE -> Icons.Default.PlayCircle
+                    com.example.smarty.data.model.NoteType.IMAGE -> Icons.Default.Photo
+                    com.example.smarty.data.model.NoteType.VIDEO -> Icons.Default.Videocam
+                    com.example.smarty.data.model.NoteType.AUDIO -> Icons.Default.MusicNote
+                    com.example.smarty.data.model.NoteType.DOCUMENT -> Icons.AutoMirrored.Filled.Article
+                    com.example.smarty.data.model.NoteType.WEBSITE -> Icons.Default.Link
+                    else -> Icons.Default.Description  // Default for other types
+                }
                 com.example.smarty.ui.components.DynamicIslandState.Info(
                     label = categoryName,
                     secondaryLabel = count.toString(),
-                    icon = if (selectedTypeFilter == null) Icons.Default.GridView else null
+                    icon = filterIcon
                 )
             }
             else -> com.example.smarty.ui.components.DynamicIslandState.Contracted

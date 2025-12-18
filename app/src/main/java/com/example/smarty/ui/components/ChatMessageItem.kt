@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +26,8 @@ import com.example.smarty.data.model.ChatRole
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.data.model.Note
+import com.example.smarty.ui.components.NoteCard
 import kotlinx.coroutines.delay
 
 /**
@@ -37,15 +40,21 @@ import kotlinx.coroutines.delay
 @Composable
 fun ChatMessageItem(
     message: ChatMessage,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    getNote: (String) -> Note? = { null },
+    onNoteClick: (Note) -> Unit = {}
 ) {
     val isUser = message.role == ChatRole.USER
-    var isVisible by remember { mutableStateOf(false) }
+    
+    // Use rememberSaveable to persist animation state across scroll recycling
+    var isVisible by rememberSaveable(message.id) { mutableStateOf(false) }
 
-    // Animate entrance
+    // Animate entrance only once
     LaunchedEffect(message.id) {
-        delay(50)
-        isVisible = true
+        if (!isVisible) {
+            delay(50) // Brief delay for stagger effect
+            isVisible = true
+        }
     }
 
     AnimatedVisibility(
@@ -107,18 +116,77 @@ fun ChatMessageItem(
                             }
                         )
                     }
-                }
-            }
 
-            // Action results (for assistant messages)
-            if (!isUser && message.hasActions) {
-                Spacer(modifier = Modifier.height(4.dp))
-                message.executedActions.forEach { actionResult ->
-                    ActionResultChip(
-                        actionName = actionResult.action,
-                        success = actionResult.success,
-                        summary = actionResult.resultSummary
-                    )
+                    // Action results (for assistant messages)
+                    if (!isUser && message.hasActions) {
+                         Spacer(modifier = Modifier.height(8.dp))
+                         // Identify all notes displayed by actions to avoid duplicating in "Relevant Notes"
+                         val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
+                         
+                         message.executedActions.forEach { actionResult ->
+                              Column {
+                                   ActionResultChip(
+                                        actionName = actionResult.action,
+                                        success = actionResult.success,
+                                        summary = actionResult.resultSummary
+                                   )
+                                   
+                                   // Show modified/created/accessed note cards based on action results
+                                   if (actionResult.affectedNoteIds.isNotEmpty()) {
+                                        actionResult.affectedNoteIds.forEach { noteId ->
+                                            val note = getNote(noteId)
+                                            if (note != null) {
+                                                 Spacer(modifier = Modifier.height(8.dp))
+                                                 NoteCard(
+                                                      note = note,
+                                                      onClick = { onNoteClick(note) },
+                                                      onDelete = {}, 
+                                                      onOpenTodo = {},
+                                                      modifier = Modifier.fillMaxWidth(),
+                                                      isSelectionMode = true // Disables swipe actions in chat
+                                                 )
+                                            }
+                                        }
+                                   }
+                              }
+                              // Spacing between multiple actions
+                              Spacer(modifier = Modifier.height(4.dp))
+                         }
+                    }
+                    
+                    // Show Relevant Notes (References) that weren't acted upon directly
+                    // e.g. Search results or Q&A context
+                    if (!isUser && message.referencedNoteIds.isNotEmpty()) {
+                        // Filter out notes already shown in action results above
+                        val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
+                        val relevantNotes = message.referencedNoteIds
+                            .filter { it !in actionNoteIds }
+                            .mapNotNull { getNote(it) }
+                            .take(5) // Limit to avoid massive scroll
+
+                        if (relevantNotes.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "RELEVANT NOTES",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            relevantNotes.forEach { note ->
+                                NoteCard(
+                                      note = note,
+                                      onClick = { onNoteClick(note) },
+                                      onDelete = {}, 
+                                      onOpenTodo = {},
+                                      modifier = Modifier.fillMaxWidth(),
+                                      isSelectionMode = true // Disables swipe actions in chat
+                                 )
+                                 Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+                    }
                 }
             }
 

@@ -22,6 +22,7 @@ import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.TodoItem
+import com.example.smarty.data.model.getAllAttachmentUris
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
@@ -101,51 +102,48 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null
 
-    // Chat mode state
-    private val _isChatMode = MutableStateFlow(false)
-    val isChatMode: StateFlow<Boolean> = _isChatMode.asStateFlow()
+    // ==================== Delegated Managers ====================
 
-    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
-    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
+    // Chat Manager - handles chat state and session lifecycle
+    private val chatManager = ChatManager(chatRepository, viewModelScope)
 
-    private val _isChatProcessing = MutableStateFlow(false)
-    val isChatProcessing: StateFlow<Boolean> = _isChatProcessing.asStateFlow()
+    // Share Flow Manager - handles share interception and processing
+    private val shareFlowManager = ShareFlowManager(
+        repository = repository,
+        context = application,
+        scope = viewModelScope,
+        getNotesSnapshot = { notes.value }
+    )
 
-    // Chat session state
-    private val _currentSessionId = MutableStateFlow<String?>(null)
-    val currentSessionId: StateFlow<String?> = _currentSessionId.asStateFlow()
+    // ==================== Chat State (delegated to ChatManager) ====================
+    val isChatMode: StateFlow<Boolean> = chatManager.isChatMode
+    val chatMessages: StateFlow<List<ChatMessage>> = chatManager.chatMessages
+    val isChatProcessing: StateFlow<Boolean> = chatManager.isChatProcessing
+    val currentSessionId: StateFlow<String?> = chatManager.currentSessionId
+    val chatSessions: StateFlow<List<ChatSession>> = chatManager.chatSessions
 
-    private val _chatSessions = MutableStateFlow<List<ChatSession>>(emptyList())
-    val chatSessions: StateFlow<List<ChatSession>> = _chatSessions.asStateFlow()
-
-    // Flag to track if last API call was successful (for smart saving)
-    private var lastApiCallSuccessful = false
+    // ==================== Share Flow State (delegated to ShareFlowManager) ====================
+    val pendingShare: StateFlow<PendingShareData?> = shareFlowManager.pendingShare
+    val pendingShareFullPrivacy: StateFlow<Boolean> = shareFlowManager.pendingShareFullPrivacy
+    val isActiveShareMode: StateFlow<Boolean> = shareFlowManager.isActiveShareMode
 
     // AI exclusion state for pending notes (while writing)
     private val _pendingNoteAiExcluded = MutableStateFlow(false)
     val pendingNoteAiExcluded: StateFlow<Boolean> = _pendingNoteAiExcluded.asStateFlow()
 
-    // Full privacy mode state for share flow (no AI processing at all)
-    private val _pendingShareFullPrivacy = MutableStateFlow(false)
-    val pendingShareFullPrivacy: StateFlow<Boolean> = _pendingShareFullPrivacy.asStateFlow()
-
-    // Track if we're in active share mode (share bottom sheet is visible)
-    private val _isActiveShareMode = MutableStateFlow(false)
-    val isActiveShareMode: StateFlow<Boolean> = _isActiveShareMode.asStateFlow()
-
     // Current input text (hoisted from UI for shake detection)
     private val _currentInputText = MutableStateFlow("")
     val currentInputText: StateFlow<String> = _currentInputText.asStateFlow()
+
+    // Current input attachments (hoisted from UI for shake detection)
+    private val _currentInputAttachments = MutableStateFlow<List<Attachment>>(emptyList())
+    val currentInputAttachments: StateFlow<List<Attachment>> = _currentInputAttachments.asStateFlow()
 
     // Expose secure preferences state for UI
     val geminiKeys: StateFlow<List<String>> = securePreferences.geminiKeys
     val huggingFaceKeys: StateFlow<List<String>> = securePreferences.huggingFaceKeys
     val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = securePreferences.providerConfigs
     val isPinSet: StateFlow<Boolean> = securePreferences.isPinSet
-
-    // Pending share state for bottom sheet
-    private val _pendingShare = MutableStateFlow<PendingShareData?>(null)
-    val pendingShare: StateFlow<PendingShareData?> = _pendingShare.asStateFlow()
 
     // Cache management
     private val cacheManager = CacheManager.getInstance(application)
@@ -178,16 +176,8 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.syncAllCategoryCounts()
         }
-        // Load chat sessions
-        viewModelScope.launch {
-            chatRepository.getAllSessions().collect { sessions ->
-                _chatSessions.value = sessions
-            }
-        }
-        // Clean up empty chat sessions on start
-        viewModelScope.launch {
-            chatRepository.cleanupEmptySessions()
-        }
+        // Initialize chat manager (loads sessions and cleans up empty ones)
+        chatManager.initialize()
     }
 
     // Public sync function for manual recalculation
@@ -497,6 +487,12 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteNote(note: Note) {
         viewModelScope.launch {
+            // Clean up attachment files (only deletes app's copies, not original files)
+            val context = getApplication<Application>()
+            note.getAllAttachmentUris().forEach { uri ->
+                FileStorageHelper.deleteFile(context, uri)
+            }
+            // Then delete database record
             repository.deleteNote(note)
         }
     }
@@ -506,7 +502,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
             // Search in both active notes and archived notes
             val note = notes.value.find { it.id == noteId }
                 ?: archivedNotes.value.find { it.id == noteId }
-            note?.let { repository.deleteNote(it) }
+            note?.let { deleteNote(it) }
         }
     }
 
@@ -522,175 +518,22 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Share interception for bottom sheet
+    // Share interception for bottom sheet (delegated to ShareFlowManager)
     fun interceptShareForPreview(sharedContent: SharedContent) {
-        viewModelScope.launch {
-            // Enter share mode and reset privacy state
-            _isActiveShareMode.value = true
-            _pendingShareFullPrivacy.value = false
-
-            val type = when {
-                sharedContent.fileUri != null -> detectTypeFromMime(sharedContent.mimeType)
-                sharedContent.text != null -> detectContentType(sharedContent.text)
-                else -> NoteType.FILE
-            }
-
-            // Find potentially related notes
-            val relatedNotes = findRelatedNotes(sharedContent)
-
-            _pendingShare.value = PendingShareData(
-                text = sharedContent.text,
-                fileUri = sharedContent.fileUri,
-                fileName = sharedContent.fileName,
-                mimeType = sharedContent.mimeType,
-                fileSize = sharedContent.fileSize,
-                detectedType = type,
-                suggestedCategory = null,  // Let AI decide by default
-                relatedNotes = relatedNotes
-            )
-        }
+        shareFlowManager.interceptShareForPreview(sharedContent)
     }
 
     fun confirmShare(selectedCategory: String?, aiInstructions: String) {
-        val pending = _pendingShare.value ?: return
-        val isFullPrivacy = _pendingShareFullPrivacy.value
-
         viewModelScope.launch {
-            // Get all files to process (handles both single and multiple)
-            val allFiles = pending.getAllFiles()
-
-            // Process all files - compress and store each one
-            val processedAttachments = mutableListOf<NoteAttachment>()
-            var firstFileUri: String? = null
-            var firstFileName: String? = null
-            var firstMimeType: String? = null
-            var firstFileSize: Long? = null
-
-            allFiles.forEachIndexed { index, file ->
-                try {
-                    val compressed = FileStorageHelper.compressAndStore(
-                        context = getApplication(),
-                        sourceUri = Uri.parse(file.fileUri),
-                        mimeType = file.mimeType,
-                        originalFileName = file.fileName
-                    )
-
-                    val finalUri = compressed?.uri ?: file.fileUri
-                    val finalName = compressed?.fileName ?: file.fileName ?: "file_${index + 1}"
-                    val finalMime = compressed?.mimeType ?: file.mimeType ?: "application/octet-stream"
-                    val finalSize = compressed?.compressedSize ?: file.fileSize ?: 0
-
-                    // Add to attachments list
-                    processedAttachments.add(NoteAttachment(
-                        uri = finalUri,
-                        fileName = finalName,
-                        mimeType = finalMime,
-                        fileSize = finalSize
-                    ))
-
-                    // Store first file info for backward compatibility
-                    if (index == 0) {
-                        firstFileUri = finalUri
-                        firstFileName = finalName
-                        firstMimeType = finalMime
-                        firstFileSize = finalSize
-                    }
-
-                    // Log compression savings
-                    compressed?.let {
-                        if (it.isCompressed) {
-                            Log.i(TAG, "File compressed: ${it.fileName} saved ${formatSize(it.savedBytes)} " +
-                                    "(${String.format("%.1f", it.compressionRatio)}% reduction)")
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to compress and store file: ${e.message}")
-                }
-            }
-
-            // Build content description
-            val content = buildString {
-                pending.text?.let { append(it) }
-                if (processedAttachments.isNotEmpty()) {
-                    if (isNotEmpty()) append("\n\n")
-                    if (processedAttachments.size == 1) {
-                        append("File: ${processedAttachments[0].fileName}")
-                        append("\nType: ${processedAttachments[0].mimeType}")
-                        append("\nSize: ${formatSize(processedAttachments[0].fileSize)}")
-                    } else {
-                        append("${processedAttachments.size} files attached:")
-                        processedAttachments.forEachIndexed { idx, att ->
-                            append("\n${idx + 1}. ${att.fileName}")
-                        }
+            shareFlowManager.confirmShare(
+                selectedCategory = selectedCategory,
+                aiInstructions = aiInstructions,
+                callback = object : ShareFlowManager.ShareConfirmCallback {
+                    override suspend fun processNoteWithAi(note: Note) {
+                        simulateAiProcessing(note)
                     }
                 }
-                // Only add AI instructions if NOT in full privacy mode
-                if (aiInstructions.isNotBlank() && !isFullPrivacy) {
-                    append("\n\n[User Context: $aiInstructions]")
-                }
-            }
-
-            // Generate title
-            val title = when {
-                processedAttachments.size > 1 -> "${processedAttachments.size} ${getTypeNamePlural(pending.detectedType)}"
-                firstFileName != null -> firstFileName
-                else -> generateTitle(pending.text ?: "", pending.detectedType)
-            }
-
-            // Serialize attachments to JSON
-            val attachmentsJson = if (processedAttachments.size > 1) {
-                com.google.gson.Gson().toJson(processedAttachments)
-            } else null
-
-            val note = Note(
-                title = title,
-                content = content,
-                fileUri = firstFileUri,
-                fileName = firstFileName,
-                fileMimeType = firstMimeType,
-                fileSize = firstFileSize,
-                imageUri = if (pending.detectedType == NoteType.IMAGE) firstFileUri else null,
-                type = pending.detectedType,
-                categoryName = if (isFullPrivacy) "Private Notes" else selectedCategory,
-                processingStatus = if (isFullPrivacy || selectedCategory != null) ProcessingStatus.PENDING else ProcessingStatus.PROCESSING,
-                isFullPrivacy = isFullPrivacy,
-                excludeFromAiChat = isFullPrivacy,
-                attachmentsJson = attachmentsJson
             )
-
-            repository.insertNote(note)
-
-            if (isFullPrivacy) {
-                // Full privacy mode - no AI processing at all
-                saveNoteWithoutAiProcessing(note)
-                Log.i(TAG, "Note saved in full privacy mode: ${note.title}")
-            } else if (selectedCategory != null) {
-                // Category selected - just assign category
-                val category = repository.getOrCreateCategory(selectedCategory)
-                val updatedNote = note.copy(
-                    categoryId = category.id,
-                    processingStatus = ProcessingStatus.COMPLETED
-                )
-                repository.updateNote(updatedNote)
-            } else {
-                // Normal AI processing
-                simulateAiProcessing(note)
-            }
-
-            // Reset share mode state
-            _pendingShare.value = null
-            _isActiveShareMode.value = false
-            _pendingShareFullPrivacy.value = false
-        }
-    }
-
-    private fun getTypeNamePlural(type: NoteType): String {
-        return when (type) {
-            NoteType.IMAGE -> "Images"
-            NoteType.VIDEO -> "Videos"
-            NoteType.AUDIO -> "Audio Files"
-            NoteType.DOCUMENT -> "Documents"
-            else -> "Files"
         }
     }
 
@@ -713,32 +556,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelShare() {
-        _pendingShare.value = null
-        _isActiveShareMode.value = false
-        _pendingShareFullPrivacy.value = false
-    }
-
-    private fun findRelatedNotes(sharedContent: SharedContent): List<Note> {
-        // Simple keyword matching for related notes
-        val searchText = sharedContent.text?.lowercase() ?: sharedContent.fileName?.lowercase() ?: ""
-        if (searchText.length < 3) return emptyList()
-
-        val keywords = searchText.split(Regex("[\\s,;.!?]+"))
-            .filter { it.length >= 3 }
-            .take(5)
-
-        // ============================================================================
-        // SECURITY: PrivacyGuard - private notes are INVISIBLE
-        // They DO NOT EXIST for related notes suggestions
-        // ============================================================================
-        return PrivacyGuard.getAiVisibleNotes(notes.value)
-            .filter { note ->
-                keywords.any { keyword ->
-                    note.title.lowercase().contains(keyword) ||
-                    note.content.lowercase().contains(keyword)
-                }
-            }
-            .take(5)
+        shareFlowManager.cancelShare()
     }
 
     // Delegate file size formatting to ContentTypeDetector
@@ -822,10 +640,12 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         val categoryName = aiResponse.category
         val summary = aiResponse.summary
         val whySaved = aiResponse.whySaved
+        val newTitle = aiResponse.title
 
         val category = repository.getOrCreateCategory(categoryName)
 
         val updatedNote = note.copy(
+            title = if (newTitle.isNotBlank()) newTitle else note.title,
             summary = summary,
             whySaved = whySaved,
             categoryId = category.id,
@@ -1092,6 +912,14 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Update the current input attachments from UI
+     * Used for contextual shake detection (attachments should trigger privacy mode)
+     */
+    fun updateInputAttachments(attachments: List<Attachment>) {
+        _currentInputAttachments.value = attachments
+    }
+
+    /**
      * Toggle AI exclusion for the pending note
      * Called when shaking while typing
      */
@@ -1106,6 +934,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     fun resetPendingNoteState() {
         _pendingNoteAiExcluded.value = false
         _currentInputText.value = ""
+        _currentInputAttachments.value = emptyList()
     }
 
     /**
@@ -1125,26 +954,26 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Handle shake gesture contextually
-     * Priority: Share mode > Chat mode > Input text > Empty input
+     * Priority: Share mode > Chat mode > Input content (text OR attachments) > Empty input
      */
     private fun handleShake() {
         when {
             // Priority 1: During share -> toggle full privacy mode
-            _isActiveShareMode.value -> {
+            shareFlowManager.isInShareMode() -> {
                 toggleShareFullPrivacy()
                 Log.d(TAG, "Shake: Toggled full privacy mode during share")
             }
             // Priority 2: In chat mode -> just exit chat mode (no AI exclusion)
-            _isChatMode.value -> {
+            chatManager.isChatMode.value -> {
                 toggleChatMode()
                 Log.d(TAG, "Shake: Exited chat mode")
             }
-            // Priority 3: Normal mode + Input has text -> toggle AI exclusion
-            _currentInputText.value.isNotBlank() -> {
+            // Priority 3: Normal mode + Input has content (text OR attachments) -> toggle AI exclusion
+            _currentInputText.value.isNotBlank() || _currentInputAttachments.value.isNotEmpty() -> {
                 togglePendingNoteAiExclusion()
-                Log.d(TAG, "Shake: Toggled AI exclusion (input has text)")
+                Log.d(TAG, "Shake: Toggled AI exclusion (input has text or attachments)")
             }
-            // Priority 4: Normal mode + Input empty -> enter chat mode
+            // Priority 4: Normal mode + Input completely empty -> enter chat mode
             else -> {
                 toggleChatMode()
                 Log.d(TAG, "Shake: Entered chat mode (input empty)")
@@ -1153,11 +982,10 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Toggle full privacy mode for share flow
+     * Toggle full privacy mode for share flow (delegated to ShareFlowManager)
      */
     fun toggleShareFullPrivacy() {
-        _pendingShareFullPrivacy.value = !_pendingShareFullPrivacy.value
-        Log.d(TAG, "Full privacy mode toggled: ${_pendingShareFullPrivacy.value}")
+        shareFlowManager.toggleFullPrivacy()
     }
 
     /**
@@ -1175,131 +1003,45 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Toggle between note input mode and chat mode
+     * Toggle between note input mode and chat mode (delegated to ChatManager)
      */
     fun toggleChatMode() {
-        viewModelScope.launch {
-            if (!_isChatMode.value) {
-                // Entering chat mode - create or restore session
-                enterChatMode()
-            } else {
-                // Exiting chat mode
-                exitChatMode()
-            }
-        }
+        chatManager.toggleChatMode()
     }
 
     /**
-     * Enter chat mode - creates a new session or restores the last active one
-     */
-    private suspend fun enterChatMode() {
-        _isChatMode.value = true
-
-        // Check if we have an existing active session to restore
-        val activeSession = chatRepository.getActiveSession()
-        if (activeSession != null) {
-            // Restore the session
-            _currentSessionId.value = activeSession.id
-            val messages = chatRepository.getMessagesForSessionOnce(activeSession.id)
-            _chatMessages.value = messages
-            Log.d(TAG, "Restored chat session: ${activeSession.id} with ${messages.size} messages")
-        } else {
-            // Create a new session
-            val newSession = chatRepository.createNewSession()
-            _currentSessionId.value = newSession.id
-            _chatMessages.value = emptyList()
-            Log.d(TAG, "Created new chat session: ${newSession.id}")
-        }
-
-        Log.d(TAG, "Entered chat mode")
-    }
-
-    /**
-     * Exit chat mode and return to note input mode
+     * Exit chat mode and return to note input mode (delegated to ChatManager)
      */
     fun exitChatMode() {
-        viewModelScope.launch {
-            // Finalize the current session (cleanup if empty/incomplete)
-            _currentSessionId.value?.let { sessionId ->
-                chatRepository.finalizeSession(sessionId)
-            }
-        }
-        _isChatMode.value = false
-        Log.d(TAG, "Exited chat mode")
+        chatManager.exitChatMode()
     }
 
     /**
-     * Create a new chat session (starts fresh conversation)
+     * Create a new chat session (delegated to ChatManager)
      */
     fun createNewChatSession() {
-        viewModelScope.launch {
-            // Finalize the current session first
-            _currentSessionId.value?.let { sessionId ->
-                chatRepository.finalizeSession(sessionId)
-            }
-
-            // Create new session
-            val newSession = chatRepository.createNewSession()
-            _currentSessionId.value = newSession.id
-            _chatMessages.value = emptyList()
-            lastApiCallSuccessful = false
-            Log.d(TAG, "Created new chat session: ${newSession.id}")
-        }
+        chatManager.createNewChatSession()
     }
 
     /**
-     * Switch to a different chat session
+     * Switch to a different chat session (delegated to ChatManager)
      */
     fun switchToChatSession(sessionId: String) {
-        viewModelScope.launch {
-            chatRepository.switchToSession(sessionId)
-            _currentSessionId.value = sessionId
-            val messages = chatRepository.getMessagesForSessionOnce(sessionId)
-            _chatMessages.value = messages
-            Log.d(TAG, "Switched to chat session: $sessionId with ${messages.size} messages")
-        }
+        chatManager.switchToChatSession(sessionId)
     }
 
     /**
-     * Delete a chat session
+     * Delete a chat session (delegated to ChatManager)
      */
     fun deleteChatSession(sessionId: String) {
-        viewModelScope.launch {
-            val isCurrentSession = sessionId == _currentSessionId.value
-            chatRepository.deleteSession(sessionId)
-
-            if (isCurrentSession) {
-                // If we deleted the current session, create a new one
-                val newSession = chatRepository.createNewSession()
-                _currentSessionId.value = newSession.id
-                _chatMessages.value = emptyList()
-            }
-            Log.d(TAG, "Deleted chat session: $sessionId")
-        }
+        chatManager.deleteChatSession(sessionId)
     }
 
     /**
-     * Clear current chat history (keeps session, just clears messages in memory)
+     * Clear current chat history (delegated to ChatManager)
      */
     fun clearChatHistory() {
-        _chatMessages.value = emptyList()
-        Log.d(TAG, "Chat history cleared")
-    }
-
-    /**
-     * Determine if chat should be saved based on various conditions
-     */
-    private fun shouldSaveChat(): Boolean {
-        // Condition 1: Must have a valid session
-        if (_currentSessionId.value == null) return false
-
-        // Condition 2: API must have responded successfully (not demo mode/no API key)
-        if (!lastApiCallSuccessful) return false
-
-        // Condition 3: Must have API keys configured
-        if (!securePreferences.hasAnyApiKeys()) return false
-
-        return true
+        chatManager.clearChatHistory()
     }
 
     /**
@@ -1310,22 +1052,14 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         if (content.isBlank() && attachments.isEmpty()) return
 
         viewModelScope.launch {
-            _isChatProcessing.value = true
-            lastApiCallSuccessful = false  // Reset flag
+            chatManager.setProcessing(true)
+            chatManager.resetApiCallFlag()
 
             // Ensure we have a session
-            if (_currentSessionId.value == null) {
-                val newSession = chatRepository.createNewSession()
-                _currentSessionId.value = newSession.id
-            }
+            chatManager.ensureSession()
 
             // Add user message to chat history
-            val userMessage = ChatMessage(
-                role = ChatRole.USER,
-                content = content,
-                attachments = attachments
-            )
-            _chatMessages.value = _chatMessages.value + userMessage
+            val userMessage = chatManager.addUserMessage(content, attachments)
 
             try {
                 // ============================================================================
@@ -1338,7 +1072,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                 val response = agentService.processUserMessage(
                     userMessage = content,
                     attachments = attachments,
-                    chatHistory = _chatMessages.value,
+                    chatHistory = chatManager.chatMessages.value,
                     allNotes = aiAccessibleNotes,
                     allCategories = categories.value
                 )
@@ -1356,69 +1090,80 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 // Add sanitized assistant response to chat history
-                _chatMessages.value = _chatMessages.value + sanitizedResponse
+                chatManager.addAssistantMessage(sanitizedResponse)
 
                 // Mark API call as successful (we got a real response)
-                lastApiCallSuccessful = true
+                chatManager.markApiCallSuccessful()
 
-                // Save messages to persistent storage if conditions are met
-                _currentSessionId.value?.let { sessionId ->
-                    chatRepository.saveMessagePair(
-                        sessionId = sessionId,
+                // Execute any actions returned by the agent and capture affected IDs
+                if (response.hasActions) {
+                    val updatedActions = response.executedActions.map { actionResult ->
+                        val affectedIds = executeAgentAction(actionResult, content)
+                        actionResult.copy(affectedNoteIds = affectedIds)
+                    }
+                    
+                    // Update state with results including note IDs
+                    chatManager.updateAssistantMessageActions(sanitizedResponse.id, updatedActions)
+                    
+                    // Save messages to persistent storage (including the updated actions)
+                    chatManager.saveMessagePair(
+                        userMessage = userMessage,
+                        assistantMessage = sanitizedResponse.copy(executedActions = updatedActions),
+                        hasApiKeys = securePreferences.hasAnyApiKeys()
+                    )
+                } else {
+                     // Save without actions update
+                    chatManager.saveMessagePair(
                         userMessage = userMessage,
                         assistantMessage = sanitizedResponse,
-                        shouldSave = shouldSaveChat()
+                        hasApiKeys = securePreferences.hasAnyApiKeys()
                     )
-                }
-
-                // Execute any actions returned by the agent
-                if (response.hasActions) {
-                    response.executedActions.forEach { actionResult ->
-                        executeAgentAction(actionResult, content)
-                    }
                 }
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing chat message: ${e.message}", e)
-
-                // Don't save on error - API didn't respond successfully
-                lastApiCallSuccessful = false
 
                 // Add error message to chat (not persisted)
                 val errorMessage = ChatMessage(
                     role = ChatRole.ASSISTANT,
                     content = "I encountered an error processing your request. Please try again."
                 )
-                _chatMessages.value = _chatMessages.value + errorMessage
+                chatManager.addAssistantMessage(errorMessage)
             } finally {
-                _isChatProcessing.value = false
+                chatManager.setProcessing(false)
             }
         }
     }
 
     /**
      * Execute an agent action based on the parsed response
+     * Returns list of affected note IDs
      */
-    private suspend fun executeAgentAction(actionResult: AgentActionResult, originalMessage: String) {
+    private suspend fun executeAgentAction(actionResult: AgentActionResult, originalMessage: String): List<String> {
         Log.d(TAG, "Executing agent action: ${actionResult.action}")
 
         // Get the actual action from the last AI response
-        val lastAssistantMessage = _chatMessages.value.lastOrNull { it.role == ChatRole.ASSISTANT }
-        if (lastAssistantMessage == null) return
+        val chatHistory = chatManager.chatMessages.value
+        val lastAssistantMessage = chatHistory.lastOrNull { it.role == ChatRole.ASSISTANT }
+        if (lastAssistantMessage == null) return emptyList()
 
         // Parse the action from the response
         val action = agentService.getActionFromResponse(
-            _chatMessages.value.lastOrNull { it.role == ChatRole.ASSISTANT }?.content ?: return
-        ) ?: return
+            lastAssistantMessage.content
+        ) ?: return emptyList()
 
-        when (action) {
+        return when (action) {
             is AgentAction.CreateNote -> {
-                val title = action.title ?: action.content.take(50)
+                // Detect correct type and title if not provided
+                val detectedType = detectContentType(action.content)
+                val title = action.title ?: extractTitle(action.content, detectedType)
+                
                 val note = Note(
                     title = title,
                     content = action.content,
-                    type = NoteType.BRAIN_DUMP,
-                    processingStatus = if (action.category != null) ProcessingStatus.COMPLETED else ProcessingStatus.PROCESSING
+                    type = detectedType, // Use detected type instead of hardcoded BRAIN_DUMP
+                    processingStatus = if (action.category != null) ProcessingStatus.COMPLETED else ProcessingStatus.PROCESSING,
+                    isAiCreated = true
                 )
                 repository.insertNote(note)
 
@@ -1431,14 +1176,25 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                         processingStatus = ProcessingStatus.COMPLETED
                     ))
                 } else {
-                    simulateAiProcessing(note)
+                    // Launch processing safely - if it fails, fallback to simple storage
+                    try {
+                        simulateAiProcessing(note)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "AI processing failed for created note: ${e.message}")
+                        // Fallback: Ensure note is visible even if AI fails
+                        repository.updateNote(note.copy(
+                            processingStatus = ProcessingStatus.COMPLETED
+                        ))
+                    }
                 }
                 Log.d(TAG, "Created note: $title")
+                listOf(note.id)
             }
 
             is AgentAction.SearchNotes -> {
                 // Search is handled in the response - notes are already selected by AgentService
                 Log.d(TAG, "Search executed for: ${action.query}")
+                emptyList()
             }
 
             is AgentAction.DeleteNote -> {
@@ -1456,8 +1212,9 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     if (PrivacyGuard.canAiProcess(it)) {
                         repository.deleteNote(it)
                         Log.d(TAG, "Deleted note: ${it.title}")
-                    }
-                }
+                        listOf(it.id)
+                    } else emptyList()
+                } ?: emptyList()
             }
 
             is AgentAction.ArchiveNote -> {
@@ -1475,8 +1232,9 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     if (PrivacyGuard.canAiProcess(it)) {
                         repository.archiveNote(it.id)
                         Log.d(TAG, "Archived note: ${it.title}")
-                    }
-                }
+                        listOf(it.id)
+                    } else emptyList()
+                } ?: emptyList()
             }
 
             is AgentAction.UnarchiveNote -> {
@@ -1494,8 +1252,9 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     if (PrivacyGuard.canAiProcess(it)) {
                         repository.unarchiveNote(it.id)
                         Log.d(TAG, "Unarchived note: ${it.title}")
-                    }
-                }
+                        listOf(it.id)
+                    } else emptyList()
+                } ?: emptyList()
             }
 
             is AgentAction.UpdateNote -> {
@@ -1508,7 +1267,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     // SECURITY: Secondary validation - ensure note can be processed
                     if (!PrivacyGuard.canAiProcess(note)) {
                         Log.w(TAG, "SECURITY: Blocked AI update on private note")
-                        return@let
+                        return@let emptyList()
                     }
 
                     val updatedNote = note.copy(
@@ -1526,22 +1285,26 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                         repository.updateNote(updatedNote)
                     }
                     Log.d(TAG, "Updated note: ${updatedNote.title}")
-                }
+                    listOf(note.id)
+                } ?: emptyList()
             }
 
             is AgentAction.ListCategories -> {
                 // Categories are included in the response context
                 Log.d(TAG, "Listed ${categories.value.size} categories")
+                emptyList()
             }
 
             is AgentAction.GetCategoryNotes -> {
                 // Notes for category are included in the response
                 Log.d(TAG, "Got notes for category: ${action.categoryName}")
+                emptyList()
             }
 
             is AgentAction.AnswerQuestion -> {
                 // Answer is in the response - no action needed
                 Log.d(TAG, "Answered question: ${action.question}")
+                emptyList()
             }
 
             is AgentAction.SummarizeNote -> {
@@ -1554,16 +1317,18 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     // SECURITY: Secondary validation - ensure note can be processed
                     if (!PrivacyGuard.canAiProcess(note)) {
                         Log.w(TAG, "SECURITY: Blocked AI summarization on private note")
-                        return@let
+                        return@let emptyList()
                     }
                     // Update the note with AI-generated summary (already in response)
                     Log.d(TAG, "Summarized note: ${note.title}")
-                }
+                    listOf(note.id)
+                } ?: emptyList()
             }
 
             is AgentAction.SuggestActions -> {
                 // Suggestions are in the response - no execution needed
                 Log.d(TAG, "Suggested actions based on context: ${action.context.take(50)}...")
+                emptyList()
             }
 
             is AgentAction.AddTodos -> {
@@ -1576,7 +1341,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     // SECURITY: Secondary validation
                     if (!PrivacyGuard.canAiProcess(note)) {
                         Log.w(TAG, "SECURITY: Blocked AI AddTodos on private note")
-                        return@let
+                        return@let emptyList()
                     }
                     val currentTodos = note.getTodos().toMutableList()
                     val newTodos = action.todos.map { text ->
@@ -1588,7 +1353,8 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                         repository.updateNote(updatedNote)
                     }
                     Log.d(TAG, "Added ${action.todos.size} todos to note: ${note.title}")
-                }
+                    listOf(note.id)
+                } ?: emptyList()
             }
 
             is AgentAction.ToggleTodo -> {
@@ -1601,7 +1367,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     // SECURITY: Secondary validation
                     if (!PrivacyGuard.canAiProcess(note)) {
                         Log.w(TAG, "SECURITY: Blocked AI ToggleTodo on private note")
-                        return@let
+                        return@let emptyList()
                     }
                     val todos = note.getTodos().toMutableList()
                     val todoIndex = todos.indexOfFirst { it.id == action.todoId }
@@ -1613,8 +1379,9 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                             repository.updateNote(updatedNote)
                         }
                         Log.d(TAG, "Toggled todo '${todo.text}' to ${!todo.isCompleted}")
-                    }
-                }
+                        listOf(note.id)
+                    } else emptyList()
+                } ?: emptyList()
             }
 
             is AgentAction.DeleteTodo -> {
@@ -1627,7 +1394,7 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     // SECURITY: Secondary validation
                     if (!PrivacyGuard.canAiProcess(note)) {
                         Log.w(TAG, "SECURITY: Blocked AI DeleteTodo on private note")
-                        return@let
+                        return@let emptyList()
                     }
                     val todos = note.getTodos().toMutableList()
                     val removed = todos.removeAll { it.id == action.todoId }
@@ -1637,13 +1404,14 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                             repository.updateNote(updatedNote)
                         }
                         Log.d(TAG, "Deleted todo from note: ${note.title}")
-                    }
-                }
+                        listOf(note.id)
+                    } else emptyList()
+                } ?: emptyList()
             }
 
             is AgentAction.BatchActions -> {
                 // Execute each action in the batch
-                action.actions.forEach { subAction ->
+                action.actions.flatMap { subAction ->
                     executeAgentAction(
                         AgentActionResult(
                             action = subAction.javaClass.simpleName,

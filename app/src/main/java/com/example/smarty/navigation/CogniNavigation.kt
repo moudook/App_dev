@@ -89,6 +89,7 @@ fun CogniNavHost(
     // AI exclusion management
     isAiExcluded: Boolean = false,
     onInputTextChange: (String) -> Unit = {},
+    onInputAttachmentsChange: (List<Attachment>) -> Unit = {},
     // Audio player for attachments
     onPlayAudio: (AudioTrack) -> Unit = {},
     // Theme management
@@ -184,6 +185,7 @@ fun CogniNavHost(
                 // AI exclusion
                 isAiExcluded = isAiExcluded,
                 onInputTextChange = onInputTextChange,
+                onInputAttachmentsChange = onInputAttachmentsChange,
                 bottomContentPadding = bottomContentPadding
             )
         }

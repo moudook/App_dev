@@ -143,8 +143,7 @@ fun PinScreen(
             // PIN dots
             PinDots(
                 length = pin.length,
-                shake = shake,
-                modifier = Modifier.padding(horizontal = ComponentSpacing.headerGap)
+                shake = shake
             )
 
             // Error message
@@ -240,8 +239,12 @@ private fun PinDots(
     }
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(ComponentSpacing.pinDotGap), // 16dp
-        modifier = modifier.graphicsLayer { translationX = shakeOffset }
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .wrapContentWidth()  // Ensure row doesn't get clipped
+            .graphicsLayer { translationX = shakeOffset }
+            .padding(vertical = 12.dp)
     ) {
         repeat(6) { index ->
             AnimatedPinDot(
@@ -268,7 +271,7 @@ private fun AnimatedPinDot(
 
     // Scale animation - bounces when filled
     val scale by animateFloatAsState(
-        targetValue = if (filled) 1f else 0.9f,
+        targetValue = if (filled) 1f else 1f,
         animationSpec = if (wasJustFilled) {
             spring(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -304,22 +307,26 @@ private fun AnimatedPinDot(
         label = "innerScale"
     )
 
+    // Dot size - larger for better visibility
+    val dotSize = 24.dp
+    val innerSize = 14.dp
+
     Box(
         modifier = Modifier
-            .size(ComponentSpacing.pinDotSize) // 20dp
+            .size(dotSize)
             .scale(scale)
             .clip(CircleShape)
             .border(
                 width = 2.dp,
-                color = LocalAccentColor.current.copy(alpha = 0.3f + fillProgress * 0.7f),
+                color = LocalAccentColor.current.copy(alpha = 0.4f + fillProgress * 0.6f),
                 shape = CircleShape
             ),
         contentAlignment = Alignment.Center
     ) {
-        // Inner filled circle with pop animation (golden ratio: 20 * 0.618 ≈ 12, rounded to 14)
+        // Inner filled circle with pop animation
         Box(
             modifier = Modifier
-                .size(ComponentSpacing.iconSizeSmall) // 14dp
+                .size(innerSize)
                 .scale(innerScale)
                 .background(LocalAccentColor.current, CircleShape)
         )

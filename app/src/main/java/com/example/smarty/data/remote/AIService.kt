@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 
 // Response model
 data class AIResponse(
+    val title: String,
     val category: String,
     val summary: String,
     val whySaved: String,
@@ -171,12 +172,13 @@ class AIService(private val securePreferences: SecurePreferences) {
          * Designed to be concise, clear, and produce consistent JSON output
          */
         private val SYSTEM_PROMPT = """
-You are an AI assistant for a note-taking app called Cogni. Your job is to analyze user content and categorize it.
+You are an AI assistant for a note-taking app called Cogni. Your job is to analyze user content, summarize it into a title, and categorize it.
 
 TASK: Analyze the content and respond with a JSON object containing:
-1. "category" - A single word category (see list below)
-2. "summary" - A 1-2 sentence summary capturing the key point
-3. "whySaved" - 2-4 words describing why the user likely saved this
+1. "title" - A short, descriptive title (4-8 words) summarizing the essence of the note.
+2. "category" - A single word category (see list below)
+3. "summary" - A 1-2 sentence summary capturing the key point
+4. "whySaved" - 2-4 words describing why the user likely saved this
 
 CATEGORIES (use exactly one):
 - Learn: tutorials, courses, educational content
@@ -200,11 +202,12 @@ RULES:
 1. Respond with ONLY valid JSON, no other text
 2. No markdown, no code blocks, no explanations
 3. Category must be exactly one word from the list
-4. Summary should be informative and direct
-5. whySaved should be brief (2-4 words)
+4. Title should be punchy and clear (not "Note Title" or generic)
+5. Summary should be informative and direct
+6. whySaved should be brief (2-4 words)
 
 EXAMPLE OUTPUT:
-{"category":"Learn","summary":"Python tutorial covering data structures and algorithms basics.","whySaved":"Skill building"}
+{"title":"Python Data Structures Basics","category":"Learn","summary":"Python tutorial covering data structures and algorithms basics.","whySaved":"Skill building"}
 
 Analyze this content:
 """.trimIndent()
@@ -270,6 +273,7 @@ Document content:
         if (securityCheck.riskLevel == ContentSecurityFilter.RiskLevel.BLOCKED) {
             Log.w(TAG, "Content blocked by security filter")
             return@withContext AIResponse(
+                title = "Content Blocked",
                 category = "Note",
                 summary = "Content could not be analyzed due to security concerns.",
                 whySaved = "Saved note",

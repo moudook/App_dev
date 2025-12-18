@@ -90,6 +90,7 @@ class GeminiProvider(
             if (!response.isSuccessful) {
                 Log.e(TAG, "Gemini error response: $responseBody")
                 return AIResponse(
+                    title = "Error",
                     category = "Note",
                     summary = "Processing failed",
                     whySaved = "Error",

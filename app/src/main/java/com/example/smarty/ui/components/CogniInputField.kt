@@ -307,9 +307,9 @@ fun CogniInputField(
             }
         }
 
-        // AI exclusion indicator (shows when typing and AI excluded)
+        // AI exclusion indicator (shows when content is present and AI excluded)
         AnimatedVisibility(
-            visible = isAiExcluded && value.text.isNotBlank() && !isChatMode,
+            visible = isAiExcluded && (value.text.isNotBlank() || attachments.isNotEmpty()) && !isChatMode,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {

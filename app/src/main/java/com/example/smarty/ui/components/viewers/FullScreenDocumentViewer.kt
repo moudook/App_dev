@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -136,7 +137,7 @@ private fun PdfViewerContent(
                     totalPages = renderer.pageCount
                     isLoading = false
                 } else {
-                    errorMessage = "Could not open PDF file"
+                    errorMessage = "Could not open PDF file. The file may have been moved or deleted."
                     isLoading = false
                 }
             } catch (e: Exception) {
@@ -485,30 +486,55 @@ private fun UnsupportedDocumentContent(
     }
 }
 
+private const val TAG = "DocViewer"
+
 /**
  * Gets a ParcelFileDescriptor for the given URI.
+ * Includes proper error logging, file existence checks, and URI decoding.
  */
 private fun getFileDescriptor(context: Context, uriString: String): ParcelFileDescriptor? {
+    Log.d(TAG, "Opening file: $uriString")
     return try {
         val uri = Uri.parse(uriString)
         when (uri.scheme) {
             "content" -> {
-                context.contentResolver.openFileDescriptor(uri, "r")
+                val fd = context.contentResolver.openFileDescriptor(uri, "r")
+                if (fd == null) {
+                    Log.e(TAG, "ContentResolver returned null for: $uriString")
+                }
+                fd
             }
             "file" -> {
-                val file = File(uri.path ?: return null)
+                val path = uri.path ?: run {
+                    Log.e(TAG, "URI path is null: $uriString")
+                    return null
+                }
+                val decodedPath = java.net.URLDecoder.decode(path, "UTF-8")
+                val file = File(decodedPath)
+                if (!file.exists()) {
+                    Log.e(TAG, "File does not exist: $decodedPath")
+                    return null
+                }
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            }
+            null -> {
+                // Direct file path (no scheme)
+                val decodedPath = java.net.URLDecoder.decode(uriString, "UTF-8")
+                val file = File(decodedPath)
+                if (!file.exists()) {
+                    Log.e(TAG, "File does not exist: $decodedPath")
+                    return null
+                }
                 ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
             }
             else -> {
-                if (uriString.startsWith("/")) {
-                    val file = File(uriString)
-                    ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
-                } else {
-                    context.contentResolver.openFileDescriptor(uri, "r")
-                }
+                Log.e(TAG, "Unsupported URI scheme: ${uri.scheme}")
+                // Try content resolver as fallback
+                context.contentResolver.openFileDescriptor(uri, "r")
             }
         }
     } catch (e: Exception) {
+        Log.e(TAG, "Failed to open file: $uriString", e)
         null
     }
 }

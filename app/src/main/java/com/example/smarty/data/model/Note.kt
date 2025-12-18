@@ -98,6 +98,7 @@ data class Note(
     val todoContent: String? = null,  // JSON string of List<TodoItem>
     val excludeFromAiChat: Boolean = false,  // Exclude this note from AI chat context
     val isFullPrivacy: Boolean = false,  // Full privacy mode - no AI processing at all
+    val isAiCreated: Boolean = false, // Flag to indicate if note was created by AI
     val attachmentsJson: String? = null  // JSON string of List<NoteAttachment> for multiple files
 ) {
     companion object {

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -776,7 +777,7 @@ private fun FilePreviewSection(
         mimeType == "application/vnd.android.package-archive" ->
             Icons.Default.Android to com.example.smarty.ui.theme.ApkGreen
         mimeType?.contains("text") == true ->
-            Icons.Default.TextSnippet to com.example.smarty.ui.theme.FileGray
+            Icons.AutoMirrored.Filled.TextSnippet to com.example.smarty.ui.theme.FileGray
         else -> Icons.Default.AttachFile to com.example.smarty.ui.theme.FileGray
     }
 

@@ -117,6 +117,7 @@ class OpenAICompatibleProvider(
             if (!response.isSuccessful) {
                 Log.e(TAG, "$name error: $responseBody")
                 return AIResponse(
+                    title = "Error",
                     category = "Note",
                     summary = "Processing failed",
                     whySaved = "Error",
