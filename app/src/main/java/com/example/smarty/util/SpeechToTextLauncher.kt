@@ -31,10 +31,10 @@ class SpeechToTextState(
     private val permissionLauncher: androidx.activity.result.ActivityResultLauncher<String>
 ) {
     var isListening by mutableStateOf(false)
-        private set
+        internal set
     
     var rmsDb by mutableStateOf(0f)
-        private set
+        internal set
         
     // External callbacks
     var onResult: ((String) -> Unit)? = null
@@ -152,8 +152,9 @@ fun rememberSpeechToText(
             override fun onBufferReceived(buffer: ByteArray?) {}
 
             override fun onEndOfSpeech() {
-                 // Recognition continues until final results
-                 state.isListening = false // User stopped talking, processing
+                 // Recognition continues until final results. 
+                 // We keep isListening = true so the UI continues to shimmer/show active state
+                 // until onResults or onError is called.
             }
 
             override fun onError(error: Int) {

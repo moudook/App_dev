@@ -1125,24 +1125,29 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Handle shake gesture contextually
-     * Priority: Share mode > Input text > Chat mode
+     * Priority: Share mode > Chat mode > Input text > Empty input
      */
     private fun handleShake() {
         when {
-            // During share -> toggle full privacy mode
+            // Priority 1: During share -> toggle full privacy mode
             _isActiveShareMode.value -> {
                 toggleShareFullPrivacy()
                 Log.d(TAG, "Shake: Toggled full privacy mode during share")
             }
-            // Input has text -> toggle AI exclusion for this note
+            // Priority 2: In chat mode -> just exit chat mode (no AI exclusion)
+            _isChatMode.value -> {
+                toggleChatMode()
+                Log.d(TAG, "Shake: Exited chat mode")
+            }
+            // Priority 3: Normal mode + Input has text -> toggle AI exclusion
             _currentInputText.value.isNotBlank() -> {
                 togglePendingNoteAiExclusion()
                 Log.d(TAG, "Shake: Toggled AI exclusion (input has text)")
             }
-            // Input is empty -> toggle chat mode
+            // Priority 4: Normal mode + Input empty -> enter chat mode
             else -> {
                 toggleChatMode()
-                Log.d(TAG, "Shake: Toggled chat mode (input empty)")
+                Log.d(TAG, "Shake: Entered chat mode (input empty)")
             }
         }
     }

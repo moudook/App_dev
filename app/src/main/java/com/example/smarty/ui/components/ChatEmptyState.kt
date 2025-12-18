@@ -146,7 +146,7 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
             infiniteTransition.animateFloat(
                 initialValue = 0f,
                 targetValue = TWO_PI_F,
-                animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)),
+                animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing)),
                 label = "phase"
             )
         } else {
@@ -234,8 +234,9 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
                 center = centerOffset
             )
 
-            // 2. Inner Cloud Orbit (Fast, Dense)
-            withTransform({ rotate(t * 1.5f, pivot = centerOffset) }) {
+            // 2. Inner Cloud Orbit (Mental - Fast, Dense)
+            // Rotates 2x per cycle (720° total, completing 2 full loops)
+            withTransform({ rotate(t * 2f, pivot = centerOffset) }) {
                 drawCircle(
                     brush = orbitBrush1,
                     radius = size.width * 0.25f,
@@ -244,8 +245,9 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
                 )
             }
 
-            // 3. Outer Cloud Orbit (Slow, Ethereal)
-            val outerRotation = -t * 0.8f + 120f
+            // 3. Outer Cloud Orbit (Crust - Slow, Ethereal)
+            // Rotates 1x per cycle (360° total, completing 1 full loop) in reverse direction
+            val outerRotation = -t + 120f
             withTransform({ rotate(outerRotation, pivot = centerOffset) }) {
                 drawCircle(
                     brush = orbitBrush2,
@@ -255,7 +257,7 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
                 )
             }
 
-            // 4. Satellite Cloud
+            // 4. Satellite Cloud (Attached to Outer Orbit)
             val satelliteR = size.width * 0.40f
             val satAngle = (outerRotation * (PI_F / 180f)) + 4.5f
             val satX = cx + fastCos(satAngle) * satelliteR

@@ -12,6 +12,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +21,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AttachFile
@@ -38,8 +42,12 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -75,8 +83,8 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun CogniInputField(
-    value: String,
-    onValueChange: (String) -> Unit,
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "Brain dump...",
@@ -98,9 +106,10 @@ fun CogniInputField(
     isAiExcluded: Boolean = false,
     // Search mode support
     isSearchMode: Boolean = false,
-    isSearchMode: Boolean = false,
+    isVoiceListening: Boolean = false,
     onToggleSearch: () -> Unit = {},
-    onStartVoiceInput: () -> Unit = {}
+    onStartVoiceInput: () -> Unit = {},
+    onStopVoiceInput: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -136,6 +145,7 @@ fun CogniInputField(
     }
 
     // Focus state animations - Modern Soft Minimalist
+    
     val borderColor by animateColorAsState(
         targetValue = when {
             isFocused -> LocalAccentColor.current
@@ -160,7 +170,7 @@ fun CogniInputField(
 
     // Magic Prompt animation - Breathes when waiting for input
     val basePromptScale by animateFloatAsState(
-        targetValue = if (isFocused || value.isNotEmpty()) 1.1f else 1f,
+        targetValue = if (isFocused || value.text.isNotEmpty()) 1.1f else 1f,
         animationSpec = CogniMotion.bouncy,
         label = "basePromptScale"
     )
@@ -169,7 +179,7 @@ fun CogniInputField(
     val promptScale = if (isFocused) basePromptScale * breathingScale else basePromptScale
 
     // Send button animations - enabled if text or attachments present
-    val buttonEnabled = value.isNotBlank() || attachments.isNotEmpty()
+    val buttonEnabled = value.text.isNotBlank() || attachments.isNotEmpty()
     val buttonScale by animateFloatAsState(
         targetValue = when {
             isButtonPressed && buttonEnabled -> 0.85f
@@ -299,7 +309,7 @@ fun CogniInputField(
 
         // AI exclusion indicator (shows when typing and AI excluded)
         AnimatedVisibility(
-            visible = isAiExcluded && value.isNotBlank() && !isChatMode,
+            visible = isAiExcluded && value.text.isNotBlank() && !isChatMode,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
@@ -396,7 +406,17 @@ fun CogniInputField(
             color = inputBackgroundColor,
             shadowElevation = 0.dp // Using custom soft shadow
         ) {
-            Row(
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Shimmer Background Layer (Behind content)
+                if (isVoiceListening) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .halftoneShimmer(true, LocalAccentColor.current)
+                    )
+                }
+
+                Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(4.dp),
@@ -411,42 +431,53 @@ fun CogniInputField(
                     else -> Icons.AutoMirrored.Filled.KeyboardArrowRight
                 }
 
-                val leftButtonColor = LocalAccentColor.current
+                val leftButtonColor = if (isVoiceListening) LocalAccentColor.current else LocalAccentColor.current
 
-                IconButton(
-                    onClick = {
-                        if (isChatMode) {
-                            // In chat mode, launch Voice Input (now handled by parent)
-                            onStartVoiceInput()
-                        } else {
-                            // In main page, toggle search
-                            onToggleSearch()
-                        }
-                    },
+                // YouTube-style Shimmer Effect REMOVED - Replaced by Halftone on Surface
+
+                Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .padding(start = 8.dp)
                         .scale(promptScale)
                         .size(32.dp)
                 ) {
-                    AnimatedContent(
-                        targetState = leftIcon,
-                        transitionSpec = {
-                            (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
-                                scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
-                                .togetherWith(fadeOut(animationSpec = tween(90)))
+                    // Shimmer/Pulse Effect REMOVED
+
+                    IconButton(
+                        onClick = {
+                            if (isChatMode) {
+                                // In chat mode, toggle listening (start or stop)
+                                // Don't focus the text field - keyboard should not open
+                                onStartVoiceInput()
+                            } else {
+                                // In main page, toggle search
+                                onToggleSearch()
+                            }
                         },
-                        label = "leftModeIcon"
-                    ) { icon ->
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = when {
-                                isChatMode -> "Voice Input"
-                                isSearchMode -> "Search Mode"
-                                else -> "Write Mode"
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        AnimatedContent(
+                            targetState = leftIcon,
+                            transitionSpec = {
+                                (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
+                                    scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
+                                    .togetherWith(fadeOut(animationSpec = tween(90)))
                             },
-                            tint = leftButtonColor,
-                            modifier = Modifier.size(24.dp)
-                        )
+                            label = "leftModeIcon"
+                        ) { icon ->
+                             Icon(
+                                imageVector = icon,
+                                contentDescription = when {
+                                    isVoiceListening -> "Stop Listening"
+                                    isChatMode -> "Voice Input"
+                                    isSearchMode -> "Search Mode"
+                                    else -> "Write Mode"
+                                },
+                                tint = if (isVoiceListening) Color.White else leftButtonColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
 
@@ -465,11 +496,16 @@ fun CogniInputField(
                             .focusRequester(focusRequester)
                             .onFocusChanged { focusState ->
                                 isFocused = focusState.isFocused
+                                // Stop voice input when user taps on text field to type
+                                if (focusState.isFocused && isVoiceListening && isChatMode) {
+                                    onStopVoiceInput()
+                                }
                             },
                         textStyle = TextStyle(
                             fontFamily = MonoFont,
+                            fontWeight = if (isVoiceListening) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
                             fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = if (isVoiceListening) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface
                         ),
                         cursorBrush = SolidColor(LocalAccentColor.current),
                         singleLine = false,
@@ -478,7 +514,7 @@ fun CogniInputField(
 
                     // Animated placeholder
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = value.isEmpty() && attachments.isEmpty(),
+                        visible = value.text.isEmpty() && attachments.isEmpty(),
                         enter = fadeIn(tween(150)),
                         exit = fadeOut(tween(100))
                     ) {
@@ -601,6 +637,93 @@ fun CogniInputField(
                 }
 
                 Spacer(modifier = Modifier.width(6.dp)) // Right padding inside container
+            }
+        }
+    }
+    }
+}
+
+/**
+ * Halftone Shimmer Effect Modifier
+ * Applies a dynamic dotted texture animation overlay when visible.
+ */
+fun Modifier.halftoneShimmer(
+    isVisible: Boolean,
+    color: Color
+): Modifier = composed {
+    if (!isVisible) return@composed this
+
+    val transition = rememberInfiniteTransition(label = "halftone")
+    // Animate the wave position across the component diagonally
+    val progress by transition.animateFloat(
+        initialValue = -0.3f, 
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "progress"
+    )
+
+    this.drawWithContent {
+        // Draw the content first (background + text)
+        drawContent()
+        
+        // --- Halftone Configuration ---
+        val dotBaseRadius = 1.2.dp.toPx()
+        val spacing = 5.dp.toPx() // Tighter spacing for finer texture
+        val waveWidth = 350.dp.toPx() // Wide wave for smoothness
+        
+        // Hexagonal grid packing (sin 60 degrees) or basic stagger
+        val rowHeight = spacing * 0.866f 
+        
+        // Calculate max extent for the diagonal sweep (x + y)
+        val maxExtent = size.width + size.height
+        val wavePos = maxExtent * progress
+
+        val cols = (size.width / spacing).toInt() + 2
+        val rows = (size.height / rowHeight).toInt() + 2
+        
+        for (row in 0 until rows) {
+            val y = row * rowHeight
+            
+            // Stagger every odd row by half spacing for hex grid feel
+            val xOffset = if (row % 2 == 1) spacing / 2f else 0f
+            
+            for (col in 0 until cols) {
+                val x = (col * spacing) + xOffset
+                
+                // Determine position in the diagonal wave scalar field (x + y)
+                // This corresponds to a 45-degree linear gradient sweep
+                val diagonalPos = x + y
+                
+                // Distance from the current wave front
+                val dist = kotlin.math.abs(diagonalPos - wavePos)
+                
+                if (dist < waveWidth) {
+                    // Normalize distance (0..1) -> 1 at center, 0 at edges
+                    val rawIntensity = 1f - (dist / waveWidth)
+                    
+                    // Apply easing curve for visual punch
+                    // Cubic or quartic ease-in makes the edge falloff sharper and center brighter
+                    val intensity = rawIntensity * rawIntensity * rawIntensity
+                    
+                    if (intensity > 0.02f) { // Optimization cull
+                        // visual parameters based on intensity
+                        // Grow radius slightly at peak
+                        val radius = dotBaseRadius * (0.7f + (0.6f * intensity))
+                        
+                        // Scale alpha: faint background presence to distinct shimmer
+                        // Max alpha 0.25f ensures text remains readable
+                        val alpha = (0.05f + (0.25f * intensity)).coerceIn(0f, 0.3f)
+                        
+                        drawCircle(
+                            color = color.copy(alpha = alpha),
+                            radius = radius,
+                            center = androidx.compose.ui.geometry.Offset(x, y)
+                        )
+                    }
+                }
             }
         }
     }

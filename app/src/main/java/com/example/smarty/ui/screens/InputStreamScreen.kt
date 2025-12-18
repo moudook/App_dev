@@ -58,6 +58,9 @@ import com.example.smarty.ui.components.ProcessingDotsIndicator
 import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.SafetyOrange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,7 +103,25 @@ fun InputStreamScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
-    var inputText by remember { mutableStateOf("") }
+
+    // Separate text states for normal mode and chat mode
+    // This preserves text independently when switching between modes via shake
+    var normalModeTextValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
+    var chatModeTextValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
+    // Derived current text based on mode
+    val textValue = if (isChatMode) chatModeTextValue else normalModeTextValue
+
+    // Sync ViewModel's input text when mode changes
+    // This ensures shake detection uses the correct mode's text
+    LaunchedEffect(isChatMode) {
+        onInputTextChange(textValue.text)
+    }
+
+    // RESTORED VARIABLES that were accidentally deleted or need to be present
     var attachments by remember { mutableStateOf<List<Attachment>>(emptyList()) }
     val listState = rememberLazyListState()
     val chatListState = rememberLazyListState()
@@ -112,12 +133,33 @@ fun InputStreamScreen(
     // Voice Input State (Speech-to-Text)
     val speechState = com.example.smarty.util.rememberSpeechToText(
         onResult = { result ->
-            val newValue = if (inputText.isBlank()) result else "$inputText $result"
-            inputText = newValue
-            onInputTextChange(newValue)
+            val currentTextValue = if (isChatMode) chatModeTextValue else normalModeTextValue
+            val currentText = currentTextValue.text
+            val selection = currentTextValue.selection
+
+            // Insert result at cursor position
+            val validStart = selection.start.coerceIn(0, currentText.length)
+            val prefix = currentText.take(validStart)
+            val suffix = currentText.drop(validStart)
+
+            // Add space if needed
+            val spacer = if (prefix.isNotEmpty() && !prefix.endsWith(" ")) " " else ""
+            val newText = "$prefix$spacer$result$suffix"
+
+            // Update Text with cursor moved to end of inserted segment
+            val newCursorPos = (prefix.length + spacer.length + result.length).coerceAtMost(newText.length)
+
+            val newValue = TextFieldValue(newText, TextRange(newCursorPos))
+            // Update the correct state based on mode
+            if (isChatMode) {
+                chatModeTextValue = newValue
+            } else {
+                normalModeTextValue = newValue
+            }
+            onInputTextChange(newText)
         },
         onError = { msg ->
-           // scope.launch { snackbarHostState.showSnackbar(msg) } // Optional feedback
+           // scope.launch { snackbarHostState.showSnackbar(msg) }
         }
     )
 
@@ -137,7 +179,7 @@ fun InputStreamScreen(
     }
 
     // Filtered Notes Logic
-    val displayedNotes by remember(notes, inputText, isSearchMode, selectedTypeFilter) {
+    val displayedNotes by remember(notes, textValue, isSearchMode, selectedTypeFilter) {
         derivedStateOf {
             val typeFiltered = if (selectedTypeFilter != null) {
                 notes.filter { it.type == selectedTypeFilter }
@@ -145,11 +187,11 @@ fun InputStreamScreen(
                 notes
             }
 
-            if (isSearchMode && inputText.isNotBlank()) {
+            if (isSearchMode && textValue.text.isNotBlank()) {
                 typeFiltered.filter { note ->
-                    note.title.contains(inputText, ignoreCase = true) ||
-                    note.content.contains(inputText, ignoreCase = true) ||
-                    (note.summary?.contains(inputText, ignoreCase = true) == true)
+                    note.title?.contains(textValue.text, ignoreCase = true) == true ||
+                    note.content.contains(textValue.text, ignoreCase = true) ||
+                    (note.summary?.contains(textValue.text, ignoreCase = true) == true)
                 }
             } else {
                 typeFiltered
@@ -668,21 +710,28 @@ fun InputStreamScreen(
                     }
 
                     CogniInputField(
-                        value = inputText,
-                        onValueChange = { newText ->
-                            inputText = newText
-                            onInputTextChange(newText)
+                        value = textValue,
+                        onValueChange = { newTextValue ->
+                            // Update the correct state based on current mode
+                            if (isChatMode) {
+                                chatModeTextValue = newTextValue
+                            } else {
+                                normalModeTextValue = newTextValue
+                            }
+                            onInputTextChange(newTextValue.text)
                         },
                         onSubmit = {
-                            if (inputText.isNotBlank() || attachments.isNotEmpty()) {
+                            val text = textValue.text
+                            if (text.isNotBlank() || attachments.isNotEmpty()) {
                                 if (isChatMode) {
-                                    onSendChatMessage(inputText, attachments)
+                                    onSendChatMessage(text, attachments)
+                                    chatModeTextValue = TextFieldValue("")  // Only clear chat mode text
                                 } else if (!isSearchMode) {
-                                    onAddNote(inputText, attachments)
+                                    onAddNote(text, attachments)
+                                    normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
                                 }
-                                
+
                                 if (!isSearchMode) {
-                                    inputText = ""
                                     onInputTextChange("")
                                     attachments = emptyList()
                                 }
@@ -711,10 +760,20 @@ fun InputStreamScreen(
                         isSearchMode = isSearchMode,
                         onToggleSearch = {
                             isSearchMode = !isSearchMode
-                            inputText = "" 
+                            normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
                             onInputTextChange("")
                         },
-                        onStartVoiceInput = { speechState.startListening() }
+                        isVoiceListening = speechState.isListening,
+                        onStartVoiceInput = {
+                            if (speechState.isListening) {
+                                speechState.stopListening()
+                            } else {
+                                speechState.startListening()
+                            }
+                        },
+                        onStopVoiceInput = {
+                            speechState.stopListening()
+                        }
                     )
                 }
             }
