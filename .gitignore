@@ -48,6 +48,10 @@ TODO.md
 *.bak
 *.swp
 
+# Screenshots/conversation files
+thread-*.png
+screenshot*.png
+
 # IDE specific
 .idea/
 *.ipr

@@ -713,7 +713,7 @@ fun InputStreamScreen(
     // Dynamic Island (Floats on top, unclipped)
     if (!isSelectionMode && !isChatMode) {
         // MANUAL POSITION ADJUSTMENT: Tweak this to match punch hole
-        val verticalOffset = (10).dp 
+        val verticalOffset = (8).dp 
 
         // Compute Island State
         val islandState = when {

@@ -513,12 +513,11 @@ class AudioPlayerService : MediaSessionService() {
         Log.d(TAG, "Service destroyed")
         releaseVisualizer()
         stopPositionUpdates()
-        mediaSession?.run {
-            player.release()
-            release()
-        }
-        mediaSession = null
+        // Safely release player and media session
+        player?.release()
         player = null
+        mediaSession?.release()
+        mediaSession = null
         super.onDestroy()
     }
 }

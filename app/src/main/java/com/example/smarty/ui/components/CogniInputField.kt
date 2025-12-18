@@ -1,9 +1,5 @@
 package com.example.smarty.ui.components
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -28,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Search
@@ -55,7 +50,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
@@ -66,7 +60,7 @@ import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.ui.theme.softCardShadow
-import com.example.smarty.util.SpeechRecognitionHelper
+import com.example.smarty.util.rememberSpeechToText
 import kotlinx.coroutines.delay
 
 /**
@@ -111,57 +105,34 @@ fun CogniInputField(
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
 
-    // Speech recognition
-    val speechRecognizer = remember { SpeechRecognitionHelper(context) }
-    val isListening by speechRecognizer.isListening.collectAsState()
-    val partialResult by speechRecognizer.partialResult.collectAsState()
-    val rmsLevel by speechRecognizer.rmsLevel.collectAsState()
-    val speechError by speechRecognizer.error.collectAsState()
-
-    // Permission launcher for microphone
-    var hasAudioPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                    PackageManager.PERMISSION_GRANTED
-        )
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasAudioPermission = granted
-        if (granted) {
-            speechRecognizer.startListening { recognizedText ->
-                // Append recognized text to current value
-                val newValue = if (value.isBlank()) recognizedText
-                else "$value $recognizedText"
-                onValueChange(newValue)
-            }
+    // Speech recognition using Google's built-in dialog
+    // This launches the standard Google Speech Recognition popup
+    // Shared error handler
+    val handleSpeechError: (String) -> Unit = { errorMessage ->
+        // Show brief feedback to user (skip "Cancelled" as that's intentional)
+        if (errorMessage != "Cancelled") {
+            android.widget.Toast.makeText(
+                context,
+                errorMessage,
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
-    // Cleanup speech recognizer
-    DisposableEffect(Unit) {
-        onDispose {
-            speechRecognizer.destroy()
+    val speechToText = rememberSpeechToText(
+        onError = handleSpeechError,
+        onResult = { recognizedText ->
+            // Append recognized text to current value
+            val newValue = if (value.isBlank()) recognizedText
+            else "$value $recognizedText"
+            onValueChange(newValue)
         }
-    }
+    )
 
-    // Start/stop speech recognition
-    fun toggleSpeechRecognition() {
+    // Launch speech recognition (Google handles permissions internally)
+    fun launchSpeechRecognition() {
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        if (isListening) {
-            speechRecognizer.stopListening()
-        } else {
-            if (hasAudioPermission) {
-                speechRecognizer.startListening { recognizedText ->
-                    val newValue = if (value.isBlank()) recognizedText
-                    else "$value $recognizedText"
-                    onValueChange(newValue)
-                }
-            } else {
-                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            }
-        }
+        speechToText.launch("Speak now...", onError = handleSpeechError)
     }
     var isFocused by remember { mutableStateOf(false) }
     var isButtonPressed by remember { mutableStateOf(false) }
@@ -455,41 +426,21 @@ fun CogniInputField(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Animated Mode Toggle (Write/Search) OR Microphone (Chat Mode)
-                // In chat mode: Mic icon for speech-to-text
+                // In chat mode: Mic icon for speech-to-text (launches Google dialog)
                 // In main page: Arrow/Search icon for search toggle
                 val leftIcon = when {
-                    isChatMode && isListening -> Icons.Default.MicOff
                     isChatMode -> Icons.Default.Mic
                     isSearchMode -> Icons.Default.Search
                     else -> Icons.AutoMirrored.Filled.KeyboardArrowRight
                 }
 
-                // Mic button animations for chat mode
-                val micPulseTransition = rememberInfiniteTransition(label = "left_mic_pulse")
-                val leftMicPulseScale by micPulseTransition.animateFloat(
-                    initialValue = 1f,
-                    targetValue = 1.15f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(600, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "leftMicPulse"
-                )
-
-                val leftButtonColor by animateColorAsState(
-                    targetValue = when {
-                        isChatMode && isListening -> SafetyOrange
-                        else -> LocalAccentColor.current
-                    },
-                    animationSpec = tween(200),
-                    label = "leftButtonColor"
-                )
+                val leftButtonColor = LocalAccentColor.current
 
                 IconButton(
                     onClick = {
                         if (isChatMode) {
-                            // In chat mode, trigger speech recognition
-                            toggleSpeechRecognition()
+                            // In chat mode, launch Google Speech Recognition dialog
+                            launchSpeechRecognition()
                         } else {
                             // In main page, toggle search
                             onToggleSearch()
@@ -497,39 +448,28 @@ fun CogniInputField(
                     },
                     modifier = Modifier
                         .padding(start = 8.dp)
-                        .scale(if (isChatMode && isListening) leftMicPulseScale else promptScale)
-                        .size(32.dp) // Slightly larger touch target
+                        .scale(promptScale)
+                        .size(32.dp)
                 ) {
-
-                    if (isChatMode && isListening) {
-                        // Dynamic Waveform Visualizer
-                        WaveformVisualizer(
-                            rmsLevel = rmsLevel,
-                            color = leftButtonColor,
+                    AnimatedContent(
+                        targetState = leftIcon,
+                        transitionSpec = {
+                            (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
+                                scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
+                                .togetherWith(fadeOut(animationSpec = tween(90)))
+                        },
+                        label = "leftModeIcon"
+                    ) { icon ->
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = when {
+                                isChatMode -> "Voice Input"
+                                isSearchMode -> "Search Mode"
+                                else -> "Write Mode"
+                            },
+                            tint = leftButtonColor,
                             modifier = Modifier.size(24.dp)
                         )
-                    } else {
-                        // Standard Icon
-                        AnimatedContent(
-                            targetState = leftIcon,
-                            transitionSpec = {
-                                (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
-                                    scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
-                                    .togetherWith(fadeOut(animationSpec = tween(90)))
-                            },
-                            label = "leftModeIcon"
-                        ) { icon ->
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = when {
-                                    isChatMode -> "Voice Input"
-                                    isSearchMode -> "Search Mode"
-                                    else -> "Write Mode"
-                                },
-                                tint = leftButtonColor,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
                     }
                 }
 
@@ -659,8 +599,6 @@ fun CogniInputField(
                                     onTap = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         showAttachmentPanel = false
-                                        // Stop listening if active before sending
-                                        if (isListening) speechRecognizer.stopListening()
                                         handleSubmit()
                                     }
                                 )
@@ -687,44 +625,6 @@ fun CogniInputField(
 
                 Spacer(modifier = Modifier.width(6.dp)) // Right padding inside container
             }
-        }
-    }
-}
-@Composable
-private fun WaveformVisualizer(
-    rmsLevel: Float,
-    color: androidx.compose.ui.graphics.Color,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Generate 5 bars with different sensitivities to simulate frequency bands
-        val multipliers = listOf(0.4f, 0.7f, 1.0f, 0.6f, 0.3f)
-        val speeds = listOf(200f, 300f, 400f, 250f, 150f) // Different stiffness for randomness
-
-        multipliers.forEachIndexed { index, multiplier ->
-            // Base height + RMS reaction
-            // Add some noise/randomness if RMS is low to keep it "alive"
-            val targetH = (rmsLevel * 2.5f * multiplier).coerceIn(4f, 24f) // Scale RMS to height
-            
-            val barHeight by animateDpAsState(
-                targetValue = targetH.dp,
-                animationSpec = spring(
-                    dampingRatio = 0.6f,
-                    stiffness = speeds[index]
-                ),
-                label = "barHeight$index"
-            )
-
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(barHeight)
-                    .background(color, androidx.compose.foundation.shape.CircleShape)
-            )
         }
     }
 }
