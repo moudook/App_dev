@@ -108,6 +108,18 @@ fun InputStreamScreen(
     // Snackbar state for undo archive
     val snackbarHostState = remember { SnackbarHostState() }
     var lastArchivedNoteId by remember { mutableStateOf<String?>(null) }
+    
+    // Voice Input State (Speech-to-Text)
+    val speechState = com.example.smarty.util.rememberSpeechToText(
+        onResult = { result ->
+            val newValue = if (inputText.isBlank()) result else "$inputText $result"
+            inputText = newValue
+            onInputTextChange(newValue)
+        },
+        onError = { msg ->
+           // scope.launch { snackbarHostState.showSnackbar(msg) } // Optional feedback
+        }
+    )
 
     // Multi-select state
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -701,7 +713,8 @@ fun InputStreamScreen(
                             isSearchMode = !isSearchMode
                             inputText = "" 
                             onInputTextChange("")
-                        }
+                        },
+                        onStartVoiceInput = { speechState.startListening() }
                     )
                 }
             }
@@ -717,6 +730,7 @@ fun InputStreamScreen(
 
         // Compute Island State
         val islandState = when {
+            speechState.isListening -> com.example.smarty.ui.components.DynamicIslandState.Listening(speechState.rmsDb)
             isProcessing -> com.example.smarty.ui.components.DynamicIslandState.Processing
             showCategoryTransient -> {
                 val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"

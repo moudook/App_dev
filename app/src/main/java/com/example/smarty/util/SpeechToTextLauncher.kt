@@ -1,145 +1,210 @@
 package com.example.smarty.util
 
-import android.app.Activity
+import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import java.util.Locale
 
 /**
- * Simple Speech-to-Text using Google's built-in speech recognition dialog.
- *
- * This launches the standard Google Speech Recognition popup that:
- * - Shows a microphone UI
- * - Records user's speech
- * - Converts speech to text
- * - Returns the result
- *
- * This is the standard approach used by most Android apps.
- * No custom UI needed - Google handles everything.
+ * Advanced Speech-to-Text using Android's native SpeechRecognizer.
+ * 
+ * Features:
+ * - Silent background recognition (no Google pop-up)
+ * - Real-time RMS (loudness) feedback for UI animations
+ * - Direct control over listening state
+ * - Handles runtime permissions
  */
 class SpeechToTextState(
-    private val launcher: androidx.activity.result.ActivityResultLauncher<Intent>,
-    private val isAvailable: Boolean
+    private val context: Context,
+    private val speechRecognizer: SpeechRecognizer?,
+    private val permissionLauncher: androidx.activity.result.ActivityResultLauncher<String>
 ) {
-    companion object {
-        private const val TAG = "SpeechToText"
+    var isListening by mutableStateOf(false)
+        private set
+    
+    var rmsDb by mutableStateOf(0f)
+        private set
+        
+    // External callbacks
+    var onResult: ((String) -> Unit)? = null
+    var onError: ((String) -> Unit)? = null
+
+    fun startListening(languageCode: String? = null) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startRecognition(languageCode)
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
     }
 
-    /**
-     * Launch the Google Speech Recognition dialog.
-     * @param prompt Optional text to show on the speech dialog
-     * @param languageCode Optional BCP-47 language code (e.g., "en-US", "hi-IN").
-     *                     If null, auto-detects from device settings.
-     */
-    fun launch(prompt: String = "Speak now...", languageCode: String? = null, onError: ((String) -> Unit)? = null) {
-        if (!isAvailable) {
-            Log.w(TAG, "Speech recognition not available on this device")
-            onError?.invoke("Speech recognition is not available on this device.")
+    fun stopListening() {
+        try {
+            speechRecognizer?.stopListening()
+            isListening = false
+            rmsDb = 0f
+        } catch (e: Exception) {
+            Log.e("SpeechToText", "Error stopping: ${e.message}")
+        }
+    }
+
+    private fun startRecognition(languageCode: String?) {
+        if (speechRecognizer == null) {
+            onError?.invoke("Speech recognition not available")
             return
         }
 
-        // Auto-detect language from device settings if not specified
-        val language = languageCode ?: Locale.getDefault().toLanguageTag()
+        if (isListening) return
 
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            // Use free form for natural speech
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-
-            // Set language from device settings or specified language
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, language)
-
-            // Get multiple results for better accuracy
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-
-            // Show partial results as user speaks
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-
-            // Custom prompt text
-            putExtra(RecognizerIntent.EXTRA_PROMPT, prompt)
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                
+                val locale = languageCode ?: Locale.getDefault().toLanguageTag()
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+            }
+            
+            speechRecognizer.startListening(intent)
+            isListening = true
+        } catch (e: Exception) {
+            Log.e("SpeechToText", "Start error: ${e.message}")
+            isListening = false
+            onError?.invoke("Failed to start: ${e.message}")
         }
-
-        Log.d(TAG, "Launching speech recognition with language: $language")
-        launcher.launch(intent)
     }
-
-    /**
-     * Check if speech recognition is available on this device.
-     */
-    fun isAvailable(): Boolean = isAvailable
 }
 
-/**
- * Remember a SpeechToTextState that can launch Google's speech recognition dialog.
- *
- * Usage:
- * ```
- * val speechToText = rememberSpeechToText { result ->
- *     // Handle the recognized text
- *     textFieldValue = result
- * }
- *
- * Button(onClick = { speechToText.launch() }) {
- *     Icon(Icons.Default.Mic, "Voice input")
- * }
- * ```
- *
- * @param onResult Callback invoked with the recognized text when speech recognition succeeds
- * @param onError Optional callback invoked when an error occurs
- */
 @Composable
 fun rememberSpeechToText(
-    onError: ((String) -> Unit)? = null,
-    onResult: (String) -> Unit
+    onResult: (String) -> Unit,
+    onError: ((String) -> Unit)? = null
 ): SpeechToTextState {
     val context = LocalContext.current
-
-    // Check if speech recognition is available
-    val isAvailable = remember {
-        SpeechRecognizer.isRecognitionAvailable(context)
+    val scope = rememberCoroutineScope()
+    
+    // Create SpeechRecognizer
+    // We use a key to recreate if context changes, but wrap in remember to keep instance
+    val speechRecognizer = remember {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) {
+            SpeechRecognizer.createSpeechRecognizer(context)
+        } else {
+            null
+        }
     }
 
-    // Create activity result launcher
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        Log.d("SpeechToText", "Result code: ${result.resultCode}")
+    // Permission launcher
+    // We need to define this before we instantiate the state class
+    var pendingStart by remember { mutableStateOf(false) }
+    
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted && pendingStart) {
+             // We can't easily callback into the class here without a circular ref potential
+             // But we can signal the state if we had it, or just let the user tap again.
+             // For better UX, we could try to auto-start, but simple is robust.
+             // The user will tap again. 
+        } else if (!isGranted) {
+            onError?.invoke("Microphone permission required")
+        }
+        pendingStart = false
+    }
 
-        when (result.resultCode) {
-            Activity.RESULT_OK -> {
-                val data = result.data
-                val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                Log.d("SpeechToText", "Results: $results")
+    // State holder
+    val state = remember(speechRecognizer, permissionLauncher) {
+        SpeechToTextState(context, speechRecognizer, permissionLauncher)
+    }
+    
+    // Update callbacks
+    LaunchedEffect(onResult, onError) {
+        state.onResult = onResult
+        state.onError = onError
+    }
 
-                val recognizedText = results?.firstOrNull() ?: ""
+    // Set up the listener
+    DisposableEffect(speechRecognizer) {
+        val listener = object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                state.isListening = true // Redundant but safe
+            }
 
-                if (recognizedText.isNotBlank()) {
-                    Log.d("SpeechToText", "Recognized: $recognizedText")
-                    onResult(recognizedText)
-                } else {
-                    Log.w("SpeechToText", "Empty result received")
-                    onError?.invoke("No speech detected")
+            override fun onBeginningOfSpeech() {
+                state.isListening = true
+            }
+
+            override fun onRmsChanged(rmsdB: Float) {
+                // Smooth out the changes or just pass raw
+                state.rmsDb = rmsdB
+            }
+
+            override fun onBufferReceived(buffer: ByteArray?) {}
+
+            override fun onEndOfSpeech() {
+                 // Recognition continues until final results
+                 state.isListening = false // User stopped talking, processing
+            }
+
+            override fun onError(error: Int) {
+                state.isListening = false
+                state.rmsDb = 0f
+                val message = when(error) {
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No match"
+                    SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                    SpeechRecognizer.ERROR_AUDIO -> "Audio error"
+                    SpeechRecognizer.ERROR_SERVER -> "Server error"
+                    SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission denied"
+                    else -> "Error $error"
+                }
+                // Filter out "No match" if it happens too often during silence, but standard is to report
+                if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                    state.onError?.invoke(message)
                 }
             }
-            Activity.RESULT_CANCELED -> {
-                Log.d("SpeechToText", "User cancelled")
-                onError?.invoke("Cancelled")
+
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = matches?.firstOrNull()
+                if (!text.isNullOrBlank()) {
+                    state.onResult?.invoke(text)
+                }
+                state.isListening = false
+                state.rmsDb = 0f
             }
-            else -> {
-                Log.e("SpeechToText", "Error result: ${result.resultCode}")
-                onError?.invoke("Speech recognition failed")
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                 // For now we don't stream partials to the text field to avoid cursor jumping
+                 // but we could in the future.
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
+
+        speechRecognizer?.setRecognitionListener(listener)
+
+        onDispose {
+            try {
+                speechRecognizer?.destroy()
+            } catch (e: Exception) {
+                // Ignore destroy errors
             }
         }
     }
 
-    return remember(launcher, isAvailable) {
-        SpeechToTextState(launcher, isAvailable)
-    }
+    return state
 }
+

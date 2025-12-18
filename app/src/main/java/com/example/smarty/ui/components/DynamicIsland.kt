@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
@@ -25,6 +26,7 @@ sealed interface DynamicIslandState {
     object Contracted : DynamicIslandState
     object Processing : DynamicIslandState
     data class Info(val label: String, val secondaryLabel: String, val icon: ImageVector? = null) : DynamicIslandState
+    data class Listening(val rmsDb: Float) : DynamicIslandState
 }
 
 @Composable
@@ -119,6 +121,24 @@ fun DynamicIsland(
                                      maxLines = 1
                                  )
                              }
+                             is DynamicIslandState.Listening -> {
+                                 // Glowing Orb Visualizer
+                                 // Map RMS dB (-2..10) to scale (1.0..1.8)
+                                 val db = state.rmsDb.coerceIn(-2f, 10f)
+                                 val targetScale = 1f + ((db + 2f) / 12f) * 0.8f
+                                 val scale by animateFloatAsState(
+                                     targetValue = targetScale,
+                                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow), // Responsive but smooth
+                                     label = "voiceOrb"
+                                 )
+                                 
+                                 Box(
+                                     modifier = Modifier
+                                         .size(10.dp)
+                                         .scale(scale)
+                                         .background(LocalAccentColor.current, androidx.compose.foundation.shape.CircleShape)
+                                 )
+                             }
                              else -> {}
                          }
                          Spacer(Modifier.width(8.dp)) // Apple standard gap from camera
@@ -150,6 +170,14 @@ fun DynamicIsland(
                                     color = Color.White,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            is DynamicIslandState.Listening -> {
+                                Text(
+                                    text = "Listening...",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = Color.White,
+                                    maxLines = 1
                                 )
                             }
                             else -> {}

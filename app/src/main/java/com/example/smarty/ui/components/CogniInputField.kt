@@ -98,7 +98,9 @@ fun CogniInputField(
     isAiExcluded: Boolean = false,
     // Search mode support
     isSearchMode: Boolean = false,
-    onToggleSearch: () -> Unit = {}
+    isSearchMode: Boolean = false,
+    onToggleSearch: () -> Unit = {},
+    onStartVoiceInput: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -108,32 +110,7 @@ fun CogniInputField(
     // Speech recognition using Google's built-in dialog
     // This launches the standard Google Speech Recognition popup
     // Shared error handler
-    val handleSpeechError: (String) -> Unit = { errorMessage ->
-        // Show brief feedback to user (skip "Cancelled" as that's intentional)
-        if (errorMessage != "Cancelled") {
-            android.widget.Toast.makeText(
-                context,
-                errorMessage,
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
-
-    val speechToText = rememberSpeechToText(
-        onError = handleSpeechError,
-        onResult = { recognizedText ->
-            // Append recognized text to current value
-            val newValue = if (value.isBlank()) recognizedText
-            else "$value $recognizedText"
-            onValueChange(newValue)
-        }
-    )
-
-    // Launch speech recognition (Google handles permissions internally)
-    fun launchSpeechRecognition() {
-        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        speechToText.launch("Speak now...", onError = handleSpeechError)
-    }
+    // Focus state
     var isFocused by remember { mutableStateOf(false) }
     var isButtonPressed by remember { mutableStateOf(false) }
     var isAddPressed by remember { mutableStateOf(false) }
@@ -439,8 +416,8 @@ fun CogniInputField(
                 IconButton(
                     onClick = {
                         if (isChatMode) {
-                            // In chat mode, launch Google Speech Recognition dialog
-                            launchSpeechRecognition()
+                            // In chat mode, launch Voice Input (now handled by parent)
+                            onStartVoiceInput()
                         } else {
                             // In main page, toggle search
                             onToggleSearch()
