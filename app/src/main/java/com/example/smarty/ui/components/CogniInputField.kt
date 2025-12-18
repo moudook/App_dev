@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -58,11 +59,13 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.CogniMotion
 import com.example.smarty.ui.theme.CogniShadow
+import com.example.smarty.ui.animation.halftoneShimmer
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
@@ -307,40 +310,92 @@ fun CogniInputField(
             }
         }
 
-        // AI exclusion indicator (shows when content is present and AI excluded)
+        // AI exclusion indicator (Stealth Mode / Privacy Pill)
+        // Shows when content is present and AI excluded
         AnimatedVisibility(
             visible = isAiExcluded && (value.text.isNotBlank() || attachments.isNotEmpty()) && !isChatMode,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            enter = slideInVertically(
+                initialOffsetY = { 40 },
+                animationSpec = CogniMotion.offsetBouncy
+            ) + fadeIn(animationSpec = tween(200)) + scaleIn(
+                initialScale = 0.8f,
+                animationSpec = CogniMotion.bouncy
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { 20 },
+                animationSpec = CogniMotion.offsetQuick
+            ) + fadeOut(animationSpec = tween(150)) + scaleOut(
+                targetScale = 0.9f,
+                animationSpec = CogniMotion.quick
+            )
         ) {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, SafetyOrange.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                    .background(SafetyOrange.copy(alpha = 0.1f)) // Subtle warning tint
-                    .padding(vertical = 8.dp, horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                    .padding(bottom = 12.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.VisibilityOff,
-                    contentDescription = null,
-                    tint = SafetyOrange,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Private Note",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                    color = SafetyOrange
-                )
-                Text(
-                    text = " • AI excluded",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = SafetyOrange.copy(alpha = 0.8f)
-                )
+                Surface(
+                    modifier = Modifier.halftoneShimmer(true, MaterialTheme.colorScheme.inverseOnSurface),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = MaterialTheme.colorScheme.inverseSurface, // "Stealth" look (Dark in light mode, Light in dark mode)
+                    shadowElevation = 4.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        // Animated lock icon pulse
+                        val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+                        val alpha by infiniteTransition.animateFloat(
+                            initialValue = 0.7f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1500),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "alpha"
+                        )
+
+                        Icon(
+                            imageVector = Icons.Filled.Security,
+                            contentDescription = "Hidden",
+                            tint = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = alpha),
+                            modifier = Modifier.size(14.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = "Private Mode",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.inverseOnSurface
+                        )
+                        
+                        // Vertical divider
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp)
+                                .width(1.dp)
+                                .height(12.dp)
+                                .background(MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.3f))
+                        )
+
+                        Text(
+                            text = "AI Blind",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.8f)
+                        )
+                    }
+                }
             }
         }
 
@@ -640,91 +695,5 @@ fun CogniInputField(
             }
         }
     }
-    }
-}
-
-/**
- * Halftone Shimmer Effect Modifier
- * Applies a dynamic dotted texture animation overlay when visible.
- */
-fun Modifier.halftoneShimmer(
-    isVisible: Boolean,
-    color: Color
-): Modifier = composed {
-    if (!isVisible) return@composed this
-
-    val transition = rememberInfiniteTransition(label = "halftone")
-    // Animate the wave position across the component diagonally
-    val progress by transition.animateFloat(
-        initialValue = -0.3f, 
-        targetValue = 1.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "progress"
-    )
-
-    this.drawWithContent {
-        // Draw the content first (background + text)
-        drawContent()
-        
-        // --- Halftone Configuration ---
-        val dotBaseRadius = 1.2.dp.toPx()
-        val spacing = 5.dp.toPx() // Tighter spacing for finer texture
-        val waveWidth = 350.dp.toPx() // Wide wave for smoothness
-        
-        // Hexagonal grid packing (sin 60 degrees) or basic stagger
-        val rowHeight = spacing * 0.866f 
-        
-        // Calculate max extent for the diagonal sweep (x + y)
-        val maxExtent = size.width + size.height
-        val wavePos = maxExtent * progress
-
-        val cols = (size.width / spacing).toInt() + 2
-        val rows = (size.height / rowHeight).toInt() + 2
-        
-        for (row in 0 until rows) {
-            val y = row * rowHeight
-            
-            // Stagger every odd row by half spacing for hex grid feel
-            val xOffset = if (row % 2 == 1) spacing / 2f else 0f
-            
-            for (col in 0 until cols) {
-                val x = (col * spacing) + xOffset
-                
-                // Determine position in the diagonal wave scalar field (x + y)
-                // This corresponds to a 45-degree linear gradient sweep
-                val diagonalPos = x + y
-                
-                // Distance from the current wave front
-                val dist = kotlin.math.abs(diagonalPos - wavePos)
-                
-                if (dist < waveWidth) {
-                    // Normalize distance (0..1) -> 1 at center, 0 at edges
-                    val rawIntensity = 1f - (dist / waveWidth)
-                    
-                    // Apply easing curve for visual punch
-                    // Cubic or quartic ease-in makes the edge falloff sharper and center brighter
-                    val intensity = rawIntensity * rawIntensity * rawIntensity
-                    
-                    if (intensity > 0.02f) { // Optimization cull
-                        // visual parameters based on intensity
-                        // Grow radius slightly at peak
-                        val radius = dotBaseRadius * (0.7f + (0.6f * intensity))
-                        
-                        // Scale alpha: faint background presence to distinct shimmer
-                        // Max alpha 0.25f ensures text remains readable
-                        val alpha = (0.05f + (0.25f * intensity)).coerceIn(0f, 0.3f)
-                        
-                        drawCircle(
-                            color = color.copy(alpha = alpha),
-                            radius = radius,
-                            center = androidx.compose.ui.geometry.Offset(x, y)
-                        )
-                    }
-                }
-            }
-        }
     }
 }

@@ -65,6 +65,18 @@ object CogniMotion {
         dampingRatio = 0.85f,
         stiffness = 600f
     )
+
+    /** Bouncy spring for IntOffset animations */
+    val offsetBouncy = spring<androidx.compose.ui.unit.IntOffset>(
+        dampingRatio = 0.6f,
+        stiffness = 300f
+    )
+
+    /** Quick spring for IntOffset animations */
+    val offsetQuick = spring<androidx.compose.ui.unit.IntOffset>(
+        dampingRatio = 0.85f,
+        stiffness = 600f
+    )
 }
 
 /**
