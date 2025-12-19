@@ -28,6 +28,33 @@ object Migrations {
     }
 
     /**
+     * Migration from version 5 to 6
+     * Originally added calendar_events table (later removed in 6→7, re-added in 10→11)
+     * This migration ensures a safe upgrade path for users on version 5
+     */
+    val MIGRATION_5_6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Create calendar_events table (will be dropped in next migration)
+            // This ensures users don't lose data due to missing migration
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS calendar_events (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    startTime INTEGER NOT NULL,
+                    endTime INTEGER NOT NULL,
+                    isAllDay INTEGER NOT NULL DEFAULT 0,
+                    color INTEGER,
+                    location TEXT,
+                    reminderMinutes INTEGER,
+                    createdAt INTEGER NOT NULL,
+                    updatedAt INTEGER NOT NULL
+                )
+            """)
+        }
+    }
+
+    /**
      * Migration from version 6 to 7
      * Removes calendar_events table (calendar feature removed)
      */

@@ -40,6 +40,9 @@ import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
 import kotlinx.coroutines.delay
 
+// Color constant for remove button (matches attachment red color)
+private val RemoveButtonColor = androidx.compose.ui.graphics.Color(0xFFF44336)
+
 /**
  * Horizontal scrollable row of attachment previews
  *
@@ -55,36 +58,20 @@ fun AttachmentPreviewRow(
     onRemoveAttachment: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    AnimatedVisibility(
-        visible = attachments.isNotEmpty(),
-        enter = expandVertically(
-            animationSpec = spring(
-                dampingRatio = 0.7f,
-                stiffness = 300f
-            ),
-            expandFrom = Alignment.Bottom
-        ) + fadeIn(animationSpec = tween(200)),
-        exit = shrinkVertically(
-            animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
-            shrinkTowards = Alignment.Bottom
-        ) + fadeOut(animationSpec = tween(150)),
+    Row(
         modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(bottom = ComponentSpacing.cardHeaderGap),
+        horizontalArrangement = Arrangement.spacedBy(ComponentSpacing.cardHeaderGap)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(bottom = ComponentSpacing.cardHeaderGap),
-            horizontalArrangement = Arrangement.spacedBy(ComponentSpacing.cardHeaderGap)
-        ) {
-            attachments.forEachIndexed { index, attachment ->
-                key(attachment.id) {
-                    AnimatedAttachmentChip(
-                        attachment = attachment,
-                        index = index,
-                        onRemove = { onRemoveAttachment(attachment.id) }
-                    )
-                }
+        attachments.forEachIndexed { index, attachment ->
+            key(attachment.id) {
+                AnimatedAttachmentChip(
+                    attachment = attachment,
+                    index = index,
+                    onRemove = { onRemoveAttachment(attachment.id) }
+                )
             }
         }
     }
@@ -289,15 +276,16 @@ private fun AnimatedAttachmentChip(
                 }
             }
 
+
             // Remove button (top-right corner)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-4).dp)
+                    .offset(x = (-4).dp, y = 4.dp) // Moved inside container bounds
                     .scale(removeScale)
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(SafetyOrange)
+                    .background(RemoveButtonColor) // Red color
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {

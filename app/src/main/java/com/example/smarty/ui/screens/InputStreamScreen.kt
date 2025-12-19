@@ -8,6 +8,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +70,7 @@ import androidx.compose.foundation.lazy.items
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.components.ProcessingDotsIndicator
 import com.example.smarty.ui.components.ShareBottomSheet
+import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.SafetyOrange
 import androidx.compose.ui.text.input.TextFieldValue
@@ -132,9 +135,10 @@ fun InputStreamScreen(
     // Derived current text based on mode
     val textValue = if (isChatMode) chatModeTextValue else normalModeTextValue
 
-    // Sync ViewModel's input text when mode changes
-    // This ensures shake detection uses the correct mode's text
-    LaunchedEffect(isChatMode) {
+    // Sync ViewModel's input text whenever the text value changes
+    // This ensures shake detection always uses the current text state
+    // Critical for shake-to-toggle: ViewModel must know if input is truly empty
+    LaunchedEffect(textValue.text, isChatMode) {
         onInputTextChange(textValue.text)
     }
 
@@ -160,7 +164,8 @@ fun InputStreamScreen(
     )
 
     // Observe global speech results and update local text fields
-    LaunchedEffect(speechResults) {
+    // Key on isChatMode to restart collection when mode changes (BUG FIX: speech not working in chat mode)
+    LaunchedEffect(speechResults, isChatMode) {
         speechResults?.collect { result ->
             val currentTextValue = if (isChatMode) chatModeTextValue else normalModeTextValue
             val currentText = currentTextValue.text
@@ -349,17 +354,8 @@ fun InputStreamScreen(
     LaunchedEffect(selectedTypeFilter) {
         val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
         val count = displayedNotes.size
-        val filterIcon = when (selectedTypeFilter) {
-            null -> Icons.Default.GridView
-            com.example.smarty.data.model.NoteType.BRAIN_DUMP -> Icons.AutoMirrored.Filled.StickyNote2
-            com.example.smarty.data.model.NoteType.YOUTUBE -> Icons.Default.PlayArrow
-            com.example.smarty.data.model.NoteType.IMAGE -> Icons.Default.Photo
-            com.example.smarty.data.model.NoteType.VIDEO -> Icons.Default.Videocam
-            com.example.smarty.data.model.NoteType.AUDIO -> Icons.Default.MusicNote
-            com.example.smarty.data.model.NoteType.DOCUMENT -> Icons.AutoMirrored.Filled.Article
-            com.example.smarty.data.model.NoteType.WEBSITE -> Icons.Default.Link
-            else -> Icons.Default.Description
-        }
+        val filterIcon = selectedTypeFilter?.let { getNoteTypeIcon(it) } ?: Icons.Default.GridView
+        
         onShowTransientIsland(
             com.example.smarty.ui.components.DynamicIslandState.Info(
                 label = categoryName,
@@ -375,10 +371,8 @@ fun InputStreamScreen(
         if (notes.isNotEmpty() && displayedNotes.size != previousDisplayedCount) {
             val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
             val count = displayedNotes.size
-            val filterIcon = when (selectedTypeFilter) {
-                null -> Icons.Default.GridView
-                else -> Icons.Default.Description
-            }
+            val filterIcon = selectedTypeFilter?.let { getNoteTypeIcon(it) } ?: Icons.Default.GridView
+            
             onShowTransientIsland(
                 com.example.smarty.ui.components.DynamicIslandState.Info(
                     label = categoryName,
@@ -429,24 +423,26 @@ fun InputStreamScreen(
                             modifier = Modifier.padding(end = 16.dp)
                         )
                         
-                        Surface(
-                            onClick = {
-                                lastArchivedNoteId?.let { noteId ->
-                                    onUnarchiveNote(noteId)
-                                    lastArchivedNoteId = null
-                                }
-                                data.dismiss()
-                            },
-                            shape = RoundedCornerShape(8.dp),
-                            color = LocalAccentColor.current.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = "UNDO",
-                                color = LocalAccentColor.current,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
+                        if (lastArchivedNoteId != null) {
+                            Surface(
+                                onClick = {
+                                    lastArchivedNoteId?.let { noteId ->
+                                        onUnarchiveNote(noteId)
+                                        lastArchivedNoteId = null
+                                    }
+                                    data.dismiss()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                color = LocalAccentColor.current.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "UNDO",
+                                    color = LocalAccentColor.current,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -618,14 +614,16 @@ fun InputStreamScreen(
                                     NoteTypeChip(
                                         label = "All",
                                         isSelected = selectedTypeFilter == null,
-                                        onClick = { selectedTypeFilter = null }
+                                        onClick = { selectedTypeFilter = null },
+                                        icon = Icons.Default.GridView
                                     )
                                 }
                                 items(availableTypes) { type ->
                                     NoteTypeChip(
                                         label = formatNoteType(type),
                                         isSelected = selectedTypeFilter == type,
-                                        onClick = { selectedTypeFilter = type }
+                                        onClick = { selectedTypeFilter = type },
+                                        icon = getNoteTypeIcon(type)
                                     )
                                 }
                             }
@@ -647,11 +645,15 @@ fun InputStreamScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = topPadding) // Only respect top padding
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null
-                ) {
-                    focusManager.clearFocus()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = {
+                            // Only clear focus on tap - do NOT stop voice input here
+                            // Voice input should only be stopped via the mic button
+                            // Stopping on tap causes issues when user scrolls/touches while speaking
+                            focusManager.clearFocus()
+                        }
+                    )
                 }
         ) {
             // Animated content switching between notes and chat
@@ -742,7 +744,7 @@ fun InputStreamScreen(
                                                     message = "Note archived",
                                                     duration = SnackbarDuration.Short
                                                 )
-                                                if (result == SnackbarResult.Dismissed) {
+                                                if (result == SnackbarResult.Dismissed && lastArchivedNoteId == note.id) {
                                                     lastArchivedNoteId = null
                                                 }
                                             }
@@ -1046,7 +1048,8 @@ private fun AnimatedNoteItem(
 private fun NoteTypeChip(
     label: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     val isSystemDark = isSystemInDarkTheme()
     // Premium "Pill" Aesthetic
@@ -1075,41 +1078,39 @@ private fun NoteTypeChip(
 
     Surface(
         onClick = onClick,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), // More "squircle" pill
+        shape = if (label.isEmpty()) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(20.dp), // Circle for icon-only
         color = backgroundColor,
         contentColor = contentColor,
         border = borderStroke,
-        modifier = Modifier.height(28.dp) // Reduced height to match chat mode pill style
+        modifier = Modifier.height(32.dp).widthIn(min = 32.dp) // Slightly bigger for touch target
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 0.5.sp
-                ),
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+        Row(
+            modifier = Modifier.padding(horizontal = if (label.isEmpty()) 8.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = if (label.isNotEmpty()) label else null,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            if (label.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.2.sp
+                    )
+                )
+            }
         }
     }
 }
 
 private fun formatNoteType(type: NoteType): String {
-    return when (type) {
-        NoteType.BRAIN_DUMP -> "Notes"
-        NoteType.IMAGE -> "Images"
-        NoteType.VIDEO -> "Videos"
-        NoteType.AUDIO -> "Audio"
-        NoteType.DOCUMENT -> "Docs"
-        NoteType.YOUTUBE -> "YouTube"
-        NoteType.WEBSITE -> "Links"
-        NoteType.CODE -> "Code"
-        NoteType.TWITTER -> "X / Twitter"
-        NoteType.INSTAGRAM -> "Instagram"
-        NoteType.SPREADSHEET -> "Sheets"
-        NoteType.PRESENTATION -> "Slides"
-        NoteType.APK -> "APKs"
-        NoteType.ARCHIVE -> "Archives"
-        NoteType.FILE -> "Files"
-    }
+    return "" // Icons only for all types
 }
+

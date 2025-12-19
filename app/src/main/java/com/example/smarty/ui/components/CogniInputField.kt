@@ -4,10 +4,12 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -56,6 +58,10 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -73,6 +79,13 @@ import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.util.rememberSpeechToText
 import kotlinx.coroutines.delay
+
+// Color constants for attachment indicators
+private val AttachmentRedColor = androidx.compose.ui.graphics.Color(0xFFF44336)
+private val AttachmentGreenColor = androidx.compose.ui.graphics.Color(0xFF4CAF50)
+private val AttachmentBlueColor = androidx.compose.ui.graphics.Color(0xFF2196F3)
+private val AttachmentPurpleColor = androidx.compose.ui.graphics.Color(0xFF9C27B0)
+private val AttachmentGrayColor = androidx.compose.ui.graphics.Color(0xFF607D8B)
 
 /**
  * Animated input field with focus state animations and attachment support
@@ -127,6 +140,8 @@ fun CogniInputField(
     var isButtonPressed by remember { mutableStateOf(false) }
     var isAddPressed by remember { mutableStateOf(false) }
     var showAttachmentPanel by remember { mutableStateOf(false) }
+    var showAttachmentPreview by remember { mutableStateOf(false) } // New state for preview panel
+
 
     // Clear focus when submitting
     val handleSubmit: () -> Unit = {
@@ -144,6 +159,13 @@ fun CogniInputField(
             if (!isFocused) {
                 showAttachmentPanel = false
             }
+        }
+    }
+
+    // Reset preview state when all attachments are cleared
+    LaunchedEffect(attachments.isEmpty()) {
+        if (attachments.isEmpty()) {
+            showAttachmentPreview = false
         }
     }
 
@@ -399,7 +421,35 @@ fun CogniInputField(
             }
         }
 
-        // Attachment previews REMOVED - now shown as stacked circles in left icon
+        // Attachment Preview Panel (shows when circles are clicked)
+        AnimatedVisibility(
+            visible = attachments.isNotEmpty() && showAttachmentPreview,
+            enter = expandVertically(
+                animationSpec = spring(
+                    dampingRatio = 0.7f,
+                    stiffness = 300f
+                ),
+                expandFrom = Alignment.Top
+            ) + fadeIn(animationSpec = tween(200)),
+            exit = shrinkVertically(
+                animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
+                shrinkTowards = Alignment.Top
+            ) + fadeOut(animationSpec = tween(150))
+        ) {
+            AttachmentPreviewRow(
+                attachments = attachments,
+                onRemoveAttachment = { id ->
+                    onRemoveAttachment(id)
+                    // Close preview if this is the last attachment being removed
+                    if (attachments.size == 1) {
+                        showAttachmentPreview = false
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            )
+        }
 
         // Attachment type selector panel (above input)
         // Panel stays open while focused - doesn't close when selecting attachments
@@ -483,7 +533,7 @@ fun CogniInputField(
                     else -> Icons.AutoMirrored.Filled.KeyboardArrowRight
                 }
 
-                val leftButtonColor = if (isVoiceListening) LocalAccentColor.current else LocalAccentColor.current
+                val leftButtonColor = LocalAccentColor.current
 
                 // YouTube-style Shimmer Effect REMOVED - Replaced by Halftone on Surface
 
@@ -496,17 +546,52 @@ fun CogniInputField(
                 ) {
                     // Show stacked colored circles if attachments exist, otherwise show icon
                     if (attachments.isNotEmpty()) {
-                        // Stacked colored circles representing attachments
-                        Box(contentAlignment = Alignment.Center) {
-                            attachments.reversed().forEachIndexed { index, attachment ->
-                                val attachmentColor = when (attachment.getAttachmentType()) {
-                                    com.example.smarty.data.model.AttachmentType.IMAGE -> androidx.compose.ui.graphics.Color(0xFF4CAF50) // Green
-                                    com.example.smarty.data.model.AttachmentType.VIDEO -> androidx.compose.ui.graphics.Color(0xFFF44336) // Red
+                        // Group attachments by type and show max 3 unique circles
+                        val uniqueTypes = attachments
+                            .map { it.getAttachmentType() }
+                            .distinct()
+                            .take(3) // Maximum 3 circles
+                        
+                        // Press state for circles
+                        var isCirclesPressed by remember { mutableStateOf(false) }
+                        val circlesScale by animateFloatAsState(
+                            targetValue = if (isCirclesPressed) 0.85f else 1f,
+                            animationSpec = CogniMotion.quick,
+                            label = "circlesScale"
+                        )
+                        
+                        // Stacked colored circles representing attachment types (not individual files)
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .scale(circlesScale)
+                                .semantics {
+                                    contentDescription = "View ${attachments.size} attachments"
+                                    role = Role.Button
+                                }
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onPress = {
+                                            isCirclesPressed = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            tryAwaitRelease()
+                                            isCirclesPressed = false
+                                        },
+                                        onTap = {
+                                            showAttachmentPreview = !showAttachmentPreview
+                                        }
+                                    )
+                                }
+                        ) {
+                            uniqueTypes.forEachIndexed { index, attachmentType ->
+                                val attachmentColor = when (attachmentType) {
+                                    com.example.smarty.data.model.AttachmentType.IMAGE -> AttachmentGreenColor
+                                    com.example.smarty.data.model.AttachmentType.VIDEO -> AttachmentRedColor
                                     com.example.smarty.data.model.AttachmentType.DOCUMENT,
                                     com.example.smarty.data.model.AttachmentType.SPREADSHEET,
-                                    com.example.smarty.data.model.AttachmentType.PRESENTATION -> androidx.compose.ui.graphics.Color(0xFF2196F3) // Blue
-                                    com.example.smarty.data.model.AttachmentType.AUDIO -> androidx.compose.ui.graphics.Color(0xFF9C27B0) // Purple
-                                    else -> androidx.compose.ui.graphics.Color(0xFF607D8B) // Gray
+                                    com.example.smarty.data.model.AttachmentType.PRESENTATION -> AttachmentBlueColor
+                                    com.example.smarty.data.model.AttachmentType.AUDIO -> AttachmentPurpleColor
+                                    else -> AttachmentGrayColor
                                 }
                                 
                                 // Offset each circle slightly to create stacked effect
@@ -576,7 +661,7 @@ fun CogniInputField(
                             .onFocusChanged { focusState ->
                                 isFocused = focusState.isFocused
                                 // Stop voice input when user taps on text field to type
-                                if (focusState.isFocused && isVoiceListening && isChatMode) {
+                                if (focusState.isFocused && isVoiceListening) {
                                     onStopVoiceInput()
                                 }
                             },

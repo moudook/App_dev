@@ -43,6 +43,8 @@ TODO.md
 USE_CASE.md
 *.notes
 *.reference
+BUG_FIX.md
+BUG_REPORT.md
 
 # Markdown documentation files (except README.md)
 DEVELOPMENT_LOG.md

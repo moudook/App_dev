@@ -224,15 +224,17 @@ fun NoteCard(
             shadowElevation = 0.dp, // Disable built-in harsh shadow -> using softCardShadow instead
             border = if (isSelected) {
                 androidx.compose.foundation.BorderStroke(2.dp, LocalAccentColor.current)
-            } else null // Clean border-free look by default
+            } else {
+                androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            },
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentHeight() // Adaptive height: Matches content size
-                    .heightIn(max = 200.dp) // Max height constraint
-                    .padding(16.dp), // Compact padding
-                verticalArrangement = Arrangement.spacedBy(8.dp) // Tighter packing
+                    .heightIn(max = 140.dp) // COMPACT NOTEBOOK STYLE: drastically reduced max height
+                    .padding(16.dp), // Increased padding for "Apple-like" breathing room
+                verticalArrangement = Arrangement.spacedBy(8.dp) // Relaxed spacing
             ) {
                 if (note.processingStatus == ProcessingStatus.PROCESSING || note.processingStatus == ProcessingStatus.PENDING) {
                     // Shimmering Skeleton Loader (YouTube Style)
@@ -278,31 +280,39 @@ fun NoteCard(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
+                        verticalAlignment = Alignment.CenterVertically // Center align icon and title
                     ) {
                         // Left: Title and Icon
                         Row(
                             modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Type Icon (Subtler)
+                            // Type Icon (Enhanced Container)
                             val iconTint = getNoteTypeColor(note.type)
-                            Icon(
-                                imageVector = getNoteTypeIcon(note.type),
-                                contentDescription = null,
-                                tint = iconTint,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .offset(y = 2.dp) // Optical alignment with text
-                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = iconTint.copy(alpha = 0.12f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = getNoteTypeIcon(note.type),
+                                        contentDescription = null,
+                                        tint = iconTint,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
 
                             Column {
                                 // Title
                                 Text(
-                                    text = note.title,
+                                    text = note.title.ifBlank { "Untitled Note" }, // Placeholder if empty
                                     style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        letterSpacing = (-0.5).sp
+                                        fontWeight = FontWeight.Bold, // Bold for better hierarchy
+                                        letterSpacing = (-0.5).sp,
+                                        fontSize = 17.sp // Slightly larger
                                     ),
                                     color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1, 
@@ -327,7 +337,7 @@ fun NoteCard(
                                             CategoryChip(
                                                 name = "AI",
                                                 isNew = false,
-                                                modifier = Modifier.height(16.dp)
+                                                modifier = Modifier.height(18.dp)
                                             )
                                         }
                                     }
@@ -346,18 +356,18 @@ fun NoteCard(
 
                     // Body Content
                     val displayText = note.summary ?: note.content
-                    // Only show body if we have content AND title isn't taking up everything
-                    // Or if title is empty/default
+                    // Only show body if we have content
                     if (displayText.isNotBlank()) {
                         Text(
                             text = displayText,
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                lineHeight = 22.sp
+                                lineHeight = 20.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f) // Slightly darker for readability
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2, // Limit to 2 lines for compact fixed height
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 30.dp)
+                            modifier = Modifier.padding(start = 48.dp) // Aligned with text, bypassing icon
                         )
                     }
 
@@ -371,7 +381,7 @@ fun NoteCard(
                         NoteAttachmentIndicator(
                             note = note,
                             attachmentCount = attachmentCount,
-                            modifier = Modifier.padding(start = 30.dp)
+                            modifier = Modifier.padding(start = 48.dp) // Aligned with text
                         )
                     }
 
@@ -383,7 +393,7 @@ fun NoteCard(
                     }
 
                     if (youtubeId != null) {
-                         Box(modifier = Modifier.padding(start = 30.dp)) {
+                         Box(modifier = Modifier.padding(start = 48.dp)) {
                             YouTubePlayButton(
                                 onClick = {
                                     val youtubeUrl = "https://www.youtube.com/watch?v=$youtubeId"
@@ -414,17 +424,22 @@ fun CategoryChip(
     Surface(
         modifier = modifier,
         shape = LocalShapes.current.pill,
-        color = if (isNew) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant,
+        color = if (isNew) {
+            LocalAccentColor.current.copy(alpha = 0.15f)
+        } else {
+             // More vivid default state
+             LocalAccentColor.current.copy(alpha = 0.1f)
+        },
     ) {
         Text(
             text = name.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp
             ),
-            color = if (isNew) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+            color = LocalAccentColor.current, // Always accent color for vitality
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
 }

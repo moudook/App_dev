@@ -58,21 +58,21 @@ object NoteCardIcons {
      */
     private val NOTE_TYPE_ICONS: Array<ImageVector> by lazy {
         arrayOf(
-            Icons.AutoMirrored.Filled.StickyNote2, // BRAIN_DUMP - Sticky note style
-            Icons.Default.PlayArrow,       // YOUTUBE - Play arrow (Clean)
-            Icons.Default.Public,          // WEBSITE - Globe (More Apple/Safari)
-            Icons.Default.Image,           // IMAGE - Single image frame
-            Icons.AutoMirrored.Filled.TextSnippet, // TWITTER - Text snippet style
-            Icons.Default.CameraAlt,       // INSTAGRAM - camera
-            Icons.AutoMirrored.Filled.Article, // DOCUMENT - article/document
-            Icons.Default.TableChart,      // SPREADSHEET - table grid
-            Icons.Default.Slideshow,       // PRESENTATION - slides
-            Icons.Default.Videocam,        // VIDEO - video camera
-            Icons.Default.MusicNote,       // AUDIO - music note
-            Icons.Default.Code,            // CODE - code brackets
-            Icons.Default.FolderZip,       // ARCHIVE - compressed folder
-            Icons.Default.Android,         // APK - Android robot
-            Icons.Default.AttachFile       // FILE - attachment
+            Icons.Default.EditNote,         // BRAIN_DUMP - "Note"
+            Icons.Default.PlayCircle,       // YOUTUBE - "Yt" (Clean Play Circle)
+            Icons.Default.Language,         // WEBSITE - "Link" (Globe/Web)
+            Icons.Default.Photo,            // IMAGE - "Img" (Single image frame)
+            Icons.Default.Close,            // TWITTER - "X" (Literal X using Close icon)
+            Icons.Default.CameraAlt,       // INSTAGRAM - "IG" (Camera)
+            Icons.AutoMirrored.Filled.Article, // DOCUMENT - "Doc" (Article/Document)
+            Icons.Default.TableChart,      // SPREADSHEET - "Excel" (Table grid)
+            Icons.Default.Slideshow,       // PRESENTATION - "PPT" (Slides)
+            Icons.Default.Videocam,        // VIDEO - "Vid" (Video camera)
+            Icons.Default.Mic,             // AUDIO - "Aud" (Microphone)
+            Icons.Default.Terminal,        // CODE - "Code" (Terminal/Code)
+            Icons.Default.FolderZip,       // ARCHIVE - "Zip" (Compressed folder)
+            Icons.Default.Android,         // APK - "APK" (Android robot)
+            Icons.Default.AttachFile       // FILE - "File" (Attachment)
         )
     }
 

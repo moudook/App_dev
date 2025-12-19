@@ -27,12 +27,15 @@ interface NoteDao {
     @Delete
     suspend fun deleteNote(note: Note)
 
+    @Transaction
     @Query("UPDATE notes SET isArchived = 1, updatedAt = :timestamp WHERE id = :noteId")
     suspend fun archiveNote(noteId: String, timestamp: Long = System.currentTimeMillis())
 
+    @Transaction
     @Query("UPDATE notes SET isArchived = 0, updatedAt = :timestamp WHERE id = :noteId")
     suspend fun unarchiveNote(noteId: String, timestamp: Long = System.currentTimeMillis())
 
+    @Transaction
     @Query("UPDATE notes SET categoryId = :categoryId, categoryName = :categoryName, updatedAt = :timestamp WHERE id = :noteId")
     suspend fun updateNoteCategory(
         noteId: String,
@@ -42,9 +45,11 @@ interface NoteDao {
     )
 
     // Backup operations - one-shot queries
+    @Transaction
     @Query("SELECT * FROM notes ORDER BY createdAt DESC")
     suspend fun getAllNotesOnce(): List<Note>
 
+    @Transaction
     @Query("DELETE FROM notes")
     suspend fun deleteAllNotes()
 

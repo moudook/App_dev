@@ -40,12 +40,16 @@ import com.example.smarty.ui.theme.CogniTheme
 import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.viewmodel.AudioPlayerViewModel
 import com.example.smarty.viewmodel.CogniViewModel
+import com.example.smarty.viewmodel.CogniViewModelFactory
 import com.example.smarty.viewmodel.SharedContent
 import com.example.smarty.viewmodel.SharedFileInfo
 import com.example.smarty.ui.screens.StartupScreen
 
 class MainActivity : ComponentActivity() {
-    private val viewModel: CogniViewModel by viewModels()
+    // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
+    private val viewModel: CogniViewModel by viewModels {
+        CogniViewModelFactory(application, this)
+    }
     private val audioPlayerViewModel: AudioPlayerViewModel by viewModels()
 
     // Permission launcher for multiple permissions

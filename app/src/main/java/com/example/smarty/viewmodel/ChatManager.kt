@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Manages chat mode state and session lifecycle.
@@ -52,6 +54,9 @@ class ChatManager(
 
     // Track if last API call was successful (for smart saving)
     private var lastApiCallSuccessful = false
+
+    // Mutex for thread-safe chat operations (BUG-038 fix)
+    private val chatMutex = Mutex()
 
     /**
      * Initialize by loading sessions and cleaning up empty ones
@@ -171,7 +176,7 @@ class ChatManager(
     }
 
     /**
-     * Add a user message to the chat
+     * Add a user message to the chat (thread-safe)
      */
     fun addUserMessage(content: String, attachments: List<Attachment> = emptyList()): ChatMessage {
         val userMessage = ChatMessage(
@@ -179,15 +184,19 @@ class ChatManager(
             content = content,
             attachments = attachments
         )
-        _chatMessages.value = _chatMessages.value + userMessage
+        synchronized(_chatMessages) {
+            _chatMessages.value = _chatMessages.value + userMessage
+        }
         return userMessage
     }
 
     /**
-     * Add an assistant response to the chat
+     * Add an assistant response to the chat (thread-safe)
      */
     fun addAssistantMessage(message: ChatMessage) {
-        _chatMessages.value = _chatMessages.value + message
+        synchronized(_chatMessages) {
+            _chatMessages.value = _chatMessages.value + message
+        }
     }
 
     /**
@@ -233,35 +242,43 @@ class ChatManager(
     }
 
     /**
-     * Update the actions of a specific assistant message
+     * Update the actions of a specific assistant message (thread-safe)
      */
     fun updateAssistantMessageActions(messageId: String, updatedActions: List<com.example.smarty.data.model.AgentActionResult>) {
-        val currentMessages = _chatMessages.value
-        val updatedMessages = currentMessages.map { message ->
-            if (message.id == messageId) {
-                message.copy(executedActions = updatedActions)
-            } else {
-                message
+        synchronized(_chatMessages) {
+            val currentMessages = _chatMessages.value
+            val updatedMessages = currentMessages.map { message ->
+                if (message.id == messageId) {
+                    message.copy(executedActions = updatedActions)
+                } else {
+                    message
+                }
             }
+            _chatMessages.value = updatedMessages
         }
-        _chatMessages.value = updatedMessages
     }
 
     /**
-     * Save a message pair to persistent storage
+     * Save a message pair to persistent storage (thread-safe)
      */
     suspend fun saveMessagePair(
         userMessage: ChatMessage,
         assistantMessage: ChatMessage,
         hasApiKeys: Boolean
     ) {
-        _currentSessionId.value?.let { sessionId ->
-            chatRepository.saveMessagePair(
-                sessionId = sessionId,
-                userMessage = userMessage,
-                assistantMessage = assistantMessage,
-                shouldSave = shouldSaveChat(hasApiKeys)
-            )
+        chatMutex.withLock {
+            try {
+                _currentSessionId.value?.let { sessionId ->
+                    chatRepository.saveMessagePair(
+                        sessionId = sessionId,
+                        userMessage = userMessage,
+                        assistantMessage = assistantMessage,
+                        shouldSave = shouldSaveChat(hasApiKeys)
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error saving message pair: ${e.message}", e)
+            }
         }
     }
 }

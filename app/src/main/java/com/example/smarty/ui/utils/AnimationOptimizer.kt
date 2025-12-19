@@ -455,3 +455,57 @@ fun Float?.orPaused(default: Float = 0f): Float = this ?: default
 inline fun Float?.ifActive(block: (Float) -> Unit) {
     if (this != null) block(this)
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLICK DEBOUNCING (BUG-013 FIX)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Remembers a debounced click handler that prevents rapid consecutive clicks.
+ *
+ * @param debounceMs Minimum time between clicks in milliseconds
+ * @param onClick The click handler to debounce
+ * @return A debounced click handler
+ */
+@Composable
+fun rememberDebouncedClick(
+    debounceMs: Long = 300L,
+    onClick: () -> Unit
+): () -> Unit {
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+
+    return remember(onClick) {
+        {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastClickTime >= debounceMs) {
+                lastClickTime = currentTime
+                onClick()
+            }
+        }
+    }
+}
+
+/**
+ * Remembers a debounced click handler with a parameter.
+ *
+ * @param debounceMs Minimum time between clicks in milliseconds
+ * @param onClick The click handler to debounce
+ * @return A debounced click handler
+ */
+@Composable
+fun <T> rememberDebouncedClickWithParam(
+    debounceMs: Long = 300L,
+    onClick: (T) -> Unit
+): (T) -> Unit {
+    var lastClickTime by remember { mutableLongStateOf(0L) }
+
+    return remember(onClick) {
+        { param: T ->
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastClickTime >= debounceMs) {
+                lastClickTime = currentTime
+                onClick(param)
+            }
+        }
+    }
+}

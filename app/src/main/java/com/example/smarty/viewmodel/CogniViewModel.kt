@@ -53,6 +53,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.AbstractSavedStateViewModelFactory
+import androidx.lifecycle.ViewModelProvider
+import androidx.savedstate.SavedStateRegistryOwner
 
 /**
  * Single file info for sharing
@@ -85,7 +91,18 @@ data class SharedContent(
     }
 }
 
-class CogniViewModel(application: Application) : AndroidViewModel(application) {
+class CogniViewModel(
+    application: Application,
+    private val savedStateHandle: SavedStateHandle
+) : AndroidViewModel(application) {
+
+    // SavedStateHandle keys for state preservation across process death (BUG-053)
+    companion object {
+        private const val TAG = "CogniViewModel"
+        private const val KEY_SELECTED_NOTE_ID = "selectedNoteId"
+        private const val KEY_SELECTED_CATEGORY_ID = "selectedCategoryId"
+        private const val KEY_IS_CHAT_MODE = "isChatMode"
+    }
 
     // Secure preferences and AI service
     private val securePreferences = SecurePreferences.getInstance(application)
@@ -119,6 +136,9 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null
+
+    // Mutex for thread-safe note operations (BUG-016 fix)
+    private val noteOperationMutex = Mutex()
 
     // ==================== Delegated Managers ====================
 
@@ -188,10 +208,6 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     private val _isClearingCache = MutableStateFlow(false)
     val isClearingCache: StateFlow<Boolean> = _isClearingCache.asStateFlow()
 
-    companion object {
-        private const val TAG = "CogniViewModel"
-    }
-
     val notes = repository.getAllNotes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -236,6 +252,43 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         }
         // Initialize chat manager (loads sessions and cleans up empty ones)
         chatManager.initialize()
+
+        // Restore state from SavedStateHandle after process death (BUG-053)
+        restoreState()
+    }
+
+    /**
+     * Restore navigation state from SavedStateHandle after process death.
+     * This preserves selectedNote, selectedCategory, and chatMode across restarts.
+     */
+    private fun restoreState() {
+        viewModelScope.launch {
+            // Restore selected note by ID
+            savedStateHandle.get<String>(KEY_SELECTED_NOTE_ID)?.let { noteId ->
+                val note = repository.getNoteById(noteId)
+                if (note != null) {
+                    _selectedNote.value = note
+                    Log.d(TAG, "Restored selectedNote: ${note.id}")
+                }
+            }
+
+            // Restore selected category by ID
+            savedStateHandle.get<String>(KEY_SELECTED_CATEGORY_ID)?.let { categoryId ->
+                val category = repository.getCategoryById(categoryId)
+                if (category != null) {
+                    _selectedCategory.value = category
+                    Log.d(TAG, "Restored selectedCategory: ${category.id}")
+                }
+            }
+
+            // Restore chat mode state
+            savedStateHandle.get<Boolean>(KEY_IS_CHAT_MODE)?.let { wasChatMode ->
+                if (wasChatMode) {
+                    chatManager.enterChatMode()
+                    Log.d(TAG, "Restored chat mode")
+                }
+            }
+        }
     }
 
     // Public sync function for manual recalculation
@@ -247,10 +300,14 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectNote(note: Note?) {
         _selectedNote.value = note
+        // Persist to SavedStateHandle for process death recovery (BUG-053)
+        savedStateHandle[KEY_SELECTED_NOTE_ID] = note?.id
     }
 
     fun selectCategory(category: Category?) {
         _selectedCategory.value = category
+        // Persist to SavedStateHandle for process death recovery (BUG-053)
+        savedStateHandle[KEY_SELECTED_CATEGORY_ID] = category?.id
     }
 
     // O(1) lookup using enum ordinal comparison
@@ -560,13 +617,25 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     fun archiveNote(noteId: String) {
         viewModelScope.launch {
-            repository.archiveNote(noteId)
+            try {
+                noteOperationMutex.withLock {
+                    repository.archiveNote(noteId)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error archiving note: ${e.message}", e)
+            }
         }
     }
 
     fun unarchiveNote(noteId: String) {
         viewModelScope.launch {
-            repository.unarchiveNote(noteId)
+            try {
+                noteOperationMutex.withLock {
+                    repository.unarchiveNote(noteId)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error unarchiving note: ${e.message}", e)
+            }
         }
     }
 
@@ -576,33 +645,49 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteNote(note: Note) {
         viewModelScope.launch {
-            // Clean up attachment files (only deletes app's copies, not original files)
-            val context = getApplication<Application>()
-            note.getAllAttachmentUris().forEach { uri ->
-                FileStorageHelper.deleteFile(context, uri)
+            try {
+                noteOperationMutex.withLock {
+                    // Clean up attachment files (only deletes app's copies, not original files)
+                    val context = getApplication<Application>()
+                    note.getAllAttachmentUris().forEach { uri ->
+                        FileStorageHelper.deleteFile(context, uri)
+                    }
+                    // Then delete database record
+                    repository.deleteNote(note)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error deleting note: ${e.message}", e)
             }
-            // Then delete database record
-            repository.deleteNote(note)
         }
     }
 
     fun deleteNoteById(noteId: String) {
         viewModelScope.launch {
-            // Search in both active notes and archived notes
-            val note = notes.value.find { it.id == noteId }
-                ?: archivedNotes.value.find { it.id == noteId }
-            note?.let { deleteNote(it) }
+            try {
+                // Search in both active notes and archived notes
+                val note = notes.value.find { it.id == noteId }
+                    ?: archivedNotes.value.find { it.id == noteId }
+                note?.let { deleteNote(it) }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error deleting note by ID: ${e.message}", e)
+            }
         }
     }
 
     fun updateNoteTodos(noteId: String, todos: List<TodoItem>) {
         viewModelScope.launch {
-            // Search in both active notes and archived notes
-            val note = notes.value.find { it.id == noteId }
-                ?: archivedNotes.value.find { it.id == noteId }
-            note?.let {
-                val updatedNote = it.withTodos(todos)
-                repository.updateNote(updatedNote)
+            try {
+                noteOperationMutex.withLock {
+                    // Search in both active notes and archived notes
+                    val note = notes.value.find { it.id == noteId }
+                        ?: archivedNotes.value.find { it.id == noteId }
+                    note?.let {
+                        val updatedNote = it.withTodos(todos)
+                        repository.updateNote(updatedNote)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating note todos: ${e.message}", e)
             }
         }
     }
@@ -1108,6 +1193,8 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun toggleChatMode() {
         chatManager.toggleChatMode()
+        // Persist chat mode state for process death recovery (BUG-053)
+        savedStateHandle[KEY_IS_CHAT_MODE] = !isChatMode.value  // Will be opposite after toggle
     }
 
     /**
@@ -1115,6 +1202,8 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun exitChatMode() {
         chatManager.exitChatMode()
+        // Persist chat mode state for process death recovery (BUG-053)
+        savedStateHandle[KEY_IS_CHAT_MODE] = false
     }
 
     /**
@@ -1265,6 +1354,18 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
             lastAssistantMessage.content
         ) ?: return emptyList()
 
+        // Delegate to the action executor
+        return executeAction(action)
+    }
+
+    /**
+     * Execute an AgentAction directly.
+     * This is the core action executor - separated from executeAgentAction to allow
+     * direct execution of batch sub-actions without re-parsing.
+     *
+     * SECURITY: Each action type has PrivacyGuard checks to prevent access to private notes.
+     */
+    private suspend fun executeAction(action: AgentAction): List<String> {
         return when (action) {
             is AgentAction.CreateNote -> {
                 // Detect correct type and title if not provided
@@ -1560,16 +1661,11 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             is AgentAction.BatchActions -> {
-                // Execute each action in the batch
+                // Execute each action in the batch directly
+                // SECURITY: Each sub-action goes through executeAction which has PrivacyGuard checks
                 action.actions.flatMap { subAction ->
-                    executeAgentAction(
-                        AgentActionResult(
-                            action = subAction.javaClass.simpleName,
-                            success = true,
-                            resultSummary = "Batch action"
-                        ),
-                        originalMessage
-                    )
+                    Log.d(TAG, "Executing batch sub-action: ${subAction.javaClass.simpleName}")
+                    executeAction(subAction)
                 }
             }
         }
@@ -1630,5 +1726,34 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         shakeDetector?.stop()
         shakeDetector = null
+    }
+}
+
+/**
+ * Factory for CogniViewModel that provides SavedStateHandle for state preservation
+ * across process death (BUG-053 fix).
+ *
+ * Usage in Activity:
+ * ```
+ * private val viewModel: CogniViewModel by viewModels {
+ *     CogniViewModelFactory(application, this)
+ * }
+ * ```
+ */
+class CogniViewModelFactory(
+    private val application: Application,
+    owner: SavedStateRegistryOwner
+) : AbstractSavedStateViewModelFactory(owner, null) {
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : androidx.lifecycle.ViewModel> create(
+        key: String,
+        modelClass: Class<T>,
+        handle: SavedStateHandle
+    ): T {
+        if (modelClass.isAssignableFrom(CogniViewModel::class.java)) {
+            return CogniViewModel(application, handle) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

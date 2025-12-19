@@ -54,6 +54,7 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.example.smarty.util.ResourceManager
 
 /**
  * Full-screen document viewer supporting PDFs and text files.
@@ -148,6 +149,7 @@ private fun PdfViewerContent(
     }
 
     // Render current page - lazy, only when needed
+    // BUG-046: Memory-adaptive scaling based on device capabilities
     LaunchedEffect(currentPage, pdfRenderer) {
         pdfRenderer?.let { renderer ->
             withContext(Dispatchers.IO) {
@@ -157,16 +159,61 @@ private fun PdfViewerContent(
                         pageBitmap?.recycle()
 
                         val page = renderer.openPage(currentPage)
-                        // Use 2x scale for readability, but not excessive
+
+                        // Calculate adaptive scale based on device capabilities (BUG-046)
+                        val maxDimension = try {
+                            ResourceManager.getMaxImageDimension()
+                        } catch (e: Exception) {
+                            2048 // Fallback
+                        }
+
+                        // Calculate scale to fit within max dimension while maintaining aspect ratio
+                        val pageWidth = page.width
+                        val pageHeight = page.height
+                        val scaleFactor = minOf(
+                            maxDimension.toFloat() / pageWidth,
+                            maxDimension.toFloat() / pageHeight,
+                            3f // Cap at 3x to prevent excessive memory usage
+                        ).coerceAtLeast(1f) // At least 1x scale
+
+                        val renderWidth = (pageWidth * scaleFactor).toInt()
+                        val renderHeight = (pageHeight * scaleFactor).toInt()
+
+                        // Check memory before allocating (BUG-046)
+                        val requiredMB = (renderWidth.toLong() * renderHeight * 4) / (1024 * 1024)
+                        val hasMemory = try {
+                            ResourceManager.hasEnoughMemory(requiredMB)
+                        } catch (e: Exception) {
+                            true // Proceed if ResourceManager not initialized
+                        }
+
+                        // If not enough memory, reduce scale
+                        val finalWidth: Int
+                        val finalHeight: Int
+                        if (!hasMemory) {
+                            // Reduce to 1x if memory constrained
+                            finalWidth = pageWidth
+                            finalHeight = pageHeight
+                            Log.w(TAG, "Reduced PDF scale due to memory pressure")
+                        } else {
+                            finalWidth = renderWidth
+                            finalHeight = renderHeight
+                        }
+
                         val bitmap = Bitmap.createBitmap(
-                            page.width * 2,
-                            page.height * 2,
+                            finalWidth,
+                            finalHeight,
                             Bitmap.Config.ARGB_8888
                         )
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         page.close()
                         pageBitmap = bitmap
+
+                        Log.d(TAG, "PDF page rendered: ${pageWidth}x${pageHeight} -> ${finalWidth}x${finalHeight} (${requiredMB}MB)")
                     }
+                } catch (e: OutOfMemoryError) {
+                    Log.e(TAG, "OOM rendering PDF page", e)
+                    errorMessage = "Not enough memory to render page. Try closing other apps."
                 } catch (e: Exception) {
                     errorMessage = "Error rendering page: ${e.message}"
                 }

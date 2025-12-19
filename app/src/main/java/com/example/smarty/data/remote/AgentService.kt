@@ -38,6 +38,12 @@ class AgentService(
         private const val MAX_NOTES_IN_CONTEXT = 20
         private const val MAX_CHAT_HISTORY = 8
 
+        // BUG-032: Context window overflow handling constants
+        private const val MAX_NOTE_CONTENT_CHARS = 400
+        private const val MAX_CHAT_MSG_CHARS = 150
+        private const val CONTEXT_SAFETY_MARGIN = 1000  // Reserve for response
+        private const val EFFECTIVE_CONTEXT_LIMIT = MAX_CONTEXT_CHARS - CONTEXT_SAFETY_MARGIN
+
         /**
          * COGNI AGENT SYSTEM PROMPT
          *
@@ -492,6 +498,16 @@ User: "Create a grocery list with milk, eggs, bread"
         return score
     }
 
+    /**
+     * Build prompt with context overflow protection (BUG-032 fix).
+     *
+     * Uses priority-based context management:
+     * 1. User message (highest priority - never truncated)
+     * 2. Context notes (core functionality)
+     * 3. Chat history (conversation continuity)
+     * 4. Memories (personalization)
+     * 5. Categories/summaries (lowest priority - truncated first)
+     */
     private fun buildPrompt(
         userMessage: String,
         attachments: List<Attachment>,
@@ -501,86 +517,209 @@ User: "Create a grocery list with milk, eggs, bread"
         allNotes: List<Note>,  // All AI-visible notes for accurate counts
         memories: List<AIMemory> = emptyList(),
         pastSummaries: List<ChatSession> = emptyList()
-    ): String = buildString {
-        // SECURITY: Use AI-safe category counts (excludes private notes)
-        val aiSafeCounts = PrivacyGuard.getAiSafeCategoryCounts(categories, allNotes)
+    ): String {
+        // Track context budget (BUG-032)
+        var remainingBudget = EFFECTIVE_CONTEXT_LIMIT
 
-        // Categories with accurate AI-visible counts
-        append("## CATEGORIES\n")
-        categories
-            .map { it to (aiSafeCounts[it.name] ?: 0) }
-            .sortedByDescending { it.second }
-            .take(15)
-            .forEach { (category, count) ->
-                append("- ${category.name}: $count notes\n")
+        // 1. User message section (highest priority - always include full)
+        val userSection = buildString {
+            append("## CURRENT REQUEST\n")
+            append(userMessage)
+            if (attachments.isNotEmpty()) {
+                append("\n\nAttachments: ${attachments.joinToString { it.fileName }}")
             }
-        append("\n")
+            append("\n\n## RESPOND WITH JSON ONLY")
+        }
+        remainingBudget -= userSection.length
 
-        // AI Memories - What we remember about the user
-        if (memories.isNotEmpty()) {
-            append("## WHAT I REMEMBER ABOUT YOU\n")
-            memories.forEach { memory ->
-                // Include memory type for context
-                val typeLabel = when (memory.type) {
-                    MemoryType.PREFERENCE -> "[Preference]"
-                    MemoryType.PATTERN -> "[Pattern]"
-                    MemoryType.STYLE -> "[Style]"
-                    MemoryType.FACT -> "[Fact]"
-                }
-                append("- $typeLabel ${memory.content}\n")
-            }
-            append("\n")
+        // 2. Context notes (core functionality - use proportional budget)
+        val noteBudget = (remainingBudget * 0.5).toInt().coerceAtLeast(2000)
+        val notesSection = buildNotesSection(contextNotes, noteBudget)
+        remainingBudget -= notesSection.length
+
+        // 3. Chat history (conversation continuity - limit based on remaining budget)
+        val historyBudget = (remainingBudget * 0.3).toInt().coerceAtLeast(500)
+        val historySection = buildHistorySection(chatHistory, historyBudget)
+        remainingBudget -= historySection.length
+
+        // 4. Memories (personalization)
+        val memoryBudget = (remainingBudget * 0.5).toInt().coerceAtLeast(300)
+        val memorySection = buildMemorySection(memories, memoryBudget)
+        remainingBudget -= memorySection.length
+
+        // 5. Categories with AI-safe counts
+        val categoryBudget = (remainingBudget * 0.5).toInt().coerceAtLeast(200)
+        val categorySection = buildCategorySection(categories, allNotes, categoryBudget)
+        remainingBudget -= categorySection.length
+
+        // 6. Past summaries (lowest priority)
+        val summarySection = if (remainingBudget > 200) {
+            buildSummarySection(pastSummaries, remainingBudget)
+        } else ""
+
+        // Log context usage
+        val totalUsed = EFFECTIVE_CONTEXT_LIMIT - remainingBudget + summarySection.length
+        Log.d(TAG, "Context budget: $totalUsed / $EFFECTIVE_CONTEXT_LIMIT chars used")
+
+        // Assemble prompt in order
+        return buildString {
+            append(categorySection)
+            append(memorySection)
+            append(summarySection)
+            append(notesSection)
+            append(historySection)
+            append(userSection)
+        }
+    }
+
+    /**
+     * Build notes section with budget limit
+     */
+    private fun buildNotesSection(contextNotes: List<Note>, budget: Int): String {
+        if (contextNotes.isEmpty()) {
+            return "## NO RELEVANT NOTES FOUND\n\n"
         }
 
-        // Past conversation summaries - Light context from previous sessions
-        if (pastSummaries.isNotEmpty()) {
-            append("## RECENT CONVERSATION CONTEXT\n")
-            pastSummaries.forEach { session ->
-                session.summary?.let { summary ->
-                    append("- ${summary}\n")
-                }
-            }
-            append("(Past conversations - current takes priority)\n\n")
-        }
+        val result = StringBuilder()
+        result.append("## RELEVANT NOTES (Use these IDs for operations)\n")
+        var usedBudget = result.length
 
-        // Context notes - CRITICAL: These are the ONLY notes the agent can access
-        if (contextNotes.isNotEmpty()) {
-            append("## RELEVANT NOTES (Use these IDs for operations)\n")
-            contextNotes.forEachIndexed { index, note ->
+        for ((index, note) in contextNotes.withIndex()) {
+            // Calculate note entry size
+            val noteEntry = buildString {
                 append("### Note ${index + 1}\n")
                 append("- ID: `${note.id}`\n")
                 append("- Title: ${note.title}\n")
                 append("- Category: ${note.categoryName ?: "None"}\n")
                 append("- Updated: ${formatTimestamp(note.updatedAt)}\n")
                 if (!note.summary.isNullOrBlank()) {
-                    append("- Summary: ${note.summary}\n")
+                    append("- Summary: ${note.summary.take(100)}${if ((note.summary?.length ?: 0) > 100) "..." else ""}\n")
                 }
-                append("- Content: ${note.content.take(400)}${if (note.content.length > 400) "..." else ""}\n")
+                val contentLimit = MAX_NOTE_CONTENT_CHARS.coerceAtMost((budget - usedBudget) / 2)
+                if (contentLimit > 50) {
+                    append("- Content: ${note.content.take(contentLimit)}${if (note.content.length > contentLimit) "..." else ""}\n")
+                }
                 append("\n")
             }
-        } else {
-            append("## NO RELEVANT NOTES FOUND\n\n")
-        }
 
-        // Chat history
-        if (chatHistory.isNotEmpty()) {
-            append("## CONVERSATION HISTORY\n")
-            chatHistory.takeLast(5).forEach { msg ->
-                val role = if (msg.role == ChatRole.USER) "USER" else "AGENT"
-                append("$role: ${msg.content.take(150)}${if (msg.content.length > 150) "..." else ""}\n")
+            // Check if we have budget for this note
+            if (usedBudget + noteEntry.length > budget) {
+                result.append("... (${contextNotes.size - index} more notes available)\n\n")
+                break
             }
-            append("\n")
+
+            result.append(noteEntry)
+            usedBudget += noteEntry.length
         }
 
-        // Current message
-        append("## CURRENT REQUEST\n")
-        append(userMessage)
+        return result.toString()
+    }
 
-        if (attachments.isNotEmpty()) {
-            append("\n\nAttachments: ${attachments.joinToString { it.fileName }}")
+    /**
+     * Build chat history section with budget limit
+     */
+    private fun buildHistorySection(chatHistory: List<ChatMessage>, budget: Int): String {
+        if (chatHistory.isEmpty()) return ""
+
+        val result = StringBuilder()
+        result.append("## CONVERSATION HISTORY\n")
+        var usedBudget = result.length
+
+        // Take most recent messages that fit (in chronological order)
+        val recentMessages = chatHistory.takeLast(5)
+        for (msg in recentMessages) {
+            val role = if (msg.role == ChatRole.USER) "USER" else "AGENT"
+            val contentLimit = MAX_CHAT_MSG_CHARS.coerceAtMost((budget - usedBudget) / 2)
+            val entry = "$role: ${msg.content.take(contentLimit)}${if (msg.content.length > contentLimit) "..." else ""}\n"
+
+            if (usedBudget + entry.length > budget) break
+            result.append(entry)
+            usedBudget += entry.length
         }
 
-        append("\n\n## RESPOND WITH JSON ONLY")
+        result.append("\n")
+        return result.toString()
+    }
+
+    /**
+     * Build memory section with budget limit
+     */
+    private fun buildMemorySection(memories: List<AIMemory>, budget: Int): String {
+        if (memories.isEmpty()) return ""
+
+        val result = StringBuilder()
+        result.append("## WHAT I REMEMBER ABOUT YOU\n")
+        var usedBudget = result.length
+
+        for (memory in memories) {
+            val typeLabel = when (memory.type) {
+                MemoryType.PREFERENCE -> "[Preference]"
+                MemoryType.PATTERN -> "[Pattern]"
+                MemoryType.STYLE -> "[Style]"
+                MemoryType.FACT -> "[Fact]"
+            }
+            val entry = "- $typeLabel ${memory.content}\n"
+
+            if (usedBudget + entry.length > budget) break
+            result.append(entry)
+            usedBudget += entry.length
+        }
+
+        result.append("\n")
+        return result.toString()
+    }
+
+    /**
+     * Build category section with AI-safe counts
+     */
+    private fun buildCategorySection(
+        categories: List<Category>,
+        allNotes: List<Note>,
+        budget: Int
+    ): String {
+        val aiSafeCounts = PrivacyGuard.getAiSafeCategoryCounts(categories, allNotes)
+
+        val result = StringBuilder()
+        result.append("## CATEGORIES\n")
+        var usedBudget = result.length
+
+        val sortedCategories = categories
+            .map { it to (aiSafeCounts[it.name] ?: 0) }
+            .sortedByDescending { it.second }
+            .take(15)
+
+        for ((category, count) in sortedCategories) {
+            val entry = "- ${category.name}: $count notes\n"
+            if (usedBudget + entry.length > budget) break
+            result.append(entry)
+            usedBudget += entry.length
+        }
+
+        result.append("\n")
+        return result.toString()
+    }
+
+    /**
+     * Build past summaries section
+     */
+    private fun buildSummarySection(pastSummaries: List<ChatSession>, budget: Int): String {
+        if (pastSummaries.isEmpty()) return ""
+
+        val result = StringBuilder()
+        result.append("## RECENT CONVERSATION CONTEXT\n")
+        var usedBudget = result.length
+
+        for (session in pastSummaries) {
+            val summary = session.summary ?: continue
+            val entry = "- ${summary.take(100)}${if (summary.length > 100) "..." else ""}\n"
+
+            if (usedBudget + entry.length > budget) break
+            result.append(entry)
+            usedBudget += entry.length
+        }
+
+        result.append("(Past conversations - current takes priority)\n\n")
+        return result.toString()
     }
 
     private fun formatTimestamp(timestamp: Long): String {
