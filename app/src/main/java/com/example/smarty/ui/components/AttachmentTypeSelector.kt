@@ -92,57 +92,56 @@ fun AttachmentTypeSelector(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp, start = 16.dp, end = 16.dp), // Add padding for floating effect
+                .padding(bottom = 12.dp), // Match Chat Mode bottom padding
             contentAlignment = Alignment.Center
         ) {
-            // Floating Glass Dock (Pill Shape)
+            // EXACT COPY of Chat Mode pill styling (from CogniInputField.kt lines 260-309)
             Surface(
                 shape = androidx.compose.foundation.shape.CircleShape,
-                color = LocalAccentColor.current.copy(alpha = 0.2f), // Reduced transparency (more visible)
+                color = LocalAccentColor.current.copy(alpha = 0.8f), // EXACT: 0.8f alpha like Chat Mode
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
-                    color = LocalAccentColor.current.copy(alpha = 0.25f) // Subtle border
+                    color = LocalAccentColor.current.copy(alpha = 0.25f) // EXACT: 0.25f border
                 )
             ) {
                 Row(
-                    modifier = Modifier
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), // EXACT: same padding as Chat Mode
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     AttachmentOption.entries.forEachIndexed { index, option ->
-                        // Text Item
+                        // Text Item - PURE WHITE (same as Chat Mode)
                         Text(
                             text = option.label,
                             style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 12.sp
+                                fontWeight = FontWeight.Medium // EXACT: same fontWeight as Chat Mode
                             ),
-                            color = LocalAccentColor.current,
-                            modifier = Modifier
-                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
-                                .clickable {
-                                    when (option) {
-                                        AttachmentOption.IMAGE -> onSelectImage()
-                                        AttachmentOption.VIDEO -> onSelectVideo()
-                                        AttachmentOption.DOCUMENT -> onSelectDocument()
-                                        AttachmentOption.AUDIO -> onSelectAudio()
-                                        AttachmentOption.FILE -> onSelectFile()
-                                        AttachmentOption.LINK -> onSelectLink()
-                                    }
+                            color = androidx.compose.ui.graphics.Color.White, // Pure white like Chat Mode
+                            modifier = Modifier.clickable {
+                                when (option) {
+                                    AttachmentOption.IMAGE -> onSelectImage()
+                                    AttachmentOption.VIDEO -> onSelectVideo()
+                                    AttachmentOption.DOCUMENT -> onSelectDocument()
+                                    AttachmentOption.AUDIO -> onSelectAudio()
+                                    AttachmentOption.FILE -> onSelectFile()
+                                    AttachmentOption.LINK -> onSelectLink()
                                 }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                            }
                         )
+                        
+                        // Spacer before divider
+                        Spacer(modifier = Modifier.width(8.dp))
 
-                        // Separator (if not last)
+                        // Separator (if not last) - EXACT: height(10.dp), alpha 0.3f like Chat Mode
                         if (index < AttachmentOption.entries.lastIndex) {
                             Box(
                                 modifier = Modifier
-                                    .height(10.dp)
                                     .width(1.dp)
-                                    .background(LocalAccentColor.current.copy(alpha = 0.2f))
+                                    .height(10.dp) // EXACT: same as Chat Mode divider
+                                    .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.3f)) // EXACT: 0.3f alpha
                             )
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
                     }
                 }

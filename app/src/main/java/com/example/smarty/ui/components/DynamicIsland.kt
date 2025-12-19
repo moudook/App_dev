@@ -20,14 +20,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
 import kotlin.math.max
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 sealed interface DynamicIslandState {
     object Contracted : DynamicIslandState
     object Processing : DynamicIslandState
     data class Info(val label: String, val secondaryLabel: String, val icon: ImageVector? = null) : DynamicIslandState
     data class Listening(val rmsDb: Float) : DynamicIslandState
+    object Success : DynamicIslandState // New state for completion feedback
 }
 
 @Composable
@@ -35,103 +40,120 @@ fun DynamicIsland(
     modifier: Modifier = Modifier,
     state: DynamicIslandState = DynamicIslandState.Contracted
 ) {
-    // REQUIREMENT 1: In contracted mode, render nothing (hidden by punch hole)
-    val isVisible = state !is DynamicIslandState.Contracted
+    // ============================================================
+    // SEQUENCED ANIMATION USING ANIMATABLE
+    // Expansion: Width first (300ms) → Height second (300ms)
+    // Contraction: Height first (300ms) → Width second (300ms)
+    // ============================================================
     
-    // REQUIREMENT 3: Natural spring animation specs
-    val expansionSpring = spring<Float>(
-        dampingRatio = Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessMedium
-    )
-    val dpSpring = spring<Dp>(
-        dampingRatio = Spring.DampingRatioMediumBouncy,
-        stiffness = Spring.StiffnessMedium
-    )
+    // Animation constants
+    val contractedHeight = 30f
+    val expandedHeight = 44f
+    val contractedGap = 20f
+    val expandedGap = 36f
+    val animDuration = 300
     
-    // Visibility animation (0 = invisible, 1 = visible)
-    val visibility by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0f,
-        animationSpec = expansionSpring,
-        label = "visibility"
-    )
-
-    // Don't render anything when fully contracted to avoid layout issues
-    if (visibility < 0.01f && !isVisible) {
+    // Animatable values (in float for dp conversion later)
+    val heightAnim = remember { Animatable(contractedHeight) }
+    val gapAnim = remember { Animatable(contractedGap) }
+    val contentAlphaAnim = remember { Animatable(0f) }
+    val visibilityAnim = remember { Animatable(0f) }
+    
+    // Display state for content
+    val displayState = remember { mutableStateOf(state) }
+    
+    // Main animation sequencer
+    LaunchedEffect(state) {
+        val isExpanding = state !is DynamicIslandState.Contracted
+        
+        if (isExpanding) {
+            // ========== EXPANSION SEQUENCE ==========
+            // Step 1: Show content immediately
+            displayState.value = state
+            
+            // Step 2: Fade in visibility
+            visibilityAnim.animateTo(1f, animationSpec = tween(200))
+            
+            // Step 3: Expand WIDTH first (horizontal expansion)
+            launch {
+                gapAnim.animateTo(expandedGap, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
+            }
+            contentAlphaAnim.animateTo(1f, animationSpec = tween(250))
+            
+            // Step 4: Wait for width to finish, then expand HEIGHT (vertical expansion)
+            delay(animDuration.toLong())
+            heightAnim.animateTo(expandedHeight, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
+            
+        } else {
+            // ========== CONTRACTION SEQUENCE ==========
+            // Step 1: Fade out content immediately
+            contentAlphaAnim.animateTo(0f, animationSpec = tween(150))
+            
+            // Step 2: Contract HEIGHT first (vertical contraction from bottom)
+            heightAnim.animateTo(contractedHeight, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
+            
+            // Step 3: After height is done, contract WIDTH (horizontal contraction)
+            gapAnim.animateTo(contractedGap, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
+            
+            // Step 4: Remove content and fade out visibility
+            displayState.value = state
+            visibilityAnim.animateTo(0f, animationSpec = tween(200))
+        }
+    }
+    
+    // Convert animated floats to Dp
+    val height = heightAnim.value.dp
+    val gapWidth = gapAnim.value.dp
+    val contentAlpha = contentAlphaAnim.value
+    val visibility = visibilityAnim.value
+    
+    // Don't render when fully invisible and contracted
+    if (state is DynamicIslandState.Contracted && visibility == 0f && displayState.value is DynamicIslandState.Contracted) {
         return
     }
 
-    // Content opacity (fades in after expansion starts)
-    val contentAlpha by animateFloatAsState(
-        targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(200, delayMillis = 80),
-        label = "contentAlpha"
-    )
-
-    // Processing Pulse (Apple-style gentle breathing)
+    // Pulse Animation for processing state
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f, 
+        initialValue = 0.4f, 
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
+            animation = tween(1200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse"
     )
     
-    // Gap width (camera dead zone) - animated
-    val gapWidth by animateDpAsState(
-        targetValue = if (isVisible) 48.dp else 30.dp,
-        animationSpec = dpSpring,
-        label = "gapWidth"
-    )
-
-    // Corner radius - half of height for perfect pill shape
-    val cornerRadius = 15.dp  // Half of punchHoleHeight (30dp / 2)
-    
-    // Fixed height to match punch hole diameter (Infinix Note 10: ~30dp)
-    // This ensures the Dynamic Island height matches the camera cutout exactly
-    val punchHoleHeight = 30.dp
-
-    // REQUIREMENT 2 & 4: Surface that expands from center in both directions
-    // Clamp scale to minimum 0.01 to prevent layout issues with zero-size
+    val cornerRadius = height / 2
     val safeScale = visibility.coerceAtLeast(0.01f)
 
     Surface(
         modifier = modifier
             .graphicsLayer {
-                // Scale from center for symmetric expansion
                 scaleX = safeScale
                 scaleY = safeScale
                 alpha = visibility
             }
-            .wrapContentSize(Alignment.Center),
+            .wrapContentSize(Alignment.TopCenter)
+            .height(height),
         shape = RoundedCornerShape(cornerRadius),
         color = Color.Black,
-        shadowElevation = 4.dp
+        shadowElevation = 8.dp
     ) {
-        // Use custom symmetrical layout that adapts width to content
+        // Use custom symmetrical layout
         SymmetricalIslandLayout(
             gapWidth = gapWidth,
             modifier = Modifier
-                .height(punchHoleHeight)
-                .animateContentSize(
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    )
-                )
         ) {
-            // LEFT WING (Content aligned to end, near gap)
+            // LEFT WING
             Box(
                 modifier = Modifier
                     .alpha(contentAlpha)
-                    .padding(start = 12.dp),
+                    .padding(start = 20.dp, end = 4.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                when (state) {
+                when (val currentState = displayState.value) {
                     is DynamicIslandState.Processing -> {
-                        // Pulsing dot
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
@@ -143,18 +165,21 @@ fun DynamicIsland(
                     }
                     is DynamicIslandState.Info -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (state.icon != null) {
+                            if (currentState.icon != null) {
                                 Icon(
-                                    imageVector = state.icon,
+                                    imageVector = currentState.icon,
                                     contentDescription = null,
                                     tint = LocalAccentColor.current,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(8.dp))
                             }
                             Text(
-                                text = state.secondaryLabel,
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                text = currentState.secondaryLabel,
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.5).sp
+                                ),
                                 color = LocalAccentColor.current,
                                 maxLines = 1
                             )
@@ -162,7 +187,7 @@ fun DynamicIsland(
                     }
                     is DynamicIslandState.Listening -> {
                         // Voice-reactive orb
-                        val db = state.rmsDb.coerceIn(-2f, 10f)
+                        val db = currentState.rmsDb.coerceIn(-2f, 10f)
                         val targetScale = 1f + ((db + 2f) / 12f) * 0.8f
                         val orbScale by animateFloatAsState(
                             targetValue = targetScale,
@@ -171,7 +196,7 @@ fun DynamicIsland(
                         )
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(12.dp)
                                 .scale(orbScale)
                                 .background(LocalAccentColor.current, androidx.compose.foundation.shape.CircleShape)
                         )
@@ -184,22 +209,22 @@ fun DynamicIsland(
             Box(
                 modifier = Modifier
                     .alpha(contentAlpha)
-                    .padding(end = 12.dp),
+                    .padding(end = 20.dp, start = 4.dp), // More generous padding
                 contentAlignment = Alignment.CenterStart
             ) {
-                when (state) {
+                when (val currentState = displayState.value) {
                     is DynamicIslandState.Processing -> {
                         Text(
-                            text = "Processing",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                            color = Color.White,
+                            text = "Thinking...",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            color = Color.White.copy(alpha = 0.9f),
                             maxLines = 1
                         )
                     }
                     is DynamicIslandState.Info -> {
                         Text(
-                            text = state.label,
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                            text = currentState.label,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -208,8 +233,8 @@ fun DynamicIsland(
                     is DynamicIslandState.Listening -> {
                         Text(
                             text = "Listening...",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            color = Color.White.copy(alpha = 0.9f),
                             maxLines = 1
                         )
                     }
@@ -255,26 +280,17 @@ private fun SymmetricalIslandLayout(
         // Determine the maximum width of a wing to ensure symmetry
         val maxWingWidth = max(leftW, rightW)
         
-        // Calculate height:
-        // Expanded: Content height + vertical padding (for pill shape)
-        // Contracted: No content padding (just min height)
-        val hasContent = maxWingWidth > 0
-        val verticalPadding = if (hasContent) 18.dp.roundToPx() else 0 // ~37-40dp total height
+        // Calculate total measurements
+        // Always enforce sufficient height for the pill shape
+        val minHeight = 30.dp.roundToPx()
+        val totalHeight = max(minHeight, max(leftH, rightH))
         
-        val totalHeight = max(30.dp.roundToPx(), max(leftH, rightH) + verticalPadding)
-        
-        // CRITICAL: In contracted state (no content), create perfect circle
-        // Otherwise gap-only width (28dp) < height (30dp) = vertical capsule
-        val totalWidth = if (!hasContent) {
-            // Contracted: force width = height for perfect circle
-            totalHeight
-        } else {
-            // Expanded: symmetrical wings + gap
-            (maxWingWidth * 2) + gapPx
-        }
+        // Ensure minimum total width is at least height for perfect circle in contracted state
+        val totalWidth = max(minHeight, (maxWingWidth * 2) + gapPx)
 
         layout(totalWidth, totalHeight) {
             // Place Left Wing: End aligned -> x = (maxWingWidth - leftWidth)
+            // Center vertically
             if (leftPlaceable != null) {
                 val leftX = maxWingWidth - leftW
                 val leftY = (totalHeight - leftH) / 2
@@ -282,6 +298,7 @@ private fun SymmetricalIslandLayout(
             }
 
             // Place Right Wing: Start aligned -> x = maxWingWidth + gap
+            // Center vertically
             if (rightPlaceable != null) {
                 val rightX = maxWingWidth + gapPx
                 val rightY = (totalHeight - rightH) / 2

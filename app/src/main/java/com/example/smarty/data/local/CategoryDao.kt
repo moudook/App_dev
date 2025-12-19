@@ -4,6 +4,15 @@ import androidx.room.*
 import com.example.smarty.data.model.Category
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * Data class for AI-visible category info.
+ * Contains category with count of only AI-accessible notes (private notes excluded).
+ */
+data class CategoryWithAiCount(
+    @Embedded val category: Category,
+    @ColumnInfo(name = "aiVisibleCount") val aiVisibleCount: Int
+)
+
 @Dao
 interface CategoryDao {
     @Query("SELECT * FROM categories ORDER BY noteCount DESC, lastUpdated DESC")
@@ -60,4 +69,57 @@ interface CategoryDao {
 
     @Query("DELETE FROM categories")
     suspend fun deleteAllCategories()
+
+    // =========================================================================
+    // AI-SPECIFIC QUERIES (Private notes excluded)
+    // =========================================================================
+    // These queries return counts that exclude private notes.
+    // Use these when building context for AI/Agent services.
+    // The regular queries (getAllCategories, etc.) include all notes for UI display.
+
+    /**
+     * Get AI-visible note count for a single category.
+     * Excludes: archived, isFullPrivacy=true, excludeFromAiChat=true
+     * Use when building AI context for a specific category.
+     */
+    @Query("""
+        SELECT COUNT(*) FROM notes
+        WHERE categoryId = :categoryId
+        AND isArchived = 0
+        AND isFullPrivacy = 0
+        AND excludeFromAiChat = 0
+    """)
+    suspend fun getAiVisibleNoteCount(categoryId: String): Int
+
+    /**
+     * Get all categories with AI-visible note counts.
+     * Returns categories sorted by AI-accessible note count.
+     * Private notes are COMPLETELY excluded from counts.
+     * Use when providing category list to AI/Agent services.
+     */
+    @Query("""
+        SELECT
+            c.*,
+            (SELECT COUNT(*) FROM notes n
+             WHERE n.categoryId = c.id
+             AND n.isArchived = 0
+             AND n.isFullPrivacy = 0
+             AND n.excludeFromAiChat = 0
+            ) as aiVisibleCount
+        FROM categories c
+        ORDER BY aiVisibleCount DESC, c.lastUpdated DESC
+    """)
+    suspend fun getCategoriesWithAiVisibleCounts(): List<CategoryWithAiCount>
+
+    /**
+     * Get total AI-visible notes across all categories.
+     * Use for AI context summary/statistics.
+     */
+    @Query("""
+        SELECT COUNT(*) FROM notes
+        WHERE isArchived = 0
+        AND isFullPrivacy = 0
+        AND excludeFromAiChat = 0
+    """)
+    suspend fun getTotalAiVisibleNoteCount(): Int
 }

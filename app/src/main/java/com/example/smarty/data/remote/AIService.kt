@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.providers.AIProviderContract
+import com.example.smarty.data.remote.providers.AnthropicProvider
 import com.example.smarty.data.remote.providers.GeminiProvider
 import com.example.smarty.data.remote.providers.HuggingFaceProvider
 import com.example.smarty.data.remote.providers.OpenAICompatibleProvider
@@ -145,6 +146,9 @@ class AIService(private val securePreferences: SecurePreferences) {
     /** OpenRouter API provider */
     private val openRouterProvider: AIProviderContract = OpenRouterProvider(client, gson)
 
+    /** Anthropic (Claude) API provider */
+    private val anthropicProvider: AIProviderContract = AnthropicProvider(client, gson)
+
     /** HuggingFace Inference API provider */
     private val huggingFaceProvider: AIProviderContract = HuggingFaceProvider(client, gson)
 
@@ -157,6 +161,7 @@ class AIService(private val securePreferences: SecurePreferences) {
             AIProvider.DEEPSEEK -> deepSeekProvider
             AIProvider.GROQ -> groqProvider
             AIProvider.OPENAI -> openAIProvider
+            AIProvider.ANTHROPIC -> anthropicProvider
             AIProvider.OPENROUTER -> openRouterProvider
             AIProvider.HUGGINGFACE -> huggingFaceProvider
         }
@@ -295,16 +300,9 @@ Document content:
             Log.i(TAG, "Provider $provider: enabled=${config.isEnabled}, keys=${config.apiKeys.size}")
         }
 
-        // Try each provider in order until one succeeds
-        // Order: Gemini -> DeepSeek -> Groq -> OpenAI -> OpenRouter -> HuggingFace
-        val providersToTry = listOf(
-            AIProvider.GEMINI,
-            AIProvider.DEEPSEEK,
-            AIProvider.GROQ,
-            AIProvider.OPENAI,
-            AIProvider.OPENROUTER,
-            AIProvider.HUGGINGFACE
-        )
+        // Try each provider in order (using user preference)
+        val priority = securePreferences.getProviderPriority()
+        val providersToTry = (priority + AIProvider.entries).distinct()
 
         for (provider in providersToTry) {
             val config = configs[provider]
@@ -407,16 +405,9 @@ Document content:
 
         val fullContent = contextPrefix + sanitizedDocumentText
 
-        // Try each provider in order until one succeeds
-        // Order: Gemini -> DeepSeek -> Groq -> OpenAI -> OpenRouter -> HuggingFace
-        val providersToTry = listOf(
-            AIProvider.GEMINI,
-            AIProvider.DEEPSEEK,
-            AIProvider.GROQ,
-            AIProvider.OPENAI,
-            AIProvider.OPENROUTER,
-            AIProvider.HUGGINGFACE
-        )
+        // Try each provider in order (using user preference)
+        val priority = securePreferences.getProviderPriority()
+        val providersToTry = (priority + AIProvider.entries).distinct()
 
         for (provider in providersToTry) {
             val config = configs[provider]
@@ -547,16 +538,9 @@ Document content:
 
         val configs = securePreferences.getAllProviderConfigs()
 
-        // Try each provider in order until one succeeds
-        // Order: Gemini -> DeepSeek -> Groq -> OpenAI -> OpenRouter -> HuggingFace
-        val providersToTry = listOf(
-            AIProvider.GEMINI,
-            AIProvider.DEEPSEEK,
-            AIProvider.GROQ,
-            AIProvider.OPENAI,
-            AIProvider.OPENROUTER,
-            AIProvider.HUGGINGFACE
-        )
+        // Try each provider in order (using user preference)
+        val priority = securePreferences.getProviderPriority()
+        val providersToTry = (priority + AIProvider.entries).distinct()
 
         for (provider in providersToTry) {
             val config = configs[provider]

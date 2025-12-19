@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -67,50 +68,71 @@ fun ProviderSection(
     var editingKeyIndex by remember { mutableStateOf(-1) }
     var editingKeyValue by remember { mutableStateOf("") }
     var modelDropdownExpanded by remember { mutableStateOf(false) }
+    
+    // Decoupled expansion state
+    var isExpanded by remember { mutableStateOf(false) }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Provider header with toggle
+        // Provider header with toggle and expansion
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded } // Toggle expansion on click
+                .padding(vertical = 4.dp), // Add touch target padding
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = providerName,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (isEnabled && apiKeys.isNotEmpty()) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+               // Expansion Arrow
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp).padding(end = 8.dp)
                 )
-                Text(
-                    text = providerDescription,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                Column {
+                    Text(
+                        text = providerName,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (isEnabled) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = providerDescription,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
+            
             Switch(
                 checked = isEnabled,
                 onCheckedChange = onToggleEnabled,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = LocalAccentColor.current,
                     checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.3f)
-                )
+                ),
+                modifier = Modifier.padding(start = 8.dp)
             )
         }
 
-        // Content when enabled
+        // Content (Keys, Models)
         AnimatedVisibility(
-            visible = isEnabled,
+            visible = isExpanded,
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically()
         ) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Model selector - only shown when API keys are configured
+                // Model selector - only shown when API keys are configured and enabled
                 AnimatedVisibility(
-                    visible = apiKeys.isNotEmpty(),
+                    visible = apiKeys.isNotEmpty() && isEnabled,
                     enter = fadeIn() + expandVertically(),
                     exit = fadeOut() + shrinkVertically()
                 ) {

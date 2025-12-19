@@ -110,6 +110,9 @@ class MainActivity : ComponentActivity() {
                 // Archived notes
                 val archivedNotes by viewModel.archivedNotes.collectAsState()
 
+                // Calendar events
+                val calendarEvents by viewModel.calendarEvents.collectAsState()
+
                 // Theme state
                 val isDarkTheme by viewModel.isDarkTheme.collectAsState()
 
@@ -175,6 +178,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onSetSelectedModel = { provider, model ->
                                         viewModel.setSelectedModel(provider, model)
+                                    },
+                                    onSetProviderPriority = { priority ->
+                                        viewModel.setProviderPriority(priority)
                                     },
                                     onTestApiKey = { provider, key, callback ->
                                         viewModel.testApiKey(provider, key, callback)
@@ -275,6 +281,20 @@ class MainActivity : ComponentActivity() {
                                         viewModel.clearCache()
                                     },
                                     isClearingCache = isClearingCache,
+                                    // Calendar management
+                                    calendarEvents = calendarEvents,
+                                    onAddCalendarEvent = { title, description, startTime, endTime, isAllDay ->
+                                        viewModel.addCalendarEvent(
+                                            title = title,
+                                            description = description,
+                                            startTime = startTime,
+                                            endTime = endTime,
+                                            isAllDay = isAllDay
+                                        )
+                                    },
+                                    onDeleteCalendarEvent = { eventId ->
+                                        viewModel.deleteCalendarEvent(eventId)
+                                    },
                                     bottomContentPadding = androidx.compose.animation.core.animateDpAsState(
                                         targetValue = if (isMiniPlayerVisible && !isFullPlayerVisible && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) == 0) 84.dp else 0.dp,
                                         label = "PlayerPadding"

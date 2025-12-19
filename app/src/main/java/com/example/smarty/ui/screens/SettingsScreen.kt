@@ -53,6 +53,7 @@ fun SettingsScreen(
     onUpdateApiKey: (AIProvider, String, String) -> Unit,
     onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
     onSetSelectedModel: (AIProvider, String) -> Unit,
+    onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     onRemovePin: () -> Unit,
     onToggleTheme: (Boolean) -> Unit,
@@ -195,7 +196,7 @@ fun SettingsScreen(
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "About Cogni",
-                subtitle = "Version 1.0.0",
+                subtitle = "Version 1.0.3",
                 onClick = { showAboutSheet = true },
                 showArrow = true
             )
@@ -225,6 +226,7 @@ fun SettingsScreen(
             onUpdateApiKey = onUpdateApiKey,
             onSetProviderEnabled = onSetProviderEnabled,
             onSetSelectedModel = onSetSelectedModel,
+            onSetProviderPriority = onSetProviderPriority,
             onTestApiKey = onTestApiKey
         )
     }
@@ -576,9 +578,11 @@ private fun AIConfigBottomSheet(
     onUpdateApiKey: (AIProvider, String, String) -> Unit,
     onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
     onSetSelectedModel: (AIProvider, String) -> Unit,
+    onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit
 ) {
     val shapes = LocalShapes.current
+    val sortedProviders = remember(providerConfigs) { providerConfigs.keys.toList() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -589,7 +593,7 @@ private fun AIConfigBottomSheet(
         HideSystemBars()
         Column(
             modifier = Modifier
-                .fillMaxHeight(0.5f)
+                .fillMaxHeight(0.85f) // Increased height for better visibility
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
@@ -603,7 +607,7 @@ private fun AIConfigBottomSheet(
             )
 
             Text(
-                text = "Configure API keys for AI providers. The app will automatically fallback between providers if one fails.",
+                text = "Configure and prioritize AI providers. Use arrows to reorder fallback priority.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -614,31 +618,73 @@ private fun AIConfigBottomSheet(
                 AIProvider.DEEPSEEK to Triple("DeepSeek", "Cost-effective", "https://platform.deepseek.com"),
                 AIProvider.GROQ to Triple("Groq", "Ultra-fast", "https://console.groq.com"),
                 AIProvider.OPENAI to Triple("OpenAI", "GPT-4o", "https://platform.openai.com/api-keys"),
+                AIProvider.ANTHROPIC to Triple("Anthropic", "Claude models", "https://console.anthropic.com/settings/keys"),
                 AIProvider.OPENROUTER to Triple("OpenRouter", "Multi-model", "https://openrouter.ai/keys"),
                 AIProvider.HUGGINGFACE to Triple("HuggingFace", "Open source", "https://huggingface.co/settings/tokens")
             )
 
-            AIProvider.entries.forEachIndexed { index, provider ->
+            // Iterate through SORTED providers
+            sortedProviders.forEachIndexed { index, provider ->
                 val (name, description, _) = providerInfo[provider] ?: Triple("Unknown", "", "")
                 val config = providerConfigs[provider]
 
-                ProviderSection(
-                    provider = provider,
-                    providerName = name,
-                    providerDescription = description,
-                    apiKeys = config?.apiKeys ?: emptyList(),
-                    isEnabled = config?.isEnabled ?: true,
-                    selectedModel = config?.selectedModel ?: AIModels.getDefaultModel(provider),
-                    availableModels = AIModels.getModelsForProvider(provider),
-                    onAddKey = { onAddApiKey(provider, it) },
-                    onRemoveKey = { onRemoveApiKey(provider, it) },
-                    onUpdateKey = { old, new -> onUpdateApiKey(provider, old, new) },
-                    onToggleEnabled = { onSetProviderEnabled(provider, it) },
-                    onSelectModel = { onSetSelectedModel(provider, it) },
-                    onTestKey = { key, callback -> onTestApiKey(provider, key, callback) }
-                )
+                Row(
+                   verticalAlignment = Alignment.Top,
+                   modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Reorder Controls
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(end = 8.dp, top = 24.dp)
+                    ) {
+                        if (index > 0) {
+                            IconButton(
+                                onClick = {
+                                    val newList = sortedProviders.toMutableList()
+                                    newList.removeAt(index)
+                                    newList.add(index - 1, provider)
+                                    onSetProviderPriority(newList)
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.KeyboardArrowUp, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        if (index < sortedProviders.size - 1) {
+                            IconButton(
+                                onClick = {
+                                    val newList = sortedProviders.toMutableList()
+                                    newList.removeAt(index)
+                                    newList.add(index + 1, provider)
+                                    onSetProviderPriority(newList)
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
 
-                if (index < AIProvider.entries.size - 1) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        ProviderSection(
+                            provider = provider,
+                            providerName = name,
+                            providerDescription = description,
+                            apiKeys = config?.apiKeys ?: emptyList(),
+                            isEnabled = config?.isEnabled ?: true,
+                            selectedModel = config?.selectedModel ?: AIModels.getDefaultModel(provider),
+                            availableModels = AIModels.getModelsForProvider(provider),
+                            onAddKey = { onAddApiKey(provider, it) },
+                            onRemoveKey = { onRemoveApiKey(provider, it) },
+                            onUpdateKey = { old, new -> onUpdateApiKey(provider, old, new) },
+                            onToggleEnabled = { onSetProviderEnabled(provider, it) },
+                            onSelectModel = { onSetSelectedModel(provider, it) },
+                            onTestKey = { key, callback -> onTestApiKey(provider, key, callback) }
+                        )
+                    }
+                }
+
+                if (index < sortedProviders.size - 1) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 12.dp),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)

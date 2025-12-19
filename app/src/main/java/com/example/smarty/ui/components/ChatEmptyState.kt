@@ -307,8 +307,8 @@ fun NotesEmptyState(modifier: Modifier = Modifier) {
         title = "Hello Himmu",
         subtitle = "Everything starts with an idea.",
         hint = "Improving it is as important, as the idea itself",
-        modifier = modifier
     ) {
+        // ORIGINAL ANIMATION: Cognitive Alignment (Restored)
         // LIFECYCLE AWARENESS: Check if animation should run
         val shouldAnimate = shouldAnimationRun()
 

@@ -28,6 +28,25 @@ import com.example.smarty.data.model.Note
  * This file should NEVER be modified to grant AI access to private notes.
  * ============================================================================
  */
+
+/**
+ * Interface for entities that support privacy filtering.
+ * Implement this on any entity that should be invisible to AI when private.
+ *
+ * Entities implementing this interface:
+ * - Note (isFullPrivacy || excludeFromAiChat)
+ * - CalendarEvent (future)
+ * - Meeting (future)
+ * - Any other entity that can be marked as private
+ */
+interface PrivacyAware {
+    /**
+     * Whether this entity is private and should be hidden from AI.
+     * When true, AI cannot see, search, modify, or reference this entity.
+     */
+    val isPrivate: Boolean
+}
+
 object PrivacyGuard {
     private const val TAG = "PrivacyGuard"
 
@@ -201,5 +220,193 @@ object PrivacyGuard {
      */
     fun getSecurityNotice(): String {
         return "Chat history from before a note was marked private may contain references to that note."
+    }
+
+    // =========================================================================
+    // GENERIC PRIVACY-AWARE FILTERING
+    // =========================================================================
+    // These functions work with ANY entity implementing PrivacyAware interface.
+    // Use for CalendarEvent, Meeting, or any future privacy-enabled entities.
+
+    /**
+     * Generic filter for any PrivacyAware entity.
+     * Removes all private items from the list.
+     *
+     * @param items List of PrivacyAware entities
+     * @return Only non-private items (private items are invisible to AI)
+     */
+    fun <T : PrivacyAware> filterForAi(items: List<T>): List<T> {
+        val visible = items.filter { !it.isPrivate }
+        val blocked = items.size - visible.size
+        if (blocked > 0) {
+            Log.d(TAG, "GENERIC FILTER: $blocked private items blocked, ${visible.size} visible to AI")
+        }
+        return visible
+    }
+
+    /**
+     * Generic find-by-predicate that returns null for private items.
+     * AI cannot access private items even if it has a reference.
+     *
+     * @param item The item to check (or null)
+     * @return The item if not private, null otherwise
+     */
+    fun <T : PrivacyAware> findForAi(item: T?): T? {
+        if (item == null) return null
+        if (item.isPrivate) {
+            Log.d(TAG, "GENERIC FILTER: Private item blocked from AI access")
+            return null
+        }
+        return item
+    }
+
+    /**
+     * Check if AI can process a PrivacyAware entity.
+     * Returns false for private entities.
+     */
+    fun <T : PrivacyAware> canAiProcessGeneric(item: T): Boolean {
+        return !item.isPrivate
+    }
+
+    // =========================================================================
+    // CHAT MESSAGE SANITIZATION
+    // =========================================================================
+    // These functions ensure private note IDs never leak through chat history.
+    // Critical for preventing retroactive privacy leaks.
+
+    /**
+     * Sanitize referenced note IDs before storing chat messages.
+     * Removes any IDs that refer to notes that are now private.
+     *
+     * SECURITY: This is the FINAL BARRIER before chat persistence.
+     * Even if a note was public during conversation, if it's now private,
+     * its ID will NOT be stored in chat history.
+     *
+     * @param noteIds List of note IDs to sanitize
+     * @param allNotes All notes to check against (should be current state)
+     * @return Only IDs of notes that are currently AI-accessible
+     */
+    fun sanitizeReferencedNoteIds(noteIds: List<String>, allNotes: List<Note>): List<String> {
+        if (noteIds.isEmpty()) return emptyList()
+
+        val sanitized = noteIds.filter { noteId ->
+            val note = allNotes.find { it.id == noteId }
+            // Only include if note exists AND is AI-accessible
+            note != null && isAiAccessible(note)
+        }
+
+        val removed = noteIds.size - sanitized.size
+        if (removed > 0) {
+            Log.d(TAG, "SANITIZED: Removed $removed private note IDs from chat reference")
+        }
+
+        return sanitized
+    }
+
+    /**
+     * Sanitize a chat message before persistence.
+     * Ensures no private note references are stored.
+     *
+     * @param referencedNoteIds Note IDs from the message
+     * @param allNotes All notes to check against
+     * @return Sanitized list of note IDs (only public notes)
+     */
+    fun sanitizeForChatPersistence(
+        referencedNoteIds: List<String>,
+        allNotes: List<Note>
+    ): List<String> {
+        return sanitizeReferencedNoteIds(referencedNoteIds, allNotes)
+    }
+
+    /**
+     * Check if any note in a list of IDs refers to a private note.
+     * Used for validation and logging.
+     */
+    fun containsPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>): Boolean {
+        return noteIds.any { noteId ->
+            val note = allNotes.find { it.id == noteId }
+            note != null && isPrivate(note)
+        }
+    }
+
+    /**
+     * Assert that no private note IDs are present.
+     * Throws SecurityException if validation fails.
+     * Use for critical security checkpoints.
+     */
+    fun assertNoPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>, operation: String) {
+        if (containsPrivateNoteIds(noteIds, allNotes)) {
+            val message = "SECURITY VIOLATION: Private note IDs in $operation"
+            Log.e(TAG, message)
+            throw SecurityException(message)
+        }
+    }
+
+    // =========================================================================
+    // RESPONSE SANITIZATION
+    // =========================================================================
+    // These functions sanitize AI responses to ensure no private data leaks.
+
+    /**
+     * Sanitize AI response text to ensure no private note content leaks.
+     * This is a best-effort check - AI should never have seen private notes,
+     * but this provides defense in depth.
+     *
+     * @param responseText The AI response text
+     * @param privateNotes List of private notes to check against
+     * @return Sanitized response text
+     */
+    fun sanitizeResponseText(responseText: String, privateNotes: List<Note>): String {
+        if (privateNotes.isEmpty()) return responseText
+
+        var sanitized = responseText
+        var leakDetected = false
+
+        // Check for private note titles in response
+        for (note in privateNotes) {
+            if (note.title.length >= 5 && sanitized.contains(note.title, ignoreCase = true)) {
+                Log.e(TAG, "SECURITY ALERT: Private note title detected in AI response!")
+                leakDetected = true
+            }
+
+            // Check for private note IDs
+            if (sanitized.contains(note.id)) {
+                Log.e(TAG, "SECURITY ALERT: Private note ID detected in AI response!")
+                sanitized = sanitized.replace(note.id, "[REDACTED]")
+                leakDetected = true
+            }
+        }
+
+        if (leakDetected) {
+            Log.e(TAG, "PRIVACY BREACH DETECTED - Response may contain private data")
+            // Note: We don't block the response as the AI shouldn't have access
+            // to private notes in the first place. This is defense in depth.
+        }
+
+        return sanitized
+    }
+
+    // =========================================================================
+    // CATEGORY COUNT SANITIZATION
+    // =========================================================================
+
+    /**
+     * Get AI-safe category statistics.
+     * Returns count of only AI-accessible notes per category.
+     *
+     * @param categories All categories
+     * @param allNotes All notes
+     * @return Map of category name to AI-visible note count
+     */
+    fun getAiSafeCategoryCounts(
+        categories: List<com.example.smarty.data.model.Category>,
+        allNotes: List<Note>
+    ): Map<String, Int> {
+        val aiVisibleNotes = getAiVisibleNotes(allNotes)
+
+        return categories.associate { category ->
+            val count = aiVisibleNotes.count { it.categoryId == category.id }
+            category.name to count
+        }
     }
 }

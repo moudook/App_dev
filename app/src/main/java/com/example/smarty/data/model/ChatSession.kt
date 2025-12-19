@@ -7,6 +7,15 @@ import java.util.UUID
 /**
  * Represents a chat session/conversation.
  * Each session contains multiple messages and can be switched between.
+ *
+ * CONVERSATION SUMMARIES:
+ * Sessions can have AI-generated summaries that capture:
+ * - Main topics discussed
+ * - Actions taken (notes created, todos added, etc.)
+ * - Key user preferences revealed
+ *
+ * Summaries are used to provide context in future conversations
+ * without including full message history.
  */
 @Entity(tableName = "chat_sessions")
 data class ChatSession(
@@ -17,7 +26,22 @@ data class ChatSession(
     val updatedAt: Long = System.currentTimeMillis(),
     val messageCount: Int = 0,
     val lastMessagePreview: String = "",
-    val isActive: Boolean = true  // Currently selected session
+    val isActive: Boolean = true,  // Currently selected session
+
+    /**
+     * AI-generated summary of the conversation.
+     * Contains abstract description of topics discussed and actions taken.
+     * Used for providing context in future conversations.
+     *
+     * PRIVACY: Never contains raw private note content.
+     */
+    val summary: String? = null,
+
+    /**
+     * When the summary was generated.
+     * Used to determine if summary needs updating.
+     */
+    val summaryGeneratedAt: Long? = null
 )
 
 /**

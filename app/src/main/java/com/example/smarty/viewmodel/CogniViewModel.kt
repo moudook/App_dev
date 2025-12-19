@@ -14,6 +14,7 @@ import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.AgentAction
 import com.example.smarty.data.model.AgentActionResult
 import com.example.smarty.data.model.Attachment
+import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
@@ -28,7 +29,11 @@ import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AgentService
 import com.example.smarty.data.remote.AIService
+import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.ui.components.PendingShareData
+import com.google.gson.Gson
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.data.model.ChatSession
@@ -96,8 +101,20 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     // Agent service for chat functionality
     private val agentService = AgentService(aiService, repository)
 
+    // Web search provider for agent actions
+    private val tavilySearchProvider: TavilySearchProvider by lazy {
+        val httpClient = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+        TavilySearchProvider(httpClient, Gson())
+    }
+
     // Chat repository for persistence
     private val chatRepository = ChatRepository(database.chatDao())
+
+    // Calendar DAO for event management
+    private val calendarDao = database.calendarDao()
 
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null
@@ -145,6 +162,10 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = securePreferences.providerConfigs
     val isPinSet: StateFlow<Boolean> = securePreferences.isPinSet
 
+    fun setProviderPriority(priority: List<AIProvider>) {
+        securePreferences.setProviderPriority(priority)
+    }
+
     // Cache management
     private val cacheManager = CacheManager.getInstance(application)
     private val _cacheSizeBytes = MutableStateFlow(0L)
@@ -160,6 +181,10 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val categories = repository.getAllCategories()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Calendar events
+    val calendarEvents = calendarDao.getAllEvents()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _selectedNote = MutableStateFlow<Note?>(null)
@@ -293,13 +318,56 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
             when {
                 // Attachments present (with or without text) - create SINGLE grouped note
                 attachments.isNotEmpty() -> {
-                    // Copy all attachments to internal storage
+                    // 1. OPTIMISTIC UPDATE: Insert PENDING note immediately with original attachments
+                    // This triggers the UI shimmer instantly while we do heavy compression in background
+                    val primaryOriginal = attachments[0]
+                    val type = detectTypeFromMime(primaryOriginal.mimeType)
+                    
+                    val tempAttachments = attachments.map { 
+                        NoteAttachment(
+                            uri = it.uri.toString(),
+                            fileName = it.fileName,
+                            mimeType = it.mimeType,
+                            fileSize = it.fileSize
+                        )
+                    }
+
+                    val title = when {
+                        content.isNotBlank() -> extractTitle(content, type)
+                        attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
+                        else -> primaryOriginal.fileName
+                    }
+                    
+                    val initialContent = if (content.isNotBlank()) {
+                        content
+                    } else {
+                        buildMultipleAttachmentsDescription(tempAttachments)
+                    }
+
+                    // Create and INSERT PENDING note instantly
+                    val initialNote = Note(
+                        title = title,
+                        content = initialContent,
+                        fileUri = primaryOriginal.uri.toString(),
+                        fileName = primaryOriginal.fileName,
+                        fileMimeType = primaryOriginal.mimeType,
+                        fileSize = primaryOriginal.fileSize,
+                        imageUri = if (type == NoteType.IMAGE) primaryOriginal.uri.toString() else null,
+                        type = type,
+                        processingStatus = ProcessingStatus.PENDING, // Triggers shimmer
+                        excludeFromAiChat = aiExcluded
+                    ).withAttachments(tempAttachments)
+
+                    // Insert immediately to update UI
+                    repository.insertNote(initialNote)
+
+                    // 2. BACKGROUND WORK: Copy and compress all attachments
                     val processedAttachments = mutableListOf<NoteAttachment>()
-                    var primaryCopied: Attachment? = null
+                    var primaryProcessed: Attachment? = null
 
                     attachments.forEachIndexed { index, attachment ->
                         val copied = copyAttachmentToStorage(attachment)
-                        if (index == 0) primaryCopied = copied
+                        if (index == 0) primaryProcessed = copied
 
                         processedAttachments.add(
                             NoteAttachment(
@@ -311,44 +379,32 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     }
 
-                    val primary = primaryCopied ?: return@launch
-                    val type = detectTypeFromMime(primary.mimeType)
+                    // 3. UPDATE: Update note with optimized files and correct status
+                    val primary = primaryProcessed ?: attachments[0] 
                     val shouldProcess = shouldAnalyze(type)
-
-                    // Generate appropriate title
-                    val title = when {
-                        content.isNotBlank() -> extractTitle(content, type)
-                        attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
-                        else -> primary.fileName
-                    }
-
-                    // Build content description for multiple attachments
-                    val noteContent = if (content.isNotBlank()) {
+                    
+                    val finalContent = if (content.isNotBlank()) {
                         content
                     } else {
                         buildMultipleAttachmentsDescription(processedAttachments)
                     }
 
-                    // Create SINGLE note with all attachments
-                    val note = Note(
-                        title = title,
-                        content = noteContent,
+                    val updatedNote = initialNote.copy(
+                        content = finalContent,
                         fileUri = primary.uri.toString(),
                         fileName = primary.fileName,
-                        fileMimeType = primary.mimeType,
                         fileSize = primary.fileSize,
+                        fileMimeType = primary.mimeType,
                         imageUri = if (type == NoteType.IMAGE) primary.uri.toString() else null,
-                        type = type,
-                        processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
-                        excludeFromAiChat = aiExcluded
+                        processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED
                     ).withAttachments(processedAttachments)
 
-                    repository.insertNote(note)
+                    repository.updateNote(updatedNote)
 
                     if (shouldProcess) {
-                        simulateAiProcessing(note)
+                        simulateAiProcessing(updatedNote)
                     } else {
-                        storeWithoutAnalysis(note)
+                        storeWithoutAnalysis(updatedNote)
                     }
                 }
 
@@ -1078,15 +1134,27 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 // ============================================================================
-                // SECURITY: Sanitize response before adding to chat history
-                // Filter out any private note IDs from referencedNoteIds
+                // SECURITY: Multi-layer sanitization before adding to chat history
+                // 1. Filter private note IDs from references
+                // 2. Check response text for potential privacy leaks
                 // ============================================================================
+                val privateNotes = notes.value.filter { PrivacyGuard.isPrivate(it) }
+
+                // Sanitize referenced note IDs using PrivacyGuard
+                val sanitizedNoteIds = PrivacyGuard.sanitizeReferencedNoteIds(
+                    response.referencedNoteIds,
+                    notes.value
+                )
+
+                // Sanitize response text for any leaked private content
+                val sanitizedContent = PrivacyGuard.sanitizeResponseText(
+                    response.content,
+                    privateNotes
+                )
+
                 val sanitizedResponse = response.copy(
-                    referencedNoteIds = response.referencedNoteIds.filter { noteId ->
-                        // Only keep references to notes that are AI-accessible
-                        val note = notes.value.find { it.id == noteId }
-                        note != null && PrivacyGuard.isAiAccessible(note)
-                    }
+                    content = sanitizedContent,
+                    referencedNoteIds = sanitizedNoteIds
                 )
 
                 // Add sanitized assistant response to chat history
@@ -1409,6 +1477,43 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                 } ?: emptyList()
             }
 
+            is AgentAction.WebSearch -> {
+                // Execute web search using Tavily API
+                val apiKey = securePreferences.getTavilyApiKey()
+                if (apiKey.isNullOrBlank()) {
+                    Log.w(TAG, "WebSearch: No Tavily API key configured")
+                    emptyList()
+                } else {
+                    try {
+                        Log.d(TAG, "WebSearch: Searching for '${action.query}' (reason: ${action.reason})")
+                        val searchResult = tavilySearchProvider.search(
+                            apiKey = apiKey,
+                            query = action.query,
+                            maxResults = action.maxResults,
+                            topic = action.topic
+                        )
+                        if (searchResult.success) {
+                            Log.d(TAG, "WebSearch: Found ${searchResult.results.size} results")
+                        } else {
+                            Log.w(TAG, "WebSearch: Failed - ${searchResult.error}")
+                        }
+                        emptyList() // Web search doesn't affect notes
+                    } catch (e: Exception) {
+                        Log.e(TAG, "WebSearch error: ${e.message}", e)
+                        emptyList()
+                    }
+                }
+            }
+
+            is AgentAction.PlayAudio -> {
+                // Audio playback is handled through the existing music player
+                // The agent response will guide the user to the correct note/audio
+                Log.d(TAG, "PlayAudio: Requested '${action.query}' from source: ${action.source ?: "any"}")
+                // TODO: Integration with audio player when music service is available
+                // For now, the agent's response will guide users to their audio content
+                emptyList()
+            }
+
             is AgentAction.BatchActions -> {
                 // Execute each action in the batch
                 action.actions.flatMap { subAction ->
@@ -1422,6 +1527,54 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
+        }
+    }
+
+    // ==================== Calendar Operations ====================
+
+    /**
+     * Add a new calendar event
+     */
+    fun addCalendarEvent(
+        title: String,
+        description: String? = null,
+        startTime: Long,
+        endTime: Long,
+        isAllDay: Boolean = false,
+        location: String? = null,
+        isPrivate: Boolean = false
+    ) {
+        viewModelScope.launch {
+            val event = CalendarEvent(
+                title = title,
+                description = description,
+                startTime = startTime,
+                endTime = endTime,
+                isAllDay = isAllDay,
+                location = location,
+                isEventPrivate = isPrivate
+            )
+            calendarDao.insertEvent(event)
+            Log.d(TAG, "Added calendar event: $title")
+        }
+    }
+
+    /**
+     * Update an existing calendar event
+     */
+    fun updateCalendarEvent(event: CalendarEvent) {
+        viewModelScope.launch {
+            calendarDao.updateEvent(event.copy(updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    /**
+     * Delete a calendar event
+     */
+    fun deleteCalendarEvent(eventId: String) {
+        viewModelScope.launch {
+            calendarDao.deleteEventById(eventId)
+            Log.d(TAG, "Deleted calendar event: $eventId")
         }
     }
 

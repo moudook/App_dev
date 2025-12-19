@@ -8,12 +8,21 @@ import android.os.Build
 import android.util.Log
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.*
+import java.nio.ByteBuffer
+import java.nio.channels.Channels
+import java.nio.channels.FileChannel
+import java.util.zip.Deflater
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
@@ -49,9 +58,44 @@ object FileCompressor {
 
     private const val TAG = "FileCompressor"
 
-    // Compression settings
+    // =========================================================================
+    // HIGH-PERFORMANCE COMPRESSION SETTINGS
+    // =========================================================================
+    // Buffer sizes adapt to device capabilities via ResourceManager.
+    // Defaults are used when ResourceManager is not initialized.
+    // =========================================================================
+
     private const val IMAGE_QUALITY = 80 // 0-100, 80 is good balance
-    private const val GZIP_BUFFER_SIZE = 8192
+
+    // Default buffer sizes (adapted at runtime via ResourceManager)
+    private const val DEFAULT_FAST_BUFFER_SIZE = 65536        // 64KB
+    private const val DEFAULT_BULK_BUFFER_SIZE = 131072       // 128KB
+    private const val DEFAULT_NIO_BUFFER_SIZE = 262144        // 256KB
+    private const val DEFAULT_MAX_IMAGE_DIMENSION = 2048
+    private const val DEFAULT_LARGE_FILE_THRESHOLD = 5 * 1024 * 1024L  // 5MB
+
+    // Adaptive getters - use ResourceManager when available
+    private val FAST_BUFFER_SIZE: Int
+        get() = try { ResourceManager.getOptimalBufferSize() } catch (e: Exception) { DEFAULT_FAST_BUFFER_SIZE }
+
+    private val BULK_BUFFER_SIZE: Int
+        get() = try { ResourceManager.getOptimalBufferSize() * 2 } catch (e: Exception) { DEFAULT_BULK_BUFFER_SIZE }
+
+    private val NIO_BUFFER_SIZE: Int
+        get() = try { ResourceManager.getOptimalNioBufferSize() } catch (e: Exception) { DEFAULT_NIO_BUFFER_SIZE }
+
+    private val MAX_IMAGE_DIMENSION: Int
+        get() = try { ResourceManager.getMaxImageDimension() } catch (e: Exception) { DEFAULT_MAX_IMAGE_DIMENSION }
+
+    private val LARGE_FILE_THRESHOLD: Long
+        get() = try { ResourceManager.getLargeFileThreshold() } catch (e: Exception) { DEFAULT_LARGE_FILE_THRESHOLD }
+
+    // Concurrency control - adapts to device capabilities
+    private val maxParallelOps: Int
+        get() = try { ResourceManager.getMaxParallelOperations() } catch (e: Exception) { 4 }
+
+    private val compressionSemaphore: Semaphore
+        get() = Semaphore(maxParallelOps)
 
     // File extensions for compressed files
     const val COMPRESSED_IMAGE_EXT = ".webp"
@@ -61,10 +105,14 @@ object FileCompressor {
     private val _decompressionStates = MutableStateFlow<Map<String, DecompressionState>>(emptyMap())
     val decompressionStates: StateFlow<Map<String, DecompressionState>> = _decompressionStates
 
-    // LRU Cache for decompressed files (max 50MB or 20 files)
-    private val decompressedCache = object : LruCache<String, File>(20) {
+    // Memory-aware LRU Cache for decompressed files
+    // Adapts size limits based on device capabilities
+    private val decompressedCache = object : LruCache<String, File>(getMaxCacheEntries()) {
         private var totalSize = 0L
-        private val maxSize = 50 * 1024 * 1024L // 50MB
+
+        private fun getMaxCacheSizeBytes(): Long {
+            return try { ResourceManager.getMaxCacheSize() } catch (e: Exception) { 50 * 1024 * 1024L }
+        }
 
         override fun entryRemoved(evicted: Boolean, key: String?, oldValue: File?, newValue: File?) {
             if (evicted && oldValue != null && oldValue.exists()) {
@@ -74,11 +122,25 @@ object FileCompressor {
             }
         }
 
-        fun canAdd(size: Long): Boolean = (totalSize + size) <= maxSize
+        fun canAdd(size: Long): Boolean = (totalSize + size) <= getMaxCacheSizeBytes()
 
         fun addSize(size: Long) {
             totalSize += size
         }
+
+        fun getCurrentSize(): Long = totalSize
+    }
+
+    private fun getMaxCacheEntries(): Int {
+        return try {
+            when (ResourceManager.getDeviceClass()) {
+                ResourceManager.DeviceClass.EDGE -> 5
+                ResourceManager.DeviceClass.LOW -> 10
+                ResourceManager.DeviceClass.MEDIUM -> 15
+                ResourceManager.DeviceClass.HIGH -> 20
+                ResourceManager.DeviceClass.FLAGSHIP -> 30
+            }
+        } catch (e: Exception) { 20 }
     }
 
     private val cacheMutex = Mutex()
@@ -100,35 +162,52 @@ object FileCompressor {
     /**
      * Compresses a file based on its MIME type.
      * Returns the compressed file info, or original if compression not beneficial.
+     *
+     * @param stripMetadata If true, removes all metadata before compression (default: true)
      */
     suspend fun compressFile(
         context: Context,
         sourceUri: Uri,
         mimeType: String?,
         originalFileName: String?,
-        destDir: File
+        destDir: File,
+        stripMetadata: Boolean = true
     ): CompressedFileResult = withContext(Dispatchers.IO) {
         try {
-            when {
-                // Images → WebP compression
-                mimeType?.startsWith("image/") == true -> {
-                    compressImage(context, sourceUri, originalFileName, destDir)
+            // Strip metadata first if enabled (for privacy and size reduction)
+            val (processUri, tempFile) = if (stripMetadata && shouldStripMetadata(mimeType)) {
+                stripMetadataFirst(context, sourceUri, mimeType, originalFileName)
+            } else {
+                Pair(sourceUri, null)
+            }
+
+            try {
+                val result = when {
+                    // Images → WebP compression (metadata already stripped in stripMetadataFirst)
+                    mimeType?.startsWith("image/") == true -> {
+                        compressImage(context, processUri, originalFileName, destDir)
+                    }
+
+                    // Videos → No compression (already compressed)
+                    mimeType?.startsWith("video/") == true -> {
+                        copyWithoutCompression(context, processUri, originalFileName, destDir, mimeType)
+                    }
+
+                    // Audio → No compression (already compressed)
+                    mimeType?.startsWith("audio/") == true -> {
+                        copyWithoutCompression(context, processUri, originalFileName, destDir, mimeType)
+                    }
+
+                    // Documents and other files → GZIP compression
+                    else -> {
+                        compressWithGzip(context, processUri, originalFileName, destDir, mimeType)
+                    }
                 }
 
-                // Videos → No compression (already compressed)
-                mimeType?.startsWith("video/") == true -> {
-                    copyWithoutCompression(context, sourceUri, originalFileName, destDir, mimeType)
-                }
-
-                // Audio → No compression (already compressed)
-                mimeType?.startsWith("audio/") == true -> {
-                    copyWithoutCompression(context, sourceUri, originalFileName, destDir, mimeType)
-                }
-
-                // Documents and other files → GZIP compression
-                else -> {
-                    compressWithGzip(context, sourceUri, originalFileName, destDir, mimeType)
-                }
+                result
+            } finally {
+                // Clean up temp file if created
+                tempFile?.delete()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Compression failed: ${e.message}", e)
@@ -138,8 +217,60 @@ object FileCompressor {
     }
 
     /**
-     * Compresses an image to WebP format.
-     * WebP provides 26-34% smaller files than JPEG/PNG.
+     * Check if metadata should be stripped for this file type
+     */
+    private fun shouldStripMetadata(mimeType: String?): Boolean {
+        return mimeType?.let {
+            it.startsWith("image/") || it.startsWith("video/") || it.startsWith("audio/")
+        } ?: false
+    }
+
+    /**
+     * Strip metadata before compression for privacy and size reduction.
+     * Returns a new URI to the stripped file and the temp file for cleanup.
+     */
+    private suspend fun stripMetadataFirst(
+        context: Context,
+        sourceUri: Uri,
+        mimeType: String?,
+        originalFileName: String?
+    ): Pair<Uri, File?> = withContext(Dispatchers.IO) {
+        try {
+            val tempDir = File(context.cacheDir, "metadata_strip_temp")
+            tempDir.mkdirs()
+
+            val baseName = originalFileName?.substringBeforeLast(".")
+                ?: "file_${System.currentTimeMillis()}"
+
+            val result = MetadataStripper.stripMetadata(
+                context = context,
+                sourceUri = sourceUri,
+                mimeType = mimeType,
+                outputDir = tempDir,
+                outputName = baseName
+            )
+
+            if (result.success && result.outputFile != null) {
+                Log.d(TAG, "Metadata stripped: saved ${result.bytesSaved} bytes " +
+                        "(${String.format("%.1f", result.reductionPercent)}%) in ${result.processingTimeMs}ms")
+                Pair(Uri.fromFile(result.outputFile), result.outputFile)
+            } else {
+                // Stripping failed, use original
+                Log.w(TAG, "Metadata strip failed: ${result.error}, using original")
+                Pair(sourceUri, null)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Metadata strip exception: ${e.message}, using original")
+            Pair(sourceUri, null)
+        }
+    }
+
+    /**
+     * High-performance image compression to WebP format.
+     * Optimizations:
+     * - Subsampling for large images (reduces memory and speeds decode)
+     * - Buffered output stream for faster writes
+     * - Optimal WebP quality setting for size/quality balance
      */
     private suspend fun compressImage(
         context: Context,
@@ -147,60 +278,102 @@ object FileCompressor {
         originalFileName: String?,
         destDir: File
     ): CompressedFileResult = withContext(Dispatchers.IO) {
-        val inputStream = context.contentResolver.openInputStream(sourceUri)
-            ?: throw IOException("Cannot open image stream")
+        compressionSemaphore.withPermit {
+            // First pass: Get image dimensions without loading full bitmap
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            context.contentResolver.openInputStream(sourceUri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, options)
+            } ?: throw IOException("Cannot open image stream")
 
-        // Decode bitmap
-        val originalBitmap = BitmapFactory.decodeStream(inputStream)
-        inputStream.close()
+            // Calculate optimal sample size for large images
+            val sampleSize = calculateSampleSize(
+                options.outWidth,
+                options.outHeight,
+                MAX_IMAGE_DIMENSION,
+                MAX_IMAGE_DIMENSION
+            )
 
-        if (originalBitmap == null) {
-            throw IOException("Cannot decode image")
+            // Second pass: Decode with optimal sampling
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+
+            val originalBitmap = context.contentResolver.openInputStream(sourceUri)?.use { stream ->
+                BitmapFactory.decodeStream(BufferedInputStream(stream, FAST_BUFFER_SIZE), null, decodeOptions)
+            } ?: throw IOException("Cannot decode image")
+
+            // Generate output filename
+            val baseName = originalFileName?.substringBeforeLast(".") ?: "image_${System.currentTimeMillis()}"
+            val compressedFileName = "${baseName}$COMPRESSED_IMAGE_EXT"
+            val compressedFile = File(destDir, compressedFileName)
+
+            // Compress to WebP with buffered output
+            val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Bitmap.CompressFormat.WEBP_LOSSY
+            } else {
+                @Suppress("DEPRECATION")
+                Bitmap.CompressFormat.WEBP
+            }
+
+            BufferedOutputStream(FileOutputStream(compressedFile), FAST_BUFFER_SIZE).use { out ->
+                originalBitmap.compress(format, IMAGE_QUALITY, out)
+            }
+
+            originalBitmap.recycle()
+
+            val originalSize = getFileSize(context, sourceUri) ?: compressedFile.length()
+            val compressedSize = compressedFile.length()
+            val compressionRatio = if (originalSize > 0) {
+                ((originalSize - compressedSize) * 100.0 / originalSize)
+            } else 0.0
+
+            Log.d(TAG, "Image compressed: $originalFileName -> $compressedFileName " +
+                    "(${formatSize(originalSize)} -> ${formatSize(compressedSize)}, " +
+                    "${String.format("%.1f", compressionRatio)}% reduction, sample=$sampleSize)")
+
+            CompressedFileResult(
+                compressedFile = compressedFile,
+                originalFileName = originalFileName ?: compressedFileName,
+                compressedFileName = compressedFileName,
+                originalSize = originalSize,
+                compressedSize = compressedSize,
+                compressionType = CompressionType.WEBP,
+                mimeType = "image/webp"
+            )
         }
-
-        // Generate output filename
-        val baseName = originalFileName?.substringBeforeLast(".") ?: "image_${System.currentTimeMillis()}"
-        val compressedFileName = "${baseName}$COMPRESSED_IMAGE_EXT"
-        val compressedFile = File(destDir, compressedFileName)
-
-        // Compress to WebP
-        val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Bitmap.CompressFormat.WEBP_LOSSY
-        } else {
-            @Suppress("DEPRECATION")
-            Bitmap.CompressFormat.WEBP
-        }
-
-        FileOutputStream(compressedFile).use { out ->
-            originalBitmap.compress(format, IMAGE_QUALITY, out)
-        }
-
-        originalBitmap.recycle()
-
-        val originalSize = getFileSize(context, sourceUri) ?: compressedFile.length()
-        val compressedSize = compressedFile.length()
-        val compressionRatio = if (originalSize > 0) {
-            ((originalSize - compressedSize) * 100.0 / originalSize)
-        } else 0.0
-
-        Log.d(TAG, "Image compressed: $originalFileName -> $compressedFileName " +
-                "(${formatSize(originalSize)} -> ${formatSize(compressedSize)}, " +
-                "${String.format("%.1f", compressionRatio)}% reduction)")
-
-        CompressedFileResult(
-            compressedFile = compressedFile,
-            originalFileName = originalFileName ?: compressedFileName,
-            compressedFileName = compressedFileName,
-            originalSize = originalSize,
-            compressedSize = compressedSize,
-            compressionType = CompressionType.WEBP,
-            mimeType = "image/webp"
-        )
     }
 
     /**
-     * Compresses a file using GZIP.
-     * Excellent for text-based files (70-90% reduction).
+     * Calculate optimal sample size for image subsampling.
+     * Uses power-of-2 sampling for fastest decode performance.
+     */
+    private fun calculateSampleSize(
+        srcWidth: Int,
+        srcHeight: Int,
+        maxWidth: Int,
+        maxHeight: Int
+    ): Int {
+        var sampleSize = 1
+        if (srcWidth > maxWidth || srcHeight > maxHeight) {
+            val halfWidth = srcWidth / 2
+            val halfHeight = srcHeight / 2
+            while ((halfWidth / sampleSize) >= maxWidth && (halfHeight / sampleSize) >= maxHeight) {
+                sampleSize *= 2
+            }
+        }
+        return sampleSize
+    }
+
+    /**
+     * High-performance GZIP compression.
+     * Optimizations:
+     * - BEST_SPEED compression level (level 1) for 2-3x faster compression
+     * - 64KB buffers for optimal I/O throughput
+     * - Buffered streams to minimize system calls
+     * - NIO FileChannel transfer for large files (5MB+)
      */
     private suspend fun compressWithGzip(
         context: Context,
@@ -209,48 +382,120 @@ object FileCompressor {
         destDir: File,
         mimeType: String?
     ): CompressedFileResult = withContext(Dispatchers.IO) {
-        val inputStream = context.contentResolver.openInputStream(sourceUri)
-            ?: throw IOException("Cannot open file stream")
+        compressionSemaphore.withPermit {
+            val originalSize = getFileSize(context, sourceUri) ?: 0L
 
-        // Generate output filename
-        val baseName = originalFileName ?: "file_${System.currentTimeMillis()}"
-        val compressedFileName = "$baseName$COMPRESSED_FILE_EXT"
-        val compressedFile = File(destDir, compressedFileName)
+            // Generate output filename
+            val baseName = originalFileName ?: "file_${System.currentTimeMillis()}"
+            val compressedFileName = "$baseName$COMPRESSED_FILE_EXT"
+            val compressedFile = File(destDir, compressedFileName)
 
-        // Compress with GZIP
-        GZIPOutputStream(FileOutputStream(compressedFile)).use { gzipOut ->
-            inputStream.use { input ->
-                val buffer = ByteArray(GZIP_BUFFER_SIZE)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    gzipOut.write(buffer, 0, bytesRead)
+            val inputStream = context.contentResolver.openInputStream(sourceUri)
+                ?: throw IOException("Cannot open file stream")
+
+            // Use faster compression with BEST_SPEED (level 1)
+            // Trade-off: ~10-15% larger files but 2-3x faster compression
+            val deflater = Deflater(Deflater.BEST_SPEED, true)
+
+            try {
+                if (originalSize > LARGE_FILE_THRESHOLD) {
+                    // Use NIO for large files - zero-copy kernel optimization
+                    compressWithNio(inputStream, compressedFile, deflater)
+                } else {
+                    // Standard buffered compression for smaller files
+                    compressWithBufferedStream(inputStream, compressedFile, deflater)
                 }
+            } finally {
+                deflater.end()
+                inputStream.close()
             }
+
+            val compressedSize = compressedFile.length()
+            val compressionRatio = if (originalSize > 0) {
+                ((originalSize - compressedSize) * 100.0 / originalSize)
+            } else 0.0
+
+            Log.d(TAG, "File GZIP compressed: $originalFileName -> $compressedFileName " +
+                    "(${formatSize(originalSize)} -> ${formatSize(compressedSize)}, " +
+                    "${String.format("%.1f", compressionRatio)}% reduction)")
+
+            CompressedFileResult(
+                compressedFile = compressedFile,
+                originalFileName = originalFileName ?: baseName,
+                compressedFileName = compressedFileName,
+                originalSize = originalSize,
+                compressedSize = compressedSize,
+                compressionType = CompressionType.GZIP,
+                mimeType = mimeType ?: "application/octet-stream"
+            )
         }
-
-        val originalSize = getFileSize(context, sourceUri) ?: compressedFile.length()
-        val compressedSize = compressedFile.length()
-        val compressionRatio = if (originalSize > 0) {
-            ((originalSize - compressedSize) * 100.0 / originalSize)
-        } else 0.0
-
-        Log.d(TAG, "File GZIP compressed: $originalFileName -> $compressedFileName " +
-                "(${formatSize(originalSize)} -> ${formatSize(compressedSize)}, " +
-                "${String.format("%.1f", compressionRatio)}% reduction)")
-
-        CompressedFileResult(
-            compressedFile = compressedFile,
-            originalFileName = originalFileName ?: baseName,
-            compressedFileName = compressedFileName,
-            originalSize = originalSize,
-            compressedSize = compressedSize,
-            compressionType = CompressionType.GZIP,
-            mimeType = mimeType ?: "application/octet-stream"
-        )
     }
 
     /**
-     * Copies file without compression (for already-compressed formats).
+     * Buffered GZIP compression for smaller files.
+     */
+    private fun compressWithBufferedStream(
+        input: InputStream,
+        destFile: File,
+        deflater: Deflater
+    ) {
+        val bufferedInput = BufferedInputStream(input, FAST_BUFFER_SIZE)
+        val gzipOut = object : GZIPOutputStream(
+            BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE)
+        ) {
+            init {
+                // Replace default deflater with our fast one
+                this.def = deflater
+            }
+        }
+
+        gzipOut.use { out ->
+            bufferedInput.use { inp ->
+                val buffer = ByteArray(FAST_BUFFER_SIZE)
+                var bytesRead: Int
+                while (inp.read(buffer).also { bytesRead = it } != -1) {
+                    out.write(buffer, 0, bytesRead)
+                }
+            }
+        }
+    }
+
+    /**
+     * NIO-based GZIP compression for large files.
+     * Uses FileChannel for optimized kernel-level transfers.
+     */
+    private fun compressWithNio(
+        input: InputStream,
+        destFile: File,
+        deflater: Deflater
+    ) {
+        val gzipOut = object : GZIPOutputStream(
+            BufferedOutputStream(FileOutputStream(destFile), BULK_BUFFER_SIZE)
+        ) {
+            init {
+                this.def = deflater
+            }
+        }
+
+        val readChannel = Channels.newChannel(BufferedInputStream(input, BULK_BUFFER_SIZE))
+        val directBuffer = ByteBuffer.allocateDirect(NIO_BUFFER_SIZE)
+
+        gzipOut.use { out ->
+            readChannel.use { channel ->
+                while (channel.read(directBuffer) != -1) {
+                    directBuffer.flip()
+                    val bytes = ByteArray(directBuffer.remaining())
+                    directBuffer.get(bytes)
+                    out.write(bytes)
+                    directBuffer.clear()
+                }
+            }
+        }
+    }
+
+    /**
+     * High-performance file copy without compression.
+     * Uses NIO FileChannel transfer for optimal kernel-level copy.
      */
     private suspend fun copyWithoutCompression(
         context: Context,
@@ -259,15 +504,22 @@ object FileCompressor {
         destDir: File,
         mimeType: String?
     ): CompressedFileResult = withContext(Dispatchers.IO) {
+        val fileName = originalFileName ?: "file_${System.currentTimeMillis()}"
+        val destFile = File(destDir, fileName)
+        val originalSize = getFileSize(context, sourceUri) ?: 0L
+
         val inputStream = context.contentResolver.openInputStream(sourceUri)
             ?: throw IOException("Cannot open file stream")
 
-        val fileName = originalFileName ?: "file_${System.currentTimeMillis()}"
-        val destFile = File(destDir, fileName)
-
-        FileOutputStream(destFile).use { out ->
-            inputStream.use { input ->
-                input.copyTo(out, GZIP_BUFFER_SIZE)
+        if (originalSize > LARGE_FILE_THRESHOLD) {
+            // NIO transfer for large files
+            copyWithNioChannel(inputStream, destFile)
+        } else {
+            // Buffered copy for smaller files
+            BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE).use { out ->
+                BufferedInputStream(inputStream, FAST_BUFFER_SIZE).use { input ->
+                    input.copyTo(out, FAST_BUFFER_SIZE)
+                }
             }
         }
 
@@ -284,6 +536,23 @@ object FileCompressor {
             compressionType = CompressionType.NONE,
             mimeType = mimeType ?: "application/octet-stream"
         )
+    }
+
+    /**
+     * NIO-based file copy using FileChannel for zero-copy transfers.
+     */
+    private fun copyWithNioChannel(input: InputStream, destFile: File) {
+        val readChannel = Channels.newChannel(BufferedInputStream(input, BULK_BUFFER_SIZE))
+        FileOutputStream(destFile).channel.use { writeChannel ->
+            readChannel.use { src ->
+                val buffer = ByteBuffer.allocateDirect(NIO_BUFFER_SIZE)
+                while (src.read(buffer) != -1) {
+                    buffer.flip()
+                    writeChannel.write(buffer)
+                    buffer.clear()
+                }
+            }
+        }
     }
 
     // =========================================================================
@@ -356,18 +625,25 @@ object FileCompressor {
     }
 
     /**
-     * Decompresses a GZIP file.
+     * High-performance GZIP decompression.
+     * Uses buffered streams with optimal buffer sizes.
      */
     private fun decompressGzip(compressedFile: File, cacheDir: File): File {
         // Remove .gz extension for decompressed filename
         val decompressedName = compressedFile.name.removeSuffix(COMPRESSED_FILE_EXT)
         val decompressedFile = File(cacheDir, "decompressed_$decompressedName")
 
-        GZIPInputStream(FileInputStream(compressedFile)).use { gzipIn ->
-            FileOutputStream(decompressedFile).use { out ->
-                val buffer = ByteArray(GZIP_BUFFER_SIZE)
+        val gzipIn = GZIPInputStream(
+            BufferedInputStream(FileInputStream(compressedFile), FAST_BUFFER_SIZE),
+            FAST_BUFFER_SIZE
+        )
+        val bufOut = BufferedOutputStream(FileOutputStream(decompressedFile), FAST_BUFFER_SIZE)
+
+        gzipIn.use { input ->
+            bufOut.use { out ->
+                val buffer = ByteArray(FAST_BUFFER_SIZE)
                 var bytesRead: Int
-                while (gzipIn.read(buffer).also { bytesRead = it } != -1) {
+                while (input.read(buffer).also { bytesRead = it } != -1) {
                     out.write(buffer, 0, bytesRead)
                 }
             }
@@ -408,6 +684,111 @@ object FileCompressor {
             decompressedCache.evictAll()
         }
         Log.d(TAG, "Decompression cache cleared")
+    }
+
+    // =========================================================================
+    // BATCH OPERATIONS - PARALLEL PROCESSING
+    // =========================================================================
+
+    /**
+     * Input data for batch compression
+     */
+    data class BatchCompressionInput(
+        val sourceUri: Uri,
+        val mimeType: String?,
+        val originalFileName: String?
+    )
+
+    /**
+     * Compresses multiple files in parallel for maximum throughput.
+     * Uses controlled parallelism to avoid memory pressure.
+     *
+     * @param inputs List of files to compress
+     * @param context Application context
+     * @param destDir Destination directory for compressed files
+     * @param onProgress Callback for progress updates (0.0 to 1.0)
+     * @return List of compression results (in same order as inputs)
+     */
+    suspend fun compressFilesParallel(
+        inputs: List<BatchCompressionInput>,
+        context: Context,
+        destDir: File,
+        onProgress: ((Float) -> Unit)? = null
+    ): List<CompressedFileResult> = withContext(Dispatchers.IO) {
+        if (inputs.isEmpty()) return@withContext emptyList()
+
+        val results = Array<CompressedFileResult?>(inputs.size) { null }
+        var completedCount = 0
+        val progressMutex = Mutex()
+
+        // Process files in parallel with semaphore control
+        coroutineScope {
+            inputs.mapIndexed { index, input ->
+                async {
+                    val result = compressFile(
+                        context = context,
+                        sourceUri = input.sourceUri,
+                        mimeType = input.mimeType,
+                        originalFileName = input.originalFileName,
+                        destDir = destDir
+                    )
+                    results[index] = result
+
+                    // Update progress
+                    progressMutex.withLock {
+                        completedCount++
+                        onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                    }
+
+                    result
+                }
+            }.awaitAll()
+        }
+
+        results.filterNotNull()
+    }
+
+    /**
+     * Fast file copy for multiple files in parallel.
+     * Useful for backup operations where compression is not needed.
+     */
+    suspend fun copyFilesParallel(
+        sources: List<Pair<Uri, String?>>, // Uri to filename pairs
+        context: Context,
+        destDir: File,
+        onProgress: ((Float) -> Unit)? = null
+    ): List<File> = withContext(Dispatchers.IO) {
+        if (sources.isEmpty()) return@withContext emptyList()
+
+        val results = mutableListOf<File>()
+        val resultsMutex = Mutex()
+        var completedCount = 0
+
+        coroutineScope {
+            sources.map { (uri, fileName) ->
+                async {
+                    val destFileName = fileName ?: "file_${System.currentTimeMillis()}"
+                    val destFile = File(destDir, destFileName)
+
+                    val inputStream = context.contentResolver.openInputStream(uri)
+                    if (inputStream != null) {
+                        BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE).use { out ->
+                            BufferedInputStream(inputStream, FAST_BUFFER_SIZE).use { input ->
+                                input.copyTo(out, FAST_BUFFER_SIZE)
+                            }
+                        }
+
+                        resultsMutex.withLock {
+                            results.add(destFile)
+                            completedCount++
+                            onProgress?.invoke(completedCount.toFloat() / sources.size)
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+
+        results
     }
 
     // =========================================================================

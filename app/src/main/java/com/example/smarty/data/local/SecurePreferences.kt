@@ -15,6 +15,7 @@ enum class AIProvider {
     GROQ,
     OPENAI,
     OPENROUTER,
+    ANTHROPIC,
     HUGGINGFACE
 }
 
@@ -58,6 +59,15 @@ object AIModels {
     )
     const val OPENAI_DEFAULT = "gpt-4o-mini"
 
+    // Anthropic models
+    val ANTHROPIC_MODELS = listOf(
+        "claude-3-5-sonnet-20240620" to "Claude 3.5 Sonnet",
+        "claude-3-opus-20240229" to "Claude 3 Opus",
+        "claude-3-haiku-20240307" to "Claude 3 Haiku",
+        "claude-3-5-haiku-20241022" to "Claude 3.5 Haiku"
+    )
+    const val ANTHROPIC_DEFAULT = "claude-3-5-sonnet-20240620"
+
     // OpenRouter models (includes free options)
     val OPENROUTER_MODELS = listOf(
         "allenai/olmo-3.1-32b-think:free" to "OLMo 3.1 32B Think (Free, Reasoning)",
@@ -85,6 +95,7 @@ object AIModels {
             AIProvider.DEEPSEEK -> DEEPSEEK_MODELS
             AIProvider.GROQ -> GROQ_MODELS
             AIProvider.OPENAI -> OPENAI_MODELS
+            AIProvider.ANTHROPIC -> ANTHROPIC_MODELS
             AIProvider.OPENROUTER -> OPENROUTER_MODELS
             AIProvider.HUGGINGFACE -> HUGGINGFACE_MODELS
         }
@@ -96,6 +107,7 @@ object AIModels {
             AIProvider.DEEPSEEK -> DEEPSEEK_DEFAULT
             AIProvider.GROQ -> GROQ_DEFAULT
             AIProvider.OPENAI -> OPENAI_DEFAULT
+            AIProvider.ANTHROPIC -> ANTHROPIC_DEFAULT
             AIProvider.OPENROUTER -> OPENROUTER_DEFAULT
             AIProvider.HUGGINGFACE -> HUGGINGFACE_DEFAULT
         }
@@ -146,6 +158,26 @@ class SecurePreferences(context: Context) {
     private val _isDarkTheme = MutableStateFlow(getDarkThemePreference())
     val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
 
+    // Provider Priority Management
+    fun getProviderPriority(): List<AIProvider> {
+        val json = encryptedPrefs.getString(KEY_PROVIDER_PRIORITY, null)
+        if (json != null) {
+            try {
+                val type = object : TypeToken<List<AIProvider>>() {}.type
+                return gson.fromJson(json, type)
+            } catch (e: Exception) {
+                // Return default order if parsing fails
+            }
+        }
+        return AIProvider.entries
+    }
+
+    fun setProviderPriority(priority: List<AIProvider>) {
+        val json = gson.toJson(priority)
+        encryptedPrefs.edit().putString(KEY_PROVIDER_PRIORITY, json).apply()
+        _providerConfigs.value = getAllProviderConfigs()
+    }
+
     companion object {
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_API_KEY = "ai_api_key"
@@ -156,9 +188,11 @@ class SecurePreferences(context: Context) {
         private const val KEY_GROQ_KEYS = "groq_api_keys"
         private const val KEY_OPENAI_KEYS = "openai_api_keys"
         private const val KEY_OPENROUTER_KEYS = "openrouter_api_keys"
+        private const val KEY_ANTHROPIC_KEYS = "anthropic_api_keys"
         private const val KEY_HUGGINGFACE_KEYS = "huggingface_api_keys"
         private const val KEY_PROVIDER_ENABLED_PREFIX = "provider_enabled_"
         private const val KEY_PROVIDER_MODEL_PREFIX = "provider_model_"
+        private const val KEY_PROVIDER_PRIORITY = "provider_priority"
         private const val KEY_DARK_THEME = "dark_theme"
         // Backup settings
         private const val KEY_GOOGLE_ACCOUNT_EMAIL = "google_account_email"
@@ -166,6 +200,8 @@ class SecurePreferences(context: Context) {
         private const val KEY_AUTO_BACKUP_ENABLED = "auto_backup_enabled"
         private const val KEY_AUTO_BACKUP_INTERVAL_DAYS = "auto_backup_interval_days"
         private const val DEFAULT_BACKUP_INTERVAL_DAYS = 100
+        // Tavily Web Search API
+        private const val KEY_TAVILY_API_KEY = "tavily_api_key"
 
         @Volatile
         private var INSTANCE: SecurePreferences? = null
@@ -241,6 +277,7 @@ class SecurePreferences(context: Context) {
             AIProvider.GROQ -> KEY_GROQ_KEYS
             AIProvider.OPENAI -> KEY_OPENAI_KEYS
             AIProvider.OPENROUTER -> KEY_OPENROUTER_KEYS
+            AIProvider.ANTHROPIC -> KEY_ANTHROPIC_KEYS
             AIProvider.HUGGINGFACE -> KEY_HUGGINGFACE_KEYS
         }
         val json = encryptedPrefs.getString(key, null) ?: return emptyList()
@@ -259,6 +296,7 @@ class SecurePreferences(context: Context) {
             AIProvider.GROQ -> KEY_GROQ_KEYS
             AIProvider.OPENAI -> KEY_OPENAI_KEYS
             AIProvider.OPENROUTER -> KEY_OPENROUTER_KEYS
+            AIProvider.ANTHROPIC -> KEY_ANTHROPIC_KEYS
             AIProvider.HUGGINGFACE -> KEY_HUGGINGFACE_KEYS
         }
         val filteredKeys = keys.filter { it.isNotBlank() }
@@ -348,12 +386,18 @@ class SecurePreferences(context: Context) {
     }
 
     fun getAllProviderConfigs(): Map<AIProvider, AIProviderConfig> {
-        return AIProvider.entries.associateWith { getProviderConfig(it) }
+        val priority = getProviderPriority()
+        // Ensure all providers are present, even if not in the stored priority list (e.g. newly added ones)
+        val allProviders = (priority + AIProvider.entries).distinct()
+        return allProviders.associateWith { getProviderConfig(it) }
     }
 
-    // Get the first available API key from enabled providers (for fallback logic)
+    // Get the first available API key from enabled providers (using priority order)
     fun getFirstAvailableKey(): Pair<AIProvider, String>? {
-        for (provider in AIProvider.entries) {
+        val priority = getProviderPriority()
+        val allProviders = (priority + AIProvider.entries).distinct()
+        
+        for (provider in allProviders) {
             if (isProviderEnabled(provider)) {
                 val keys = getProviderKeys(provider)
                 if (keys.isNotEmpty()) {
@@ -432,5 +476,35 @@ class SecurePreferences(context: Context) {
         if (lastBackup == 0L) return -1
         val diff = System.currentTimeMillis() - lastBackup
         return (diff / (24L * 60 * 60 * 1000)).toInt()
+    }
+
+    // ==================== Tavily Web Search API ====================
+
+    /**
+     * Get Tavily API key for web search functionality.
+     * Free tier: 1,000 API credits/month
+     * Key format: tvly-XXXXX
+     */
+    fun getTavilyApiKey(): String? {
+        return encryptedPrefs.getString(KEY_TAVILY_API_KEY, null)
+    }
+
+    /**
+     * Set Tavily API key.
+     * @param key The API key (format: tvly-XXXXX), or null to remove
+     */
+    fun setTavilyApiKey(key: String?) {
+        if (key.isNullOrBlank()) {
+            encryptedPrefs.edit().remove(KEY_TAVILY_API_KEY).apply()
+        } else {
+            encryptedPrefs.edit().putString(KEY_TAVILY_API_KEY, key.trim()).apply()
+        }
+    }
+
+    /**
+     * Check if Tavily API key is configured.
+     */
+    fun hasTavilyApiKey(): Boolean {
+        return !getTavilyApiKey().isNullOrBlank()
     }
 }

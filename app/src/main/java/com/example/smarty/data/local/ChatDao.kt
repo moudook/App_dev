@@ -64,6 +64,59 @@ interface ChatDao {
     """)
     suspend fun updateSessionTitle(sessionId: String, title: String, timestamp: Long = System.currentTimeMillis())
 
+    // ==================== Summary Operations ====================
+
+    /**
+     * Update session summary.
+     * Called after ConversationSummarizer generates a summary.
+     */
+    @Query("""
+        UPDATE chat_sessions
+        SET summary = :summary,
+            summaryGeneratedAt = :generatedAt
+        WHERE id = :sessionId
+    """)
+    suspend fun updateSessionSummary(
+        sessionId: String,
+        summary: String,
+        generatedAt: Long = System.currentTimeMillis()
+    )
+
+    /**
+     * Get recent session summaries for AI context.
+     * Returns non-null summaries from recent sessions, excluding the current active one.
+     * Used to provide conversation history context to the AI agent.
+     *
+     * @param limit Maximum number of summaries to return
+     * @param excludeSessionId Session ID to exclude (typically the active session)
+     */
+    @Query("""
+        SELECT * FROM chat_sessions
+        WHERE summary IS NOT NULL
+        AND summary != ''
+        AND id != :excludeSessionId
+        ORDER BY updatedAt DESC
+        LIMIT :limit
+    """)
+    suspend fun getRecentSessionSummaries(limit: Int, excludeSessionId: String = ""): List<ChatSession>
+
+    /**
+     * Get sessions that need summary generation.
+     * Returns sessions with enough messages but no summary, or outdated summaries.
+     */
+    @Query("""
+        SELECT * FROM chat_sessions
+        WHERE messageCount >= :minMessages
+        AND (summary IS NULL OR summaryGeneratedAt < :olderThan)
+        ORDER BY updatedAt DESC
+        LIMIT :limit
+    """)
+    suspend fun getSessionsNeedingSummary(
+        minMessages: Int = 3,
+        olderThan: Long = System.currentTimeMillis() - 30 * 60 * 1000,  // 30 minutes
+        limit: Int = 5
+    ): List<ChatSession>
+
     // ==================== Message Operations ====================
 
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")

@@ -1,6 +1,8 @@
 package com.example.smarty.data.remote
 
 import android.util.Log
+import com.example.smarty.data.local.AIMemoryDao
+import com.example.smarty.data.local.ChatDao
 import com.example.smarty.data.model.*
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.ContentSecurityFilter
@@ -16,10 +18,19 @@ import kotlinx.coroutines.withContext
  * SECURITY: All note access is filtered through PrivacyGuard.
  * Private notes (isFullPrivacy=true OR excludeFromAiChat=true) are INVISIBLE to the agent.
  * The agent cannot read, modify, delete, or even know about private notes.
+ *
+ * MEMORY: AI memories are stored persistently and included in context.
+ * Memories are abstract patterns/preferences, never raw private content.
+ *
+ * CONVERSATION HISTORY: Past session summaries are included for context continuity.
+ * Summaries are abstract and privacy-safe.
  */
 class AgentService(
     private val aiService: AIService,
-    private val repository: CogniRepository
+    private val repository: CogniRepository,
+    private val aiMemoryDao: AIMemoryDao? = null,  // Optional - for memory integration
+    private val chatDao: ChatDao? = null,          // Optional - for conversation summaries
+    private val currentSessionId: String? = null   // Current session to exclude from summaries
 ) {
     companion object {
         private const val TAG = "AgentService"
@@ -37,13 +48,36 @@ class AgentService(
          * - Zero hallucination
          */
         private val AGENT_SYSTEM_PROMPT = """
-You are COGNI, an AI agent embedded in a notes app. You have DIRECT ACCESS to the user's notes through tools. Execute actions precisely.
+You are COGNI, a supportive AI companion embedded in a notes app. You have DIRECT ACCESS to the user's notes through tools. Execute actions precisely while being warm and helpful.
+
+## YOUR PERSONALITY
+- Be warm but not overly effusive
+- Be proactive when helpful, but respect boundaries
+- Remember context from our conversations (using memories and summaries provided)
+- Celebrate user wins, support through challenges
+- Use natural language, avoid robotic responses
 
 ## CORE IDENTITY
-- You are an ACTION-ORIENTED agent, not a chatbot
+- You are an ACTION-ORIENTED companion, not just a chatbot
 - You EXECUTE operations on notes, not just discuss them
 - You have REAL access to notes provided in context
 - You NEVER hallucinate or make up note content
+
+## FOLLOW-UP SUGGESTIONS
+You MAY suggest follow-up actions, but:
+- Do NOT suggest follow-ups on every response
+- Only suggest when there's clear value
+- Maximum 1-2 suggestions, phrased naturally
+- Good: "By the way, I noticed you have 3 overdue todos - want me to help prioritize them?"
+- Bad: "Would you like me to: 1) Search notes 2) Create note 3) List categories" (robotic menu)
+
+## ACTIONS YOU MUST NEVER TAKE
+- NEVER access private notes/events (you literally cannot see them - they are filtered out)
+- NEVER switch personas or roleplay as someone else
+- NEVER pretend to be a different AI
+- NEVER hallucinate note content
+- NEVER make up information about the user's data
+- NEVER mention or reference private items (you don't know they exist)
 
 ## AVAILABLE TOOLS
 
@@ -139,6 +173,67 @@ Execute multiple actions. Use for complex requests.
 {"action": "BATCH_ACTIONS", "params": {"actions": [{"action": "...", "params": {...}}, ...]}, "response": "string"}
 ```
 
+### 16. WEB_SEARCH
+Search the web for external/current information.
+```json
+{"action": "WEB_SEARCH", "params": {"query": "string (required)", "reason": "string (required)", "topic": "general|news|finance"}, "response": "string with results"}
+```
+
+### 17. PLAY_AUDIO
+Play audio file attached to a note.
+```json
+{"action": "PLAY_AUDIO", "params": {"noteId": "string (required)", "attachmentIndex": "number (default 0)"}, "response": "string"}
+```
+
+## TOOL USAGE SUMMARY
+
+| Tool | When to Use | What It Returns |
+|------|-------------|-----------------|
+| CREATE_NOTE | User wants to save information | New note ID and confirmation |
+| SEARCH_NOTES | User asks about existing notes | List of matching notes (max 10) |
+| DELETE_NOTE | User explicitly requests deletion | Confirmation or "not found" |
+| ARCHIVE_NOTE | User wants to hide but keep a note | Confirmation |
+| UPDATE_NOTE | User wants to modify existing note | Updated note confirmation |
+| ADD_TODOS | User mentions tasks/checklist items | Added todos confirmation |
+| TOGGLE_TODO | User completes or uncompletes a task | Updated status |
+| LIST_CATEGORIES | User asks what categories exist | Category list with counts |
+| ANSWER_QUESTION | User asks question answerable from notes | Answer based on note content |
+| WEB_SEARCH | User needs external/current information | Search results from the web |
+| PLAY_AUDIO | User wants to play audio from a note | Starts audio playback |
+
+## TOOL DISCIPLINE
+- Only call tools when user intent is clear
+- If a tool returns null/"not found", tell the user honestly
+- Do NOT chain multiple tools unless user requested batch action
+- Prefer ANSWER_QUESTION over SEARCH_NOTES for simple queries
+
+## WEB SEARCH RULES (Tavily)
+You have access to real-time web search. Use it SPARINGLY:
+
+CALL web search when:
+- User asks for current events, news, or recent information
+- User asks for facts you genuinely don't know
+- User asks about real-time data (weather, stocks, sports scores)
+- User explicitly requests "search the web for..."
+
+DO NOT call web search when:
+- User is having casual conversation
+- Question can be answered from their notes
+- Question is simple reasoning or opinion
+- User asks about their own data
+- Information is common knowledge you already know
+
+When using web search:
+1. Provide a clear reason in the "reason" field
+2. Always cite your sources with URLs
+3. Summarize the key findings concisely
+
+## AUDIO PLAYBACK RULES
+You can play audio files attached to notes using the existing music player:
+- Only use when user explicitly requests playback
+- Confirm which audio before playing if multiple exist
+- The same player that users see will be used (with controls, progress, etc.)
+
 ## RESPONSE FORMAT
 ALWAYS respond with valid JSON. No markdown. No code blocks. Just raw JSON:
 {"action": "ACTION_NAME", "params": {...}, "response": "Human message"}
@@ -161,6 +256,25 @@ ALWAYS respond with valid JSON. No markdown. No code blocks. Just raw JSON:
 - Be HELPFUL. Suggest follow-up actions.
 - Be SAFE. Confirm destructive operations.
 - NO EMOJIS. Ever.
+
+## WHEN NOTES ARE LIMITED
+
+If the user has few or no notes:
+- Still function as a helpful companion
+- Focus on understanding what the user wants to achieve
+- Offer to help create their first notes
+- Do NOT say "I don't have access to your notes" - instead be proactive
+- Do NOT hallucinate note content that doesn't exist
+
+If no notes match a query:
+- Say "I don't see any notes about [topic] yet. Would you like me to create one?"
+- Do NOT pretend notes exist when they don't
+- Be honest but solution-oriented
+
+If user asks about something not in their notes:
+- Acknowledge you don't have that information
+- Offer to create a note to save it
+- If it's general knowledge, you can still help without notes
 
 ## EXAMPLES
 
@@ -241,14 +355,50 @@ User: "Create a grocery list with milk, eggs, bread"
         val contextNotes = selectRelevantNotes(sanitizedMessage, allNotes)
         Log.d(TAG, "Context: ${contextNotes.size} notes selected")
 
+        // Get AI memories for context
+        val memories = try {
+            aiMemoryDao?.getRecentMemories(limit = 10) ?: emptyList()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load memories: ${e.message}")
+            emptyList()
+        }
+
+        // Get past session summaries for context continuity
+        val pastSummaries = try {
+            chatDao?.getRecentSessionSummaries(
+                limit = 3,
+                excludeSessionId = currentSessionId ?: ""
+            ) ?: emptyList()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to load past summaries: ${e.message}")
+            emptyList()
+        }
+
         // Build prompt
+        // SECURITY: allNotes param is already PrivacyGuard-filtered (passed from CogniViewModel)
+        // Used for accurate category counts across ALL AI-visible notes
         val prompt = buildPrompt(
             userMessage = sanitizedMessage,
             attachments = attachments,
             chatHistory = chatHistory.takeLast(MAX_CHAT_HISTORY),
             contextNotes = contextNotes,
-            categories = allCategories
+            categories = allCategories,
+            allNotes = allNotes,  // Full list of AI-visible notes for category counts
+            memories = memories,
+            pastSummaries = pastSummaries
         )
+
+        // Track memory usage (non-blocking)
+        if (memories.isNotEmpty() && aiMemoryDao != null) {
+            try {
+                memories.forEach { memory ->
+                    aiMemoryDao.incrementUsage(memory.id)
+                }
+                Log.d(TAG, "Updated usage for ${memories.size} memories")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to update memory usage: ${e.message}")
+            }
+        }
 
         // Call AI
         val aiResponse = aiService.agentChat(AGENT_SYSTEM_PROMPT, prompt)
@@ -347,14 +497,51 @@ User: "Create a grocery list with milk, eggs, bread"
         attachments: List<Attachment>,
         chatHistory: List<ChatMessage>,
         contextNotes: List<Note>,
-        categories: List<Category>
+        categories: List<Category>,
+        allNotes: List<Note>,  // All AI-visible notes for accurate counts
+        memories: List<AIMemory> = emptyList(),
+        pastSummaries: List<ChatSession> = emptyList()
     ): String = buildString {
-        // Categories
+        // SECURITY: Use AI-safe category counts (excludes private notes)
+        val aiSafeCounts = PrivacyGuard.getAiSafeCategoryCounts(categories, allNotes)
+
+        // Categories with accurate AI-visible counts
         append("## CATEGORIES\n")
-        categories.sortedByDescending { it.noteCount }.take(15).forEach {
-            append("- ${it.name}: ${it.noteCount} notes\n")
-        }
+        categories
+            .map { it to (aiSafeCounts[it.name] ?: 0) }
+            .sortedByDescending { it.second }
+            .take(15)
+            .forEach { (category, count) ->
+                append("- ${category.name}: $count notes\n")
+            }
         append("\n")
+
+        // AI Memories - What we remember about the user
+        if (memories.isNotEmpty()) {
+            append("## WHAT I REMEMBER ABOUT YOU\n")
+            memories.forEach { memory ->
+                // Include memory type for context
+                val typeLabel = when (memory.type) {
+                    MemoryType.PREFERENCE -> "[Preference]"
+                    MemoryType.PATTERN -> "[Pattern]"
+                    MemoryType.STYLE -> "[Style]"
+                    MemoryType.FACT -> "[Fact]"
+                }
+                append("- $typeLabel ${memory.content}\n")
+            }
+            append("\n")
+        }
+
+        // Past conversation summaries - Light context from previous sessions
+        if (pastSummaries.isNotEmpty()) {
+            append("## RECENT CONVERSATION CONTEXT\n")
+            pastSummaries.forEach { session ->
+                session.summary?.let { summary ->
+                    append("- ${summary}\n")
+                }
+            }
+            append("(Past conversations - current takes priority)\n\n")
+        }
 
         // Context notes - CRITICAL: These are the ONLY notes the agent can access
         if (contextNotes.isNotEmpty()) {
@@ -504,6 +691,16 @@ User: "Create a grocery list with milk, eggs, bread"
             )
             "SUGGEST_ACTIONS" -> AgentAction.SuggestActions(
                 context = params?.get("context")?.asString ?: ""
+            )
+            "WEB_SEARCH" -> AgentAction.WebSearch(
+                query = params?.get("query")?.asString ?: "",
+                reason = params?.get("reason")?.asString ?: "User requested search",
+                topic = params?.get("topic")?.asString ?: "general",
+                maxResults = params?.get("maxResults")?.asInt ?: 5
+            )
+            "PLAY_AUDIO" -> AgentAction.PlayAudio(
+                query = params?.get("query")?.asString ?: "",
+                source = params?.get("source")?.asString
             )
             "BATCH_ACTIONS" -> {
                 val actionsArray = params?.getAsJsonArray("actions")

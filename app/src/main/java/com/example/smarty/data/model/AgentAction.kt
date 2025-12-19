@@ -116,6 +116,35 @@ sealed class AgentAction {
     ) : AgentAction()
 
     /**
+     * Search the web for real-time information using Tavily API.
+     * Only use when information is external or time-sensitive.
+     * NEVER use for casual conversation or questions answerable from notes.
+     *
+     * @param query The search query
+     * @param reason Why this search is necessary (required for logging)
+     * @param topic Search topic: "general", "news", or "finance"
+     * @param maxResults Maximum results to return (1-10)
+     */
+    data class WebSearch(
+        val query: String,
+        val reason: String,
+        val topic: String = "general",
+        val maxResults: Int = 5
+    ) : AgentAction()
+
+    /**
+     * Play audio content (music, podcast, ambient sounds).
+     * Integrates with device audio playback.
+     *
+     * @param query What to play (song name, artist, genre, or description)
+     * @param source Optional: "youtube", "spotify", "local" - defaults to best available
+     */
+    data class PlayAudio(
+        val query: String,
+        val source: String? = null
+    ) : AgentAction()
+
+    /**
      * Execute multiple actions in sequence
      */
     data class BatchActions(
@@ -141,6 +170,8 @@ sealed class AgentAction {
             "GET_CATEGORY_NOTES",
             "ANSWER_QUESTION",
             "SUGGEST_ACTIONS",
+            "WEB_SEARCH",
+            "PLAY_AUDIO",
             "BATCH_ACTIONS"
         )
 
@@ -156,7 +187,7 @@ sealed class AgentAction {
       "enum": ["CREATE_NOTE", "SEARCH_NOTES", "DELETE_NOTE", "ARCHIVE_NOTE",
                "UNARCHIVE_NOTE", "UPDATE_NOTE", "SUMMARIZE_NOTE", "ADD_TODOS",
                "TOGGLE_TODO", "DELETE_TODO", "LIST_CATEGORIES", "GET_CATEGORY_NOTES",
-               "ANSWER_QUESTION", "SUGGEST_ACTIONS", "BATCH_ACTIONS"]
+               "ANSWER_QUESTION", "SUGGEST_ACTIONS", "WEB_SEARCH", "PLAY_AUDIO", "BATCH_ACTIONS"]
     },
     "params": {
       "type": "object",
@@ -164,7 +195,7 @@ sealed class AgentAction {
         "content": { "type": "string", "description": "Note content for CREATE_NOTE" },
         "title": { "type": "string", "description": "Note title" },
         "category": { "type": "string", "description": "Category name" },
-        "query": { "type": "string", "description": "Search query for SEARCH_NOTES" },
+        "query": { "type": "string", "description": "Search query for SEARCH_NOTES or WEB_SEARCH" },
         "noteId": { "type": "string", "description": "ID of note to operate on" },
         "description": { "type": "string", "description": "Description to find note" },
         "newContent": { "type": "string", "description": "New content for UPDATE_NOTE" },
@@ -177,6 +208,10 @@ sealed class AgentAction {
         "context": { "type": "string", "description": "Context for SUGGEST_ACTIONS" },
         "todos": { "type": "array", "items": { "type": "string" }, "description": "Todo items for ADD_TODOS" },
         "todoId": { "type": "string", "description": "Todo ID for TOGGLE_TODO/DELETE_TODO" },
+        "reason": { "type": "string", "description": "Why web search is needed (required for WEB_SEARCH)" },
+        "topic": { "type": "string", "enum": ["general", "news", "finance"], "description": "Search topic for WEB_SEARCH" },
+        "maxResults": { "type": "integer", "description": "Max results (1-10) for WEB_SEARCH" },
+        "source": { "type": "string", "enum": ["youtube", "spotify", "local"], "description": "Audio source for PLAY_AUDIO" },
         "actions": { "type": "array", "description": "Actions for BATCH_ACTIONS" }
       }
     },

@@ -31,6 +31,7 @@ The features that I want to add I a.txt
 Cogni_Icon.svg
 docs/UI_ARCHITECTURE.md
 docs/UI_QUICK_REFERENCE.md
+GIT_CONFIGURATION_SUMMARY.md
 nul
 NUL
 *.pdf
@@ -39,8 +40,22 @@ NUL
 REFERENCE.md
 NOTES.md
 TODO.md
+USE_CASE.md
 *.notes
 *.reference
+
+# Markdown documentation files (except README.md)
+DEVELOPMENT_LOG.md
+GIT_CONFIGURATION_SUMMARY.md
+SECURITY.md
+USE_CASES.md
+ai_companion_app_feature_additions_specification.md
+docs/UI_ARCHITECTURE.md
+docs/UI_QUICK_REFERENCE.md
+
+# AI Agent Documentation (local reference only)
+.agent/
+.agent/*.md
 
 # Temporary files
 *.tmp

@@ -6,6 +6,8 @@ import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatMessageEntity
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.data.model.ChatSession
+import com.example.smarty.data.model.Note
+import com.example.smarty.util.PrivacyGuard
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -108,8 +110,19 @@ class ChatRepository(private val chatDao: ChatDao) {
      * - Always save user messages
      * - Only save assistant messages if they have content
      * - Skip system messages (internal use only)
+     *
+     * SECURITY: Referenced note IDs should be pre-sanitized before calling.
+     * This adds a final validation check as defense in depth.
+     *
+     * @param sessionId The session to save to
+     * @param message The message to save
+     * @param allNotes Optional: All notes for final sanitization (if provided)
      */
-    suspend fun saveMessage(sessionId: String, message: ChatMessage): Boolean {
+    suspend fun saveMessage(
+        sessionId: String,
+        message: ChatMessage,
+        allNotes: List<Note>? = null
+    ): Boolean {
         // Skip system messages - they're for internal use
         if (message.role == ChatRole.SYSTEM) {
             Log.d(TAG, "Skipping system message")
@@ -122,7 +135,21 @@ class ChatRepository(private val chatDao: ChatDao) {
             return false
         }
 
-        val entity = ChatMessageEntity.fromChatMessage(message, sessionId)
+        // SECURITY: Final sanitization check if notes are provided
+        val sanitizedMessage = if (allNotes != null && message.referencedNoteIds.isNotEmpty()) {
+            val sanitizedIds = PrivacyGuard.sanitizeForChatPersistence(
+                message.referencedNoteIds,
+                allNotes
+            )
+            if (sanitizedIds.size != message.referencedNoteIds.size) {
+                Log.w(TAG, "SECURITY: Final sanitization removed ${message.referencedNoteIds.size - sanitizedIds.size} private note IDs")
+            }
+            message.copy(referencedNoteIds = sanitizedIds)
+        } else {
+            message
+        }
+
+        val entity = ChatMessageEntity.fromChatMessage(sanitizedMessage, sessionId)
         chatDao.insertMessage(entity)
 
         // Update session metadata

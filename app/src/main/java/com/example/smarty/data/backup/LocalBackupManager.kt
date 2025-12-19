@@ -17,12 +17,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.channels.Channels
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.Deflater
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -58,6 +63,14 @@ class LocalBackupManager(
         private const val FILES_DIR = "attachments/files"
         private const val PREFERENCES_FILENAME = "preferences.json"
         private const val METADATA_FILENAME = "local_metadata.json"
+
+        // =====================================================================
+        // HIGH-PERFORMANCE I/O SETTINGS
+        // =====================================================================
+        private const val FAST_BUFFER_SIZE = 65536        // 64KB
+        private const val BULK_BUFFER_SIZE = 131072       // 128KB for large files
+        private const val NIO_BUFFER_SIZE = 262144        // 256KB NIO direct buffer
+        private const val LARGE_FILE_THRESHOLD = 5 * 1024 * 1024L  // 5MB
     }
 
     /**
@@ -356,25 +369,80 @@ class LocalBackupManager(
         )
     }
 
+    /**
+     * High-performance file copy from URI.
+     * Uses buffered streams and NIO for large files.
+     */
     private fun copyUriToFile(uri: Uri, destFile: File): Boolean {
         return try {
             context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output)
+                val fileSize = getFileSizeFromUri(uri) ?: 0L
+                if (fileSize > LARGE_FILE_THRESHOLD) {
+                    // NIO for large files
+                    copyWithNioChannel(input, destFile)
+                } else {
+                    // Buffered copy for smaller files
+                    BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE).use { output ->
+                        BufferedInputStream(input, FAST_BUFFER_SIZE).copyTo(output, FAST_BUFFER_SIZE)
+                    }
                 }
             }
             destFile.exists() && destFile.length() > 0
         } catch (e: Exception) {
-            // Try file:// URI directly
+            // Try file:// URI directly with optimized copy
             try {
                 val sourceFile = File(uri.path ?: return false)
                 if (sourceFile.exists()) {
-                    sourceFile.copyTo(destFile, overwrite = true)
+                    copyFileOptimized(sourceFile, destFile)
                     true
                 } else false
             } catch (e2: Exception) {
                 false
             }
+        }
+    }
+
+    /**
+     * NIO-based file copy for large files.
+     */
+    private fun copyWithNioChannel(input: java.io.InputStream, destFile: File) {
+        val readChannel = Channels.newChannel(BufferedInputStream(input, BULK_BUFFER_SIZE))
+        FileOutputStream(destFile).channel.use { writeChannel ->
+            readChannel.use { src ->
+                val buffer = ByteBuffer.allocateDirect(NIO_BUFFER_SIZE)
+                while (src.read(buffer) != -1) {
+                    buffer.flip()
+                    writeChannel.write(buffer)
+                    buffer.clear()
+                }
+            }
+        }
+    }
+
+    /**
+     * Optimized file-to-file copy using NIO channels.
+     */
+    private fun copyFileOptimized(source: File, dest: File) {
+        FileInputStream(source).channel.use { srcChannel ->
+            FileOutputStream(dest).channel.use { destChannel ->
+                srcChannel.transferTo(0, srcChannel.size(), destChannel)
+            }
+        }
+    }
+
+    /**
+     * Gets file size from URI for optimization decisions.
+     */
+    private fun getFileSizeFromUri(uri: Uri): Long? {
+        return try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else null
+                } else null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -391,17 +459,31 @@ class LocalBackupManager(
         }
     }
 
+    /**
+     * High-performance ZIP file creation.
+     * Uses BEST_SPEED compression for faster backup.
+     */
     private fun createZipFile(sourceDir: File, zipFile: File) {
-        ZipOutputStream(FileOutputStream(zipFile)).use { zipOut ->
-            sourceDir.walkTopDown().forEach { file ->
-                if (file.isFile) {
-                    val entryName = file.relativeTo(sourceDir).path.replace("\\", "/")
-                    zipOut.putNextEntry(ZipEntry(entryName))
-                    FileInputStream(file).use { input ->
-                        input.copyTo(zipOut)
+        val bufferedOut = BufferedOutputStream(FileOutputStream(zipFile), BULK_BUFFER_SIZE)
+        val zipOut = ZipOutputStream(bufferedOut).apply {
+            setLevel(Deflater.BEST_SPEED)
+        }
+
+        zipOut.use { zip ->
+            val files = sourceDir.walkTopDown().filter { it.isFile }.toList()
+            val buffer = ByteArray(FAST_BUFFER_SIZE)
+
+            files.forEach { file ->
+                val entryName = file.relativeTo(sourceDir).path.replace("\\", "/")
+                zip.putNextEntry(ZipEntry(entryName))
+
+                BufferedInputStream(FileInputStream(file), FAST_BUFFER_SIZE).use { input ->
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        zip.write(buffer, 0, bytesRead)
                     }
-                    zipOut.closeEntry()
                 }
+                zip.closeEntry()
             }
         }
     }

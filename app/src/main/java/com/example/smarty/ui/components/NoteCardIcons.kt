@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.StickyNote2
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.smarty.data.model.NoteType
@@ -57,11 +58,11 @@ object NoteCardIcons {
      */
     private val NOTE_TYPE_ICONS: Array<ImageVector> by lazy {
         arrayOf(
-            Icons.Default.Create,          // BRAIN_DUMP - pen for writing thoughts
-            Icons.Default.PlayCircle,      // YOUTUBE - play button for video
-            Icons.Default.Link,            // WEBSITE - link chain
-            Icons.Default.Photo,           // IMAGE - photo
-            Icons.Default.Tag,             // TWITTER - hashtag style
+            Icons.AutoMirrored.Filled.StickyNote2, // BRAIN_DUMP - Sticky note style
+            Icons.Default.PlayArrow,       // YOUTUBE - Play arrow (Clean)
+            Icons.Default.Public,          // WEBSITE - Globe (More Apple/Safari)
+            Icons.Default.Image,           // IMAGE - Single image frame
+            Icons.AutoMirrored.Filled.TextSnippet, // TWITTER - Text snippet style
             Icons.Default.CameraAlt,       // INSTAGRAM - camera
             Icons.AutoMirrored.Filled.Article, // DOCUMENT - article/document
             Icons.Default.TableChart,      // SPREADSHEET - table grid

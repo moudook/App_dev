@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -228,11 +229,12 @@ fun NoteCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp) // Fixed height for uniformity
-                    .padding(ComponentSpacing.cardPadding), // 24dp for airy feel
-                verticalArrangement = Arrangement.SpaceBetween // Distribute content
+                    .wrapContentHeight() // Adaptive height: Matches content size
+                    .heightIn(max = 200.dp) // Max height constraint
+                    .padding(16.dp), // Compact padding
+                verticalArrangement = Arrangement.spacedBy(8.dp) // Tighter packing
             ) {
-                if (note.processingStatus == ProcessingStatus.PROCESSING) {
+                if (note.processingStatus == ProcessingStatus.PROCESSING || note.processingStatus == ProcessingStatus.PENDING) {
                     // Shimmering Skeleton Loader (YouTube Style)
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -314,15 +316,12 @@ fun NoteCard(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (note.isFullPrivacy) {
-                                            Icon(
-                                                imageVector = Icons.Default.Security,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.secondary,
-                                                modifier = Modifier.size(12.dp)
-                                            )
+                                        // Privacy Indicator (Shield + Text)
+                                        // Shows for BOTH isFullPrivacy AND excludeFromAiChat
+                                        if (note.isFullPrivacy || note.excludeFromAiChat) {
+                                            PrivacyIndicatorChip()
                                         }
-                                        
+
                                         // AI Created Indicator
                                         if (note.isAiCreated) {
                                             CategoryChip(
@@ -362,14 +361,13 @@ fun NoteCard(
                         )
                     }
 
-                    // File Attachment Indicator
+                    // File Attachment Indicator (Simple)
                     val attachmentCount = note.getAttachmentCount()
                     val hasAttachment = attachmentCount > 0 ||
                         note.imageUri != null ||
                         (note.fileUri != null && note.type != NoteType.AUDIO)
 
                     if (hasAttachment) {
-                        // Spacer(modifier = Modifier.height(12.dp)) // Managed by SpaceBetween
                         NoteAttachmentIndicator(
                             note = note,
                             attachmentCount = attachmentCount,
@@ -432,6 +430,61 @@ fun CategoryChip(
 }
 
 /**
+ * Privacy indicator chip with shield icon and "Private" text.
+ * Indicates that AI cannot access this note.
+ * Uses a subtle shimmer animation to draw attention.
+ */
+@Composable
+fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
+    val privacyColor = MaterialTheme.colorScheme.tertiary
+
+    // Shimmer animation for privacy indicator
+    val infiniteTransition = rememberInfiniteTransition(label = "privacyShimmer")
+    val shimmerAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = CogniEasing.appleEaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "privacyShimmerAlpha"
+    )
+
+    Surface(
+        modifier = modifier
+            .graphicsLayer { alpha = shimmerAlpha },
+        shape = LocalShapes.current.pill,
+        color = privacyColor.copy(alpha = 0.15f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = privacyColor.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Shield,
+                contentDescription = "Private - AI cannot access",
+                tint = privacyColor,
+                modifier = Modifier.size(12.dp)
+            )
+            Text(
+                text = "PRIVATE",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                ),
+                color = privacyColor
+            )
+        }
+    }
+}
+
+/**
  * Processing indicator with pulsing animation
  */
 @Composable
@@ -454,6 +507,11 @@ private fun ProcessingIndicator(modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Attachment indicator showing file type icon with badge number
+ * Compact design: icon with count badge overlay (e.g., "3" or "9+")
+ * Single file: icon only, no badge
+ */
 /**
  * Attachment indicator showing file type icon with badge number
  * Compact design: icon with count badge overlay (e.g., "3" or "9+")

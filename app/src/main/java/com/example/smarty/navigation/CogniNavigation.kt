@@ -14,6 +14,7 @@ import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.AudioTrack
+import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatSession
@@ -34,6 +35,7 @@ sealed class Screen(val route: String) {
     data object Settings : Screen("settings")
     data object Archive : Screen("archive")
     data object BackupSettings : Screen("backup_settings")
+    data object Calendar : Screen("calendar")
 }
 
 @Composable
@@ -52,6 +54,7 @@ fun CogniNavHost(
     onUpdateApiKey: (AIProvider, String, String) -> Unit,
     onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
     onSetSelectedModel: (AIProvider, String) -> Unit,
+    onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     // PIN management
     isPinConfigured: Boolean,
@@ -99,6 +102,10 @@ fun CogniNavHost(
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
+    // Calendar management
+    calendarEvents: List<CalendarEvent> = emptyList(),
+    onAddCalendarEvent: (String, String?, Long, Long, Boolean) -> Unit = { _, _, _, _, _ -> },
+    onDeleteCalendarEvent: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
@@ -166,6 +173,9 @@ fun CogniNavHost(
                 },
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
+                },
+                onNavigateToCalendar = {
+                    navController.navigate(Screen.Calendar.route)
                 },
                 pendingShare = pendingShare,
                 onConfirmShare = onConfirmShare,
@@ -258,6 +268,7 @@ fun CogniNavHost(
                 onUpdateApiKey = onUpdateApiKey,
                 onSetProviderEnabled = onSetProviderEnabled,
                 onSetSelectedModel = onSetSelectedModel,
+                onSetProviderPriority = onSetProviderPriority,
                 onTestApiKey = onTestApiKey,
                 onRemovePin = onClearPin,
                 onToggleTheme = onToggleTheme,
@@ -319,6 +330,33 @@ fun CogniNavHost(
                     navController.popBackStack()
                 }
             )
+        }
+
+        composable(Screen.Calendar.route) {
+            var showAddDialog by remember { mutableStateOf(false) }
+
+            CalendarScreen(
+                events = calendarEvents,
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onAddEvent = {
+                    showAddDialog = true
+                },
+                onEventClick = { event ->
+                    // TODO: Navigate to event detail or show edit dialog
+                }
+            )
+
+            if (showAddDialog) {
+                com.example.smarty.ui.components.AddEventDialog(
+                    onDismiss = { showAddDialog = false },
+                    onConfirm = { title, description, startTime, endTime, isAllDay ->
+                        onAddCalendarEvent(title, description, startTime, endTime, isAllDay)
+                        showAddDialog = false
+                    }
+                )
+            }
         }
     }
 }

@@ -8,9 +8,11 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -25,7 +27,8 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Photo
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
@@ -38,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.Category
@@ -85,6 +89,7 @@ fun InputStreamScreen(
     onUpdateNoteTodos: (String, List<TodoItem>) -> Unit,
     onNavigateToStacks: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToCalendar: () -> Unit = {},
     pendingShare: PendingShareData?,
     onConfirmShare: (String?, String) -> Unit,
     onCancelShare: () -> Unit,
@@ -335,11 +340,27 @@ fun InputStreamScreen(
     }
 
     // Dynamic Island State Logic
+    // Triggers when: category changes, notes added, notes archived
     var showCategoryTransient by remember { mutableStateOf(false) }
+    
+    // Track previous displayedNotes size to detect add/archive
+    var previousDisplayedCount by remember { mutableStateOf(displayedNotes.size) }
+    
+    // Trigger on category filter change
     LaunchedEffect(selectedTypeFilter) {
         showCategoryTransient = true
-        kotlinx.coroutines.delay(2000)
+        kotlinx.coroutines.delay(2500)
         showCategoryTransient = false
+    }
+    
+    // Trigger on note count change (add/archive) - but only if we have notes
+    LaunchedEffect(displayedNotes.size) {
+        if (notes.isNotEmpty() && displayedNotes.size != previousDisplayedCount) {
+            showCategoryTransient = true
+            previousDisplayedCount = displayedNotes.size
+            kotlinx.coroutines.delay(2500)
+            showCategoryTransient = false
+        }
     }
 
     // Scroll to bottom when new chat message arrives
@@ -456,7 +477,7 @@ fun InputStreamScreen(
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.background)
                     ) {
-                        // Top Branding Row
+                        // Top Navigation Row
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -465,11 +486,33 @@ fun InputStreamScreen(
                                 .height(64.dp)
                                 .padding(horizontal = 24.dp)
                         ) {
-                            // Branding (Left)
-                            CogniHeader(
+                            // Calendar Button (Left)
+                            val isDarkLeft = isSystemInDarkTheme()
+                            Surface(
                                 modifier = Modifier.align(Alignment.CenterStart),
-                                showShimmer = true
-                            )
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isDarkLeft) {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    } else {
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                                    }
+                                )
+                            ) {
+                                IconButton(
+                                    onClick = onNavigateToCalendar,
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = "Calendar",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
 
                             // Actions Pill (Right)
                             val isDark = isSystemInDarkTheme()
@@ -529,11 +572,14 @@ fun InputStreamScreen(
                         }
 
                         // File Type Categorization Chips (Only show in main mode, not chat mode)
+                        // Added padding top to separate from header
                         AnimatedVisibility(
                             visible = availableTypes.isNotEmpty() && !isChatMode,
                             enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
+                            exit = shrinkVertically() + fadeOut(),
+                            modifier = Modifier.padding(top = 8.dp) 
                         ) {
+                            // Original NoteTypeChip design (reverted per user request)
                             LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -804,7 +850,9 @@ fun InputStreamScreen(
     }
 
     // Dynamic Island (Floats on top, unclipped)
-    if (!isSelectionMode && !isChatMode) {
+    // RULE: Dynamic Island is ONLY active when there is at least 1 note.
+    // If notes are empty (zero node blocks), the island is completely dormant.
+    if (!isSelectionMode && !isChatMode && notes.isNotEmpty()) {
         // MANUAL POSITION ADJUSTMENT: Tweak this to match punch hole
         val verticalOffset = (8).dp 
 
@@ -819,7 +867,7 @@ fun InputStreamScreen(
                 val filterIcon = when (selectedTypeFilter) {
                     null -> Icons.Default.GridView  // "All" filter
                     com.example.smarty.data.model.NoteType.BRAIN_DUMP -> Icons.AutoMirrored.Filled.StickyNote2
-                    com.example.smarty.data.model.NoteType.YOUTUBE -> Icons.Default.PlayCircle
+                    com.example.smarty.data.model.NoteType.YOUTUBE -> Icons.Default.PlayArrow
                     com.example.smarty.data.model.NoteType.IMAGE -> Icons.Default.Photo
                     com.example.smarty.data.model.NoteType.VIDEO -> Icons.Default.Videocam
                     com.example.smarty.data.model.NoteType.AUDIO -> Icons.Default.MusicNote
@@ -1016,19 +1064,49 @@ private fun NoteTypeChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val isSystemDark = isSystemInDarkTheme()
+    // Premium "Pill" Aesthetic
+    // Selected: Solid Black (Light Mode) / White (Dark Mode)
+    // Unselected: Transparent with subtle outline
+    val backgroundColor = if (isSelected) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        androidx.compose.ui.graphics.Color.Transparent
+    }
+    
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.surface
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    
+    val borderStroke = if (isSelected) {
+        null
+    } else {
+        androidx.compose.foundation.BorderStroke(
+            1.dp, 
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        )
+    }
+
     Surface(
         onClick = onClick,
-        shape = androidx.compose.foundation.shape.CircleShape,
-        color = if (isSelected) LocalAccentColor.current else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-        contentColor = if (isSelected) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurface
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp), // More "squircle" pill
+        color = backgroundColor,
+        contentColor = contentColor,
+        border = borderStroke,
+        modifier = Modifier.height(28.dp) // Reduced height to match chat mode pill style
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium
-            ),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp
+                ),
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
     }
 }
 

@@ -21,6 +21,7 @@
     <!-- Foreground service for audio playback -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- Audio visualizer requires RECORD_AUDIO to capture audio output -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -42,6 +43,7 @@
     </queries>
 
     <application
+        android:name=".CogniApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -50,6 +52,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:hardwareAccelerated="true"
+        android:largeHeap="false"
         android:theme="@style/Theme.Smarty">
 
         <!-- FileProvider for sharing QR codes -->
@@ -120,6 +123,15 @@
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
+        </service>
+
+        <!-- File Operation Service - Background file compression/copying -->
+        <service
+            android:name=".service.FileOperationService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false">
+            <!-- stopWithTask="false" ensures operations complete even if app is swiped away -->
         </service>
     </application>
 

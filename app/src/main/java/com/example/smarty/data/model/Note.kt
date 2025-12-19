@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.example.smarty.util.PrivacyAware
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.UUID
@@ -100,7 +101,20 @@ data class Note(
     val isFullPrivacy: Boolean = false,  // Full privacy mode - no AI processing at all
     val isAiCreated: Boolean = false, // Flag to indicate if note was created by AI
     val attachmentsJson: String? = null  // JSON string of List<NoteAttachment> for multiple files
-) {
+) : PrivacyAware {
+    /**
+     * PrivacyAware implementation.
+     * A note is private if EITHER privacy flag is set:
+     * - isFullPrivacy: Complete privacy mode (no AI access whatsoever)
+     * - excludeFromAiChat: Excluded from AI chat context
+     *
+     * When isPrivate is true, AI cannot see, search, modify, or reference this note.
+     *
+     * Note: This is a computed property (no backing field) so Room ignores it automatically.
+     */
+    override val isPrivate: Boolean
+        get() = isFullPrivacy || excludeFromAiChat
+
     companion object {
         @Ignore
         private val gson = Gson()

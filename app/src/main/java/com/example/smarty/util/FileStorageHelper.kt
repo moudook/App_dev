@@ -7,9 +7,18 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.nio.channels.Channels
 import java.util.UUID
 
 /**
@@ -22,6 +31,15 @@ import java.util.UUID
 object FileStorageHelper {
 
     private const val TAG = "FileStorageHelper"
+
+    // =========================================================================
+    // HIGH-PERFORMANCE I/O SETTINGS
+    // =========================================================================
+    // Optimized buffer sizes matching FileCompressor for consistency
+    private const val FAST_BUFFER_SIZE = 65536        // 64KB - optimal for most I/O
+    private const val BULK_BUFFER_SIZE = 131072       // 128KB - for large files
+    private const val NIO_BUFFER_SIZE = 262144        // 256KB - NIO direct buffer
+    private const val LARGE_FILE_THRESHOLD = 5 * 1024 * 1024L  // 5MB - use NIO
 
     // Subdirectories for different file types
     private const val DIR_ATTACHMENTS = "attachments"
@@ -63,15 +81,24 @@ object FileStorageHelper {
             val uniqueFileName = generateUniqueFileName(attachmentsDir, fileName)
             val destFile = File(attachmentsDir, uniqueFileName)
 
-            // Copy the file content
+            // Get file size for optimization decision
+            val fileSize = getFileSizeFromUri(context, sourceUri) ?: 0L
+
+            // High-performance copy with optimized buffers
             context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output, bufferSize = 8192)
+                if (fileSize > LARGE_FILE_THRESHOLD) {
+                    // NIO for large files
+                    copyWithNioChannel(input, destFile)
+                } else {
+                    // Buffered copy for smaller files
+                    BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE).use { output ->
+                        BufferedInputStream(input, FAST_BUFFER_SIZE).copyTo(output, FAST_BUFFER_SIZE)
+                    }
                 }
             } ?: return@withContext null
 
-            // Get file size
-            val fileSize = destFile.length()
+            // Get actual written file size
+            val actualFileSize = destFile.length()
 
             // Generate a content:// URI via FileProvider for the copied file
             val newUri = FileProvider.getUriForFile(
@@ -84,7 +111,7 @@ object FileStorageHelper {
                 uri = newUri.toString(),
                 localPath = destFile.absolutePath,
                 fileName = uniqueFileName,
-                fileSize = fileSize,
+                fileSize = actualFileSize,
                 mimeType = mimeType ?: getMimeTypeFromFile(destFile)
             )
         } catch (e: Exception) {
@@ -94,7 +121,8 @@ object FileStorageHelper {
     }
 
     /**
-     * Copies a file and returns a file:// URI (for cases where FileProvider isn't needed)
+     * High-performance file copy returning a file:// URI.
+     * Uses NIO for large files and buffered streams for smaller ones.
      */
     suspend fun copyToInternalStorageAsFile(
         context: Context,
@@ -114,20 +142,28 @@ object FileStorageHelper {
             val uniqueFileName = generateUniqueFileName(attachmentsDir, fileName)
             val destFile = File(attachmentsDir, uniqueFileName)
 
+            // Get file size for optimization decision
+            val sourceSize = getFileSizeFromUri(context, sourceUri) ?: 0L
+
+            // High-performance copy
             context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                FileOutputStream(destFile).use { output ->
-                    input.copyTo(output, bufferSize = 8192)
+                if (sourceSize > LARGE_FILE_THRESHOLD) {
+                    copyWithNioChannel(input, destFile)
+                } else {
+                    BufferedOutputStream(FileOutputStream(destFile), FAST_BUFFER_SIZE).use { output ->
+                        BufferedInputStream(input, FAST_BUFFER_SIZE).copyTo(output, FAST_BUFFER_SIZE)
+                    }
                 }
             } ?: return@withContext null
 
-            val fileSize = destFile.length()
+            val actualSize = destFile.length()
 
             // Return file:// URI for internal use
             CopiedFileResult(
                 uri = Uri.fromFile(destFile).toString(),
                 localPath = destFile.absolutePath,
                 fileName = uniqueFileName,
-                fileSize = fileSize,
+                fileSize = actualSize,
                 mimeType = mimeType ?: getMimeTypeFromFile(destFile)
             )
         } catch (e: Exception) {
@@ -143,17 +179,21 @@ object FileStorageHelper {
      * - Videos/Audio → No compression (already compressed)
      * - Documents/Other → GZIP
      *
+     * PRIVACY: All metadata (EXIF, GPS, timestamps) is stripped by default.
+     *
      * @param context Application context
      * @param sourceUri The original URI from the share intent
      * @param mimeType The MIME type of the file
      * @param originalFileName Optional original filename
+     * @param stripMetadata If true (default), removes all metadata for privacy
      * @return CompressedStorageResult with file info and compression details
      */
     suspend fun compressAndStore(
         context: Context,
         sourceUri: Uri,
         mimeType: String?,
-        originalFileName: String? = null
+        originalFileName: String? = null,
+        stripMetadata: Boolean = true
     ): CompressedStorageResult? = withContext(Dispatchers.IO) {
         try {
             val fileName = originalFileName ?: getFileName(context, sourceUri) ?: generateFileName(mimeType)
@@ -164,13 +204,14 @@ object FileStorageHelper {
                 destDir.mkdirs()
             }
 
-            // Use FileCompressor for intelligent compression
+            // Use FileCompressor for intelligent compression with metadata stripping
             val compressedResult = FileCompressor.compressFile(
                 context = context,
                 sourceUri = sourceUri,
                 mimeType = mimeType,
                 originalFileName = fileName,
-                destDir = destDir
+                destDir = destDir,
+                stripMetadata = stripMetadata
             )
 
             Log.d(TAG, "File compressed and stored: ${compressedResult.originalFileName} -> " +
@@ -214,6 +255,69 @@ object FileStorageHelper {
             cacheDir.mkdirs()
         }
         return cacheDir
+    }
+
+    /**
+     * Strip metadata from a file and store it (without compression).
+     * Useful when you want privacy protection without file size optimization.
+     *
+     * Removed metadata includes:
+     * - GPS coordinates and location data
+     * - Camera/device information
+     * - Timestamps and dates
+     * - User comments and descriptions
+     * - Thumbnail images
+     *
+     * @param context Application context
+     * @param sourceUri The original URI
+     * @param mimeType The MIME type of the file
+     * @param originalFileName Optional original filename
+     * @return CopiedFileResult with the stripped file info
+     */
+    suspend fun stripMetadataAndStore(
+        context: Context,
+        sourceUri: Uri,
+        mimeType: String?,
+        originalFileName: String? = null
+    ): CopiedFileResult? = withContext(Dispatchers.IO) {
+        try {
+            val fileName = originalFileName ?: getFileName(context, sourceUri) ?: generateFileName(mimeType)
+            val subDir = getSubdirectory(mimeType)
+
+            val destDir = File(context.filesDir, subDir)
+            if (!destDir.exists()) {
+                destDir.mkdirs()
+            }
+
+            val baseName = fileName.substringBeforeLast(".")
+            val result = MetadataStripper.stripMetadata(
+                context = context,
+                sourceUri = sourceUri,
+                mimeType = mimeType,
+                outputDir = destDir,
+                outputName = baseName
+            )
+
+            if (result.success && result.outputFile != null) {
+                Log.d(TAG, "Metadata stripped: ${result.outputFile.name} " +
+                        "(saved ${result.bytesSaved} bytes in ${result.processingTimeMs}ms)")
+
+                CopiedFileResult(
+                    uri = Uri.fromFile(result.outputFile).toString(),
+                    localPath = result.outputFile.absolutePath,
+                    fileName = result.outputFile.name,
+                    fileSize = result.strippedSize,
+                    mimeType = mimeType ?: getMimeTypeFromFile(result.outputFile)
+                )
+            } else {
+                Log.w(TAG, "Metadata stripping failed: ${result.error}")
+                // Fall back to regular copy
+                copyToInternalStorageAsFile(context, sourceUri, mimeType, originalFileName)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "stripMetadataAndStore failed", e)
+            null
+        }
     }
 
     /**
@@ -290,6 +394,107 @@ object FileStorageHelper {
             .sumOf { it.length() }
     }
 
+    // =========================================================================
+    // BATCH OPERATIONS - PARALLEL PROCESSING
+    // =========================================================================
+
+    /**
+     * Input for batch file copy operations
+     */
+    data class BatchCopyInput(
+        val sourceUri: Uri,
+        val mimeType: String?,
+        val originalFileName: String? = null
+    )
+
+    /**
+     * Copies multiple files in parallel for maximum throughput.
+     * Useful for importing multiple attachments at once.
+     *
+     * @param inputs List of files to copy
+     * @param context Application context
+     * @param onProgress Callback for progress updates (0.0 to 1.0)
+     * @return List of copy results (in same order as inputs)
+     */
+    suspend fun copyFilesParallel(
+        inputs: List<BatchCopyInput>,
+        context: Context,
+        onProgress: ((Float) -> Unit)? = null
+    ): List<CopiedFileResult> = withContext(Dispatchers.IO) {
+        if (inputs.isEmpty()) return@withContext emptyList()
+
+        val results = Array<CopiedFileResult?>(inputs.size) { null }
+        var completedCount = 0
+        val progressMutex = Mutex()
+
+        coroutineScope {
+            inputs.mapIndexed { index, input ->
+                async {
+                    val result = copyToInternalStorageAsFile(
+                        context = context,
+                        sourceUri = input.sourceUri,
+                        mimeType = input.mimeType,
+                        originalFileName = input.originalFileName
+                    )
+                    results[index] = result
+
+                    progressMutex.withLock {
+                        completedCount++
+                        onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                    }
+
+                    result
+                }
+            }.awaitAll()
+        }
+
+        results.filterNotNull()
+    }
+
+    /**
+     * Compresses and stores multiple files in parallel.
+     * Uses optimal compression based on file type.
+     *
+     * @param inputs List of files to compress and store
+     * @param context Application context
+     * @param onProgress Callback for progress updates (0.0 to 1.0)
+     * @return List of compression results
+     */
+    suspend fun compressAndStoreParallel(
+        inputs: List<BatchCopyInput>,
+        context: Context,
+        onProgress: ((Float) -> Unit)? = null
+    ): List<CompressedStorageResult> = withContext(Dispatchers.IO) {
+        if (inputs.isEmpty()) return@withContext emptyList()
+
+        val results = Array<CompressedStorageResult?>(inputs.size) { null }
+        var completedCount = 0
+        val progressMutex = Mutex()
+
+        coroutineScope {
+            inputs.mapIndexed { index, input ->
+                async {
+                    val result = compressAndStore(
+                        context = context,
+                        sourceUri = input.sourceUri,
+                        mimeType = input.mimeType,
+                        originalFileName = input.originalFileName
+                    )
+                    results[index] = result
+
+                    progressMutex.withLock {
+                        completedCount++
+                        onProgress?.invoke(completedCount.toFloat() / inputs.size)
+                    }
+
+                    result
+                }
+            }.awaitAll()
+        }
+
+        results.filterNotNull()
+    }
+
     // ========================== Private Helpers ==========================
 
     private fun formatFileSize(bytes: Long): String {
@@ -356,6 +561,40 @@ object FileStorageHelper {
         val extension = file.extension.lowercase()
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
             ?: "application/octet-stream"
+    }
+
+    /**
+     * Gets file size from URI before copying (for optimization decisions).
+     */
+    private fun getFileSizeFromUri(context: Context, uri: Uri): Long? {
+        return try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else null
+                } else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * High-performance NIO-based file copy.
+     * Uses direct ByteBuffer for zero-copy kernel transfers.
+     */
+    private fun copyWithNioChannel(input: java.io.InputStream, destFile: File) {
+        val readChannel = Channels.newChannel(BufferedInputStream(input, BULK_BUFFER_SIZE))
+        FileOutputStream(destFile).channel.use { writeChannel ->
+            readChannel.use { src ->
+                val buffer = ByteBuffer.allocateDirect(NIO_BUFFER_SIZE)
+                while (src.read(buffer) != -1) {
+                    buffer.flip()
+                    writeChannel.write(buffer)
+                    buffer.clear()
+                }
+            }
+        }
     }
 
     private fun getFileFromProviderUri(context: Context, uri: Uri): File? {
