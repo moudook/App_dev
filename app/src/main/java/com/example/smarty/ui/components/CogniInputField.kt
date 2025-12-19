@@ -399,38 +399,35 @@ fun CogniInputField(
             }
         }
 
-        // Attachment previews (above the panel)
-        AttachmentPreviewRow(
-            attachments = attachments,
-            onRemoveAttachment = onRemoveAttachment
-        )
+        // Attachment previews REMOVED - now shown as stacked circles in left icon
 
         // Attachment type selector panel (above input)
+        // Panel stays open while focused - doesn't close when selecting attachments
         AttachmentTypeSelector(
             visible = showAttachmentPanel && !isChatMode,
             onSelectImage = {
                 onPickImage()
-                showAttachmentPanel = false
+                // Don't close panel - let it stay open for multiple attachments
             },
             onSelectVideo = {
                 onPickVideo()
-                showAttachmentPanel = false
+                // Don't close panel
             },
             onSelectDocument = {
                 onPickDocument()
-                showAttachmentPanel = false
+                // Don't close panel
             },
             onSelectAudio = {
                 onPickAudio()
-                showAttachmentPanel = false
+                // Don't close panel
             },
             onSelectFile = {
                 onPickFile()
-                showAttachmentPanel = false
+                // Don't close panel
             },
             onSelectLink = {
                 onPickLink()
-                showAttachmentPanel = false
+                // Don't close panel
             }
         )
 
@@ -497,41 +494,68 @@ fun CogniInputField(
                         .scale(promptScale)
                         .size(32.dp)
                 ) {
-                    // Shimmer/Pulse Effect REMOVED
-
-                    IconButton(
-                        onClick = {
-                            if (isChatMode) {
-                                // In chat mode, toggle listening (start or stop)
-                                // Don't focus the text field - keyboard should not open
-                                onStartVoiceInput()
-                            } else {
-                                // In main page, toggle search
-                                onToggleSearch()
+                    // Show stacked colored circles if attachments exist, otherwise show icon
+                    if (attachments.isNotEmpty()) {
+                        // Stacked colored circles representing attachments
+                        Box(contentAlignment = Alignment.Center) {
+                            attachments.reversed().forEachIndexed { index, attachment ->
+                                val attachmentColor = when (attachment.getAttachmentType()) {
+                                    com.example.smarty.data.model.AttachmentType.IMAGE -> androidx.compose.ui.graphics.Color(0xFF4CAF50) // Green
+                                    com.example.smarty.data.model.AttachmentType.VIDEO -> androidx.compose.ui.graphics.Color(0xFFF44336) // Red
+                                    com.example.smarty.data.model.AttachmentType.DOCUMENT,
+                                    com.example.smarty.data.model.AttachmentType.SPREADSHEET,
+                                    com.example.smarty.data.model.AttachmentType.PRESENTATION -> androidx.compose.ui.graphics.Color(0xFF2196F3) // Blue
+                                    com.example.smarty.data.model.AttachmentType.AUDIO -> androidx.compose.ui.graphics.Color(0xFF9C27B0) // Purple
+                                    else -> androidx.compose.ui.graphics.Color(0xFF607D8B) // Gray
+                                }
+                                
+                                // Offset each circle slightly to create stacked effect
+                                val offsetX = (index * 3).dp
+                                val offsetY = (index * 3).dp
+                                
+                                Surface(
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .offset(x = offsetX, y = offsetY),
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = attachmentColor,
+                                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface)
+                                ) {}
                             }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        AnimatedContent(
-                            targetState = leftIcon,
-                            transitionSpec = {
-                                (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
-                                    scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
-                                    .togetherWith(fadeOut(animationSpec = tween(90)))
+                        }
+                    } else {
+                        // Original icon button when no attachments
+                        IconButton(
+                            onClick = {
+                                if (isChatMode) {
+                                    onStartVoiceInput()
+                                } else {
+                                    onToggleSearch()
+                                }
                             },
-                            label = "leftModeIcon"
-                        ) { icon ->
-                             Icon(
-                                imageVector = icon,
-                                contentDescription = when {
-                                    isVoiceListening -> "Stop Listening"
-                                    isChatMode -> "Voice Input"
-                                    isSearchMode -> "Search Mode"
-                                    else -> "Write Mode"
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            AnimatedContent(
+                                targetState = leftIcon,
+                                transitionSpec = {
+                                    (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
+                                        scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90)))
+                                        .togetherWith(fadeOut(animationSpec = tween(90)))
                                 },
-                                tint = if (isVoiceListening) Color.White else leftButtonColor,
-                                modifier = Modifier.size(24.dp)
-                            )
+                                label = "leftModeIcon"
+                            ) { icon ->
+                                 Icon(
+                                    imageVector = icon,
+                                    contentDescription = when {
+                                        isVoiceListening -> "Stop Listening"
+                                        isChatMode -> "Voice Input"
+                                        isSearchMode -> "Search Mode"
+                                        else -> "Write Mode"
+                                    },
+                                    tint = if (isVoiceListening) Color.White else leftButtonColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -631,32 +655,24 @@ fun CogniInputField(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                // RMS level indicator (shows when listening in chat mode - visual feedback on left button)
-                // The microphone button is now on the left side in chat mode
-
-                // Animated send button - Filled circle style
-                val sendButtonContainerColor by animateColorAsState(
-                    targetValue = if (buttonEnabled) LocalAccentColor.current else androidx.compose.ui.graphics.Color.Transparent,
-                    animationSpec = tween(200),
-                    label = "sendBtnContainer"
-                )
-
-                val sendButtonContentColor by animateColorAsState(
-                    targetValue = if (buttonEnabled) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    animationSpec = tween(200),
-                    label = "sendBtnContent"
-                )
-
-                Surface(
-                    modifier = Modifier
-                        .size(36.dp) // Compact, premium circle
-                        .scale(buttonScale)
-                        .graphicsLayer {
-                            rotationZ = buttonRotation
-                            alpha = buttonAlpha
-                        }
-                        .pointerInput(buttonEnabled) {
-                            if (buttonEnabled) {
+                // In main mode: Show BOTH mic and send buttons
+                // - Mic button: always visible for voice input
+                // - Send button: appears when there's text/attachments
+                // In chat mode: mic is on left, send is on right (existing behavior)
+                
+                if (!isChatMode) {
+                    // MICROPHONE BUTTON (always visible in main mode)
+                    val micButtonScale by animateFloatAsState(
+                        targetValue = if (isButtonPressed && !buttonEnabled) 0.85f else 1f,
+                        animationSpec = CogniMotion.quick,
+                        label = "micScale"
+                    )
+                    
+                    Surface(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .scale(micButtonScale)
+                            .pointerInput(Unit) {
                                 detectTapGestures(
                                     onPress = {
                                         isButtonPressed = true
@@ -666,28 +682,89 @@ fun CogniInputField(
                                     },
                                     onTap = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        showAttachmentPanel = false
-                                        handleSubmit()
+                                        onStartVoiceInput()
                                     }
                                 )
-                            }
-                        },
-                    shape = androidx.compose.foundation.shape.CircleShape,
-                    color = sendButtonContainerColor,
-                    // No border
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
+                            },
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = LocalAccentColor.current,
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            tint = sendButtonContentColor,
-                            modifier = Modifier
-                                .size(18.dp)
-                                .offset(x = 2.dp) // Optical centering for send icon
-                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Voice Input",
+                                tint = androidx.compose.ui.graphics.Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    
+                    // Small spacer between mic and send
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                // SEND BUTTON (appears when has content in main mode, always visible in chat mode)
+                AnimatedVisibility(
+                    visible = buttonEnabled || isChatMode,
+                    enter = scaleIn(initialScale = 0.8f, animationSpec = CogniMotion.bouncy) + fadeIn(),
+                    exit = scaleOut(targetScale = 0.8f, animationSpec = CogniMotion.quick) + fadeOut()
+                ) {
+                    val sendButtonContainerColor by animateColorAsState(
+                        targetValue = if (buttonEnabled) LocalAccentColor.current else androidx.compose.ui.graphics.Color.Transparent,
+                        animationSpec = tween(200),
+                        label = "sendBtnContainer"
+                    )
+
+                    val sendButtonContentColor by animateColorAsState(
+                        targetValue = if (buttonEnabled) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        animationSpec = tween(200),
+                        label = "sendBtnContent"
+                    )
+
+                    Surface(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .scale(buttonScale)
+                            .graphicsLayer {
+                                rotationZ = buttonRotation
+                                alpha = buttonAlpha
+                            }
+                            .pointerInput(buttonEnabled) {
+                                if (buttonEnabled) {
+                                    detectTapGestures(
+                                        onPress = {
+                                            isButtonPressed = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            tryAwaitRelease()
+                                            isButtonPressed = false
+                                        },
+                                        onTap = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            showAttachmentPanel = false
+                                            handleSubmit()
+                                        }
+                                    )
+                                }
+                            },
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = sendButtonContainerColor,
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                tint = sendButtonContentColor,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .offset(x = 2.dp)
+                            )
+                        }
                     }
                 }
 

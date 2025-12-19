@@ -112,6 +112,9 @@ fun InputStreamScreen(
     onInputAttachmentsChange: (List<Attachment>) -> Unit = {},
     onPlayYouTube: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
+    speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
+    onShowTransientIsland: (com.example.smarty.ui.components.DynamicIslandState) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -151,9 +154,14 @@ fun InputStreamScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var lastArchivedNoteId by remember { mutableStateOf<String?>(null) }
     
-    // Voice Input State (Speech-to-Text)
-    val speechState = com.example.smarty.util.rememberSpeechToText(
-        onResult = { result ->
+    // Voice Input State (Speech-to-Text) - Use external from MainActivity
+    val speechState = externalSpeechState ?: com.example.smarty.util.rememberSpeechToText(
+        onResult = { /* Handled by global flow */ }
+    )
+
+    // Observe global speech results and update local text fields
+    LaunchedEffect(speechResults) {
+        speechResults?.collect { result ->
             val currentTextValue = if (isChatMode) chatModeTextValue else normalModeTextValue
             val currentText = currentTextValue.text
             val selection = currentTextValue.selection
@@ -178,11 +186,8 @@ fun InputStreamScreen(
                 normalModeTextValue = newValue
             }
             onInputTextChange(newText)
-        },
-        onError = { msg ->
-           // scope.launch { snackbarHostState.showSnackbar(msg) }
         }
-    )
+    }
 
     // Multi-select state
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -340,26 +345,48 @@ fun InputStreamScreen(
     }
 
     // Dynamic Island State Logic
-    // Triggers when: category changes, notes added, notes archived
-    var showCategoryTransient by remember { mutableStateOf(false) }
-    
-    // Track previous displayedNotes size to detect add/archive
-    var previousDisplayedCount by remember { mutableStateOf(displayedNotes.size) }
-    
     // Trigger on category filter change
     LaunchedEffect(selectedTypeFilter) {
-        showCategoryTransient = true
-        kotlinx.coroutines.delay(2500)
-        showCategoryTransient = false
+        val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
+        val count = displayedNotes.size
+        val filterIcon = when (selectedTypeFilter) {
+            null -> Icons.Default.GridView
+            com.example.smarty.data.model.NoteType.BRAIN_DUMP -> Icons.AutoMirrored.Filled.StickyNote2
+            com.example.smarty.data.model.NoteType.YOUTUBE -> Icons.Default.PlayArrow
+            com.example.smarty.data.model.NoteType.IMAGE -> Icons.Default.Photo
+            com.example.smarty.data.model.NoteType.VIDEO -> Icons.Default.Videocam
+            com.example.smarty.data.model.NoteType.AUDIO -> Icons.Default.MusicNote
+            com.example.smarty.data.model.NoteType.DOCUMENT -> Icons.AutoMirrored.Filled.Article
+            com.example.smarty.data.model.NoteType.WEBSITE -> Icons.Default.Link
+            else -> Icons.Default.Description
+        }
+        onShowTransientIsland(
+            com.example.smarty.ui.components.DynamicIslandState.Info(
+                label = categoryName,
+                secondaryLabel = count.toString(),
+                icon = filterIcon
+            )
+        )
     }
     
     // Trigger on note count change (add/archive) - but only if we have notes
+    var previousDisplayedCount by remember { mutableStateOf(displayedNotes.size) }
     LaunchedEffect(displayedNotes.size) {
         if (notes.isNotEmpty() && displayedNotes.size != previousDisplayedCount) {
-            showCategoryTransient = true
+            val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
+            val count = displayedNotes.size
+            val filterIcon = when (selectedTypeFilter) {
+                null -> Icons.Default.GridView
+                else -> Icons.Default.Description
+            }
+            onShowTransientIsland(
+                com.example.smarty.ui.components.DynamicIslandState.Info(
+                    label = categoryName,
+                    secondaryLabel = count.toString(),
+                    icon = filterIcon
+                )
+            )
             previousDisplayedCount = displayedNotes.size
-            kotlinx.coroutines.delay(2500)
-            showCategoryTransient = false
         }
     }
 
@@ -844,55 +871,10 @@ fun InputStreamScreen(
                     )
                 }
             }
-
             // Dynamic Island moved to top z-order
         }
     }
 
-    // Dynamic Island (Floats on top, unclipped)
-    // RULE: Dynamic Island is ONLY active when there is at least 1 note.
-    // If notes are empty (zero node blocks), the island is completely dormant.
-    if (!isSelectionMode && !isChatMode && notes.isNotEmpty()) {
-        // MANUAL POSITION ADJUSTMENT: Tweak this to match punch hole
-        val verticalOffset = (8).dp 
-
-        // Compute Island State
-        val islandState = when {
-            speechState.isListening -> com.example.smarty.ui.components.DynamicIslandState.Listening(speechState.rmsDb)
-            isProcessing -> com.example.smarty.ui.components.DynamicIslandState.Processing
-            showCategoryTransient -> {
-                val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
-                val count = displayedNotes.size
-                // Determine icon based on selected filter type
-                val filterIcon = when (selectedTypeFilter) {
-                    null -> Icons.Default.GridView  // "All" filter
-                    com.example.smarty.data.model.NoteType.BRAIN_DUMP -> Icons.AutoMirrored.Filled.StickyNote2
-                    com.example.smarty.data.model.NoteType.YOUTUBE -> Icons.Default.PlayArrow
-                    com.example.smarty.data.model.NoteType.IMAGE -> Icons.Default.Photo
-                    com.example.smarty.data.model.NoteType.VIDEO -> Icons.Default.Videocam
-                    com.example.smarty.data.model.NoteType.AUDIO -> Icons.Default.MusicNote
-                    com.example.smarty.data.model.NoteType.DOCUMENT -> Icons.AutoMirrored.Filled.Article
-                    com.example.smarty.data.model.NoteType.WEBSITE -> Icons.Default.Link
-                    else -> Icons.Default.Description  // Default for other types
-                }
-                com.example.smarty.ui.components.DynamicIslandState.Info(
-                    label = categoryName,
-                    secondaryLabel = count.toString(),
-                    icon = filterIcon
-                )
-            }
-            else -> com.example.smarty.ui.components.DynamicIslandState.Contracted
-        }
-
-        DynamicIsland(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = verticalOffset)
-                .padding(top = 0.dp),
-            state = islandState
-        )
-    }
-}
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
@@ -980,7 +962,9 @@ fun InputStreamScreen(
             onDeleteSession = onDeleteChatSession
         )
     }
+    }
 }
+
 
 /**
  * Animated note item with staggered entry animation

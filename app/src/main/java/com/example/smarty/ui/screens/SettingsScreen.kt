@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -28,6 +29,7 @@ import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.ProviderSection
+import com.example.smarty.ui.screens.settings.maskApiKey
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
@@ -57,6 +59,9 @@ fun SettingsScreen(
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     onRemovePin: () -> Unit,
     onToggleTheme: (Boolean) -> Unit,
+    // Tavily Web Search API
+    tavilyApiKey: String? = null,
+    onSetTavilyApiKey: (String?) -> Unit = {},
     // Embedded Content Slots
     archiveContent: @Composable (() -> Unit) -> Unit,
     backupContent: @Composable (() -> Unit) -> Unit,
@@ -227,7 +232,9 @@ fun SettingsScreen(
             onSetProviderEnabled = onSetProviderEnabled,
             onSetSelectedModel = onSetSelectedModel,
             onSetProviderPriority = onSetProviderPriority,
-            onTestApiKey = onTestApiKey
+            onTestApiKey = onTestApiKey,
+            tavilyApiKey = tavilyApiKey,
+            onSetTavilyApiKey = onSetTavilyApiKey
         )
     }
 
@@ -579,7 +586,9 @@ private fun AIConfigBottomSheet(
     onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
     onSetSelectedModel: (AIProvider, String) -> Unit,
     onSetProviderPriority: (List<AIProvider>) -> Unit,
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit
+    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
+    tavilyApiKey: String? = null,
+    onSetTavilyApiKey: (String?) -> Unit = {}
 ) {
     val shapes = LocalShapes.current
     val sortedProviders = remember(providerConfigs) { providerConfigs.keys.toList() }
@@ -694,6 +703,19 @@ private fun AIConfigBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Tavily Web Search Section
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            )
+
+            TavilyApiSection(
+                apiKey = tavilyApiKey,
+                onSetApiKey = onSetTavilyApiKey
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Status
             val hasAnyKeys = providerConfigs.values.any { it.apiKeys.isNotEmpty() }
             val configuredCount = providerConfigs.values.count { it.apiKeys.isNotEmpty() }
@@ -714,6 +736,226 @@ private fun AIConfigBottomSheet(
                     style = MaterialTheme.typography.labelSmall,
                     color = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Tavily Web Search API configuration section.
+ * Separate from AI providers as it's a search tool, not a chat model.
+ */
+@Composable
+private fun TavilyApiSection(
+    apiKey: String?,
+    onSetApiKey: (String?) -> Unit
+) {
+    var showKeyInput by remember { mutableStateOf(false) }
+    var keyInput by remember { mutableStateOf("") }
+    var showKey by remember { mutableStateOf(false) }
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp).padding(end = 8.dp)
+                )
+
+                Column {
+                    Text(
+                        text = "Tavily Web Search",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (apiKey != null) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Enable AI web search capabilities",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Status indicator
+            if (apiKey != null) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Configured",
+                    tint = LocalAccentColor.current,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // Expanded content
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isExpanded,
+            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Info text
+                Text(
+                    text = "Tavily provides real-time web search for AI. Get your free API key (1,000 requests/month) from tavily.com",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+
+                if (apiKey != null) {
+                    // Show existing key
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                1.dp,
+                                LocalAccentColor.current,
+                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
+                            ),
+                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (showKey) apiKey else maskApiKey(apiKey),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = com.example.smarty.ui.theme.MonoFont
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            IconButton(onClick = { showKey = !showKey }) {
+                                Icon(
+                                    imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (showKey) "Hide" else "Show",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            IconButton(onClick = { onSetApiKey(null) }) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Remove",
+                                    tint = SafetyOrange,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                } else if (showKeyInput) {
+                    // Input for new key
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(
+                                1.dp,
+                                LocalAccentColor.current,
+                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
+                            ),
+                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    androidx.compose.foundation.text.BasicTextField(
+                                        value = keyInput,
+                                        onValueChange = { keyInput = it },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = com.example.smarty.ui.theme.MonoFont,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        cursorBrush = androidx.compose.ui.graphics.SolidColor(LocalAccentColor.current),
+                                        singleLine = true
+                                    )
+                                    if (keyInput.isEmpty()) {
+                                        Text(
+                                            text = "tvly-XXXXX...",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = com.example.smarty.ui.theme.MonoFont
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = {
+                                    showKeyInput = false
+                                    keyInput = ""
+                                }) {
+                                    Text("Cancel")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (keyInput.isNotBlank()) {
+                                            onSetApiKey(keyInput.trim())
+                                            keyInput = ""
+                                            showKeyInput = false
+                                        }
+                                    },
+                                    enabled = keyInput.isNotBlank(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = LocalAccentColor.current,
+                                        contentColor = MaterialTheme.colorScheme.surface
+                                    )
+                                ) {
+                                    Text("Save")
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Add key button
+                    OutlinedButton(
+                        onClick = { showKeyInput = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(ComponentSpacing.buttonCornerRadius)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(ComponentSpacing.iconSize)
+                        )
+                        Spacer(modifier = Modifier.width(ComponentSpacing.iconGap))
+                        Text("Add Tavily API Key")
+                    }
+                }
             }
         }
     }

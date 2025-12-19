@@ -102,11 +102,17 @@ fun CogniNavHost(
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
+    // Tavily Web Search API
+    tavilyApiKey: String? = null,
+    onSetTavilyApiKey: (String?) -> Unit = {},
     // Calendar management
     calendarEvents: List<CalendarEvent> = emptyList(),
     onAddCalendarEvent: (String, String?, Long, Long, Boolean) -> Unit = { _, _, _, _, _ -> },
     onDeleteCalendarEvent: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
+    speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
+    onShowTransientIsland: (com.example.smarty.ui.components.DynamicIslandState) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Start at PIN screen if configured, otherwise go to main input stream
@@ -196,7 +202,12 @@ fun CogniNavHost(
                 isAiExcluded = isAiExcluded,
                 onInputTextChange = onInputTextChange,
                 onInputAttachmentsChange = onInputAttachmentsChange,
-                bottomContentPadding = bottomContentPadding
+                bottomContentPadding = bottomContentPadding,
+                externalSpeechState = externalSpeechState,
+                speechResults = speechResults,
+                onShowTransientIsland = { state ->
+                    onShowTransientIsland(state)
+                }
             )
         }
 
@@ -272,6 +283,9 @@ fun CogniNavHost(
                 onTestApiKey = onTestApiKey,
                 onRemovePin = onClearPin,
                 onToggleTheme = onToggleTheme,
+                // Tavily Web Search API
+                tavilyApiKey = tavilyApiKey,
+                onSetTavilyApiKey = onSetTavilyApiKey,
                 // Cache management
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,

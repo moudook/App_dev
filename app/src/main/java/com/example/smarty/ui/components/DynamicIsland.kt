@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Hearing
 import com.example.smarty.ui.LocalAccentColor
 import kotlin.math.max
 import kotlinx.coroutines.delay
@@ -51,7 +53,6 @@ fun DynamicIsland(
     val expandedHeight = 44f
     val contractedGap = 20f
     val expandedGap = 36f
-    val animDuration = 300
     
     // Animatable values (in float for dp conversion later)
     val heightAnim = remember { Animatable(contractedHeight) }
@@ -66,38 +67,59 @@ fun DynamicIsland(
     LaunchedEffect(state) {
         val isExpanding = state !is DynamicIslandState.Contracted
         
+        // Bouncy spring for VERTICAL animations only - Jelly-like feel
+        val bouncySpring = spring<Float>(
+            dampingRatio = Spring.DampingRatioMediumBouncy, // Creates the bouncy overshoot
+            stiffness = Spring.StiffnessMediumLow // Faster but still elastic feel
+        )
+        
+        val quickBouncySpring = spring<Float>(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium // Slightly faster but still bouncy
+        )
+        
+        // Fast, smooth tween for HORIZONTAL animations - No bounce
+        val smoothHorizontal = tween<Float>(
+            durationMillis = 200, // Fast horizontal expansion
+            easing = FastOutSlowInEasing
+        )
+        
         if (isExpanding) {
             // ========== EXPANSION SEQUENCE ==========
             // Step 1: Show content immediately
             displayState.value = state
             
-            // Step 2: Fade in visibility
-            visibilityAnim.animateTo(1f, animationSpec = tween(200))
-            
-            // Step 3: Expand WIDTH first (horizontal expansion)
+            // Step 2-5: ALL animations start SIMULTANEOUSLY - no waiting
+            // Width expands smoothly and fast, height bounces vertically
             launch {
-                gapAnim.animateTo(expandedGap, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
+                gapAnim.animateTo(expandedGap, animationSpec = smoothHorizontal)
             }
-            contentAlphaAnim.animateTo(1f, animationSpec = tween(250))
-            
-            // Step 4: Wait for width to finish, then expand HEIGHT (vertical expansion)
-            delay(animDuration.toLong())
-            heightAnim.animateTo(expandedHeight, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
+            launch {
+                heightAnim.animateTo(expandedHeight, animationSpec = bouncySpring)
+            }
+            launch {
+                visibilityAnim.animateTo(1f, animationSpec = quickBouncySpring)
+            }
+            launch {
+                contentAlphaAnim.animateTo(1f, animationSpec = tween(150))
+            }
             
         } else {
             // ========== CONTRACTION SEQUENCE ==========
-            // Step 1: Fade out content immediately
-            contentAlphaAnim.animateTo(0f, animationSpec = tween(150))
+            // Step 1: Fade out content first
+            contentAlphaAnim.animateTo(0f, animationSpec = tween(100))
             
-            // Step 2: Contract HEIGHT first (vertical contraction from bottom)
-            heightAnim.animateTo(contractedHeight, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
-            
-            // Step 3: After height is done, contract WIDTH (horizontal contraction)
-            gapAnim.animateTo(contractedGap, animationSpec = tween(animDuration, easing = FastOutSlowInEasing))
+            // Step 2 & 3: Contract HEIGHT (bouncy) and WIDTH (smooth) SIMULTANEOUSLY
+            launch {
+                heightAnim.animateTo(contractedHeight, animationSpec = bouncySpring)
+            }
+            launch {
+                gapAnim.animateTo(contractedGap, animationSpec = smoothHorizontal)
+            }
             
             // Step 4: Remove content and fade out visibility
             displayState.value = state
-            visibilityAnim.animateTo(0f, animationSpec = tween(200))
+            visibilityAnim.animateTo(0f, animationSpec = tween(150))
         }
     }
     
@@ -124,8 +146,32 @@ fun DynamicIsland(
         label = "pulse"
     )
     
+    // REACTIVE BOUNCE - Entire island bounces on ANY state change
+    val bounceScale = remember { Animatable(1f) }
+    LaunchedEffect(state) {
+        // Don't bounce for Contracted or Listening states
+        // Listening updates very frequently (RMS db changes), so we avoid bouncing there
+        if (state !is DynamicIslandState.Contracted && state !is DynamicIslandState.Listening) {
+            // Quick bounce reaction when content changes
+            bounceScale.animateTo(
+                targetValue = 1.08f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessHigh
+                )
+            )
+            bounceScale.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        }
+    }
+    
     val cornerRadius = height / 2
-    val safeScale = visibility.coerceAtLeast(0.01f)
+    val safeScale = visibility.coerceAtLeast(0.01f) * bounceScale.value
 
     Surface(
         modifier = modifier
@@ -231,11 +277,11 @@ fun DynamicIsland(
                         )
                     }
                     is DynamicIslandState.Listening -> {
-                        Text(
-                            text = "Listening...",
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                            color = Color.White.copy(alpha = 0.9f),
-                            maxLines = 1
+                        Icon(
+                            imageVector = Icons.Default.Hearing,
+                            contentDescription = "Listening",
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     else -> {}

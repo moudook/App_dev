@@ -49,6 +49,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -156,6 +157,20 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentInputAttachments = MutableStateFlow<List<Attachment>>(emptyList())
     val currentInputAttachments: StateFlow<List<Attachment>> = _currentInputAttachments.asStateFlow()
 
+    // Microphone listening state (hoisted from UI for shake detection)
+    private val _isMicListening = MutableStateFlow(false)
+    val isMicListening: StateFlow<Boolean> = _isMicListening.asStateFlow()
+
+    // Shared flow for speech results to be consumed by screens
+    private val _speechResults = kotlinx.coroutines.flow.MutableSharedFlow<String>()
+    val speechResults = _speechResults.asSharedFlow()
+
+    fun onSpeechResult(text: String) {
+        viewModelScope.launch {
+            _speechResults.emit(text)
+        }
+    }
+
     // Expose secure preferences state for UI
     val geminiKeys: StateFlow<List<String>> = securePreferences.geminiKeys
     val huggingFaceKeys: StateFlow<List<String>> = securePreferences.huggingFaceKeys
@@ -195,6 +210,24 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isProcessing = MutableStateFlow(false)
     val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
+
+    // Transient Dynamic Island state (e.g., category changes, successes)
+    private val _transientIslandState = MutableStateFlow<com.example.smarty.ui.components.DynamicIslandState?>(null)
+    val transientIslandState: StateFlow<com.example.smarty.ui.components.DynamicIslandState?> = _transientIslandState.asStateFlow()
+
+    private var islandJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Show a transient state on the Dynamic Island for a set duration
+     */
+    fun showTransientIsland(state: com.example.smarty.ui.components.DynamicIslandState, durationMs: Long = 2500L) {
+        islandJob?.cancel()
+        islandJob = viewModelScope.launch {
+            _transientIslandState.value = state
+            delay(durationMs)
+            _transientIslandState.value = null
+        }
+    }
 
     init {
         // Sync category counts on app start to fix any existing mismatches
@@ -875,6 +908,15 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
         securePreferences.setDarkTheme(isDark)
     }
 
+    // Tavily Web Search API Management
+    private val _tavilyApiKey = MutableStateFlow(securePreferences.getTavilyApiKey())
+    val tavilyApiKey: StateFlow<String?> = _tavilyApiKey.asStateFlow()
+
+    fun setTavilyApiKey(key: String?) {
+        securePreferences.setTavilyApiKey(key)
+        _tavilyApiKey.value = key
+    }
+
     // Cache Management
     fun refreshCacheSize() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -976,6 +1018,14 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Update microphone listening state from UI
+     * Used for shake detection - mic active should trigger privacy mode
+     */
+    fun updateMicListening(isListening: Boolean) {
+        _isMicListening.value = isListening
+    }
+
+    /**
      * Toggle AI exclusion for the pending note
      * Called when shaking while typing
      */
@@ -1014,25 +1064,20 @@ class CogniViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun handleShake() {
         when {
-            // Priority 1: During share -> toggle full privacy mode
+            // Priority 1: During share flow -> toggle full privacy mode
             shareFlowManager.isInShareMode() -> {
                 toggleShareFullPrivacy()
                 Log.d(TAG, "Shake: Toggled full privacy mode during share")
             }
-            // Priority 2: In chat mode -> just exit chat mode (no AI exclusion)
-            chatManager.isChatMode.value -> {
-                toggleChatMode()
-                Log.d(TAG, "Shake: Exited chat mode")
-            }
-            // Priority 3: Normal mode + Input has content (text OR attachments) -> toggle AI exclusion
-            _currentInputText.value.isNotBlank() || _currentInputAttachments.value.isNotEmpty() -> {
+            // Priority 2: Mic is listening OR has text OR has attachments -> toggle AI exclusion/privacy
+            _isMicListening.value || _currentInputText.value.isNotBlank() || _currentInputAttachments.value.isNotEmpty() -> {
                 togglePendingNoteAiExclusion()
-                Log.d(TAG, "Shake: Toggled AI exclusion (input has text or attachments)")
+                Log.d(TAG, "Shake: Toggled AI exclusion (active content)")
             }
-            // Priority 4: Normal mode + Input completely empty -> enter chat mode
+            // Priority 3: Completely empty (no mic, no text, no attachments) -> toggle chat mode
             else -> {
                 toggleChatMode()
-                Log.d(TAG, "Shake: Entered chat mode (input empty)")
+                Log.d(TAG, "Shake: Toggled chat mode (empty state)")
             }
         }
     }

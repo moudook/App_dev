@@ -52,6 +52,7 @@ USE_CASES.md
 ai_companion_app_feature_additions_specification.md
 docs/UI_ARCHITECTURE.md
 docs/UI_QUICK_REFERENCE.md
+SHAKE_FIX_INSTRUCTIONS.md
 
 # AI Agent Documentation (local reference only)
 .agent/

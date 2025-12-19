@@ -29,11 +29,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.offset
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.smarty.navigation.CogniNavHost
 import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
 import com.example.smarty.ui.components.audio.FullAudioPlayer
+import com.example.smarty.ui.components.DynamicIsland
 import com.example.smarty.ui.theme.CogniTheme
 import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.viewmodel.AudioPlayerViewModel
@@ -137,10 +139,30 @@ class MainActivity : ComponentActivity() {
                 // Cache state
                 val cacheSizeBytes by viewModel.cacheSizeBytes.collectAsState()
                 val isClearingCache by viewModel.isClearingCache.collectAsState()
+                val transientIslandState by viewModel.transientIslandState.collectAsState()
+
+                // Tavily Web Search API state
+                val tavilyApiKey by viewModel.tavilyApiKey.collectAsState()
 
                 // Refresh cache size when composable enters composition
                 LaunchedEffect(Unit) {
                     viewModel.refreshCacheSize()
+                }
+
+                // GLOBAL SPEECH STATE - Track voice input across all screens
+                val globalSpeechState = com.example.smarty.util.rememberSpeechToText(
+                    onResult = { text ->
+                        // Handle speech result globally via ViewModel
+                        viewModel.onSpeechResult(text)
+                    },
+                    onError = { error ->
+                        // Handle error globally if needed
+                    }
+                )
+
+                // Sync mic state to ViewModel for contextual shake detection
+                LaunchedEffect(globalSpeechState.isListening) {
+                    viewModel.updateMicListening(globalSpeechState.isListening)
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -281,6 +303,11 @@ class MainActivity : ComponentActivity() {
                                         viewModel.clearCache()
                                     },
                                     isClearingCache = isClearingCache,
+                                    // Tavily Web Search API
+                                    tavilyApiKey = tavilyApiKey,
+                                    onSetTavilyApiKey = { key ->
+                                        viewModel.setTavilyApiKey(key)
+                                    },
                                     // Calendar management
                                     calendarEvents = calendarEvents,
                                     onAddCalendarEvent = { title, description, startTime, endTime, isAllDay ->
@@ -299,7 +326,29 @@ class MainActivity : ComponentActivity() {
                                         targetValue = if (isMiniPlayerVisible && !isFullPlayerVisible && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) == 0) 84.dp else 0.dp,
                                         label = "PlayerPadding"
                                     ).value,
+                                    externalSpeechState = globalSpeechState,
+                                    speechResults = viewModel.speechResults,
+                                    onShowTransientIsland = { state ->
+                                        viewModel.showTransientIsland(state)
+                                    },
                                     modifier = Modifier.fillMaxSize()
+                                )
+
+                                // GLOBAL DYNAMIC ISLAND - Always visible across all screens
+                                // Priority: Listening > Transient (Category changes, etc) > Processing > Contracted
+                                val islandState = when {
+                                    globalSpeechState.isListening -> com.example.smarty.ui.components.DynamicIslandState.Listening(globalSpeechState.rmsDb)
+                                    transientIslandState != null -> transientIslandState!!
+                                    isProcessing || isChatProcessing -> com.example.smarty.ui.components.DynamicIslandState.Processing
+                                    // Add more states as needed (e.g., notifications, alerts)
+                                    else -> com.example.smarty.ui.components.DynamicIslandState.Contracted
+                                }
+                                
+                                DynamicIsland(
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .offset(y = 8.dp),
+                                    state = islandState
                                 )
 
                                 // Mini Audio Player overlay at bottom (Hide when keyboard is open)
