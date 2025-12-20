@@ -45,6 +45,7 @@ USE_CASE.md
 *.reference
 BUG_FIX.md
 BUG_REPORT.md
+AGENT_DOCUMENTATION.md
 
 # Markdown documentation files (except README.md)
 DEVELOPMENT_LOG.md
