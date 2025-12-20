@@ -134,13 +134,17 @@ sealed class AgentAction {
 
     /**
      * Play audio content (music, podcast, ambient sounds).
-     * Integrates with device audio playback.
+     * Can play from a specific note or search for audio to play.
      *
      * @param query What to play (song name, artist, genre, or description)
+     * @param noteId Optional: Direct note ID to play audio from
+     * @param attachmentIndex Which attachment to play if note has multiple (default 0)
      * @param source Optional: "youtube", "spotify", "local" - defaults to best available
      */
     data class PlayAudio(
         val query: String,
+        val noteId: String? = null,
+        val attachmentIndex: Int = 0,
         val source: String? = null
     ) : AgentAction()
 
@@ -234,3 +238,108 @@ data class AgentResponse(
     val response: String,
     val rawJson: String? = null
 )
+
+/**
+ * Represents the current state of the AI Agent during execution.
+ * Used to show visual feedback to the user about what the agent is doing.
+ */
+sealed class AgentState {
+    /**
+     * Agent is idle - not processing anything
+     */
+    object Idle : AgentState()
+
+    /**
+     * Agent is thinking/reasoning - waiting for LLM response
+     */
+    data class Thinking(
+        val message: String = "Thinking...",
+        val iteration: Int = 1
+    ) : AgentState()
+
+    /**
+     * Agent is executing a specific tool
+     */
+    data class ExecutingTool(
+        val toolName: String,
+        val toolDisplayName: String,
+        val startTime: Long = System.currentTimeMillis(),
+        val timeoutMs: Long = 30000 // 30 second default timeout
+    ) : AgentState() {
+        val elapsedMs: Long get() = System.currentTimeMillis() - startTime
+        val progress: Float get() = (elapsedMs.toFloat() / timeoutMs).coerceIn(0f, 1f)
+        val isTimedOut: Boolean get() = elapsedMs > timeoutMs
+    }
+
+    /**
+     * Agent is waiting for tool result
+     */
+    data class WaitingForResult(
+        val toolName: String,
+        val toolDisplayName: String,
+        val startTime: Long = System.currentTimeMillis()
+    ) : AgentState() {
+        val elapsedMs: Long get() = System.currentTimeMillis() - startTime
+    }
+
+    /**
+     * Agent is processing tool results
+     */
+    data class ProcessingResult(
+        val toolName: String,
+        val message: String = "Processing results..."
+    ) : AgentState()
+
+    /**
+     * Agent completed successfully
+     */
+    data class Completed(
+        val message: String = "Done",
+        val toolsUsed: List<String> = emptyList(),
+        val totalTime: Long = 0
+    ) : AgentState()
+
+    /**
+     * Agent encountered an error
+     */
+    data class Error(
+        val message: String,
+        val toolName: String? = null,
+        val canRetry: Boolean = true
+    ) : AgentState()
+
+    companion object {
+        /**
+         * Get user-friendly display name for a tool
+         */
+        fun getToolDisplayName(action: AgentAction): String = when (action) {
+            is AgentAction.WebSearch -> "Web Search"
+            is AgentAction.CreateNote -> "Creating Note"
+            is AgentAction.SearchNotes -> "Searching Notes"
+            is AgentAction.DeleteNote -> "Deleting Note"
+            is AgentAction.ArchiveNote -> "Archiving Note"
+            is AgentAction.UnarchiveNote -> "Restoring Note"
+            is AgentAction.UpdateNote -> "Updating Note"
+            is AgentAction.SummarizeNote -> "Summarizing"
+            is AgentAction.AddTodos -> "Adding Todos"
+            is AgentAction.ToggleTodo -> "Toggling Todo"
+            is AgentAction.DeleteTodo -> "Removing Todo"
+            is AgentAction.ListCategories -> "Listing Categories"
+            is AgentAction.GetCategoryNotes -> "Getting Category"
+            is AgentAction.AnswerQuestion -> "Answering"
+            is AgentAction.SuggestActions -> "Suggesting"
+            is AgentAction.PlayAudio -> "Playing Audio"
+            is AgentAction.BatchActions -> "Batch Processing"
+        }
+
+        /**
+         * Get timeout for a specific tool (some tools need longer)
+         */
+        fun getToolTimeout(action: AgentAction): Long = when (action) {
+            is AgentAction.WebSearch -> 45000L // 45 seconds for web search
+            is AgentAction.SummarizeNote -> 30000L // 30 seconds for summarization
+            is AgentAction.BatchActions -> 60000L // 60 seconds for batch
+            else -> 15000L // 15 seconds default
+        }
+    }
+}

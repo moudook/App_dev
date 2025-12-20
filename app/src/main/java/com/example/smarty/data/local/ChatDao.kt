@@ -149,17 +149,20 @@ interface ChatDao {
     // ==================== Cleanup Operations ====================
 
     /**
-     * Delete sessions with no messages (empty chats)
+     * Delete sessions with no messages (empty chats).
+     * BUG-043 fix: Never delete the active session even if it's empty.
      */
-    @Query("DELETE FROM chat_sessions WHERE messageCount = 0 AND createdAt < :olderThan")
+    @Query("DELETE FROM chat_sessions WHERE isActive = 0 AND messageCount = 0 AND createdAt < :olderThan")
     suspend fun deleteEmptySessions(olderThan: Long = System.currentTimeMillis() - 60000) // 1 minute grace period
 
     /**
-     * Delete old sessions beyond a limit (keep most recent N sessions)
+     * Delete old sessions beyond a limit (keep most recent N sessions).
+     * BUG-043 fix: Never delete the active session even if it's old.
      */
     @Query("""
         DELETE FROM chat_sessions
-        WHERE id NOT IN (
+        WHERE isActive = 0
+        AND id NOT IN (
             SELECT id FROM chat_sessions
             ORDER BY updatedAt DESC
             LIMIT :keepCount

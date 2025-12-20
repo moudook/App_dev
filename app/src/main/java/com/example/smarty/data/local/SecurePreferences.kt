@@ -137,6 +137,9 @@ class SecurePreferences(context: Context) {
 
     private val gson = Gson()
 
+    // Lock for compound read-modify-write operations (BUG-023 fix)
+    private val keyOperationLock = Any()
+
     private val _isPinSet = MutableStateFlow(isPinConfigured())
     val isPinSet: StateFlow<Boolean> = _isPinSet.asStateFlow()
 
@@ -318,26 +321,32 @@ class SecurePreferences(context: Context) {
 
     fun addProviderKey(provider: AIProvider, newKey: String) {
         if (newKey.isBlank()) return
-        val currentKeys = getProviderKeys(provider).toMutableList()
-        if (!currentKeys.contains(newKey)) {
-            currentKeys.add(newKey)
-            setProviderKeys(provider, currentKeys)
+        synchronized(keyOperationLock) {
+            val currentKeys = getProviderKeys(provider).toMutableList()
+            if (!currentKeys.contains(newKey)) {
+                currentKeys.add(newKey)
+                setProviderKeys(provider, currentKeys)
+            }
         }
     }
 
     fun removeProviderKey(provider: AIProvider, keyToRemove: String) {
-        val currentKeys = getProviderKeys(provider).toMutableList()
-        currentKeys.remove(keyToRemove)
-        setProviderKeys(provider, currentKeys)
+        synchronized(keyOperationLock) {
+            val currentKeys = getProviderKeys(provider).toMutableList()
+            currentKeys.remove(keyToRemove)
+            setProviderKeys(provider, currentKeys)
+        }
     }
 
     fun updateProviderKey(provider: AIProvider, oldKey: String, newKey: String) {
         if (newKey.isBlank()) return
-        val currentKeys = getProviderKeys(provider).toMutableList()
-        val index = currentKeys.indexOf(oldKey)
-        if (index != -1) {
-            currentKeys[index] = newKey
-            setProviderKeys(provider, currentKeys)
+        synchronized(keyOperationLock) {
+            val currentKeys = getProviderKeys(provider).toMutableList()
+            val index = currentKeys.indexOf(oldKey)
+            if (index != -1) {
+                currentKeys[index] = newKey
+                setProviderKeys(provider, currentKeys)
+            }
         }
     }
 

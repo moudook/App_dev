@@ -311,13 +311,25 @@ Document content:
                 continue
             }
 
-            Log.i(TAG, "Attempting $provider API with ${config.apiKeys.size} key(s)")
+            val providerInstance = getProvider(provider)
+            val model = getModelForProvider(provider)
 
-            for ((index, apiKey) in config.apiKeys.withIndex()) {
-                Log.d(TAG, "Trying $provider key #${index + 1}")
+            // ========== CYCLE THROUGH ALL KEYS (prefer 2, 3, 4... then fallback to 1) ==========
+            // First try keys 2, 3, 4... (non-agent keys)
+            // If all fail, try key 1 as last resort
+            val keysToTry = if (config.apiKeys.size > 1) {
+                // Prioritize non-agent keys, then agent key as fallback
+                config.apiKeys.drop(1) + listOf(config.apiKeys.first())
+            } else {
+                config.apiKeys // Only one key available
+            }
 
-                val providerInstance = getProvider(provider)
-                val model = getModelForProvider(provider)
+            Log.i(TAG, "Attempting $provider with ${keysToTry.size} key(s) (cycling through all)")
+
+            for ((index, apiKey) in keysToTry.withIndex()) {
+                val originalIndex = config.apiKeys.indexOf(apiKey)
+                val isAgentKey = originalIndex == 0 && config.apiKeys.size > 1
+                Log.d(TAG, "Trying $provider key-${originalIndex + 1}${if (isAgentKey) " (agent fallback)" else ""}")
 
                 val result = tryWithRetry(MAX_RETRIES) {
                     providerInstance.analyzeContent(
@@ -329,11 +341,11 @@ Document content:
                 }
 
                 if (result != null && result.success) {
-                    Log.i(TAG, "✓ $provider SUCCESS: category=${result.category}")
+                    Log.i(TAG, "✓ $provider SUCCESS (key-${originalIndex + 1}): category=${result.category}")
                     return@withContext result
                 }
             }
-            Log.w(TAG, "All $provider keys failed")
+            Log.w(TAG, "All keys failed for $provider")
         }
 
         // All providers failed - use smart fallback
@@ -416,11 +428,24 @@ Document content:
                 continue
             }
 
-            Log.i(TAG, "Attempting document analysis with $provider")
+            val providerInstance = getProvider(provider)
+            val model = getModelForProvider(provider)
 
-            for (apiKey in config.apiKeys) {
-                val providerInstance = getProvider(provider)
-                val model = getModelForProvider(provider)
+            // ========== CYCLE THROUGH ALL KEYS (prefer 2, 3, 4... then fallback to 1) ==========
+            // First try keys 2, 3, 4... (non-agent keys)
+            // If all fail, try key 1 as last resort
+            val keysToTry = if (config.apiKeys.size > 1) {
+                config.apiKeys.drop(1) + listOf(config.apiKeys.first())
+            } else {
+                config.apiKeys
+            }
+
+            Log.i(TAG, "Attempting document analysis with $provider (${keysToTry.size} keys, cycling through all)")
+
+            for (apiKey in keysToTry) {
+                val originalIndex = config.apiKeys.indexOf(apiKey)
+                val isAgentKey = originalIndex == 0 && config.apiKeys.size > 1
+                Log.d(TAG, "Trying $provider key-${originalIndex + 1}${if (isAgentKey) " (agent fallback)" else ""} for document analysis")
 
                 val result = tryDocumentAnalysisWithRetry(MAX_RETRIES) {
                     providerInstance.analyzeDocument(
@@ -533,7 +558,7 @@ Document content:
      * @return Raw AI response string
      */
     suspend fun agentChat(systemPrompt: String, userPrompt: String): String = withContext(Dispatchers.IO) {
-        Log.i(TAG, "=== Starting Agent Chat ===")
+        Log.i(TAG, "=== Starting Normal Chat (Uses Keys 2,3,4... - EXCLUDES agent key) ===")
         Log.d(TAG, "User prompt length: ${userPrompt.length} chars")
 
         val configs = securePreferences.getAllProviderConfigs()
@@ -542,18 +567,36 @@ Document content:
         val priority = securePreferences.getProviderPriority()
         val providersToTry = (priority + AIProvider.entries).distinct()
 
+        var totalKeysTried = 0
+
         for (provider in providersToTry) {
             val config = configs[provider]
             if (config == null || !config.isEnabled || config.apiKeys.isEmpty()) {
-                Log.d(TAG, "$provider not available or disabled for agent chat")
+                Log.d(TAG, "$provider not available or disabled")
                 continue
             }
 
-            Log.i(TAG, "Attempting agent chat with $provider")
+            val providerInstance = getProvider(provider)
+            val model = getModelForProvider(provider)
 
-            for (apiKey in config.apiKeys) {
-                val providerInstance = getProvider(provider)
-                val model = getModelForProvider(provider)
+            // ========== NORMAL CALLS USE KEYS 2, 3, 4... (EXCLUDE KEY 1) ==========
+            // Key 1 is RESERVED for AI Agent - never used for normal calls
+            val normalKeys = if (config.apiKeys.size > 1) {
+                // Skip first key (agent key), use all others
+                config.apiKeys.drop(1)
+            } else {
+                // Only 1 key exists - must use it (warn in logs)
+                Log.w(TAG, "$provider has only 1 key - must share with agent")
+                config.apiKeys
+            }
+
+            Log.i(TAG, "$provider: Using ${normalKeys.size} keys for normal chat (excluding agent key)")
+
+            for ((keyIndex, apiKey) in normalKeys.withIndex()) {
+                totalKeysTried++
+                val originalIndex = config.apiKeys.indexOf(apiKey)
+                val keyLabel = "key-${originalIndex + 1}"
+                Log.i(TAG, "Attempting normal chat with $provider ($keyLabel)")
 
                 val result = tryAgentChatWithRetry(MAX_RETRIES) {
                     providerInstance.chat(
@@ -565,15 +608,17 @@ Document content:
                 }
 
                 if (result != null) {
-                    Log.i(TAG, "✓ Agent chat SUCCESS via $provider")
+                    Log.i(TAG, "✓ Normal chat SUCCESS via $provider ($keyLabel)")
                     return@withContext result
                 }
+
+                Log.w(TAG, "$provider $keyLabel failed, trying next...")
             }
-            Log.w(TAG, "All $provider keys failed for agent chat")
+            Log.w(TAG, "All normal keys failed for $provider")
         }
 
         // Fallback response when AI is unavailable
-        Log.w(TAG, "⚠ All providers failed for agent chat")
+        Log.w(TAG, "⚠ All $totalKeysTried normal keys failed")
         return@withContext """{"action": "ANSWER_QUESTION", "params": {"question": ""}, "response": "I'm sorry, I couldn't process your request. Please check your API configuration in settings."}"""
     }
 
@@ -599,6 +644,118 @@ Document content:
             }
         }
         return null
+    }
+
+    /**
+     * Agent REASONING API - Uses the FIRST API key for tool execution and reasoning.
+     * This is the "thinking" API that handles the agent loop iterations.
+     *
+     * The reasoning API:
+     * - Executes during the agent loop
+     * - Handles tool calls (web search, note operations, etc.)
+     * - Continues until no more actions are needed
+     *
+     * @param systemPrompt The system instructions for the agent
+     * @param userPrompt The user message with context
+     * @return Raw AI response string for parsing actions
+     */
+    suspend fun agentReasoning(systemPrompt: String, userPrompt: String): String = withContext(Dispatchers.IO) {
+        Log.i(TAG, "=== Agent REASONING (Uses FIRST key ONLY - dedicated agent key) ===")
+        Log.d(TAG, "Reasoning prompt length: ${userPrompt.length} chars")
+
+        val configs = securePreferences.getAllProviderConfigs()
+        val priority = securePreferences.getProviderPriority()
+        val providersToTry = (priority + AIProvider.entries).distinct()
+
+        for (provider in providersToTry) {
+            val config = configs[provider]
+            if (config == null || !config.isEnabled || config.apiKeys.isEmpty()) {
+                continue
+            }
+
+            val providerInstance = getProvider(provider)
+            val model = getModelForProvider(provider)
+
+            // ========== AGENT USES FIRST KEY ONLY (DEDICATED AGENT KEY) ==========
+            // Key 1 is RESERVED for AI Agent - never used for normal calls
+            val agentKey = config.apiKeys.first()
+            Log.i(TAG, "$provider: Using KEY-1 (dedicated agent key) for reasoning")
+
+            val result = tryAgentChatWithRetry(MAX_RETRIES) {
+                providerInstance.chat(
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    apiKey = agentKey,
+                    model = model
+                )
+            }
+
+            if (result != null) {
+                Log.i(TAG, "✓ Reasoning SUCCESS via $provider (agent key)")
+                return@withContext result
+            }
+
+            Log.w(TAG, "$provider agent key failed")
+        }
+
+        Log.w(TAG, "⚠ Agent key failed for all providers")
+        return@withContext """{"action": "ANSWER_QUESTION", "params": {}, "response": "I'm having trouble processing your request. Please check your API keys and try again."}"""
+    }
+
+    /**
+     * Agent FINAL RESPONSE API - Uses the SECOND API key for final user-facing response.
+     * This is the "response" API that generates the polished answer after tool execution.
+     *
+     * The final response API:
+     * - Called AFTER all tool executions are complete
+     * - Generates a coherent, user-friendly response
+     * - Incorporates all tool results into the answer
+     *
+     * @param systemPrompt The system instructions for the agent
+     * @param userPrompt Context including original query and tool results
+     * @return Raw AI response string (final answer to user)
+     */
+    suspend fun agentFinalResponse(systemPrompt: String, userPrompt: String): String = withContext(Dispatchers.IO) {
+        Log.i(TAG, "=== Agent FINAL RESPONSE (Uses FIRST key ONLY - dedicated agent key) ===")
+        Log.d(TAG, "Response prompt length: ${userPrompt.length} chars")
+
+        val configs = securePreferences.getAllProviderConfigs()
+        val priority = securePreferences.getProviderPriority()
+        val providersToTry = (priority + AIProvider.entries).distinct()
+
+        for (provider in providersToTry) {
+            val config = configs[provider]
+            if (config == null || !config.isEnabled || config.apiKeys.isEmpty()) {
+                continue
+            }
+
+            val providerInstance = getProvider(provider)
+            val model = getModelForProvider(provider)
+
+            // ========== AGENT USES FIRST KEY ONLY (DEDICATED AGENT KEY) ==========
+            // Key 1 is RESERVED for AI Agent - same key for both reasoning and response
+            val agentKey = config.apiKeys.first()
+            Log.i(TAG, "$provider: Using KEY-1 (dedicated agent key) for final response")
+
+            val result = tryAgentChatWithRetry(MAX_RETRIES) {
+                providerInstance.chat(
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    apiKey = agentKey,
+                    model = model
+                )
+            }
+
+            if (result != null) {
+                Log.i(TAG, "✓ Final response SUCCESS via $provider (agent key)")
+                return@withContext result
+            }
+
+            Log.w(TAG, "$provider agent key failed for final response")
+        }
+
+        Log.w(TAG, "⚠ Agent key failed for final response on all providers")
+        return@withContext """{"action": "ANSWER_QUESTION", "params": {}, "response": "I completed the tasks but couldn't generate a final summary."}"""
     }
 
     /**

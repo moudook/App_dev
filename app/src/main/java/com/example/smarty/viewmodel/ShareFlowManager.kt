@@ -111,6 +111,9 @@ class ShareFlowManager(
         var firstMimeType: String? = null
         var firstFileSize: Long? = null
 
+        // BUG-061 fix: Track failed files to prevent silent data loss
+        val failedFiles = mutableListOf<String>()
+
         allFiles.forEachIndexed { index, file ->
             try {
                 val compressed = FileStorageHelper.compressAndStore(
@@ -149,8 +152,15 @@ class ShareFlowManager(
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to compress and store file: ${e.message}")
+                val fileName = file.fileName ?: "file_${index + 1}"
+                failedFiles.add(fileName)
+                Log.e(TAG, "Failed to process file '$fileName': ${e.message}", e)
             }
+        }
+
+        // Log warning if some files failed
+        if (failedFiles.isNotEmpty()) {
+            Log.w(TAG, "BUG-061: ${failedFiles.size} file(s) failed to process: ${failedFiles.joinToString()}")
         }
 
         // Build content description

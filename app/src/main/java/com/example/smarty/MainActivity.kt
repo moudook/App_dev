@@ -148,6 +148,17 @@ class MainActivity : ComponentActivity() {
                 // Tavily Web Search API state
                 val tavilyApiKey by viewModel.tavilyApiKey.collectAsState()
 
+                // Audio playback request from AI agent
+                val pendingAudioPlayback by viewModel.pendingAudioPlayback.collectAsState()
+
+                // Trigger audio playback when AI agent requests it
+                LaunchedEffect(pendingAudioPlayback) {
+                    pendingAudioPlayback?.let { track ->
+                        audioPlayerViewModel.playAudio(track)
+                        viewModel.clearPendingAudioPlayback()
+                    }
+                }
+
                 // Refresh cache size when composable enters composition
                 LaunchedEffect(Unit) {
                     viewModel.refreshCacheSize()
@@ -403,70 +414,80 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
+    /**
+     * Handle incoming share intents safely (BUG-054 fix).
+     * Wraps intent processing in try-catch to prevent crashes during edge cases
+     * like rapid configuration changes or early lifecycle states.
+     */
     private fun handleIntent(intent: Intent?) {
-        when (intent?.action) {
-            Intent.ACTION_SEND -> {
-                val mimeType = intent.type
+        try {
+            when (intent?.action) {
+                Intent.ACTION_SEND -> {
+                    val mimeType = intent.type
 
-                // Always check for EXTRA_TEXT first - YouTube and many apps share URLs this way
-                // regardless of the mimeType they declare
-                val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    // Always check for EXTRA_TEXT first - YouTube and many apps share URLs this way
+                    // regardless of the mimeType they declare
+                    val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
 
-                when {
-                    // Text-based shares (URLs from YouTube, links, etc.)
-                    sharedText != null -> {
-                        viewModel.interceptShareForPreview(SharedContent(text = sharedText))
-                    }
-                    // File-based shares (images, documents, audio, etc.)
-                    else -> {
-                        val fileUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                        } else {
-                            @Suppress("DEPRECATION")
-                            intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                    when {
+                        // Text-based shares (URLs from YouTube, links, etc.)
+                        sharedText != null -> {
+                            viewModel.interceptShareForPreview(SharedContent(text = sharedText))
                         }
+                        // File-based shares (images, documents, audio, etc.)
+                        else -> {
+                            val fileUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                intent.getParcelableExtra(Intent.EXTRA_STREAM)
+                            }
 
-                        fileUri?.let { uri ->
-                            // Get file details
-                            val fileName = getFileName(uri)
-                            val fileSize = getFileSize(uri)
+                            fileUri?.let { uri ->
+                                // Get file details
+                                val fileName = getFileName(uri)
+                                val fileSize = getFileSize(uri)
 
-                            viewModel.interceptShareForPreview(
-                                SharedContent(
-                                    fileUri = uri.toString(),
-                                    fileName = fileName,
-                                    mimeType = mimeType,
-                                    fileSize = fileSize
+                                viewModel.interceptShareForPreview(
+                                    SharedContent(
+                                        fileUri = uri.toString(),
+                                        fileName = fileName,
+                                        mimeType = mimeType,
+                                        fileSize = fileSize
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }
-            }
-            // Handle multiple files shared at once
-            Intent.ACTION_SEND_MULTIPLE -> {
-                val mimeType = intent.type
-                val uriList: ArrayList<Uri>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
-                }
+                // Handle multiple files shared at once
+                Intent.ACTION_SEND_MULTIPLE -> {
+                    val mimeType = intent.type
+                    val uriList: ArrayList<Uri>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+                    }
 
-                uriList?.let { uris ->
-                    if (uris.isNotEmpty()) {
-                        val files = uris.map { uri ->
-                            SharedFileInfo(
-                                fileUri = uri.toString(),
-                                fileName = getFileName(uri),
-                                mimeType = contentResolver.getType(uri) ?: mimeType,
-                                fileSize = getFileSize(uri)
-                            )
+                    uriList?.let { uris ->
+                        if (uris.isNotEmpty()) {
+                            val files = uris.map { uri ->
+                                SharedFileInfo(
+                                    fileUri = uri.toString(),
+                                    fileName = getFileName(uri),
+                                    mimeType = contentResolver.getType(uri) ?: mimeType,
+                                    fileSize = getFileSize(uri)
+                                )
+                            }
+                            viewModel.interceptShareForPreview(SharedContent(files = files))
                         }
-                        viewModel.interceptShareForPreview(SharedContent(files = files))
                     }
                 }
             }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Error handling intent: ${e.message}", e)
+            // Intent handling failed, but don't crash the app - user can still use it normally
         }
     }
 

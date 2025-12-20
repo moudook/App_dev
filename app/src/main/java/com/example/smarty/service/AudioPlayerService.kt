@@ -210,6 +210,12 @@ class AudioPlayerService : MediaSessionService() {
 
             if (isPlaying) {
                 startPositionUpdates()
+                // Setup visualizer AFTER playback actually starts to avoid audio pops
+                // Small delay ensures audio session is fully initialized
+                serviceScope.launch {
+                    delay(150) // Wait for audio to stabilize
+                    setupVisualizer()
+                }
             } else {
                 stopPositionUpdates()
             }
@@ -361,10 +367,11 @@ class AudioPlayerService : MediaSessionService() {
                             }
                         }
                     },
-                    Visualizer.getMaxCaptureRate(), // Max capture rate for responsive visualization
+                    Visualizer.getMaxCaptureRate() / 2, // Lower rate to prevent audio artifacts
                     true,  // Waveform (for overall amplitude)
                     true   // FFT (for frequency bands)
                 )
+                // Small delay before enabling to ensure audio is stable
                 enabled = true
             }
             Log.d(TAG, "Visualizer setup complete for session: $audioSessionId, captureSize: ${visualizer?.captureSize}")
@@ -457,8 +464,8 @@ class AudioPlayerService : MediaSessionService() {
             )
         }
 
-        // Setup visualizer for audio amplitude capture
-        setupVisualizer()
+        // Note: Visualizer is setup in onIsPlayingChanged() AFTER playback starts
+        // to prevent audio pops/artifacts during buffering phase
 
         // Start foreground service with notification
         startForeground(NOTIFICATION_ID, createNotification())

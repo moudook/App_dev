@@ -90,13 +90,9 @@ object ContentSecurityFilter {
 
     /**
      * Control characters and special sequences to remove
+     * Only removes actual control characters, NOT Unicode text characters
      */
     private val CONTROL_CHARS_PATTERN = Regex("""[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]""")
-
-    /**
-     * Unicode direction override characters (used in text manipulation)
-     */
-    private val UNICODE_OVERRIDE_PATTERN = Regex("""[\u202A-\u202E\u2066-\u2069\u200E\u200F]""")
 
     /**
      * Excessive whitespace/newlines (potential token exhaustion)
@@ -105,103 +101,17 @@ object ContentSecurityFilter {
     private val EXCESSIVE_SPACES_PATTERN = Regex(""" {10,}""")
 
     /**
-     * Emoji pattern - matches common emoji Unicode ranges
-     * Used to remove emojis from content sent to AI for cleaner responses
+     * Emoji pattern - ONLY matches actual emoji faces and symbols
+     * Does NOT touch any language scripts (Hindi, Arabic, Chinese, etc.)
+     * Uses surrogate pairs which are in the emoji-specific Unicode ranges
      */
     private val EMOJI_PATTERN = Regex(
         "[" +
-        "\u00A9\u00AE" +                          // Copyright, Registered
-        "\u203C\u2049" +                          // Exclamation marks
-        "\u2122\u2139" +                          // TM, Info
-        "\u2194-\u21AA" +                         // Arrows
-        "\u231A-\u231B" +                         // Watch, Hourglass
-        "\u2328\u23CF" +                          // Keyboard, Eject
-        "\u23E9-\u23F3" +                         // Media controls
-        "\u23F8-\u23FA" +                         // More media controls
-        "\u24C2" +                                // M circle
-        "\u25AA-\u25AB" +                         // Squares
-        "\u25B6\u25C0" +                          // Play buttons
-        "\u25FB-\u25FE" +                         // More squares
-        "\u2600-\u2604" +                         // Sun, clouds
-        "\u260E" +                                // Phone
-        "\u2611" +                                // Checkbox
-        "\u2614-\u2615" +                         // Umbrella, coffee
-        "\u2618" +                                // Shamrock
-        "\u261D\u2620" +                          // Pointing, skull
-        "\u2622-\u2623" +                         // Radioactive, biohazard
-        "\u2626\u262A" +                          // Religious symbols
-        "\u262E-\u262F" +                         // Peace, Yin Yang
-        "\u2638-\u263A" +                         // Religious, smiley
-        "\u2640\u2642" +                          // Gender symbols
-        "\u2648-\u2653" +                         // Zodiac
-        "\u265F-\u2660" +                         // Chess
-        "\u2663\u2665-\u2666" +                   // Card suits
-        "\u2668\u267B" +                          // Hot springs, recycling
-        "\u267E-\u267F" +                         // Infinity, wheelchair
-        "\u2692-\u2697" +                         // Tools
-        "\u2699" +                                // Gear
-        "\u269B-\u269C" +                         // Atom, fleur-de-lis
-        "\u26A0-\u26A1" +                         // Warning, high voltage
-        "\u26A7" +                                // Transgender
-        "\u26AA-\u26AB" +                         // Circles
-        "\u26B0-\u26B1" +                         // Coffin, urn
-        "\u26BD-\u26BE" +                         // Soccer, baseball
-        "\u26C4-\u26C5" +                         // Snowman, sun behind cloud
-        "\u26C8" +                                // Thunder cloud
-        "\u26CE" +                                // Ophiuchus
-        "\u26CF" +                                // Pick
-        "\u26D1" +                                // Rescue worker helmet
-        "\u26D3-\u26D4" +                         // Chains, no entry
-        "\u26E9-\u26EA" +                         // Shinto shrine, church
-        "\u26F0-\u26F5" +                         // Mountain, sailboat
-        "\u26F7-\u26FA" +                         // Skier, tent
-        "\u26FD" +                                // Fuel pump
-        "\u2702" +                                // Scissors
-        "\u2705" +                                // Check mark
-        "\u2708-\u270D" +                         // Airplane, writing hand
-        "\u270F" +                                // Pencil
-        "\u2712" +                                // Black nib
-        "\u2714" +                                // Check mark
-        "\u2716" +                                // X mark
-        "\u271D" +                                // Latin cross
-        "\u2721" +                                // Star of David
-        "\u2728" +                                // Sparkles
-        "\u2733-\u2734" +                         // Eight spoked asterisks
-        "\u2744" +                                // Snowflake
-        "\u2747" +                                // Sparkle
-        "\u274C\u274E" +                          // X marks
-        "\u2753-\u2755" +                         // Question marks
-        "\u2757" +                                // Exclamation
-        "\u2763-\u2764" +                         // Heart exclamation, heart
-        "\u2795-\u2797" +                         // Plus, minus, divide
-        "\u27A1" +                                // Right arrow
-        "\u27B0\u27BF" +                          // Curly loops
-        "\u2934-\u2935" +                         // Curved arrows
-        "\u2B05-\u2B07" +                         // Arrows
-        "\u2B1B-\u2B1C" +                         // Squares
-        "\u2B50" +                                // Star
-        "\u2B55" +                                // Circle
-        "\u3030\u303D" +                          // Wavy dash, part alternation
-        "\u3297\u3299" +                          // Circled ideographs
-        "\uD83C\uDC04" +                          // Mahjong
-        "\uD83C\uDCCF" +                          // Joker
-        "\uD83C\uDD70-\uD83C\uDD71" +             // Blood types
-        "\uD83C\uDD7E-\uD83C\uDD7F" +             // O, P buttons
-        "\uD83C\uDD8E" +                          // AB button
-        "\uD83C\uDD91-\uD83C\uDD9A" +             // CL, symbols
-        "\uD83C\uDDE6-\uD83C\uDDFF" +             // Regional indicators (flags)
-        "\uD83C\uDE01-\uD83C\uDE02" +             // Japanese symbols
-        "\uD83C\uDE1A" +                          // Japanese symbol
-        "\uD83C\uDE2F" +                          // Japanese symbol
-        "\uD83C\uDE32-\uD83C\uDE3A" +             // Japanese symbols
-        "\uD83C\uDE50-\uD83C\uDE51" +             // Japanese symbols
-        "\uD83C\uDF00-\uD83D\uDDFF" +             // Misc symbols, emoticons
-        "\uD83D\uDE00-\uD83D\uDE4F" +             // Emoticons
+        "\uD83D\uDE00-\uD83D\uDE4F" +             // Emoticons (faces)
         "\uD83D\uDE80-\uD83D\uDEFF" +             // Transport, map symbols
-        "\uD83E\uDD00-\uD83E\uDDFF" +             // Supplemental symbols
-        "\uD83E\uDE00-\uD83E\uDEFF" +             // Chess, symbols
-        "\uFE00-\uFE0F" +                         // Variation selectors
-        "\u200D" +                                // Zero width joiner
+        "\uD83E\uDD00-\uD83E\uDDFF" +             // Supplemental symbols (hands, etc.)
+        "\u2764" +                                // Heart
+        "\u2728" +                                // Sparkles
         "]+"
     )
 
@@ -248,7 +158,7 @@ object ContentSecurityFilter {
             }
         }
 
-        // Step 2: Remove control characters
+        // Step 2: Remove control characters (NOT Unicode text - safe for all languages)
         val beforeControlChars = sanitized
         sanitized = sanitized.replace(CONTROL_CHARS_PATTERN, "")
         if (sanitized != beforeControlChars) {
@@ -256,15 +166,7 @@ object ContentSecurityFilter {
             riskLevel = maxOf(riskLevel, RiskLevel.LOW)
         }
 
-        // Step 3: Remove Unicode direction overrides
-        val beforeUnicode = sanitized
-        sanitized = sanitized.replace(UNICODE_OVERRIDE_PATTERN, "")
-        if (sanitized != beforeUnicode) {
-            issues.add("Unicode override characters removed")
-            riskLevel = maxOf(riskLevel, RiskLevel.LOW)
-        }
-
-        // Step 4: Normalize excessive whitespace
+        // Step 3: Normalize excessive whitespace
         val beforeWhitespace = sanitized
         sanitized = sanitized.replace(EXCESSIVE_WHITESPACE_PATTERN, "\n\n\n")
         sanitized = sanitized.replace(EXCESSIVE_SPACES_PATTERN, "    ")
@@ -273,7 +175,7 @@ object ContentSecurityFilter {
             riskLevel = maxOf(riskLevel, RiskLevel.LOW)
         }
 
-        // Step 5: Check for and neutralize injection patterns
+        // Step 4: Check for and neutralize injection patterns
         for (pattern in INJECTION_PATTERNS) {
             val matches = pattern.findAll(sanitized).toList()
             if (matches.isNotEmpty()) {
@@ -288,14 +190,14 @@ object ContentSecurityFilter {
             }
         }
 
-        // Step 6: Truncate if too long (prevent token exhaustion)
+        // Step 5: Truncate if too long (prevent token exhaustion)
         if (sanitized.length > MAX_CONTENT_LENGTH) {
             sanitized = sanitized.take(MAX_CONTENT_LENGTH) + "\n[Content truncated for processing]"
             issues.add("Content truncated to maximum length")
             riskLevel = maxOf(riskLevel, RiskLevel.LOW)
         }
 
-        // Step 7: Remove emojis if requested (for cleaner AI chat responses)
+        // Step 6: Remove emojis if requested (for cleaner AI chat responses)
         if (removeEmojis) {
             val beforeEmoji = sanitized
             sanitized = sanitized.replace(EMOJI_PATTERN, "")
@@ -305,7 +207,7 @@ object ContentSecurityFilter {
             }
         }
 
-        // Step 8: Escape potential delimiter patterns
+        // Step 7: Escape potential delimiter patterns
         sanitized = escapeDelimiters(sanitized)
 
         val wasModified = sanitized != content

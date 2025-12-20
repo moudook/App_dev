@@ -613,6 +613,7 @@ fun CogniInputField(
                         IconButton(
                             onClick = {
                                 if (isChatMode) {
+                                    focusRequester.requestFocus()
                                     onStartVoiceInput()
                                 } else {
                                     onToggleSearch()
@@ -691,49 +692,8 @@ fun CogniInputField(
                         )
                     }
 
-                    // Processing indicator for chat mode
-                    if (isProcessing) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Custom Smooth Spinner (Exact 0-360 loop, no jumping)
-                            val spinnerTransition = rememberInfiniteTransition(label = "thinking_spinner")
-                            val angle by spinnerTransition.animateFloat(
-                                initialValue = 0f,
-                                targetValue = 360f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(1000, easing = LinearEasing),
-                                    repeatMode = RepeatMode.Restart
-                                ),
-                                label = "angle"
-                            )
-                            val spinnerColor = LocalAccentColor.current
-
-                            Canvas(modifier = Modifier.size(16.dp)) {
-                                rotate(angle) {
-                                    drawArc(
-                                        color = spinnerColor,
-                                        startAngle = 0f,
-                                        sweepAngle = 270f,
-                                        useCenter = false,
-                                        style = Stroke(
-                                            width = 2.dp.toPx(),
-                                            cap = StrokeCap.Round
-                                        )
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Thinking...",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = MonoFont
-                                ),
-                                color = LocalAccentColor.current.copy(alpha = 0.7f)
-                            )
-                        }
-                    }
+                    // Processing indicator removed - now displayed in Dynamic Island only
+                    // This prevents visual overlap when agent is thinking
                 }
 
 
@@ -767,6 +727,7 @@ fun CogniInputField(
                                     },
                                     onTap = {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        focusRequester.requestFocus()
                                         onStartVoiceInput()
                                     }
                                 )

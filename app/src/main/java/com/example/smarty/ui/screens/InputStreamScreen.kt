@@ -352,14 +352,13 @@ fun InputStreamScreen(
     // Dynamic Island State Logic
     // Trigger on category filter change
     LaunchedEffect(selectedTypeFilter) {
-        val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
         val count = displayedNotes.size
         val filterIcon = selectedTypeFilter?.let { getNoteTypeIcon(it) } ?: Icons.Default.GridView
         
         onShowTransientIsland(
             com.example.smarty.ui.components.DynamicIslandState.Info(
-                label = categoryName,
-                secondaryLabel = count.toString(),
+                label = count.toString(),
+                secondaryLabel = "",
                 icon = filterIcon
             )
         )
@@ -369,14 +368,13 @@ fun InputStreamScreen(
     var previousDisplayedCount by remember { mutableStateOf(displayedNotes.size) }
     LaunchedEffect(displayedNotes.size) {
         if (notes.isNotEmpty() && displayedNotes.size != previousDisplayedCount) {
-            val categoryName = selectedTypeFilter?.let { formatNoteType(it) } ?: "All"
             val count = displayedNotes.size
             val filterIcon = selectedTypeFilter?.let { getNoteTypeIcon(it) } ?: Icons.Default.GridView
             
             onShowTransientIsland(
                 com.example.smarty.ui.components.DynamicIslandState.Info(
-                    label = categoryName,
-                    secondaryLabel = count.toString(),
+                    label = count.toString(),
+                    secondaryLabel = "",
                     icon = filterIcon
                 )
             )
@@ -396,31 +394,25 @@ fun InputStreamScreen(
         modifier = Modifier.imePadding(), // This handles keyboard
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
-                // Custom visually pleasing Snackbar
+                // Compact snackbar positioned above floating input field
                 Surface(
                     modifier = Modifier
-                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp)
-                        .widthIn(max = 400.dp)
+                        .padding(bottom = 120.dp, start = 16.dp, end = 16.dp) // Above input field
                         .wrapContentWidth(),
                     shape = androidx.compose.foundation.shape.CircleShape,
                     color = MaterialTheme.colorScheme.inverseSurface,
                     contentColor = MaterialTheme.colorScheme.inverseOnSurface,
-                    tonalElevation = 6.dp,
-                    shadowElevation = 6.dp,
-                    border = androidx.compose.foundation.BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                    )
+                    tonalElevation = 4.dp,
+                    shadowElevation = 4.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
                             text = data.visuals.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(end = 16.dp)
+                            style = MaterialTheme.typography.labelMedium
                         )
                         
                         if (lastArchivedNoteId != null) {
@@ -432,15 +424,15 @@ fun InputStreamScreen(
                                     }
                                     data.dismiss()
                                 },
-                                shape = RoundedCornerShape(8.dp),
-                                color = LocalAccentColor.current.copy(alpha = 0.15f)
+                                shape = RoundedCornerShape(6.dp),
+                                color = LocalAccentColor.current.copy(alpha = 0.2f)
                             ) {
                                 Text(
                                     text = "UNDO",
                                     color = LocalAccentColor.current,
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
@@ -1058,23 +1050,19 @@ private fun NoteTypeChip(
     val backgroundColor = if (isSelected) {
         MaterialTheme.colorScheme.onSurface
     } else {
-        androidx.compose.ui.graphics.Color.Transparent
+        // Stronger contrast for unselected state: visible light background
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
     }
     
     val contentColor = if (isSelected) {
         MaterialTheme.colorScheme.surface
     } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        // Darker icon for better readability
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
     }
     
-    val borderStroke = if (isSelected) {
-        null
-    } else {
-        androidx.compose.foundation.BorderStroke(
-            1.dp, 
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-        )
-    }
+    // Remove border - rely on fill contrast
+    val borderStroke = null
 
     Surface(
         onClick = onClick,

@@ -214,11 +214,15 @@ fun CogniTheme(
 
     val view = LocalView.current
     if (!view.isInEditMode) {
+        // BUG-057 fix: Use animated background to prevent flash during theme switch
+        val animatedBackground = animatedColorScheme.background
         SideEffect {
             val window = (view.context as Activity).window
             // Use transparent status bar for edge-to-edge
             @Suppress("DEPRECATION") window.statusBarColor = Color.Transparent.toArgb()
             @Suppress("DEPRECATION") window.navigationBarColor = Color.Transparent.toArgb()
+            // Set window background to animated background color to prevent flash
+            window.decorView.setBackgroundColor(animatedBackground.toArgb())
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme

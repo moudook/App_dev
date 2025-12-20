@@ -237,41 +237,58 @@ fun NoteCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp) // Relaxed spacing
             ) {
                 if (note.processingStatus == ProcessingStatus.PROCESSING || note.processingStatus == ProcessingStatus.PENDING) {
-                    // Shimmering Skeleton Loader (YouTube Style)
+                    // Enhanced Shimmering Skeleton Loader with staggered wave effect
+                    val shimmerBaseColor = LocalAccentColor.current.copy(alpha = 0.4f)
+                    
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Title skeleton
+                        // Title skeleton - first in sequence
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(0.6f)
                                 .height(20.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-                                .shimmerEffect()
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                .shimmerEffect(
+                                    shimmerColor = shimmerBaseColor,
+                                    durationMs = 1400,
+                                    delayMs = 0,
+                                    shimmerWidth = 350f
+                                )
                         )
                         
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         
-                        // Body skeleton - Line 1
+                        // Body skeleton - Line 1 (slightly delayed)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(0.9f)
                                 .height(14.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-                                .shimmerEffect()
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+                                .shimmerEffect(
+                                    shimmerColor = shimmerBaseColor,
+                                    durationMs = 1400,
+                                    delayMs = 100,
+                                    shimmerWidth = 350f
+                                )
                         )
                         
-                        // Body skeleton - Line 2
+                        // Body skeleton - Line 2 (more delayed for wave effect)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(0.75f)
                                 .height(14.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-                                .shimmerEffect()
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+                                .shimmerEffect(
+                                    shimmerColor = shimmerBaseColor,
+                                    durationMs = 1400,
+                                    delayMs = 200,
+                                    shimmerWidth = 350f
+                                )
                         )
                     }
                 } else {

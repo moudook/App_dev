@@ -71,6 +71,19 @@ class CogniRepository(
 
     suspend fun deleteCategory(category: Category) = categoryDao.deleteCategory(category)
 
+    /**
+     * Safely delete a category with proper cleanup (BUG-028 fix).
+     * Uses atomic SQL UPDATE to clear categoryId from all notes,
+     * avoiding issues with stale StateFlow data.
+     */
+    @Transaction
+    suspend fun deleteCategoryWithCleanup(category: Category) {
+        // First, atomically clear categoryId from all notes in this category
+        noteDao.clearCategoryFromNotes(category.id)
+        // Then delete the category
+        categoryDao.deleteCategory(category)
+    }
+
     suspend fun getOrCreateCategory(name: String): Category {
         return categoryDao.getCategoryByName(name) ?: Category(name = name).also {
             categoryDao.insertCategory(it)

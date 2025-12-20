@@ -35,6 +35,50 @@ sealed interface DynamicIslandState {
     data class Info(val label: String, val secondaryLabel: String, val icon: ImageVector? = null) : DynamicIslandState
     data class Listening(val rmsDb: Float) : DynamicIslandState
     object Success : DynamicIslandState // New state for completion feedback
+
+    // ============================================================================
+    // AGENT TOOL STATES - Show which tool the AI agent is executing
+    // ============================================================================
+
+    /**
+     * Agent is thinking/reasoning - calling LLM
+     */
+    data class AgentThinking(
+        val iteration: Int = 1,
+        val message: String = "Thinking..."
+    ) : DynamicIslandState
+
+    /**
+     * Agent is executing a specific tool
+     */
+    data class AgentExecutingTool(
+        val toolName: String,
+        val toolDisplayName: String,
+        val elapsedSeconds: Int = 0
+    ) : DynamicIslandState
+
+    /**
+     * Agent is waiting for tool result (e.g., web search in progress)
+     */
+    data class AgentWaitingForResult(
+        val toolDisplayName: String,
+        val elapsedSeconds: Int = 0
+    ) : DynamicIslandState
+
+    /**
+     * Agent completed all tasks
+     */
+    data class AgentCompleted(
+        val toolsUsed: Int = 0,
+        val totalSeconds: Int = 0
+    ) : DynamicIslandState
+
+    /**
+     * Agent encountered an error
+     */
+    data class AgentError(
+        val message: String
+    ) : DynamicIslandState
 }
 
 @Composable
@@ -63,34 +107,45 @@ fun DynamicIsland(
     // Display state for content
     val displayState = remember { mutableStateOf(state) }
     
+    // Track previous state for smooth transitions (BUG-012 fix)
+    val previousState = remember { mutableStateOf<DynamicIslandState>(DynamicIslandState.Contracted) }
+
     // Main animation sequencer
     LaunchedEffect(state) {
         val isExpanding = state !is DynamicIslandState.Contracted
-        
+        val wasExpanded = previousState.value !is DynamicIslandState.Contracted
+
         // Bouncy spring for VERTICAL animations only - Jelly-like feel
         val bouncySpring = spring<Float>(
             dampingRatio = Spring.DampingRatioMediumBouncy, // Creates the bouncy overshoot
             stiffness = Spring.StiffnessMediumLow // Faster but still elastic feel
         )
-        
+
         val quickBouncySpring = spring<Float>(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium // Slightly faster but still bouncy
         )
-        
+
         // Fast, smooth tween for HORIZONTAL animations - No bounce
         val smoothHorizontal = tween<Float>(
             durationMillis = 200, // Fast horizontal expansion
             easing = FastOutSlowInEasing
         )
-        
+
         if (isExpanding) {
             // ========== EXPANSION SEQUENCE ==========
-            // Step 1: Show content immediately
+
+            // BUG-012 fix: Crossfade when transitioning between expanded states
+            if (wasExpanded && previousState.value != state) {
+                // Quick fade out old content
+                contentAlphaAnim.animateTo(0f, animationSpec = tween(80))
+            }
+
+            // Update content
             displayState.value = state
-            
-            // Step 2-5: ALL animations start SIMULTANEOUSLY - no waiting
-            // Width expands smoothly and fast, height bounces vertically
+            previousState.value = state
+
+            // Animate in (or back to full alpha if already expanded)
             launch {
                 gapAnim.animateTo(expandedGap, animationSpec = smoothHorizontal)
             }
@@ -101,14 +156,14 @@ fun DynamicIsland(
                 visibilityAnim.animateTo(1f, animationSpec = quickBouncySpring)
             }
             launch {
-                contentAlphaAnim.animateTo(1f, animationSpec = tween(150))
+                contentAlphaAnim.animateTo(1f, animationSpec = tween(100))
             }
-            
+
         } else {
             // ========== CONTRACTION SEQUENCE ==========
             // Step 1: Fade out content first
             contentAlphaAnim.animateTo(0f, animationSpec = tween(100))
-            
+
             // Step 2 & 3: Contract HEIGHT (bouncy) and WIDTH (smooth) SIMULTANEOUSLY
             launch {
                 heightAnim.animateTo(contractedHeight, animationSpec = bouncySpring)
@@ -116,9 +171,10 @@ fun DynamicIsland(
             launch {
                 gapAnim.animateTo(contractedGap, animationSpec = smoothHorizontal)
             }
-            
+
             // Step 4: Remove content and fade out visibility
             displayState.value = state
+            previousState.value = state
             visibilityAnim.animateTo(0f, animationSpec = tween(150))
         }
     }
@@ -218,17 +274,21 @@ fun DynamicIsland(
                                     tint = LocalAccentColor.current,
                                     modifier = Modifier.size(20.dp)
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                if (currentState.secondaryLabel.isNotEmpty()) {
+                                    Spacer(Modifier.width(8.dp))
+                                }
                             }
-                            Text(
-                                text = currentState.secondaryLabel,
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = (-0.5).sp
-                                ),
-                                color = LocalAccentColor.current,
-                                maxLines = 1
-                            )
+                            if (currentState.secondaryLabel.isNotEmpty()) {
+                                Text(
+                                    text = currentState.secondaryLabel,
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = (-0.5).sp
+                                    ),
+                                    color = LocalAccentColor.current,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                     is DynamicIslandState.Listening -> {
@@ -245,6 +305,63 @@ fun DynamicIsland(
                                 .size(12.dp)
                                 .scale(orbScale)
                                 .background(LocalAccentColor.current, androidx.compose.foundation.shape.CircleShape)
+                        )
+                    }
+                    // ========== AGENT STATES - LEFT WING ==========
+                    is DynamicIslandState.AgentThinking -> {
+                        // Pulsing brain/thinking indicator
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .scale(1f + (pulseAlpha - 0.7f) * 0.3f)
+                                .background(
+                                    LocalAccentColor.current.copy(alpha = pulseAlpha),
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                    }
+                    is DynamicIslandState.AgentExecutingTool,
+                    is DynamicIslandState.AgentWaitingForResult -> {
+                        // Spinning/pulsing tool indicator
+                        val rotation by rememberInfiniteTransition(label = "toolSpin").animateFloat(
+                            initialValue = 0f,
+                            targetValue = 360f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1500, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "toolRotation"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .graphicsLayer { rotationZ = rotation }
+                                .background(
+                                    LocalAccentColor.current,
+                                    RoundedCornerShape(2.dp)
+                                )
+                        )
+                    }
+                    is DynamicIslandState.AgentCompleted -> {
+                        // Success checkmark indicator
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(
+                                    Color(0xFF4CAF50), // Green
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
+                    }
+                    is DynamicIslandState.AgentError -> {
+                        // Error indicator
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(
+                                    Color(0xFFE53935), // Red
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
                         )
                     }
                     else -> {}
@@ -282,6 +399,74 @@ fun DynamicIsland(
                             contentDescription = "Listening",
                             tint = Color.White.copy(alpha = 0.9f),
                             modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    // ========== AGENT STATES - RIGHT WING ==========
+                    is DynamicIslandState.AgentThinking -> {
+                        Text(
+                            text = if (currentState.iteration > 1)
+                                "Step ${currentState.iteration}..."
+                            else
+                                currentState.message,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            color = Color.White.copy(alpha = 0.9f),
+                            maxLines = 1
+                        )
+                    }
+                    is DynamicIslandState.AgentExecutingTool -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentState.toolDisplayName,
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = LocalAccentColor.current,
+                                maxLines = 1
+                            )
+                            if (currentState.elapsedSeconds > 0) {
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "${currentState.elapsedSeconds}s",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                    is DynamicIslandState.AgentWaitingForResult -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Waiting: ${currentState.toolDisplayName}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                color = Color.White.copy(alpha = 0.9f),
+                                maxLines = 1
+                            )
+                            if (currentState.elapsedSeconds > 0) {
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "${currentState.elapsedSeconds}s",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                    is DynamicIslandState.AgentCompleted -> {
+                        Text(
+                            text = if (currentState.toolsUsed > 0)
+                                "Done (${currentState.toolsUsed} tools)"
+                            else
+                                "Done",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                            color = Color(0xFF4CAF50),
+                            maxLines = 1
+                        )
+                    }
+                    is DynamicIslandState.AgentError -> {
+                        Text(
+                            text = currentState.message.take(20),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                            color = Color(0xFFE53935),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     else -> {}

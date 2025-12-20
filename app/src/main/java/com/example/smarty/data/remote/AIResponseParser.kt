@@ -27,6 +27,9 @@ object AIResponseParser {
 
     private const val TAG = "AIResponseParser"
 
+    // BUG-035: Maximum response length to prevent memory issues
+    private const val MAX_RESPONSE_LENGTH = 100_000 // 100KB should be more than enough for any response
+
     // ==================== Valid Categories ====================
 
     /**
@@ -53,8 +56,13 @@ object AIResponseParser {
      * @return Parsed AIResponse or null if parsing fails
      */
     fun extractAndParseJson(text: String): AIResponse? {
-        // Remove markdown code blocks if present
-        var cleanText = text.trim()
+        // BUG-035: Truncate excessively long responses to prevent memory issues
+        var cleanText = if (text.length > MAX_RESPONSE_LENGTH) {
+            Log.w(TAG, "Response truncated from ${text.length} to $MAX_RESPONSE_LENGTH chars")
+            text.take(MAX_RESPONSE_LENGTH)
+        } else {
+            text
+        }.trim()
 
         // Handle ```json ... ``` format
         if (cleanText.contains("```json")) {

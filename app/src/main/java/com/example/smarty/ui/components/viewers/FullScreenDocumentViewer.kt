@@ -121,6 +121,7 @@ private fun PdfViewerContent(
 
     // State - only exists while viewer is open
     var pdfRenderer by mutableStateOf<PdfRenderer?>(null)
+    var fileDescriptor by mutableStateOf<ParcelFileDescriptor?>(null) // BUG-014: Track for cleanup
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
     var totalPages by mutableStateOf(0)
     var pageBitmap by mutableStateOf<Bitmap?>(null)
@@ -131,9 +132,10 @@ private fun PdfViewerContent(
     LaunchedEffect(documentUri) {
         withContext(Dispatchers.IO) {
             try {
-                val fileDescriptor = getFileDescriptor(context, documentUri)
-                if (fileDescriptor != null) {
-                    val renderer = PdfRenderer(fileDescriptor)
+                val fd = getFileDescriptor(context, documentUri)
+                if (fd != null) {
+                    fileDescriptor = fd // BUG-014: Store for cleanup
+                    val renderer = PdfRenderer(fd)
                     pdfRenderer = renderer
                     totalPages = renderer.pageCount
                     isLoading = false
@@ -221,13 +223,19 @@ private fun PdfViewerContent(
         }
     }
 
-    // Cleanup - release all resources immediately
+    // Cleanup - release all resources immediately (BUG-014: Comprehensive cleanup)
     DisposableEffect(Unit) {
         onDispose {
-            pageBitmap?.recycle()
-            pageBitmap = null
-            pdfRenderer?.close()
-            pdfRenderer = null
+            try {
+                pageBitmap?.recycle()
+                pageBitmap = null
+                pdfRenderer?.close()
+                pdfRenderer = null
+                fileDescriptor?.close() // BUG-014: Close file descriptor
+                fileDescriptor = null
+            } catch (e: Exception) {
+                Log.w(TAG, "Error during PDF cleanup: ${e.message}")
+            }
         }
     }
 
@@ -370,14 +378,16 @@ private fun TextViewerContent(
     var isLoading by mutableStateOf(true)
     var errorMessage by mutableStateOf<String?>(null)
 
-    // Load text only when composable is active
+    // Load text only when composable is active (BUG-014: Proper resource cleanup with use())
     LaunchedEffect(documentUri) {
         withContext(Dispatchers.IO) {
             try {
                 val uri = Uri.parse(documentUri)
-                val inputStream = context.contentResolver.openInputStream(uri)
-                textContent = inputStream?.bufferedReader()?.readText()
-                inputStream?.close()
+                textContent = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.bufferedReader().use { reader ->
+                        reader.readText()
+                    }
+                }
                 isLoading = false
             } catch (e: Exception) {
                 errorMessage = "Error reading file: ${e.message}"

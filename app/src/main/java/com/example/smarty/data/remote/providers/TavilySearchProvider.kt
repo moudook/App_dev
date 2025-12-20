@@ -172,11 +172,19 @@ class TavilySearchProvider(
 
         } catch (e: Exception) {
             Log.e(TAG, "Search error", e)
+            // BUG-042 fix: Don't expose internal error details to user
+            val sanitizedError = when {
+                e.message?.contains("Unable to resolve host", ignoreCase = true) == true -> "Network unavailable"
+                e.message?.contains("timeout", ignoreCase = true) == true -> "Search timed out"
+                e.message?.contains("401", ignoreCase = true) == true -> "Invalid API key"
+                e.message?.contains("429", ignoreCase = true) == true -> "Rate limit exceeded"
+                else -> "Search temporarily unavailable"
+            }
             SearchResponse(
                 success = false,
                 answer = null,
                 results = emptyList(),
-                error = "Search failed: ${e.message}"
+                error = sanitizedError
             )
         }
     }

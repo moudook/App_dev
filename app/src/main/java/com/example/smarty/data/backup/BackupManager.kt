@@ -257,11 +257,22 @@ class BackupManager(
 
     /**
      * Restore from a backup.
+     * BUG-030 FIX: Added pre-restore backup for rollback on failure.
      *
      * @param metadata Metadata of the backup to restore
      */
     suspend fun restoreBackup(metadata: BackupMetadata): Result<Unit> = withContext(Dispatchers.IO) {
+        // BUG-030: Create safety backup before restore for rollback capability
+        var preRestoreNotes: List<com.example.smarty.data.model.Note>? = null
+        var preRestoreCategories: List<com.example.smarty.data.model.Category>? = null
+
         try {
+            _restoreState.value = BackupOperationState.InProgress(0.02f, "Creating safety backup...")
+
+            // Save current data for potential rollback
+            preRestoreNotes = database.noteDao().getAllNotesOnce()
+            preRestoreCategories = database.categoryDao().getAllCategoriesOnce()
+
             _restoreState.value = BackupOperationState.InProgress(0.05f, "Downloading backup...")
 
             // Download backup file
@@ -294,6 +305,7 @@ class BackupManager(
                     throw Exception("Invalid backup: missing manifest")
                 }
                 val manifest = gson.fromJson(manifestFile.readText(), BackupManifest::class.java)
+                    ?: throw Exception("Invalid backup: corrupt manifest")
 
                 if (manifest.version > BackupManifest.CURRENT_BACKUP_VERSION) {
                     throw Exception("Backup version ${manifest.version} is newer than supported version ${BackupManifest.CURRENT_BACKUP_VERSION}")
@@ -307,6 +319,12 @@ class BackupManager(
                     throw Exception("Invalid backup: missing database")
                 }
                 val databaseBackup = gson.fromJson(databaseFile.readText(), DatabaseBackup::class.java)
+                    ?: throw Exception("Invalid backup: corrupt database file")
+
+                // BUG-030: Validate backup data before proceeding
+                if (databaseBackup.notes == null || databaseBackup.categories == null) {
+                    throw Exception("Invalid backup: missing notes or categories data")
+                }
 
                 _restoreState.value = BackupOperationState.InProgress(0.5f, "Clearing existing data...")
 
@@ -389,10 +407,39 @@ class BackupManager(
                 extractDir.deleteRecursively()
             }
         } catch (e: Exception) {
-            _restoreState.value = BackupOperationState.Error(
-                e.message ?: "Restore failed",
-                e
-            )
+            // BUG-030: Attempt rollback if we have pre-restore data
+            if (preRestoreNotes != null && preRestoreCategories != null) {
+                try {
+                    _restoreState.value = BackupOperationState.InProgress(0f, "Restore failed, rolling back...")
+
+                    // Clear any partial restore data
+                    database.noteDao().deleteAllNotes()
+                    database.categoryDao().deleteAllCategories()
+
+                    // Restore original data
+                    preRestoreCategories.forEach { category ->
+                        database.categoryDao().insertCategory(category)
+                    }
+                    preRestoreNotes.forEach { note ->
+                        database.noteDao().insertNote(note)
+                    }
+
+                    _restoreState.value = BackupOperationState.Error(
+                        "Restore failed: ${e.message}. Your original data has been preserved.",
+                        e
+                    )
+                } catch (rollbackError: Exception) {
+                    _restoreState.value = BackupOperationState.Error(
+                        "CRITICAL: Restore and rollback both failed. Some data may be lost. Error: ${e.message}",
+                        e
+                    )
+                }
+            } else {
+                _restoreState.value = BackupOperationState.Error(
+                    e.message ?: "Restore failed",
+                    e
+                )
+            }
             Result.failure(e)
         }
     }

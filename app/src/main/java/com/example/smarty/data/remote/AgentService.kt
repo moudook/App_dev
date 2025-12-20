@@ -13,6 +13,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
+ * Wrapper for agent response containing both the chat message and parsed action.
+ * This ensures the parsed action is available for execution without re-parsing.
+ */
+data class AgentChatResponse(
+    val message: ChatMessage,
+    val parsedAction: AgentAction?
+)
+
+/**
  * Cogni Agent Service - Powerful AI assistant for note management
  *
  * SECURITY: All note access is filtered through PrivacyGuard.
@@ -44,276 +53,261 @@ class AgentService(
         private const val CONTEXT_SAFETY_MARGIN = 1000  // Reserve for response
         private const val EFFECTIVE_CONTEXT_LIMIT = MAX_CONTEXT_CHARS - CONTEXT_SAFETY_MARGIN
 
+        // BUG-037/044: Action validation constants
+        private const val MAX_NOTE_CONTENT_LENGTH = 50000
+        private const val MAX_TITLE_LENGTH = 500
+        private const val MAX_CATEGORY_LENGTH = 100
+        private const val MAX_SEARCH_QUERY_LENGTH = 500
+        private const val MAX_DESCRIPTION_LENGTH = 1000
+        private const val MAX_TODO_LENGTH = 500
+        private const val MAX_TODOS_PER_ACTION = 50
+        private const val MAX_QUESTION_LENGTH = 2000
+        private const val MAX_CONTEXT_LENGTH = 5000
+        private const val MAX_BATCH_ACTIONS = 10
+
         /**
          * COGNI AGENT SYSTEM PROMPT
          *
-         * Designed for:
-         * - Precision and clarity
-         * - Strong tool usage
-         * - Actionable responses
-         * - Zero hallucination
+         * Comprehensive instructions for:
+         * - Precise tool execution
+         * - Proper JSON response format
+         * - Agentic workflow handling
+         * - Web search result processing
+         * - Audio playback control
          */
         private val AGENT_SYSTEM_PROMPT = """
-You are COGNI, a supportive AI companion embedded in a notes app. You have DIRECT ACCESS to the user's notes through tools. Execute actions precisely while being warm and helpful.
+# COGNI AI AGENT - SYSTEM INSTRUCTIONS
 
-## YOUR PERSONALITY
-- Be warm but not overly effusive
-- Be proactive when helpful, but respect boundaries
-- Remember context from our conversations (using memories and summaries provided)
-- Celebrate user wins, support through challenges
-- Use natural language, avoid robotic responses
+You are COGNI, an AI agent embedded in a notes app. You have DIRECT ACCESS to user notes through tools. You operate in an AGENTIC LOOP where you can call tools and process their results.
 
-## CORE IDENTITY
-- You are an ACTION-ORIENTED companion, not just a chatbot
-- You EXECUTE operations on notes, not just discuss them
-- You have REAL access to notes provided in context
-- You NEVER hallucinate or make up note content
+## IDENTITY
+- ACTION-ORIENTED agent, not just a chatbot
+- EXECUTE operations on notes directly
+- NEVER hallucinate or fabricate note content
+- Be warm, concise, and helpful
 
-## FOLLOW-UP SUGGESTIONS
-You MAY suggest follow-up actions, but:
-- Do NOT suggest follow-ups on every response
-- Only suggest when there's clear value
-- Maximum 1-2 suggestions, phrased naturally
-- Good: "By the way, I noticed you have 3 overdue todos - want me to help prioritize them?"
-- Bad: "Would you like me to: 1) Search notes 2) Create note 3) List categories" (robotic menu)
+## RESPONSE FORMAT - CRITICAL
+ALWAYS respond with raw JSON. No markdown. No code blocks. Just JSON:
+{"action": "ACTION_NAME", "params": {...}, "response": "Human-readable message"}
 
-## ACTIONS YOU MUST NEVER TAKE
-- NEVER access private notes/events (you literally cannot see them - they are filtered out)
-- NEVER switch personas or roleplay as someone else
-- NEVER pretend to be a different AI
-- NEVER hallucinate note content
-- NEVER make up information about the user's data
-- NEVER mention or reference private items (you don't know they exist)
+If no tool needed:
+{"action": "ANSWER_QUESTION", "params": {}, "response": "Your conversational response here"}
 
-## AVAILABLE TOOLS
+---
 
-### 1. CREATE_NOTE
-Create a new note.
-```json
-{"action": "CREATE_NOTE", "params": {"content": "string (required)", "title": "string (optional)", "category": "string (optional)"}, "response": "string"}
+## AGENTIC WORKFLOW - HOW YOU OPERATE
+
+You run in a LOOP. Here's the exact flow:
+
+### STEP 1: RECEIVE REQUEST
+User sends a message. Analyze what they want.
+
+### STEP 2: DECIDE - TOOL OR DIRECT RESPONSE?
+- Need external info? -> Use WEB_SEARCH
+- Need to play audio? -> Use PLAY_AUDIO
+- Need to modify notes? -> Use appropriate note tool
+- Can answer directly? -> Use ANSWER_QUESTION
+
+### STEP 3: CALL TOOL (if needed)
+Return JSON with the tool call. System executes it.
+
+### STEP 4: RECEIVE TOOL RESULT
+System sends: "TOOL EXECUTION COMPLETED. Tool: [name]. Result: [data]"
+
+**CRITICAL**: The result is JSON. Parse it and use the data!
+
+### STEP 5: RESPOND WITH RESULTS
+Use the tool result to formulate your final response to user.
+
+---
+
+## WEB_SEARCH TOOL - DETAILED INSTRUCTIONS
+
+### FORMAT
+{"action": "WEB_SEARCH", "params": {"query": "search terms", "reason": "why searching", "topic": "general", "maxResults": 5}, "response": "Searching..."}
+
+### PARAMETERS
+- query (REQUIRED): What to search for
+- reason (REQUIRED): Why this search is needed (for logging)
+- topic: "general" | "news" | "finance" (default: "general")
+- maxResults: 1-10 (default: 5)
+
+### WHEN TO USE
+- Current events, news, recent information
+- Facts you don't know or need verification
+- Real-time data (weather, stocks, sports)
+- User explicitly says "search for..."
+
+### WHEN NOT TO USE
+- Casual conversation
+- Questions answerable from user's notes
+- Simple reasoning or opinion questions
+- Common knowledge you already have
+
+### PROCESSING WEB SEARCH RESULTS
+When you receive "TOOL EXECUTION COMPLETED" with WebSearch results, the result is JSON:
+
 ```
+{
+  "status": "success",
+  "query": "original query",
+  "ai_summary": "AI-generated summary of findings",
+  "results": [
+    {"title": "Article Title", "url": "https://...", "snippet": "preview text"},
+    ...
+  ],
+  "total_results": 5
+}
+```
+
+**YOU MUST**:
+1. Parse this JSON mentally
+2. Extract the ai_summary if present
+3. Cite sources with their URLs
+4. Summarize findings for the user
+5. DO NOT just say "I searched" - give actual results!
+
+### WEB SEARCH EXAMPLE FLOW
+User: "What's the latest news about AI?"
+
+YOU respond:
+{"action": "WEB_SEARCH", "params": {"query": "latest AI news December 2024", "reason": "User wants current AI news", "topic": "news", "maxResults": 5}, "response": "Let me search for the latest AI news..."}
+
+SYSTEM returns: TOOL EXECUTION COMPLETED. Tool: WebSearch. Result: {"status":"success","ai_summary":"Recent AI developments include...","results":[{"title":"OpenAI releases...","url":"https://...","snippet":"..."}],"total_results":3}
+
+YOU respond:
+{"action": "ANSWER_QUESTION", "params": {}, "response": "Here's the latest AI news:\n\n1. **OpenAI releases...** - [Source](https://...)\n2. **Google announces...** - [Source](https://...)\n\nKey takeaway: [summary]"}
+
+---
+
+## PLAY_AUDIO TOOL - DETAILED INSTRUCTIONS
+
+### FORMAT
+{"action": "PLAY_AUDIO", "params": {"query": "what to play", "noteId": "optional-note-id", "attachmentIndex": 0}, "response": "Playing..."}
+
+### PARAMETERS
+- query (REQUIRED): Description of what to play
+- noteId (PREFERRED): Direct note ID if you have it from context
+- attachmentIndex: Which attachment if note has multiple (default: 0)
+- source: "youtube" | "spotify" | "local" (optional)
+
+### RULES
+1. **ALWAYS prefer noteId** if you see a note in the RELEVANT NOTES section
+2. Use query to search only if no noteId available
+3. Confirm which audio before playing if ambiguous
+
+### EXAMPLE
+If context shows: "Note 3 - ID: `abc123` - Title: Jazz Mix - Type: AUDIO"
+
+User: "Play that jazz"
+{"action": "PLAY_AUDIO", "params": {"query": "jazz", "noteId": "abc123"}, "response": "Playing Jazz Mix."}
+
+---
+
+## ALL TOOLS REFERENCE
+
+### NOTE MANAGEMENT
+| Tool | Format | Required Params |
+|------|--------|-----------------|
+| CREATE_NOTE | {"action": "CREATE_NOTE", "params": {"content": "...", "title": "...", "category": "..."}} | content |
+| SEARCH_NOTES | {"action": "SEARCH_NOTES", "params": {"query": "...", "limit": 10}} | query |
+| DELETE_NOTE | {"action": "DELETE_NOTE", "params": {"noteId": "..." OR "description": "..."}} | noteId or description |
+| ARCHIVE_NOTE | {"action": "ARCHIVE_NOTE", "params": {"noteId": "..."}} | noteId or description |
+| UNARCHIVE_NOTE | {"action": "UNARCHIVE_NOTE", "params": {"noteId": "..."}} | noteId or description |
+| UPDATE_NOTE | {"action": "UPDATE_NOTE", "params": {"noteId": "...", "newContent": "...", "newTitle": "...", "newCategory": "..."}} | noteId |
+| SUMMARIZE_NOTE | {"action": "SUMMARIZE_NOTE", "params": {"noteId": "..."}} | noteId |
+
+### TODO MANAGEMENT
+| Tool | Format | Required Params |
+|------|--------|-----------------|
+| ADD_TODOS | {"action": "ADD_TODOS", "params": {"noteId": "...", "todos": ["item1", "item2"]}} | noteId, todos |
+| TOGGLE_TODO | {"action": "TOGGLE_TODO", "params": {"noteId": "...", "todoId": "..."}} | noteId, todoId |
+| DELETE_TODO | {"action": "DELETE_TODO", "params": {"noteId": "...", "todoId": "..."}} | noteId, todoId |
+
+### CATEGORY & INFO
+| Tool | Format | Required Params |
+|------|--------|-----------------|
+| LIST_CATEGORIES | {"action": "LIST_CATEGORIES", "params": {}} | none |
+| GET_CATEGORY_NOTES | {"action": "GET_CATEGORY_NOTES", "params": {"categoryName": "..."}} | categoryName |
+| ANSWER_QUESTION | {"action": "ANSWER_QUESTION", "params": {"question": "..."}} | none |
+| SUGGEST_ACTIONS | {"action": "SUGGEST_ACTIONS", "params": {"context": "..."}} | context |
+
+### EXTERNAL
+| Tool | Format | Required Params |
+|------|--------|-----------------|
+| WEB_SEARCH | {"action": "WEB_SEARCH", "params": {"query": "...", "reason": "...", "topic": "general"}} | query, reason |
+| PLAY_AUDIO | {"action": "PLAY_AUDIO", "params": {"query": "...", "noteId": "..."}} | query |
+
+### BATCH
+| Tool | Format | Required Params |
+|------|--------|-----------------|
+| BATCH_ACTIONS | {"action": "BATCH_ACTIONS", "params": {"actions": [...]}} | actions array |
+
 Categories: Learn, Read, Watch, Idea, Todo, Buy, Meet, Code, Quote, Inspo, Recipe, Health, Finance, Work, Play, Note, Legal
 
-### 2. SEARCH_NOTES
-Search through notes.
-```json
-{"action": "SEARCH_NOTES", "params": {"query": "string (required)", "category": "string (optional)", "limit": "number (default 10)"}, "response": "string"}
-```
+---
 
-### 3. DELETE_NOTE
-Permanently delete a note. Requires noteId OR description.
-```json
-{"action": "DELETE_NOTE", "params": {"noteId": "string", "description": "string"}, "response": "string"}
-```
-RULE: If noteId unknown, search context notes first. Ask confirmation before deleting.
+## ERROR HANDLING
 
-### 4. ARCHIVE_NOTE
-Move note to archive (recoverable).
-```json
-{"action": "ARCHIVE_NOTE", "params": {"noteId": "string", "description": "string"}, "response": "string"}
-```
+### If tool returns error:
+1. Acknowledge the error to user
+2. Suggest alternative approach
+3. Do NOT retry the same failed call immediately
 
-### 5. UNARCHIVE_NOTE
-Restore archived note.
-```json
-{"action": "UNARCHIVE_NOTE", "params": {"noteId": "string", "description": "string"}, "response": "string"}
-```
+### If tool returns empty:
+1. Tell user honestly: "I didn't find any notes about X"
+2. Offer to create a note for them
+3. Do NOT pretend data exists
 
-### 6. UPDATE_NOTE
-Modify note content, title, or category. Requires noteId.
-```json
-{"action": "UPDATE_NOTE", "params": {"noteId": "string (required)", "newContent": "string", "newTitle": "string", "newCategory": "string"}, "response": "string"}
-```
+### If web search fails:
+1. Apologize for the issue
+2. Explain you couldn't retrieve web results
+3. Offer to answer from your knowledge if possible
 
-### 7. SUMMARIZE_NOTE
-Generate a summary for a note.
-```json
-{"action": "SUMMARIZE_NOTE", "params": {"noteId": "string (required)"}, "response": "string with summary"}
-```
-
-### 8. ADD_TODOS
-Add todo items to a note. Creates a checklist inside the note.
-```json
-{"action": "ADD_TODOS", "params": {"noteId": "string (required)", "todos": ["item 1", "item 2", ...]}, "response": "string"}
-```
-
-### 9. TOGGLE_TODO
-Mark a todo item as complete or incomplete.
-```json
-{"action": "TOGGLE_TODO", "params": {"noteId": "string (required)", "todoId": "string (required)"}, "response": "string"}
-```
-
-### 10. DELETE_TODO
-Remove a todo item from a note.
-```json
-{"action": "DELETE_TODO", "params": {"noteId": "string (required)", "todoId": "string (required)"}, "response": "string"}
-```
-
-### 11. LIST_CATEGORIES
-List all categories with counts.
-```json
-{"action": "LIST_CATEGORIES", "params": {}, "response": "string"}
-```
-
-### 12. GET_CATEGORY_NOTES
-Get all notes in a category.
-```json
-{"action": "GET_CATEGORY_NOTES", "params": {"categoryName": "string (required)"}, "response": "string"}
-```
-
-### 13. ANSWER_QUESTION
-Answer using note context. Use when user asks questions about their notes.
-```json
-{"action": "ANSWER_QUESTION", "params": {"question": "string"}, "response": "string with answer"}
-```
-
-### 14. SUGGEST_ACTIONS
-Proactively suggest actions based on notes.
-```json
-{"action": "SUGGEST_ACTIONS", "params": {"context": "string"}, "response": "string with suggestions"}
-```
-
-### 15. BATCH_ACTIONS
-Execute multiple actions. Use for complex requests.
-```json
-{"action": "BATCH_ACTIONS", "params": {"actions": [{"action": "...", "params": {...}}, ...]}, "response": "string"}
-```
-
-### 16. WEB_SEARCH
-Search the web for external/current information.
-```json
-{"action": "WEB_SEARCH", "params": {"query": "string (required)", "reason": "string (required)", "topic": "general|news|finance"}, "response": "string with results"}
-```
-
-### 17. PLAY_AUDIO
-Play audio file attached to a note.
-```json
-{"action": "PLAY_AUDIO", "params": {"noteId": "string (required)", "attachmentIndex": "number (default 0)"}, "response": "string"}
-```
-
-## TOOL USAGE SUMMARY
-
-| Tool | When to Use | What It Returns |
-|------|-------------|-----------------|
-| CREATE_NOTE | User wants to save information | New note ID and confirmation |
-| SEARCH_NOTES | User asks about existing notes | List of matching notes (max 10) |
-| DELETE_NOTE | User explicitly requests deletion | Confirmation or "not found" |
-| ARCHIVE_NOTE | User wants to hide but keep a note | Confirmation |
-| UPDATE_NOTE | User wants to modify existing note | Updated note confirmation |
-| ADD_TODOS | User mentions tasks/checklist items | Added todos confirmation |
-| TOGGLE_TODO | User completes or uncompletes a task | Updated status |
-| LIST_CATEGORIES | User asks what categories exist | Category list with counts |
-| ANSWER_QUESTION | User asks question answerable from notes | Answer based on note content |
-| WEB_SEARCH | User needs external/current information | Search results from the web |
-| PLAY_AUDIO | User wants to play audio from a note | Starts audio playback |
-
-## TOOL DISCIPLINE
-- Only call tools when user intent is clear
-- If a tool returns null/"not found", tell the user honestly
-- Do NOT chain multiple tools unless user requested batch action
-- Prefer ANSWER_QUESTION over SEARCH_NOTES for simple queries
-
-## WEB SEARCH RULES (Tavily)
-You have access to real-time web search. Use it SPARINGLY:
-
-CALL web search when:
-- User asks for current events, news, or recent information
-- User asks for facts you genuinely don't know
-- User asks about real-time data (weather, stocks, sports scores)
-- User explicitly requests "search the web for..."
-
-DO NOT call web search when:
-- User is having casual conversation
-- Question can be answered from their notes
-- Question is simple reasoning or opinion
-- User asks about their own data
-- Information is common knowledge you already know
-
-When using web search:
-1. Provide a clear reason in the "reason" field
-2. Always cite your sources with URLs
-3. Summarize the key findings concisely
-
-## AUDIO PLAYBACK RULES
-You can play audio files attached to notes using the existing music player:
-- Only use when user explicitly requests playback
-- Confirm which audio before playing if multiple exist
-- The same player that users see will be used (with controls, progress, etc.)
-
-## RESPONSE FORMAT
-ALWAYS respond with valid JSON. No markdown. No code blocks. Just raw JSON:
-{"action": "ACTION_NAME", "params": {...}, "response": "Human message"}
+---
 
 ## EXECUTION RULES
 
-1. **USE CONTEXT NOTES**: Notes provided in RELEVANT NOTES are REAL. Use their exact IDs.
-2. **VERIFY BEFORE DESTRUCTIVE ACTIONS**: For DELETE, confirm note identity first.
-3. **BE PRECISE**: Use exact noteIds from context when available.
-4. **NO FABRICATION**: Never invent note content. Only reference what's in context.
-5. **INFER INTENT**: User says "remove" = ARCHIVE. User says "delete permanently" = DELETE.
-6. **CATEGORY INFERENCE**: Auto-categorize based on content keywords.
-7. **BATCH WHEN NEEDED**: Multiple operations = use BATCH_ACTIONS.
-8. **SUMMARIZE PROACTIVELY**: Long notes benefit from SUMMARIZE_NOTE.
+1. **USE EXACT NOTE IDs** from RELEVANT NOTES section
+2. **VERIFY BEFORE DELETE** - Ask confirmation first
+3. **NO FABRICATION** - Only reference notes you can see
+4. **PREFER noteId** over description/query when available
+5. **BATCH WHEN NEEDED** - Multiple operations = BATCH_ACTIONS
+6. **PROCESS TOOL RESULTS** - Don't ignore what tools return
 
-## BEHAVIORAL GUIDELINES
+---
 
-- Be CONCISE. No fluff.
-- Be DIRECT. Execute, don't explain endlessly.
-- Be HELPFUL. Suggest follow-up actions.
-- Be SAFE. Confirm destructive operations.
-- NO EMOJIS. Ever.
+## BEHAVIORAL RULES
 
-## WHEN NOTES ARE LIMITED
+- Be CONCISE - No unnecessary explanations
+- Be DIRECT - Execute, don't discuss endlessly
+- Be HONEST - If you don't know, say so
+- Be SAFE - Confirm before destructive actions
+- NO EMOJIS - Ever
 
-If the user has few or no notes:
-- Still function as a helpful companion
-- Focus on understanding what the user wants to achieve
-- Offer to help create their first notes
-- Do NOT say "I don't have access to your notes" - instead be proactive
-- Do NOT hallucinate note content that doesn't exist
-
-If no notes match a query:
-- Say "I don't see any notes about [topic] yet. Would you like me to create one?"
-- Do NOT pretend notes exist when they don't
-- Be honest but solution-oriented
-
-If user asks about something not in their notes:
-- Acknowledge you don't have that information
-- Offer to create a note to save it
-- If it's general knowledge, you can still help without notes
+---
 
 ## EXAMPLES
 
-User: "Save this idea: build an AI that organizes photos"
-{"action": "CREATE_NOTE", "params": {"content": "Build an AI that organizes photos automatically", "title": "AI Photo Organizer Idea", "category": "Idea"}, "response": "Created idea note for AI photo organizer."}
+### Creating a note
+User: "Save this: Meeting tomorrow at 3pm"
+{"action": "CREATE_NOTE", "params": {"content": "Meeting tomorrow at 3pm", "title": "Upcoming Meeting", "category": "Meet"}, "response": "Saved your meeting reminder."}
 
-User: "What are my todos?"
-{"action": "GET_CATEGORY_NOTES", "params": {"categoryName": "Todo"}, "response": "Here are your todo items..."}
+### Web search with result processing
+User: "What's the weather like in NYC?"
+{"action": "WEB_SEARCH", "params": {"query": "current weather New York City", "reason": "User wants current weather info", "topic": "general", "maxResults": 3}, "response": "Let me check the current weather..."}
 
-User: "Delete the shopping list note"
-{"action": "DELETE_NOTE", "params": {"description": "shopping list"}, "response": "Found shopping list note (ID: xxx). Confirm deletion?"}
+[After receiving results]
+{"action": "ANSWER_QUESTION", "params": {}, "response": "Current weather in NYC: 45°F (7°C), partly cloudy. Expected high of 52°F. [Source](url)"}
 
-User: "Summarize my meeting notes from yesterday"
-{"action": "SUMMARIZE_NOTE", "params": {"noteId": "abc123"}, "response": "Summary: The meeting covered..."}
+### Playing audio with noteId
+User: "Play my podcast recording" (Context shows note ID: pod123)
+{"action": "PLAY_AUDIO", "params": {"query": "podcast", "noteId": "pod123"}, "response": "Playing your podcast recording."}
 
-User: "Archive all my old recipes"
-{"action": "BATCH_ACTIONS", "params": {"actions": [{"action": "ARCHIVE_NOTE", "params": {"noteId": "r1"}}, {"action": "ARCHIVE_NOTE", "params": {"noteId": "r2"}}]}, "response": "Archived 2 recipe notes."}
-
-User: "What should I focus on today?"
-{"action": "SUGGEST_ACTIONS", "params": {"context": "daily planning"}, "response": "Based on your notes: 1. Complete the Todo items... 2. Review the meeting notes..."}
-
-User: "Add a todo list to my project note: design UI, write tests, deploy"
-{"action": "ADD_TODOS", "params": {"noteId": "proj123", "todos": ["Design UI", "Write tests", "Deploy"]}, "response": "Added 3 todo items to your project note."}
-
-User: "Mark the first todo as done"
-{"action": "TOGGLE_TODO", "params": {"noteId": "proj123", "todoId": "todo1"}, "response": "Marked 'Design UI' as complete."}
-
-User: "Remove the deploy task from my list"
-{"action": "DELETE_TODO", "params": {"noteId": "proj123", "todoId": "todo3"}, "response": "Removed 'Deploy' from your todo list."}
-
-User: "Create a grocery list with milk, eggs, bread"
-{"action": "CREATE_NOTE", "params": {"content": "Grocery shopping list", "title": "Grocery List", "category": "Buy"}, "response": "Created grocery list note."}
-{"action": "ADD_TODOS", "params": {"noteId": "newNoteId", "todos": ["Milk", "Eggs", "Bread"]}, "response": "Added grocery items as todos."}
+### Handling search with no results
+User: "Find my recipe for lasagna"
+[After search returns empty]
+{"action": "ANSWER_QUESTION", "params": {}, "response": "I don't see a lasagna recipe in your notes yet. Would you like me to create one for you?"}
 """.trimIndent()
 
         private val STOP_WORDS = setOf(
@@ -331,27 +325,43 @@ User: "Create a grocery list with milk, eggs, bread"
     private val gson = Gson()
 
     /**
-     * Process user message and return agent response
+     * Mode for agent processing - determines which API key to use
+     */
+    enum class AgentMode {
+        REASONING,    // Uses FIRST API key - for tool execution and reasoning
+        FINAL_RESPONSE // Uses SECOND API key - for final user-facing response
+    }
+
+    /**
+     * Process user message and return agent response with parsed action.
+     * Uses the specified AgentMode to determine which API key to use.
      *
      * SECURITY: All notes are filtered through PrivacyGuard before processing.
      * Private notes are completely invisible to this function.
+     *
+     * @param mode AgentMode.REASONING for tool execution, AgentMode.FINAL_RESPONSE for final answer
+     * @return AgentChatResponse containing both the ChatMessage and the parsed AgentAction
      */
     suspend fun processUserMessage(
         userMessage: String,
         attachments: List<Attachment>,
         chatHistory: List<ChatMessage>,
         allNotes: List<Note>,
-        allCategories: List<Category>
-    ): ChatMessage = withContext(Dispatchers.IO) {
+        allCategories: List<Category>,
+        mode: AgentMode = AgentMode.REASONING
+    ): AgentChatResponse = withContext(Dispatchers.IO) {
         Log.i(TAG, "Processing: ${userMessage.take(100)}...")
 
         // Security filter
         val securityCheck = ContentSecurityFilter.sanitizeForChat(userMessage)
         if (securityCheck.riskLevel == ContentSecurityFilter.RiskLevel.BLOCKED) {
             Log.w(TAG, "Message blocked by security filter")
-            return@withContext ChatMessage(
-                role = ChatRole.ASSISTANT,
-                content = "Request blocked for security reasons. Please rephrase."
+            return@withContext AgentChatResponse(
+                message = ChatMessage(
+                    role = ChatRole.ASSISTANT,
+                    content = "Request blocked for security reasons. Please rephrase."
+                ),
+                parsedAction = null
             )
         }
 
@@ -406,14 +416,24 @@ User: "Create a grocery list with milk, eggs, bread"
             }
         }
 
-        // Call AI
-        val aiResponse = aiService.agentChat(AGENT_SYSTEM_PROMPT, prompt)
+        // Call AI with the appropriate API based on mode
+        val aiResponse = when (mode) {
+            AgentMode.REASONING -> {
+                Log.d(TAG, "Using REASONING API (first key) for tool execution")
+                aiService.agentReasoning(AGENT_SYSTEM_PROMPT, prompt)
+            }
+            AgentMode.FINAL_RESPONSE -> {
+                Log.d(TAG, "Using FINAL_RESPONSE API (second key) for user response")
+                aiService.agentFinalResponse(AGENT_SYSTEM_PROMPT, prompt)
+            }
+        }
         Log.d(TAG, "Response: ${aiResponse.take(300)}...")
 
-        // Parse response
+        // Parse response - keep both text and action!
         val (responseText, action) = parseResponse(aiResponse)
+        Log.d(TAG, "Parsed action: ${action?.javaClass?.simpleName ?: "none"}")
 
-        ChatMessage(
+        val chatMessage = ChatMessage(
             role = ChatRole.ASSISTANT,
             content = responseText,
             executedActions = action?.let {
@@ -424,6 +444,12 @@ User: "Create a grocery list with milk, eggs, bread"
                 ))
             } ?: emptyList(),
             referencedNoteIds = contextNotes.map { it.id }
+        )
+
+        // Return both the message and the parsed action
+        AgentChatResponse(
+            message = chatMessage,
+            parsedAction = action
         )
     }
 
@@ -772,86 +798,169 @@ User: "Create a grocery list with milk, eggs, bread"
         }
     }
 
+    /**
+     * Parse and validate an action from AI response.
+     * BUG-037/044 FIX: Added validation for required parameters and ranges.
+     */
     private fun parseAction(actionType: String?, params: com.google.gson.JsonObject?): AgentAction? {
-        return when (actionType) {
-            "CREATE_NOTE" -> AgentAction.CreateNote(
-                content = params?.get("content")?.asString ?: "",
-                title = params?.get("title")?.asString,
-                category = params?.get("category")?.asString
-            )
-            "SEARCH_NOTES" -> AgentAction.SearchNotes(
-                query = params?.get("query")?.asString ?: "",
-                category = params?.get("category")?.asString,
-                limit = params?.get("limit")?.asInt ?: 10
-            )
-            "DELETE_NOTE" -> AgentAction.DeleteNote(
-                noteId = params?.get("noteId")?.asString,
-                description = params?.get("description")?.asString
-            )
-            "ARCHIVE_NOTE" -> AgentAction.ArchiveNote(
-                noteId = params?.get("noteId")?.asString,
-                description = params?.get("description")?.asString
-            )
-            "UNARCHIVE_NOTE" -> AgentAction.UnarchiveNote(
-                noteId = params?.get("noteId")?.asString,
-                description = params?.get("description")?.asString
-            )
-            "UPDATE_NOTE" -> AgentAction.UpdateNote(
-                noteId = params?.get("noteId")?.asString ?: "",
-                newContent = params?.get("newContent")?.asString,
-                newTitle = params?.get("newTitle")?.asString,
-                newCategory = params?.get("newCategory")?.asString
-            )
-            "SUMMARIZE_NOTE" -> AgentAction.SummarizeNote(
-                noteId = params?.get("noteId")?.asString ?: ""
-            )
-            "ADD_TODOS" -> {
-                val todosArray = params?.getAsJsonArray("todos")
-                val todos = todosArray?.mapNotNull { it.asString } ?: emptyList()
-                AgentAction.AddTodos(
-                    noteId = params?.get("noteId")?.asString ?: "",
-                    todos = todos
+        // BUG-037: Validate action type is not null or empty
+        if (actionType.isNullOrBlank()) {
+            Log.w(TAG, "Invalid action: null or empty action type")
+            return null
+        }
+
+        return try {
+            when (actionType) {
+                "CREATE_NOTE" -> {
+                    val content = params?.get("content")?.asString
+                    if (content.isNullOrBlank()) {
+                        Log.w(TAG, "CREATE_NOTE: missing required content")
+                        return null
+                    }
+                    AgentAction.CreateNote(
+                        content = content.take(MAX_NOTE_CONTENT_LENGTH), // Limit content length
+                        title = params.get("title")?.asString?.take(MAX_TITLE_LENGTH),
+                        category = params.get("category")?.asString?.take(MAX_CATEGORY_LENGTH)
+                    )
+                }
+                "SEARCH_NOTES" -> AgentAction.SearchNotes(
+                    query = params?.get("query")?.asString?.take(MAX_SEARCH_QUERY_LENGTH) ?: "",
+                    category = params?.get("category")?.asString?.take(MAX_CATEGORY_LENGTH),
+                    limit = (params?.get("limit")?.asInt ?: 10).coerceIn(1, 50) // BUG-044: Validate range
                 )
+                "DELETE_NOTE" -> AgentAction.DeleteNote(
+                    noteId = validateNoteId(params?.get("noteId")?.asString),
+                    description = params?.get("description")?.asString?.take(MAX_DESCRIPTION_LENGTH)
+                )
+                "ARCHIVE_NOTE" -> AgentAction.ArchiveNote(
+                    noteId = validateNoteId(params?.get("noteId")?.asString),
+                    description = params?.get("description")?.asString?.take(MAX_DESCRIPTION_LENGTH)
+                )
+                "UNARCHIVE_NOTE" -> AgentAction.UnarchiveNote(
+                    noteId = validateNoteId(params?.get("noteId")?.asString),
+                    description = params?.get("description")?.asString?.take(MAX_DESCRIPTION_LENGTH)
+                )
+                "UPDATE_NOTE" -> {
+                    val noteId = validateNoteId(params?.get("noteId")?.asString)
+                    if (noteId == null) {
+                        Log.w(TAG, "UPDATE_NOTE: missing or invalid noteId")
+                        return null
+                    }
+                    AgentAction.UpdateNote(
+                        noteId = noteId,
+                        newContent = params?.get("newContent")?.asString?.take(MAX_NOTE_CONTENT_LENGTH),
+                        newTitle = params?.get("newTitle")?.asString?.take(MAX_TITLE_LENGTH),
+                        newCategory = params?.get("newCategory")?.asString?.take(MAX_CATEGORY_LENGTH)
+                    )
+                }
+                "SUMMARIZE_NOTE" -> {
+                    val noteId = validateNoteId(params?.get("noteId")?.asString)
+                    if (noteId == null) {
+                        Log.w(TAG, "SUMMARIZE_NOTE: missing or invalid noteId")
+                        return null
+                    }
+                    AgentAction.SummarizeNote(noteId = noteId)
+                }
+                "ADD_TODOS" -> {
+                    val noteId = validateNoteId(params?.get("noteId")?.asString)
+                    if (noteId == null) {
+                        Log.w(TAG, "ADD_TODOS: missing or invalid noteId")
+                        return null
+                    }
+                    val todosArray = params?.getAsJsonArray("todos")
+                    val todos = todosArray?.mapNotNull { it.asString?.take(MAX_TODO_LENGTH) }
+                        ?.take(MAX_TODOS_PER_ACTION) // BUG-044: Limit number of todos
+                        ?: emptyList()
+                    AgentAction.AddTodos(noteId = noteId, todos = todos)
+                }
+                "TOGGLE_TODO" -> {
+                    val noteId = validateNoteId(params?.get("noteId")?.asString)
+                    val todoId = params?.get("todoId")?.asString
+                    if (noteId == null || todoId.isNullOrBlank()) {
+                        Log.w(TAG, "TOGGLE_TODO: missing noteId or todoId")
+                        return null
+                    }
+                    AgentAction.ToggleTodo(noteId = noteId, todoId = todoId)
+                }
+                "DELETE_TODO" -> {
+                    val noteId = validateNoteId(params?.get("noteId")?.asString)
+                    val todoId = params?.get("todoId")?.asString
+                    if (noteId == null || todoId.isNullOrBlank()) {
+                        Log.w(TAG, "DELETE_TODO: missing noteId or todoId")
+                        return null
+                    }
+                    AgentAction.DeleteTodo(noteId = noteId, todoId = todoId)
+                }
+                "LIST_CATEGORIES" -> AgentAction.ListCategories
+                "GET_CATEGORY_NOTES" -> AgentAction.GetCategoryNotes(
+                    categoryName = params?.get("categoryName")?.asString?.take(MAX_CATEGORY_LENGTH) ?: ""
+                )
+                "ANSWER_QUESTION" -> AgentAction.AnswerQuestion(
+                    question = params?.get("question")?.asString?.take(MAX_QUESTION_LENGTH) ?: ""
+                )
+                "SUGGEST_ACTIONS" -> AgentAction.SuggestActions(
+                    context = params?.get("context")?.asString?.take(MAX_CONTEXT_LENGTH) ?: ""
+                )
+                "WEB_SEARCH" -> {
+                    val query = params?.get("query")?.asString
+                    if (query.isNullOrBlank()) {
+                        Log.w(TAG, "WEB_SEARCH: missing required query")
+                        return null
+                    }
+                    val topic = params.get("topic")?.asString ?: "general"
+                    // BUG-044: Validate topic is valid
+                    val validTopic = if (topic in listOf("general", "news", "finance")) topic else "general"
+                    AgentAction.WebSearch(
+                        query = query.take(MAX_SEARCH_QUERY_LENGTH),
+                        reason = params.get("reason")?.asString?.take(MAX_DESCRIPTION_LENGTH) ?: "User requested search",
+                        topic = validTopic,
+                        maxResults = (params.get("maxResults")?.asInt ?: 5).coerceIn(1, 10)
+                    )
+                }
+                "PLAY_AUDIO" -> AgentAction.PlayAudio(
+                    query = params?.get("query")?.asString?.take(MAX_SEARCH_QUERY_LENGTH) ?: "",
+                    noteId = params?.get("noteId")?.asString?.let { validateNoteId(it) },
+                    attachmentIndex = (params?.get("attachmentIndex")?.asInt ?: 0).coerceIn(0, 10),
+                    source = params?.get("source")?.asString
+                )
+                "BATCH_ACTIONS" -> {
+                    val actionsArray = params?.getAsJsonArray("actions")
+                    val actions = actionsArray?.mapNotNull { actionJson ->
+                        val obj = actionJson.asJsonObject
+                        parseAction(obj.get("action")?.asString, obj.getAsJsonObject("params"))
+                    }?.take(MAX_BATCH_ACTIONS) // BUG-044: Limit batch size
+                        ?: emptyList()
+                    if (actions.isEmpty()) {
+                        Log.w(TAG, "BATCH_ACTIONS: no valid actions in batch")
+                        return null
+                    }
+                    AgentAction.BatchActions(actions)
+                }
+                else -> {
+                    Log.w(TAG, "Unknown action type: $actionType")
+                    null
+                }
             }
-            "TOGGLE_TODO" -> AgentAction.ToggleTodo(
-                noteId = params?.get("noteId")?.asString ?: "",
-                todoId = params?.get("todoId")?.asString ?: ""
-            )
-            "DELETE_TODO" -> AgentAction.DeleteTodo(
-                noteId = params?.get("noteId")?.asString ?: "",
-                todoId = params?.get("todoId")?.asString ?: ""
-            )
-            "LIST_CATEGORIES" -> AgentAction.ListCategories
-            "GET_CATEGORY_NOTES" -> AgentAction.GetCategoryNotes(
-                categoryName = params?.get("categoryName")?.asString ?: ""
-            )
-            "ANSWER_QUESTION" -> AgentAction.AnswerQuestion(
-                question = params?.get("question")?.asString ?: ""
-            )
-            "SUGGEST_ACTIONS" -> AgentAction.SuggestActions(
-                context = params?.get("context")?.asString ?: ""
-            )
-            "WEB_SEARCH" -> AgentAction.WebSearch(
-                query = params?.get("query")?.asString ?: "",
-                reason = params?.get("reason")?.asString ?: "User requested search",
-                topic = params?.get("topic")?.asString ?: "general",
-                maxResults = params?.get("maxResults")?.asInt ?: 5
-            )
-            "PLAY_AUDIO" -> AgentAction.PlayAudio(
-                query = params?.get("query")?.asString ?: "",
-                source = params?.get("source")?.asString
-            )
-            "BATCH_ACTIONS" -> {
-                val actionsArray = params?.getAsJsonArray("actions")
-                val actions = actionsArray?.mapNotNull { actionJson ->
-                    val obj = actionJson.asJsonObject
-                    parseAction(obj.get("action")?.asString, obj.getAsJsonObject("params"))
-                } ?: emptyList()
-                AgentAction.BatchActions(actions)
-            }
-            else -> null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing action $actionType: ${e.message}")
+            null
         }
     }
+
+    /**
+     * Validate noteId format. Returns null if invalid.
+     * BUG-037: Ensures noteId is a valid format before processing.
+     */
+    private fun validateNoteId(noteId: String?): String? {
+        if (noteId.isNullOrBlank()) return null
+        // Basic validation - must be a reasonable length and no suspicious characters
+        if (noteId.length > 64 || noteId.contains(Regex("[<>\"'\\\\;]"))) {
+            Log.w(TAG, "Invalid noteId format: $noteId")
+            return null
+        }
+        return noteId
+    }
+
 
     /**
      * Find note by description

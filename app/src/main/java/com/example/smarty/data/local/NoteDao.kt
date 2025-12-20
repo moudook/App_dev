@@ -55,4 +55,11 @@ interface NoteDao {
 
     @Query("DELETE FROM notes WHERE id = :noteId")
     suspend fun deleteNoteById(noteId: String)
+
+    /**
+     * Clear categoryId for all notes in a category.
+     * Called before category deletion to prevent orphaned references (BUG-028).
+     */
+    @Query("UPDATE notes SET categoryId = NULL, categoryName = NULL, updatedAt = :timestamp WHERE categoryId = :categoryId")
+    suspend fun clearCategoryFromNotes(categoryId: String, timestamp: Long = System.currentTimeMillis())
 }

@@ -79,19 +79,35 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
         AudioPlayerUiState()
     )
 
+    // Track if playback was explicitly requested to prevent auto-hiding during state transitions
+    private var isPlaybackRequested = false
+
     init {
         // Observe player state to show/hide mini player
         viewModelScope.launch {
             AudioPlayerService.playerState.collect { state ->
-                _isMiniPlayerVisible.value = state.currentTrack != null &&
-                        state.playbackState != PlaybackState.IDLE
-
                 if (state.playbackState == PlaybackState.ERROR) {
+                    _isMiniPlayerVisible.value = false
+                    isPlaybackRequested = false
                     android.widget.Toast.makeText(
                         getApplication(),
                         "Unable to satisfy request. Use local file.",
                         android.widget.Toast.LENGTH_SHORT
                     ).show()
+                } else {
+                    // Only update visibility if we are NOT waiting for a requested playback to start
+                    // OR if the state confirms playback/buffering has begun
+                    val isActive = state.currentTrack != null && state.playbackState != PlaybackState.IDLE
+                    
+                    if (isActive) {
+                        // Playback is confirmed active, so we can clear the request flag and show player
+                        isPlaybackRequested = false
+                        _isMiniPlayerVisible.value = true
+                    } else if (!isPlaybackRequested) {
+                        // Only hide if we aren't waiting for a request to fulfill
+                        _isMiniPlayerVisible.value = false
+                    }
+                    // Else: keep current visibility (true) while waiting for request to process
                 }
             }
         }
@@ -102,8 +118,9 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
      */
     fun playAudio(track: AudioTrack) {
         Log.d(TAG, "Playing audio: ${track.title}")
+        isPlaybackRequested = true
+        _isMiniPlayerVisible.value = true // Show immediately for responsiveness
         AudioPlayerService.play(getApplication(), track)
-        _isMiniPlayerVisible.value = true
     }
 
     /**
@@ -141,6 +158,7 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
      */
     fun stop() {
         Log.d(TAG, "Stopping playback")
+        isPlaybackRequested = false
         AudioPlayerService.stop(getApplication())
         _isMiniPlayerVisible.value = false
         _isFullPlayerVisible.value = false

@@ -24,6 +24,22 @@ import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.screens.*
 import com.example.smarty.viewmodel.BackupViewModel
 
+/**
+ * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
+ */
+private fun NavHostController.safePopBackStack(): Boolean {
+    return try {
+        if (previousBackStackEntry != null) {
+            popBackStack()
+        } else {
+            false
+        }
+    } catch (e: Exception) {
+        android.util.Log.w("CogniNavigation", "Safe pop failed: ${e.message}")
+        false
+    }
+}
+
 sealed class Screen(val route: String) {
     data object Pin : Screen("pin")
     data object PinSetup : Screen("pin_setup")
@@ -144,7 +160,7 @@ fun CogniNavHost(
             PinSetupRoute(
                 onSetupComplete = { pin ->
                     onSetPin(pin)
-                    navController.popBackStack()
+                    navController.safePopBackStack()
                 }
             )
         }
@@ -155,7 +171,7 @@ fun CogniNavHost(
                 onVerifyPin = onVerifyPin,
                 onSetPin = onSetPin,
                 onComplete = {
-                    navController.popBackStack()
+                    navController.safePopBackStack()
                 }
             )
         }
@@ -219,7 +235,7 @@ fun CogniNavHost(
                     navController.navigate(Screen.CategoryNotes.route)
                 },
                 onBackClick = {
-                    navController.popBackStack()
+                    navController.safePopBackStack()
                 },
                 onCreateCategory = onCreateCategory,
                 onDeleteCategory = onDeleteCategory,
@@ -233,7 +249,7 @@ fun CogniNavHost(
                     category = category,
                     notes = notes,
                     onBackClick = {
-                        navController.popBackStack()
+                        navController.safePopBackStack()
                     },
                     onNoteClick = { note ->
                         onSelectNote(note)
@@ -250,15 +266,15 @@ fun CogniNavHost(
                 KnowledgeCardScreen(
                     note = note,
                     onBackClick = {
-                        navController.popBackStack()
+                        navController.safePopBackStack()
                     },
                     onArchiveClick = {
                         onArchiveNote(note.id)
-                        navController.popBackStack()
+                        navController.safePopBackStack()
                     },
                     onDeleteClick = {
                         onDeleteNote(note)
-                        navController.popBackStack()
+                        navController.safePopBackStack()
                     },
                     onPlayAudio = onPlayAudio,
                     bottomContentPadding = bottomContentPadding
@@ -272,7 +288,7 @@ fun CogniNavHost(
                 isPinConfigured = isPinConfigured,
                 isDarkTheme = isDarkTheme,
                 onBackClick = {
-                    navController.popBackStack()
+                    navController.safePopBackStack()
                 },
                 onAddApiKey = onAddApiKey,
                 onRemoveApiKey = onRemoveApiKey,
@@ -331,7 +347,7 @@ fun CogniNavHost(
             ArchiveScreen(
                 archivedNotes = archivedNotes,
                 onBackClick = {
-                    navController.popBackStack()
+                    navController.safePopBackStack()
                 },
                 onDeleteNote = onDeleteNoteById,
                 onUnarchiveNote = onUnarchiveNote
@@ -341,7 +357,7 @@ fun CogniNavHost(
         composable(Screen.BackupSettings.route) {
             BackupSettingsRoute(
                 onBackClick = {
-                    navController.popBackStack()
+                    navController.safePopBackStack()
                 }
             )
         }
@@ -352,7 +368,7 @@ fun CogniNavHost(
             CalendarScreen(
                 events = calendarEvents,
                 onBackClick = {
-                    navController.popBackStack()
+                    navController.safePopBackStack()
                 },
                 onAddEvent = {
                     showAddDialog = true
