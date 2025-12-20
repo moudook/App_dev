@@ -97,7 +97,8 @@ data class OpenAIMessageResponse(
  * This is a thin facade that delegates to specialized handlers:
  * - [AIProviderOrchestrator]: Provider management and key rotation
  * - [ContentAnalyzer]: Content and document analysis
- * - [AgentChatHandler]: Agent chat operations
+ *
+ * Note: Agent chat is now handled by CogniAgent using Koog framework.
  *
  * @property securePreferences Secure storage for API keys and settings
  */
@@ -110,14 +111,19 @@ class AIService(private val securePreferences: SecurePreferences) {
     // Specialized handlers
     private val orchestrator = AIProviderOrchestrator(securePreferences)
     private val contentAnalyzer = ContentAnalyzer(orchestrator)
-    private val agentChatHandler = AgentChatHandler(orchestrator)
 
     /**
      * Analyzes content using available AI providers with fallback and retry logic.
      * Applies security filtering before sending to AI to prevent prompt injection.
+     *
+     * @param content The text content to analyze
+     * @param attachmentMetadata Optional list of attachment metadata (file names and types only)
      */
-    suspend fun analyzeContent(content: String): AIResponse {
-        return contentAnalyzer.analyzeContent(content)
+    suspend fun analyzeContent(
+        content: String,
+        attachmentMetadata: List<com.example.smarty.data.model.AttachmentMetadata>? = null
+    ): AIResponse {
+        return contentAnalyzer.analyzeContent(content, attachmentMetadata)
     }
 
     /**
@@ -136,25 +142,37 @@ class AIService(private val securePreferences: SecurePreferences) {
     }
 
     /**
-     * Normal chat for conversational AI interactions.
-     * Uses keys 2,3,4... (excludes agent key 1).
+     * Simple chat for non-agent AI interactions (summarization, title compression, etc.).
+     * Uses the first available provider with API key.
+     *
+     * @param systemPrompt The system instructions
+     * @param userPrompt The user's message
+     * @return The AI response text, or throws if no provider available
      */
-    suspend fun agentChat(systemPrompt: String, userPrompt: String): String {
-        return agentChatHandler.normalChat(systemPrompt, userPrompt)
-    }
+    suspend fun simpleChat(systemPrompt: String, userPrompt: String): String = withContext(Dispatchers.IO) {
+        val providers = orchestrator.getOrderedProviders()
 
-    /**
-     * Agent REASONING API - Uses the FIRST API key for tool execution and reasoning.
-     */
-    suspend fun agentReasoning(systemPrompt: String, userPrompt: String): String {
-        return agentChatHandler.agentReasoning(systemPrompt, userPrompt)
-    }
+        for (provider in providers) {
+            val keys = securePreferences.getProviderKeys(provider)
+            if (keys.isEmpty()) continue
 
-    /**
-     * Agent FINAL RESPONSE API - Uses the FIRST API key for final user-facing response.
-     */
-    suspend fun agentFinalResponse(systemPrompt: String, userPrompt: String): String {
-        return agentChatHandler.agentFinalResponse(systemPrompt, userPrompt)
+            val providerInstance = orchestrator.getProvider(provider)
+            val model = orchestrator.getModelForProvider(provider)
+
+            val result = providerInstance.chat(
+                systemPrompt = systemPrompt,
+                userPrompt = userPrompt,
+                apiKey = keys.first(),
+                model = model
+            )
+
+            if (result != null) {
+                Log.d(TAG, "simpleChat succeeded with $provider")
+                return@withContext result
+            }
+        }
+
+        throw IllegalStateException("No AI provider available for chat")
     }
 
     /**

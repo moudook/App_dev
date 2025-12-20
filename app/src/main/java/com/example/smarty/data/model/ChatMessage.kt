@@ -31,7 +31,8 @@ data class ChatMessage(
     val attachments: List<Attachment> = emptyList(),
     val timestamp: Long = System.currentTimeMillis(),
     val executedActions: List<AgentActionResult> = emptyList(),
-    val referencedNoteIds: List<String> = emptyList()
+    val referencedNoteIds: List<String> = emptyList(),
+    val isAudioRelated: Boolean = false  // True when user asked about audio/music playback
 ) {
     /**
      * Check if this is a user message

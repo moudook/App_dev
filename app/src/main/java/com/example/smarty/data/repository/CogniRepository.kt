@@ -1,15 +1,19 @@
 package com.example.smarty.data.repository
 
 import androidx.room.Transaction
+import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.local.CategoryDao
 import com.example.smarty.data.local.NoteDao
+import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 class CogniRepository(
     private val noteDao: NoteDao,
-    private val categoryDao: CategoryDao
+    private val categoryDao: CategoryDao,
+    private val calendarDao: CalendarDao  // Required for calendar functionality
 ) {
     // Notes
     fun getAllNotes(): Flow<List<Note>> = noteDao.getAllNotes()
@@ -94,4 +98,57 @@ class CogniRepository(
     suspend fun syncAllCategoryCounts() = categoryDao.recalculateAllCounts()
 
     suspend fun syncCategoryCount(categoryId: String) = categoryDao.recalculateCategoryCount(categoryId)
+
+    // =========================================================================
+    // CALENDAR EVENTS
+    // =========================================================================
+
+    fun getAllCalendarEvents(): Flow<List<CalendarEvent>> = calendarDao.getAllEvents()
+
+    suspend fun getCalendarEventById(id: String): CalendarEvent? = calendarDao.getEventById(id)
+
+    /**
+     * Get calendar event by ID for AI operations.
+     * SECURITY: Returns null for private events - AI cannot access them.
+     */
+    suspend fun getCalendarEventByIdForAi(id: String): CalendarEvent? {
+        val event = calendarDao.getEventById(id) ?: return null
+        return if (event.isEventPrivate) null else event
+    }
+
+    /**
+     * Insert a calendar event.
+     */
+    suspend fun insertCalendarEvent(event: CalendarEvent) {
+        calendarDao.insertEvent(event)
+    }
+
+    suspend fun updateCalendarEvent(event: CalendarEvent) {
+        calendarDao.updateEvent(event)
+    }
+
+    suspend fun deleteCalendarEvent(eventId: String) {
+        calendarDao.deleteEventById(eventId)
+    }
+
+    /**
+     * Search calendar events by title (case-insensitive).
+     * SECURITY: Filters out private events - AI cannot access private calendar entries.
+     */
+    suspend fun searchCalendarEvents(query: String): List<CalendarEvent> {
+        val allEvents = calendarDao.getAllEventsOnce()
+        val lowerQuery = query.lowercase()
+        return allEvents.filter { event ->
+            !event.isEventPrivate &&  // SECURITY: Exclude private events
+            (event.title.lowercase().contains(lowerQuery) ||
+            event.description?.lowercase()?.contains(lowerQuery) == true)
+        }
+    }
+
+    /**
+     * Get upcoming AI-visible events.
+     */
+    suspend fun getUpcomingCalendarEvents(limit: Int = 10): List<CalendarEvent> {
+        return calendarDao.getAiVisibleUpcomingEvents(limit = limit)
+    }
 }

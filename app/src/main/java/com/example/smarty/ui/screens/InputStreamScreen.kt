@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.PlayArrow
@@ -53,6 +54,8 @@ import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.StaggerCalculator
+import com.example.smarty.ui.animation.rememberShakeGlowState
+import com.example.smarty.ui.animation.shakeGlowEffect
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.ui.components.AlphabetFastScroller
 import com.example.smarty.ui.components.ChatHistorySheet
@@ -60,7 +63,6 @@ import com.example.smarty.ui.components.ChatMessageItem
 import com.example.smarty.ui.components.CogniHeader
 import com.example.smarty.ui.components.CogniInputField
 import com.example.smarty.ui.components.NoteCard
-import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.ui.components.ChatEmptyState
 import com.example.smarty.ui.components.DynamicIsland
@@ -76,6 +78,8 @@ import com.example.smarty.ui.theme.SafetyOrange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,7 +93,7 @@ fun InputStreamScreen(
     onDeleteNote: (String) -> Unit,
     onArchiveNote: (String) -> Unit,
     onUnarchiveNote: (String) -> Unit,
-    onUpdateNoteTodos: (String, List<TodoItem>) -> Unit,
+    onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
     onNavigateToStacks: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToCalendar: () -> Unit = {},
@@ -118,6 +122,7 @@ fun InputStreamScreen(
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
     onShowTransientIsland: (com.example.smarty.ui.components.DynamicIslandState) -> Unit = {},
+    wasShakeTriggered: Boolean = false,  // For border glow animation on mode switch
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -134,6 +139,17 @@ fun InputStreamScreen(
     }
     // Derived current text based on mode
     val textValue = if (isChatMode) chatModeTextValue else normalModeTextValue
+
+    // Auto-send state for chat mode - triggers 0.4s after speech stops
+    var autoSendActive by remember { mutableStateOf(false) }
+    var autoSendJob by remember { mutableStateOf<Job?>(null) }
+
+    // Track if we received speech input (for auto-send triggering)
+    var hadSpeechInput by remember { mutableStateOf(false) }
+
+    // Partial text tracking for progressive speech append
+    var lastPartialText by remember { mutableStateOf("") }
+    var partialTextStartIndex by remember { mutableStateOf(0) }
 
     // Sync ViewModel's input text whenever the text value changes
     // This ensures shake detection always uses the current text state
@@ -157,40 +173,124 @@ fun InputStreamScreen(
     // Snackbar state for undo archive
     val snackbarHostState = remember { SnackbarHostState() }
     var lastArchivedNoteId by remember { mutableStateOf<String?>(null) }
-    
+
+    // Shake glow animation state
+    val shakeGlowState = rememberShakeGlowState()
+    val accentColor = LocalAccentColor.current
+
+    // Trigger glow when shake mode switch detected
+    LaunchedEffect(wasShakeTriggered) {
+        if (wasShakeTriggered) {
+            shakeGlowState.triggerGlow()
+        }
+    }
+
     // Voice Input State (Speech-to-Text) - Use external from MainActivity
     val speechState = externalSpeechState ?: com.example.smarty.util.rememberSpeechToText(
         onResult = { /* Handled by global flow */ }
     )
 
-    // Observe global speech results and update local text fields
-    // Key on isChatMode to restart collection when mode changes (BUG FIX: speech not working in chat mode)
+    // Handle partial results for progressive text append
+    LaunchedEffect(speechState) {
+        speechState.onPartialResult = { partialText ->
+            if (partialText.isNotBlank()) {
+                hadSpeechInput = true  // Mark that we got speech input
+
+                val currentTextValue = if (isChatMode) chatModeTextValue else normalModeTextValue
+                val currentText = currentTextValue.text
+
+                // If this is the first partial, record where we're inserting
+                if (lastPartialText.isEmpty()) {
+                    partialTextStartIndex = currentText.length
+                    // Add space if needed before the partial text
+                    if (currentText.isNotEmpty() && !currentText.endsWith(" ")) {
+                        val spacedText = "$currentText "
+                        partialTextStartIndex = spacedText.length
+                        if (isChatMode) {
+                            chatModeTextValue = TextFieldValue(spacedText, TextRange(spacedText.length))
+                        } else {
+                            normalModeTextValue = TextFieldValue(spacedText, TextRange(spacedText.length))
+                        }
+                    }
+                }
+
+                // Replace the previous partial with the new one
+                val baseText = currentText.take(partialTextStartIndex)
+                val newText = baseText + partialText
+                val newValue = TextFieldValue(newText, TextRange(newText.length))
+
+                if (isChatMode) {
+                    chatModeTextValue = newValue
+                } else {
+                    normalModeTextValue = newValue
+                }
+
+                lastPartialText = partialText
+                onInputTextChange(newText)
+            }
+        }
+    }
+
+    // Observe global speech results (final) and update local text fields
+    // Key on isChatMode to restart collection when mode changes
     LaunchedEffect(speechResults, isChatMode) {
         speechResults?.collect { result ->
+            // Final result replaces any partial text
+            hadSpeechInput = true
+
             val currentTextValue = if (isChatMode) chatModeTextValue else normalModeTextValue
             val currentText = currentTextValue.text
-            val selection = currentTextValue.selection
 
-            // Insert result at cursor position
-            val validStart = selection.start.coerceIn(0, currentText.length)
-            val prefix = currentText.take(validStart)
-            val suffix = currentText.drop(validStart)
+            // Use the base text before any partial results
+            val baseText = if (lastPartialText.isNotEmpty()) {
+                currentText.take(partialTextStartIndex)
+            } else {
+                val spacer = if (currentText.isNotEmpty() && !currentText.endsWith(" ")) " " else ""
+                currentText + spacer
+            }
 
-            // Add space if needed
-            val spacer = if (prefix.isNotEmpty() && !prefix.endsWith(" ")) " " else ""
-            val newText = "$prefix$spacer$result$suffix"
+            val newText = baseText + result
+            val newValue = TextFieldValue(newText, TextRange(newText.length))
 
-            // Update Text with cursor moved to end of inserted segment
-            val newCursorPos = (prefix.length + spacer.length + result.length).coerceAtMost(newText.length)
-
-            val newValue = TextFieldValue(newText, TextRange(newCursorPos))
-            // Update the correct state based on mode
             if (isChatMode) {
                 chatModeTextValue = newValue
             } else {
                 normalModeTextValue = newValue
             }
+
+            // Reset partial tracking
+            lastPartialText = ""
+            partialTextStartIndex = 0
+
             onInputTextChange(newText)
+        }
+    }
+
+    // Auto-send in chat mode: 0.4s after speech recognition stops
+    LaunchedEffect(speechState.isListening, isChatMode) {
+        if (!speechState.isListening && isChatMode && hadSpeechInput) {
+            val currentText = chatModeTextValue.text
+            if (currentText.isNotBlank()) {
+                autoSendActive = true
+                autoSendJob?.cancel()
+                autoSendJob = scope.launch {
+                    delay(400)  // 0.4 seconds
+                    if (autoSendActive) {
+                        onSendChatMessage(currentText, attachments)
+                        chatModeTextValue = TextFieldValue("")
+                        attachments = emptyList()
+                        onInputTextChange("")
+                        autoSendActive = false
+                        hadSpeechInput = false
+                        lastPartialText = ""
+                        partialTextStartIndex = 0
+                    }
+                }
+            }
+        } else if (speechState.isListening) {
+            // Cancel auto-send if user starts speaking again
+            autoSendActive = false
+            autoSendJob?.cancel()
         }
     }
 
@@ -199,7 +299,11 @@ fun InputStreamScreen(
     var selectedNoteIds by remember { mutableStateOf(setOf<String>()) }
 
     // Search Mode State
+    // Search Mode State
     var isSearchMode by remember { mutableStateOf(false) }
+    
+    // AI Filter State
+    var isAiFilterSelected by remember { mutableStateOf(false) }
     
     // File Type Categorization State
     var selectedTypeFilter by remember { mutableStateOf<NoteType?>(null) }
@@ -214,6 +318,8 @@ fun InputStreamScreen(
         derivedStateOf {
             val typeFiltered = if (selectedTypeFilter != null) {
                 notes.filter { it.type == selectedTypeFilter }
+            } else if (isAiFilterSelected) {
+                notes.filter { it.isAiCreated }
             } else {
                 notes
             }
@@ -389,7 +495,15 @@ fun InputStreamScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .shakeGlowEffect(
+                isActive = shakeGlowState.isGlowing,
+                glowColor = if (isChatMode) accentColor else MaterialTheme.colorScheme.primary,
+                onAnimationComplete = { shakeGlowState.onGlowComplete() }
+            )
+    ) {
         Scaffold(
         modifier = Modifier.imePadding(), // This handles keyboard
         snackbarHost = {
@@ -605,16 +719,33 @@ fun InputStreamScreen(
                                 item {
                                     NoteTypeChip(
                                         label = "All",
-                                        isSelected = selectedTypeFilter == null,
-                                        onClick = { selectedTypeFilter = null },
+                                        isSelected = selectedTypeFilter == null && !isAiFilterSelected,
+                                        onClick = { 
+                                            selectedTypeFilter = null
+                                            isAiFilterSelected = false
+                                        },
                                         icon = Icons.Default.GridView
+                                    )
+                                }
+                                item {
+                                    NoteTypeChip(
+                                        label = "AI",
+                                        isSelected = isAiFilterSelected,
+                                        onClick = { 
+                                            isAiFilterSelected = true
+                                            selectedTypeFilter = null
+                                        },
+                                        icon = Icons.Default.AutoAwesome
                                     )
                                 }
                                 items(availableTypes) { type ->
                                     NoteTypeChip(
                                         label = formatNoteType(type),
                                         isSelected = selectedTypeFilter == type,
-                                        onClick = { selectedTypeFilter = type },
+                                        onClick = { 
+                                            selectedTypeFilter = type
+                                            isAiFilterSelected = false
+                                        },
                                         icon = getNoteTypeIcon(type)
                                     )
                                 }
@@ -800,6 +931,14 @@ fun InputStreamScreen(
                     CogniInputField(
                         value = textValue,
                         onValueChange = { newTextValue ->
+                            // Cancel auto-send if user manually types
+                            if (autoSendActive) {
+                                autoSendActive = false
+                                autoSendJob?.cancel()
+                            }
+                            // Reset speech tracking on manual input
+                            hadSpeechInput = false
+
                             // Update the correct state based on current mode
                             if (isChatMode) {
                                 chatModeTextValue = newTextValue
@@ -861,7 +1000,9 @@ fun InputStreamScreen(
                         },
                         onStopVoiceInput = {
                             speechState.stopListening()
-                        }
+                        },
+                        isAgentWorking = isChatProcessing,
+                        autoSendActive = autoSendActive
                     )
                 }
             }
@@ -914,15 +1055,15 @@ fun InputStreamScreen(
         )
     }
 
-    // Todo bottom sheet
+    // Todo bottom sheet - auto-saves on every action
     selectedNoteForTodo?.let { note ->
         NoteTodoSheet(
             note = note,
             sheetState = todoSheetState,
             onDismiss = { selectedNoteForTodo = null },
             onSaveTodos = { todos ->
-                onUpdateNoteTodos(note.id, todos)
-                selectedNoteForTodo = null
+                // Auto-save without dismissing - user clicks Done to close
+                onUpdateNoteTodos(note.id, todos, null)
             }
         )
     }

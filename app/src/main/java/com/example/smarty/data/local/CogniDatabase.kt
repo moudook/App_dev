@@ -56,7 +56,7 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_9_10,
                         Migrations.MIGRATION_10_11
                     )
-                    .fallbackToDestructiveMigration()
+                    .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance
                 instance

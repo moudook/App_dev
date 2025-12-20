@@ -77,10 +77,14 @@ class ChatManager(
      */
     fun toggleChatMode() {
         scope.launch {
-            if (!_isChatMode.value) {
-                enterChatMode()
-            } else {
-                exitChatMode()
+            try {
+                if (!_isChatMode.value) {
+                    enterChatMode()
+                } else {
+                    exitChatMode()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error toggling chat mode: ${e.message}", e)
             }
         }
     }
@@ -176,25 +180,25 @@ class ChatManager(
     }
 
     /**
-     * Add a user message to the chat (thread-safe)
+     * Add a user message to the chat (thread-safe using Mutex)
      */
-    fun addUserMessage(content: String, attachments: List<Attachment> = emptyList()): ChatMessage {
+    suspend fun addUserMessage(content: String, attachments: List<Attachment> = emptyList()): ChatMessage {
         val userMessage = ChatMessage(
             role = ChatRole.USER,
             content = content,
             attachments = attachments
         )
-        synchronized(_chatMessages) {
+        chatMutex.withLock {
             _chatMessages.value = _chatMessages.value + userMessage
         }
         return userMessage
     }
 
     /**
-     * Add an assistant response to the chat (thread-safe)
+     * Add an assistant response to the chat (thread-safe using Mutex)
      */
-    fun addAssistantMessage(message: ChatMessage) {
-        synchronized(_chatMessages) {
+    suspend fun addAssistantMessage(message: ChatMessage) {
+        chatMutex.withLock {
             _chatMessages.value = _chatMessages.value + message
         }
     }
@@ -234,18 +238,20 @@ class ChatManager(
      * Ensure we have a valid session, creating one if needed
      */
     suspend fun ensureSession(): String {
-        if (_currentSessionId.value == null) {
-            val newSession = chatRepository.createNewSession()
-            _currentSessionId.value = newSession.id
+        val existingId = _currentSessionId.value
+        if (existingId != null) {
+            return existingId
         }
-        return _currentSessionId.value!!
+        val newSession = chatRepository.createNewSession()
+        _currentSessionId.value = newSession.id
+        return newSession.id
     }
 
     /**
-     * Update the actions of a specific assistant message (thread-safe)
+     * Update the actions of a specific assistant message (thread-safe using Mutex)
      */
-    fun updateAssistantMessageActions(messageId: String, updatedActions: List<com.example.smarty.data.model.AgentActionResult>) {
-        synchronized(_chatMessages) {
+    suspend fun updateAssistantMessageActions(messageId: String, updatedActions: List<com.example.smarty.data.model.AgentActionResult>) {
+        chatMutex.withLock {
             val currentMessages = _chatMessages.value
             val updatedMessages = currentMessages.map { message ->
                 if (message.id == messageId) {

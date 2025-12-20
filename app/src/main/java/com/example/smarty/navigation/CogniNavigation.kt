@@ -65,6 +65,7 @@ fun CogniNavHost(
     isProcessing: Boolean,
     // API Key management
     providerConfigs: Map<AIProvider, AIProviderConfig>,
+    providerPriorityOrder: List<AIProvider>,
     onAddApiKey: (AIProvider, String) -> Unit,
     onRemoveApiKey: (AIProvider, String) -> Unit,
     onUpdateApiKey: (AIProvider, String, String) -> Unit,
@@ -88,7 +89,7 @@ fun CogniNavHost(
     onUnarchiveNote: (String) -> Unit,
     onDeleteNote: (Note) -> Unit,
     onDeleteNoteById: (String) -> Unit,
-    onUpdateNoteTodos: (String, List<TodoItem>) -> Unit,
+    onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
     // Pending share management
     pendingShare: PendingShareData?,
     onConfirmShare: (String?, String) -> Unit,
@@ -121,9 +122,25 @@ fun CogniNavHost(
     // Tavily Web Search API
     tavilyApiKey: String? = null,
     onSetTavilyApiKey: (String?) -> Unit = {},
+    // Shake sensitivity
+    shakeSensitivity: Float = 0.63f,
+    onShakeSensitivityChange: (Float) -> Unit = {},
+    // Shake mode switch animation
+    wasShakeTriggered: Boolean = false,
     // Calendar management
     calendarEvents: List<CalendarEvent> = emptyList(),
-    onAddCalendarEvent: (String, String?, Long, Long, Boolean) -> Unit = { _, _, _, _, _ -> },
+    onAddCalendarEvent: (
+        title: String,
+        description: String?,
+        startTime: Long,
+        endTime: Long,
+        isAllDay: Boolean,
+        location: String?,
+        color: Int?,
+        reminderMinutes: Int?,
+        isPrivate: Boolean
+    ) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
+    onUpdateCalendarEvent: (CalendarEvent) -> Unit = {},
     onDeleteCalendarEvent: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
@@ -223,7 +240,8 @@ fun CogniNavHost(
                 speechResults = speechResults,
                 onShowTransientIsland = { state ->
                     onShowTransientIsland(state)
-                }
+                },
+                wasShakeTriggered = wasShakeTriggered
             )
         }
 
@@ -285,6 +303,7 @@ fun CogniNavHost(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 providerConfigs = providerConfigs,
+                providerPriorityOrder = providerPriorityOrder,
                 isPinConfigured = isPinConfigured,
                 isDarkTheme = isDarkTheme,
                 onBackClick = {
@@ -306,6 +325,9 @@ fun CogniNavHost(
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,
                 isClearingCache = isClearingCache,
+                // Shake sensitivity
+                shakeSensitivity = shakeSensitivity,
+                onShakeSensitivityChange = onShakeSensitivityChange,
                 // Embedded Sheets
                 archiveContent = { onDismiss ->
                     ArchiveScreen(
@@ -363,30 +385,13 @@ fun CogniNavHost(
         }
 
         composable(Screen.Calendar.route) {
-            var showAddDialog by remember { mutableStateOf(false) }
-
-            CalendarScreen(
-                events = calendarEvents,
-                onBackClick = {
-                    navController.safePopBackStack()
-                },
-                onAddEvent = {
-                    showAddDialog = true
-                },
-                onEventClick = { event ->
-                    // TODO: Navigate to event detail or show edit dialog
-                }
+            CalendarRoute(
+                calendarEvents = calendarEvents,
+                onBackClick = { navController.safePopBackStack() },
+                onAddCalendarEvent = onAddCalendarEvent,
+                onUpdateCalendarEvent = onUpdateCalendarEvent,
+                onDeleteCalendarEvent = onDeleteCalendarEvent
             )
-
-            if (showAddDialog) {
-                com.example.smarty.ui.components.AddEventDialog(
-                    onDismiss = { showAddDialog = false },
-                    onConfirm = { title, description, startTime, endTime, isAllDay ->
-                        onAddCalendarEvent(title, description, startTime, endTime, isAllDay)
-                        showAddDialog = false
-                    }
-                )
-            }
         }
     }
 }
@@ -536,5 +541,88 @@ fun PinChangeRoute(
             },
             isEmbedded = isEmbedded
         )
+    }
+}
+
+/**
+ * Calendar screen wrapper with proper experimental API annotation for ModalBottomSheet.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun CalendarRoute(
+    calendarEvents: List<CalendarEvent>,
+    onBackClick: () -> Unit,
+    onAddCalendarEvent: (
+        title: String,
+        description: String?,
+        startTime: Long,
+        endTime: Long,
+        isAllDay: Boolean,
+        location: String?,
+        color: Int?,
+        reminderMinutes: Int?,
+        isPrivate: Boolean
+    ) -> Unit,
+    onUpdateCalendarEvent: (CalendarEvent) -> Unit,
+    onDeleteCalendarEvent: (String) -> Unit
+) {
+    var showAddSheet by remember { mutableStateOf(false) }
+    var selectedEventForEdit by remember { mutableStateOf<CalendarEvent?>(null) }
+
+    CalendarScreen(
+        events = calendarEvents,
+        onBackClick = onBackClick,
+        onAddEvent = { showAddSheet = true },
+        onEventClick = { event ->
+            selectedEventForEdit = event
+        },
+        onDeleteEvent = { event ->
+            onDeleteCalendarEvent(event.id)
+        }
+    )
+
+    // Add Event Sheet
+    if (showAddSheet) {
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { showAddSheet = false },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(
+                skipPartiallyExpanded = true
+            ),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            dragHandle = null
+        ) {
+            com.example.smarty.ui.components.AddEventSheet(
+                onDismiss = { showAddSheet = false },
+                onConfirm = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->
+                    onAddCalendarEvent(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate)
+                    showAddSheet = false
+                }
+            )
+        }
+    }
+
+    // Edit Event Sheet
+    selectedEventForEdit?.let { event ->
+        androidx.compose.material3.ModalBottomSheet(
+            onDismissRequest = { selectedEventForEdit = null },
+            sheetState = androidx.compose.material3.rememberModalBottomSheetState(
+                skipPartiallyExpanded = true
+            ),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            dragHandle = null
+        ) {
+            com.example.smarty.ui.components.EditEventSheet(
+                event = event,
+                onDismiss = { selectedEventForEdit = null },
+                onSave = { updatedEvent ->
+                    onUpdateCalendarEvent(updatedEvent)
+                    selectedEventForEdit = null
+                },
+                onDelete = {
+                    onDeleteCalendarEvent(event.id)
+                    selectedEventForEdit = null
+                }
+            )
+        }
     }
 }

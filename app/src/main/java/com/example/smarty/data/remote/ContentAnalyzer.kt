@@ -1,6 +1,8 @@
 package com.example.smarty.data.remote
 
 import android.util.Log
+import com.example.smarty.data.cache.AIResponseCache
+import com.example.smarty.data.model.AttachmentMetadata
 import com.example.smarty.util.ContentSecurityFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -108,10 +110,18 @@ Document content:
     /**
      * Analyzes content using available AI providers with fallback and retry logic.
      * Applies security filtering before sending to AI to prevent prompt injection.
+     * Uses caching to minimize redundant API calls for similar content.
+     *
+     * @param content The text content to analyze
+     * @param attachmentMetadata Optional list of attachment metadata (file names and types only)
      */
-    suspend fun analyzeContent(content: String): AIResponse = withContext(Dispatchers.IO) {
+    suspend fun analyzeContent(
+        content: String,
+        attachmentMetadata: List<AttachmentMetadata>? = null
+    ): AIResponse = withContext(Dispatchers.IO) {
         Log.i(TAG, "=== Starting AI Analysis ===")
         Log.d(TAG, "Content length: ${content.length} chars")
+        Log.d(TAG, "Attachments: ${attachmentMetadata?.size ?: 0}")
 
         // SECURITY: Apply content filtering before AI processing
         val securityCheck = ContentSecurityFilter.sanitize(content)
@@ -132,7 +142,26 @@ Document content:
         }
 
         val sanitizedContent = securityCheck.sanitizedContent
-        Log.d(TAG, "Sanitized content preview: ${sanitizedContent.take(100)}...")
+
+        // Build content with attachment metadata if available
+        val contentWithMetadata = if (attachmentMetadata.isNullOrEmpty()) {
+            sanitizedContent
+        } else {
+            val attachmentsSection = attachmentMetadata.mapIndexed { index, meta ->
+                "${index + 1}. ${meta.fileName} (${meta.fileType})"
+            }.joinToString("\n")
+
+            "$sanitizedContent\n\n---\nAttached Files:\n$attachmentsSection"
+        }
+
+        // Check cache first to avoid redundant API calls
+        val cacheKey = AIResponseCache.generateKey(contentWithMetadata)
+        AIResponseCache.get(cacheKey)?.let { cachedResponse ->
+            Log.i(TAG, "Returning cached AI response")
+            return@withContext cachedResponse
+        }
+
+        Log.d(TAG, "Content preview: ${contentWithMetadata.take(100)}...")
 
         val configs = orchestrator.getAllProviderConfigs()
 
@@ -143,7 +172,7 @@ Document content:
 
         // Try each provider in order
         for (provider in orchestrator.getOrderedProviders()) {
-            val config = configs[provider]
+            val config = configs[provider] ?: continue
             if (!orchestrator.isProviderAvailable(config)) {
                 Log.d(TAG, "$provider not available or disabled")
                 continue
@@ -152,9 +181,9 @@ Document content:
             val providerInstance = orchestrator.getProvider(provider)
             val model = orchestrator.getModelForProvider(provider)
 
-            val result = orchestrator.executeWithContentAnalysisRetry(provider, config!!) { apiKey ->
+            val result = orchestrator.executeWithContentAnalysisRetry(provider, config) { apiKey ->
                 providerInstance.analyzeContent(
-                    content = sanitizedContent,
+                    content = contentWithMetadata,
                     apiKey = apiKey,
                     model = model,
                     systemPrompt = SYSTEM_PROMPT
@@ -162,13 +191,18 @@ Document content:
             }
 
             if (result != null) {
+                // Cache successful response
+                AIResponseCache.put(cacheKey, result)
                 return@withContext result
             }
         }
 
         // All providers failed - use smart fallback
         Log.w(TAG, "⚠ All AI providers failed, using smart categorization")
-        return@withContext AIResponseParser.smartFallbackCategorization(sanitizedContent)
+        val fallbackResponse = AIResponseParser.smartFallbackCategorization(contentWithMetadata)
+        // Cache fallback response too to avoid repeated failures
+        AIResponseCache.put(cacheKey, fallbackResponse)
+        return@withContext fallbackResponse
     }
 
     /**
@@ -237,7 +271,7 @@ Document content:
 
         // Try each provider in order
         for (provider in orchestrator.getOrderedProviders()) {
-            val config = configs[provider]
+            val config = configs[provider] ?: continue
             if (!orchestrator.isProviderAvailable(config)) {
                 Log.d(TAG, "$provider not available for document analysis")
                 continue
@@ -246,7 +280,7 @@ Document content:
             val providerInstance = orchestrator.getProvider(provider)
             val model = orchestrator.getModelForProvider(provider)
 
-            val result = orchestrator.executeWithDocumentAnalysisRetry(provider, config!!) { apiKey ->
+            val result = orchestrator.executeWithDocumentAnalysisRetry(provider, config) { apiKey ->
                 providerInstance.analyzeDocument(
                     content = fullContent,
                     apiKey = apiKey,

@@ -11,8 +11,6 @@ import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.local.CogniDatabase
 import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.data.model.AgentAction
-import com.example.smarty.data.model.AgentActionResult
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.CalendarEvent
@@ -24,16 +22,16 @@ import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.TodoItem
-import com.example.smarty.data.model.AgentState
 import com.example.smarty.data.model.getAllAttachmentUris
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
-import com.example.smarty.data.remote.AgentService
-import com.example.smarty.data.remote.AgentService.AgentMode
-import com.example.smarty.data.remote.AgentChatResponse
 import com.example.smarty.data.remote.AIService
+import com.example.smarty.agent.AgentCallbacks
+import com.example.smarty.agent.AgentResult
+import com.example.smarty.agent.CogniAgent
+import com.example.smarty.agent.CogniAgentProvider
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.ui.components.DynamicIslandState
 import com.example.smarty.ui.components.PendingShareData
@@ -49,6 +47,7 @@ import com.example.smarty.util.PDFTextExtractor
 import com.example.smarty.util.PDFExtractionResult
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.ShakeDetector
+import com.example.smarty.service.AlarmScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -115,15 +114,13 @@ class CogniViewModel(
     private val aiService = AIService(securePreferences)
     private val pdfExtractor = PDFTextExtractor(application)
 
-    // Repository needs to be initialized before agentService
+    // Repository needs to be initialized before agent
     private val database = CogniDatabase.getDatabase(application)
     private val repository = CogniRepository(
         database.noteDao(),
-        database.categoryDao()
+        database.categoryDao(),
+        database.calendarDao()
     )
-
-    // Agent service for chat functionality
-    private val agentService = AgentService(aiService, repository)
 
     // Web search provider for agent actions
     private val tavilySearchProvider: TavilySearchProvider by lazy {
@@ -132,6 +129,55 @@ class CogniViewModel(
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
         TavilySearchProvider(httpClient, Gson())
+    }
+
+    // Alarm scheduler for timer/alarm tools
+    private val alarmScheduler = AlarmScheduler.getInstance(application)
+
+    // Koog-based AI Agent
+    private val agentProvider = CogniAgentProvider(securePreferences)
+    private val cogniAgent: CogniAgent by lazy {
+        CogniAgent(
+            agentProvider = agentProvider,
+            repository = repository,
+            tavilySearchProvider = tavilySearchProvider,
+            alarmScheduler = alarmScheduler,
+            callbacks = agentCallbacks
+        )
+    }
+
+    // Agent callbacks for Koog tools that need ViewModel state
+    // SECURITY: Pre-filter notes at callback level for defense-in-depth
+    private val agentCallbacks = object : AgentCallbacks {
+        override fun getActiveNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(notes.value)
+        override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value)
+        override fun getCategories(): List<Category> = categories.value
+        override fun getTavilyApiKey(): String? = securePreferences.getTavilyApiKey()
+
+        override suspend fun processNoteWithAi(note: Note) {
+            simulateAiProcessing(note)
+        }
+
+        override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
+            // Simple fuzzy matching
+            return notes.find { note ->
+                note.title.contains(description, ignoreCase = true) ||
+                note.content.contains(description, ignoreCase = true)
+            }
+        }
+
+        override fun requestAudioPlayback(track: AudioTrack) {
+            // Directly set the track for playback - it now has a valid URI from the note attachment
+            _pendingAudioPlayback.value = track
+        }
+
+        override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
+            agentStateManager.showExecutingTool(toolName, toolDisplayName)
+        }
+
+        override fun onToolExecutionCompleted(toolName: String) {
+            // State manager handles this via the agent loop
+        }
     }
 
     // Chat repository for persistence
@@ -170,13 +216,6 @@ class CogniViewModel(
         scope = viewModelScope
     )
 
-    // Agent Action Executor - handles AI agent action execution
-    private val agentActionExecutor = com.example.smarty.viewmodel.managers.AgentActionExecutor(
-        repository = repository,
-        agentService = agentService,
-        tavilySearchProvider = tavilySearchProvider,
-        scope = viewModelScope
-    )
 
     // ==================== Chat State (delegated to ChatManager) ====================
     val isChatMode: StateFlow<Boolean> = chatManager.isChatMode
@@ -206,6 +245,10 @@ class CogniViewModel(
     private val _isMicListening = MutableStateFlow(false)
     val isMicListening: StateFlow<Boolean> = _isMicListening.asStateFlow()
 
+    // Shake-triggered mode switch (for glow animation feedback)
+    private val _wasShakeTriggered = MutableStateFlow(false)
+    val wasShakeTriggered: StateFlow<Boolean> = _wasShakeTriggered.asStateFlow()
+
     // Shared flow for speech results to be consumed by screens
     private val _speechResults = kotlinx.coroutines.flow.MutableSharedFlow<String>()
     val speechResults = _speechResults.asSharedFlow()
@@ -228,6 +271,7 @@ class CogniViewModel(
     val geminiKeys: StateFlow<List<String>> = securePreferences.geminiKeys
     val huggingFaceKeys: StateFlow<List<String>> = securePreferences.huggingFaceKeys
     val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = securePreferences.providerConfigs
+    val providerPriorityOrder: StateFlow<List<AIProvider>> = securePreferences.providerPriorityOrder
     val isPinSet: StateFlow<Boolean> = securePreferences.isPinSet
 
     fun setProviderPriority(priority: List<AIProvider>) {
@@ -249,15 +293,6 @@ class CogniViewModel(
         _pendingAudioPlayback.value = null
     }
 
-    /**
-     * Request audio playback based on a search query.
-     * Used by AgentActionExecutor when handling PlayAudio actions.
-     */
-    private fun requestAudioPlaybackFromQuery(query: String) {
-        viewModelScope.launch {
-            executeAction(AgentAction.PlayAudio(query = query))
-        }
-    }
 
     val notes = repository.getAllNotes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -312,15 +347,6 @@ class CogniViewModel(
             override suspend fun onProcessingError(note: Note, error: String) {
                 Log.e(TAG, "Note processing error for ${note.title}: $error")
             }
-        })
-
-        // Set up AgentActionExecutor callback for ViewModel state access
-        agentActionExecutor.setCallback(object : com.example.smarty.viewmodel.managers.AgentActionExecutor.ActionCallback {
-            override fun getActiveNotes(): List<Note> = notes.value
-            override fun getArchivedNotes(): List<Note> = archivedNotes.value
-            override fun getTavilyApiKey(): String? = securePreferences.getTavilyApiKey()
-            override suspend fun processNoteWithAi(note: Note) = simulateAiProcessing(note)
-            override fun requestAudioPlayback(query: String) = requestAudioPlaybackFromQuery(query)
         })
 
         // Restore state from SavedStateHandle after process death (BUG-053)
@@ -744,20 +770,27 @@ class CogniViewModel(
         }
     }
 
-    fun updateNoteTodos(noteId: String, todos: List<TodoItem>) {
+    /**
+     * Update todos for a note - with callback for completion.
+     * BUG FIX: Use fresh note from database, not stale StateFlow cache.
+     */
+    fun updateNoteTodos(noteId: String, todos: List<TodoItem>, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             try {
                 noteOperationMutex.withLock {
-                    // Search in both active notes and archived notes
-                    val note = notes.value.find { it.id == noteId }
-                        ?: archivedNotes.value.find { it.id == noteId }
+                    // BUG FIX: Get fresh note from database, not stale StateFlow
+                    val note = repository.getNoteById(noteId)
                     note?.let {
                         val updatedNote = it.withTodos(todos)
                         repository.updateNote(updatedNote)
+                        Log.d(TAG, "Todos saved for note $noteId: ${todos.size} items")
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating note todos: ${e.message}", e)
+            } finally {
+                // Always call completion callback on main thread
+                onComplete?.invoke()
             }
         }
     }
@@ -878,8 +911,13 @@ class CogniViewModel(
             return
         }
 
+        // Build attachment metadata for AI (file names and types only, no content)
+        val attachmentMetadata = note.getAttachments().map { attachment ->
+            com.example.smarty.data.model.AttachmentMetadata.fromNoteAttachment(attachment)
+        }.takeIf { it.isNotEmpty() }
+
         // Use real AI service with fallback for regular content
-        val aiResponse = aiService.analyzeContent(note.content)
+        val aiResponse = aiService.analyzeContent(note.content, attachmentMetadata)
 
         val categoryName = aiResponse.category
         val summary = aiResponse.summary
@@ -1072,6 +1110,16 @@ class CogniViewModel(
         _tavilyApiKey.value = key
     }
 
+    // Shake Sensitivity Management
+    private val _shakeSensitivity = MutableStateFlow(securePreferences.getShakeSensitivity())
+    val shakeSensitivity: StateFlow<Float> = _shakeSensitivity.asStateFlow()
+
+    fun setShakeSensitivity(value: Float) {
+        val clamped = value.coerceIn(0f, 1f)
+        securePreferences.setShakeSensitivity(clamped)
+        _shakeSensitivity.value = clamped
+    }
+
     // Cache Management
     fun refreshCacheSize() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -1201,9 +1249,11 @@ class CogniViewModel(
      * - If input is empty → toggle chat mode
      */
     fun initShakeDetector(context: Context) {
-        shakeDetector = ShakeDetector(context) {
-            handleShake()
-        }
+        shakeDetector = ShakeDetector(
+            context = context,
+            onShakeDetected = { handleShake() },
+            getThreshold = { securePreferences.getShakeThreshold() }
+        )
         Log.d(TAG, "Shake detector initialized with contextual handler")
     }
 
@@ -1225,7 +1275,7 @@ class CogniViewModel(
             }
             // Priority 3: Completely empty (no mic, no text, no attachments) -> toggle chat mode
             else -> {
-                toggleChatMode()
+                toggleChatMode(fromShake = true)
                 Log.d(TAG, "Shake: Toggled chat mode (empty state)")
             }
         }
@@ -1254,8 +1304,18 @@ class CogniViewModel(
 
     /**
      * Toggle between note input mode and chat mode (delegated to ChatManager)
+     * @param fromShake Whether this toggle was triggered by a shake gesture
      */
-    fun toggleChatMode() {
+    fun toggleChatMode(fromShake: Boolean = false) {
+        // Track if this was shake-triggered for glow animation
+        if (fromShake) {
+            _wasShakeTriggered.value = true
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(500) // Reset after animation
+                _wasShakeTriggered.value = false
+            }
+        }
+
         chatManager.toggleChatMode()
         // Persist chat mode state for process death recovery (BUG-053)
         savedStateHandle[KEY_IS_CHAT_MODE] = !isChatMode.value  // Will be opposite after toggle
@@ -1299,14 +1359,12 @@ class CogniViewModel(
     }
 
     /**
-     * Send a message in chat mode with proper AI agent loop.
+     * Send a message in chat mode using the Koog-based AI agent.
      *
-     * ARCHITECTURE: This implements a real AI agent that:
-     * 1. Sends user message to LLM
-     * 2. LLM returns response with optional action
-     * 3. If action exists, execute it and get result
-     * 4. Feed result back to LLM for continuation
-     * 5. Loop until no more actions or max iterations reached
+     * ARCHITECTURE: Uses JetBrains Koog framework for agent orchestration:
+     * - Koog handles the agent loop, tool execution, and multi-step reasoning
+     * - PrivacyGuard is enforced at the tool level via CogniToolBase
+     * - DynamicIsland shows agent state during execution
      */
     fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
@@ -1322,174 +1380,91 @@ class CogniViewModel(
             val userMessage = chatManager.addUserMessage(content, attachments)
 
             try {
-                // ============================================================================
-                // ABSOLUTE SECURITY BARRIER - PrivacyGuard is the ONLY way AI accesses notes
-                // ============================================================================
-                val aiAccessibleNotes = PrivacyGuard.getAiVisibleNotes(notes.value)
-                val privateNotes = notes.value.filter { PrivacyGuard.isPrivate(it) }
-
-                // ============================================================================
-                // AGENT LOOP - Execute actions, WAIT for results, feed back to LLM
-                // Uses DUAL-API architecture:
-                // - REASONING API (1st key): Tool execution and reasoning iterations
-                // - FINAL_RESPONSE API (2nd key): Final user-facing response
-                // ============================================================================
-                var currentMessage = content
-                var currentAttachments = attachments
-                var iterationCount = 0
-                val maxIterations = 5 // Prevent infinite loops
-                var toolResultsCollected = mutableListOf<String>() // Collect all tool results
-
                 // Initialize agent run tracking
                 agentStateManager.startAgentRun()
 
-                while (iterationCount < maxIterations) {
-                    iterationCount++
-                    Log.d(TAG, "Agent loop iteration $iterationCount (REASONING MODE)")
+                // Show thinking state
+                setAgentState(DynamicIslandState.AgentThinking(
+                    iteration = 1,
+                    message = "Thinking..."
+                ))
 
-                    // ========== UPDATE UI: Agent is thinking ==========
-                    setAgentState(DynamicIslandState.AgentThinking(
-                        iteration = iterationCount,
-                        message = if (iterationCount > 1) "Processing..." else "Thinking..."
-                    ))
+                // Build conversation history for agent memory
+                val conversationHistory = chatManager.chatMessages.value
+                    .filter { it.role != ChatRole.SYSTEM } // Exclude system messages
+                    .map { msg ->
+                        val role = when (msg.role) {
+                            ChatRole.USER -> "User"
+                            ChatRole.ASSISTANT -> "Assistant"
+                            else -> "System"
+                        }
+                        Pair(role, msg.content)
+                    }
 
-                    // Process through agent service using REASONING API (1st key)
-                    val agentResponse = agentService.processUserMessage(
-                        userMessage = currentMessage,
-                        attachments = currentAttachments,
-                        chatHistory = chatManager.chatMessages.value,
-                        allNotes = aiAccessibleNotes,
-                        allCategories = categories.value,
-                        mode = AgentMode.REASONING  // Use first API key for reasoning
-                    )
+                // Run the Koog agent with conversation history
+                val result = cogniAgent.run(content, conversationHistory)
 
-                    val response = agentResponse.message
-                    val parsedAction = agentResponse.parsedAction
+                when (result) {
+                    is AgentResult.Success -> {
+                        Log.d(TAG, "Agent completed successfully via ${result.provider}")
 
-                    // Sanitize response
-                    val sanitizedNoteIds = PrivacyGuard.sanitizeReferencedNoteIds(
-                        response.referencedNoteIds,
-                        notes.value
-                    )
-                    val sanitizedContent = PrivacyGuard.sanitizeResponseText(
-                        response.content,
-                        privateNotes
-                    )
-
-                    val sanitizedResponse = response.copy(
-                        content = sanitizedContent,
-                        referencedNoteIds = sanitizedNoteIds
-                    )
-
-                    // Check if we have an action to execute
-                    if (parsedAction != null) {
-                        val toolName = parsedAction.javaClass.simpleName
-                        val toolDisplayName = AgentState.getToolDisplayName(parsedAction)
-                        Log.d(TAG, "Executing action: $toolName ($toolDisplayName)")
-
-                        // ========== UPDATE UI: Agent is executing tool ==========
-                        setAgentState(DynamicIslandState.AgentExecutingTool(
-                            toolName = toolName,
-                            toolDisplayName = toolDisplayName,
-                            elapsedSeconds = 0
-                        ))
-
-                        // Track tool usage
-                        agentStateManager.recordToolUsed(toolDisplayName)
-
-                        // Execute the action directly (no re-parsing!)
-                        val actionResult = executeActionWithResult(parsedAction)
-
-                        // Update the action result in the response
-                        val updatedActions = listOf(
-                            AgentActionResult(
-                                action = parsedAction.javaClass.simpleName,
-                                success = actionResult.success,
-                                resultSummary = actionResult.summary,
-                                affectedNoteIds = actionResult.affectedNoteIds
-                            )
-                        )
-
-                        val finalResponse = sanitizedResponse.copy(executedActions = updatedActions)
-
-                        // Add response to chat
-                        chatManager.addAssistantMessage(finalResponse)
-                        chatManager.markApiCallSuccessful()
-
-                        // If action needs continuation (like web search), WAIT for result and feed back to LLM
-                        if (actionResult.needsContinuation && actionResult.resultData != null) {
-                            Log.d(TAG, "Action needs continuation - WAITING for tool result")
-                            Log.d(TAG, "Tool $toolName returned: ${actionResult.resultData.take(200)}...")
-
-                            // ========== UPDATE UI: Agent is waiting for result ==========
-                            setAgentState(DynamicIslandState.AgentWaitingForResult(
-                                toolDisplayName = toolDisplayName,
-                                elapsedSeconds = 0
-                            ))
-
-                            // Collect tool result
-                            toolResultsCollected.add(
-                                "Tool: ${parsedAction.javaClass.simpleName}\nResult: ${actionResult.resultData}"
-                            )
-
-                            // Feed result back to LLM for next reasoning step
-                            currentMessage = buildString {
-                                append("TOOL EXECUTION COMPLETED.\n\n")
-                                append("Original user request: $content\n\n")
-                                append("Tool executed: ${parsedAction.javaClass.simpleName}\n")
-                                append("Tool result:\n${actionResult.resultData}\n\n")
-                                append("Based on this result, either:\n")
-                                append("1. Execute another tool if needed\n")
-                                append("2. Provide a final response to the user incorporating the tool results")
-                            }
-                            currentAttachments = emptyList()
-
-                            // Continue the loop to let LLM process the result
-                            Log.d(TAG, "Feeding tool result back to LLM for next reasoning step...")
-                            continue
+                        // Detect if this was an audio-related query
+                        val isAudioQuery = content.lowercase().let {
+                            it.contains("play") || it.contains("music") || it.contains("audio") ||
+                            it.contains("song") || it.contains("podcast") || it.contains("listen")
                         }
 
-                        // Save and exit loop if action doesn't need continuation
-                        chatManager.saveMessagePair(
-                            userMessage = userMessage,
-                            assistantMessage = finalResponse,
-                            hasApiKeys = securePreferences.hasAnyApiKeys()
+                        // Create assistant message from agent response
+                        val assistantMessage = ChatMessage(
+                            role = ChatRole.ASSISTANT,
+                            content = result.response,
+                            isAudioRelated = isAudioQuery
                         )
 
-                        // ========== UPDATE UI: Agent completed ==========
-                        agentStateManager.showCompleted()
-                        break
-                    } else {
-                        // No action - just a regular response, add and exit
-                        chatManager.addAssistantMessage(sanitizedResponse)
+                        chatManager.addAssistantMessage(assistantMessage)
                         chatManager.markApiCallSuccessful()
                         chatManager.saveMessagePair(
                             userMessage = userMessage,
-                            assistantMessage = sanitizedResponse,
+                            assistantMessage = assistantMessage,
                             hasApiKeys = securePreferences.hasAnyApiKeys()
                         )
 
-                        // ========== UPDATE UI: Agent completed (no tools) ==========
+                        // Show completed state
                         agentStateManager.showCompleted()
-                        break
                     }
-                }
 
-                if (iterationCount >= maxIterations) {
-                    Log.w(TAG, "Agent loop reached max iterations")
-                    // Show completed even at max iterations
-                    agentStateManager.showCompleted()
+                    is AgentResult.Error -> {
+                        Log.e(TAG, "Agent error: ${result.message}")
+
+                        setAgentState(DynamicIslandState.AgentError(result.message))
+                        delay(2000)
+                        setAgentState(DynamicIslandState.Contracted)
+
+                        val errorMessage = ChatMessage(
+                            role = ChatRole.ASSISTANT,
+                            content = result.message
+                        )
+                        chatManager.addAssistantMessage(errorMessage)
+                    }
+
+                    is AgentResult.NoProvider -> {
+                        Log.w(TAG, "No provider configured: ${result.message}")
+
+                        val noKeyMessage = ChatMessage(
+                            role = ChatRole.ASSISTANT,
+                            content = "Please configure an AI provider API key in Settings to use chat."
+                        )
+                        chatManager.addAssistantMessage(noKeyMessage)
+                        setAgentState(DynamicIslandState.Contracted)
+                    }
                 }
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing chat message: ${e.message}", e)
 
-                // ========== UPDATE UI: Agent error ==========
                 setAgentState(DynamicIslandState.AgentError("Error occurred"))
-                viewModelScope.launch {
-                    delay(2000) // Show error for 2 seconds
-                    setAgentState(DynamicIslandState.Contracted)
-                }
+                delay(2000)
+                setAgentState(DynamicIslandState.Contracted)
 
                 val errorMessage = ChatMessage(
                     role = ChatRole.ASSISTANT,
@@ -1498,647 +1473,6 @@ class CogniViewModel(
                 chatManager.addAssistantMessage(errorMessage)
             } finally {
                 chatManager.setProcessing(false)
-            }
-        }
-    }
-
-    /**
-     * Result of executing an agent action
-     */
-    data class ActionExecutionResult(
-        val success: Boolean,
-        val summary: String,
-        val affectedNoteIds: List<String> = emptyList(),
-        val needsContinuation: Boolean = false,
-        val resultData: String? = null  // For actions that return data to feed back to LLM
-    )
-
-    /**
-     * Execute an agent action and return structured result.
-     * This is the core action executor that handles all action types.
-     */
-    private suspend fun executeActionWithResult(action: AgentAction): ActionExecutionResult {
-        Log.d(TAG, "Executing action with result: ${action.javaClass.simpleName}")
-
-        return when (action) {
-            is AgentAction.WebSearch -> {
-                // Web search returns results that should be fed back to LLM
-                val results = executeAction(action)
-                if (results.isNotEmpty()) {
-                    // The results contain the search data
-                    ActionExecutionResult(
-                        success = true,
-                        summary = "Web search completed",
-                        needsContinuation = true,
-                        resultData = results.joinToString("\n")
-                    )
-                } else {
-                    ActionExecutionResult(
-                        success = false,
-                        summary = "Web search returned no results"
-                    )
-                }
-            }
-
-            is AgentAction.PlayAudio -> {
-                // PlayAudio triggers UI - execute and report
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = if (affectedIds.isNotEmpty()) "Audio playback started" else "Audio not found",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.CreateNote -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = "Note created",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.SearchNotes -> {
-                // Search is informational - results already in context
-                executeAction(action)
-                ActionExecutionResult(
-                    success = true,
-                    summary = "Search completed",
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.DeleteNote -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = if (affectedIds.isNotEmpty()) "Note deleted" else "Note not found",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.ArchiveNote -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = if (affectedIds.isNotEmpty()) "Note archived" else "Note not found",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.UnarchiveNote -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = if (affectedIds.isNotEmpty()) "Note unarchived" else "Note not found",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.UpdateNote -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = if (affectedIds.isNotEmpty()) "Note updated" else "Note not found",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.SummarizeNote -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = "Note summarized",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.AddTodos -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = "Todos added",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.ToggleTodo -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = "Todo toggled",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.DeleteTodo -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = affectedIds.isNotEmpty(),
-                    summary = "Todo deleted",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.ListCategories -> {
-                executeAction(action)
-                ActionExecutionResult(
-                    success = true,
-                    summary = "Categories listed",
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.AnswerQuestion -> {
-                executeAction(action)
-                ActionExecutionResult(
-                    success = true,
-                    summary = "Question answered",
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.BatchActions -> {
-                val affectedIds = executeAction(action)
-                ActionExecutionResult(
-                    success = true,
-                    summary = "Batch actions completed",
-                    affectedNoteIds = affectedIds,
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.GetCategoryNotes -> {
-                executeAction(action)
-                ActionExecutionResult(
-                    success = true,
-                    summary = "Category notes retrieved",
-                    needsContinuation = false
-                )
-            }
-
-            is AgentAction.SuggestActions -> {
-                executeAction(action)
-                ActionExecutionResult(
-                    success = true,
-                    summary = "Actions suggested",
-                    needsContinuation = false
-                )
-            }
-        }
-    }
-
-    /**
-     * Fetch fresh note from database and validate privacy status (BUG-022, BUG-051 fix).
-     *
-     * This ensures we're not using stale snapshots where privacy status may have changed
-     * between when AI saw the note and when the action executes.
-     *
-     * @param noteId The note ID to fetch
-     * @return The note if it exists and is AI-accessible, null otherwise
-     */
-    private suspend fun getFreshAiAccessibleNote(noteId: String): Note? {
-        val freshNote = repository.getNoteById(noteId) ?: return null
-        return if (PrivacyGuard.canAiProcess(freshNote)) freshNote else null
-    }
-
-    /**
-     * Execute an AgentAction directly.
-     * This is the core action executor - separated from executeAgentAction to allow
-     * direct execution of batch sub-actions without re-parsing.
-     *
-     * SECURITY: Each action type has PrivacyGuard checks to prevent access to private notes.
-     * Uses getFreshAiAccessibleNote() to prevent stale privacy state issues.
-     */
-    private suspend fun executeAction(action: AgentAction): List<String> {
-        return when (action) {
-            is AgentAction.CreateNote -> {
-                // Detect correct type and title if not provided
-                val detectedType = detectContentType(action.content)
-                val title = action.title ?: extractTitle(action.content, detectedType)
-                
-                val note = Note(
-                    title = title,
-                    content = action.content,
-                    type = detectedType, // Use detected type instead of hardcoded BRAIN_DUMP
-                    processingStatus = if (action.category != null) ProcessingStatus.COMPLETED else ProcessingStatus.PROCESSING,
-                    isAiCreated = true
-                )
-                repository.insertNote(note)
-
-                // If category is specified, use it; otherwise let AI process
-                if (action.category != null) {
-                    val category = repository.getOrCreateCategory(action.category)
-                    repository.updateNote(note.copy(
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.COMPLETED
-                    ))
-                } else {
-                    // Launch processing safely - if it fails, fallback to simple storage
-                    try {
-                        simulateAiProcessing(note)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "AI processing failed for created note: ${e.message}")
-                        // Fallback: Ensure note is visible even if AI fails
-                        repository.updateNote(note.copy(
-                            processingStatus = ProcessingStatus.COMPLETED
-                        ))
-                    }
-                }
-                Log.d(TAG, "Created note: $title")
-                listOf(note.id)
-            }
-
-            is AgentAction.SearchNotes -> {
-                // Search is handled in the response - notes are already selected by AgentService
-                Log.d(TAG, "Search executed for: ${action.query}")
-                emptyList()
-            }
-
-            is AgentAction.DeleteNote -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToDelete = when {
-                    action.noteId != null -> getFreshAiAccessibleNote(action.noteId)
-                    action.description != null -> {
-                        val aiAccessibleNotes = PrivacyGuard.filterForAiModification(notes.value)
-                        agentService.findNoteByDescription(action.description, aiAccessibleNotes)?.let { found ->
-                            // Re-validate with fresh fetch
-                            getFreshAiAccessibleNote(found.id)
-                        }
-                    }
-                    else -> null
-                }
-
-                noteToDelete?.let {
-                    repository.deleteNote(it)
-                    Log.d(TAG, "Deleted note: ${it.title}")
-                    listOf(it.id)
-                } ?: emptyList()
-            }
-
-            is AgentAction.ArchiveNote -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToArchive = when {
-                    action.noteId != null -> getFreshAiAccessibleNote(action.noteId)
-                    action.description != null -> {
-                        val aiAccessibleNotes = PrivacyGuard.filterForAiModification(notes.value)
-                        agentService.findNoteByDescription(action.description, aiAccessibleNotes)?.let { found ->
-                            getFreshAiAccessibleNote(found.id)
-                        }
-                    }
-                    else -> null
-                }
-
-                noteToArchive?.let {
-                    repository.archiveNote(it.id)
-                    Log.d(TAG, "Archived note: ${it.title}")
-                    listOf(it.id)
-                } ?: emptyList()
-            }
-
-            is AgentAction.UnarchiveNote -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToUnarchive = when {
-                    action.noteId != null -> getFreshAiAccessibleNote(action.noteId)
-                    action.description != null -> {
-                        val aiAccessibleArchived = PrivacyGuard.filterForAiModification(archivedNotes.value)
-                        agentService.findNoteByDescription(action.description, aiAccessibleArchived)?.let { found ->
-                            getFreshAiAccessibleNote(found.id)
-                        }
-                    }
-                    else -> null
-                }
-
-                noteToUnarchive?.let {
-                    repository.unarchiveNote(it.id)
-                    Log.d(TAG, "Unarchived note: ${it.title}")
-                    listOf(it.id)
-                } ?: emptyList()
-            }
-
-            is AgentAction.UpdateNote -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToUpdate = getFreshAiAccessibleNote(action.noteId)
-                noteToUpdate?.let { note ->
-                    val updatedNote = note.copy(
-                        title = action.newTitle ?: note.title,
-                        content = action.newContent ?: note.content,
-                        categoryName = action.newCategory ?: note.categoryName,
-                        updatedAt = System.currentTimeMillis()
-                    )
-
-                    // Update category if changed
-                    if (action.newCategory != null && action.newCategory != note.categoryName) {
-                        val category = repository.getOrCreateCategory(action.newCategory)
-                        repository.updateNote(updatedNote.copy(categoryId = category.id))
-                    } else {
-                        repository.updateNote(updatedNote)
-                    }
-                    Log.d(TAG, "Updated note: ${updatedNote.title}")
-                    listOf(note.id)
-                } ?: emptyList()
-            }
-
-            is AgentAction.ListCategories -> {
-                // Categories are included in the response context
-                Log.d(TAG, "Listed ${categories.value.size} categories")
-                emptyList()
-            }
-
-            is AgentAction.GetCategoryNotes -> {
-                // Notes for category are included in the response
-                Log.d(TAG, "Got notes for category: ${action.categoryName}")
-                emptyList()
-            }
-
-            is AgentAction.AnswerQuestion -> {
-                // Answer is in the response - no action needed
-                Log.d(TAG, "Answered question: ${action.question}")
-                emptyList()
-            }
-
-            is AgentAction.SummarizeNote -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToSummarize = getFreshAiAccessibleNote(action.noteId)
-                noteToSummarize?.let { note ->
-                    // Update the note with AI-generated summary (already in response)
-                    Log.d(TAG, "Summarized note: ${note.title}")
-                    listOf(note.id)
-                } ?: emptyList()
-            }
-
-            is AgentAction.SuggestActions -> {
-                // Suggestions are in the response - no execution needed
-                Log.d(TAG, "Suggested actions based on context: ${action.context.take(50)}...")
-                emptyList()
-            }
-
-            is AgentAction.AddTodos -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToUpdate = getFreshAiAccessibleNote(action.noteId)
-                noteToUpdate?.let { note ->
-                    val currentTodos = note.getTodos().toMutableList()
-                    val newTodos = action.todos.map { text ->
-                        TodoItem(text = text)
-                    }
-                    currentTodos.addAll(newTodos)
-                    val updatedNote = note.withTodos(currentTodos)
-                    viewModelScope.launch {
-                        repository.updateNote(updatedNote)
-                    }
-                    Log.d(TAG, "Added ${action.todos.size} todos to note: ${note.title}")
-                    listOf(note.id)
-                } ?: emptyList()
-            }
-
-            is AgentAction.ToggleTodo -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToUpdate = getFreshAiAccessibleNote(action.noteId)
-                noteToUpdate?.let { note ->
-                    val todos = note.getTodos().toMutableList()
-                    val todoIndex = todos.indexOfFirst { it.id == action.todoId }
-                    if (todoIndex >= 0) {
-                        val todo = todos[todoIndex]
-                        todos[todoIndex] = todo.copy(isCompleted = !todo.isCompleted)
-                        val updatedNote = note.withTodos(todos)
-                        viewModelScope.launch {
-                            repository.updateNote(updatedNote)
-                        }
-                        Log.d(TAG, "Toggled todo '${todo.text}' to ${!todo.isCompleted}")
-                        listOf(note.id)
-                    } else emptyList()
-                } ?: emptyList()
-            }
-
-            is AgentAction.DeleteTodo -> {
-                // ============================================================================
-                // SECURITY: PrivacyGuard - private notes are INVISIBLE to AI
-                // BUG-022/051 FIX: Fetch fresh note to prevent stale privacy state
-                // ============================================================================
-                val noteToUpdate = getFreshAiAccessibleNote(action.noteId)
-                noteToUpdate?.let { note ->
-                    val todos = note.getTodos().toMutableList()
-                    val removed = todos.removeAll { it.id == action.todoId }
-                    if (removed) {
-                        val updatedNote = note.withTodos(todos)
-                        viewModelScope.launch {
-                            repository.updateNote(updatedNote)
-                        }
-                        Log.d(TAG, "Deleted todo from note: ${note.title}")
-                        listOf(note.id)
-                    } else emptyList()
-                } ?: emptyList()
-            }
-
-            is AgentAction.WebSearch -> {
-                // Execute web search using Tavily API
-                val apiKey = securePreferences.getTavilyApiKey()
-                if (apiKey.isNullOrBlank()) {
-                    Log.w(TAG, "WebSearch: No Tavily API key configured")
-                    listOf("ERROR: No Tavily API key configured. Please add your API key in Settings.")
-                } else {
-                    try {
-                        Log.d(TAG, "WebSearch: Searching for '${action.query}' (reason: ${action.reason})")
-                        val searchResult = tavilySearchProvider.search(
-                            apiKey = apiKey,
-                            query = action.query,
-                            maxResults = action.maxResults,
-                            topic = action.topic
-                        )
-                        if (searchResult.success) {
-                            Log.d(TAG, "WebSearch: Found ${searchResult.results.size} results")
-                            // Format results as JSON for the LLM to parse
-                            val resultsJson = buildString {
-                                append("{")
-                                append("\"status\":\"success\",")
-                                append("\"query\":\"${action.query.replace("\"", "\\\"")}\",")
-                                append("\"reason\":\"${action.reason.replace("\"", "\\\"")}\",")
-
-                                // Include AI summary
-                                searchResult.answer?.let { answer ->
-                                    append("\"ai_summary\":\"${answer.replace("\"", "\\\"").replace("\n", "\\n")}\",")
-                                }
-
-                                // Include sources
-                                append("\"results\":[")
-                                searchResult.results.forEachIndexed { index, result ->
-                                    if (index > 0) append(",")
-                                    append("{")
-                                    append("\"title\":\"${result.title.replace("\"", "\\\"")}\",")
-                                    append("\"url\":\"${result.url}\",")
-                                    append("\"snippet\":\"${result.snippet.replace("\"", "\\\"").replace("\n", " ")}\"")
-                                    append("}")
-                                }
-                                append("],")
-                                append("\"total_results\":${searchResult.results.size}")
-                                append("}")
-                            }
-                            listOf(resultsJson)
-                        } else {
-                            Log.w(TAG, "WebSearch: Failed - ${searchResult.error}")
-                            listOf("{\"status\":\"error\",\"error\":\"${searchResult.error ?: "Unknown error occurred"}\"}")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "WebSearch error: ${e.message}", e)
-                        listOf("SEARCH_ERROR: ${e.message ?: "Search failed"}")
-                    }
-                }
-            }
-
-            is AgentAction.PlayAudio -> {
-                Log.d(TAG, "PlayAudio: query='${action.query}' noteId=${action.noteId} index=${action.attachmentIndex}")
-                try {
-                    // Find the note using tiered search strategy
-                    val targetNote = when {
-                        // 1. Direct ID match (Best)
-                        action.noteId != null -> {
-                            getFreshAiAccessibleNote(action.noteId)
-                        }
-                        
-                        // 2. Search by Query
-                        action.query.isNotBlank() -> {
-                            val allNotes = notes.value
-                            val visibleNotes = PrivacyGuard.getAiVisibleNotes(allNotes)
-                            val audioNotes = visibleNotes.filter { note ->
-                                note.type == NoteType.AUDIO ||
-                                note.fileMimeType?.startsWith("audio/") == true ||
-                                note.getAttachments().any { it.mimeType.startsWith("audio/") }
-                            }
-
-                            // Tier 2.1: Exact/Strict Contain match
-                            var match = audioNotes.find { note ->
-                                note.title.contains(action.query, ignoreCase = true) ||
-                                note.content.contains(action.query, ignoreCase = true) ||
-                                note.fileName?.contains(action.query, ignoreCase = true) == true
-                            }
-
-                            // Tier 2.2: Fuzzy Keyword match
-                            if (match == null) {
-                                val keywords = action.query.split(Regex("\\s+"))
-                                    .filter { it.length > 2 } // specific words only
-                                    .map { it.lowercase() }
-                                
-                                if (keywords.isNotEmpty()) {
-                                    match = audioNotes.find { note ->
-                                        val title = note.title.lowercase()
-                                        val content = note.content.lowercase()
-                                        // Match if ALL significant keywords are present in title/content
-                                        keywords.all { kw -> title.contains(kw) || content.contains(kw) }
-                                    }
-                                }
-                            }
-
-                            // Tier 2.3: Generic "Play Music" fallback
-                            // If user says "play music" or "play audio" and we found nothing specific,
-                            // play the most recent audio note.
-                            if (match == null) {
-                                val genericTerms = setOf("music", "audio", "recording", "song", "track", "play")
-                                val isGeneric = action.query.lowercase().split(Regex("\\s+"))
-                                    .all { it in genericTerms || it.length < 3 }
-                                
-                                if (isGeneric) {
-                                    Log.d(TAG, "PlayAudio: Generic query detected, playing most recent audio")
-                                    match = audioNotes.maxByOrNull { it.updatedAt }
-                                }
-                            }
-                            
-                            match
-                        }
-                        else -> null
-                    }
-
-                    if (targetNote == null) {
-                        Log.w(TAG, "PlayAudio: Note not found for query='${action.query}' noteId=${action.noteId}")
-                        viewModelScope.launch(Dispatchers.Main) {
-                            android.widget.Toast.makeText(
-                                getApplication(),
-                                "No audio found for '${action.query}'",
-                                android.widget.Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                        emptyList()
-                    } else {
-                        // Get the audio URI from the note
-                        val attachments = targetNote.getAttachments()
-                        val audioUri = when {
-                            attachments.isNotEmpty() -> {
-                                val index = action.attachmentIndex.coerceIn(0, attachments.size - 1)
-                                attachments[index].uri
-                            }
-                            targetNote.fileUri != null -> targetNote.fileUri
-                            else -> null
-                        }
-
-                        if (audioUri != null) {
-                            // Create AudioTrack and set pending playback
-                            val track = AudioTrack(
-                                uri = audioUri,
-                                title = targetNote.title,
-                                fileName = targetNote.fileName,
-                                sourceNoteId = targetNote.id,
-                                mimeType = targetNote.fileMimeType ?: "audio/*"
-                            )
-                            _pendingAudioPlayback.value = track
-                            Log.d(TAG, "PlayAudio: Triggering playback for '${track.title}'")
-                            listOf(targetNote.id)
-                        } else {
-                            Log.w(TAG, "PlayAudio: No audio file found in note ${targetNote.id}")
-                             viewModelScope.launch(Dispatchers.Main) {
-                                android.widget.Toast.makeText(
-                                    getApplication(),
-                                    "Note has no audio file",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                            emptyList()
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "PlayAudio error: ${e.message}", e)
-                    emptyList()
-                }
-            }
-
-            is AgentAction.BatchActions -> {
-                // Execute each action in the batch directly
-                // SECURITY: Each sub-action goes through executeAction which has PrivacyGuard checks
-                action.actions.flatMap { subAction ->
-                    Log.d(TAG, "Executing batch sub-action: ${subAction.javaClass.simpleName}")
-                    executeAction(subAction)
-                }
             }
         }
     }
@@ -2155,6 +1489,8 @@ class CogniViewModel(
         endTime: Long,
         isAllDay: Boolean = false,
         location: String? = null,
+        color: Int? = null,
+        reminderMinutes: Int? = null,
         isPrivate: Boolean = false
     ) {
         viewModelScope.launch {
@@ -2165,6 +1501,8 @@ class CogniViewModel(
                 endTime = endTime,
                 isAllDay = isAllDay,
                 location = location,
+                color = color,
+                reminderMinutes = reminderMinutes,
                 isEventPrivate = isPrivate
             )
             calendarDao.insertEvent(event)
@@ -2188,6 +1526,52 @@ class CogniViewModel(
         viewModelScope.launch {
             calendarDao.deleteEventById(eventId)
             Log.d(TAG, "Deleted calendar event: $eventId")
+        }
+    }
+
+    // ==================== Resource Optimization ====================
+
+    // Track if resource-intensive operations are paused
+    private var isResourceOptimized = false
+
+    /**
+     * Pause resource-intensive operations when app goes to background (onPause).
+     * This reduces battery consumption while preserving essential functionality.
+     */
+    fun pauseResourceIntensiveOperations() {
+        if (isResourceOptimized) return
+        isResourceOptimized = true
+        Log.d(TAG, "Pausing resource-intensive operations")
+        // Image loading is handled by Coil which auto-pauses when lifecycle not active
+        // Database access remains active for scheduled backups
+        // Audio service continues if playing (handled by AudioPlayerService)
+    }
+
+    /**
+     * Resume resource-intensive operations when app returns to foreground (onResume).
+     */
+    fun resumeResourceIntensiveOperations() {
+        if (!isResourceOptimized) return
+        isResourceOptimized = false
+        Log.d(TAG, "Resuming resource-intensive operations")
+        // Refresh cache size on resume
+        refreshCacheSize()
+    }
+
+    /**
+     * Minimize background resources when app goes to background (onStop).
+     * Trims memory caches while preserving database and scheduled operations.
+     */
+    fun minimizeBackgroundResources() {
+        Log.d(TAG, "Minimizing background resources")
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Trim image caches to reduce memory footprint
+                cacheManager.trimToSize(cacheManager.getCacheSize() / 2)
+                Log.d(TAG, "Trimmed cache to 50% of current size")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to trim cache: ${e.message}")
+            }
         }
     }
 

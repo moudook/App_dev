@@ -43,9 +43,9 @@ TODO.md
 USE_CASE.md
 *.notes
 *.reference
-BUG_FIX.md
 BUG_REPORT.md
 AGENT_DOCUMENTATION.md
+
 
 # Markdown documentation files (except README.md)
 DEVELOPMENT_LOG.md
@@ -55,7 +55,7 @@ USE_CASES.md
 ai_companion_app_feature_additions_specification.md
 docs/UI_ARCHITECTURE.md
 docs/UI_QUICK_REFERENCE.md
-SHAKE_FIX_INSTRUCTIONS.md
+
 
 # AI Agent Documentation (local reference only)
 .agent/
@@ -66,6 +66,7 @@ SHAKE_FIX_INSTRUCTIONS.md
 *.temp
 *.bak
 *.swp
+temp.txt
 
 # Screenshots/conversation files
 thread-*.png
@@ -81,3 +82,21 @@ app/release/
 app/debug/
 *.apk
 *.aab
+build_output.txt
+
+#errors
+KOOG_AGENT_ISSUES.md
+koog_migration_errors.log
+
+#issues
+issue_with_ai_agent_audio_player_case_2.png
+issue_with_ai_agent_audio_player.png
+
+#solutions
+error_and_warning_solution.txt
+SHAKE_FIX_INSTRUCTIONS.md
+Android AI Agent with Tool Calling.md
+AI_AGENT_SOLUTION_1.txt
+AI_AGENT_SOLUTION_2.txt
+AI_AGENT_SOLUTION_3.txt
+BUG_FIX.md

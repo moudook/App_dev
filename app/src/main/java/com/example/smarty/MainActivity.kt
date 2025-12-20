@@ -105,6 +105,7 @@ class MainActivity : ComponentActivity() {
 
                 // API Key states
                 val providerConfigs by viewModel.providerConfigs.collectAsState()
+                val providerPriorityOrder by viewModel.providerPriorityOrder.collectAsState()
 
                 // PIN state
                 val isPinConfigured by viewModel.isPinSet.collectAsState()
@@ -148,6 +149,12 @@ class MainActivity : ComponentActivity() {
                 // Tavily Web Search API state
                 val tavilyApiKey by viewModel.tavilyApiKey.collectAsState()
 
+                // Shake sensitivity state
+                val shakeSensitivity by viewModel.shakeSensitivity.collectAsState()
+
+                // Shake mode switch animation trigger
+                val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
+
                 // Audio playback request from AI agent
                 val pendingAudioPlayback by viewModel.pendingAudioPlayback.collectAsState()
 
@@ -176,8 +183,10 @@ class MainActivity : ComponentActivity() {
                 )
 
                 // Sync mic state to ViewModel for contextual shake detection
+                // Also coordinate audio playback with speech recognition
                 LaunchedEffect(globalSpeechState.isListening) {
                     viewModel.updateMicListening(globalSpeechState.isListening)
+                    audioPlayerViewModel.onSpeechListeningChanged(globalSpeechState.isListening)
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -194,13 +203,14 @@ class MainActivity : ComponentActivity() {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 CogniNavHost(
                                     navController = navController,
-                                    notes = notes, 
+                                    notes = notes,
                                     archivedNotes = archivedNotes,
                                     categories = categories,
                                     selectedNote = selectedNote,
                                     selectedCategory = selectedCategory,
                                     isProcessing = isProcessing,
                                     providerConfigs = providerConfigs,
+                                    providerPriorityOrder = providerPriorityOrder,
                                     onAddApiKey = { provider, key ->
                                         viewModel.addApiKey(provider, key)
                                     },
@@ -264,8 +274,8 @@ class MainActivity : ComponentActivity() {
                                     onDeleteNoteById = { noteId ->
                                         viewModel.deleteNoteById(noteId)
                                     },
-                                    onUpdateNoteTodos = { noteId, todos ->
-                                        viewModel.updateNoteTodos(noteId, todos)
+                                    onUpdateNoteTodos = { noteId, todos, onComplete ->
+                                        viewModel.updateNoteTodos(noteId, todos, onComplete)
                                     },
                                     // Pending share management
                                     pendingShare = pendingShare,
@@ -323,16 +333,30 @@ class MainActivity : ComponentActivity() {
                                     onSetTavilyApiKey = { key ->
                                         viewModel.setTavilyApiKey(key)
                                     },
+                                    // Shake sensitivity
+                                    shakeSensitivity = shakeSensitivity,
+                                    onShakeSensitivityChange = { value ->
+                                        viewModel.setShakeSensitivity(value)
+                                    },
+                                    // Shake mode switch animation
+                                    wasShakeTriggered = wasShakeTriggered,
                                     // Calendar management
                                     calendarEvents = calendarEvents,
-                                    onAddCalendarEvent = { title, description, startTime, endTime, isAllDay ->
+                                    onAddCalendarEvent = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->
                                         viewModel.addCalendarEvent(
                                             title = title,
                                             description = description,
                                             startTime = startTime,
                                             endTime = endTime,
-                                            isAllDay = isAllDay
+                                            isAllDay = isAllDay,
+                                            location = location,
+                                            color = color,
+                                            reminderMinutes = reminderMinutes,
+                                            isPrivate = isPrivate
                                         )
+                                    },
+                                    onUpdateCalendarEvent = { event ->
+                                        viewModel.updateCalendarEvent(event)
                                     },
                                     onDeleteCalendarEvent = { eventId ->
                                         viewModel.deleteCalendarEvent(eventId)
@@ -401,12 +425,22 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Start shake detection when app is in foreground
         viewModel.startShakeDetection()
+        // Resume resource-intensive operations
+        viewModel.resumeResourceIntensiveOperations()
     }
 
     override fun onPause() {
         super.onPause()
         // Stop shake detection to save battery when app is in background
         viewModel.stopShakeDetection()
+        // Pause resource-intensive operations
+        viewModel.pauseResourceIntensiveOperations()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Minimize background resources when app goes to background
+        viewModel.minimizeBackgroundResources()
     }
 
     override fun onNewIntent(intent: Intent) {

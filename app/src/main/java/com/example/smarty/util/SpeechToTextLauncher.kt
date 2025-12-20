@@ -39,6 +39,7 @@ class SpeechToTextState(
     // External callbacks
     var onResult: ((String) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
+    var onPartialResult: ((String) -> Unit)? = null
 
     fun startListening(languageCode: String? = null) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -89,7 +90,8 @@ class SpeechToTextState(
 @Composable
 fun rememberSpeechToText(
     onResult: (String) -> Unit,
-    onError: ((String) -> Unit)? = null
+    onError: ((String) -> Unit)? = null,
+    onPartialResult: ((String) -> Unit)? = null
 ): SpeechToTextState {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -128,9 +130,10 @@ fun rememberSpeechToText(
     }
     
     // Update callbacks
-    LaunchedEffect(onResult, onError) {
+    LaunchedEffect(onResult, onError, onPartialResult) {
         state.onResult = onResult
         state.onError = onError
+        state.onPartialResult = onPartialResult
     }
 
     // Set up the listener
@@ -188,8 +191,11 @@ fun rememberSpeechToText(
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
-                 // For now we don't stream partials to the text field to avoid cursor jumping
-                 // but we could in the future.
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val partialText = matches?.firstOrNull()
+                if (!partialText.isNullOrBlank()) {
+                    state.onPartialResult?.invoke(partialText)
+                }
             }
 
             override fun onEvent(eventType: Int, params: Bundle?) {}

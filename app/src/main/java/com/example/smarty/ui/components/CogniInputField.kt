@@ -72,6 +72,8 @@ import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.CogniMotion
 import com.example.smarty.ui.theme.CogniShadow
 import com.example.smarty.ui.animation.halftoneShimmer
+import com.example.smarty.ui.animation.directionalShimmer
+import com.example.smarty.ui.animation.ShimmerDirection
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
@@ -86,6 +88,9 @@ private val AttachmentGreenColor = androidx.compose.ui.graphics.Color(0xFF4CAF50
 private val AttachmentBlueColor = androidx.compose.ui.graphics.Color(0xFF2196F3)
 private val AttachmentPurpleColor = androidx.compose.ui.graphics.Color(0xFF9C27B0)
 private val AttachmentGrayColor = androidx.compose.ui.graphics.Color(0xFF607D8B)
+
+// Agent shimmer color (purple/blue gradient feel)
+private val AgentShimmerColor = androidx.compose.ui.graphics.Color(0xFF7C4DFF)
 
 /**
  * Animated input field with focus state animations and attachment support
@@ -125,7 +130,11 @@ fun CogniInputField(
     isVoiceListening: Boolean = false,
     onToggleSearch: () -> Unit = {},
     onStartVoiceInput: () -> Unit = {},
-    onStopVoiceInput: () -> Unit = {}
+    onStopVoiceInput: () -> Unit = {},
+    // Agent working state (for shimmer direction)
+    isAgentWorking: Boolean = false,
+    // Auto-send countdown active (for fast shimmer)
+    autoSendActive: Boolean = false
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -510,11 +519,32 @@ fun CogniInputField(
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 // Shimmer Background Layer (Behind content)
-                if (isVoiceListening) {
+                // Priority: autoSend > voiceListening > agentWorking
+                val showShimmer = autoSendActive || isVoiceListening || isAgentWorking
+                if (showShimmer) {
+                    val shimmerDirection = when {
+                        // Agent working: right to left (purple shimmer)
+                        isAgentWorking && !isVoiceListening && !autoSendActive -> ShimmerDirection.RIGHT_TO_LEFT
+                        // Voice/auto-send: left to right (accent color)
+                        else -> ShimmerDirection.LEFT_TO_RIGHT
+                    }
+                    val shimmerColor = when {
+                        isAgentWorking && !isVoiceListening && !autoSendActive -> AgentShimmerColor
+                        else -> LocalAccentColor.current
+                    }
+                    val shimmerSpeed = when {
+                        autoSendActive -> 3.5f  // Fast blinking for auto-send countdown
+                        else -> 1f
+                    }
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .halftoneShimmer(true, LocalAccentColor.current)
+                            .directionalShimmer(
+                                isVisible = true,
+                                color = shimmerColor,
+                                direction = shimmerDirection,
+                                speed = shimmerSpeed
+                            )
                     )
                 }
 

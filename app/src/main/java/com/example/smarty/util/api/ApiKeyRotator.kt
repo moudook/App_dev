@@ -2,57 +2,77 @@ package com.example.smarty.util.api
 
 /**
  * API Key rotation and management utility.
- * Implements the dual-key architecture:
- * - Key 1 (first key): Reserved for AI Agent operations
- * - Keys 2, 3, 4...: Used for normal operations (note analysis, etc.)
+ * Implements the key separation architecture:
+ * - Keys 1, 2: Reserved for AI Agent operations (chat, reasoning)
+ * - Keys 3, 4, 5...: Used for background operations (note analysis, summarization)
  *
  * This eliminates duplicate key cycling logic across the codebase.
  */
 object ApiKeyRotator {
 
+    // Number of keys reserved for agent operations
+    private const val AGENT_KEY_COUNT = 2
+
     /**
-     * Get keys rotated for normal operations (note analysis, document processing).
-     * Prioritizes keys 2, 3, 4... first, then falls back to key 1 (agent key).
+     * Get keys for background operations (note analysis, document processing).
+     * Uses Keys 3, 4, 5... only - never touches agent keys (1, 2).
      *
      * Use case: analyzeContent(), analyzeDocument()
      *
      * @param allKeys All available API keys for a provider
-     * @return Keys ordered: [key2, key3, key4..., key1] for fallback
+     * @return Keys 3, 4, 5... (background keys only)
      */
     fun getRotatedKeysWithAgentFallback(allKeys: List<String>): List<String> {
-        return if (allKeys.size > 1) {
-            // Prioritize non-agent keys, then agent key as last fallback
-            allKeys.drop(1) + listOf(allKeys.first())
+        return if (allKeys.size > AGENT_KEY_COUNT) {
+            // Use keys 3, 4, 5... for background operations
+            allKeys.drop(AGENT_KEY_COUNT)
+        } else if (allKeys.size > 1) {
+            // Only 2 keys exist - use key 2 for background (agent uses key 1)
+            listOf(allKeys[1])
         } else {
-            allKeys // Only one key available, must use it
+            allKeys // Only 1 key exists, must share
         }
     }
 
     /**
-     * Get only normal keys (excludes agent key).
-     * Used for normal chat operations that should NEVER use the agent key.
+     * Get only background keys (excludes agent keys 1 and 2).
+     * Used for background operations that should NEVER use agent keys.
      *
-     * Use case: agentChat() (normal conversation, not agent loop)
+     * Use case: Content analysis, summarization, document processing
      *
      * @param allKeys All available API keys for a provider
-     * @return Keys 2, 3, 4... (excludes key 1 if multiple keys exist)
+     * @return Keys 3, 4, 5... (excludes keys 1 and 2)
      */
     fun getNormalKeysOnly(allKeys: List<String>): List<String> {
-        return if (allKeys.size > 1) {
-            allKeys.drop(1) // Skip first key (agent key), use all others
+        return if (allKeys.size > AGENT_KEY_COUNT) {
+            // Keys 3, 4, 5... for background operations
+            allKeys.drop(AGENT_KEY_COUNT)
+        } else if (allKeys.size > 1) {
+            // Only 2 keys - use key 2 for background
+            listOf(allKeys[1])
         } else {
             allKeys // Only 1 key exists, must share with agent
         }
     }
 
     /**
-     * Get the dedicated agent key (key 1).
+     * Get the dedicated agent keys (keys 1 and 2).
      * Reserved exclusively for AI Agent reasoning and tool execution.
      *
-     * Use case: agentReasoning(), agentFinalResponse()
+     * Use case: Agent chat, reasoning, tool execution
      *
      * @param allKeys All available API keys for a provider
-     * @return The first API key (dedicated agent key)
+     * @return Keys 1 and 2 (agent keys)
+     */
+    fun getAgentKeys(allKeys: List<String>): List<String> {
+        return allKeys.take(AGENT_KEY_COUNT)
+    }
+
+    /**
+     * Get the primary agent key (key 1).
+     *
+     * @param allKeys All available API keys for a provider
+     * @return The first API key (primary agent key)
      */
     fun getAgentKey(allKeys: List<String>): String? {
         return allKeys.firstOrNull()
@@ -82,14 +102,15 @@ object ApiKeyRotator {
     }
 
     /**
-     * Check if a key is the agent key (first key).
+     * Check if a key is an agent key (key 1 or key 2).
      *
      * @param allKeys All available API keys for a provider
      * @param key The key to check
-     * @return True if this is the agent key (key 1)
+     * @return True if this is an agent key (key 1 or 2)
      */
     fun isAgentKey(allKeys: List<String>, key: String): Boolean {
-        return allKeys.isNotEmpty() && allKeys.first() == key && allKeys.size > 1
+        val index = allKeys.indexOf(key)
+        return index >= 0 && index < AGENT_KEY_COUNT && allKeys.size > 1
     }
 
     /**
@@ -97,13 +118,14 @@ object ApiKeyRotator {
      *
      * @param allKeys All available API keys for a provider
      * @param key The key to label
-     * @return Human-readable label like "key-1 (agent)" or "key-2"
+     * @return Human-readable label like "KEY-1 (agent)" or "KEY-3 (background)"
      */
     fun getKeyLabel(allKeys: List<String>, key: String): String {
         val index = getKeyIndex(allKeys, key)
         return when {
-            index == 1 && allKeys.size > 1 -> "key-1 (agent)"
-            index > 0 -> "key-$index"
+            index in 1..AGENT_KEY_COUNT && allKeys.size > AGENT_KEY_COUNT -> "KEY-$index (agent)"
+            index > AGENT_KEY_COUNT -> "KEY-$index (background)"
+            index > 0 -> "KEY-$index"
             else -> "unknown-key"
         }
     }

@@ -13,6 +13,8 @@ enum class AIProvider {
     GEMINI,
     DEEPSEEK,
     GROQ,
+    CEREBRAS,
+    COHERE,
     OPENAI,
     OPENROUTER,
     ANTHROPIC,
@@ -25,12 +27,14 @@ enum class AIProvider {
 object AIModels {
     // Gemini models
     val GEMINI_MODELS = listOf(
+        "gemini-1.5-flash" to "Gemini 1.5 Flash (Default)",
         "gemini-2.5-flash" to "Gemini 2.5 Flash (Latest)",
         "gemini-2.0-flash" to "Gemini 2.0 Flash",
         "gemini-2.0-flash-lite" to "Gemini 2.0 Flash Lite (Fastest)",
-        "gemini-2.5-pro" to "Gemini 2.5 Pro (Most Capable)"
+        "gemini-2.5-pro" to "Gemini 2.5 Pro (Most Capable)",
+        "gemini-1.5-pro" to "Gemini 1.5 Pro"
     )
-    const val GEMINI_DEFAULT = "gemini-2.5-flash"
+    const val GEMINI_DEFAULT = "gemini-1.5-flash"
 
     // DeepSeek models
     val DEEPSEEK_MODELS = listOf(
@@ -39,15 +43,52 @@ object AIModels {
     )
     const val DEEPSEEK_DEFAULT = "deepseek-chat"
 
-    // Groq models (ultra-fast inference)
+    // Groq models (ultra-fast inference) - All free with API key
+    // API: https://api.groq.com/openai/v1/chat/completions
+    // Free tier: 14,400 requests/day, rate limited per minute
     val GROQ_MODELS = listOf(
-        "llama-3.3-70b-versatile" to "Llama 3.3 70B (Best Quality)",
-        "llama-3.1-8b-instant" to "Llama 3.1 8B (Fastest)",
-        "gemma2-9b-it" to "Gemma 2 9B",
-        "deepseek-r1-distill-llama-70b" to "DeepSeek R1 Distill 70B",
-        "qwen-qwq-32b" to "Qwen QWQ 32B (Preview)"
+        // Production Models - Best for free tier
+        "llama-3.1-8b-instant" to "Llama 3.1 8B Instant (Free Tier Default)",
+        "llama-3.3-70b-versatile" to "Llama 3.3 70B Versatile (Best Quality)",
+        "openai/gpt-oss-120b" to "GPT-OSS 120B (High Capability)",
+        "openai/gpt-oss-20b" to "GPT-OSS 20B (Fast)",
+        // Production Systems (Compound AI)
+        "groq/compound" to "Groq Compound (Multi-Model)",
+        "groq/compound-mini" to "Groq Compound Mini (Multi-Model Fast)",
+        // Preview Models
+        "meta-llama/llama-4-maverick-17b-128e-instruct" to "Llama 4 Maverick 17B (Preview)",
+        "meta-llama/llama-4-scout-17b-16e-instruct" to "Llama 4 Scout 17B (Preview)",
+        "qwen/qwen3-32b" to "Qwen 3 32B (Preview)",
+        "moonshotai/kimi-k2-instruct-0905" to "Kimi K2 Instruct (262K Context)"
     )
-    const val GROQ_DEFAULT = "llama-3.3-70b-versatile"
+    const val GROQ_DEFAULT = "llama-3.1-8b-instant"  // Best for free tier - fastest, highest rate limits
+
+    // Cerebras models (ultra-fast inference, 2000+ tokens/sec) - Free tier available
+    // API: https://api.cerebras.ai/v1/chat/completions
+    // Free tier: 1M tokens/day, 8K context limit (except Qwen 235B: 64K)
+    val CEREBRAS_MODELS = listOf(
+        // Best for free tier - faster, uses less tokens
+        "llama3.1-8b" to "Llama 3.1 8B (Free Tier Default, 1800 T/s)",
+        "llama-3.3-70b" to "Llama 3.3 70B (450 T/s, Best Quality)",
+        "qwen-3-32b" to "Qwen 3 32B (40K Context)",
+        "gpt-oss-120b" to "GPT-OSS 120B (Reasoning)",
+        "qwen-3-235b-a22b-instruct-2507" to "Qwen 3 235B (1400 T/s, 64K Context)",
+        "zai-glm-4.6" to "ZAI GLM 4.6 (Preview)"
+    )
+    const val CEREBRAS_DEFAULT = "llama3.1-8b"  // Best for free tier - fastest, conserves daily token limit
+
+    // Cohere models - Free/Trial tier available (1000 API calls/month)
+    // API: https://api.cohere.ai/compatibility/v1 (OpenAI-compatible)
+    // Trial key: 20 requests/min for chat, all models accessible
+    val COHERE_MODELS = listOf(
+        // Best for free tier - fastest, conserves monthly API calls
+        "command-r7b-12-2024" to "Command R7B (Free Tier Default, Fast)",
+        "command-r-08-2024" to "Command R (128K Context)",
+        "command-r-plus-08-2024" to "Command R+ (128K Context)",
+        "command-a-03-2025" to "Command A (256K Context, Best)",
+        "command" to "Command (Legacy)"
+    )
+    const val COHERE_DEFAULT = "command-r7b-12-2024"  // Best for trial tier - fast, conserves monthly API limit
 
     // OpenAI models
     val OPENAI_MODELS = listOf(
@@ -94,6 +135,8 @@ object AIModels {
             AIProvider.GEMINI -> GEMINI_MODELS
             AIProvider.DEEPSEEK -> DEEPSEEK_MODELS
             AIProvider.GROQ -> GROQ_MODELS
+            AIProvider.CEREBRAS -> CEREBRAS_MODELS
+            AIProvider.COHERE -> COHERE_MODELS
             AIProvider.OPENAI -> OPENAI_MODELS
             AIProvider.ANTHROPIC -> ANTHROPIC_MODELS
             AIProvider.OPENROUTER -> OPENROUTER_MODELS
@@ -106,6 +149,8 @@ object AIModels {
             AIProvider.GEMINI -> GEMINI_DEFAULT
             AIProvider.DEEPSEEK -> DEEPSEEK_DEFAULT
             AIProvider.GROQ -> GROQ_DEFAULT
+            AIProvider.CEREBRAS -> CEREBRAS_DEFAULT
+            AIProvider.COHERE -> COHERE_DEFAULT
             AIProvider.OPENAI -> OPENAI_DEFAULT
             AIProvider.ANTHROPIC -> ANTHROPIC_DEFAULT
             AIProvider.OPENROUTER -> OPENROUTER_DEFAULT
@@ -157,6 +202,10 @@ class SecurePreferences(context: Context) {
     private val _providerConfigs = MutableStateFlow(getAllProviderConfigs())
     val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = _providerConfigs.asStateFlow()
 
+    // Provider priority order - separate StateFlow for UI reactivity
+    private val _providerPriorityOrder = MutableStateFlow(getProviderPriority())
+    val providerPriorityOrder: StateFlow<List<AIProvider>> = _providerPriorityOrder.asStateFlow()
+
     // Theme preference
     private val _isDarkTheme = MutableStateFlow(getDarkThemePreference())
     val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
@@ -167,17 +216,21 @@ class SecurePreferences(context: Context) {
         if (json != null) {
             try {
                 val type = object : TypeToken<List<AIProvider>>() {}.type
-                return gson.fromJson(json, type)
+                val result: List<AIProvider> = gson.fromJson(json, type)
+                // Ensure all providers are included (for newly added ones)
+                return (result + AIProvider.entries).distinct()
             } catch (e: Exception) {
                 // Return default order if parsing fails
             }
         }
-        return AIProvider.entries
+        return AIProvider.entries.toList()
     }
 
     fun setProviderPriority(priority: List<AIProvider>) {
         val json = gson.toJson(priority)
         encryptedPrefs.edit().putString(KEY_PROVIDER_PRIORITY, json).apply()
+        // Update both StateFlows
+        _providerPriorityOrder.value = priority
         _providerConfigs.value = getAllProviderConfigs()
     }
 
@@ -189,7 +242,10 @@ class SecurePreferences(context: Context) {
         private const val KEY_GEMINI_KEYS = "gemini_api_keys"
         private const val KEY_DEEPSEEK_KEYS = "deepseek_api_keys"
         private const val KEY_GROQ_KEYS = "groq_api_keys"
+        private const val KEY_CEREBRAS_KEYS = "cerebras_api_keys"
+        private const val KEY_COHERE_KEYS = "cohere_api_keys"
         private const val KEY_OPENAI_KEYS = "openai_api_keys"
+        private const val KEY_SHAKE_SENSITIVITY = "shake_sensitivity"
         private const val KEY_OPENROUTER_KEYS = "openrouter_api_keys"
         private const val KEY_ANTHROPIC_KEYS = "anthropic_api_keys"
         private const val KEY_HUGGINGFACE_KEYS = "huggingface_api_keys"
@@ -272,12 +328,34 @@ class SecurePreferences(context: Context) {
         return !getApiKey().isNullOrBlank()
     }
 
+    // Shake sensitivity (0.0 to 1.0, default 0.63 - baseline recommended)
+    fun getShakeSensitivity(): Float {
+        return encryptedPrefs.getFloat(KEY_SHAKE_SENSITIVITY, 0.63f)
+    }
+
+    fun setShakeSensitivity(value: Float) {
+        encryptedPrefs.edit().putFloat(KEY_SHAKE_SENSITIVITY, value.coerceIn(0f, 1f)).apply()
+    }
+
+    /**
+     * Convert sensitivity (0-1) to shake threshold.
+     * Higher sensitivity = lower threshold (easier to trigger)
+     * sensitivity 0 -> threshold 1600 (hard to trigger)
+     * sensitivity 1 -> threshold 400 (easy to trigger)
+     */
+    fun getShakeThreshold(): Int {
+        val sensitivity = getShakeSensitivity()
+        return (1600 - sensitivity * 1200).toInt()
+    }
+
     // Multi-provider API Key Management
     fun getProviderKeys(provider: AIProvider): List<String> {
         val key = when (provider) {
             AIProvider.GEMINI -> KEY_GEMINI_KEYS
             AIProvider.DEEPSEEK -> KEY_DEEPSEEK_KEYS
             AIProvider.GROQ -> KEY_GROQ_KEYS
+            AIProvider.CEREBRAS -> KEY_CEREBRAS_KEYS
+            AIProvider.COHERE -> KEY_COHERE_KEYS
             AIProvider.OPENAI -> KEY_OPENAI_KEYS
             AIProvider.OPENROUTER -> KEY_OPENROUTER_KEYS
             AIProvider.ANTHROPIC -> KEY_ANTHROPIC_KEYS
@@ -297,6 +375,8 @@ class SecurePreferences(context: Context) {
             AIProvider.GEMINI -> KEY_GEMINI_KEYS
             AIProvider.DEEPSEEK -> KEY_DEEPSEEK_KEYS
             AIProvider.GROQ -> KEY_GROQ_KEYS
+            AIProvider.CEREBRAS -> KEY_CEREBRAS_KEYS
+            AIProvider.COHERE -> KEY_COHERE_KEYS
             AIProvider.OPENAI -> KEY_OPENAI_KEYS
             AIProvider.OPENROUTER -> KEY_OPENROUTER_KEYS
             AIProvider.ANTHROPIC -> KEY_ANTHROPIC_KEYS

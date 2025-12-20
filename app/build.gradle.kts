@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     id("kotlin-parcelize")
 }
@@ -30,21 +31,29 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
     }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/DEPENDENCIES"
             excludes += "META-INF/INDEX.LIST"
+            // Fix: Netty duplicate file conflict from Koog/Ktor dependencies
+            excludes += "META-INF/io.netty.versions.properties"
         }
     }
 }
@@ -106,11 +115,37 @@ dependencies {
     // YouTube Player (IFrame-based, ToS compliant)
     implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.1")
 
+    // Markdown rendering for AI chat responses
+    implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
+    implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
+
+    // Koog AI Agent Framework
+    implementation(libs.koog.agents)
+    implementation(libs.koog.executor.google)
+    implementation(libs.koog.executor.anthropic)
+    implementation(libs.koog.executor.openai)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.ktor.client.okhttp)
+
+    // Unit Testing
     testImplementation(libs.junit)
+    testImplementation("io.mockk:mockk:1.13.9")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    testImplementation("app.cash.turbine:turbine:1.0.0")
+    testImplementation(libs.kotlinx.serialization.json)
+    testImplementation("org.robolectric:robolectric:4.14.1")
+
+    // Android Instrumented Testing
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation("io.mockk:mockk-android:1.13.9")
+    androidTestImplementation("androidx.test:rules:1.6.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

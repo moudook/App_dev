@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.2"
-kotlin = "2.0.21"
+kotlin = "2.2.21"
 coreKtx = "1.17.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
@@ -11,9 +11,9 @@ lifecycleRuntimeKtx = "2.8.7"
 activityCompose = "1.9.3"
 composeBom = "2024.12.01"
 navigationCompose = "2.8.5"
-roomVersion = "2.6.1"
+roomVersion = "2.7.2"
 coilCompose = "2.7.0"
-ksp = "2.0.21-1.0.28"
+ksp = "2.2.21-2.0.4"
 zxing = "3.5.3"
 gson = "2.11.0"
 okhttp = "4.12.0"
@@ -27,6 +27,11 @@ googleHttpClientGson = "1.45.1"
 workRuntimeKtx = "2.10.0"
 pdfboxAndroid = "2.0.27.0"
 media3 = "1.5.1"
+# Koog AI Agent Framework
+koog = "0.5.4"
+kotlinxCoroutines = "1.10.2"
+kotlinxSerialization = "1.8.1"
+ktor = "3.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -67,9 +72,18 @@ pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
+# Koog AI Agent Framework
+koog-agents = { group = "ai.koog", name = "koog-agents", version.ref = "koog" }
+koog-executor-google = { group = "ai.koog", name = "prompt-executor-google-client", version.ref = "koog" }
+koog-executor-anthropic = { group = "ai.koog", name = "prompt-executor-anthropic-client", version.ref = "koog" }
+koog-executor-openai = { group = "ai.koog", name = "prompt-executor-openai-client", version.ref = "koog" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

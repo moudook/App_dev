@@ -78,7 +78,7 @@ Output: Symphony Fifth Allegro"""
         try {
             Log.d(TAG, "Compressing title with AI: $title")
 
-            val response = aiService.agentChat(
+            val response = aiService.simpleChat(
                 systemPrompt = COMPRESSION_SYSTEM_PROMPT,
                 userPrompt = "Compress this title to 2-3 words: $title"
             )

@@ -54,7 +54,8 @@ fun NoteTodoSheet(
     onDismiss: () -> Unit,
     onSaveTodos: (List<TodoItem>) -> Unit
 ) {
-    var todos by remember(note.id) { mutableStateOf(note.getTodos()) }
+    // Use note.id AND note.todoContent as keys to properly refresh when todos change
+    var todos by remember(note.id, note.todoContent) { mutableStateOf(note.getTodos()) }
     var newTodoText by remember { mutableStateOf("") }
 
     ModalBottomSheet(
@@ -138,7 +139,7 @@ fun NoteTodoSheet(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Todo items list
+            // Todo items list - all actions auto-save
             if (todos.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier
@@ -150,13 +151,19 @@ fun NoteTodoSheet(
                         TodoItemRow(
                             todo = todo,
                             onToggle = {
-                                todos = todos.map {
+                                val updatedTodos = todos.map {
                                     if (it.id == todo.id) it.copy(isCompleted = !it.isCompleted)
                                     else it
                                 }
+                                todos = updatedTodos
+                                // Auto-save when toggling
+                                onSaveTodos(updatedTodos)
                             },
                             onDelete = {
-                                todos = todos.filter { it.id != todo.id }
+                                val updatedTodos = todos.filter { it.id != todo.id }
+                                todos = updatedTodos
+                                // Auto-save when deleting
+                                onSaveTodos(updatedTodos)
                             }
                         )
                     }
@@ -216,7 +223,7 @@ fun NoteTodoSheet(
                         }
                     }
 
-                    // Add button
+                    // Add button - auto-saves when adding new todo
                     AnimatedVisibility(
                         visible = newTodoText.isNotBlank(),
                         enter = fadeIn() + slideInVertically(),
@@ -227,8 +234,11 @@ fun NoteTodoSheet(
                                 if (newTodoText.isNotBlank()) {
                                     // Parse input - could be multiple items separated by newlines or commas
                                     val newItems = parseNewTodos(newTodoText)
-                                    todos = todos + newItems
+                                    val updatedTodos = todos + newItems
+                                    todos = updatedTodos
                                     newTodoText = ""
+                                    // Auto-save immediately when adding todo
+                                    onSaveTodos(updatedTodos)
                                 }
                             }
                         ) {
@@ -251,110 +261,50 @@ fun NoteTodoSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Action buttons with Premium Feel
-            Row(
+            // Single Done button - all changes auto-save
+            var isDonePressed by remember { mutableStateOf(false) }
+            val doneScale by animateFloatAsState(
+                targetValue = if (isDonePressed) 0.95f else 1f,
+                animationSpec = spring(stiffness = 400f, dampingRatio = 0.6f),
+                label = "doneScale"
+            )
+
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 24.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    .height(56.dp)
+                    .scale(doneScale)
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = CircleShape,
+                        spotColor = LocalAccentColor.current.copy(alpha = 0.5f),
+                        ambientColor = LocalAccentColor.current.copy(alpha = 0.3f)
+                    )
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                isDonePressed = true
+                                tryAwaitRelease()
+                                isDonePressed = false
+                            },
+                            onTap = { onDismiss() }
+                        )
+                    },
+                shape = CircleShape,
+                color = LocalAccentColor.current
             ) {
-                // Interactive States
-                var isDiscardPressed by remember { mutableStateOf(false) }
-                var isSavePressed by remember { mutableStateOf(false) }
-
-                val discardScale by animateFloatAsState(
-                    targetValue = if (isDiscardPressed) 0.95f else 1f,
-                    animationSpec = spring(stiffness = 400f, dampingRatio = 0.6f),
-                    label = "discardScale"
-                )
-
-                val saveScale by animateFloatAsState(
-                    targetValue = if (isSavePressed) 0.95f else 1f,
-                    animationSpec = spring(stiffness = 400f, dampingRatio = 0.6f),
-                    label = "saveScale"
-                )
-
-                // Discard Button (Minimalist Tonal)
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .scale(discardScale)
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    isDiscardPressed = true
-                                    tryAwaitRelease()
-                                    isDiscardPressed = false
-                                },
-                                onTap = { onDismiss() }
-                            )
-                        },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Text(
-                            text = "Discard",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                // Save Button (Vibrant & Bold)
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .scale(saveScale)
-                        .shadow(
-                            elevation = 12.dp,
-                            shape = CircleShape,
-                            spotColor = LocalAccentColor.current.copy(alpha = 0.5f),
-                            ambientColor = LocalAccentColor.current.copy(alpha = 0.3f)
-                        )
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    isSavePressed = true
-                                    tryAwaitRelease()
-                                    isSavePressed = false
-                                },
-                                onTap = { onSaveTodos(todos) }
-                            )
-                        },
-                    shape = CircleShape,
-                    color = LocalAccentColor.current
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Save Changes",
-                            style = MaterialTheme.typography.labelLarge.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = Color.White
-                        )
-                    }
+                    Text(
+                        text = "Done",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = Color.White
+                    )
                 }
             }
         }

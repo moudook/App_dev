@@ -95,7 +95,7 @@ Bad: "User searched for 'grandma's cookies recipe' and archived the note about l
             val conversationText = buildConversationText(messages)
 
             // Generate summary via AI
-            val summary = aiService.agentChat(
+            val summary = aiService.simpleChat(
                 systemPrompt = SUMMARY_SYSTEM_PROMPT,
                 userPrompt = "Summarize this conversation:\n\n$conversationText"
             )
@@ -249,7 +249,7 @@ Rules:
 Just output the title, nothing else.
             """.trimIndent()
 
-            val title = aiService.agentChat(
+            val title = aiService.simpleChat(
                 systemPrompt = "You are a title generator. Output only the title, nothing else.",
                 userPrompt = titlePrompt
             )

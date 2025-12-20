@@ -5,30 +5,43 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.data.model.Note
-import com.example.smarty.ui.components.NoteCard
+import com.example.smarty.data.model.getAttachments
 import kotlinx.coroutines.delay
+import com.halilibo.richtext.markdown.Markdown
+import com.halilibo.richtext.ui.RichText
+import com.halilibo.richtext.ui.RichTextStyle
+import com.halilibo.richtext.ui.string.RichTextStringStyle
 
 /**
  * Chat message bubble component
@@ -91,17 +104,45 @@ fun ChatMessageItem(
                     modifier = Modifier.padding(12.dp)
                 ) {
                     // Message content
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = MonoFont
-                        ),
-                        color = if (isUser) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                    if (isUser) {
+                        // User messages: plain text
+                        Text(
+                            text = message.content,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = MonoFont
+                            ),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        // Assistant messages: markdown rendering
+                        val contentColor = MaterialTheme.colorScheme.onSurface
+                        val accentColor = LocalAccentColor.current
+                        val codeBackground = MaterialTheme.colorScheme.surfaceVariant
+
+                        val richTextStyle = RichTextStyle(
+                            stringStyle = RichTextStringStyle(
+                                codeStyle = SpanStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 13.sp,
+                                    background = codeBackground
+                                ),
+                                boldStyle = SpanStyle(fontWeight = FontWeight.Bold),
+                                italicStyle = SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                                linkStyle = SpanStyle(color = accentColor)
+                            )
+                        )
+
+                        // Set content color for markdown text
+                        CompositionLocalProvider(LocalContentColor provides contentColor) {
+                            RichText(
+                                style = richTextStyle
+                            ) {
+                                Markdown(
+                                    content = message.content
+                                )
+                            }
                         }
-                    )
+                    }
 
                     // Show attachments count if any
                     if (message.attachments.isNotEmpty()) {
@@ -162,7 +203,17 @@ fun ChatMessageItem(
                         val relevantNotes = message.referencedNoteIds
                             .filter { it !in actionNoteIds }
                             .mapNotNull { getNote(it) }
-                            .take(5) // Limit to avoid massive scroll
+                            .let { notes ->
+                                if (message.isAudioRelated) {
+                                    // Filter to ONLY notes with audio attachments for audio queries
+                                    notes.filter { note ->
+                                        note.getAttachments().any { it.mimeType.startsWith("audio/") }
+                                    }
+                                } else {
+                                    notes
+                                }
+                            }
+                            .take(if (message.isAudioRelated) 3 else 5) // Max 3 for audio, 5 for others
 
                         if (relevantNotes.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(12.dp))
@@ -190,13 +241,63 @@ fun ChatMessageItem(
                 }
             }
 
-            // Timestamp
-            Text(
-                text = formatTimestamp(message.timestamp),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
-            )
+            // Timestamp and Copy button row
+            Row(
+                modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+            ) {
+                Text(
+                    text = formatTimestamp(message.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+
+                // Copy button for assistant messages
+                if (!isUser) {
+                    val clipboardManager = LocalClipboardManager.current
+                    var showCopied by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(showCopied) {
+                        if (showCopied) {
+                            delay(1500)
+                            showCopied = false
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                clipboardManager.setText(AnnotatedString(message.content))
+                                showCopied = true
+                            }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (showCopied) Icons.Default.Check else Icons.Outlined.ContentCopy,
+                            contentDescription = if (showCopied) "Copied" else "Copy response",
+                            modifier = Modifier.size(14.dp),
+                            tint = if (showCopied) {
+                                LocalAccentColor.current
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            }
+                        )
+                        if (showCopied) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Copied",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = LocalAccentColor.current
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

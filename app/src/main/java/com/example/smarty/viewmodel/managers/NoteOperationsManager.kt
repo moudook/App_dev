@@ -10,6 +10,7 @@ import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.getAllAttachmentUris
+import com.example.smarty.data.model.getAttachments
 import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AIService
@@ -378,7 +379,12 @@ class NoteOperationsManager(
         _isProcessing.value = true
 
         try {
-            val result = aiService.analyzeContent(note.content)
+            // Build attachment metadata for AI (file names and types only, no content)
+            val attachmentMetadata = note.getAttachments().map { attachment ->
+                com.example.smarty.data.model.AttachmentMetadata.fromNoteAttachment(attachment)
+            }.takeIf { it.isNotEmpty() }
+
+            val result = aiService.analyzeContent(note.content, attachmentMetadata)
 
             if (result.success) {
                 val category = repository.getOrCreateCategory(result.category)

@@ -33,6 +33,11 @@
     <!-- Post notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Alarm/Timer permissions -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
@@ -133,6 +138,23 @@
             android:stopWithTask="false">
             <!-- stopWithTask="false" ensures operations complete even if app is swiped away -->
         </service>
+
+        <!-- Timer/Alarm Receivers -->
+        <receiver
+            android:name=".service.AlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.smarty.TIMER_TRIGGERED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".service.AlarmDismissReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.smarty.DISMISS_ALARM" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

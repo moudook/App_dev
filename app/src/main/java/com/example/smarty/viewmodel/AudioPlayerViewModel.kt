@@ -9,6 +9,8 @@ import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.PlaybackState
 import com.example.smarty.data.model.formatDuration
 import com.example.smarty.service.AudioPlayerService
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -82,32 +84,60 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
     // Track if playback was explicitly requested to prevent auto-hiding during state transitions
     private var isPlaybackRequested = false
 
+    // Track if paused due to speech recognition
+    private val _pausedDueToSpeech = MutableStateFlow(false)
+
+    // Job for auto-hiding player after playback ends
+    private var autoHideJob: Job? = null
+
+    // Auto-hide delay in milliseconds
+    private val AUTO_HIDE_DELAY = 1500L
+
     init {
         // Observe player state to show/hide mini player
         viewModelScope.launch {
             AudioPlayerService.playerState.collect { state ->
-                if (state.playbackState == PlaybackState.ERROR) {
-                    _isMiniPlayerVisible.value = false
-                    isPlaybackRequested = false
-                    android.widget.Toast.makeText(
-                        getApplication(),
-                        "Unable to satisfy request. Use local file.",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                } else {
-                    // Only update visibility if we are NOT waiting for a requested playback to start
-                    // OR if the state confirms playback/buffering has begun
-                    val isActive = state.currentTrack != null && state.playbackState != PlaybackState.IDLE
-                    
-                    if (isActive) {
-                        // Playback is confirmed active, so we can clear the request flag and show player
+                when (state.playbackState) {
+                    PlaybackState.ERROR -> {
+                        _isMiniPlayerVisible.value = false
+                        isPlaybackRequested = false
+                        autoHideJob?.cancel()
+                        android.widget.Toast.makeText(
+                            getApplication(),
+                            "Unable to satisfy request. Use local file.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    PlaybackState.ENDED -> {
+                        // Auto-hide after playback ends
+                        autoHideJob?.cancel()
+                        autoHideJob = viewModelScope.launch {
+                            delay(AUTO_HIDE_DELAY)
+                            _isMiniPlayerVisible.value = false
+                            _isFullPlayerVisible.value = false
+                        }
+                    }
+                    PlaybackState.PLAYING -> {
+                        // Cancel any pending auto-hide when playback resumes
+                        autoHideJob?.cancel()
                         isPlaybackRequested = false
                         _isMiniPlayerVisible.value = true
-                    } else if (!isPlaybackRequested) {
-                        // Only hide if we aren't waiting for a request to fulfill
-                        _isMiniPlayerVisible.value = false
                     }
-                    // Else: keep current visibility (true) while waiting for request to process
+                    else -> {
+                        // Only update visibility if we are NOT waiting for a requested playback to start
+                        // OR if the state confirms playback/buffering has begun
+                        val isActive = state.currentTrack != null && state.playbackState != PlaybackState.IDLE
+
+                        if (isActive) {
+                            // Playback is confirmed active, so we can clear the request flag and show player
+                            isPlaybackRequested = false
+                            _isMiniPlayerVisible.value = true
+                        } else if (!isPlaybackRequested) {
+                            // Only hide if we aren't waiting for a request to fulfill
+                            _isMiniPlayerVisible.value = false
+                        }
+                        // Else: keep current visibility (true) while waiting for request to process
+                    }
                 }
             }
         }
@@ -127,10 +157,32 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
      * Toggle play/pause
      */
     fun togglePlayPause() {
+        // Reset speech pause flag on manual toggle
+        _pausedDueToSpeech.value = false
         val currentState = AudioPlayerService.playerState.value
         if (currentState.isPlaying) {
             AudioPlayerService.pause(getApplication())
         } else {
+            AudioPlayerService.resume(getApplication())
+        }
+    }
+
+    /**
+     * Handle speech recognition state changes.
+     * Pauses audio when speech recognition starts and resumes when it stops.
+     */
+    fun onSpeechListeningChanged(isListening: Boolean) {
+        val currentState = AudioPlayerService.playerState.value
+
+        if (isListening && currentState.isPlaying) {
+            // Speech recognition started while audio is playing - pause
+            Log.d(TAG, "Pausing audio for speech recognition")
+            _pausedDueToSpeech.value = true
+            AudioPlayerService.pause(getApplication())
+        } else if (!isListening && _pausedDueToSpeech.value) {
+            // Speech recognition stopped and we previously paused - resume
+            Log.d(TAG, "Resuming audio after speech recognition")
+            _pausedDueToSpeech.value = false
             AudioPlayerService.resume(getApplication())
         }
     }
@@ -159,6 +211,8 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
     fun stop() {
         Log.d(TAG, "Stopping playback")
         isPlaybackRequested = false
+        _pausedDueToSpeech.value = false
+        autoHideJob?.cancel()
         AudioPlayerService.stop(getApplication())
         _isMiniPlayerVisible.value = false
         _isFullPlayerVisible.value = false

@@ -15,10 +15,15 @@ import kotlin.math.sqrt
 /**
  * Detects phone shake gestures using the accelerometer sensor
  * Used to toggle between note input mode and AI chat mode
+ *
+ * @param context Android context
+ * @param onShakeDetected Callback when shake is detected
+ * @param getThreshold Optional function to get dynamic threshold (for sensitivity settings)
  */
 class ShakeDetector(
     private val context: Context,
-    private val onShakeDetected: () -> Unit
+    private val onShakeDetected: () -> Unit,
+    private val getThreshold: (() -> Int)? = null
 ) : SensorEventListener {
 
     private var sensorManager: SensorManager? = null
@@ -35,13 +40,21 @@ class ShakeDetector(
     companion object {
         private const val TAG = "ShakeDetector"
 
-        // Shake detection thresholds
-        private const val SHAKE_THRESHOLD = 800       // Acceleration threshold for shake detection
+        // Default shake detection threshold (used if getThreshold not provided)
+        private const val DEFAULT_SHAKE_THRESHOLD = 800
         private const val SHAKE_COOLDOWN_MS = 250L    // Minimum time between shake triggers (quick switching)
         private const val UPDATE_INTERVAL_MS = 100L   // Minimum time between sensor reads
 
         // Haptic feedback duration
         private const val VIBRATE_DURATION_MS = 50L
+    }
+
+    /**
+     * Get the current shake threshold.
+     * Uses dynamic threshold from settings if available, otherwise default.
+     */
+    private fun getCurrentThreshold(): Int {
+        return getThreshold?.invoke() ?: DEFAULT_SHAKE_THRESHOLD
     }
 
     /**
@@ -108,8 +121,8 @@ class ShakeDetector(
             (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ).toDouble()
         ) / timeDiff * 10000
 
-        // Check if shake threshold exceeded
-        if (speed > SHAKE_THRESHOLD) {
+        // Check if shake threshold exceeded (using dynamic threshold from settings)
+        if (speed > getCurrentThreshold()) {
             // Apply cooldown to prevent rapid triggers
             if (currentTime - lastShakeTime > SHAKE_COOLDOWN_MS) {
                 lastShakeTime = currentTime

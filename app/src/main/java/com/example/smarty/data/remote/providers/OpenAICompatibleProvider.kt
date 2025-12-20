@@ -45,6 +45,8 @@ class OpenAICompatibleProvider(
         const val OPENAI_URL = "https://api.openai.com/v1/chat/completions"
         const val DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
         const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+        const val CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions"
+        const val COHERE_URL = "https://api.cohere.ai/compatibility/v1/chat/completions"
 
         /**
          * Create an OpenAI provider instance.
@@ -63,6 +65,20 @@ class OpenAICompatibleProvider(
          */
         fun groq(client: OkHttpClient, gson: Gson) =
             OpenAICompatibleProvider(client, gson, GROQ_URL, "Groq")
+
+        /**
+         * Create a Cerebras provider instance.
+         * Ultra-fast inference with 2000+ tokens/second.
+         */
+        fun cerebras(client: OkHttpClient, gson: Gson) =
+            OpenAICompatibleProvider(client, gson, CEREBRAS_URL, "Cerebras")
+
+        /**
+         * Create a Cohere provider instance.
+         * OpenAI-compatible API with Command models.
+         */
+        fun cohere(client: OkHttpClient, gson: Gson) =
+            OpenAICompatibleProvider(client, gson, COHERE_URL, "Cohere")
     }
 
     /**

@@ -126,6 +126,39 @@ class CacheManager private constructor(private val context: Context) {
     }
 
     /**
+     * Trim cache to a target size (for memory optimization when app is backgrounded)
+     */
+    suspend fun trimToSize(targetSizeBytes: Long) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            var currentSize = getCacheSize()
+
+            if (currentSize <= targetSizeBytes) {
+                Log.d(TAG, "Cache already under target size: ${currentSize / 1024}KB <= ${targetSizeBytes / 1024}KB")
+                return@withContext
+            }
+
+            Log.i(TAG, "Trimming cache from ${currentSize / 1024}KB to ${targetSizeBytes / 1024}KB")
+
+            // Get all cache entries sorted by last access time (oldest first)
+            val entries = getAllCacheEntries().sortedBy { it.lastAccessTime }
+
+            for (entry in entries) {
+                if (currentSize <= targetSizeBytes) {
+                    break
+                }
+
+                if (entry.file.delete()) {
+                    currentSize -= entry.size
+                    accessTimes.remove(entry.file.absolutePath)
+                    Log.d(TAG, "Trimmed: ${entry.key} (${entry.size / 1024}KB)")
+                }
+            }
+
+            Log.i(TAG, "Cache trim complete. New size: ${currentSize / 1024}KB")
+        }
+    }
+
+    /**
      * Clear entries older than maxAgeMs
      */
     suspend fun clearOldEntries(maxAgeMs: Long) = withContext(Dispatchers.IO) {

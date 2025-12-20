@@ -6,8 +6,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,15 +25,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.example.smarty.data.local.AIModels
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.ProviderSection
 import com.example.smarty.ui.screens.settings.maskApiKey
+import com.example.smarty.ui.components.ShakeSensitivityControl
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
@@ -47,6 +56,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 @Composable
 fun SettingsScreen(
     providerConfigs: Map<AIProvider, AIProviderConfig>,
+    providerPriorityOrder: List<AIProvider>,
     isPinConfigured: Boolean,
     isDarkTheme: Boolean,
     onBackClick: () -> Unit,
@@ -71,6 +81,9 @@ fun SettingsScreen(
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
+    // Shake sensitivity
+    shakeSensitivity: Float = 0.5f,
+    onShakeSensitivityChange: (Float) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showRemovePinDialog by remember { mutableStateOf(false) }
@@ -83,6 +96,7 @@ fun SettingsScreen(
     var showPinSetupSheet by remember { mutableStateOf(false) }
     var showPinChangeSheet by remember { mutableStateOf(false) }
     var showAboutSheet by remember { mutableStateOf(false) }  // Newly added state
+    var showShakeSensitivitySheet by remember { mutableStateOf(false) }
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val isSystemDark = isSystemInDarkTheme()
@@ -185,6 +199,23 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Shake Sensitivity
+            SettingsItem(
+                icon = Icons.Default.Vibration,
+                title = "Shake Sensitivity",
+                subtitle = "${(shakeSensitivity * 100).toInt()}% - ${
+                    when {
+                        shakeSensitivity < 0.3f -> "Low"
+                        shakeSensitivity < 0.7f -> "Medium"
+                        else -> "High"
+                    }
+                }",
+                onClick = { showShakeSensitivitySheet = true },
+                showArrow = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             SettingsItem(
                 icon = Icons.Default.CleaningServices,
                 title = "Clear Cache",
@@ -225,6 +256,7 @@ fun SettingsScreen(
         AIConfigBottomSheet(
             sheetState = aiConfigSheetState,
             providerConfigs = providerConfigs,
+            providerPriorityOrder = providerPriorityOrder,
             onDismiss = { showAIConfigSheet = false },
             onAddApiKey = onAddApiKey,
             onRemoveApiKey = onRemoveApiKey,
@@ -485,6 +517,80 @@ fun SettingsScreen(
             }
         }
     }
+
+    // Shake Sensitivity Bottom Sheet
+    if (showShakeSensitivitySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showShakeSensitivitySheet = false },
+            sheetState = subSettingSheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = LocalShapes.current.bottomSheet,
+            dragHandle = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    )
+                }
+            }
+        ) {
+            HideSystemBars()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Shake Sensitivity",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                Text(
+                    text = "Adjust how sensitive the shake gesture is for toggling private mode",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 24.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+
+                // Semicircle sensitivity control
+                ShakeSensitivityControl(
+                    sensitivity = shakeSensitivity,
+                    onSensitivityChange = onShakeSensitivityChange,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Hint text
+                Text(
+                    text = when {
+                        shakeSensitivity < 0.3f -> "Low: Requires strong shake movement"
+                        shakeSensitivity < 0.7f -> "Medium: Balanced sensitivity"
+                        else -> "High: Light shake triggers mode switch"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    }
 }
 
 
@@ -579,6 +685,7 @@ private fun SettingsItem(
 private fun AIConfigBottomSheet(
     sheetState: SheetState,
     providerConfigs: Map<AIProvider, AIProviderConfig>,
+    providerPriorityOrder: List<AIProvider>,
     onDismiss: () -> Unit,
     onAddApiKey: (AIProvider, String) -> Unit,
     onRemoveApiKey: (AIProvider, String) -> Unit,
@@ -591,7 +698,16 @@ private fun AIConfigBottomSheet(
     onSetTavilyApiKey: (String?) -> Unit = {}
 ) {
     val shapes = LocalShapes.current
-    val sortedProviders = remember(providerConfigs) { providerConfigs.keys.toList() }
+
+    // Local state for drag-and-drop reordering
+    var localProviderOrder by remember { mutableStateOf(providerPriorityOrder) }
+    var draggedItemIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+
+    // Sync with external state when it changes
+    LaunchedEffect(providerPriorityOrder) {
+        localProviderOrder = providerPriorityOrder
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -602,7 +718,7 @@ private fun AIConfigBottomSheet(
         HideSystemBars()
         Column(
             modifier = Modifier
-                .fillMaxHeight(0.85f) // Increased height for better visibility
+                .fillMaxHeight(0.85f)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
@@ -616,7 +732,7 @@ private fun AIConfigBottomSheet(
             )
 
             Text(
-                text = "Configure and prioritize AI providers. Use arrows to reorder fallback priority.",
+                text = "Hold and drag providers to reorder fallback priority.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -626,51 +742,99 @@ private fun AIConfigBottomSheet(
                 AIProvider.GEMINI to Triple("Gemini", "Google's fastest AI", "https://aistudio.google.com/apikey"),
                 AIProvider.DEEPSEEK to Triple("DeepSeek", "Cost-effective", "https://platform.deepseek.com"),
                 AIProvider.GROQ to Triple("Groq", "Ultra-fast", "https://console.groq.com"),
+                AIProvider.CEREBRAS to Triple("Cerebras", "2000+ tokens/sec", "https://cloud.cerebras.ai"),
+                AIProvider.COHERE to Triple("Cohere", "Command models", "https://dashboard.cohere.com/api-keys"),
                 AIProvider.OPENAI to Triple("OpenAI", "GPT-4o", "https://platform.openai.com/api-keys"),
                 AIProvider.ANTHROPIC to Triple("Anthropic", "Claude models", "https://console.anthropic.com/settings/keys"),
                 AIProvider.OPENROUTER to Triple("OpenRouter", "Multi-model", "https://openrouter.ai/keys"),
                 AIProvider.HUGGINGFACE to Triple("HuggingFace", "Open source", "https://huggingface.co/settings/tokens")
             )
 
-            // Iterate through SORTED providers
-            sortedProviders.forEachIndexed { index, provider ->
+            // Iterate through providers with drag-and-drop reordering
+            localProviderOrder.forEachIndexed { index, provider ->
                 val (name, description, _) = providerInfo[provider] ?: Triple("Unknown", "", "")
                 val config = providerConfigs[provider]
+                val isDragging = draggedItemIndex == index
 
                 Row(
-                   verticalAlignment = Alignment.Top,
-                   modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Reorder Controls
-                    Column(
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(end = 8.dp, top = 24.dp)
-                    ) {
-                        if (index > 0) {
-                            IconButton(
-                                onClick = {
-                                    val newList = sortedProviders.toMutableList()
-                                    newList.removeAt(index)
-                                    newList.add(index - 1, provider)
-                                    onSetProviderPriority(newList)
-                                },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(Icons.Default.KeyboardArrowUp, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .graphicsLayer {
+                            if (isDragging) {
+                                translationY = dragOffsetY
+                                scaleX = 1.02f
+                                scaleY = 1.02f
                             }
                         }
-                        if (index < sortedProviders.size - 1) {
-                            IconButton(
-                                onClick = {
-                                    val newList = sortedProviders.toMutableList()
-                                    newList.removeAt(index)
-                                    newList.add(index + 1, provider)
-                                    onSetProviderPriority(newList)
-                                },
+                        .zIndex(if (isDragging) 1f else 0f)
+                        .then(
+                            if (isDragging) Modifier.shadow(8.dp, RoundedCornerShape(12.dp))
+                            else Modifier
+                        )
+                        .background(
+                            if (isDragging) MaterialTheme.colorScheme.surfaceContainerHigh
+                            else Color.Transparent,
+                            RoundedCornerShape(12.dp)
+                        )
+                ) {
+                    // Drag Handle with gesture detection
+                    Box(
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .pointerInput(index) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        draggedItemIndex = index
+                                        dragOffsetY = 0f
+                                    },
+                                    onDragEnd = {
+                                        // Calculate target position based on drag offset
+                                        val itemHeight = 120f // Approximate item height in pixels
+                                        val moveBy = (dragOffsetY / itemHeight).toInt()
+                                        val targetIndex = (index + moveBy).coerceIn(0, localProviderOrder.size - 1)
+
+                                        if (targetIndex != index) {
+                                            val newList = localProviderOrder.toMutableList()
+                                            val item = newList.removeAt(index)
+                                            newList.add(targetIndex, item)
+                                            localProviderOrder = newList
+                                            onSetProviderPriority(newList)
+                                        }
+
+                                        draggedItemIndex = null
+                                        dragOffsetY = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggedItemIndex = null
+                                        dragOffsetY = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetY += dragAmount.y
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // Drag indicator icon
+                            Icon(
+                                imageVector = Icons.Default.DragHandle,
+                                contentDescription = "Drag to reorder",
+                                tint = if (isDragging) LocalAccentColor.current
+                                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                 modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(Icons.Default.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                            )
+                            // Priority number badge
+                            Text(
+                                text = "${index + 1}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isDragging) LocalAccentColor.current
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
 
@@ -693,7 +857,7 @@ private fun AIConfigBottomSheet(
                     }
                 }
 
-                if (index < sortedProviders.size - 1) {
+                if (index < localProviderOrder.size - 1) {
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 12.dp),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)

@@ -306,7 +306,10 @@ fun NoteCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Type Icon (Enhanced Container)
-                            val iconTint = getNoteTypeColor(note.type)
+                            // If AI created, use AI icon and accent color. Otherwise, use type-specific icon/color.
+                            val iconVector = if (note.isAiCreated) Icons.Default.AutoAwesome else getNoteTypeIcon(note.type)
+                            val iconTint = if (note.isAiCreated) LocalAccentColor.current else getNoteTypeColor(note.type)
+                            
                             Surface(
                                 shape = CircleShape,
                                 color = iconTint.copy(alpha = 0.12f),
@@ -314,7 +317,7 @@ fun NoteCard(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = getNoteTypeIcon(note.type),
+                                        imageVector = iconVector,
                                         contentDescription = null,
                                         tint = iconTint,
                                         modifier = Modifier.size(20.dp)
@@ -336,8 +339,8 @@ fun NoteCard(
                                     overflow = TextOverflow.Ellipsis
                                 )
 
-                                // Privacy & AI Indicators
-                                if (note.isFullPrivacy || note.excludeFromAiChat || note.isAiCreated) {
+                                // Privacy & Indicators
+                                if (note.isFullPrivacy || note.excludeFromAiChat) {
                                     Row(
                                         modifier = Modifier.padding(top = 4.dp),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -345,18 +348,7 @@ fun NoteCard(
                                     ) {
                                         // Privacy Indicator (Shield + Text)
                                         // Shows for BOTH isFullPrivacy AND excludeFromAiChat
-                                        if (note.isFullPrivacy || note.excludeFromAiChat) {
-                                            PrivacyIndicatorChip()
-                                        }
-
-                                        // AI Created Indicator
-                                        if (note.isAiCreated) {
-                                            CategoryChip(
-                                                name = "AI",
-                                                isNew = false,
-                                                modifier = Modifier.height(18.dp)
-                                            )
-                                        }
+                                        PrivacyIndicatorChip()
                                     }
                                 }
                             }
