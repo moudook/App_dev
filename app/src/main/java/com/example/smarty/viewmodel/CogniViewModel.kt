@@ -159,6 +159,25 @@ class CogniViewModel(
         getNotesSnapshot = { notes.value }
     )
 
+    // Agent State Manager - handles DynamicIsland state for AI agent operations
+    private val agentStateManager = com.example.smarty.viewmodel.managers.AgentStateManager(viewModelScope)
+
+    // Note Operations Manager - handles note CRUD operations
+    private val noteOperationsManager = com.example.smarty.viewmodel.managers.NoteOperationsManager(
+        repository = repository,
+        aiService = aiService,
+        context = application,
+        scope = viewModelScope
+    )
+
+    // Agent Action Executor - handles AI agent action execution
+    private val agentActionExecutor = com.example.smarty.viewmodel.managers.AgentActionExecutor(
+        repository = repository,
+        agentService = agentService,
+        tavilySearchProvider = tavilySearchProvider,
+        scope = viewModelScope
+    )
+
     // ==================== Chat State (delegated to ChatManager) ====================
     val isChatMode: StateFlow<Boolean> = chatManager.isChatMode
     val chatMessages: StateFlow<List<ChatMessage>> = chatManager.chatMessages
@@ -197,94 +216,13 @@ class CogniViewModel(
         }
     }
 
-    // ==================== AGENT STATE - Track AI Agent Status ====================
+    // ==================== AGENT STATE (delegated to AgentStateManager) ====================
 
-    private val _agentState = MutableStateFlow<DynamicIslandState>(DynamicIslandState.Contracted)
-    val agentState: StateFlow<DynamicIslandState> = _agentState.asStateFlow()
+    val agentState: StateFlow<DynamicIslandState> = agentStateManager.agentState
 
-    // Timer job for updating elapsed time during tool execution
-    private var agentTimerJob: kotlinx.coroutines.Job? = null
-
-    // Track tools used in current agent run
-    private var toolsUsedInRun = mutableListOf<String>()
-    private var agentRunStartTime = 0L
-
-    /**
-     * Update agent state and optionally start/stop timer
-     */
-    private fun setAgentState(state: DynamicIslandState) {
-        _agentState.value = state
-
-        // Manage timer based on state
-        when (state) {
-            is DynamicIslandState.AgentExecutingTool,
-            is DynamicIslandState.AgentWaitingForResult -> {
-                startAgentTimer(state)
-            }
-            is DynamicIslandState.Contracted,
-            is DynamicIslandState.AgentCompleted,
-            is DynamicIslandState.AgentError -> {
-                stopAgentTimer()
-            }
-            else -> {} // Keep timer running for other states
-        }
-    }
-
-    /**
-     * Start timer to update elapsed seconds during tool execution
-     */
-    private fun startAgentTimer(initialState: DynamicIslandState) {
-        agentTimerJob?.cancel()
-        val startTime = System.currentTimeMillis()
-
-        agentTimerJob = viewModelScope.launch {
-            while (true) {
-                delay(1000) // Update every second
-                val elapsed = ((System.currentTimeMillis() - startTime) / 1000).toInt()
-
-                // Update state with new elapsed time
-                when (val current = _agentState.value) {
-                    is DynamicIslandState.AgentExecutingTool -> {
-                        _agentState.value = current.copy(elapsedSeconds = elapsed)
-                    }
-                    is DynamicIslandState.AgentWaitingForResult -> {
-                        _agentState.value = current.copy(elapsedSeconds = elapsed)
-                    }
-                    else -> break // Stop timer if state changed
-                }
-
-                // Check timeout (45 seconds for tools)
-                if (elapsed > 45) {
-                    Log.w(TAG, "Tool execution timeout after ${elapsed}s")
-                    break
-                }
-            }
-        }
-    }
-
-    /**
-     * Stop the agent timer
-     */
-    private fun stopAgentTimer() {
-        agentTimerJob?.cancel()
-        agentTimerJob = null
-    }
-
-    /**
-     * Show completion state briefly then contract
-     */
-    private fun showAgentCompleted(toolsUsed: Int) {
-        val totalTime = if (agentRunStartTime > 0) {
-            ((System.currentTimeMillis() - agentRunStartTime) / 1000).toInt()
-        } else 0
-
-        setAgentState(DynamicIslandState.AgentCompleted(toolsUsed, totalTime))
-
-        viewModelScope.launch {
-            delay(2000) // Show for 2 seconds
-            setAgentState(DynamicIslandState.Contracted)
-        }
-    }
+    // Delegate agent state methods to manager
+    private fun setAgentState(state: DynamicIslandState) = agentStateManager.setState(state)
+    private fun showAgentCompleted(toolsUsed: Int) = agentStateManager.showCompleted()
 
     // Expose secure preferences state for UI
     val geminiKeys: StateFlow<List<String>> = securePreferences.geminiKeys
@@ -309,6 +247,16 @@ class CogniViewModel(
 
     fun clearPendingAudioPlayback() {
         _pendingAudioPlayback.value = null
+    }
+
+    /**
+     * Request audio playback based on a search query.
+     * Used by AgentActionExecutor when handling PlayAudio actions.
+     */
+    private fun requestAudioPlaybackFromQuery(query: String) {
+        viewModelScope.launch {
+            executeAction(AgentAction.PlayAudio(query = query))
+        }
     }
 
     val notes = repository.getAllNotes()
@@ -355,6 +303,25 @@ class CogniViewModel(
         }
         // Initialize chat manager (loads sessions and cleans up empty ones)
         chatManager.initialize()
+
+        // Set up NoteOperationsManager callback for AI processing
+        noteOperationsManager.setAiProcessingCallback(object : com.example.smarty.viewmodel.managers.NoteOperationsManager.AiProcessingCallback {
+            override suspend fun onProcessingComplete(note: Note) {
+                Log.d(TAG, "Note processing complete: ${note.title}")
+            }
+            override suspend fun onProcessingError(note: Note, error: String) {
+                Log.e(TAG, "Note processing error for ${note.title}: $error")
+            }
+        })
+
+        // Set up AgentActionExecutor callback for ViewModel state access
+        agentActionExecutor.setCallback(object : com.example.smarty.viewmodel.managers.AgentActionExecutor.ActionCallback {
+            override fun getActiveNotes(): List<Note> = notes.value
+            override fun getArchivedNotes(): List<Note> = archivedNotes.value
+            override fun getTavilyApiKey(): String? = securePreferences.getTavilyApiKey()
+            override suspend fun processNoteWithAi(note: Note) = simulateAiProcessing(note)
+            override fun requestAudioPlayback(query: String) = requestAudioPlaybackFromQuery(query)
+        })
 
         // Restore state from SavedStateHandle after process death (BUG-053)
         restoreState()
@@ -1374,8 +1341,7 @@ class CogniViewModel(
                 var toolResultsCollected = mutableListOf<String>() // Collect all tool results
 
                 // Initialize agent run tracking
-                toolsUsedInRun.clear()
-                agentRunStartTime = System.currentTimeMillis()
+                agentStateManager.startAgentRun()
 
                 while (iterationCount < maxIterations) {
                     iterationCount++
@@ -1429,7 +1395,7 @@ class CogniViewModel(
                         ))
 
                         // Track tool usage
-                        toolsUsedInRun.add(toolDisplayName)
+                        agentStateManager.recordToolUsed(toolDisplayName)
 
                         // Execute the action directly (no re-parsing!)
                         val actionResult = executeActionWithResult(parsedAction)
@@ -1491,7 +1457,7 @@ class CogniViewModel(
                         )
 
                         // ========== UPDATE UI: Agent completed ==========
-                        showAgentCompleted(toolsUsedInRun.size)
+                        agentStateManager.showCompleted()
                         break
                     } else {
                         // No action - just a regular response, add and exit
@@ -1504,7 +1470,7 @@ class CogniViewModel(
                         )
 
                         // ========== UPDATE UI: Agent completed (no tools) ==========
-                        showAgentCompleted(toolsUsedInRun.size)
+                        agentStateManager.showCompleted()
                         break
                     }
                 }
@@ -1512,7 +1478,7 @@ class CogniViewModel(
                 if (iterationCount >= maxIterations) {
                     Log.w(TAG, "Agent loop reached max iterations")
                     // Show completed even at max iterations
-                    showAgentCompleted(toolsUsedInRun.size)
+                    agentStateManager.showCompleted()
                 }
 
             } catch (e: Exception) {

@@ -497,13 +497,7 @@ object FileStorageHelper {
 
     // ========================== Private Helpers ==========================
 
-    private fun formatFileSize(bytes: Long): String {
-        return when {
-            bytes < 1024 -> "$bytes B"
-            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-            else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
-        }
-    }
+    private fun formatFileSize(bytes: Long): String = ContentTypeDetector.formatFileSize(bytes)
 
     private fun getFileName(context: Context, uri: Uri): String? {
         return try {

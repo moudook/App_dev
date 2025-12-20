@@ -649,13 +649,6 @@ private fun NoteAttachmentIndicator(
 }
 
 /**
- * Format file size in a compact way
+ * Format file size in a compact way - delegates to ContentTypeDetector
  */
-private fun formatFileSizeCompact(bytes: Long): String {
-    return when {
-        bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-        bytes < 1024 * 1024 * 1024 -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
-        else -> String.format("%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0))
-    }
-}
+private fun formatFileSizeCompact(bytes: Long): String = com.example.smarty.util.ContentTypeDetector.formatSize(bytes)
