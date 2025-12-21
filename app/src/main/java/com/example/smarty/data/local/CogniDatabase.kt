@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.smarty.data.model.AgentExecution
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
@@ -12,6 +13,7 @@ import com.example.smarty.data.model.ChatMessageEntity
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.ImpressedEntry
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.ProviderUsage
 
 @Database(
     entities = [
@@ -21,9 +23,11 @@ import com.example.smarty.data.model.Note
         ChatMessageEntity::class,
         AIMemory::class,
         ImpressedEntry::class,
-        CalendarEvent::class
+        CalendarEvent::class,
+        AgentExecution::class,      // AI agent execution tracking
+        ProviderUsage::class        // Provider usage for rate limiting
     ],
-    version = 11,  // Added calendar events
+    version = 12,  // Added agent execution tracking
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -34,6 +38,7 @@ abstract class CogniDatabase : RoomDatabase() {
     abstract fun aiMemoryDao(): AIMemoryDao
     abstract fun impressedLogDao(): ImpressedLogDao
     abstract fun calendarDao(): CalendarDao
+    abstract fun agentExecutionDao(): AgentExecutionDao
 
     companion object {
         @Volatile
@@ -54,7 +59,8 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_7_8,
                         Migrations.MIGRATION_8_9,
                         Migrations.MIGRATION_9_10,
-                        Migrations.MIGRATION_10_11
+                        Migrations.MIGRATION_10_11,
+                        Migrations.MIGRATION_11_12
                     )
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()

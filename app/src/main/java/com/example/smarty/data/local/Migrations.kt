@@ -191,4 +191,67 @@ object Migrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_calendar_events_linkedNoteId ON calendar_events(linkedNoteId)")
         }
     }
+
+    /**
+     * Migration from version 11 to 12
+     * Adds agent_executions and provider_usage tables for AI agent tracking
+     */
+    val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Create agent_executions table for tracking AI agent runs
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS agent_executions (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    sessionId TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    modelId TEXT NOT NULL,
+                    userPrompt TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'SUCCESS',
+                    errorMessage TEXT,
+                    inputTokens INTEGER NOT NULL DEFAULT 0,
+                    outputTokens INTEGER NOT NULL DEFAULT 0,
+                    totalTokens INTEGER NOT NULL DEFAULT 0,
+                    toolCallCount INTEGER NOT NULL DEFAULT 0,
+                    toolsCalled TEXT NOT NULL DEFAULT '[]',
+                    iterations INTEGER NOT NULL DEFAULT 1,
+                    latencyMs INTEGER NOT NULL DEFAULT 0,
+                    executedAt INTEGER NOT NULL,
+                    keyIndex INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (sessionId) REFERENCES chat_sessions(id) ON DELETE CASCADE
+                )
+            """)
+
+            // Create indices for agent_executions
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_executions_sessionId ON agent_executions(sessionId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_executions_provider ON agent_executions(provider)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_executions_modelId ON agent_executions(modelId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_executions_executedAt ON agent_executions(executedAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_agent_executions_status ON agent_executions(status)")
+
+            // Create provider_usage table for rate limiting and usage tracking
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS provider_usage (
+                    date INTEGER NOT NULL,
+                    provider TEXT NOT NULL,
+                    modelId TEXT NOT NULL,
+                    callCount INTEGER NOT NULL DEFAULT 0,
+                    inputTokens INTEGER NOT NULL DEFAULT 0,
+                    outputTokens INTEGER NOT NULL DEFAULT 0,
+                    totalTokens INTEGER NOT NULL DEFAULT 0,
+                    successCount INTEGER NOT NULL DEFAULT 0,
+                    failureCount INTEGER NOT NULL DEFAULT 0,
+                    rateLimitHits INTEGER NOT NULL DEFAULT 0,
+                    toolCalls INTEGER NOT NULL DEFAULT 0,
+                    avgLatencyMs INTEGER NOT NULL DEFAULT 0,
+                    updatedAt INTEGER NOT NULL,
+                    PRIMARY KEY (date, provider, modelId)
+                )
+            """)
+
+            // Create indices for provider_usage
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_provider_usage_date ON provider_usage(date)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_provider_usage_provider ON provider_usage(provider)")
+        }
+    }
 }

@@ -3,6 +3,7 @@ package com.example.smarty.agent
 import android.util.Log
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SecurePreferences
+import com.example.smarty.util.api.ApiKeyRotator
 import com.example.smarty.util.api.ProviderFailoverManager
 import com.example.smarty.util.api.GroqKeyManager
 import com.example.smarty.util.api.GroqKeyConfig
@@ -70,70 +71,109 @@ class CogniAgentProvider(
     /**
      * Get available executors for the AI Agent.
      *
-     * 2-KEY ROTATION STRATEGY:
-     * - Only use 2 keys at a time (reduces rate limit issues)
-     * - Alternate between keys on each message
-     * - Koog framework handles memory/context
-     * - If both fail, rotate to next pair
+     * KEY SEPARATION ARCHITECTURE:
+     * - AI Agent uses ONLY keys 1 & 2 (agent keys)
+     * - Note analysis uses keys 3, 4, 5... (background keys)
+     * - This prevents agent operations from exhausting note processing quota
      *
-     * This ensures:
-     * - Better rate limit handling (spread load across 2 keys)
-     * - Simpler failover (try key A, if fail try key B)
-     * - Automatic rotation on each call
+     * Uses USER PRIORITY ORDER - iterates through all enabled providers
+     * in the order set by the user in Settings.
      */
     fun getAllAvailableExecutors(): List<ExecutorResult.Success> {
         val executors = mutableListOf<ExecutorResult.Success>()
 
-        // GROQ-ONLY: Only use GROQ provider
-        val provider = AIProvider.GROQ
+        // Get providers in user's priority order
+        val priorityOrder = securePreferences.getProviderPriority()
+        // Include any providers not in priority list (newly added)
+        val allProviders = (priorityOrder + AIProvider.entries).distinct()
 
-        if (!securePreferences.isProviderEnabled(provider)) {
-            Log.w(TAG, "GROQ is not enabled - no executors available")
-            return executors
-        }
+        Log.d(TAG, "Provider priority order: ${allProviders.map { it.name }}")
 
-        val allKeys = securePreferences.getProviderKeys(provider)
-        if (allKeys.isEmpty()) {
-            Log.w(TAG, "No GROQ API keys configured")
-            return executors
-        }
+        for (provider in allProviders) {
+            // Skip disabled providers
+            if (!securePreferences.isProviderEnabled(provider)) {
+                continue
+            }
 
-        val selectedModel = securePreferences.getSelectedModel(provider)
+            val allKeys = securePreferences.getProviderKeys(provider)
+            if (allKeys.isEmpty()) {
+                continue
+            }
 
-        // 2-KEY ROTATION: Select 2 keys based on rotation index
-        // Rotate through pairs: (0,1), (2,3), (4,5), etc.
-        val pairIndex = (keyRotationIndex / 2) % ((allKeys.size + 1) / 2)
-        val primaryKeyIndex = (pairIndex * 2) % allKeys.size
-        val secondaryKeyIndex = ((pairIndex * 2) + 1) % allKeys.size
+            val selectedModel = securePreferences.getSelectedModel(provider)
 
-        // Alternate which key is tried first within the pair
-        val tryPrimaryFirst = (keyRotationIndex % 2) == 0
-        keyRotationIndex++ // Increment for next call
+            // Use ONLY agent keys (keys 1 & 2) - never touch background keys
+            val agentKeys = ApiKeyRotator.getAgentKeys(allKeys)
 
-        val keysToUse = if (tryPrimaryFirst) {
-            listOf(primaryKeyIndex, secondaryKeyIndex)
-        } else {
-            listOf(secondaryKeyIndex, primaryKeyIndex)
-        }
+            if (agentKeys.size > 1) {
+                // Rotate between agent keys (1 and 2)
+                val tryFirstFirst = (keyRotationIndex % 2) == 0
+                keyRotationIndex++
 
-        Log.d(TAG, "2-KEY ROTATION: Using keys ${keysToUse.map { it + 1 }} (rotation #$keyRotationIndex)")
-        Log.d(TAG, "Model: $selectedModel")
+                val keysToUse = if (tryFirstFirst) agentKeys else agentKeys.reversed()
 
-        // Create executors for the 2 selected keys
-        for (keyIdx in keysToUse) {
-            if (keyIdx < allKeys.size) {
-                val apiKey = allKeys[keyIdx]
-                val keyNumber = keyIdx + 1 // 1-indexed for logging
+                for ((idx, apiKey) in keysToUse.withIndex()) {
+                    val keyIndex = ApiKeyRotator.getKeyIndex(allKeys, apiKey)
+                    val result = createExecutorForProvider(provider, apiKey, selectedModel, keyIndex)
+                    if (result is ExecutorResult.Success) {
+                        executors.add(result)
+                    }
+                }
 
-                val result = createGroqExecutor(apiKey, selectedModel, keyNumber)
+                Log.d(TAG, "${provider.name}: Using agent keys 1 & 2, model: $selectedModel")
+            } else if (agentKeys.isNotEmpty()) {
+                // Single key - use it (shared mode)
+                val apiKey = agentKeys.first()
+                val result = createExecutorForProvider(provider, apiKey, selectedModel, 1)
                 if (result is ExecutorResult.Success) {
                     executors.add(result)
                 }
+
+                Log.d(TAG, "${provider.name}: Using single key (shared mode), model: $selectedModel")
             }
         }
 
-        Log.i(TAG, "GROQ executors ready: ${executors.size} keys in rotation")
+        Log.i(TAG, "Agent executors ready: ${executors.size} across ${executors.map { it.provider }.distinct().size} providers")
         return executors
+    }
+
+    /**
+     * Create executor for a specific provider.
+     */
+    private fun createExecutorForProvider(
+        provider: AIProvider,
+        apiKey: String,
+        modelId: String,
+        keyIndex: Int
+    ): ExecutorResult {
+        return when (provider) {
+            AIProvider.GROQ -> createGroqExecutor(apiKey, modelId, keyIndex)
+            AIProvider.GEMINI -> createGeminiExecutor(apiKey, modelId, keyIndex)
+            AIProvider.ANTHROPIC -> createAnthropicExecutor(apiKey, modelId, keyIndex)
+            AIProvider.OPENAI -> createOpenAIExecutor(apiKey, modelId, keyIndex)
+            AIProvider.DEEPSEEK -> createDeepSeekExecutor(apiKey, modelId, keyIndex)
+            AIProvider.CEREBRAS -> createCerebrasExecutor(apiKey, modelId, keyIndex)
+            AIProvider.COHERE -> createCohereExecutor(apiKey, modelId, keyIndex)
+            AIProvider.OPENROUTER -> createOpenRouterExecutor(apiKey, modelId, keyIndex)
+            AIProvider.HUGGINGFACE -> createHuggingFaceExecutor(apiKey, modelId, keyIndex)
+        }
+    }
+
+    /**
+     * Create HuggingFace executor (OpenAI-compatible inference API).
+     */
+    private fun createHuggingFaceExecutor(apiKey: String, modelId: String, keyIndex: Int): ExecutorResult {
+        val model = createOpenAICompatibleModel(modelId)
+        return ExecutorResult.Success(
+            executor = createCustomOpenAIExecutor(
+                apiKey = apiKey,
+                baseUrl = "https://api-inference.huggingface.co/v1"
+            ),
+            model = model,
+            provider = AIProvider.HUGGINGFACE,
+            apiKey = apiKey,
+            keyIndex = keyIndex
+        )
     }
 
     /**
@@ -455,34 +495,59 @@ class CogniAgentProvider(
     }
 
     /**
-     * Check if GROQ is configured (the only supported provider for agent).
+     * Check if any AI provider is configured with API keys.
      */
     fun hasConfiguredProvider(): Boolean {
-        return securePreferences.isProviderEnabled(AIProvider.GROQ) &&
-                securePreferences.getProviderKeys(AIProvider.GROQ).isNotEmpty()
+        return AIProvider.entries.any { provider ->
+            securePreferences.isProviderEnabled(provider) &&
+                    securePreferences.getProviderKeys(provider).isNotEmpty()
+        }
     }
 
     /**
-     * Get the number of GROQ API keys configured.
-     * More keys = higher throughput potential.
+     * Get the total number of API keys configured across all providers.
      */
     fun getConfiguredKeyCount(): Int {
-        return securePreferences.getProviderKeys(AIProvider.GROQ).size
+        return AIProvider.entries.sumOf { provider ->
+            securePreferences.getProviderKeys(provider).size
+        }
     }
 
     /**
-     * Get the currently configured provider name for display.
-     * Always returns "GROQ" if configured, null otherwise.
+     * Get the first configured provider name for display (based on priority).
      */
     fun getCurrentProviderName(): String? {
-        return if (hasConfiguredProvider()) "GROQ" else null
+        val priorityOrder = securePreferences.getProviderPriority()
+        val allProviders = (priorityOrder + AIProvider.entries).distinct()
+
+        return allProviders.firstOrNull { provider ->
+            securePreferences.isProviderEnabled(provider) &&
+                    securePreferences.getProviderKeys(provider).isNotEmpty()
+        }?.name
     }
 
     /**
-     * Get GROQ configuration status for display.
+     * Get configuration status for display.
+     */
+    fun getProviderStatus(): String {
+        val configuredProviders = AIProvider.entries.filter { provider ->
+            securePreferences.isProviderEnabled(provider) &&
+                    securePreferences.getProviderKeys(provider).isNotEmpty()
+        }
+        val keyCount = getConfiguredKeyCount()
+
+        return when {
+            configuredProviders.isEmpty() -> "No providers configured"
+            configuredProviders.size == 1 -> "${configuredProviders.first().name} ($keyCount key${if (keyCount > 1) "s" else ""})"
+            else -> "${configuredProviders.size} providers ($keyCount keys total)"
+        }
+    }
+
+    /**
+     * Get GROQ configuration status for display (legacy).
      */
     fun getGroqStatus(): String {
-        val keyCount = getConfiguredKeyCount()
+        val keyCount = securePreferences.getProviderKeys(AIProvider.GROQ).size
         return when {
             keyCount == 0 -> "Not configured"
             keyCount == 1 -> "1 API key"

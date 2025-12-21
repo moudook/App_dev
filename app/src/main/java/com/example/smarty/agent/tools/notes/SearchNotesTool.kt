@@ -2,12 +2,16 @@ package com.example.smarty.agent.tools.notes
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
+import android.util.Log
 import com.example.smarty.agent.tools.base.CogniToolUtils
 import com.example.smarty.agent.tools.base.NoteInfo
 import com.example.smarty.agent.tools.base.NoteSearchResult
 import com.example.smarty.data.model.Note
+import com.example.smarty.util.search.SemanticSearchEngine
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+
+private const val TAG = "SearchNotesTool"
 
 @Serializable
 data class SearchNotesArgs(
@@ -18,7 +22,9 @@ data class SearchNotesArgs(
 )
 
 /**
- * Tool for searching user's notes.
+ * Tool for searching user's notes with SEMANTIC SEARCH.
+ * Uses fuzzy matching, phonetic similarity, and n-gram matching.
+ * Can find "meeting notes" even if searching for "meetings" or "mtg".
  * Respects PrivacyGuard - private notes are never returned.
  */
 class SearchNotesTool(
@@ -31,7 +37,8 @@ class SearchNotesTool(
     override val name = "search_notes"
 
     override val description = """
-        Searches the user's notes by keyword or category.
+        Searches the user's notes by keyword or category using semantic/fuzzy matching.
+        Understands variations like "meetings" matching "meeting notes" or "mtg".
         Use this to find relevant notes based on user queries.
         Private notes are automatically excluded from results.
     """.trimIndent()
@@ -41,17 +48,49 @@ class SearchNotesTool(
             val allNotes = getActiveNotes()
             val visibleNotes = CogniToolUtils.filterNotesForAi(allNotes)
 
-            val matchingNotes = visibleNotes.filter { note ->
-                val matchesQuery = args.query.isBlank() ||
-                    note.title.contains(args.query, ignoreCase = true) ||
-                    note.content.contains(args.query, ignoreCase = true) ||
-                    note.summary?.contains(args.query, ignoreCase = true) == true
+            Log.d(TAG, "Searching ${visibleNotes.size} notes for: '${args.query}'")
 
-                val matchesCategory = args.category.isNullOrBlank() ||
+            // Apply category filter first
+            val categoryFilteredNotes = if (args.category.isNullOrBlank()) {
+                visibleNotes
+            } else {
+                visibleNotes.filter { note ->
                     note.categoryName?.equals(args.category, ignoreCase = true) == true
+                }
+            }
 
-                matchesQuery && matchesCategory
-            }.take(10) // Limit results to save context
+            // Use semantic search if query is provided
+            val matchingNotes = if (args.query.isBlank()) {
+                categoryFilteredNotes.take(10)
+            } else {
+                // Use SemanticSearchEngine for fuzzy matching
+                val searchResults = SemanticSearchEngine.search(
+                    query = args.query,
+                    items = categoryFilteredNotes,
+                    textExtractor = { note ->
+                        listOfNotNull(
+                            note.title,
+                            note.summary,
+                            note.content.take(500)  // Limit content for performance
+                        )
+                    },
+                    minScore = 0.20  // Lower threshold for inclusive matching
+                )
+
+                if (searchResults.isNotEmpty()) {
+                    Log.d(TAG, "Semantic search found ${searchResults.size} matches")
+                    searchResults.take(10).map { it.item }
+                } else {
+                    // Fallback to basic contains matching
+                    Log.d(TAG, "No semantic matches, falling back to basic search")
+                    categoryFilteredNotes.filter { note ->
+                        val queryLower = args.query.lowercase()
+                        note.title.lowercase().contains(queryLower) ||
+                        note.content.lowercase().contains(queryLower) ||
+                        note.summary?.lowercase()?.contains(queryLower) == true
+                    }.take(10)
+                }
+            }
 
             val noteInfos = matchingNotes.map { note ->
                 NoteInfo(
@@ -64,14 +103,17 @@ class SearchNotesTool(
                 )
             }
 
+            Log.d(TAG, "Returning ${noteInfos.size} results")
+
             NoteSearchResult(
                 success = true,
                 notes = noteInfos,
                 totalCount = matchingNotes.size,
-                message = if (noteInfos.isEmpty()) "No notes found"
+                message = if (noteInfos.isEmpty()) "No notes found matching '${args.query}'"
                          else "Found ${noteInfos.size} matching notes"
             )
         } catch (e: Exception) {
+            Log.e(TAG, "Search failed: ${e.message}", e)
             NoteSearchResult(
                 success = false,
                 notes = emptyList(),

@@ -5,9 +5,13 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
 import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.Json
 import java.util.*
+
+private val json = Json { encodeDefaults = false }
 
 @Serializable
 data class UserPatternsArgs(
@@ -49,7 +53,12 @@ data class UserPatternsResult(
     val frequentTopics: List<TopicInsight>,
     val suggestions: List<String>,
     val summary: String
-)
+) {
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
+    }
+}
 
 /**
  * Analyzes user's note-taking patterns to provide insights and proactive suggestions.

@@ -46,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
@@ -81,6 +82,7 @@ import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.util.rememberSpeechToText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // Color constants for attachment indicators
 private val AttachmentRedColor = androidx.compose.ui.graphics.Color(0xFFF44336)
@@ -150,6 +152,11 @@ fun CogniInputField(
     var isAddPressed by remember { mutableStateOf(false) }
     var showAttachmentPanel by remember { mutableStateOf(false) }
     var showAttachmentPreview by remember { mutableStateOf(false) } // New state for preview panel
+
+    // Local scope for animations
+    val scope = rememberCoroutineScope()
+    // Animation value for the flying plane (0f -> 1f)
+    val flyAnimation = remember { Animatable(0f) }
 
 
     // Clear focus when submitting
@@ -504,10 +511,22 @@ fun CogniInputField(
             LocalAccentColor.current.copy(alpha = 0.5f) // 50% opacity when inactive (Always Blue)
         }
 
+        // Blue Shadow Config (Large, Bleeding Outer Shadow)
+        val shadowColor = Color(0xFF0066FF) // Strong Blue
+        val shadowElevation = if (isFocused) 32.dp else 16.dp // Large elevation for "bleed" effect
+        val shadowAlpha = if (isFocused) 1f else 0.5f
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .softCardShadow(shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp), elevation = if(isFocused) 8.dp else 4.dp) // Floating effect
+                // Large blue outer shadow that "bleeds"
+                .shadow(
+                    elevation = shadowElevation,
+                    shape = RoundedCornerShape(32.dp),
+                    spotColor = shadowColor.copy(alpha = shadowAlpha),
+                    ambientColor = shadowColor.copy(alpha = shadowAlpha),
+                    clip = false // Allow shadow to paint outside bounds
+                )
                 .border(
                     width = if (isFocused) 1.5.dp else 1.dp,
                     color = currentBorderColor,
@@ -515,7 +534,7 @@ fun CogniInputField(
                 ),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(32.dp),
             color = inputBackgroundColor,
-            shadowElevation = 0.dp // Using custom soft shadow
+            shadowElevation = 0.dp // Handled by custom shadow modifier
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 // Shimmer Background Layer (Behind content)
@@ -800,7 +819,8 @@ fun CogniInputField(
                         label = "sendBtnContent"
                     )
 
-                    Surface(
+                    // Send Button with Flight Animation
+                    Box(
                         modifier = Modifier
                             .size(36.dp)
                             .scale(buttonScale)
@@ -819,28 +839,69 @@ fun CogniInputField(
                                         },
                                         onTap = {
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                                            // Trigger Flight Animation - plane flies away!
+                                            scope.launch {
+                                                flyAnimation.snapTo(0f)
+                                                flyAnimation.animateTo(
+                                                    targetValue = 1f,
+                                                    animationSpec = tween(
+                                                        durationMillis = 350,
+                                                        easing = CogniEasing.appleEaseOut
+                                                    )
+                                                )
+                                                // Brief pause at destination
+                                                delay(100)
+                                                flyAnimation.snapTo(0f)
+                                            }
+
                                             showAttachmentPanel = false
-                                            handleSubmit()
+
+                                            // Submit after animation starts
+                                            scope.launch {
+                                                delay(80)
+                                                handleSubmit()
+                                            }
                                         }
                                     )
                                 }
                             },
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = sendButtonContainerColor,
+                        contentAlignment = Alignment.Center
                     ) {
+                        // Background Circle
                         Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Send",
-                                tint = sendButtonContentColor,
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .offset(x = 2.dp)
-                            )
-                        }
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(sendButtonContainerColor, androidx.compose.foundation.shape.CircleShape)
+                        )
+
+                        // Flying Plane Icon with dramatic takeoff animation
+                        val flightProgress = flyAnimation.value
+
+                        // Eased curve for more natural flight path
+                        val easedProgress = FastOutSlowInEasing.transform(flightProgress)
+
+                        // Flight path: starts slow, accelerates, lifts up diagonally
+                        val flyX = easedProgress * 80f  // Fly 80dp to the right
+                        val flyY = -easedProgress * 40f  // Lift 40dp upward (negative = up)
+                        val flyRotation = -easedProgress * 25f  // Tilt nose up as it flies
+                        val flyScale = 1f - (easedProgress * 0.3f)  // Shrink slightly as it flies away
+                        val flyAlpha = (1f - easedProgress * 1.2f).coerceIn(0f, 1f)  // Fade out
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send",
+                            tint = sendButtonContentColor.copy(alpha = flyAlpha),
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer {
+                                    translationX = flyX * density
+                                    translationY = flyY * density
+                                    rotationZ = flyRotation
+                                    scaleX = flyScale
+                                    scaleY = flyScale
+                                }
+                        )
                     }
                 }
 

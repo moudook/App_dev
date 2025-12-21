@@ -87,7 +87,10 @@ fun NoteCard(
 
     // Swipe state
     val swipeOffset = remember { Animatable(0f) }
-    val swipeThreshold = remember { with(density) { 60.dp.toPx() } }  // Increased slightly for better feel
+    val swipeThreshold = remember { with(density) { 60.dp.toPx() } }  // Distance to trigger action
+    val swipeActivationThreshold = remember { with(density) { 30.dp.toPx() } }  // Minimum drag to start showing swipe UI
+    var swipeActivated by remember { mutableStateOf(false) }  // Has the swipe been activated this gesture?
+    var accumulatedDrag by remember { mutableFloatStateOf(0f) }  // Track total drag distance
     val snapBackSpec = spring<Float>(dampingRatio = 0.8f, stiffness = 800f)
 
     // Apple-style Card Transform (Scale + Rotation)
@@ -109,9 +112,9 @@ fun NoteCard(
             note.processingStatus == ProcessingStatus.PROCESSING -> LocalAccentColor.current.copy(alpha = 0.5f)
             swipeOffset.value > swipeThreshold * 0.5f -> {
                 if (isArchiveView) MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                else SafetyOrange.copy(alpha = 0.5f)
+                else SystemGray.copy(alpha = 0.5f)
             }
-            swipeOffset.value < -swipeThreshold * 0.5f -> LocalAccentColor.current.copy(alpha = 0.5f)
+            swipeOffset.value < -swipeThreshold * 0.5f -> SystemBlue.copy(alpha = 0.5f)
             else -> Color.Transparent // Clean look by default
         },
         animationSpec = tween(160),
@@ -132,9 +135,9 @@ fun NoteCard(
         if (swipeAlpha > 0f) {
             val isSwipeRight = swipeOffset.value > 0
             val color = if (isSwipeRight) {
-                if (isArchiveView) MaterialTheme.colorScheme.error else SafetyOrange
+                if (isArchiveView) MaterialTheme.colorScheme.error else SystemGray
             } else {
-                LocalAccentColor.current
+                if (isArchiveView) SystemBlue else SystemBlue
             }
 
             val icon = if (isSwipeRight) {
@@ -156,7 +159,7 @@ fun NoteCard(
                     contentDescription = null,
                     tint = Color.White, // Always white on colored background
                     modifier = Modifier
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = 16.dp)
                         .scale(0.8f + swipeAlpha * 0.4f)
                 )
             }
@@ -194,12 +197,12 @@ fun NoteCard(
                     if (!isSelectionMode) {
                         detectHorizontalDragGestures(
                             onDragEnd = {
-                                if (swipeOffset.value > swipeThreshold) {
+                                if (swipeActivated && swipeOffset.value > swipeThreshold) {
                                     // INSTANT: Call action FIRST, then animate
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     if (isArchiveView) onDelete() else onArchive?.invoke()
                                     coroutineScope.launch { swipeOffset.snapTo(0f) }
-                                } else if (swipeOffset.value < -swipeThreshold) {
+                                } else if (swipeActivated && swipeOffset.value < -swipeThreshold) {
                                     // INSTANT: Call action FIRST, then animate
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     if (isArchiveView) onUnarchive?.invoke() else onOpenTodo()
@@ -207,25 +210,46 @@ fun NoteCard(
                                 } else {
                                     coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
                                 }
+                                // Reset activation state for next gesture
+                                swipeActivated = false
+                                accumulatedDrag = 0f
                             },
                             onDragCancel = {
                                 coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
+                                // Reset activation state
+                                swipeActivated = false
+                                accumulatedDrag = 0f
                             },
                             onHorizontalDrag = { _, dragAmount ->
-                                coroutineScope.launch {
-                                    swipeOffset.snapTo(swipeOffset.value + dragAmount)
+                                // Accumulate drag distance
+                                accumulatedDrag += dragAmount
+
+                                // Only start showing swipe UI after exceeding activation threshold
+                                if (!swipeActivated && abs(accumulatedDrag) > swipeActivationThreshold) {
+                                    swipeActivated = true
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+
+                                // Only update swipe offset if activated
+                                if (swipeActivated) {
+                                    coroutineScope.launch {
+                                        // Start from where we exceeded threshold, not from 0
+                                        val effectiveDrag = accumulatedDrag - (swipeActivationThreshold * if (accumulatedDrag > 0) 1 else -1)
+                                        swipeOffset.snapTo(effectiveDrag)
+                                    }
                                 }
                             }
                         )
                     }
                 },
             shape = LocalShapes.current.cardMedium,
-            color = MaterialTheme.colorScheme.surface, // Solid white/dark surface
-            shadowElevation = 0.dp, // Disable built-in harsh shadow -> using softCardShadow instead
+            color = MaterialTheme.colorScheme.surface, // Keep solid surface for readability
+            shadowElevation = 0.dp, 
             border = if (isSelected) {
                 androidx.compose.foundation.BorderStroke(2.dp, LocalAccentColor.current)
             } else {
-                androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                // High contrast border for better definition against background
+                androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
             },
         ) {
             Column(
@@ -233,8 +257,8 @@ fun NoteCard(
                     .fillMaxWidth()
                     .wrapContentHeight() // Adaptive height: Matches content size
                     .heightIn(max = 140.dp) // COMPACT NOTEBOOK STYLE: drastically reduced max height
-                    .padding(16.dp), // Increased padding for "Apple-like" breathing room
-                verticalArrangement = Arrangement.spacedBy(8.dp) // Relaxed spacing
+                    .padding(12.dp), // Reduced padding
+                verticalArrangement = Arrangement.spacedBy(4.dp) // Reduced spacing
             ) {
                 if (note.processingStatus == ProcessingStatus.PROCESSING || note.processingStatus == ProcessingStatus.PENDING) {
                     // Enhanced Shimmering Skeleton Loader with staggered wave effect
@@ -310,9 +334,11 @@ fun NoteCard(
                             val iconVector = if (note.isAiCreated) Icons.Default.AutoAwesome else getNoteTypeIcon(note.type)
                             val iconTint = if (note.isAiCreated) LocalAccentColor.current else getNoteTypeColor(note.type)
                             
+                            
                             Surface(
                                 shape = CircleShape,
-                                color = iconTint.copy(alpha = 0.12f),
+                                // Darker container for better Icon contrast
+                                color = iconTint.copy(alpha = 0.15f),
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -328,12 +354,13 @@ fun NoteCard(
                             Column {
                                 // Title
                                 Text(
-                                    text = note.title.ifBlank { "Untitled Note" }, // Placeholder if empty
+                                    text = note.title.ifBlank { "Untitled Note" }, 
                                     style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.Bold, // Bold for better hierarchy
+                                        fontWeight = FontWeight.ExtraBold, // Increased weight
                                         letterSpacing = (-0.5).sp,
-                                        fontSize = 17.sp // Slightly larger
+                                        fontSize = 17.sp 
                                     ),
+                                    // Use Primary or OnSurface with full opacity for max contrast
                                     color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1, 
                                     overflow = TextOverflow.Ellipsis
@@ -371,26 +398,13 @@ fun NoteCard(
                             text = displayText,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 lineHeight = 20.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f) // Slightly darker for readability
+                                fontWeight = FontWeight.Medium, // Increased from Normal to Medium
+                                // Darker, higher contrast text color (Alpha 0.8 -> 0.9)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f) 
                             ),
-                            maxLines = 2, // Limit to 2 lines for compact fixed height
+                            maxLines = 1, // Limit to 1 line for compact fixed height
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(start = 48.dp) // Aligned with text, bypassing icon
-                        )
-                    }
-
-                    // File Attachment Indicator (Simple)
-                    val attachmentCount = note.getAttachmentCount()
-                    val hasAttachment = attachmentCount > 0 ||
-                        note.imageUri != null ||
-                        (note.fileUri != null && note.type != NoteType.AUDIO)
-
-                    if (hasAttachment) {
-                        NoteAttachmentIndicator(
-                            note = note,
-                            attachmentCount = attachmentCount,
-                            modifier = Modifier.padding(start = 48.dp) // Aligned with text
                         )
                     }
 

@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.smarty.data.model.AudioTrack
@@ -41,6 +42,7 @@ import com.example.smarty.ui.components.getNoteTypeColor
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.AudioPink
+import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.viewers.FullScreenDocumentViewer
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
@@ -61,12 +63,14 @@ fun KnowledgeCardScreen(
     onBackClick: () -> Unit,
     onArchiveClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onEditNote: (String, String, String) -> Unit = { _, _, _ -> },  // noteId, newTitle, newContent
     onPlayAudio: (AudioTrack) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEditSheet by remember { mutableStateOf(false) }
 
     // Viewer states
     var showImageViewer by remember { mutableStateOf(false) }
@@ -93,6 +97,12 @@ fun KnowledgeCardScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showEditSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit"
+                        )
+                    }
                     IconButton(onClick = onArchiveClick) {
                         Icon(
                             imageVector = Icons.Default.Archive,
@@ -157,7 +167,10 @@ fun KnowledgeCardScreen(
             // Title
             Text(
                 text = note.title,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
+                    letterSpacing = (-1).sp
+                ),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
@@ -454,43 +467,74 @@ fun KnowledgeCardScreen(
             }
         )
     }
+
+    // Edit Note Sheet
+    if (showEditSheet) {
+        EditNoteSheet(
+            note = note,
+            onDismiss = { showEditSheet = false },
+            onSave = { newTitle, newContent ->
+                onEditNote(note.id, newTitle, newContent)
+                showEditSheet = false
+            }
+        )
+    }
 }
 
 @Composable
 private fun SectionCard(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    accentColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    accentColor: androidx.compose.ui.graphics.Color = LocalAccentColor.current,
     content: @Composable () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(18.dp)),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface
+            .softCardShadow(shape = RoundedCornerShape(28.dp)),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 0.dp // Handled by custom shadow
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(16.dp)
-                )
+                // Icon Container
+                Surface(
+                    shape = CircleShape,
+                    color = accentColor.copy(alpha = 0.12f),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = accentColor
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontSize = 17.sp,
+                        letterSpacing = (-0.5).sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            content()
+            
+            // Content with slight padding
+            Box(modifier = Modifier.padding(start = 4.dp)) {
+                content()
+            }
         }
     }
 }
@@ -845,6 +889,103 @@ private fun PrivacyBanner() {
                     color = privacyColor.copy(alpha = 0.8f)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Bottom sheet for editing a note's title and content.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditNoteSheet(
+    note: Note,
+    onDismiss: () -> Unit,
+    onSave: (title: String, content: String) -> Unit
+) {
+    var editedTitle by remember { mutableStateOf(note.title) }
+    var editedContent by remember { mutableStateOf(note.content) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Surface(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(2.dp)
+            ) {
+                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
+            }
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Edit Note",
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = { onSave(editedTitle, editedContent) },
+                        enabled = editedTitle.isNotBlank(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Save")
+                    }
+                }
+            }
+
+            // Title Field
+            OutlinedTextField(
+                value = editedTitle,
+                onValueChange = { editedTitle = it },
+                label = { Text("Title") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = LocalAccentColor.current,
+                    focusedLabelColor = LocalAccentColor.current
+                )
+            )
+
+            // Content Field
+            OutlinedTextField(
+                value = editedContent,
+                onValueChange = { editedContent = it },
+                label = { Text("Content") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 200.dp, max = 400.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = LocalAccentColor.current,
+                    focusedLabelColor = LocalAccentColor.current
+                )
+            )
         }
     }
 }

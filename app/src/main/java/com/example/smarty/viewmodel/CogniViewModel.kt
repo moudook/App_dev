@@ -814,6 +814,35 @@ class CogniViewModel(
         }
     }
 
+    /**
+     * Edit a note's title and content.
+     * Called when user edits a note from the detail view.
+     */
+    fun editNote(noteId: String, newTitle: String, newContent: String) {
+        viewModelScope.launch {
+            try {
+                noteOperationMutex.withLock {
+                    val note = repository.getNoteById(noteId)
+                    note?.let {
+                        val updatedNote = it.copy(
+                            title = newTitle,
+                            content = newContent,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        repository.updateNote(updatedNote)
+                        // Update selected note if this is the currently viewed note
+                        if (_selectedNote.value?.id == noteId) {
+                            _selectedNote.value = updatedNote
+                        }
+                        Log.d(TAG, "Note edited: $noteId")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error editing note: ${e.message}", e)
+            }
+        }
+    }
+
     // Share interception for bottom sheet (delegated to ShareFlowManager)
     fun interceptShareForPreview(sharedContent: SharedContent) {
         shareFlowManager.interceptShareForPreview(sharedContent)
@@ -942,8 +971,14 @@ class CogniViewModel(
         val summary = aiResponse.summary
         val whySaved = aiResponse.whySaved
         val newTitle = aiResponse.title
+        val tags = aiResponse.tags
 
         val category = repository.getOrCreateCategory(categoryName)
+
+        // Convert tags list to JSON for storage
+        val tagsJson = if (tags.isNotEmpty()) {
+            com.google.gson.Gson().toJson(tags)
+        } else null
 
         val updatedNote = note.copy(
             title = if (newTitle.isNotBlank()) newTitle else note.title,
@@ -951,6 +986,7 @@ class CogniViewModel(
             whySaved = whySaved,
             categoryId = category.id,
             categoryName = category.name,
+            tagsJson = tagsJson,
             processingStatus = ProcessingStatus.COMPLETED,
             updatedAt = System.currentTimeMillis()
         )

@@ -100,7 +100,8 @@ data class Note(
     val excludeFromAiChat: Boolean = false,  // Exclude this note from AI chat context
     val isFullPrivacy: Boolean = false,  // Full privacy mode - no AI processing at all
     val isAiCreated: Boolean = false, // Flag to indicate if note was created by AI
-    val attachmentsJson: String? = null  // JSON string of List<NoteAttachment> for multiple files
+    val attachmentsJson: String? = null,  // JSON string of List<NoteAttachment> for multiple files
+    val tagsJson: String? = null  // JSON string of List<String> for AI-generated tags
 ) : PrivacyAware {
     /**
      * PrivacyAware implementation.
@@ -126,6 +127,7 @@ private object GsonHolder {
     val instance: Gson = Gson()
     val todoListType = object : TypeToken<List<TodoItem>>() {}.type!!
     val attachmentListType = object : TypeToken<List<NoteAttachment>>() {}.type!!
+    val tagsListType = object : TypeToken<List<String>>() {}.type!!
 }
 
 /**
@@ -181,6 +183,29 @@ fun Note.getAttachmentCount(): Int {
     val multipleAttachments = getAttachments().size
     val legacySingle = if (imageUri != null || fileUri != null) 1 else 0
     return if (multipleAttachments > 0) multipleAttachments else legacySingle
+}
+
+/**
+ * Extension function to parse tags from JSON
+ */
+fun Note.getTags(): List<String> {
+    if (tagsJson.isNullOrBlank()) return emptyList()
+    return try {
+        GsonHolder.instance.fromJson(tagsJson, GsonHolder.tagsListType) ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+}
+
+/**
+ * Extension function to create a new Note with updated tags
+ */
+fun Note.withTags(tags: List<String>): Note {
+    val json = if (tags.isEmpty()) null else GsonHolder.instance.toJson(tags)
+    return copy(
+        tagsJson = json,
+        updatedAt = System.currentTimeMillis()
+    )
 }
 
 /**

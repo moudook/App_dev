@@ -1,14 +1,18 @@
 package com.example.smarty.agent.tools.base
 
+import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /**
  * Common result types for Cogni AI Agent tools.
- * These provide structured responses that the LLM can understand and process.
+ * These provide structured responses in TOON format for reduced token usage.
  *
- * Note: The results override toString() to provide LLM-friendly text output
- * since Koog's ToolResult.TextSerializable interface may not be available.
+ * TOON (Token-Oriented Object Notation) provides 30-60% token savings vs JSON.
+ * Format: {key:value|key2:value2|nested:{a:1}}
  */
+
+private val json = Json { encodeDefaults = false }
 
 /**
  * Result for note CRUD operations (create, update, delete, archive).
@@ -21,14 +25,9 @@ data class NoteOperationResult(
     val message: String,
     val error: String? = null
 ) {
-    override fun toString(): String = buildString {
-        if (success) {
-            append("SUCCESS: $message")
-            noteTitle?.let { append(" (Note: '$it')") }
-        } else {
-            append("FAILED: $message")
-            error?.let { append(" - $it") }
-        }
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
     }
 }
 
@@ -42,16 +41,9 @@ data class NoteSearchResult(
     val totalCount: Int,
     val message: String
 ) {
-    override fun toString(): String = buildString {
-        if (!success || notes.isEmpty()) {
-            append(message)
-        } else {
-            appendLine("Found $totalCount notes:")
-            notes.forEach { note ->
-                appendLine("- [${note.id}] ${note.title} (${note.category ?: "Uncategorized"})")
-                note.summary?.let { appendLine("  Summary: ${it.take(100)}...") }
-            }
-        }
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
     }
 }
 
@@ -81,20 +73,9 @@ data class WebSearchResult(
     val totalResults: Int = 0,
     val error: String? = null
 ) {
-    override fun toString(): String = buildString {
-        if (!success) {
-            append("Search failed: ${error ?: "Unknown error"}")
-            return@buildString
-        }
-        appendLine("Web search for '$query' ($reason):")
-        aiSummary?.let { appendLine("AI Summary: $it") }
-        if (results.isNotEmpty()) {
-            appendLine("Results:")
-            results.forEach { result ->
-                appendLine("- ${result.title}: ${result.snippet}")
-                appendLine("  URL: ${result.url}")
-            }
-        }
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
     }
 }
 
@@ -119,14 +100,9 @@ data class AudioPlaybackResult(
     val message: String,
     val error: String? = null
 ) {
-    override fun toString(): String = buildString {
-        if (success) {
-            append("SUCCESS: $message")
-            trackTitle?.let { append(" - Now playing: $it") }
-        } else {
-            append("FAILED: $message")
-            error?.let { append(" - $it") }
-        }
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
     }
 }
 
@@ -141,13 +117,9 @@ data class TodoOperationResult(
     val message: String,
     val error: String? = null
 ) {
-    override fun toString(): String = buildString {
-        if (success) {
-            append("SUCCESS: $message")
-        } else {
-            append("FAILED: $message")
-            error?.let { append(" - $it") }
-        }
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
     }
 }
 
@@ -160,15 +132,9 @@ data class CategoryResult(
     val categories: List<CategoryInfo> = emptyList(),
     val message: String
 ) {
-    override fun toString(): String = buildString {
-        if (!success || categories.isEmpty()) {
-            append(message)
-        } else {
-            appendLine("Categories:")
-            categories.forEach { cat ->
-                appendLine("- ${cat.name}: ${cat.noteCount} notes")
-            }
-        }
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
     }
 }
 
@@ -193,15 +159,8 @@ data class SummarizeResult(
     val content: String,
     val error: String? = null
 ) {
-    override fun toString(): String = buildString {
-        if (!success) {
-            append("Failed to get note: ${error ?: "Unknown error"}")
-            return@buildString
-        }
-        appendLine("Note: $title")
-        summary?.let { appendLine("Summary: $it") }
-        appendLine("Content:")
-        append(content.take(2000))
-        if (content.length > 2000) append("... (truncated)")
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
     }
 }

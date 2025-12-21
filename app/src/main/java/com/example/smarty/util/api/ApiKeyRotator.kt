@@ -2,35 +2,97 @@ package com.example.smarty.util.api
 
 /**
  * API Key rotation and management utility.
- * Implements the key separation architecture:
- * - Keys 1, 2: Reserved for AI Agent operations (chat, reasoning)
- * - Keys 3, 4, 5...: Used for background operations (note analysis, summarization)
  *
- * This eliminates duplicate key cycling logic across the codebase.
+ * KEY SEPARATION ARCHITECTURE:
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │  Key 1        │  AI Agent (Chat, Tool Execution)           │
+ * │  Key 2        │  Note Card Analysis (Background)           │
+ * │  Keys 3,4,5...│  Other Operations (Research, Web Search)   │
+ * └─────────────────────────────────────────────────────────────┘
+ *
+ * This separation ensures:
+ * - Agent operations never exhaust note processing quota
+ * - Each feature has dedicated API budget
+ * - Better rate limit distribution
+ *
+ * If only 1 key exists: shared across all operations
+ * If only 2 keys exist: Key 1 = Agent, Key 2 = Everything else
  */
 object ApiKeyRotator {
 
-    // Number of keys reserved for agent operations
+    // Key index assignments (0-based internally, 1-based for users)
+    private const val AGENT_KEY_INDEX = 0        // Key 1: AI Agent
+    private const val NOTE_ANALYSIS_KEY_INDEX = 1 // Key 2: Note Analysis
+    private const val OTHER_KEYS_START_INDEX = 2  // Keys 3+: Other operations
+
+    // Number of keys reserved for agent operations (legacy compatibility)
     private const val AGENT_KEY_COUNT = 2
+
+    // ==================== FEATURE-SPECIFIC KEY GETTERS ====================
+
+    /**
+     * Get the dedicated AI Agent key (Key 1).
+     * Used for: Chat, reasoning, tool execution
+     *
+     * @param allKeys All available API keys for a provider
+     * @return Key 1 (or null if no keys)
+     */
+    fun getAgentKey(allKeys: List<String>): String? {
+        return allKeys.getOrNull(AGENT_KEY_INDEX)
+    }
+
+    /**
+     * Get the dedicated Note Analysis key (Key 2).
+     * Used for: Note card analysis, categorization, summarization
+     *
+     * Falls back to Key 1 if only 1 key exists.
+     *
+     * @param allKeys All available API keys for a provider
+     * @return Key 2 (or Key 1 if only 1 key exists)
+     */
+    fun getNoteAnalysisKey(allKeys: List<String>): String? {
+        return when {
+            allKeys.size >= 2 -> allKeys[NOTE_ANALYSIS_KEY_INDEX]  // Key 2
+            allKeys.isNotEmpty() -> allKeys[0]  // Fallback to Key 1
+            else -> null
+        }
+    }
+
+    /**
+     * Get keys for other operations (Keys 3, 4, 5...).
+     * Used for: Research, web search, batch operations
+     *
+     * Falls back to Key 2, then Key 1 if not enough keys.
+     *
+     * @param allKeys All available API keys for a provider
+     * @return Keys 3+ (or fallback keys)
+     */
+    fun getOtherOperationKeys(allKeys: List<String>): List<String> {
+        return when {
+            allKeys.size > OTHER_KEYS_START_INDEX -> allKeys.drop(OTHER_KEYS_START_INDEX)  // Keys 3+
+            allKeys.size >= 2 -> listOf(allKeys[1])  // Fallback to Key 2
+            allKeys.isNotEmpty() -> listOf(allKeys[0])  // Fallback to Key 1
+            else -> emptyList()
+        }
+    }
+
+    // ==================== LEGACY METHODS (for backward compatibility) ====================
 
     /**
      * Get keys for background operations (note analysis, document processing).
-     * Uses Keys 3, 4, 5... only - never touches agent keys (1, 2).
+     * Uses Key 2 primarily, falls back appropriately.
      *
      * Use case: analyzeContent(), analyzeDocument()
      *
      * @param allKeys All available API keys for a provider
-     * @return Keys 3, 4, 5... (background keys only)
+     * @return Keys for note analysis (Key 2 preferred)
      */
     fun getRotatedKeysWithAgentFallback(allKeys: List<String>): List<String> {
-        return if (allKeys.size > AGENT_KEY_COUNT) {
-            // Use keys 3, 4, 5... for background operations
-            allKeys.drop(AGENT_KEY_COUNT)
-        } else if (allKeys.size > 1) {
-            // Only 2 keys exist - use key 2 for background (agent uses key 1)
-            listOf(allKeys[1])
-        } else {
-            allKeys // Only 1 key exists, must share
+        // For note analysis, use Key 2 (NOTE_ANALYSIS_KEY_INDEX)
+        return when {
+            allKeys.size >= 2 -> listOf(allKeys[NOTE_ANALYSIS_KEY_INDEX])  // Key 2 only
+            allKeys.isNotEmpty() -> listOf(allKeys[0])  // Fallback to Key 1
+            else -> emptyList()
         }
     }
 
@@ -56,30 +118,18 @@ object ApiKeyRotator {
     }
 
     /**
-     * Get the dedicated agent keys (keys 1 and 2).
-     * Reserved exclusively for AI Agent reasoning and tool execution.
-     *
-     * Use case: Agent chat, reasoning, tool execution
+     * Get agent keys (Key 1 only for dedicated agent usage).
+     * For backward compatibility, returns list with single key.
      *
      * @param allKeys All available API keys for a provider
-     * @return Keys 1 and 2 (agent keys)
+     * @return List containing Key 1 only
      */
     fun getAgentKeys(allKeys: List<String>): List<String> {
-        return allKeys.take(AGENT_KEY_COUNT)
+        return listOfNotNull(getAgentKey(allKeys))
     }
 
     /**
-     * Get the primary agent key (key 1).
-     *
-     * @param allKeys All available API keys for a provider
-     * @return The first API key (primary agent key)
-     */
-    fun getAgentKey(allKeys: List<String>): String? {
-        return allKeys.firstOrNull()
-    }
-
-    /**
-     * Check if provider has only one key (must be shared between agent and normal).
+     * Check if provider has only one key (must be shared between all operations).
      *
      * @param allKeys All available API keys for a provider
      * @return True if only one key exists (shared mode)
@@ -102,15 +152,14 @@ object ApiKeyRotator {
     }
 
     /**
-     * Check if a key is an agent key (key 1 or key 2).
+     * Check if a key is the agent key (key 1).
      *
      * @param allKeys All available API keys for a provider
      * @param key The key to check
-     * @return True if this is an agent key (key 1 or 2)
+     * @return True if this is the agent key (key 1)
      */
     fun isAgentKey(allKeys: List<String>, key: String): Boolean {
-        val index = allKeys.indexOf(key)
-        return index >= 0 && index < AGENT_KEY_COUNT && allKeys.size > 1
+        return allKeys.indexOf(key) == AGENT_KEY_INDEX && allKeys.size > 1
     }
 
     /**
@@ -118,14 +167,15 @@ object ApiKeyRotator {
      *
      * @param allKeys All available API keys for a provider
      * @param key The key to label
-     * @return Human-readable label like "KEY-1 (agent)" or "KEY-3 (background)"
+     * @return Human-readable label like "KEY-1 (agent)" or "KEY-2 (notes)"
      */
     fun getKeyLabel(allKeys: List<String>, key: String): String {
         val index = getKeyIndex(allKeys, key)
         return when {
-            index in 1..AGENT_KEY_COUNT && allKeys.size > AGENT_KEY_COUNT -> "KEY-$index (agent)"
-            index > AGENT_KEY_COUNT -> "KEY-$index (background)"
-            index > 0 -> "KEY-$index"
+            allKeys.size == 1 -> "KEY-1 (shared)"
+            index == 1 -> "KEY-1 (agent)"
+            index == 2 -> "KEY-2 (notes)"
+            index > 2 -> "KEY-$index (other)"
             else -> "unknown-key"
         }
     }

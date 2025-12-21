@@ -4,8 +4,13 @@ import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.data.model.Note
 import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.util.search.SemanticSearchEngine
+import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.Json
+
+private val json = Json { encodeDefaults = false }
 
 @Serializable
 data class SmartSearchArgs(
@@ -44,7 +49,12 @@ data class SmartSearchResult(
     val searchMode: String,
     val timeRange: String,
     val message: String
-)
+) {
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
+    }
+}
 
 /**
  * Advanced search tool with relevance scoring and smart matching.
@@ -139,45 +149,66 @@ class SmartSearchTool(
     }
 
     private fun calculateRelevanceScore(note: Note, query: String, mode: String): Pair<Float, String?> {
-        val queryTerms = query.lowercase().split(Regex("\\s+")).filter { it.length > 1 }
-        if (queryTerms.isEmpty()) return Pair(0f, null)
+        if (query.isBlank()) return Pair(0f, null)
 
-        var totalScore = 0f
-        var matchedTerm: String? = null
+        // Use SemanticSearchEngine for comprehensive matching
+        val searchResults = SemanticSearchEngine.search(
+            query = query,
+            items = listOf(note),
+            textExtractor = { n ->
+                listOfNotNull(
+                    n.title,
+                    n.summary,
+                    n.content.take(1000)  // Limit content for performance
+                )
+            },
+            minScore = 0.15  // Low threshold to catch more matches
+        )
 
-        for (term in queryTerms) {
-            // Title match (highest weight - 3x)
-            if (note.title.contains(term, ignoreCase = true)) {
-                totalScore += 3.0f
-                matchedTerm = "Title: \"${note.title}\""
-            }
+        if (searchResults.isEmpty()) {
+            // Fallback: try basic term matching
+            val queryTerms = query.lowercase().split(Regex("\\s+")).filter { it.length > 1 }
+            var basicScore = 0f
+            var matchedTerm: String? = null
 
-            // Summary match (high weight - 2x)
-            if (note.summary?.contains(term, ignoreCase = true) == true) {
-                totalScore += 2.0f
-                if (matchedTerm == null) {
-                    matchedTerm = "Summary match"
+            for (term in queryTerms) {
+                if (note.title.contains(term, ignoreCase = true)) {
+                    basicScore += 2.0f
+                    matchedTerm = "Title: \"${note.title}\""
+                }
+                if (note.content.contains(term, ignoreCase = true)) {
+                    basicScore += 1.0f
+                    if (matchedTerm == null) matchedTerm = "Content match"
                 }
             }
+            return Pair(basicScore, matchedTerm)
+        }
 
-            // Content match (standard weight - 1x)
-            if (note.content.contains(term, ignoreCase = true)) {
-                totalScore += 1.0f
-                if (matchedTerm == null) {
-                    val idx = note.content.lowercase().indexOf(term.lowercase())
-                    val start = maxOf(0, idx - 30)
-                    val end = minOf(note.content.length, idx + term.length + 30)
-                    matchedTerm = "...${note.content.substring(start, end)}..."
-                }
-            }
+        val result = searchResults.first()
+        val semanticScore = result.score.toFloat()
 
-            // Fuzzy matching for typos (mode: fuzzy)
-            if (mode == "fuzzy") {
-                val fuzzyScore = fuzzyMatch(term, note.title) * 2.0f +
-                        fuzzyMatch(term, note.summary ?: "") * 1.2f +
-                        fuzzyMatch(term, note.content) * 0.4f
-                totalScore += fuzzyScore
-            }
+        // Build match highlight based on match type
+        val matchHighlight = when (result.matchType) {
+            SemanticSearchEngine.MatchType.EXACT -> "Exact match in: ${result.matchedTerms.firstOrNull() ?: note.title}"
+            SemanticSearchEngine.MatchType.CONTAINS -> "Found in: ${result.matchedTerms.firstOrNull() ?: note.title}"
+            SemanticSearchEngine.MatchType.FUZZY_HIGH -> "High similarity match (${String.format("%.0f", semanticScore * 100)}%)"
+            SemanticSearchEngine.MatchType.FUZZY_MEDIUM -> "Similar match (${String.format("%.0f", semanticScore * 100)}%)"
+            SemanticSearchEngine.MatchType.FUZZY_LOW -> "Possible match (${String.format("%.0f", semanticScore * 100)}%)"
+            SemanticSearchEngine.MatchType.TOKEN_MATCH -> "Matching words: ${result.matchedTerms.take(3).joinToString(", ")}"
+            SemanticSearchEngine.MatchType.PHONETIC -> "Sounds like: ${result.matchedTerms.firstOrNull() ?: query}"
+            SemanticSearchEngine.MatchType.PARTIAL -> "Partial match"
+        }
+
+        // Boost for exact/contains matches
+        val matchTypeBoost = when (result.matchType) {
+            SemanticSearchEngine.MatchType.EXACT -> 5.0f
+            SemanticSearchEngine.MatchType.CONTAINS -> 4.0f
+            SemanticSearchEngine.MatchType.FUZZY_HIGH -> 3.0f
+            SemanticSearchEngine.MatchType.TOKEN_MATCH -> 2.5f
+            SemanticSearchEngine.MatchType.FUZZY_MEDIUM -> 2.0f
+            SemanticSearchEngine.MatchType.PHONETIC -> 1.5f
+            SemanticSearchEngine.MatchType.FUZZY_LOW -> 1.0f
+            SemanticSearchEngine.MatchType.PARTIAL -> 0.5f
         }
 
         // Recency boost - more recent notes get higher scores
@@ -188,50 +219,11 @@ class SmartSearchTool(
             ageHours < 720 -> 0.1f     // This month
             else -> 0f
         }
-        totalScore += recencyBoost
 
-        return Pair(totalScore, matchedTerm)
-    }
+        // Combine semantic score, match type boost, and recency
+        val totalScore = (semanticScore * matchTypeBoost) + recencyBoost
 
-    private fun fuzzyMatch(term: String, text: String): Float {
-        val words = text.lowercase().split(Regex("\\W+"))
-        val termLower = term.lowercase()
-
-        for (word in words) {
-            if (word.length < 2) continue
-            if (word.startsWith(termLower)) return 0.8f
-            if (word.contains(termLower)) return 0.5f
-            if (levenshteinDistance(word, termLower) <= 2 && word.length > 3) return 0.3f
-        }
-        return 0f
-    }
-
-    /**
-     * Calculate Levenshtein edit distance between two strings.
-     * Used for fuzzy matching with typo tolerance.
-     */
-    private fun levenshteinDistance(s1: String, s2: String): Int {
-        val m = s1.length
-        val n = s2.length
-
-        if (m == 0) return n
-        if (n == 0) return m
-
-        val dp = Array(m + 1) { IntArray(n + 1) }
-
-        for (i in 0..m) dp[i][0] = i
-        for (j in 0..n) dp[0][j] = j
-
-        for (i in 1..m) {
-            for (j in 1..n) {
-                dp[i][j] = if (s1[i - 1] == s2[j - 1]) {
-                    dp[i - 1][j - 1]
-                } else {
-                    minOf(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]) + 1
-                }
-            }
-        }
-        return dp[m][n]
+        return Pair(totalScore, matchHighlight)
     }
 
     override fun toString(): String {

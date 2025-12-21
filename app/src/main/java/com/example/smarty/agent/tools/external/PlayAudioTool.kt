@@ -8,6 +8,7 @@ import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.util.search.SemanticSearchEngine
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
@@ -108,10 +109,27 @@ class PlayAudioTool(
                 )
             }
 
-            // Search all notes for matching audio
+            // OPTIMIZED: Search audio-categorized notes FIRST for better performance
             // SECURITY: Filter to only AI-accessible notes (excludes private notes)
             val allNotes = PrivacyGuard.getAiVisibleNotes(getActiveNotes())
-            val matchingAudio = findMatchingAudio(allNotes, args.query)
+
+            // Step 1: Search only audio-type notes first (faster, more accurate)
+            val audioNotes = allNotes.filter { note ->
+                note.type == com.example.smarty.data.model.NoteType.AUDIO ||
+                note.getAttachments().any { it.mimeType.startsWith("audio/") } ||
+                note.fileMimeType?.startsWith("audio/") == true
+            }
+
+            Log.d(TAG, "Found ${audioNotes.size} audio-categorized notes to search")
+
+            // Try audio notes first
+            var matchingAudio = findMatchingAudio(audioNotes, args.query)
+
+            // Step 2: If not found in audio notes, fall back to all notes
+            if (matchingAudio == null && audioNotes.size < allNotes.size) {
+                Log.d(TAG, "No match in audio notes, searching all ${allNotes.size} notes")
+                matchingAudio = findMatchingAudio(allNotes, args.query)
+            }
 
             if (matchingAudio != null) {
                 Log.d(TAG, "Found matching audio: ${matchingAudio.title}")
@@ -144,18 +162,22 @@ class PlayAudioTool(
     }
 
     /**
-     * Search notes for audio files matching the query.
-     * Matches against attachment filename, note title, AND note content.
+     * Search notes for audio files matching the query using SEMANTIC SEARCH.
+     * Uses fuzzy matching, phonetic similarity, and token overlap for better results.
+     * Can find "pretty little baby" even if file is "pretty_baby.mp3" or "prettybaby.mp3".
      */
     private fun findMatchingAudio(notes: List<Note>, query: String): AudioTrack? {
-        val queryLower = query.lowercase().trim()
-        val queryWords = queryLower.split(" ", "-", "_").filter { it.isNotBlank() }
+        Log.d(TAG, "Semantic search for audio in ${notes.size} notes: '$query'")
 
-        Log.d(TAG, "Searching ${notes.size} notes for audio matching: '$queryLower'")
+        // Build a list of searchable audio items
+        data class AudioItem(
+            val track: AudioTrack,
+            val noteTitle: String,
+            val noteContent: String,
+            val fileName: String
+        )
 
-        // Score-based matching for better results
-        data class Match(val track: AudioTrack, val score: Int, val noteTitle: String)
-        val matches = mutableListOf<Match>()
+        val audioItems = mutableListOf<AudioItem>()
 
         for (note in notes) {
             val attachments = note.getAttachments()
@@ -163,76 +185,79 @@ class PlayAudioTool(
 
             if (attachments.isEmpty()) continue
 
-            Log.d(TAG, "Note '${note.title}' has ${attachments.size} audio attachments")
-
             for (attachment in attachments) {
-                val fileNameLower = attachment.fileName.lowercase()
-                var score = 0
-
-                // Exact match in filename (highest priority)
-                if (fileNameLower.contains(queryLower)) {
-                    score += 100
-                }
-
-                // Word matches in filename
-                for (word in queryWords) {
-                    if (fileNameLower.contains(word)) {
-                        score += 20
-                    }
-                }
-
-                // Check note title
-                val noteTitleLower = note.title.lowercase()
-                if (noteTitleLower.contains(queryLower)) {
-                    score += 80
-                }
-                for (word in queryWords) {
-                    if (noteTitleLower.contains(word)) {
-                        score += 15
-                    }
-                }
-
-                // Check note content (new!)
-                val noteContentLower = note.content.lowercase()
-                if (noteContentLower.contains(queryLower)) {
-                    score += 60
-                }
-                for (word in queryWords) {
-                    if (noteContentLower.contains(word)) {
-                        score += 10
-                    }
-                }
-
-                // If note has audio but no match yet, give small score for any audio
-                if (score == 0 && attachments.isNotEmpty()) {
-                    // Check if any word partially matches
-                    val anyPartialMatch = queryWords.any { word ->
-                        fileNameLower.contains(word.take(3)) ||
-                        noteTitleLower.contains(word.take(3)) ||
-                        noteContentLower.contains(word.take(3))
-                    }
-                    if (anyPartialMatch) score = 5
-                }
-
-                if (score > 0) {
-                    val track = AudioTrack(
-                        uri = attachment.uri,
-                        title = attachment.fileName,
-                        fileName = attachment.fileName,
-                        mimeType = attachment.mimeType,
-                        sourceNoteId = note.id,
-                        sourceAttachmentId = attachment.id
-                    )
-                    matches.add(Match(track, score, note.title))
-                    Log.d(TAG, "Match found: ${attachment.fileName} in note '${note.title}' (score: $score)")
-                }
+                val track = AudioTrack(
+                    uri = attachment.uri,
+                    title = attachment.fileName,
+                    fileName = attachment.fileName,
+                    mimeType = attachment.mimeType,
+                    sourceNoteId = note.id,
+                    sourceAttachmentId = attachment.id
+                )
+                audioItems.add(AudioItem(
+                    track = track,
+                    noteTitle = note.title,
+                    noteContent = note.content,
+                    fileName = attachment.fileName
+                ))
             }
         }
 
-        Log.d(TAG, "Total matches found: ${matches.size}")
+        if (audioItems.isEmpty()) {
+            Log.d(TAG, "No audio items found in notes")
+            return null
+        }
 
-        // Return the best match
-        return matches.maxByOrNull { it.score }?.track
+        Log.d(TAG, "Found ${audioItems.size} audio items to search")
+
+        // Use semantic search with multiple text fields per item
+        val results = SemanticSearchEngine.search(
+            query = query,
+            items = audioItems,
+            textExtractor = { item ->
+                listOf(
+                    item.fileName,           // Primary: filename
+                    item.noteTitle,          // Secondary: note title
+                    item.noteContent.take(500)  // Tertiary: note content (truncated)
+                )
+            },
+            minScore = 0.25  // Lower threshold for more inclusive matching
+        )
+
+        if (results.isEmpty()) {
+            Log.d(TAG, "No semantic matches found for '$query'")
+
+            // Fallback: Try individual word matching with very low threshold
+            val queryWords = SemanticSearchEngine.tokenize(query)
+            val fallbackResults = audioItems.mapNotNull { item ->
+                val combinedText = "${item.fileName} ${item.noteTitle} ${item.noteContent}"
+                var bestWordScore = 0.0
+
+                for (word in queryWords) {
+                    val wordScore = SemanticSearchEngine.calculateSimilarity(word, combinedText)
+                    if (wordScore > bestWordScore) bestWordScore = wordScore
+                }
+
+                if (bestWordScore >= 0.20) {
+                    bestWordScore to item
+                } else null
+            }.sortedByDescending { it.first }
+
+            if (fallbackResults.isNotEmpty()) {
+                val best = fallbackResults.first().second
+                Log.d(TAG, "Fallback match: ${best.fileName} (note: ${best.noteTitle})")
+                return best.track
+            }
+
+            return null
+        }
+
+        val bestMatch = results.first()
+        Log.d(TAG, "Best semantic match: ${bestMatch.item.fileName} " +
+                "(score: ${String.format("%.2f", bestMatch.score)}, " +
+                "type: ${bestMatch.matchType}, note: ${bestMatch.item.noteTitle})")
+
+        return bestMatch.item.track
     }
 
     /**

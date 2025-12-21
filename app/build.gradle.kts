@@ -128,6 +128,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)
 
+    // TOON (Token-Oriented Object Notation) - native implementation in util/toon/
+
     // Unit Testing
     testImplementation(libs.junit)
     testImplementation("io.mockk:mockk:1.13.9")

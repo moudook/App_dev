@@ -85,9 +85,45 @@ app/debug/
 *.aab
 build_output.txt
 
+# Compiled files
+*.class
+*.dex
+*.ap_
+*.jar
+*.war
+*.ear
+*.aar
+*.so
+*.log
+bin/
+gen/
+out/
+release/
+
+# Login & Credentials
+*.keystore
+*.jks
+keystore.properties
+google-services.json
+firebase-config.json
+api-keys.properties
+secrets.properties
+auth.properties
+login.properties
+credentials.json
+*.pem
+*.p12
+*.key
+
 #errors
 KOOG_AGENT_ISSUES.md
 koog_migration_errors.log
+compile_log.txt
+compile_log_2.txt
+compile_log_3.txt
+compile_log_4.txt
+build_log.txt
+IMPORTS_CHECK.md
 
 #issues
 issue_with_ai_agent_audio_player_case_2.png

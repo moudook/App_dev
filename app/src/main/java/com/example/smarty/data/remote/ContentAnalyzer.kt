@@ -27,13 +27,14 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
          * Designed to be concise, clear, and produce consistent JSON output.
          */
         val SYSTEM_PROMPT = """
-You are an AI assistant for a note-taking app called Cogni. Your job is to analyze user content, summarize it into a title, and categorize it.
+You are an AI assistant for a note-taking app called Cogni. Your job is to analyze user content and generate rich metadata.
 
 TASK: Analyze the content and respond with a JSON object containing:
-1. "title" - A short, descriptive title (4-8 words) summarizing the essence of the note.
+1. "title" - A short, descriptive title (4-8 words) summarizing the essence
 2. "category" - A single word category (see list below)
 3. "summary" - A 1-2 sentence summary capturing the key point
 4. "whySaved" - 2-4 words describing why the user likely saved this
+5. "tags" - Array of 2-5 relevant keywords/tags for searching later
 
 CATEGORIES (use exactly one):
 - Learn: tutorials, courses, educational content
@@ -60,9 +61,10 @@ RULES:
 4. Title should be punchy and clear (not "Note Title" or generic)
 5. Summary should be informative and direct
 6. whySaved should be brief (2-4 words)
+7. Tags should be lowercase, single words or short phrases
 
 EXAMPLE OUTPUT:
-{"title":"Python Data Structures Basics","category":"Learn","summary":"Python tutorial covering data structures and algorithms basics.","whySaved":"Skill building"}
+{"title":"Python Data Structures Basics","category":"Learn","summary":"Python tutorial covering data structures and algorithms basics.","whySaved":"Skill building","tags":["python","programming","data structures","tutorial","algorithms"]}
 
 Analyze this content:
 """.trimIndent()

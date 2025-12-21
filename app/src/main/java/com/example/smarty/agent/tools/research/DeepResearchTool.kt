@@ -7,10 +7,14 @@ import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
 import java.util.*
+
+private val json = Json { encodeDefaults = false }
 
 @Serializable
 data class DeepResearchArgs(
@@ -45,7 +49,12 @@ data class DeepResearchResult(
     val sourcesFound: Int,
     val message: String,
     val error: String? = null
-)
+) {
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
+    }
+}
 
 /**
  * Advanced research tool that performs multi-step web research.

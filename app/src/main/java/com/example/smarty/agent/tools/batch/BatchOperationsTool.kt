@@ -5,8 +5,12 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.json.Json
+
+private val json = Json { encodeDefaults = false }
 
 @Serializable
 data class BatchOperationArgs(
@@ -41,7 +45,12 @@ data class BatchOperationResult(
     val message: String,
     val requiresConfirmation: Boolean = false,
     val error: String? = null
-)
+) {
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
+    }
+}
 
 /**
  * Tool for batch operations on multiple notes.

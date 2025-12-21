@@ -22,9 +22,73 @@ enum class AIProvider {
 }
 
 /**
+ * GROQ Model configuration with TPM (Tokens Per Minute) limits.
+ * Each model has specific rate limits that affect how the agent operates.
+ */
+data class GroqModelConfig(
+    val modelId: String,
+    val displayName: String,
+    val tpm: Int,                    // Tokens per minute limit
+    val rpm: Int = 30,               // Requests per minute
+    val dailyTokens: Int = 0,        // Daily token limit (0 = unlimited)
+    val contextWindow: Int = 8192    // Max context size
+)
+
+/**
  * Available models for each provider with display names
  */
 object AIModels {
+    // GROQ models with TPM limits (free tier) - Primary focus
+    val GROQ_MODELS_CONFIG = listOf(
+        // Production Models
+        GroqModelConfig("llama-3.1-8b-instant", "Llama 3.1 8B Instant (Free Tier Default)", tpm = 6_000, rpm = 30, dailyTokens = 500_000, contextWindow = 128_000),
+        GroqModelConfig("llama-3.3-70b-versatile", "Llama 3.3 70B Versatile (Best Quality)", tpm = 6_000, rpm = 30, dailyTokens = 100_000, contextWindow = 128_000),
+        GroqModelConfig("openai/gpt-oss-120b", "GPT-OSS 120B (High Capability)", tpm = 6_000, rpm = 30, dailyTokens = 50_000, contextWindow = 128_000),
+        GroqModelConfig("openai/gpt-oss-20b", "GPT-OSS 20B (Fast)", tpm = 6_000, rpm = 30, dailyTokens = 200_000, contextWindow = 128_000),
+        // Compound Systems
+        GroqModelConfig("groq/compound", "Groq Compound (Multi-Model)", tpm = 6_000, rpm = 30, contextWindow = 128_000),
+        GroqModelConfig("groq/compound-mini", "Groq Compound Mini (Multi-Model Fast)", tpm = 6_000, rpm = 30, contextWindow = 128_000),
+        // Preview Models - Llama 4
+        GroqModelConfig("meta-llama/llama-4-maverick-17b-128e-instruct", "Llama 4 Maverick 17B (Preview)", tpm = 6_000, rpm = 30, dailyTokens = 100_000, contextWindow = 128_000),
+        GroqModelConfig("meta-llama/llama-4-scout-17b-16e-instruct", "Llama 4 Scout 17B (Preview)", tpm = 6_000, rpm = 30, dailyTokens = 100_000, contextWindow = 128_000),
+        // Other Preview Models
+        GroqModelConfig("qwen/qwen3-32b", "Qwen 3 32B (Preview)", tpm = 6_000, rpm = 30, dailyTokens = 100_000, contextWindow = 128_000),
+        GroqModelConfig("moonshotai/kimi-k2-instruct-0905", "Kimi K2 Instruct (262K Context)", tpm = 6_000, rpm = 30, dailyTokens = 100_000, contextWindow = 262_000)
+    )
+
+    /**
+     * Get GROQ TPM config for a specific model.
+     * Returns null if model not found.
+     */
+    fun getGroqModelConfig(modelId: String): GroqModelConfig? {
+        return GROQ_MODELS_CONFIG.find { it.modelId == modelId }
+    }
+
+    /**
+     * Get TPM limit for a GROQ model.
+     * Returns default 6000 if model not found.
+     */
+    fun getGroqTPM(modelId: String): Int {
+        return getGroqModelConfig(modelId)?.tpm ?: 6_000
+    }
+
+    /**
+     * Get context window for a GROQ model.
+     * Returns default 8192 if model not found.
+     */
+    fun getGroqContextWindow(modelId: String): Int {
+        return getGroqModelConfig(modelId)?.contextWindow ?: 8192
+    }
+
+    /**
+     * Get daily token limit for a GROQ model.
+     * Returns 0 (unlimited) if model not found.
+     */
+    fun getGroqDailyLimit(modelId: String): Int {
+        return getGroqModelConfig(modelId)?.dailyTokens ?: 0
+    }
+
+    // Legacy: Simple model lists for backward compatibility
     // Gemini models
     val GEMINI_MODELS = listOf(
         "gemini-1.5-flash" to "Gemini 1.5 Flash (Default)",

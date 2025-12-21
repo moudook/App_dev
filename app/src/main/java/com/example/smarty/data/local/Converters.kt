@@ -1,6 +1,7 @@
 package com.example.smarty.data.local
 
 import androidx.room.TypeConverter
+import com.example.smarty.data.model.ExecutionStatus
 import com.example.smarty.data.model.MemoryType
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
@@ -23,4 +24,10 @@ class Converters {
 
     @TypeConverter
     fun toMemoryType(value: String): MemoryType = MemoryType.valueOf(value)
+
+    @TypeConverter
+    fun fromExecutionStatus(status: ExecutionStatus): String = status.name
+
+    @TypeConverter
+    fun toExecutionStatus(value: String): ExecutionStatus = ExecutionStatus.valueOf(value)
 }

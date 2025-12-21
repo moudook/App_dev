@@ -280,6 +280,9 @@ class MainActivity : ComponentActivity() {
                                     onUpdateNoteTodos = { noteId, todos, onComplete ->
                                         viewModel.updateNoteTodos(noteId, todos, onComplete)
                                     },
+                                    onEditNote = { noteId, newTitle, newContent ->
+                                        viewModel.editNote(noteId, newTitle, newContent)
+                                    },
                                     // Pending share management
                                     pendingShare = pendingShare,
                                     onConfirmShare = { category, instructions ->

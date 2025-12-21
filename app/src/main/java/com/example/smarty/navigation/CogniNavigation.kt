@@ -91,6 +91,7 @@ fun CogniNavHost(
     onDeleteNote: (Note) -> Unit,
     onDeleteNoteById: (String) -> Unit,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
+    onEditNote: (String, String, String) -> Unit = { _, _, _ -> },  // noteId, newTitle, newContent
     // Pending share management
     pendingShare: PendingShareData?,
     onConfirmShare: (String?, String) -> Unit,
@@ -300,6 +301,7 @@ fun CogniNavHost(
                         onDeleteNote(note)
                         navController.safePopBackStack()
                     },
+                    onEditNote = onEditNote,
                     onPlayAudio = onPlayAudio,
                     bottomContentPadding = bottomContentPadding
                 )

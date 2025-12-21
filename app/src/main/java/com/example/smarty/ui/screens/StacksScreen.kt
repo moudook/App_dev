@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -28,21 +29,41 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import android.os.Build
 import com.example.smarty.data.model.Category
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.CogniShadow
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
+import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -186,8 +207,8 @@ private fun CategoryCard(
     index: Int = 0
 ) {
     val haptic = LocalHapticFeedback.current
-    val isRecentlyCreated = System.currentTimeMillis() - category.createdAt < 60000 // 1 minute
-
+    val accentColor = LocalAccentColor.current
+    
     // Staggered Entry Animation
     var appeared by remember { mutableStateOf(false) }
     val staggerDelay = com.example.smarty.ui.animation.StaggerCalculator.fibonacci(index, 30)
@@ -217,30 +238,16 @@ private fun CategoryCard(
         label = "pressScale"
     )
 
-    val shapes = LocalShapes.current
-    val accentColor = LocalAccentColor.current
-
-    // Background Animation for Card
-    val infiniteTransition = rememberInfiniteTransition(label = "card_pulse")
-    val offset1 by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 10f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "offset1"
-    )
-
-    Card(
+    // Folder Stack Design
+    Box(
         modifier = modifier
             .fillMaxWidth()
+            .height(180.dp) // Adjusted height
             .graphicsLayer {
                 scaleX = scale * pressScale
                 scaleY = scale * pressScale
                 this.alpha = alpha
             }
-            .clip(RoundedCornerShape(26.dp)) // Squircle shape like reference
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -254,105 +261,354 @@ private fun CategoryCard(
                         onLongPress()
                     }
                 )
-            },
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(
-            1.dp, 
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-        )
+            }
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-            // Header: Icon + AI Tag
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Icon Avatar
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = if (isRecentlyCreated) accentColor else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+        val density = LocalDensity.current
+        
+        // 1. Back Folder Panel (Dark)
+        val containerShape = RoundedCornerShape(24.dp)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f) // Leave room at top for paper pop
+                .background(
+                    color = accentColor, // Use App Theme Accent Color
+                    shape = containerShape
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.1f),
+                    shape = containerShape
+                )
+                .shadow(
+                    elevation = 20.dp,
+                    shape = containerShape,
+                    spotColor = accentColor.copy(alpha = 0.5f) // Colored shadow
+                )
+        )
 
-                if (category.isAiGenerated) {
-                    Surface(
-                        shape = CircleShape,
-                        color = accentColor.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
-                    ) {
-                        Text(
-                            text = "AI",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                            color = accentColor,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
+        // 2. Stacked Papers (Sharp - Background)
+        val papersToShow = min(3, if (category.noteCount > 0) category.noteCount else 1)
+        
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp) // Papers are inset
+                // padding(top = 15.dp) removed to fix bottom leak
+        ) {
+            StackedPapers(papersToShow = papersToShow, isBlurred = false)
+        }
+
+        // 3. Front Glass Folder Panel
+        // We use a custom shape for clipping and drawing
+        // Shape definition:
+        val cornerRadiusPx = with(density) { 24.dp.toPx() }
+        val tabHeightPx = with(density) { 20.dp.toPx() }
+        
+        val folderFrontShape = remember(cornerRadiusPx, tabHeightPx) {
+            object : Shape {
+                override fun createOutline(
+                    size: Size,
+                    layoutDirection: LayoutDirection,
+                    density: Density
+                ): Outline {
+                    val width = size.width
+                    val height = size.height
+                    
+                    val path = Path().apply {
+                         moveTo(0f, cornerRadiusPx) 
+                         // Top Left Corner
+                         arcTo(
+                             rect = Rect(0f, 0f, cornerRadiusPx * 2, cornerRadiusPx * 2),
+                             startAngleDegrees = 180f,
+                             sweepAngleDegrees = 90f,
+                             forceMoveTo = false
+                         )
+                         // Tab Line
+                         lineTo(width * 0.4f, 0f) 
+                         // Saling Curve down
+                         cubicTo(
+                            width * 0.5f, 0f, 
+                            width * 0.45f, tabHeightPx + 10f, 
+                            width * 0.6f, tabHeightPx + 10f
+                         )
+                         // Top Right Line
+                         lineTo(width - cornerRadiusPx, tabHeightPx + 10f)
+                         // Top Right Corner
+                         arcTo(
+                             rect = Rect(width - cornerRadiusPx * 2, tabHeightPx + 10f, width, tabHeightPx + 10f + cornerRadiusPx * 2),
+                             startAngleDegrees = 270f,
+                             sweepAngleDegrees = 90f,
+                             forceMoveTo = false
+                         )
+                         // Right Side
+                         lineTo(width, height - cornerRadiusPx)
+                         // Bottom Right Corner
+                         arcTo(
+                             rect = Rect(width - cornerRadiusPx * 2, height - cornerRadiusPx * 2, width, height),
+                             startAngleDegrees = 0f,
+                             sweepAngleDegrees = 90f,
+                             forceMoveTo = false
+                         )
+                         // Bottom Line
+                         lineTo(cornerRadiusPx, height)
+                         // Bottom Left Corner
+                         arcTo(
+                             rect = Rect(0f, height - cornerRadiusPx * 2, cornerRadiusPx * 2, height),
+                             startAngleDegrees = 90f,
+                             sweepAngleDegrees = 90f,
+                             forceMoveTo = false
+                         )
+                         close()
                     }
+                    return Outline.Generic(path)
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Body: Title
-            Text(
-                text = category.name,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    letterSpacing = 0.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+        // GLASS CONTAINER
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.6f) // Covers bottom 60%
+                .clip(folderFrontShape) // Start clipping content to the glass shape
+        ) {
             
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            Text(
-                text = "Collection",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            // 0. Occluder Layer
+            // Hides the sharp papers that are physically behind this glass area.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(accentColor)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Footer: Divider + Count
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                thickness = 1.dp
-            )
+            // A. Blurred Papers Layer (Duplicate)
+            val parentHeight = 180.dp
+            val glassHeightFactor = 0.6f
+            val shiftUp = parentHeight * (1f - glassHeightFactor)
             
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset(y = -shiftUp) // Counteract the constrained box position
+                    .padding(horizontal = 20.dp)
+                    // padding(top = 15.dp) removed to fix bottom leak
+                    .then(
+                        if (Build.VERSION.SDK_INT >= 31) {
+                            Modifier.blur(50.dp) // Heavily increased blur radius
+                        } else {
+                            Modifier // API < 31 fallback
+                        }
+                    )
             ) {
+                 StackedPapers(papersToShow = papersToShow, isBlurred = true)
+            }
+            
+            // B. Glass Overlay (Gradient & Tint)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.3f), // Darker glass at top
+                                Color.Black.copy(alpha = 0.5f), // Medium dark in middle
+                            )
+                        )
+                    )
+            )
+
+            // C. Border Stroke
+            // Since we clipped the box, we can't easily draw a border on the outside pixels.
+            // We can draw it inside.
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val outline = folderFrontShape.createOutline(size, layoutDirection, this)
+                val borderPath = when (outline) {
+                    is Outline.Generic -> outline.path
+                    else -> Path() // Fallback empty path
+                }
+                drawPath(
+                    path = borderPath,
+                    style = Stroke(width = 1.dp.toPx()),
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.4f),
+                            Color.Transparent
+                        )
+                    )
+                )
+            }
+            
+            // D. Content on Glass (Icon, Text)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                // Header (Icon + AI)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Check if this is a predefined system category
+                    val isPredefined = category.name.equals("Private Notes", ignoreCase = true) || 
+                                     category.name.startsWith("Saved ", ignoreCase = true)
+
+                    if (category.isAiGenerated && !isPredefined) {
+                        Surface(
+                            color = accentColor.copy(alpha = 0.2f),
+                            shape = CircleShape,
+                            modifier = Modifier.height(24.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "AI",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = accentColor
+                                )
+                            }
+                        }
+                    } else {
+                         Spacer(modifier = Modifier.width(1.dp))
+                    }
+                    
+                    // Count Badge
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.3f),
+                        shape = CircleShape
+                    ) {
+                        Text(
+                            text = "${category.noteCount} items",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Title
                 Text(
-                    text = "${category.noteCount} Items",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    text = category.name,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = Color.White.copy(alpha = 0.95f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Text(
+                    text = "Collection",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.5f)
                 )
             }
         }
     }
+}
+
+@Composable
+private fun BoxScope.StackedPapers(papersToShow: Int, isBlurred: Boolean) {
+    // Render visually: Back -> Front
+    for (i in (0 until papersToShow).reversed()) {
+         // Logic: 0 is Front, papersToShow-1 is Back
+         // We loop reversed to draw Back first
+        
+        // Visual Index: 0 = Front, 1 = Mid, 2 = Back
+        val visualIndex = i 
+        
+        // Stagger Logic
+        // Fix: Reduced base offset from 50.dp to 35.dp to prevent bottom leaking
+        val yOffset = (visualIndex * -12).dp + 35.dp  
+        val rotation = when(visualIndex) {
+            2 -> 6f // Back right
+            1 -> -3f // Mid left
+            0 -> 0f  // Front straight
+            else -> 0f
+        }
+        
+        val scaleVal = 1f - (visualIndex * 0.05f)
+
+        // Paper Card
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = yOffset)
+                .fillMaxWidth(0.9f * scaleVal) // Taper back stack
+                .height(130.dp)
+                .rotate(rotation)
+                .background(
+                    color = if (visualIndex == 0) Color(0xFFF5F5F5) else Color(0xFFEEEEEE), 
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .border(
+                    width = 0.5.dp,
+                    color = Color.Black.copy(alpha = 0.1f),
+                    shape = RoundedCornerShape(16.dp)
+                )
+        ) {
+            // "Pill" Text Lines (Skeleton UI)
+            // If blurred, we can optionally simplify the drawing to save perfume,
+            // but for correctness let's draw same components.
+            Column(
+                modifier = Modifier
+                    .padding(top = 26.dp, start = 12.dp, end = 12.dp)
+                    .fillMaxWidth()
+            ) {
+                // Title Pill
+                Box(
+                    modifier = Modifier
+                        .width(60.dp)
+                        .height(8.dp)
+                        .background(Color.Gray.copy(alpha = 0.2f), CircleShape)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                // Body Pills
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .height(6.dp)
+                        .background(Color.Gray.copy(alpha = 0.1f), CircleShape)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(6.dp)
+                        .background(Color.Gray.copy(alpha = 0.1f), CircleShape)
+                )
+                 Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(6.dp)
+                        .background(Color.Gray.copy(alpha = 0.1f), CircleShape)
+                )
+            }
+        }
+    }
+}
+private fun Modifier.shadow(
+    elevation: androidx.compose.ui.unit.Dp,
+    shape: androidx.compose.ui.graphics.Shape = androidx.compose.ui.graphics.RectangleShape,
+    clip: Boolean = elevation > 0.dp,
+    ambientColor: Color = androidx.compose.ui.graphics.Color.Black,
+    spotColor: Color = androidx.compose.ui.graphics.Color.Black,
+) = this.graphicsLayer {
+    this.shadowElevation = elevation.toPx()
+    this.shape = shape
+    this.clip = clip
+    this.ambientShadowColor = ambientColor
+    this.spotShadowColor = spotColor
 }
 
 /**

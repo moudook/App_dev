@@ -2,42 +2,36 @@ package com.example.smarty.ui.screens
 
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.FlingBehavior
+import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import kotlin.math.abs
+import kotlin.math.sign
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.automirrored.filled.StickyNote2
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Photo
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -57,15 +51,12 @@ import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.ui.animation.rememberShakeGlowState
 import com.example.smarty.ui.animation.shakeGlowEffect
 import com.example.smarty.data.model.ChatSession
-import com.example.smarty.ui.components.AlphabetFastScroller
 import com.example.smarty.ui.components.ChatHistorySheet
 import com.example.smarty.ui.components.ChatMessageItem
-import com.example.smarty.ui.components.CogniHeader
 import com.example.smarty.ui.components.CogniInputField
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.ui.components.ChatEmptyState
-import com.example.smarty.ui.components.DynamicIsland
 import com.example.smarty.data.model.NoteType
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -149,7 +140,7 @@ fun InputStreamScreen(
 
     // Partial text tracking for progressive speech append
     var lastPartialText by remember { mutableStateOf("") }
-    var partialTextStartIndex by remember { mutableStateOf(0) }
+    var partialTextStartIndex by remember { mutableIntStateOf(0) }
 
     // Sync ViewModel's input text whenever the text value changes
     // This ensures shake detection always uses the current text state
@@ -309,7 +300,6 @@ fun InputStreamScreen(
     var selectedNoteIds by remember { mutableStateOf(setOf<String>()) }
 
     // Search Mode State
-    // Search Mode State
     var isSearchMode by remember { mutableStateOf(false) }
     
     // AI Filter State
@@ -324,7 +314,7 @@ fun InputStreamScreen(
     }
 
     // Filtered Notes Logic
-    val displayedNotes by remember(notes, textValue, isSearchMode, selectedTypeFilter) {
+    val displayedNotes by remember(notes, textValue, isSearchMode, selectedTypeFilter, isAiFilterSelected) {
         derivedStateOf {
             val typeFiltered = if (selectedTypeFilter != null) {
                 notes.filter { it.type == selectedTypeFilter }
@@ -336,7 +326,7 @@ fun InputStreamScreen(
 
             if (isSearchMode && textValue.text.isNotBlank()) {
                 typeFiltered.filter { note ->
-                    note.title?.contains(textValue.text, ignoreCase = true) == true ||
+                    note.title.contains(textValue.text, ignoreCase = true) ||
                     note.content.contains(textValue.text, ignoreCase = true) ||
                     (note.summary?.contains(textValue.text, ignoreCase = true) == true)
                 }
@@ -371,6 +361,11 @@ fun InputStreamScreen(
                 duration = SnackbarDuration.Short
             )
         }
+    }
+
+    // Handle back button press - exit selection mode instead of closing app
+    BackHandler(enabled = isSelectionMode) {
+        clearSelection()
     }
 
     // Todo sheet state
@@ -481,7 +476,7 @@ fun InputStreamScreen(
     }
     
     // Trigger on note count change (add/archive) - but only if we have notes
-    var previousDisplayedCount by remember { mutableStateOf(displayedNotes.size) }
+    var previousDisplayedCount by remember { mutableIntStateOf(displayedNotes.size) }
     LaunchedEffect(displayedNotes.size) {
         if (notes.isNotEmpty() && displayedNotes.size != previousDisplayedCount) {
             val count = displayedNotes.size
@@ -506,7 +501,7 @@ fun InputStreamScreen(
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .shakeGlowEffect(
                 isActive = shakeGlowState.isGlowing,
@@ -750,7 +745,7 @@ fun InputStreamScreen(
                                 }
                                 items(availableTypes) { type ->
                                     NoteTypeChip(
-                                        label = formatNoteType(type),
+                                        label = "",
                                         isSelected = selectedTypeFilter == type,
                                         onClick = { 
                                             selectedTypeFilter = type
@@ -771,7 +766,6 @@ fun InputStreamScreen(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         // Clear focus when tapping outside the input field
-        val interactionSource = remember { MutableInteractionSource() }
         val topPadding = paddingValues.calculateTopPadding()
 
         Box(
@@ -812,7 +806,7 @@ fun InputStreamScreen(
                             state = chatListState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = contentBottomPadding,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             items(
                                 items = chatMessages,
@@ -841,9 +835,19 @@ fun InputStreamScreen(
                             com.example.smarty.ui.components.NotesEmptyState(modifier = Modifier.fillMaxSize())
                         }
                     } else {
+                        // Custom fling behavior - caps max scroll speed, natural momentum continues
+                        // Calculation: Card height ~120dp ≈ 360px (at 3x density)
+                        // For card to be "visible" it needs ~150ms on screen
+                        // Max velocity = screen_height / time = ~2400px / 0.15s ≈ 4000-5000 px/s
+                        // Using 4500f ensures at least one card is always readable during scroll
+                        val cappedFling = rememberCappedFlingBehavior(
+                            maxVelocity = 7000f   // Ensures cards are visible even at max speed
+                        )
+
                         LazyColumn(
                             state = listState,
-                            modifier = modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize(),
+                            flingBehavior = cappedFling,  // Apply velocity cap
                             contentPadding = PaddingValues(
                                 top = ComponentSpacing.listContentPadding,
                                 bottom = 140.dp + bottomContentPadding,
@@ -938,83 +942,111 @@ fun InputStreamScreen(
                         }
                     }
 
-                    CogniInputField(
-                        value = textValue,
-                        onValueChange = { newTextValue ->
-                            // Cancel auto-send if user manually types
-                            if (autoSendActive) {
-                                autoSendActive = false
-                                autoSendJob?.cancel()
-                            }
-                            // Reset speech tracking on manual input
-                            hadSpeechInput = false
-
-                            // Update the correct state based on current mode
-                            if (isChatMode) {
-                                chatModeTextValue = newTextValue
-                            } else {
-                                normalModeTextValue = newTextValue
-                            }
-                            onInputTextChange(newTextValue.text)
-                        },
-                        onSubmit = {
-                            val text = textValue.text
-                            if (text.isNotBlank() || attachments.isNotEmpty()) {
-                                if (isChatMode) {
-                                    onSendChatMessage(text, attachments)
-                                    chatModeTextValue = TextFieldValue("")  // Only clear chat mode text
-                                } else if (!isSearchMode) {
-                                    onAddNote(text, attachments)
-                                    normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
-                                }
-
-                                if (!isSearchMode) {
-                                    onInputTextChange("")
-                                    attachments = emptyList()
-                                }
-                            }
-                        },
-                        attachments = attachments,
-                        onPickImage = { imagePickerLauncher.launch("image/*") },
-                        onPickVideo = { videoPickerLauncher.launch("video/*") },
-                        onPickDocument = {
-                            documentPickerLauncher.launch(
-                                arrayOf(
-                                    "application/pdf",
-                                    "application/msword",
-                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    "text/plain"
-                                )
+                    // Floating Input Field with Blue Glow Pop
+                    Box(contentAlignment = Alignment.Center) {
+                        // 1. Blue Blur Glow (The "Pop")
+                        // Visible mostly on newer Android versions that support RenderEffect well,
+                        // creates a soft colored shadow/glow behind the pill.
+                        if (android.os.Build.VERSION.SDK_INT >= 31) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp) // Approximate height of the input pill
+                                    .graphicsLayer {
+                                        scaleX = 0.98f
+                                        scaleY = 0.85f
+                                        alpha = 1f
+                                        renderEffect = android.graphics.RenderEffect
+                                            .createBlurEffect(
+                                                50f,
+                                                50f,
+                                                android.graphics.Shader.TileMode.DECAL
+                                            )
+                                            .asComposeRenderEffect()
+                                    }
+                                    .background(LocalAccentColor.current, androidx.compose.foundation.shape.RoundedCornerShape(50))
                             )
-                        },
-                        onPickAudio = { audioPickerLauncher.launch("audio/*") },
-                        onPickFile = { filePickerLauncher.launch("*/*") },
-                        onRemoveAttachment = { id -> attachments = attachments.filter { it.id != id } },
-                        isChatMode = isChatMode,
-                        isProcessing = isChatProcessing,
-                        onOpenChatHistory = { showChatHistorySheet = true },
-                        isAiExcluded = isAiExcluded,
-                        isSearchMode = isSearchMode,
-                        onToggleSearch = {
-                            isSearchMode = !isSearchMode
-                            normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
-                            onInputTextChange("")
-                        },
-                        isVoiceListening = speechState.isListening,
-                        onStartVoiceInput = {
-                            if (speechState.isListening) {
+                        }
+
+                        // 2. The Actual Input Field
+                        CogniInputField(
+                            value = textValue,
+                            onValueChange = { newTextValue ->
+                                // Cancel auto-send if user manually types
+                                if (autoSendActive) {
+                                    autoSendActive = false
+                                    autoSendJob?.cancel()
+                                }
+                                // Reset speech tracking on manual input
+                                hadSpeechInput = false
+
+                                // Update the correct state based on current mode
+                                if (isChatMode) {
+                                    chatModeTextValue = newTextValue
+                                } else {
+                                    normalModeTextValue = newTextValue
+                                }
+                                onInputTextChange(newTextValue.text)
+                            },
+                            onSubmit = {
+                                val text = textValue.text
+                                if (text.isNotBlank() || attachments.isNotEmpty()) {
+                                    if (isChatMode) {
+                                        onSendChatMessage(text, attachments)
+                                        chatModeTextValue = TextFieldValue("")  // Only clear chat mode text
+                                    } else if (!isSearchMode) {
+                                        onAddNote(text, attachments)
+                                        normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
+                                    }
+
+                                    if (!isSearchMode) {
+                                        onInputTextChange("")
+                                        attachments = emptyList()
+                                    }
+                                }
+                            },
+                            attachments = attachments,
+                            onPickImage = { imagePickerLauncher.launch("image/*") },
+                            onPickVideo = { videoPickerLauncher.launch("video/*") },
+                            onPickDocument = {
+                                documentPickerLauncher.launch(
+                                    arrayOf(
+                                        "application/pdf",
+                                        "application/msword",
+                                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                        "text/plain"
+                                    )
+                                )
+                            },
+                            onPickAudio = { audioPickerLauncher.launch("audio/*") },
+                            onPickFile = { filePickerLauncher.launch("*/*") },
+                            onRemoveAttachment = { id -> attachments = attachments.filter { it.id != id } },
+                            isChatMode = isChatMode,
+                            isProcessing = isChatProcessing,
+                            onOpenChatHistory = { showChatHistorySheet = true },
+                            isAiExcluded = isAiExcluded,
+                            isSearchMode = isSearchMode,
+                            onToggleSearch = {
+                                isSearchMode = !isSearchMode
+                                normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
+                                onInputTextChange("")
+                            },
+                            isVoiceListening = speechState.isListening,
+                            onStartVoiceInput = {
+                                if (speechState.isListening) {
+                                    speechState.stopListening()
+                                } else {
+                                    // Pass current mode so speech result goes to correct input field
+                                    speechState.startListening(isChatMode = isChatMode)
+                                }
+                            },
+                            onStopVoiceInput = {
                                 speechState.stopListening()
-                            } else {
-                                // Pass current mode so speech result goes to correct input field
-                                speechState.startListening(isChatMode = isChatMode)
-                            }
-                        },
-                        onStopVoiceInput = {
-                            speechState.stopListening()
-                        },
-                        isAgentWorking = isChatProcessing,
-                        autoSendActive = autoSendActive
-                    )
+                            },
+                            isAgentWorking = isChatProcessing,
+                            autoSendActive = autoSendActive
+                        )
+                    }
                 }
             }
             // Dynamic Island moved to top z-order
@@ -1136,7 +1168,7 @@ private fun AnimatedNoteItem(
     val staggerDelay = if (index < 5) StaggerCalculator.logarithmic(index, 40) else 0
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(staggerDelay.toLong())
+        delay(staggerDelay.toLong())
         appeared = true
     }
 
@@ -1195,7 +1227,6 @@ private fun NoteTypeChip(
     onClick: () -> Unit,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
-    val isSystemDark = isSystemInDarkTheme()
     // Premium "Pill" Aesthetic
     // Selected: Solid Black (Light Mode) / White (Dark Mode)
     // Unselected: Transparent with subtle outline
@@ -1213,15 +1244,11 @@ private fun NoteTypeChip(
         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
     }
     
-    // Remove border - rely on fill contrast
-    val borderStroke = null
-
     Surface(
         onClick = onClick,
         shape = if (label.isEmpty()) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(20.dp), // Circle for icon-only
         color = backgroundColor,
         contentColor = contentColor,
-        border = borderStroke,
         modifier = Modifier.height(32.dp).widthIn(min = 32.dp) // Slightly bigger for touch target
     ) {
         Row(
@@ -1232,7 +1259,7 @@ private fun NoteTypeChip(
             if (icon != null) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = if (label.isNotEmpty()) label else null,
+                    contentDescription = label.ifEmpty { null },
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -1250,7 +1277,48 @@ private fun NoteTypeChip(
     }
 }
 
-private fun formatNoteType(type: NoteType): String {
-    return "" // Icons only for all types
+/**
+ * Custom FlingBehavior that caps maximum scroll velocity while preserving natural momentum.
+ *
+ * The scroll continues naturally with standard physics, but the initial velocity
+ * is capped so users can't fling faster than a certain speed.
+ *
+ * @param maxVelocity Maximum allowed velocity in pixels per second
+ * @param defaultFlingBehavior The underlying fling behavior to delegate to
+ */
+private class CappedVelocityFlingBehavior(
+    private val maxVelocity: Float,
+    private val defaultFlingBehavior: FlingBehavior
+) : FlingBehavior {
+
+    override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
+        // Cap the velocity but preserve direction and natural momentum
+        val cappedVelocity = if (abs(initialVelocity) > maxVelocity) {
+            maxVelocity * sign(initialVelocity)
+        } else {
+            initialVelocity
+        }
+
+        // Delegate to default fling behavior with capped velocity
+        // This preserves natural Android scroll physics (deceleration curve)
+        return with(defaultFlingBehavior) {
+            performFling(cappedVelocity)
+        }
+    }
 }
 
+/**
+ * Remember a capped velocity fling behavior for LazyColumn/LazyRow.
+ * Caps max scroll speed while keeping natural momentum and deceleration.
+ */
+@Composable
+private fun rememberCappedFlingBehavior(
+    maxVelocity: Float = 8000f  // Max pixels/second - scrolling continues, just slower
+): FlingBehavior {
+    // Get the default scroll behavior from the platform
+    val defaultFling = androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
+
+    return remember(maxVelocity, defaultFling) {
+        CappedVelocityFlingBehavior(maxVelocity, defaultFling)
+    }
+}
