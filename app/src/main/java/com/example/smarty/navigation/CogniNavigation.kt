@@ -149,7 +149,7 @@ fun CogniNavHost(
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
-    onShowTransientIsland: (com.example.smarty.ui.components.DynamicIslandState) -> Unit = {},
+
     // Dynamic Models
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { com.example.smarty.data.local.AIModels.getModelsForProvider(it) },
@@ -245,9 +245,6 @@ fun CogniNavHost(
                 bottomContentPadding = bottomContentPadding,
                 externalSpeechState = externalSpeechState,
                 speechResults = speechResults,
-                onShowTransientIsland = { state ->
-                    onShowTransientIsland(state)
-                },
                 wasShakeTriggered = wasShakeTriggered
             )
         }

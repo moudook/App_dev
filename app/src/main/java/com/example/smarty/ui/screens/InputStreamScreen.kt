@@ -112,7 +112,7 @@ fun InputStreamScreen(
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
-    onShowTransientIsland: (com.example.smarty.ui.components.DynamicIslandState) -> Unit = {},
+
     wasShakeTriggered: Boolean = false,  // For border glow animation on mode switch
     modifier: Modifier = Modifier
 ) {
@@ -463,38 +463,7 @@ fun InputStreamScreen(
         }
     }
 
-    // Dynamic Island State Logic
-    // Trigger on category filter change
-    LaunchedEffect(selectedTypeFilter) {
-        val count = displayedNotes.size
-        val filterIcon = selectedTypeFilter?.let { getNoteTypeIcon(it) } ?: Icons.Default.GridView
-        
-        onShowTransientIsland(
-            com.example.smarty.ui.components.DynamicIslandState.Info(
-                label = count.toString(),
-                secondaryLabel = "",
-                icon = filterIcon
-            )
-        )
-    }
-    
-    // Trigger on note count change (add/archive) - but only if we have notes
-    var previousDisplayedCount by remember { mutableIntStateOf(displayedNotes.size) }
-    LaunchedEffect(displayedNotes.size) {
-        if (notes.isNotEmpty() && displayedNotes.size != previousDisplayedCount) {
-            val count = displayedNotes.size
-            val filterIcon = selectedTypeFilter?.let { getNoteTypeIcon(it) } ?: Icons.Default.GridView
-            
-            onShowTransientIsland(
-                com.example.smarty.ui.components.DynamicIslandState.Info(
-                    label = count.toString(),
-                    secondaryLabel = "",
-                    icon = filterIcon
-                )
-            )
-            previousDisplayedCount = displayedNotes.size
-        }
-    }
+
 
     // Scroll to bottom when new chat message arrives
     LaunchedEffect(chatMessages.size) {
@@ -619,7 +588,7 @@ fun InputStreamScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
-                                .padding(top = 12.dp) // Extra spacing to harmonize with Dynamic Island
+                                .padding(top = 12.dp)
                                 .height(64.dp)
                                 .padding(horizontal = 24.dp)
                         ) {
@@ -1081,7 +1050,7 @@ fun InputStreamScreen(
                     }
                 }
             }
-            // Dynamic Island moved to top z-order
+
         }
     }
 

@@ -33,7 +33,7 @@ import com.example.smarty.agent.AgentResult
 import com.example.smarty.agent.CogniAgent
 import com.example.smarty.agent.CogniAgentProvider
 import com.example.smarty.data.remote.providers.TavilySearchProvider
-import com.example.smarty.ui.components.DynamicIslandState
+
 import com.example.smarty.ui.components.PendingShareData
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
@@ -198,11 +198,11 @@ class CogniViewModel(
         }
 
         override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
-            agentStateManager.showExecutingTool(toolName, toolDisplayName)
+            // No-op: Dynamic Island removed
         }
 
         override fun onToolExecutionCompleted(toolName: String) {
-            // State manager handles this via the agent loop
+            // No-op: Dynamic Island removed
         }
     }
 
@@ -233,8 +233,7 @@ class CogniViewModel(
         getNotesSnapshot = { notes.value }
     )
 
-    // Agent State Manager - handles DynamicIsland state for AI agent operations
-    private val agentStateManager = com.example.smarty.viewmodel.managers.AgentStateManager(viewModelScope)
+
 
     // Note Operations Manager - handles note CRUD operations
     private val noteOperationsManager = com.example.smarty.viewmodel.managers.NoteOperationsManager(
@@ -287,13 +286,7 @@ class CogniViewModel(
         }
     }
 
-    // ==================== AGENT STATE (delegated to AgentStateManager) ====================
 
-    val agentState: StateFlow<DynamicIslandState> = agentStateManager.agentState
-
-    // Delegate agent state methods to manager
-    private fun setAgentState(state: DynamicIslandState) = agentStateManager.setState(state)
-    private fun showAgentCompleted(toolsUsed: Int) = agentStateManager.showCompleted()
 
     // Expose secure preferences state for UI
     val geminiKeys: StateFlow<List<String>> = securePreferences.geminiKeys
@@ -341,23 +334,7 @@ class CogniViewModel(
     private val _isProcessing = MutableStateFlow(false)
     val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
 
-    // Transient Dynamic Island state (e.g., category changes, successes)
-    private val _transientIslandState = MutableStateFlow<com.example.smarty.ui.components.DynamicIslandState?>(null)
-    val transientIslandState: StateFlow<com.example.smarty.ui.components.DynamicIslandState?> = _transientIslandState.asStateFlow()
 
-    private var islandJob: kotlinx.coroutines.Job? = null
-
-    /**
-     * Show a transient state on the Dynamic Island for a set duration
-     */
-    fun showTransientIsland(state: com.example.smarty.ui.components.DynamicIslandState, durationMs: Long = 2500L) {
-        islandJob?.cancel()
-        islandJob = viewModelScope.launch {
-            _transientIslandState.value = state
-            delay(durationMs)
-            _transientIslandState.value = null
-        }
-    }
 
     init {
         // Sync category counts on app start to fix any existing mismatches
@@ -1449,7 +1426,6 @@ class CogniViewModel(
      * ARCHITECTURE: Uses JetBrains Koog framework for agent orchestration:
      * - Koog handles the agent loop, tool execution, and multi-step reasoning
      * - PrivacyGuard is enforced at the tool level via CogniToolBase
-     * - DynamicIsland shows agent state during execution
      */
     fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
@@ -1465,14 +1441,7 @@ class CogniViewModel(
             val userMessage = chatManager.addUserMessage(content, attachments)
 
             try {
-                // Initialize agent run tracking
-                agentStateManager.startAgentRun()
-
-                // Show thinking state
-                setAgentState(DynamicIslandState.AgentThinking(
-                    iteration = 1,
-                    message = "Thinking..."
-                ))
+                // Run agent
 
                 // Build conversation history for agent memory
                 val conversationHistory = chatManager.chatMessages.value
@@ -1513,17 +1482,12 @@ class CogniViewModel(
                             assistantMessage = assistantMessage,
                             hasApiKeys = securePreferences.hasAnyApiKeys()
                         )
-
-                        // Show completed state
-                        agentStateManager.showCompleted()
                     }
 
                     is AgentResult.Error -> {
                         Log.e(TAG, "Agent error: ${result.message}")
 
-                        setAgentState(DynamicIslandState.AgentError(result.message))
-                        delay(2000)
-                        setAgentState(DynamicIslandState.Contracted)
+
 
                         val errorMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
@@ -1540,16 +1504,13 @@ class CogniViewModel(
                             content = "Please configure an AI provider API key in Settings to use chat."
                         )
                         chatManager.addAssistantMessage(noKeyMessage)
-                        setAgentState(DynamicIslandState.Contracted)
                     }
                 }
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing chat message: ${e.message}", e)
 
-                setAgentState(DynamicIslandState.AgentError("Error occurred"))
-                delay(2000)
-                setAgentState(DynamicIslandState.Contracted)
+
 
                 val errorMessage = ChatMessage(
                     role = ChatRole.ASSISTANT,

@@ -741,7 +741,7 @@ fun CogniInputField(
                         )
                     }
 
-                    // Processing indicator removed - now displayed in Dynamic Island only
+
                     // This prevents visual overlap when agent is thinking
                 }
 

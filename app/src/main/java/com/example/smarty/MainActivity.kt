@@ -35,7 +35,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.smarty.navigation.CogniNavHost
 import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
 import com.example.smarty.ui.components.audio.FullAudioPlayer
-import com.example.smarty.ui.components.DynamicIsland
+
 import com.example.smarty.ui.theme.CogniTheme
 import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.viewmodel.AudioPlayerViewModel
@@ -67,11 +67,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // Hide standard status bar to replace with Dynamic Island
-        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
-            hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
-            systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
+
 
         // Request all necessary permissions
         requestRequiredPermissions()
@@ -144,7 +140,7 @@ class MainActivity : ComponentActivity() {
                 // Cache state
                 val cacheSizeBytes by viewModel.cacheSizeBytes.collectAsState()
                 val isClearingCache by viewModel.isClearingCache.collectAsState()
-                val transientIslandState by viewModel.transientIslandState.collectAsState()
+
 
                 // Tavily Web Search API state
                 val tavilyApiKey by viewModel.tavilyApiKey.collectAsState()
@@ -375,9 +371,7 @@ class MainActivity : ComponentActivity() {
                                     ).value,
                                     externalSpeechState = globalSpeechState,
                                     speechResults = viewModel.speechResults,
-                                    onShowTransientIsland = { state ->
-                                        viewModel.showTransientIsland(state)
-                                    },
+
                                     // Dynamic Models - Only Groq supported for refresh now
                                     onRefreshModels = { provider ->
                                         if (provider == com.example.smarty.data.local.AIProvider.GROQ) {
@@ -390,22 +384,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.fillMaxSize()
                                 )
 
-                                // GLOBAL DYNAMIC ISLAND - Always visible across all screens
-                                // Priority: Listening > Transient (Category changes, etc) > Processing > Contracted
-                                val islandState = when {
-                                    globalSpeechState.isListening -> com.example.smarty.ui.components.DynamicIslandState.Listening(globalSpeechState.rmsDb)
-                                    transientIslandState != null -> transientIslandState!!
-                                    isProcessing || isChatProcessing -> com.example.smarty.ui.components.DynamicIslandState.Processing
-                                    // Add more states as needed (e.g., notifications, alerts)
-                                    else -> com.example.smarty.ui.components.DynamicIslandState.Contracted
-                                }
-                                
-                                DynamicIsland(
-                                    modifier = Modifier
-                                        .align(Alignment.TopCenter)
-                                        .offset(y = 8.dp),
-                                    state = islandState
-                                )
+
 
                                 // Mini Audio Player overlay at bottom (Hide when keyboard is open)
                                 val isKeyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
