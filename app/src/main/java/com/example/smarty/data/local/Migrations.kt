@@ -254,4 +254,15 @@ object Migrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_provider_usage_provider ON provider_usage(provider)")
         }
     }
+
+    /**
+     * Migration from version 12 to 13
+     * Adds tagsJson field to notes table for AI-generated tags
+     */
+    val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add tagsJson column to notes table
+            db.execSQL("ALTER TABLE notes ADD COLUMN tagsJson TEXT DEFAULT NULL")
+        }
+    }
 }

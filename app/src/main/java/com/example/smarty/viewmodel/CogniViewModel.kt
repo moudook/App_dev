@@ -112,18 +112,23 @@ class CogniViewModel(
         private const val KEY_IS_CHAT_MODE = "isChatMode"
     }
 
-    // Secure preferences and AI service
-    private val securePreferences = SecurePreferences.getInstance(application)
-    private val aiService = AIService(securePreferences)
-    private val pdfExtractor = PDFTextExtractor(application)
+    // Lazy initialization to avoid blocking main thread during permission requests
+    // These are initialized on first access, not during ViewModel construction
+    private val securePreferences: SecurePreferences by lazy {
+        SecurePreferences.getInstance(application)
+    }
+    private val aiService: AIService by lazy { AIService(securePreferences) }
+    private val pdfExtractor: PDFTextExtractor by lazy { PDFTextExtractor(application) }
 
-    // Repository needs to be initialized before agent
-    private val database = CogniDatabase.getDatabase(application)
-    private val repository = CogniRepository(
-        database.noteDao(),
-        database.categoryDao(),
-        database.calendarDao()
-    )
+    // Repository needs to be initialized before agent - lazy to avoid blocking
+    private val database: CogniDatabase by lazy { CogniDatabase.getDatabase(application) }
+    private val repository: CogniRepository by lazy {
+        CogniRepository(
+            database.noteDao(),
+            database.categoryDao(),
+            database.calendarDao()
+        )
+    }
 
     // Web search provider for agent actions
     private val tavilySearchProvider: TavilySearchProvider by lazy {
@@ -134,17 +139,25 @@ class CogniViewModel(
         TavilySearchProvider(httpClient, Gson())
     }
 
-    // Alarm scheduler for timer/alarm tools
-    private val alarmScheduler = AlarmScheduler.getInstance(application)
+    // Alarm scheduler for timer/alarm tools - lazy to avoid blocking
+    private val alarmScheduler: AlarmScheduler by lazy {
+        AlarmScheduler.getInstance(application)
+    }
 
-    // Rate limiter for API call management (30 calls/min, 14.4k/day)
-    private val rateLimiter = RateLimiter.getInstance(application)
+    // Rate limiter for API call management (30 calls/min, 14.4k/day) - lazy
+    private val rateLimiter: RateLimiter by lazy {
+        RateLimiter.getInstance(application)
+    }
 
-    // GROQ Key Manager for per-key usage tracking
-    private val groqKeyManager = GroqKeyManager.getInstance(application)
+    // GROQ Key Manager for per-key usage tracking - lazy
+    private val groqKeyManager: GroqKeyManager by lazy {
+        GroqKeyManager.getInstance(application)
+    }
 
-    // Koog-based AI Agent (GROQ-only with multi-key rotation)
-    private val agentProvider = CogniAgentProvider(securePreferences, groqKeyManager)
+    // Koog-based AI Agent (GROQ-only with multi-key rotation) - lazy
+    private val agentProvider: CogniAgentProvider by lazy {
+        CogniAgentProvider(securePreferences, groqKeyManager)
+    }
     private val cogniAgent: CogniAgent by lazy {
         CogniAgent(
             agentProvider = agentProvider,
@@ -156,8 +169,8 @@ class CogniViewModel(
         )
     }
 
-    // GROQ key usage stats exposed for UI
-    val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> = groqKeyManager.usageStats
+    // GROQ key usage stats exposed for UI - lazy
+    val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
 
     // Agent callbacks for Koog tools that need ViewModel state
     // SECURITY: Pre-filter notes at callback level for defense-in-depth
@@ -193,11 +206,13 @@ class CogniViewModel(
         }
     }
 
-    // Chat repository for persistence
-    private val chatRepository = ChatRepository(database.chatDao())
+    // Chat repository for persistence - lazy to avoid blocking
+    private val chatRepository: ChatRepository by lazy {
+        ChatRepository(database.chatDao())
+    }
 
-    // Calendar DAO for event management
-    private val calendarDao = database.calendarDao()
+    // Calendar DAO for event management - lazy
+    private val calendarDao by lazy { database.calendarDao() }
 
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null

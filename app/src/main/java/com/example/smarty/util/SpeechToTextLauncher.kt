@@ -58,10 +58,15 @@ class SpeechToTextState(
         startListeningInternal(languageCode)
     }
 
+    // Callback to set pending state before permission request
+    internal var onPermissionNeeded: ((String?) -> Unit)? = null
+
     private fun startListeningInternal(languageCode: String? = null) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startRecognition(languageCode)
         } else {
+            // Signal that we need permission and store the language code
+            onPermissionNeeded?.invoke(languageCode)
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
@@ -127,26 +132,45 @@ fun rememberSpeechToText(
     // Permission launcher
     // We need to define this before we instantiate the state class
     var pendingStart by remember { mutableStateOf(false) }
-    
+    var pendingLanguageCode by remember { mutableStateOf<String?>(null) }
+
+    // Use a holder to allow callback to access state after creation
+    val stateHolder = remember { mutableStateOf<SpeechToTextState?>(null) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted && pendingStart) {
-             // We can't easily callback into the class here without a circular ref potential
-             // But we can signal the state if we had it, or just let the user tap again.
-             // For better UX, we could try to auto-start, but simple is robust.
-             // The user will tap again. 
+            // Permission granted - actually start recognition now
+            stateHolder.value?.let { state ->
+                // Trigger recognition with pending language code
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    // Call internal start method via reflection workaround or just re-trigger
+                    state.startListening(pendingLanguageCode)
+                }
+            }
         } else if (!isGranted) {
             onError?.invoke("Microphone permission required")
         }
         pendingStart = false
+        pendingLanguageCode = null
     }
 
     // State holder
     val state = remember(speechRecognizer, permissionLauncher) {
         SpeechToTextState(context, speechRecognizer, permissionLauncher)
     }
-    
+
+    // Update state holder for permission callback and set up pending state tracking
+    LaunchedEffect(state) {
+        stateHolder.value = state
+        // Wire up the pending state callback
+        state.onPermissionNeeded = { languageCode ->
+            pendingStart = true
+            pendingLanguageCode = languageCode
+        }
+    }
+
     // Update callbacks
     LaunchedEffect(onResult, onError, onPartialResult) {
         state.onResult = onResult

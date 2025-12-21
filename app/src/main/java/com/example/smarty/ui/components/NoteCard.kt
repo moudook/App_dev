@@ -331,8 +331,12 @@ fun NoteCard(
                         ) {
                             // Type Icon (Enhanced Container)
                             // If AI created, use AI icon and accent color. Otherwise, use type-specific icon/color.
-                            val iconVector = if (note.isAiCreated) Icons.Default.AutoAwesome else getNoteTypeIcon(note.type)
-                            val iconTint = if (note.isAiCreated) LocalAccentColor.current else getNoteTypeColor(note.type)
+                            // Memoized to avoid recomputation on every recomposition
+                            val iconVector = remember(note.isAiCreated, note.type) {
+                                if (note.isAiCreated) Icons.Default.AutoAwesome else getNoteTypeIcon(note.type)
+                            }
+                            val typeColor = remember(note.type) { getNoteTypeColor(note.type) }
+                            val iconTint = if (note.isAiCreated) LocalAccentColor.current else typeColor
                             
                             
                             Surface(
@@ -390,8 +394,10 @@ fun NoteCard(
                         }
                     }
 
-                    // Body Content
-                    val displayText = note.summary ?: note.content
+                    // Body Content - memoized to avoid recomputation
+                    val displayText = remember(note.summary, note.content) {
+                        note.summary ?: note.content
+                    }
                     // Only show body if we have content
                     if (displayText.isNotBlank()) {
                         Text(

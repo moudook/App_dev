@@ -189,8 +189,9 @@ object LazyDecompressor {
         priority: Priority = Priority.NORMAL,
         onComplete: ((DecompressionResult) -> Unit)? = null
     ) {
-        // Check cache first
-        runBlocking {
+        // Check cache first using async instead of runBlocking to avoid ANR
+        workerScope.launch {
+            var cacheHit = false
             cacheMutex.withLock {
                 decompressedCache?.get(fileId)?.let { cached ->
                     if (cached.file.exists()) {
@@ -202,32 +203,33 @@ object LazyDecompressor {
                             fromCache = true
                         )
                         onComplete?.invoke(result)
-                        return@runBlocking
+                        cacheHit = true
                     }
                 }
             }
-        }
 
-        // Not in cache, queue for decompression
-        val request = DecompressionRequest(
-            id = fileId,
-            compressedFile = compressedFile,
-            compressionType = compressionType,
-            cacheDir = cacheDir,
-            priority = priority,
-            callback = onComplete,
-            requestTime = System.currentTimeMillis()
-        )
+            // If cache hit, we're done
+            if (cacheHit) return@launch
 
-        pendingRequests[fileId] = request
-        updateState(fileId, DecompState.QUEUED)
+            // Not in cache, queue for decompression
+            val request = DecompressionRequest(
+                id = fileId,
+                compressedFile = compressedFile,
+                compressionType = compressionType,
+                cacheDir = cacheDir,
+                priority = priority,
+                callback = onComplete,
+                requestTime = System.currentTimeMillis()
+            )
 
-        // Send to channel (wakes worker)
-        workerScope.launch {
+            pendingRequests[fileId] = request
+            updateState(fileId, DecompState.QUEUED)
+
+            // Send to channel (wakes worker)
             requestChannel.send(request)
-        }
 
-        Log.d(TAG, "Queued: $fileId, priority=$priority")
+            Log.d(TAG, "Queued: $fileId, priority=$priority")
+        }
     }
 
     /**
@@ -312,14 +314,26 @@ object LazyDecompressor {
     }
 
     /**
-     * Clear the entire cache
+     * Clear the entire cache.
+     * Uses async to avoid blocking main thread.
      */
     fun clearCache() {
-        runBlocking {
+        workerScope.launch {
             cacheMutex.withLock {
                 decompressedCache?.evictAll()
                 currentCacheSize = 0
             }
+            Log.d(TAG, "Cache cleared")
+        }
+    }
+
+    /**
+     * Clear the entire cache synchronously (use from coroutine context only).
+     */
+    suspend fun clearCacheSync() {
+        cacheMutex.withLock {
+            decompressedCache?.evictAll()
+            currentCacheSize = 0
         }
         Log.d(TAG, "Cache cleared")
     }

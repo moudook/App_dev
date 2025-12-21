@@ -1,5 +1,6 @@
 package com.example.smarty.ui.screens
 
+import android.graphics.BlurMaskFilter
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -19,6 +20,8 @@ import com.example.smarty.ui.LocalAccentColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * =============================================================================
@@ -90,26 +93,16 @@ private fun rememberStartupLifecycleState(): State<Boolean> {
 }
 
 /**
- * Startup Animation: "The Living Orb" (Main Loading Screen)
- *
- * NOTE: VISUAL FIDELITY PRESERVED - PERFORMANCE OPTIMIZED
- * The animation appearance is unchanged; only internal calculations optimized.
+ * Startup Animation: "Three Blurred Circles"
  *
  * Design Concept:
- * - "AI Companion": A central, sentient presence (like a soul or core).
- * - "Nature": Organic breathing rhythm, soft cloud-like gradients.
- * - "Cloud App": Ethereal, gaseous layers of light.
+ * - 3 softly blurred colored circles that float and breathe
+ * - Organic, dreamy motion with overlapping colors
+ * - Creates a calming, ethereal loading experience
  *
- * Visuals:
- * - A core "Spirit" that pulses.
- * - Surrounding "Aura" layers that undulate like deep breaths.
- * - Smooth, harmonic motion.
- *
- * OPTIMIZATION v2.0:
- * - LIFECYCLE AWARE: Pauses breathing when app backgrounded
- * - Pre-computed brushes with fixed maximum radius (eliminates 3 allocations/frame)
- * - Bhaskara I sine approximation (3x faster than kotlin.math.sin)
- * - derivedStateOf batches all wave calculations
+ * OPTIMIZATION:
+ * - LIFECYCLE AWARE: Pauses animation when app backgrounded
+ * - Bhaskara I sine approximation for smooth motion
  */
 @Composable
 fun StartupScreen(
@@ -122,7 +115,6 @@ fun StartupScreen(
     val isActive by rememberStartupLifecycleState()
 
     // --- MATHEMATICAL DRIVERS ---
-    // Lifecycle-aware breathing animation
     val infiniteTransition = if (isActive) {
         rememberInfiniteTransition(label = "breath")
     } else null
@@ -138,7 +130,7 @@ fun StartupScreen(
             label = "theta"
         )
     } else {
-        remember { mutableStateOf(0f) } // Static when paused
+        remember { mutableStateOf(0f) }
     }
 
     // Interaction Scalars
@@ -148,7 +140,7 @@ fun StartupScreen(
 
     // --- SYSTEM INITIALIZATION ---
     LaunchedEffect(Unit) {
-        // Phase 1: Waking Up (Sigmoid Fade In)
+        // Phase 1: Fade In
         introAlpha.animateTo(
             targetValue = 1f,
             animationSpec = tween(1500, easing = EaseInOutSine)
@@ -156,12 +148,12 @@ fun StartupScreen(
 
         delay(2500)
 
-        // Phase 2: Recognition
+        // Phase 2: Show Logo
         launch {
             logoAlpha.animateTo(1f, tween(800))
         }
 
-        // Phase 3: The Embrace (Exponential Expansion)
+        // Phase 3: Expansion
         expansionScale.animateTo(
             targetValue = 40f,
             animationSpec = tween(1200, easing = EaseInExpo)
@@ -170,73 +162,58 @@ fun StartupScreen(
         onComplete()
     }
 
-    // OPTIMIZATION: Pre-compute base size in pixels (avoid per-frame density conversion)
     val density = LocalDensity.current
-    val baseSizePx = remember(density) { with(density) { 100.dp.toPx() } }
+    val baseSizePx = remember(density) { with(density) { 80.dp.toPx() } }
+    val blurRadiusPx = remember(density) { with(density) { 60.dp.toPx() } }
 
-    // OPTIMIZATION: Pre-computed brushes with FIXED maximum radius
-    // The visual effect is identical because radial gradients fade to transparent
-    // Max radius during expansion (scale 40) = baseSizePx * 2.4 * 40 = very large
-    // We use a large fixed radius; the draw radius controls visible area
-    val maxBrushRadius = baseSizePx * 100f  // Large enough for max expansion
+    // All 3 circles use the same blue color with varying alpha
+    val blueColor = Color(0xFF3B82F6)  // Blue color
+    val circle1Color = remember { blueColor.copy(alpha = 0.7f) }
+    val circle2Color = remember { blueColor.copy(alpha = 0.6f) }
+    val circle3Color = remember { blueColor.copy(alpha = 0.65f) }
 
-    val auraBrush = remember(accentColor, maxBrushRadius) {
-        Brush.radialGradient(
-            colors = listOf(accentColor, Color.Transparent),
-            radius = maxBrushRadius
-        )
-    }
-
-    val cloudBrush = remember(accentColor, maxBrushRadius) {
-        Brush.radialGradient(
-            colors = listOf(accentColor, accentColor.copy(alpha = 0.2f), Color.Transparent),
-            radius = maxBrushRadius
-        )
-    }
-
-    val coreBrush = remember(accentColor, maxBrushRadius) {
-        Brush.radialGradient(
-            colors = listOf(accentColor, accentColor.copy(alpha = 0.5f), Color.Transparent),
-            radius = maxBrushRadius
-        )
-    }
-
-    // OPTIMIZATION: Batch all wave calculations into single derived state
-    // Returns static state when lifecycle is paused to prevent GPU work
-    val orbState by remember {
+    // Blurred circle state
+    val circlesState by remember {
         derivedStateOf {
             val globalExpand = expansionScale.value
             val globalAlpha = introAlpha.value
 
             if (globalAlpha <= 0f) {
-                OrbState.HIDDEN
-            } else if (!isActive) {
-                // Return static state when paused - still visible but not animating
-                OrbState(
-                    visible = true,
-                    auraRadius = baseSizePx * 2.2f * globalExpand,
-                    auraAlpha = (0.2f * globalAlpha).coerceIn(0f, 1f),
-                    cloudRadius = baseSizePx * 1.5f * globalExpand,
-                    cloudAlpha = (0.4f * globalAlpha).coerceIn(0f, 1f),
-                    coreRadius = baseSizePx * 0.9f * globalExpand,
-                    coreAlpha = (0.9f * globalAlpha).coerceIn(0f, 1f),
-                    floatY = 0f
-                )
+                CirclesState.HIDDEN
             } else {
-                val auraWave = fastSin(breathPhase)
-                val cloudWave = fastSin(breathPhase + PI_F * 0.25f)
-                val coreWave = fastSin(breathPhase)
-                val beat = (coreWave + 1f) * 0.5f
+                val phase = if (isActive) breathPhase else 0f
 
-                OrbState(
+                // Circle 1 - top left, moves in circular pattern
+                val c1Angle = phase
+                val c1Distance = baseSizePx * 0.8f * (1f + fastSin(phase * 0.5f) * 0.2f)
+                val c1X = cos(c1Angle) * c1Distance
+                val c1Y = sin(c1Angle) * c1Distance - baseSizePx * 0.3f
+                val c1Radius = baseSizePx * (1.2f + fastSin(phase) * 0.15f) * globalExpand
+
+                // Circle 2 - bottom right, opposite phase
+                val c2Angle = phase + PI_F * 0.66f
+                val c2Distance = baseSizePx * 0.7f * (1f + fastSin(phase * 0.7f + 1f) * 0.25f)
+                val c2X = cos(c2Angle) * c2Distance
+                val c2Y = sin(c2Angle) * c2Distance + baseSizePx * 0.2f
+                val c2Radius = baseSizePx * (1.0f + fastSin(phase + PI_F * 0.5f) * 0.2f) * globalExpand
+
+                // Circle 3 - center-ish, gentle float
+                val c3Angle = phase + PI_F * 1.33f
+                val c3Distance = baseSizePx * 0.5f * (1f + fastSin(phase * 0.3f + 2f) * 0.15f)
+                val c3X = cos(c3Angle) * c3Distance
+                val c3Y = sin(c3Angle) * c3Distance + fastSin(phase * 0.8f) * baseSizePx * 0.15f
+                val c3Radius = baseSizePx * (0.9f + fastSin(phase + PI_F) * 0.1f) * globalExpand
+
+                CirclesState(
                     visible = true,
-                    auraRadius = baseSizePx * (2.2f + auraWave * 0.1f) * globalExpand,
-                    auraAlpha = ((0.2f + auraWave * 0.05f) * globalAlpha).coerceIn(0f, 1f),
-                    cloudRadius = baseSizePx * (1.5f + cloudWave * 0.15f) * globalExpand,
-                    cloudAlpha = ((0.4f + cloudWave * 0.1f) * globalAlpha).coerceIn(0f, 1f),
-                    coreRadius = baseSizePx * (0.8f + beat * 0.2f) * globalExpand,
-                    coreAlpha = ((0.8f + beat * 0.2f) * globalAlpha).coerceIn(0f, 1f),
-                    floatY = 10f * fastSin(breathPhase * 0.5f)
+                    globalAlpha = globalAlpha,
+                    c1Offset = Offset(c1X, c1Y),
+                    c1Radius = c1Radius,
+                    c2Offset = Offset(c2X, c2Y),
+                    c2Radius = c2Radius,
+                    c3Offset = Offset(c3X, c3Y),
+                    c3Radius = c3Radius,
+                    blurRadius = blurRadiusPx * globalExpand.coerceAtMost(3f)
                 )
             }
         }
@@ -250,32 +227,47 @@ fun StartupScreen(
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = this.center
-            val state = orbState
+            val state = circlesState
 
             if (state.visible) {
-                // 1. AURA LAYER - Outermost ethereal glow
-                drawCircle(
-                    brush = auraBrush,
-                    radius = state.auraRadius,
-                    center = center,
-                    alpha = state.auraAlpha
-                )
+                // Create blur paint
+                val blurPaint = Paint().asFrameworkPaint().apply {
+                    isAntiAlias = true
+                    maskFilter = BlurMaskFilter(
+                        state.blurRadius.coerceAtLeast(1f),
+                        BlurMaskFilter.Blur.NORMAL
+                    )
+                }
 
-                // 2. CLOUD LAYER - Middle gaseous layer
-                drawCircle(
-                    brush = cloudBrush,
-                    radius = state.cloudRadius,
-                    center = center,
-                    alpha = state.cloudAlpha
-                )
+                // Draw 3 blurred circles
+                drawContext.canvas.nativeCanvas.apply {
+                    // Circle 1
+                    blurPaint.color = circle1Color.copy(alpha = circle1Color.alpha * state.globalAlpha).toArgb()
+                    drawCircle(
+                        center.x + state.c1Offset.x,
+                        center.y + state.c1Offset.y,
+                        state.c1Radius,
+                        blurPaint
+                    )
 
-                // 3. CORE LAYER - Inner soul with subtle float
-                drawCircle(
-                    brush = coreBrush,
-                    radius = state.coreRadius,
-                    center = Offset(center.x, center.y + state.floatY),
-                    alpha = state.coreAlpha
-                )
+                    // Circle 2
+                    blurPaint.color = circle2Color.copy(alpha = circle2Color.alpha * state.globalAlpha).toArgb()
+                    drawCircle(
+                        center.x + state.c2Offset.x,
+                        center.y + state.c2Offset.y,
+                        state.c2Radius,
+                        blurPaint
+                    )
+
+                    // Circle 3
+                    blurPaint.color = circle3Color.copy(alpha = circle3Color.alpha * state.globalAlpha).toArgb()
+                    drawCircle(
+                        center.x + state.c3Offset.x,
+                        center.y + state.c3Offset.y,
+                        state.c3Radius,
+                        blurPaint
+                    )
+                }
             }
         }
 
@@ -312,18 +304,19 @@ fun StartupScreen(
     }
 }
 
-/** Pre-computed orb state for StartupScreen (batched wave calculations) */
-private data class OrbState(
+/** State for 3 blurred circles animation */
+private data class CirclesState(
     val visible: Boolean,
-    val auraRadius: Float = 0f,
-    val auraAlpha: Float = 0f,
-    val cloudRadius: Float = 0f,
-    val cloudAlpha: Float = 0f,
-    val coreRadius: Float = 0f,
-    val coreAlpha: Float = 0f,
-    val floatY: Float = 0f
+    val globalAlpha: Float = 1f,
+    val c1Offset: Offset = Offset.Zero,
+    val c1Radius: Float = 0f,
+    val c2Offset: Offset = Offset.Zero,
+    val c2Radius: Float = 0f,
+    val c3Offset: Offset = Offset.Zero,
+    val c3Radius: Float = 0f,
+    val blurRadius: Float = 60f
 ) {
     companion object {
-        val HIDDEN = OrbState(visible = false)
+        val HIDDEN = CirclesState(visible = false)
     }
 }

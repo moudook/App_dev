@@ -230,49 +230,56 @@ data class AIProviderConfig(
     val selectedModel: String = AIModels.getDefaultModel(provider)
 )
 
-class SecurePreferences(context: Context) {
+class SecurePreferences(private val context: Context) {
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    // Lazy initialization to avoid blocking main thread during ViewModel creation
+    // EncryptedSharedPreferences and MasterKey can be slow to initialize
+    private val masterKey: MasterKey by lazy {
+        MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
 
-    private val encryptedPrefs = EncryptedSharedPreferences.create(
-        context,
-        "cogni_secure_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val encryptedPrefs: android.content.SharedPreferences by lazy {
+        EncryptedSharedPreferences.create(
+            context,
+            "cogni_secure_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     private val gson = Gson()
 
     // Lock for compound read-modify-write operations (BUG-023 fix)
     private val keyOperationLock = Any()
 
-    private val _isPinSet = MutableStateFlow(isPinConfigured())
-    val isPinSet: StateFlow<Boolean> = _isPinSet.asStateFlow()
+    // Lazy StateFlows - initialized on first access to avoid blocking constructor
+    private val _isPinSet: MutableStateFlow<Boolean> by lazy { MutableStateFlow(isPinConfigured()) }
+    val isPinSet: StateFlow<Boolean> by lazy { _isPinSet.asStateFlow() }
 
     // Legacy single API key for backward compatibility
-    private val _apiKey = MutableStateFlow(getApiKey())
-    val apiKey: StateFlow<String?> = _apiKey.asStateFlow()
+    private val _apiKey: MutableStateFlow<String?> by lazy { MutableStateFlow(getApiKey()) }
+    val apiKey: StateFlow<String?> by lazy { _apiKey.asStateFlow() }
 
     // Multi-provider API key states
-    private val _geminiKeys = MutableStateFlow(getProviderKeys(AIProvider.GEMINI))
-    val geminiKeys: StateFlow<List<String>> = _geminiKeys.asStateFlow()
+    private val _geminiKeys: MutableStateFlow<List<String>> by lazy { MutableStateFlow(getProviderKeys(AIProvider.GEMINI)) }
+    val geminiKeys: StateFlow<List<String>> by lazy { _geminiKeys.asStateFlow() }
 
-    private val _huggingFaceKeys = MutableStateFlow(getProviderKeys(AIProvider.HUGGINGFACE))
-    val huggingFaceKeys: StateFlow<List<String>> = _huggingFaceKeys.asStateFlow()
+    private val _huggingFaceKeys: MutableStateFlow<List<String>> by lazy { MutableStateFlow(getProviderKeys(AIProvider.HUGGINGFACE)) }
+    val huggingFaceKeys: StateFlow<List<String>> by lazy { _huggingFaceKeys.asStateFlow() }
 
-    private val _providerConfigs = MutableStateFlow(getAllProviderConfigs())
-    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = _providerConfigs.asStateFlow()
+    private val _providerConfigs: MutableStateFlow<Map<AIProvider, AIProviderConfig>> by lazy { MutableStateFlow(getAllProviderConfigs()) }
+    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> by lazy { _providerConfigs.asStateFlow() }
 
     // Provider priority order - separate StateFlow for UI reactivity
-    private val _providerPriorityOrder = MutableStateFlow(getProviderPriority())
-    val providerPriorityOrder: StateFlow<List<AIProvider>> = _providerPriorityOrder.asStateFlow()
+    private val _providerPriorityOrder: MutableStateFlow<List<AIProvider>> by lazy { MutableStateFlow(getProviderPriority()) }
+    val providerPriorityOrder: StateFlow<List<AIProvider>> by lazy { _providerPriorityOrder.asStateFlow() }
 
     // Theme preference
-    private val _isDarkTheme = MutableStateFlow(getDarkThemePreference())
-    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
+    private val _isDarkTheme: MutableStateFlow<Boolean> by lazy { MutableStateFlow(getDarkThemePreference()) }
+    val isDarkTheme: StateFlow<Boolean> by lazy { _isDarkTheme.asStateFlow() }
 
     // Provider Priority Management
     // Default order: GROQ first, then others

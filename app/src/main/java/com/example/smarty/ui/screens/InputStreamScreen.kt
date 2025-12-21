@@ -399,11 +399,14 @@ fun InputStreamScreen(
                 }
             }
 
-            if (fileName == null) fileName = uri.lastPathSegment ?: "Unknown"
+            // Safe fallback chain - never force unwrap
+            val safeName = fileName
+                ?: uri.lastPathSegment
+                ?: "Unknown_${System.currentTimeMillis()}"
 
             Attachment(
                 uri = uri,
-                fileName = fileName!!,
+                fileName = safeName,
                 mimeType = mimeType,
                 fileSize = fileSize
             )
@@ -721,33 +724,36 @@ fun InputStreamScreen(
                                 contentPadding = PaddingValues(horizontal = 24.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                item {
+                                item(key = "all") {
                                     NoteTypeChip(
                                         label = "All",
                                         isSelected = selectedTypeFilter == null && !isAiFilterSelected,
-                                        onClick = { 
+                                        onClick = {
                                             selectedTypeFilter = null
                                             isAiFilterSelected = false
                                         },
                                         icon = Icons.Default.GridView
                                     )
                                 }
-                                item {
+                                item(key = "ai") {
                                     NoteTypeChip(
                                         label = "AI",
                                         isSelected = isAiFilterSelected,
-                                        onClick = { 
+                                        onClick = {
                                             isAiFilterSelected = true
                                             selectedTypeFilter = null
                                         },
                                         icon = Icons.Default.AutoAwesome
                                     )
                                 }
-                                items(availableTypes) { type ->
+                                items(
+                                    items = availableTypes,
+                                    key = { it.name }
+                                ) { type ->
                                     NoteTypeChip(
                                         label = "",
                                         isSelected = selectedTypeFilter == type,
-                                        onClick = { 
+                                        onClick = {
                                             selectedTypeFilter = type
                                             isAiFilterSelected = false
                                         },
@@ -810,11 +816,16 @@ fun InputStreamScreen(
                         ) {
                             items(
                                 items = chatMessages,
-                                key = { it.id }
+                                key = { it.id },
+                                contentType = { it.role }
                             ) { message ->
+                                // Stabilize getNote lambda - only recreate when notes change
+                                val stableGetNote = remember(notes) {
+                                    { id: String -> notes.find { it.id == id } }
+                                }
                                 ChatMessageItem(
                                     message = message,
-                                    getNote = { id -> notes.find { it.id == id } },
+                                    getNote = stableGetNote,
                                     onNoteClick = onNoteClick
                                 )
                             }
@@ -858,40 +869,61 @@ fun InputStreamScreen(
                         ) {
                             itemsIndexed(
                                 items = displayedNotes,
-                                key = { _, note -> note.id }
+                                key = { _, note -> note.id },
+                                contentType = { _, note -> note.processingStatus }
                             ) { index, note ->
+                                // Stabilize lambdas to prevent recomposition
+                                val stableOnClick = remember(note.id, isSelectionMode) {
+                                    {
+                                        if (isSelectionMode) toggleSelection(note.id)
+                                        else onNoteClick(note)
+                                    }
+                                }
+                                val stableOnDelete = remember(note) {
+                                    {
+                                        noteToDelete = note
+                                        showDeleteDialog = true
+                                    }
+                                }
+                                val stableOnOpenTodo = remember(note) {
+                                    { selectedNoteForTodo = note }
+                                }
+                                val stableOnArchive: () -> Unit = remember(note.id) {
+                                    {
+                                        lastArchivedNoteId = note.id
+                                        onArchiveNote(note.id)
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "Note archived",
+                                                duration = SnackbarDuration.Short
+                                            )
+                                            if (result == SnackbarResult.Dismissed && lastArchivedNoteId == note.id) {
+                                                lastArchivedNoteId = null
+                                            }
+                                        }
+                                    }
+                                }
+                                val stableOnLongPress = remember(note.id) {
+                                    {
+                                        isSelectionMode = true
+                                        selectedNoteIds = setOf(note.id)
+                                    }
+                                }
+                                val isNoteSelected = remember(selectedNoteIds, note.id) {
+                                    note.id in selectedNoteIds
+                                }
+
                                 Box(modifier = Modifier.animateItem()) {
                                     AnimatedNoteItem(
                                         note = note,
                                         index = index,
-                                        onClick = {
-                                            if (isSelectionMode) toggleSelection(note.id)
-                                            else onNoteClick(note)
-                                        },
-                                        onDelete = {
-                                            noteToDelete = note
-                                            showDeleteDialog = true
-                                        },
-                                        onOpenTodo = { selectedNoteForTodo = note },
-                                        onArchive = {
-                                            lastArchivedNoteId = note.id
-                                            onArchiveNote(note.id)
-                                            scope.launch {
-                                                val result = snackbarHostState.showSnackbar(
-                                                    message = "Note archived",
-                                                    duration = SnackbarDuration.Short
-                                                )
-                                                if (result == SnackbarResult.Dismissed && lastArchivedNoteId == note.id) {
-                                                    lastArchivedNoteId = null
-                                                }
-                                            }
-                                        },
-                                        isSelected = note.id in selectedNoteIds,
+                                        onClick = stableOnClick,
+                                        onDelete = stableOnDelete,
+                                        onOpenTodo = stableOnOpenTodo,
+                                        onArchive = stableOnArchive,
+                                        isSelected = isNoteSelected,
                                         isSelectionMode = isSelectionMode,
-                                        onLongPress = {
-                                            isSelectionMode = true
-                                            selectedNoteIds = setOf(note.id)
-                                        },
+                                        onLongPress = stableOnLongPress,
                                         onPlayYouTube = onPlayYouTube
                                     )
                                 }

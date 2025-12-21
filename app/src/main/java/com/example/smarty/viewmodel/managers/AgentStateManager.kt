@@ -168,14 +168,19 @@ class AgentStateManager(private val scope: CoroutineScope) {
 
     /**
      * Start the elapsed time timer.
+     * Has maximum iteration guard to prevent infinite loops.
      */
     private fun startTimer(initialState: DynamicIslandState) {
         timerJob?.cancel()
         val startTime = System.currentTimeMillis()
+        // Safety guard: max iterations = timeout + 10 seconds buffer
+        val maxIterations = TOOL_TIMEOUT_SECONDS + 10
 
         timerJob = scope.launch {
-            while (true) {
+            var iterations = 0
+            while (iterations < maxIterations) {
                 delay(1000)
+                iterations++
                 val elapsed = ((System.currentTimeMillis() - startTime) / 1000).toInt()
 
                 when (val current = _agentState.value) {
@@ -194,6 +199,12 @@ class AgentStateManager(private val scope: CoroutineScope) {
                     showError("Tool timeout")
                     break
                 }
+            }
+
+            // Safety: log if max iterations reached (should never happen with proper timeout)
+            if (iterations >= maxIterations) {
+                Log.e(TAG, "Timer exceeded max iterations ($maxIterations), forcing stop")
+                showError("Operation timed out")
             }
         }
     }
