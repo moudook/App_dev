@@ -32,16 +32,33 @@ class SpeechToTextState(
 ) {
     var isListening by mutableStateOf(false)
         internal set
-    
+
     var rmsDb by mutableStateOf(0f)
         internal set
-        
+
+    // Track which mode initiated speech to prevent cross-mode text insertion
+    var speechInitiatedInChatMode by mutableStateOf<Boolean?>(null)
+        internal set
+
     // External callbacks
     var onResult: ((String) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
     var onPartialResult: ((String) -> Unit)? = null
 
+    /**
+     * Start listening with mode context.
+     * @param isChatMode true if initiated from chat mode, false for normal mode
+     */
+    fun startListening(isChatMode: Boolean, languageCode: String? = null) {
+        speechInitiatedInChatMode = isChatMode
+        startListeningInternal(languageCode)
+    }
+
     fun startListening(languageCode: String? = null) {
+        startListeningInternal(languageCode)
+    }
+
+    private fun startListeningInternal(languageCode: String? = null) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startRecognition(languageCode)
         } else {
@@ -54,6 +71,7 @@ class SpeechToTextState(
             speechRecognizer?.stopListening()
             isListening = false
             rmsDb = 0f
+            speechInitiatedInChatMode = null // Reset mode tracking
         } catch (e: Exception) {
             Log.e("SpeechToText", "Error stopping: ${e.message}")
         }

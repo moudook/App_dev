@@ -211,6 +211,19 @@ class SecurePreferences(context: Context) {
     val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
 
     // Provider Priority Management
+    // Default order: GROQ first, then others
+    private val defaultProviderPriority = listOf(
+        AIProvider.GROQ,      // Top priority
+        AIProvider.GEMINI,
+        AIProvider.DEEPSEEK,
+        AIProvider.CEREBRAS,
+        AIProvider.COHERE,
+        AIProvider.OPENAI,
+        AIProvider.OPENROUTER,
+        AIProvider.ANTHROPIC,
+        AIProvider.HUGGINGFACE
+    )
+
     fun getProviderPriority(): List<AIProvider> {
         val json = encryptedPrefs.getString(KEY_PROVIDER_PRIORITY, null)
         if (json != null) {
@@ -223,7 +236,7 @@ class SecurePreferences(context: Context) {
                 // Return default order if parsing fails
             }
         }
-        return AIProvider.entries.toList()
+        return defaultProviderPriority
     }
 
     fun setProviderPriority(priority: List<AIProvider>) {
@@ -252,6 +265,7 @@ class SecurePreferences(context: Context) {
         private const val KEY_PROVIDER_ENABLED_PREFIX = "provider_enabled_"
         private const val KEY_PROVIDER_MODEL_PREFIX = "provider_model_"
         private const val KEY_PROVIDER_PRIORITY = "provider_priority"
+        private const val KEY_GROQ_DYNAMIC_MODELS = "groq_dynamic_models"
         private const val KEY_DARK_THEME = "dark_theme"
         // Backup settings
         private const val KEY_GOOGLE_ACCOUNT_EMAIL = "google_account_email"
@@ -595,5 +609,48 @@ class SecurePreferences(context: Context) {
      */
     fun hasTavilyApiKey(): Boolean {
         return !getTavilyApiKey().isNullOrBlank()
+    }
+
+    // ==================== Dynamic Model Management ====================
+
+    /**
+     * Get available models for a provider, prioritizing dynamic models if present.
+     */
+    fun getAvailableModels(provider: AIProvider): List<Pair<String, String>> {
+        val dynamicModels = getDynamicModels(provider)
+        if (dynamicModels.isNotEmpty()) {
+            return dynamicModels
+        }
+        return AIModels.getModelsForProvider(provider)
+    }
+
+    /**
+     * Get dynamic models from secure storage.
+     */
+    fun getDynamicModels(provider: AIProvider): List<Pair<String, String>> {
+        // Currently only supporting Groq logic
+        if (provider != AIProvider.GROQ) return emptyList()
+
+        val json = encryptedPrefs.getString(KEY_GROQ_DYNAMIC_MODELS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<Pair<String, String>>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Set dynamic models for a provider.
+     */
+    fun setDynamicModels(provider: AIProvider, models: List<Pair<String, String>>) {
+        if (provider != AIProvider.GROQ) return
+
+        if (models.isEmpty()) {
+            encryptedPrefs.edit().remove(KEY_GROQ_DYNAMIC_MODELS).apply()
+        } else {
+            val json = gson.toJson(models)
+            encryptedPrefs.edit().putString(KEY_GROQ_DYNAMIC_MODELS, json).apply()
+        }
     }
 }

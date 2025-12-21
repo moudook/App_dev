@@ -4,6 +4,9 @@ import android.util.Log
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.util.api.ProviderFailoverManager
+import com.example.smarty.util.api.GroqKeyManager
+import com.example.smarty.util.api.GroqKeyConfig
+import com.example.smarty.util.api.KeyPurpose
 import ai.koog.prompt.executor.model.PromptExecutor
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import ai.koog.prompt.executor.llms.all.simpleAnthropicExecutor
@@ -21,9 +24,11 @@ import ai.koog.prompt.llm.LLMProvider
 /**
  * Provides configured prompt executor based on user's API key settings.
  * Supports provider priority fallback with circuit breaker pattern.
+ * Integrates with GroqKeyManager for per-key rate limit tracking.
  */
 class CogniAgentProvider(
-    private val securePreferences: SecurePreferences
+    private val securePreferences: SecurePreferences,
+    private val groqKeyManager: GroqKeyManager? = null
 ) {
     companion object {
         private const val TAG = "CogniAgentProvider"
@@ -31,6 +36,10 @@ class CogniAgentProvider(
 
     // Failover manager for circuit breaker and health tracking
     private val failoverManager = ProviderFailoverManager.getInstance()
+
+    // 2-key rotation: alternate between 2 keys per message
+    @Volatile
+    private var keyRotationIndex = 0
 
     /**
      * Result of attempting to get an executor.
@@ -59,69 +68,71 @@ class CogniAgentProvider(
     }
 
     /**
-     * Get available executors for the AI Agent in priority order.
+     * Get available executors for the AI Agent.
      *
-     * KEY SEPARATION ARCHITECTURE:
-     * - Agent uses Keys 1 and 2 (dedicated agent keys with failover)
-     * - Keys 3, 4, 5... are reserved for AIService (background operations)
-     * - If both agent keys fail, falls back to next provider
+     * 2-KEY ROTATION STRATEGY:
+     * - Only use 2 keys at a time (reduces rate limit issues)
+     * - Alternate between keys on each message
+     * - Koog framework handles memory/context
+     * - If both fail, rotate to next pair
      *
      * This ensures:
-     * - Agent has 2 keys for reliability (Key 1 → Key 2 → next provider)
-     * - Background operations use Keys 3-5 without affecting agent
-     * - No rate limit conflicts between agent and background tasks
+     * - Better rate limit handling (spread load across 2 keys)
+     * - Simpler failover (try key A, if fail try key B)
+     * - Automatic rotation on each call
      */
     fun getAllAvailableExecutors(): List<ExecutorResult.Success> {
-        val priority = securePreferences.getProviderPriority()
         val executors = mutableListOf<ExecutorResult.Success>()
 
-        // Get healthy providers in priority order
-        val healthyProviders = failoverManager.getOrderedHealthyProviders(priority)
+        // GROQ-ONLY: Only use GROQ provider
+        val provider = AIProvider.GROQ
 
-        for (provider in healthyProviders) {
-            if (!securePreferences.isProviderEnabled(provider)) continue
+        if (!securePreferences.isProviderEnabled(provider)) {
+            Log.w(TAG, "GROQ is not enabled - no executors available")
+            return executors
+        }
 
-            val allKeys = securePreferences.getProviderKeys(provider)
-            if (allKeys.isEmpty()) continue
+        val allKeys = securePreferences.getProviderKeys(provider)
+        if (allKeys.isEmpty()) {
+            Log.w(TAG, "No GROQ API keys configured")
+            return executors
+        }
 
-            val selectedModel = securePreferences.getSelectedModel(provider)
+        val selectedModel = securePreferences.getSelectedModel(provider)
 
-            // Agent uses same keys as notecard processing (Keys 3, 4, 5...)
-            // Skip Keys 1-2, use Keys 3+ for both agent and AIService
-            val agentKeys = allKeys.drop(2) // Skip first 2 keys, use Keys 3, 4, 5...
-            val healthyAgentKeys = agentKeys.filter { !failoverManager.isKeyFailed(it) }
+        // 2-KEY ROTATION: Select 2 keys based on rotation index
+        // Rotate through pairs: (0,1), (2,3), (4,5), etc.
+        val pairIndex = (keyRotationIndex / 2) % ((allKeys.size + 1) / 2)
+        val primaryKeyIndex = (pairIndex * 2) % allKeys.size
+        val secondaryKeyIndex = ((pairIndex * 2) + 1) % allKeys.size
 
-            if (healthyAgentKeys.isEmpty()) {
-                Log.d(TAG, "Skipping $provider - all agent keys (3+) temporarily failed, trying next provider")
-                continue
-            }
+        // Alternate which key is tried first within the pair
+        val tryPrimaryFirst = (keyRotationIndex % 2) == 0
+        keyRotationIndex++ // Increment for next call
 
-            Log.d(TAG, "Agent using $provider with ${healthyAgentKeys.size} healthy key(s) [KEY-3+], model: $selectedModel")
+        val keysToUse = if (tryPrimaryFirst) {
+            listOf(primaryKeyIndex, secondaryKeyIndex)
+        } else {
+            listOf(secondaryKeyIndex, primaryKeyIndex)
+        }
 
-            // Create executor entries for agent keys (Keys 3, 4, 5...)
-            for (apiKey in healthyAgentKeys) {
-                val keyIndex = allKeys.indexOf(apiKey) + 1 // 1-indexed for logging
+        Log.d(TAG, "2-KEY ROTATION: Using keys ${keysToUse.map { it + 1 }} (rotation #$keyRotationIndex)")
+        Log.d(TAG, "Model: $selectedModel")
 
-                val result = when (provider) {
-                    AIProvider.GEMINI -> createGeminiExecutor(apiKey, selectedModel, keyIndex)
-                    AIProvider.ANTHROPIC -> createAnthropicExecutor(apiKey, selectedModel, keyIndex)
-                    AIProvider.OPENAI -> createOpenAIExecutor(apiKey, selectedModel, keyIndex)
-                    // OpenAI-compatible providers via OpenAI executor with custom base URL
-                    AIProvider.GROQ -> createGroqExecutor(apiKey, selectedModel, keyIndex)
-                    AIProvider.CEREBRAS -> createCerebrasExecutor(apiKey, selectedModel, keyIndex)
-                    AIProvider.COHERE -> createCohereExecutor(apiKey, selectedModel, keyIndex)
-                    AIProvider.DEEPSEEK -> createDeepSeekExecutor(apiKey, selectedModel, keyIndex)
-                    AIProvider.OPENROUTER -> createOpenRouterExecutor(apiKey, selectedModel, keyIndex)
-                    AIProvider.HUGGINGFACE -> ExecutorResult.UnsupportedProvider(provider)
-                }
+        // Create executors for the 2 selected keys
+        for (keyIdx in keysToUse) {
+            if (keyIdx < allKeys.size) {
+                val apiKey = allKeys[keyIdx]
+                val keyNumber = keyIdx + 1 // 1-indexed for logging
 
+                val result = createGroqExecutor(apiKey, selectedModel, keyNumber)
                 if (result is ExecutorResult.Success) {
                     executors.add(result)
                 }
             }
         }
 
-        Log.i(TAG, "Agent executors available: ${executors.size} (using KEY-3+ per provider)")
+        Log.i(TAG, "GROQ executors ready: ${executors.size} keys in rotation")
         return executors
     }
 
@@ -155,6 +166,76 @@ class CogniAgentProvider(
     fun resetProviderHealth(provider: AIProvider) {
         failoverManager.resetProvider(provider)
     }
+
+    // ==================== GroqKeyManager Integration ====================
+
+    /**
+     * Record a successful API call for a specific GROQ key.
+     * Updates both failover manager and GroqKeyManager.
+     */
+    suspend fun recordKeySuccess(apiKey: String) {
+        groqKeyManager?.recordCall(apiKey)
+    }
+
+    /**
+     * Record a rate limit for a specific GROQ key.
+     */
+    suspend fun recordKeyRateLimit(apiKey: String, retryAfterMs: Long? = null) {
+        groqKeyManager?.recordRateLimit(apiKey, retryAfterMs)
+    }
+
+    /**
+     * Record an error for a specific GROQ key.
+     */
+    suspend fun recordKeyError(apiKey: String, isAuthError: Boolean = false) {
+        groqKeyManager?.recordError(apiKey, isAuthError)
+    }
+
+    /**
+     * Sync GROQ keys from SecurePreferences to GroqKeyManager.
+     * Call this when keys are added/removed in settings.
+     */
+    suspend fun syncGroqKeys() {
+        groqKeyManager ?: return
+
+        val keys = securePreferences.getProviderKeys(AIProvider.GROQ)
+        if (keys.isEmpty()) return
+
+        // Create configs for each key with default settings
+        // Keys are assigned purposes based on their index:
+        // - First 3 keys: ORCHESTRATOR (main agent)
+        // - Next 2 keys: NOTE_PROCESSING (background)
+        // - Remaining: GENERAL (fallback)
+        val configs = keys.mapIndexed { index, key ->
+            val purpose = when {
+                index < 3 -> KeyPurpose.ORCHESTRATOR
+                index < 5 -> KeyPurpose.NOTE_PROCESSING
+                index < 7 -> KeyPurpose.RESEARCH
+                else -> KeyPurpose.GENERAL
+            }
+            val label = when (purpose) {
+                KeyPurpose.ORCHESTRATOR -> "Agent #${index + 1}"
+                KeyPurpose.NOTE_PROCESSING -> "Notes #${index - 2}"
+                KeyPurpose.RESEARCH -> "Research #${index - 4}"
+                KeyPurpose.GENERAL -> "Backup #${index - 6}"
+            }
+            GroqKeyConfig(
+                key = key,
+                label = label,
+                rateLimit = 30,      // Default GROQ rate limit
+                dailyLimit = 14400,  // Default GROQ daily limit
+                purpose = purpose
+            )
+        }
+
+        groqKeyManager.configureKeys(configs)
+        Log.i(TAG, "Synced ${configs.size} GROQ keys with GroqKeyManager")
+    }
+
+    /**
+     * Get the GroqKeyManager instance for UI access.
+     */
+    fun getGroqKeyManager(): GroqKeyManager? = groqKeyManager
 
     private fun createGeminiExecutor(apiKey: String, modelId: String, keyIndex: Int = 1): ExecutorResult {
         val model = mapGeminiModel(modelId)
@@ -277,20 +358,25 @@ class CogniAgentProvider(
     }
 
     /**
-     * Create a custom LLModel with a specific model ID for OpenAI-compatible providers.
-     * This allows using actual model IDs (e.g., "llama-3.3-70b-versatile" for GROQ)
-     * instead of mapping to OpenAI model names which would fail.
+     * Create a custom LLModel for OpenAI-compatible providers (GROQ, Cerebras, etc.).
+     *
+     * CRITICAL: Must include LLMCapability.OpenAIEndpoint.Completions so the
+     * OpenAILLMClient knows which API endpoint to use. Without this capability,
+     * the client throws "Cannot determine proper LLM params for OpenAI model".
+     *
+     * The executor uses OpenAIClientSettings with custom baseUrl to call GROQ/etc.
      */
     private fun createOpenAICompatibleModel(modelId: String): LLModel {
         return LLModel(
-            provider = LLMProvider.OpenAI,  // OpenAI-compatible API
-            id = modelId,                    // Actual model ID sent to API
+            provider = LLMProvider.OpenAI,    // Use OpenAI provider for OpenAI-compatible APIs
+            id = modelId,                      // Actual model ID sent to API
             capabilities = listOf(
                 LLMCapability.Temperature,
                 LLMCapability.Tools,
-                LLMCapability.Completion
+                LLMCapability.Completion,
+                LLMCapability.OpenAIEndpoint.Completions  // Required for OpenAILLMClient
             ),
-            contextLength = 128_000  // Conservative default
+            contextLength = 128_000  // GROQ/Llama models support large context
         )
     }
 
@@ -369,26 +455,38 @@ class CogniAgentProvider(
     }
 
     /**
-     * Check if any valid provider is configured.
-     * HuggingFace is the only unsupported provider.
+     * Check if GROQ is configured (the only supported provider for agent).
      */
     fun hasConfiguredProvider(): Boolean {
-        val priority = securePreferences.getProviderPriority()
-        return priority.any { provider ->
-            securePreferences.isProviderEnabled(provider) &&
-            securePreferences.getProviderKeys(provider).isNotEmpty() &&
-            provider != AIProvider.HUGGINGFACE // HuggingFace not supported for agent
-        }
+        return securePreferences.isProviderEnabled(AIProvider.GROQ) &&
+                securePreferences.getProviderKeys(AIProvider.GROQ).isNotEmpty()
+    }
+
+    /**
+     * Get the number of GROQ API keys configured.
+     * More keys = higher throughput potential.
+     */
+    fun getConfiguredKeyCount(): Int {
+        return securePreferences.getProviderKeys(AIProvider.GROQ).size
     }
 
     /**
      * Get the currently configured provider name for display.
+     * Always returns "GROQ" if configured, null otherwise.
      */
     fun getCurrentProviderName(): String? {
-        val result = getExecutor()
-        return when (result) {
-            is ExecutorResult.Success -> result.provider.name
-            else -> null
+        return if (hasConfiguredProvider()) "GROQ" else null
+    }
+
+    /**
+     * Get GROQ configuration status for display.
+     */
+    fun getGroqStatus(): String {
+        val keyCount = getConfiguredKeyCount()
+        return when {
+            keyCount == 0 -> "Not configured"
+            keyCount == 1 -> "1 API key"
+            else -> "$keyCount API keys (high throughput)"
         }
     }
 }

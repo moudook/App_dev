@@ -145,19 +145,25 @@ class PlayAudioTool(
 
     /**
      * Search notes for audio files matching the query.
-     * Matches against attachment filename and note title.
+     * Matches against attachment filename, note title, AND note content.
      */
     private fun findMatchingAudio(notes: List<Note>, query: String): AudioTrack? {
         val queryLower = query.lowercase().trim()
         val queryWords = queryLower.split(" ", "-", "_").filter { it.isNotBlank() }
 
+        Log.d(TAG, "Searching ${notes.size} notes for audio matching: '$queryLower'")
+
         // Score-based matching for better results
-        data class Match(val track: AudioTrack, val score: Int)
+        data class Match(val track: AudioTrack, val score: Int, val noteTitle: String)
         val matches = mutableListOf<Match>()
 
         for (note in notes) {
             val attachments = note.getAttachments()
                 .filter { it.mimeType.startsWith("audio/") }
+
+            if (attachments.isEmpty()) continue
+
+            Log.d(TAG, "Note '${note.title}' has ${attachments.size} audio attachments")
 
             for (attachment in attachments) {
                 val fileNameLower = attachment.fileName.lowercase()
@@ -175,15 +181,37 @@ class PlayAudioTool(
                     }
                 }
 
-                // Check note title too
+                // Check note title
                 val noteTitleLower = note.title.lowercase()
                 if (noteTitleLower.contains(queryLower)) {
-                    score += 50
+                    score += 80
                 }
                 for (word in queryWords) {
                     if (noteTitleLower.contains(word)) {
+                        score += 15
+                    }
+                }
+
+                // Check note content (new!)
+                val noteContentLower = note.content.lowercase()
+                if (noteContentLower.contains(queryLower)) {
+                    score += 60
+                }
+                for (word in queryWords) {
+                    if (noteContentLower.contains(word)) {
                         score += 10
                     }
+                }
+
+                // If note has audio but no match yet, give small score for any audio
+                if (score == 0 && attachments.isNotEmpty()) {
+                    // Check if any word partially matches
+                    val anyPartialMatch = queryWords.any { word ->
+                        fileNameLower.contains(word.take(3)) ||
+                        noteTitleLower.contains(word.take(3)) ||
+                        noteContentLower.contains(word.take(3))
+                    }
+                    if (anyPartialMatch) score = 5
                 }
 
                 if (score > 0) {
@@ -195,10 +223,13 @@ class PlayAudioTool(
                         sourceNoteId = note.id,
                         sourceAttachmentId = attachment.id
                     )
-                    matches.add(Match(track, score))
+                    matches.add(Match(track, score, note.title))
+                    Log.d(TAG, "Match found: ${attachment.fileName} in note '${note.title}' (score: $score)")
                 }
             }
         }
+
+        Log.d(TAG, "Total matches found: ${matches.size}")
 
         // Return the best match
         return matches.maxByOrNull { it.score }?.track

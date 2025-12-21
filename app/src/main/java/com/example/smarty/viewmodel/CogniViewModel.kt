@@ -47,6 +47,9 @@ import com.example.smarty.util.PDFTextExtractor
 import com.example.smarty.util.PDFExtractionResult
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.ShakeDetector
+import com.example.smarty.util.api.RateLimiter
+import com.example.smarty.util.api.GroqKeyManager
+import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.service.AlarmScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -134,17 +137,27 @@ class CogniViewModel(
     // Alarm scheduler for timer/alarm tools
     private val alarmScheduler = AlarmScheduler.getInstance(application)
 
-    // Koog-based AI Agent
-    private val agentProvider = CogniAgentProvider(securePreferences)
+    // Rate limiter for API call management (30 calls/min, 14.4k/day)
+    private val rateLimiter = RateLimiter.getInstance(application)
+
+    // GROQ Key Manager for per-key usage tracking
+    private val groqKeyManager = GroqKeyManager.getInstance(application)
+
+    // Koog-based AI Agent (GROQ-only with multi-key rotation)
+    private val agentProvider = CogniAgentProvider(securePreferences, groqKeyManager)
     private val cogniAgent: CogniAgent by lazy {
         CogniAgent(
             agentProvider = agentProvider,
             repository = repository,
             tavilySearchProvider = tavilySearchProvider,
             alarmScheduler = alarmScheduler,
-            callbacks = agentCallbacks
+            callbacks = agentCallbacks,
+            rateLimiter = rateLimiter  // API budget management
         )
     }
+
+    // GROQ key usage stats exposed for UI
+    val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> = groqKeyManager.usageStats
 
     // Agent callbacks for Koog tools that need ViewModel state
     // SECURITY: Pre-filter notes at callback level for defense-in-depth
@@ -336,6 +349,12 @@ class CogniViewModel(
         viewModelScope.launch {
             repository.syncAllCategoryCounts()
         }
+
+        // Sync GROQ keys with manager for usage tracking on startup
+        viewModelScope.launch {
+            agentProvider.syncGroqKeys()
+        }
+
         // Initialize chat manager (loads sessions and cleans up empty ones)
         chatManager.initialize()
 
@@ -1069,14 +1088,26 @@ class CogniViewModel(
     // API Key Management
     fun addApiKey(provider: AIProvider, apiKey: String) {
         securePreferences.addProviderKey(provider, apiKey)
+        // Sync GROQ keys with manager for usage tracking
+        if (provider == AIProvider.GROQ) {
+            viewModelScope.launch { agentProvider.syncGroqKeys() }
+        }
     }
 
     fun removeApiKey(provider: AIProvider, apiKey: String) {
         securePreferences.removeProviderKey(provider, apiKey)
+        // Sync GROQ keys with manager for usage tracking
+        if (provider == AIProvider.GROQ) {
+            viewModelScope.launch { agentProvider.syncGroqKeys() }
+        }
     }
 
     fun updateApiKey(provider: AIProvider, oldKey: String, newKey: String) {
         securePreferences.updateProviderKey(provider, oldKey, newKey)
+        // Sync GROQ keys with manager for usage tracking
+        if (provider == AIProvider.GROQ) {
+            viewModelScope.launch { agentProvider.syncGroqKeys() }
+        }
     }
 
     fun setProviderEnabled(provider: AIProvider, enabled: Boolean) {
@@ -1100,6 +1131,9 @@ class CogniViewModel(
     fun setDarkTheme(isDark: Boolean) {
         securePreferences.setDarkTheme(isDark)
     }
+
+    // Rate Limit Stats (exposed for UI monitoring)
+    fun getRateLimitStats() = rateLimiter.getUsageStats()
 
     // Tavily Web Search API Management
     private val _tavilyApiKey = MutableStateFlow(securePreferences.getTavilyApiKey())
@@ -1515,20 +1549,81 @@ class CogniViewModel(
      */
     fun updateCalendarEvent(event: CalendarEvent) {
         viewModelScope.launch {
-            calendarDao.updateEvent(event.copy(updatedAt = System.currentTimeMillis()))
+            try {
+                calendarDao.updateEvent(event)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating calendar event", e)
+            }
         }
     }
 
-    /**
-     * Delete a calendar event
-     */
     fun deleteCalendarEvent(eventId: String) {
         viewModelScope.launch {
-            calendarDao.deleteEventById(eventId)
-            Log.d(TAG, "Deleted calendar event: $eventId")
+            try {
+                calendarDao.deleteEventById(eventId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error deleting calendar event", e)
+            }
         }
     }
 
+    // ==================== Dynamic Model Management ====================
+
+    fun getAvailableModels(provider: AIProvider): List<Pair<String, String>> {
+        return securePreferences.getAvailableModels(provider)
+    }
+
+    fun refreshGroqModels() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val apiKey = securePreferences.getProviderKeys(AIProvider.GROQ).firstOrNull()
+            if (apiKey.isNullOrBlank()) return@launch
+
+            try {
+                val request = okhttp3.Request.Builder()
+                    .url("https://api.groq.com/openai/v1/models")
+                    .addHeader("Authorization", "Bearer $apiKey")
+                    .build()
+
+                OkHttpClient().newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val body = response.body?.string() ?: return@use
+                        val json = org.json.JSONObject(body)
+                        val data = json.getJSONArray("data")
+                        val models = mutableListOf<Pair<String, String>>()
+
+                        for (i in 0 until data.length()) {
+                            val item = data.getJSONObject(i)
+                            val id = item.getString("id")
+                            // Basic formatting for display name
+                            val name = when {
+                                id.contains("llama-4-scout") -> "Llama 4 Scout 17B (Dynamic)"
+                                id.contains("llama-4") -> "Llama 4 (Dynamic)"
+                                id.contains("llama-3.3") -> "Llama 3.3 (Dynamic)"
+                                id.contains("llama-3.1") -> "Llama 3.1 (Dynamic)"
+                                id.contains("mixtral") -> "Mixtral (Dynamic)"
+                                id.contains("gemma") -> "Gemma (Dynamic)"
+                                else -> id
+                            }
+                            models.add(id to name)
+                        }
+                        
+                        // Sort by name for better UX
+                        models.sortBy { it.second }
+
+                        if (models.isNotEmpty()) {
+                            securePreferences.setDynamicModels(AIProvider.GROQ, models)
+                            // Force refresh of provider configs flow
+                            securePreferences.setProviderEnabled(AIProvider.GROQ, securePreferences.isProviderEnabled(AIProvider.GROQ))
+                        }
+                    } else {
+                        Log.e(TAG, "Groq models fetch failed: ${response.code}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching Groq models", e)
+            }
+        }
+    }
     // ==================== Resource Optimization ====================
 
     // Track if resource-intensive operations are paused

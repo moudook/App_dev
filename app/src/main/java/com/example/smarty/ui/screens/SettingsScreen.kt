@@ -38,6 +38,7 @@ import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.ProviderSection
 import com.example.smarty.ui.screens.settings.maskApiKey
+import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.ui.components.ShakeSensitivityControl
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
@@ -84,7 +85,11 @@ fun SettingsScreen(
     // Shake sensitivity
     shakeSensitivity: Float = 0.5f,
     onShakeSensitivityChange: (Float) -> Unit = {},
-    modifier: Modifier = Modifier
+    // GROQ key usage stats
+    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
+    modifier: Modifier = Modifier,
+    onRefreshModels: (AIProvider) -> Unit = {},
+    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { AIModels.getModelsForProvider(it) }
 ) {
     var showRemovePinDialog by remember { mutableStateOf(false) }
     var showAIConfigSheet by remember { mutableStateOf(false) }
@@ -266,7 +271,10 @@ fun SettingsScreen(
             onSetProviderPriority = onSetProviderPriority,
             onTestApiKey = onTestApiKey,
             tavilyApiKey = tavilyApiKey,
-            onSetTavilyApiKey = onSetTavilyApiKey
+            onSetTavilyApiKey = onSetTavilyApiKey,
+            groqKeyUsageStats = groqKeyUsageStats,
+            onRefreshModels = onRefreshModels,
+            getAvailableModels = getAvailableModels
         )
     }
 
@@ -695,7 +703,10 @@ private fun AIConfigBottomSheet(
     onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     tavilyApiKey: String? = null,
-    onSetTavilyApiKey: (String?) -> Unit = {}
+    onSetTavilyApiKey: (String?) -> Unit = {},
+    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
+    onRefreshModels: (AIProvider) -> Unit,
+    getAvailableModels: (AIProvider) -> List<Pair<String, String>>
 ) {
     val shapes = LocalShapes.current
 
@@ -839,6 +850,13 @@ private fun AIConfigBottomSheet(
                     }
 
                     Box(modifier = Modifier.weight(1f)) {
+                        // Build usage stats map for GROQ keys
+                        val keyUsageStatsMap = if (provider == AIProvider.GROQ) {
+                            groqKeyUsageStats.associateBy { it.key }
+                        } else {
+                            emptyMap()
+                        }
+
                         ProviderSection(
                             provider = provider,
                             providerName = name,
@@ -846,13 +864,15 @@ private fun AIConfigBottomSheet(
                             apiKeys = config?.apiKeys ?: emptyList(),
                             isEnabled = config?.isEnabled ?: true,
                             selectedModel = config?.selectedModel ?: AIModels.getDefaultModel(provider),
-                            availableModels = AIModels.getModelsForProvider(provider),
+                            availableModels = getAvailableModels(provider),
                             onAddKey = { onAddApiKey(provider, it) },
                             onRemoveKey = { onRemoveApiKey(provider, it) },
                             onUpdateKey = { old, new -> onUpdateApiKey(provider, old, new) },
                             onToggleEnabled = { onSetProviderEnabled(provider, it) },
                             onSelectModel = { onSetSelectedModel(provider, it) },
-                            onTestKey = { key, callback -> onTestApiKey(provider, key, callback) }
+                            onTestKey = { key, callback -> onTestApiKey(provider, key, callback) },
+                            keyUsageStats = keyUsageStatsMap,
+                            onRefreshModels = if (provider == AIProvider.GROQ) { { onRefreshModels(provider) } } else null
                         )
                     }
                 }

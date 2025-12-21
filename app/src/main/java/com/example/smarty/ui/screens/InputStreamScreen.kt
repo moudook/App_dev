@@ -191,12 +191,16 @@ fun InputStreamScreen(
     )
 
     // Handle partial results for progressive text append
+    // Use the mode that INITIATED the speech, not the current mode
     LaunchedEffect(speechState) {
         speechState.onPartialResult = { partialText ->
             if (partialText.isNotBlank()) {
                 hadSpeechInput = true  // Mark that we got speech input
 
-                val currentTextValue = if (isChatMode) chatModeTextValue else normalModeTextValue
+                // Use the mode that initiated speech to prevent cross-mode text insertion
+                val targetChatMode = speechState.speechInitiatedInChatMode ?: isChatMode
+
+                val currentTextValue = if (targetChatMode) chatModeTextValue else normalModeTextValue
                 val currentText = currentTextValue.text
 
                 // If this is the first partial, record where we're inserting
@@ -206,7 +210,7 @@ fun InputStreamScreen(
                     if (currentText.isNotEmpty() && !currentText.endsWith(" ")) {
                         val spacedText = "$currentText "
                         partialTextStartIndex = spacedText.length
-                        if (isChatMode) {
+                        if (targetChatMode) {
                             chatModeTextValue = TextFieldValue(spacedText, TextRange(spacedText.length))
                         } else {
                             normalModeTextValue = TextFieldValue(spacedText, TextRange(spacedText.length))
@@ -219,7 +223,7 @@ fun InputStreamScreen(
                 val newText = baseText + partialText
                 val newValue = TextFieldValue(newText, TextRange(newText.length))
 
-                if (isChatMode) {
+                if (targetChatMode) {
                     chatModeTextValue = newValue
                 } else {
                     normalModeTextValue = newValue
@@ -232,13 +236,16 @@ fun InputStreamScreen(
     }
 
     // Observe global speech results (final) and update local text fields
-    // Key on isChatMode to restart collection when mode changes
-    LaunchedEffect(speechResults, isChatMode) {
+    // Use the mode that INITIATED the speech, not the current mode
+    LaunchedEffect(speechResults) {
         speechResults?.collect { result ->
             // Final result replaces any partial text
             hadSpeechInput = true
 
-            val currentTextValue = if (isChatMode) chatModeTextValue else normalModeTextValue
+            // Use the mode that initiated speech to prevent cross-mode text insertion
+            val targetChatMode = speechState.speechInitiatedInChatMode ?: isChatMode
+
+            val currentTextValue = if (targetChatMode) chatModeTextValue else normalModeTextValue
             val currentText = currentTextValue.text
 
             // Use the base text before any partial results
@@ -252,7 +259,7 @@ fun InputStreamScreen(
             val newText = baseText + result
             val newValue = TextFieldValue(newText, TextRange(newText.length))
 
-            if (isChatMode) {
+            if (targetChatMode) {
                 chatModeTextValue = newValue
             } else {
                 normalModeTextValue = newValue
@@ -261,6 +268,9 @@ fun InputStreamScreen(
             // Reset partial tracking
             lastPartialText = ""
             partialTextStartIndex = 0
+
+            // Reset speech initiation mode after processing
+            speechState.speechInitiatedInChatMode = null
 
             onInputTextChange(newText)
         }
@@ -995,7 +1005,8 @@ fun InputStreamScreen(
                             if (speechState.isListening) {
                                 speechState.stopListening()
                             } else {
-                                speechState.startListening()
+                                // Pass current mode so speech result goes to correct input field
+                                speechState.startListening(isChatMode = isChatMode)
                             }
                         },
                         onStopVoiceInput = {

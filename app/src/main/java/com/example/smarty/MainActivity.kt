@@ -152,6 +152,9 @@ class MainActivity : ComponentActivity() {
                 // Shake sensitivity state
                 val shakeSensitivity by viewModel.shakeSensitivity.collectAsState()
 
+                // GROQ key usage stats for UI display
+                val groqKeyUsageStats by viewModel.groqKeyUsageStats.collectAsState()
+
                 // Shake mode switch animation trigger
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
 
@@ -338,6 +341,8 @@ class MainActivity : ComponentActivity() {
                                     onShakeSensitivityChange = { value ->
                                         viewModel.setShakeSensitivity(value)
                                     },
+                                    // GROQ key usage stats
+                                    groqKeyUsageStats = groqKeyUsageStats,
                                     // Shake mode switch animation
                                     wasShakeTriggered = wasShakeTriggered,
                                     // Calendar management
@@ -369,6 +374,15 @@ class MainActivity : ComponentActivity() {
                                     speechResults = viewModel.speechResults,
                                     onShowTransientIsland = { state ->
                                         viewModel.showTransientIsland(state)
+                                    },
+                                    // Dynamic Models - Only Groq supported for refresh now
+                                    onRefreshModels = { provider ->
+                                        if (provider == com.example.smarty.data.local.AIProvider.GROQ) {
+                                            viewModel.refreshGroqModels()
+                                        }
+                                    },
+                                    getAvailableModels = { provider ->
+                                        viewModel.getAvailableModels(provider)
                                     },
                                     modifier = Modifier.fillMaxSize()
                                 )

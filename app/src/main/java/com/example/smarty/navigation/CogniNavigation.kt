@@ -23,6 +23,7 @@ import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.screens.*
 import com.example.smarty.viewmodel.BackupViewModel
+import com.example.smarty.util.api.KeyUsageStats
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -125,6 +126,8 @@ fun CogniNavHost(
     // Shake sensitivity
     shakeSensitivity: Float = 0.63f,
     onShakeSensitivityChange: (Float) -> Unit = {},
+    // GROQ key usage stats
+    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     // Shake mode switch animation
     wasShakeTriggered: Boolean = false,
     // Calendar management
@@ -146,6 +149,9 @@ fun CogniNavHost(
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
     onShowTransientIsland: (com.example.smarty.ui.components.DynamicIslandState) -> Unit = {},
+    // Dynamic Models
+    onRefreshModels: (AIProvider) -> Unit = {},
+    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { com.example.smarty.data.local.AIModels.getModelsForProvider(it) },
     modifier: Modifier = Modifier
 ) {
     // Start at PIN screen if configured, otherwise go to main input stream
@@ -328,6 +334,11 @@ fun CogniNavHost(
                 // Shake sensitivity
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
+                // GROQ key usage stats
+                groqKeyUsageStats = groqKeyUsageStats,
+                // Dynamic Models
+                onRefreshModels = onRefreshModels,
+                getAvailableModels = getAvailableModels,
                 // Embedded Sheets
                 archiveContent = { onDismiss ->
                     ArchiveScreen(

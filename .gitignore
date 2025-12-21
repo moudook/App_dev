@@ -60,6 +60,7 @@ docs/UI_QUICK_REFERENCE.md
 # AI Agent Documentation (local reference only)
 .agent/
 .agent/*.md
+api_groQ_smarty_cogni.txt
 
 # Temporary files
 *.tmp
@@ -91,6 +92,7 @@ koog_migration_errors.log
 #issues
 issue_with_ai_agent_audio_player_case_2.png
 issue_with_ai_agent_audio_player.png
+agent_issue_during_chat.png
 
 #solutions
 error_and_warning_solution.txt
@@ -100,3 +102,5 @@ AI_AGENT_SOLUTION_1.txt
 AI_AGENT_SOLUTION_2.txt
 AI_AGENT_SOLUTION_3.txt
 BUG_FIX.md
+update_settings.py
+.env

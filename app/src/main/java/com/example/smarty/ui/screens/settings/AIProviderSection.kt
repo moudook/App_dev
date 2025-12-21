@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -25,6 +28,8 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.SafetyOrange
+import com.example.smarty.util.api.KeyUsageStats
+import com.example.smarty.util.api.KeyHealthStatus
 
 /**
  * AI provider configuration section for settings.
@@ -45,6 +50,7 @@ import com.example.smarty.ui.theme.SafetyOrange
  * @param onToggleEnabled Callback when toggling provider enabled state
  * @param onSelectModel Callback when selecting a model
  * @param onTestKey Callback to test an API key validity
+ * @param keyUsageStats Map of API key to usage statistics (for GROQ keys)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +67,9 @@ fun ProviderSection(
     onUpdateKey: (String, String) -> Unit,
     onToggleEnabled: (Boolean) -> Unit,
     onSelectModel: (String) -> Unit,
-    onTestKey: (String, (Boolean) -> Unit) -> Unit
+    onTestKey: (String, (Boolean) -> Unit) -> Unit,
+    keyUsageStats: Map<String, KeyUsageStats> = emptyMap(),
+    onRefreshModels: (() -> Unit)? = null
 ) {
     var newKeyInput by remember { mutableStateOf("") }
     var showNewKeyInput by remember { mutableStateOf(false) }
@@ -144,7 +152,8 @@ fun ProviderSection(
                         onSelectModel = {
                             onSelectModel(it)
                             modelDropdownExpanded = false
-                        }
+                        },
+                        onRefreshModels = onRefreshModels
                     )
                 }
 
@@ -172,7 +181,8 @@ fun ProviderSection(
                             editingKeyValue = ""
                         },
                         onRemove = { onRemoveKey(key) },
-                        onTest = { callback -> onTestKey(key, callback) }
+                        onTest = { callback -> onTestKey(key, callback) },
+                        usageStats = keyUsageStats[key]  // Pass usage stats for this key
                     )
                 }
 
@@ -230,16 +240,37 @@ private fun ModelSelector(
     availableModels: List<Pair<String, String>>,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    onSelectModel: (String) -> Unit
+    onSelectModel: (String) -> Unit,
+    onRefreshModels: (() -> Unit)? = null
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text = "Model",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Model",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (onRefreshModels != null) {
+                IconButton(
+                    onClick = onRefreshModels,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Refresh Models",
+                        tint = LocalAccentColor.current,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = onExpandedChange
@@ -293,7 +324,7 @@ private fun ModelSelector(
 }
 
 /**
- * Individual API key item with view/edit/test/delete capabilities.
+ * Individual API key item with view/edit/test/delete capabilities and usage stats.
  *
  * @param apiKey The API key value
  * @param keyNumber The key number (1 = primary, 2+ = backup)
@@ -305,6 +336,7 @@ private fun ModelSelector(
  * @param onCancelEdit Callback to cancel editing
  * @param onRemove Callback to remove this key
  * @param onTest Callback to test this key
+ * @param usageStats Optional usage statistics for this key
  */
 @Composable
 fun ApiKeyItem(
@@ -317,22 +349,31 @@ fun ApiKeyItem(
     onSaveEdit: () -> Unit,
     onCancelEdit: () -> Unit,
     onRemove: () -> Unit,
-    onTest: ((Boolean) -> Unit) -> Unit
+    onTest: ((Boolean) -> Unit) -> Unit,
+    usageStats: KeyUsageStats? = null
 ) {
     var showKey by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<Boolean?>(null) }
+
+    // Determine border color based on health status
+    val borderColor = when {
+        usageStats?.healthStatus == KeyHealthStatus.ERROR -> SafetyOrange
+        usageStats?.healthStatus == KeyHealthStatus.DAILY_EXHAUSTED -> SafetyOrange.copy(alpha = 0.7f)
+        usageStats?.healthStatus == KeyHealthStatus.RATE_LIMITED -> Color(0xFFFF9800) // Orange
+        usageStats?.healthStatus == KeyHealthStatus.COOLDOWN -> Color(0xFFFF9800)
+        testResult == true -> LocalAccentColor.current
+        testResult == false -> SafetyOrange
+        usageStats?.healthStatus == KeyHealthStatus.HEALTHY -> LocalAccentColor.current.copy(alpha = 0.5f)
+        else -> MaterialTheme.colorScheme.outline
+    }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .border(
                 1.dp,
-                when {
-                    testResult == true -> LocalAccentColor.current
-                    testResult == false -> SafetyOrange
-                    else -> MaterialTheme.colorScheme.outline
-                },
+                borderColor,
                 RoundedCornerShape(ComponentSpacing.inputCornerRadius)
             ),
         shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
@@ -341,17 +382,32 @@ fun ApiKeyItem(
         Column(
             modifier = Modifier.padding(12.dp)
         ) {
-            // Header row with key number and action buttons
+            // Header row with key number, label, and action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Key #$keyNumber${if (keyNumber == 1) " (Primary)" else " (Backup)"}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Key #$keyNumber",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Show label if available
+                    usageStats?.label?.takeIf { it.isNotBlank() }?.let { label ->
+                        Text(
+                            text = " • $label",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = LocalAccentColor.current
+                        )
+                    }
+                    // Health status indicator
+                    usageStats?.let { stats ->
+                        Spacer(modifier = Modifier.width(8.dp))
+                        KeyHealthBadge(stats.healthStatus)
+                    }
+                }
 
                 Row {
                     // Test button
@@ -422,11 +478,159 @@ fun ApiKeyItem(
                 )
             }
 
+            // Usage stats display (for GROQ keys)
+            usageStats?.let { stats ->
+                Spacer(modifier = Modifier.height(8.dp))
+                KeyUsageDisplay(stats)
+            }
+
             // Test result
             testResult?.let { result ->
                 TestResultIndicator(isValid = result)
             }
         }
+    }
+}
+
+/**
+ * Health status badge for API key.
+ */
+@Composable
+private fun KeyHealthBadge(status: KeyHealthStatus) {
+    val (color, icon, text) = when (status) {
+        KeyHealthStatus.HEALTHY -> Triple(
+            LocalAccentColor.current,
+            Icons.Default.CheckCircle,
+            "OK"
+        )
+        KeyHealthStatus.RATE_LIMITED -> Triple(
+            Color(0xFFFF9800),
+            Icons.Default.Schedule,
+            "Rate Limited"
+        )
+        KeyHealthStatus.DAILY_EXHAUSTED -> Triple(
+            SafetyOrange,
+            Icons.Default.Block,
+            "Daily Limit"
+        )
+        KeyHealthStatus.ERROR -> Triple(
+            SafetyOrange,
+            Icons.Default.Error,
+            "Error"
+        )
+        KeyHealthStatus.COOLDOWN -> Triple(
+            Color(0xFFFF9800),
+            Icons.Default.HourglassEmpty,
+            "Cooldown"
+        )
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .background(color.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = color
+        )
+    }
+}
+
+/**
+ * Usage statistics display for an API key.
+ */
+@Composable
+private fun KeyUsageDisplay(stats: KeyUsageStats) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerLow,
+                RoundedCornerShape(8.dp)
+            )
+            .padding(8.dp)
+    ) {
+        // Rate limit progress (calls this minute)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Rate",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "${stats.callsThisMinute}/${stats.rateLimit}/min",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (stats.callsThisMinute >= stats.rateLimit)
+                    SafetyOrange else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        // Rate limit progress bar
+        val rateProgress = (stats.callsThisMinute.toFloat() / stats.rateLimit).coerceIn(0f, 1f)
+        LinearProgressIndicator(
+            progress = { rateProgress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = when {
+                rateProgress >= 1f -> SafetyOrange
+                rateProgress >= 0.8f -> Color(0xFFFF9800)
+                else -> LocalAccentColor.current
+            },
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Daily usage progress
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Today",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "${stats.callsToday}/${stats.dailyLimit}",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (stats.callsToday >= stats.dailyLimit)
+                    SafetyOrange else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        // Daily progress bar
+        val dailyProgress = (stats.callsToday.toFloat() / stats.dailyLimit).coerceIn(0f, 1f)
+        LinearProgressIndicator(
+            progress = { dailyProgress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = when {
+                dailyProgress >= 1f -> SafetyOrange
+                dailyProgress >= 0.8f -> Color(0xFFFF9800)
+                else -> LocalAccentColor.current
+            },
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
     }
 }
 
