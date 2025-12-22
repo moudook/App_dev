@@ -304,4 +304,36 @@ class ChatManager(
             }
         }
     }
+
+    /**
+     * Get compressed conversation history for AI agent.
+     *
+     * Uses HistoryCompressor to reduce token usage:
+     * - Keeps last 3 exchanges verbatim
+     * - Summarizes older exchanges
+     * - Expected 50-70% token reduction for long conversations
+     *
+     * @return Compressed chat messages suitable for agent context
+     */
+    fun getCompressedHistory(): List<ChatMessage> {
+        return com.example.smarty.util.HistoryCompressor.compress(_chatMessages.value)
+    }
+
+    /**
+     * Get conversation history in legacy format (role, content pairs).
+     * Uses compression for token efficiency.
+     *
+     * @return List of (role, content) pairs for agent
+     */
+    fun getHistoryForAgent(): List<Pair<String, String>> {
+        val compressed = getCompressedHistory()
+        return compressed.map { msg ->
+            val role = when {
+                msg.isUser -> "USER"
+                msg.isAssistant -> "ASSISTANT"
+                else -> "SYSTEM"
+            }
+            role to msg.content
+        }
+    }
 }
