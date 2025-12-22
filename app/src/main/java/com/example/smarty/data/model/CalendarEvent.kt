@@ -1,6 +1,7 @@
 package com.example.smarty.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.smarty.util.PrivacyAware
 import java.util.UUID
@@ -9,7 +10,16 @@ import java.util.UUID
  * Calendar event entity for scheduling and reminders.
  * Supports privacy filtering through PrivacyAware interface.
  */
-@Entity(tableName = "calendar_events")
+@Entity(
+    tableName = "calendar_events",
+    indices = [
+        Index(value = ["startTime"]),
+        Index(value = ["endTime"]),
+        Index(value = ["isEventPrivate"]),
+        Index(value = ["linkedNoteId"]),
+        Index(value = ["startTime", "endTime"])
+    ]
+)
 data class CalendarEvent(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),

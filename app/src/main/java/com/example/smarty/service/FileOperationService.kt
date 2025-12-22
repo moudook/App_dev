@@ -21,6 +21,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -106,6 +108,9 @@ class FileOperationService : Service() {
     private val operationQueue = ConcurrentLinkedQueue<FileOperation>()
     private var isProcessing = false
 
+    // Mutex for synchronizing file operation state
+    private val operationMutex = Mutex()
+
     // State tracking
     private val _operationState = MutableStateFlow<OperationState>(OperationState.Idle)
     val operationState: StateFlow<OperationState> = _operationState.asStateFlow()
@@ -171,9 +176,13 @@ class FileOperationService : Service() {
     private fun enqueueOperation(operation: FileOperation) {
         operationQueue.offer(operation)
 
-        if (!isProcessing) {
-            startForeground(NOTIFICATION_ID, createNotification("Processing files..."))
-            processQueue()
+        serviceScope.launch {
+            operationMutex.withLock {
+                if (!isProcessing) {
+                    startForeground(NOTIFICATION_ID, createNotification("Processing files..."))
+                    processQueue()
+                }
+            }
         }
     }
 
@@ -181,10 +190,12 @@ class FileOperationService : Service() {
      * Process operations in the queue
      */
     private fun processQueue() {
-        if (isProcessing) return
-        isProcessing = true
-
         serviceScope.launch {
+            operationMutex.withLock {
+                if (isProcessing) return@launch
+                isProcessing = true
+            }
+
             while (operationQueue.isNotEmpty()) {
                 val operation = operationQueue.poll() ?: break
 
@@ -202,7 +213,9 @@ class FileOperationService : Service() {
                         is FileOperation.Copy -> processCopy(operation)
                     }
 
-                    completedOperations[operation.id] = result
+                    operationMutex.withLock {
+                        completedOperations[operation.id] = result
+                    }
 
                     _operationState.value = OperationState.Completed(
                         operationId = operation.id,
@@ -213,11 +226,13 @@ class FileOperationService : Service() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Operation failed: ${operation.id}", e)
 
-                    completedOperations[operation.id] = OperationResult(
-                        operationId = operation.id,
-                        success = false,
-                        message = e.message ?: "Unknown error"
-                    )
+                    operationMutex.withLock {
+                        completedOperations[operation.id] = OperationResult(
+                            operationId = operation.id,
+                            success = false,
+                            message = e.message ?: "Unknown error"
+                        )
+                    }
 
                     _operationState.value = OperationState.Error(
                         operationId = operation.id,
@@ -231,7 +246,9 @@ class FileOperationService : Service() {
                 }
             }
 
-            isProcessing = false
+            operationMutex.withLock {
+                isProcessing = false
+            }
             _operationState.value = OperationState.Idle
 
             // Stop foreground when queue is empty
@@ -287,7 +304,11 @@ class FileOperationService : Service() {
     private fun cancelAllOperations() {
         operationQueue.clear()
         serviceScope.coroutineContext.cancelChildren()
-        isProcessing = false
+        serviceScope.launch {
+            operationMutex.withLock {
+                isProcessing = false
+            }
+        }
         _operationState.value = OperationState.Idle
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -296,14 +317,14 @@ class FileOperationService : Service() {
     /**
      * Get result of a completed operation
      */
-    fun getOperationResult(operationId: String): OperationResult? {
-        return completedOperations[operationId]
+    suspend fun getOperationResult(operationId: String): OperationResult? = operationMutex.withLock {
+        completedOperations[operationId]
     }
 
     /**
      * Clear completed operation result
      */
-    fun clearOperationResult(operationId: String) {
+    suspend fun clearOperationResult(operationId: String) = operationMutex.withLock {
         completedOperations.remove(operationId)
     }
 

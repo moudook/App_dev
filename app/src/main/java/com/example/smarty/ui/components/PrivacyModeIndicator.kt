@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
  * Safety/Warning orange color for privacy indicators
@@ -46,29 +48,41 @@ fun PrivacyModeIndicator(
 ) {
     if (!isActive) return
 
-    val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+    // LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    // Pulse scale animation
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_scale"
-    )
+    val scale = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+        val animatedScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse_scale"
+        )
+        animatedScale
+    } else {
+        1.05f // Static mid-point value
+    }
 
-    // Pulse alpha animation for glow effect
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_alpha"
-    )
+    val alpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+        val animatedAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.7f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse_alpha"
+        )
+        animatedAlpha
+    } else {
+        0.85f // Static mid-point value
+    }
 
     Row(
         modifier = modifier
@@ -126,17 +140,25 @@ fun PrivacyModeBanner(
 ) {
     if (!isActive) return
 
-    val infiniteTransition = rememberInfiniteTransition(label = "banner_pulse")
+    // LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    val bgAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.1f,
-        targetValue = 0.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "bg_alpha"
-    )
+    val bgAlpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "banner_pulse")
+        val animatedAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.1f,
+            targetValue = 0.2f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "bg_alpha"
+        )
+        animatedAlpha
+    } else {
+        0.15f // Static mid-point value
+    }
 
     Box(
         modifier = modifier

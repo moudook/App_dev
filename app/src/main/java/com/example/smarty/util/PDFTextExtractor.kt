@@ -23,6 +23,11 @@ class PDFTextExtractor(private val context: Context) {
 
         @Volatile
         private var isInitialized = false
+
+        // Pre-compiled regex patterns for performance
+        private val WHITESPACE_PATTERN = Regex("[ \\t]+")
+        private val MULTIPLE_NEWLINES_PATTERN = Regex("\\n{3,}")
+        private val PAGE_BREAK_PATTERN = Regex("\\f")
     }
 
     init {
@@ -187,11 +192,11 @@ class PDFTextExtractor(private val context: Context) {
     private fun cleanText(text: String): String {
         return text
             // Normalize whitespace
-            .replace(Regex("[ \\t]+"), " ")
+            .replace(WHITESPACE_PATTERN, " ")
             // Normalize multiple newlines to double newline (paragraph breaks)
-            .replace(Regex("\\n{3,}"), "\n\n")
+            .replace(MULTIPLE_NEWLINES_PATTERN, "\n\n")
             // Remove page break artifacts
-            .replace(Regex("\\f"), "\n\n")
+            .replace(PAGE_BREAK_PATTERN, "\n\n")
             // Remove trailing whitespace from lines
             .lines()
             .map { it.trimEnd() }

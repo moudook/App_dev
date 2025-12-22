@@ -8,6 +8,8 @@ import com.example.smarty.data.remote.OpenAIMessage
 import com.example.smarty.data.remote.OpenAIRequest
 import com.google.gson.Gson
 import com.google.gson.JsonParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -81,7 +83,10 @@ class OpenRouterProvider(
             .build()
 
         return try {
-            val response = client.newCall(request).execute()
+            // Execute blocking HTTP call on IO dispatcher
+            val response = runBlocking(Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
             val responseBody = response.body?.string()
 
             Log.d(TAG, "OpenRouter HTTP ${response.code}")
@@ -129,7 +134,10 @@ class OpenRouterProvider(
             .build()
 
         return try {
-            val response = client.newCall(request).execute()
+            // Execute blocking HTTP call on IO dispatcher
+            val response = runBlocking(Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
             val responseBody = response.body?.string()
 
             if (!response.isSuccessful) {
@@ -178,7 +186,10 @@ class OpenRouterProvider(
             .build()
 
         return try {
-            val response = client.newCall(request).execute()
+            // Execute blocking HTTP call on IO dispatcher
+            val response = runBlocking(Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
             val responseBody = response.body?.string()
 
             Log.d(TAG, "OpenRouter chat HTTP ${response.code}")

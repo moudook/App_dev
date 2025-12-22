@@ -44,7 +44,7 @@ object AIResponseCache {
         return try {
             val digest = MessageDigest.getInstance("SHA-256")
             val hash = digest.digest(normalized.toByteArray(Charsets.UTF_8))
-            hash.fold("") { str, byte -> str + "%02x".format(byte) }
+            hash.joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
             Log.e(TAG, "Hash failed, using content prefix", e)
             normalized.take(100).hashCode().toString()

@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlinx.coroutines.delay
 
 /**
@@ -183,17 +185,25 @@ fun ShakeTutorialHand(
 ) {
     val accentColor = LocalAccentColor.current
 
-    // OPTIMIZED: Single animation drives both offset and rotation
-    val infiniteTransition = rememberInfiniteTransition(label = "shakeTutorial")
-    val shakeProgress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(100, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "shakeProgress"
-    )
+    // OPTIMIZED: Single animation drives both offset and rotation - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING && isVisible
+
+    val shakeProgress = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "shakeTutorial")
+        val animatedProgress by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(100, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "shakeProgress"
+        )
+        animatedProgress
+    } else {
+        0.5f // Static mid-point value
+    }
 
     // OPTIMIZED: Derive both values from single progress
     // offsetX: -15 to +15 (linear interpolation)

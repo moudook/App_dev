@@ -18,6 +18,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
  * Empty state displayed when search yields no results.
@@ -29,28 +31,42 @@ fun SearchEmptyState(
     modifier: Modifier = Modifier
 ) {
     val accentColor = LocalAccentColor.current
-    
-    // Breathing animation for icon
-    val infiniteTransition = rememberInfiniteTransition(label = "searchEmpty")
-    val iconScale by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = EaseInOutQuad),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "iconScale"
-    )
-    
-    val iconAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 0.8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = EaseInOutQuad),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "iconAlpha"
-    )
+
+    // Breathing animation for icon - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    val iconScale = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "searchEmpty")
+        val animatedScale by infiniteTransition.animateFloat(
+            initialValue = 0.9f,
+            targetValue = 1.1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = EaseInOutQuad),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "iconScale"
+        )
+        animatedScale
+    } else {
+        1.0f // Static mid-point value
+    }
+
+    val iconAlpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "searchEmpty")
+        val animatedAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 0.8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = EaseInOutQuad),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "iconAlpha"
+        )
+        animatedAlpha
+    } else {
+        0.65f // Static mid-point value
+    }
     
     Column(
         modifier = modifier
@@ -126,19 +142,27 @@ fun HighlightedText(
     } else {
         // Find and highlight matches with shimmer
         val annotatedString = buildHighlightedText(text, query, LocalAccentColor.current)
-        
-        // Shimmer animation for highlighted portions
-        val infiniteTransition = rememberInfiniteTransition(label = "textShimmer")
-        val shimmerProgress by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "shimmerProgress"
-        )
-        
+
+        // Shimmer animation for highlighted portions - LIFECYCLE AWARE
+        val lifecycleState by rememberAnimationLifecycleState()
+        val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+        val shimmerProgress = if (shouldAnimate) {
+            val infiniteTransition = rememberInfiniteTransition(label = "textShimmer")
+            val animatedProgress by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1500, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "shimmerProgress"
+            )
+            animatedProgress
+        } else {
+            0.5f // Static mid-point value
+        }
+
         // Apply shimmer alpha based on progress to highlighted text
         val shimmerAlpha = (0.5f + 0.5f * kotlin.math.sin(shimmerProgress * 2 * kotlin.math.PI.toFloat()))
         

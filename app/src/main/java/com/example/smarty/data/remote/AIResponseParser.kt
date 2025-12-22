@@ -30,6 +30,20 @@ object AIResponseParser {
     // BUG-035: Maximum response length to prevent memory issues
     private const val MAX_RESPONSE_LENGTH = 100_000 // 100KB should be more than enough for any response
 
+    // Pre-compiled regex patterns for performance
+    private val WHITESPACE_PATTERN = Regex("\\s+")
+    private val TODO_PATTERN = Regex("""(?i)\b(todo|task|remind|remember|don'?t forget|need to|must|should|deadline|due)\b""")
+    private val IDEA_PATTERN = Regex("""(?i)\b(idea|thought|maybe|what if|could|concept|brainstorm|imagine)\b""")
+    private val LEARN_PATTERN = Regex("""(?i)\b(learn|study|tutorial|course|lesson|how to|guide|understand)\b""")
+    private val BUY_PATTERN = Regex("""(?i)\b(buy|purchase|order|price|shop|cart|deal|discount|sale)\b""")
+    private val MEET_PATTERN = Regex("""(?i)\b(meet|meeting|call|schedule|appointment|calendar|event)\b""")
+    private val CODE_PATTERN = Regex("""(?i)(```|function|class |def |const |let |var |import |export |=>|->|\{\{|\}\})""")
+    private val QUOTE_PATTERN = Regex("""(?i)[""].*[""]|[''].*['']|\bsaid\b|\bquote\b""")
+    private val HEALTH_PATTERN = Regex("""(?i)\b(health|workout|exercise|diet|fitness|calories|sleep|medicine|doctor)\b""")
+    private val FINANCE_PATTERN = Regex("""(?i)\b(money|budget|invest|savings|expense|income|stock|crypto|bank)\b""")
+    private val RECIPE_PATTERN = Regex("""(?i)\b(recipe|cook|ingredient|bake|tablespoon|cup|oven|minutes at)\b""")
+    private val WORK_PATTERN = Regex("""(?i)\b(project|client|deadline|report|presentation|manager|team|office)\b""")
+
     // ==================== Valid Categories ====================
 
     /**
@@ -537,47 +551,47 @@ object AIResponseParser {
     private fun categorizeByKeywords(lower: String): Triple<String, String, String> {
         return when {
             // Task/Todo patterns
-            Regex("""(?i)\b(todo|task|remind|remember|don'?t forget|need to|must|should|deadline|due)\b""").containsMatchIn(lower) ->
+            TODO_PATTERN.containsMatchIn(lower) ->
                 Triple("Todo", "Task or reminder captured.", "Action item")
 
             // Idea patterns
-            Regex("""(?i)\b(idea|thought|maybe|what if|could|concept|brainstorm|imagine)\b""").containsMatchIn(lower) ->
+            IDEA_PATTERN.containsMatchIn(lower) ->
                 Triple("Idea", "Creative thought or idea captured.", "Future ref")
 
             // Learning patterns
-            Regex("""(?i)\b(learn|study|tutorial|course|lesson|how to|guide|understand)\b""").containsMatchIn(lower) ->
+            LEARN_PATTERN.containsMatchIn(lower) ->
                 Triple("Learn", "Educational content for learning.", "Skill up")
 
             // Shopping patterns
-            Regex("""(?i)\b(buy|purchase|order|price|shop|cart|deal|discount|sale)\b""").containsMatchIn(lower) ->
+            BUY_PATTERN.containsMatchIn(lower) ->
                 Triple("Buy", "Shopping note or wishlist item.", "Want this")
 
             // Meeting patterns
-            Regex("""(?i)\b(meet|meeting|call|schedule|appointment|calendar|event)\b""").containsMatchIn(lower) ->
+            MEET_PATTERN.containsMatchIn(lower) ->
                 Triple("Meet", "Meeting or event reminder.", "Schedule")
 
             // Code patterns
-            Regex("""(?i)(```|function|class |def |const |let |var |import |export |=>|->|\{\{|\}\})""").containsMatchIn(lower) ->
+            CODE_PATTERN.containsMatchIn(lower) ->
                 Triple("Code", "Code snippet or technical note.", "Dev ref")
 
             // Quote patterns
-            Regex("""(?i)[""].*[""]|[''].*['']|\bsaid\b|\bquote\b""").containsMatchIn(lower) ->
+            QUOTE_PATTERN.containsMatchIn(lower) ->
                 Triple("Quote", "Quote or memorable words.", "Wisdom")
 
             // Health patterns
-            Regex("""(?i)\b(health|workout|exercise|diet|fitness|calories|sleep|medicine|doctor)\b""").containsMatchIn(lower) ->
+            HEALTH_PATTERN.containsMatchIn(lower) ->
                 Triple("Health", "Health or fitness related note.", "Wellness")
 
             // Finance patterns
-            Regex("""(?i)\b(money|budget|invest|savings|expense|income|stock|crypto|bank)\b""").containsMatchIn(lower) ->
+            FINANCE_PATTERN.containsMatchIn(lower) ->
                 Triple("Finance", "Financial note or tracking.", "Money mgmt")
 
             // Recipe patterns
-            Regex("""(?i)\b(recipe|cook|ingredient|bake|tablespoon|cup|oven|minutes at)\b""").containsMatchIn(lower) ->
+            RECIPE_PATTERN.containsMatchIn(lower) ->
                 Triple("Recipe", "Recipe or cooking instructions.", "Cook this")
 
             // Work patterns
-            Regex("""(?i)\b(project|client|deadline|report|presentation|manager|team|office)\b""").containsMatchIn(lower) ->
+            WORK_PATTERN.containsMatchIn(lower) ->
                 Triple("Work", "Work-related note or task.", "Professional")
 
             else ->
@@ -612,7 +626,7 @@ object AIResponseParser {
      */
     fun cleanSummary(summary: String?, maxLength: Int = 500): String {
         if (summary.isNullOrBlank()) return "Content saved for later."
-        val cleaned = summary.trim().replace(Regex("\\s+"), " ")
+        val cleaned = summary.trim().replace(WHITESPACE_PATTERN, " ")
         return if (cleaned.length > maxLength) {
             cleaned.take(maxLength - 3) + "..."
         } else {

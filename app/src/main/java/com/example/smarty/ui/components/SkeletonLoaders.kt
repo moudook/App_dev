@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
  * Skeleton loader for category cards with halftone shimmer effect.
@@ -30,17 +32,26 @@ fun CategoryCardSkeleton(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     )
-    
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerTranslate"
-    )
+
+    // LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    val translateAnim = if (shouldAnimate) {
+        val transition = rememberInfiniteTransition(label = "shimmer")
+        val animatedTranslate by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1000f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shimmerTranslate"
+        )
+        animatedTranslate
+    } else {
+        500f // Static mid-point value
+    }
     
     val brush = Brush.linearGradient(
         colors = shimmerColors,
@@ -97,17 +108,26 @@ fun NoteCardSkeleton(
         accentColor.copy(alpha = 0.3f),
         accentColor.copy(alpha = 0.1f)
     )
-    
-    val transition = rememberInfiniteTransition(label = "noteShimmer")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 800f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "translateAnim"
-    )
+
+    // LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    val translateAnim = if (shouldAnimate) {
+        val transition = rememberInfiniteTransition(label = "noteShimmer")
+        val animatedTranslate by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 800f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "translateAnim"
+        )
+        animatedTranslate
+    } else {
+        400f // Static mid-point value
+    }
     
     val brush = Brush.linearGradient(
         colors = shimmerColors,

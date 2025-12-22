@@ -39,6 +39,13 @@ class PlayAudioTool(
 
     companion object {
         private const val TAG = "PlayAudioTool"
+
+        // Pre-compiled regex patterns for performance
+        private val NON_ALPHANUMERIC_SPACE_PATTERN = Regex("[^a-z0-9\\s]")
+        private val NON_ALPHANUMERIC_PATTERN = Regex("[^a-z0-9]")
+        private val TIME_COLON_PATTERN = Regex("""(\d+):(\d{1,2})""")
+        private val TIME_MINUTES_PATTERN = Regex("""(\d+)\s*(?:minutes?|mins?)""")
+        private val TIME_SECONDS_PATTERN = Regex("""(\d+)\s*(?:seconds?|secs?)""")
     }
 
     override val name = "play_audio"
@@ -404,7 +411,7 @@ class PlayAudioTool(
             }
 
             // Ultra fallback: Check if any filename or tag CONTAINS any query word
-            val normalizedQuery = query.lowercase().replace(Regex("[^a-z0-9\\s]"), "")
+            val normalizedQuery = query.lowercase().replace(NON_ALPHANUMERIC_SPACE_PATTERN, "")
             val queryParts = normalizedQuery.split(" ").filter { it.length >= 2 }
 
             val ultraFallback = audioItems.firstOrNull { item ->
@@ -423,8 +430,8 @@ class PlayAudioTool(
 
             // SUPER fallback: Check if filename contains ANY single character sequence from query (3+ chars)
             val superFallback = audioItems.firstOrNull { item ->
-                val fileNameLower = item.fileName.lowercase().replace(Regex("[^a-z0-9]"), "")
-                val queryClean = query.lowercase().replace(Regex("[^a-z0-9]"), "")
+                val fileNameLower = item.fileName.lowercase().replace(NON_ALPHANUMERIC_PATTERN, "")
+                val queryClean = query.lowercase().replace(NON_ALPHANUMERIC_PATTERN, "")
 
                 // Check if there's any 3+ char overlap
                 queryClean.length >= 3 && (
@@ -508,23 +515,20 @@ class PlayAudioTool(
         val str = timeStr.lowercase().trim()
 
         // Format: "1:30" or "01:30" (mm:ss)
-        val colonPattern = Regex("""(\d+):(\d{1,2})""")
-        colonPattern.find(str)?.let { match ->
+        TIME_COLON_PATTERN.find(str)?.let { match ->
             val minutes = match.groupValues[1].toLongOrNull() ?: 0
             val seconds = match.groupValues[2].toLongOrNull() ?: 0
             return (minutes * 60 + seconds) * 1000
         }
 
         // Format: "2 minutes" or "2 min"
-        val minutesPattern = Regex("""(\d+)\s*(?:minutes?|mins?)""")
-        minutesPattern.find(str)?.let { match ->
+        TIME_MINUTES_PATTERN.find(str)?.let { match ->
             val minutes = match.groupValues[1].toLongOrNull() ?: 0
             return minutes * 60 * 1000
         }
 
         // Format: "45 seconds" or "45 sec"
-        val secondsPattern = Regex("""(\d+)\s*(?:seconds?|secs?)""")
-        secondsPattern.find(str)?.let { match ->
+        TIME_SECONDS_PATTERN.find(str)?.let { match ->
             val seconds = match.groupValues[1].toLongOrNull() ?: 0
             return seconds * 1000
         }

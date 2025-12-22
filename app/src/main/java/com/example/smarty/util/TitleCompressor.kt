@@ -31,6 +31,15 @@ object TitleCompressor {
 
     private const val TAG = "TitleCompressor"
 
+    // Pre-compiled regex patterns for performance
+    private val WHITESPACE_PATTERN = Regex("\\s+")
+    private val JSON_RESPONSE_PATTERN = Regex(""""response"\s*:\s*"([^"]+)"""")
+    private val QUOTES_PATTERN = Regex("""^["'\s]+|["'\s]+$""")
+    private val PARENTHESES_PATTERN = Regex("""\([^)]*\)""")
+    private val BRACKETS_PATTERN = Regex("""\[[^\]]*\]""")
+    private val SUFFIX_PATTERN = Regex("""-\s*(remix|version|remaster|official|live|acoustic).*""", RegexOption.IGNORE_CASE)
+    private val FEAT_PATTERN = Regex("""feat\.?\s+.*""", RegexOption.IGNORE_CASE)
+
     // System prompt for title compression
     private const val COMPRESSION_SYSTEM_PROMPT = """You are a title compressor. Your ONLY job is to compress music/audio titles to exactly 2-3 words.
 
@@ -69,7 +78,7 @@ Output: Symphony Fifth Allegro"""
         title: String
     ): String = withContext(Dispatchers.IO) {
         // Skip if already short enough
-        val wordCount = title.trim().split(Regex("\\s+")).size
+        val wordCount = title.trim().split(WHITESPACE_PATTERN).size
         if (wordCount <= 3) {
             Log.d(TAG, "Title already short: $title")
             return@withContext title.trim()
@@ -99,7 +108,7 @@ Output: Symphony Fifth Allegro"""
      */
     private fun extractCompressedTitle(response: String, originalTitle: String): String {
         // Try to extract from JSON response field
-        val jsonMatch = Regex(""""response"\s*:\s*"([^"]+)"""").find(response)
+        val jsonMatch = JSON_RESPONSE_PATTERN.find(response)
         if (jsonMatch != null) {
             return cleanTitle(jsonMatch.groupValues[1])
         }
@@ -108,7 +117,7 @@ Output: Symphony Fifth Allegro"""
         val lines = response.split("\n").map { it.trim() }.filter { it.isNotBlank() }
         for (line in lines) {
             val cleaned = cleanTitle(line)
-            val words = cleaned.split(Regex("\\s+"))
+            val words = cleaned.split(WHITESPACE_PATTERN)
             if (words.size in 2..4 && !cleaned.contains("{") && !cleaned.contains(":")) {
                 return cleaned
             }
@@ -116,7 +125,7 @@ Output: Symphony Fifth Allegro"""
 
         // If response looks like just the title (short and clean)
         val cleanedResponse = cleanTitle(response)
-        val words = cleanedResponse.split(Regex("\\s+"))
+        val words = cleanedResponse.split(WHITESPACE_PATTERN)
         if (words.size in 2..4) {
             return cleanedResponse
         }
@@ -130,8 +139,8 @@ Output: Symphony Fifth Allegro"""
      */
     private fun cleanTitle(title: String): String {
         return title
-            .replace(Regex("""^["'\s]+|["'\s]+$"""), "") // Remove quotes at start/end
-            .replace(Regex("""\s+"""), " ")              // Normalize whitespace
+            .replace(QUOTES_PATTERN, "") // Remove quotes at start/end
+            .replace(WHITESPACE_PATTERN, " ")              // Normalize whitespace
             .trim()
     }
 
@@ -142,17 +151,17 @@ Output: Symphony Fifth Allegro"""
     fun fallbackCompress(title: String): String {
         // Remove common patterns
         val cleaned = title
-            .replace(Regex("""\([^)]*\)"""), "")           // Remove (parentheses)
-            .replace(Regex("""\[[^\]]*\]"""), "")          // Remove [brackets]
-            .replace(Regex("""-\s*(remix|version|remaster|official|live|acoustic).*""", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("""feat\.?\s+.*""", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("""\s+"""), " ")
+            .replace(PARENTHESES_PATTERN, "")           // Remove (parentheses)
+            .replace(BRACKETS_PATTERN, "")          // Remove [brackets]
+            .replace(SUFFIX_PATTERN, "")
+            .replace(FEAT_PATTERN, "")
+            .replace(WHITESPACE_PATTERN, " ")
             .trim()
 
         // Take first 3 words
-        val words = cleaned.split(Regex("\\s+"))
+        val words = cleaned.split(WHITESPACE_PATTERN)
         return words.take(3).joinToString(" ").ifBlank {
-            title.split(Regex("\\s+")).take(3).joinToString(" ")
+            title.split(WHITESPACE_PATTERN).take(3).joinToString(" ")
         }
     }
 

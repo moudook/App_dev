@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.theme.AudioPink
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlin.math.PI
 
 /**
@@ -51,31 +53,41 @@ fun OptimizedOrbVisualizer(
         smoothAmplitude = smoothAmplitude + (target - smoothAmplitude) * factor
     }
 
-    // Single infinite transition for all animations
-    // More efficient than multiple transitions
-    val infiniteTransition = rememberInfiniteTransition(label = "orb")
+    // Single infinite transition for all animations - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    // Phase animation: 0 to 1 over 3 seconds (smooth, not jarring)
-    val phase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
+    val phase = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "orb")
+        val animatedPhase by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "phase"
+        )
+        animatedPhase
+    } else {
+        0f // Static value
+    }
 
-    // Slow rotation for outer ring (0 to 360 over 10 seconds)
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = TWO_PI_F,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
+    val rotation = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "orb")
+        val animatedRotation by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(10000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "rotation"
+        )
+        animatedRotation
+    } else {
+        0f // Static value
+    }
 
     Canvas(modifier = modifier.size(size)) {
         val centerX = this.size.width / 2f

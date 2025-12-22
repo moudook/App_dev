@@ -46,6 +46,8 @@ import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.viewers.FullScreenDocumentViewer
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import com.example.smarty.util.CompressionType
 import com.example.smarty.util.FileCompressor
 import com.example.smarty.util.FileStorageHelper
@@ -833,17 +835,25 @@ private fun CompactFileRow(
 private fun PrivacyBanner() {
     val privacyColor = MaterialTheme.colorScheme.tertiary
 
-    // Shimmer animation
-    val infiniteTransition = rememberInfiniteTransition(label = "privacyBannerShimmer")
-    val shimmerAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "privacyBannerShimmerAlpha"
-    )
+    // Shimmer animation - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    val shimmerAlpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "privacyBannerShimmer")
+        val animatedAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "privacyBannerShimmerAlpha"
+        )
+        animatedAlpha
+    } else {
+        0.925f // Static mid-point value
+    }
 
     Surface(
         modifier = Modifier

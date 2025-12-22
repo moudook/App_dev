@@ -1,6 +1,7 @@
 package com.example.smarty.data.repository
 
 import android.util.Log
+import androidx.room.Transaction
 import com.example.smarty.data.local.ChatDao
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatMessageEntity
@@ -9,6 +10,7 @@ import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.Note
 import com.example.smarty.util.PrivacyGuard
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
@@ -29,6 +31,7 @@ class ChatRepository(private val chatDao: ChatDao) {
      * Get all chat sessions ordered by most recent
      */
     fun getAllSessions(): Flow<List<ChatSession>> = chatDao.getAllSessions()
+        .distinctUntilChanged()
 
     /**
      * Get the currently active session
@@ -39,10 +42,12 @@ class ChatRepository(private val chatDao: ChatDao) {
      * Get active session as Flow for reactive updates
      */
     fun getActiveSessionFlow(): Flow<ChatSession?> = chatDao.getActiveSessionFlow()
+        .distinctUntilChanged()
 
     /**
      * Create a new chat session and make it active
      */
+    @Transaction
     suspend fun createNewSession(title: String = "New Chat"): ChatSession {
         // Deactivate all existing sessions
         chatDao.deactivateAllSessions()
@@ -71,6 +76,7 @@ class ChatRepository(private val chatDao: ChatDao) {
     /**
      * Delete a session and all its messages
      */
+    @Transaction
     suspend fun deleteSession(sessionId: String) {
         chatDao.deleteMessagesForSession(sessionId)
         chatDao.deleteSessionById(sessionId)
@@ -90,9 +96,9 @@ class ChatRepository(private val chatDao: ChatDao) {
      * Get messages for a session
      */
     fun getMessagesForSession(sessionId: String): Flow<List<ChatMessage>> {
-        return chatDao.getMessagesForSession(sessionId).map { entities ->
-            entities.map { it.toChatMessage() }
-        }
+        return chatDao.getMessagesForSession(sessionId)
+            .map { entities -> entities.map { it.toChatMessage() } }
+            .distinctUntilChanged()
     }
 
     /**
@@ -118,6 +124,7 @@ class ChatRepository(private val chatDao: ChatDao) {
      * @param message The message to save
      * @param allNotes Optional: All notes for final sanitization (if provided)
      */
+    @Transaction
     suspend fun saveMessage(
         sessionId: String,
         message: ChatMessage,
@@ -181,6 +188,7 @@ class ChatRepository(private val chatDao: ChatDao) {
      * @param shouldSave Whether saving is allowed (based on API success, demo mode, etc.)
      * @return true if messages were saved
      */
+    @Transaction
     suspend fun saveMessagePair(
         sessionId: String,
         userMessage: ChatMessage,

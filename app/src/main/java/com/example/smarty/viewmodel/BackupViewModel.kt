@@ -72,7 +72,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    // Auth state
+    // Auth state (StateFlow already guarantees distinct values)
     val isSignedIn: StateFlow<Boolean> = authManager.isSignedIn
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 

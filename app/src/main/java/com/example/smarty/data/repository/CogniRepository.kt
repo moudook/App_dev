@@ -8,6 +8,7 @@ import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 
 class CogniRepository(
@@ -17,11 +18,14 @@ class CogniRepository(
 ) {
     // Notes
     fun getAllNotes(): Flow<List<Note>> = noteDao.getAllNotes()
+        .distinctUntilChanged()
 
     fun getNotesByCategory(categoryId: String): Flow<List<Note>> =
         noteDao.getNotesByCategory(categoryId)
+            .distinctUntilChanged()
 
     fun getArchivedNotes(): Flow<List<Note>> = noteDao.getArchivedNotes()
+        .distinctUntilChanged()
 
     suspend fun getNoteById(id: String): Note? = noteDao.getNoteById(id)
 
@@ -31,6 +35,7 @@ class CogniRepository(
         // We pass a dummy list in that case, but hasTypeFilter=false ensures it's ignored.
         val effectiveTypes = if (types.isEmpty()) listOf(com.example.smarty.data.model.NoteType.BRAIN_DUMP) else types
         return noteDao.searchNotes(query, effectiveTypes, hasTypeFilter)
+            .distinctUntilChanged()
     }
 
     /**
@@ -120,6 +125,7 @@ class CogniRepository(
 
     // Categories
     fun getAllCategories(): Flow<List<Category>> = categoryDao.getAllCategories()
+        .distinctUntilChanged()
 
     suspend fun getCategoryById(id: String): Category? = categoryDao.getCategoryById(id)
 
@@ -160,6 +166,7 @@ class CogniRepository(
     // =========================================================================
 
     fun getAllCalendarEvents(): Flow<List<CalendarEvent>> = calendarDao.getAllEvents()
+        .distinctUntilChanged()
 
     suspend fun getCalendarEventById(id: String): CalendarEvent? = calendarDao.getEventById(id)
 

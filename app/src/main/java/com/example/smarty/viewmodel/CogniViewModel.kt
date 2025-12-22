@@ -462,10 +462,12 @@ class CogniViewModel(
 
 
     val categories = repository.getAllCategories()
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Calendar events
     val calendarEvents = calendarDao.getAllEvents()
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _selectedNote = MutableStateFlow<Note?>(null)
@@ -485,6 +487,7 @@ class CogniViewModel(
     // Network monitoring (Phase 7)
     private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor(application) }
     val connectionStatus: StateFlow<ConnectionStatus> = networkMonitor.connectionStatus
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionStatus.CONNECTED)
 
     init {
@@ -988,6 +991,7 @@ class CogniViewModel(
 
     // Archived notes for archive screen
     val archivedNotes = repository.getArchivedNotes()
+        .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun deleteNote(note: Note) {

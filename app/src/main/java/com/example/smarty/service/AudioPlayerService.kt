@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Foreground service for audio playback using Media3 ExoPlayer
@@ -76,6 +78,9 @@ class AudioPlayerService : MediaSessionService() {
         val trebleAmplitude: StateFlow<Float> = _trebleAmplitude.asStateFlow()
 
         private var currentTrack: AudioTrack? = null
+
+        // Mutex for synchronizing player state access
+        private val stateMutex = Mutex()
 
         /**
          * Start playing an audio track
@@ -189,35 +194,37 @@ class AudioPlayerService : MediaSessionService() {
                 else -> PlaybackState.IDLE
             }
 
-            updateState { copy(playbackState = playbackState) }
+            serviceScope.launch {
+                updateState { copy(playbackState = playbackState) }
 
-            if (state == Player.STATE_ENDED) {
-                // Reset position when track ends
-                updateState { copy(currentPosition = 0L, isPlaying = false) }
-                stopPositionUpdates()
+                if (state == Player.STATE_ENDED) {
+                    // Reset position when track ends
+                    updateState { copy(currentPosition = 0L, isPlaying = false) }
+                    stopPositionUpdates()
+                }
             }
 
             Log.d(TAG, "Playback state changed: $playbackState")
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            updateState {
-                copy(
-                    isPlaying = isPlaying,
-                    playbackState = if (isPlaying) PlaybackState.PLAYING else PlaybackState.PAUSED
-                )
-            }
+            serviceScope.launch {
+                updateState {
+                    copy(
+                        isPlaying = isPlaying,
+                        playbackState = if (isPlaying) PlaybackState.PLAYING else PlaybackState.PAUSED
+                    )
+                }
 
-            if (isPlaying) {
-                startPositionUpdates()
-                // Setup visualizer AFTER playback actually starts to avoid audio pops
-                // Small delay ensures audio session is fully initialized
-                serviceScope.launch {
+                if (isPlaying) {
+                    startPositionUpdates()
+                    // Setup visualizer AFTER playback actually starts to avoid audio pops
+                    // Small delay ensures audio session is fully initialized
                     delay(150) // Wait for audio to stabilize
                     setupVisualizer()
+                } else {
+                    stopPositionUpdates()
                 }
-            } else {
-                stopPositionUpdates()
             }
 
             Log.d(TAG, "isPlaying changed: $isPlaying")
@@ -225,13 +232,15 @@ class AudioPlayerService : MediaSessionService() {
 
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
             Log.e(TAG, "Player error: ${error.message}", error)
-            updateState {
-                copy(
-                    isPlaying = false,
-                    playbackState = PlaybackState.ERROR
-                )
+            serviceScope.launch {
+                updateState {
+                    copy(
+                        isPlaying = false,
+                        playbackState = PlaybackState.ERROR
+                    )
+                }
+                stopPositionUpdates()
             }
-            stopPositionUpdates()
         }
     }
 
@@ -292,7 +301,11 @@ class AudioPlayerService : MediaSessionService() {
                                 val rms = kotlin.math.sqrt(sum / data.size)
                                 // Normalize to 0-1 range (max RMS for full scale is ~90)
                                 val normalizedAmplitude = (rms / 90.0).coerceIn(0.0, 1.0).toFloat()
-                                _currentAmplitude.value = normalizedAmplitude
+                                serviceScope.launch {
+                                    stateMutex.withLock {
+                                        _currentAmplitude.value = normalizedAmplitude
+                                    }
+                                }
                             }
                         }
 
@@ -361,9 +374,17 @@ class AudioPlayerService : MediaSessionService() {
                                 val trebleAvg = if (trebleCount > 0) trebleSum / trebleCount else 0.0
 
                                 // Normalize to 0-1 with some headroom
-                                _bassAmplitude.value = (bassAvg / 120.0).coerceIn(0.0, 1.0).toFloat()
-                                _midAmplitude.value = (midAvg / 100.0).coerceIn(0.0, 1.0).toFloat()
-                                _trebleAmplitude.value = (trebleAvg / 80.0).coerceIn(0.0, 1.0).toFloat()
+                                val bassNorm = (bassAvg / 120.0).coerceIn(0.0, 1.0).toFloat()
+                                val midNorm = (midAvg / 100.0).coerceIn(0.0, 1.0).toFloat()
+                                val trebleNorm = (trebleAvg / 80.0).coerceIn(0.0, 1.0).toFloat()
+
+                                serviceScope.launch {
+                                    stateMutex.withLock {
+                                        _bassAmplitude.value = bassNorm
+                                        _midAmplitude.value = midNorm
+                                        _trebleAmplitude.value = trebleNorm
+                                    }
+                                }
                             }
                         }
                     },
@@ -385,16 +406,20 @@ class AudioPlayerService : MediaSessionService() {
             visualizer?.enabled = false
             visualizer?.release()
             visualizer = null
-            _currentAmplitude.value = 0f
-            _bassAmplitude.value = 0f
-            _midAmplitude.value = 0f
-            _trebleAmplitude.value = 0f
+            serviceScope.launch {
+                stateMutex.withLock {
+                    _currentAmplitude.value = 0f
+                    _bassAmplitude.value = 0f
+                    _midAmplitude.value = 0f
+                    _trebleAmplitude.value = 0f
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error releasing visualizer", e)
         }
     }
 
-    private inline fun updateState(update: AudioPlayerState.() -> AudioPlayerState) {
+    private suspend inline fun updateState(update: AudioPlayerState.() -> AudioPlayerState) = stateMutex.withLock {
         _playerState.value = _playerState.value.update()
     }
 
@@ -431,7 +456,11 @@ class AudioPlayerService : MediaSessionService() {
 
     private fun playTrack(track: AudioTrack) {
         Log.d(TAG, "Playing track: ${track.title}")
-        currentTrack = track
+        serviceScope.launch {
+            stateMutex.withLock {
+                currentTrack = track
+            }
+        }
 
         player?.apply {
             // Create MediaItem - works for both content:// URIs and http:// URLs
@@ -455,13 +484,15 @@ class AudioPlayerService : MediaSessionService() {
             playWhenReady = true
         }
 
-        updateState {
-            copy(
-                currentTrack = track,
-                currentPosition = 0L,
-                isPlaying = true,
-                playbackState = PlaybackState.BUFFERING
-            )
+        serviceScope.launch {
+            updateState {
+                copy(
+                    currentTrack = track,
+                    currentPosition = 0L,
+                    isPlaying = true,
+                    playbackState = PlaybackState.BUFFERING
+                )
+            }
         }
 
         // Note: Visualizer is setup in onIsPlayingChanged() AFTER playback starts
@@ -484,19 +515,25 @@ class AudioPlayerService : MediaSessionService() {
         releaseVisualizer()
         player?.stop()
         player?.clearMediaItems()
-        currentTrack = null
-
-        updateState { AudioPlayerState() }
-        stopPositionUpdates()
+        serviceScope.launch {
+            stateMutex.withLock {
+                currentTrack = null
+            }
+            updateState { AudioPlayerState() }
+            stopPositionUpdates()
+        }
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     private fun seekTo(position: Long) {
         player?.seekTo(position)
-        updateState { copy(currentPosition = position) }
+        serviceScope.launch {
+            updateState { copy(currentPosition = position) }
+        }
     }
 
     private fun createNotification(): Notification {
+        // Access currentTrack without lock for notification (read-only, nullable safe)
         val track = currentTrack
 
         // Use filename for audio files

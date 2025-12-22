@@ -7,6 +7,8 @@ import com.example.smarty.data.remote.DocumentAnalysisResponse
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.google.gson.annotations.SerializedName
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -121,7 +123,10 @@ class AnthropicProvider(
             .build()
 
         return try {
-            val response = client.newCall(request).execute()
+            // Execute blocking HTTP call on IO dispatcher
+            val response = runBlocking(Dispatchers.IO) {
+                client.newCall(request).execute()
+            }
             val responseBody = response.body?.string()
 
             Log.d(TAG, "HTTP ${response.code}")

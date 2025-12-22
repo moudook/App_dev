@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -63,9 +64,11 @@ class ChatManager(
      */
     fun initialize() {
         scope.launch {
-            chatRepository.getAllSessions().collect { sessions ->
-                _chatSessions.value = sessions
-            }
+            chatRepository.getAllSessions()
+                .distinctUntilChanged()
+                .collect { sessions ->
+                    _chatSessions.value = sessions
+                }
         }
         scope.launch {
             chatRepository.cleanupEmptySessions()
@@ -99,12 +102,16 @@ class ChatManager(
         if (activeSession != null) {
             _currentSessionId.value = activeSession.id
             val messages = chatRepository.getMessagesForSessionOnce(activeSession.id)
-            _chatMessages.value = messages
+            chatMutex.withLock {
+                _chatMessages.value = messages
+            }
             Log.d(TAG, "Restored chat session: ${activeSession.id} with ${messages.size} messages")
         } else {
             val newSession = chatRepository.createNewSession()
             _currentSessionId.value = newSession.id
-            _chatMessages.value = emptyList()
+            chatMutex.withLock {
+                _chatMessages.value = emptyList()
+            }
             Log.d(TAG, "Created new chat session: ${newSession.id}")
         }
 
@@ -135,7 +142,9 @@ class ChatManager(
 
             val newSession = chatRepository.createNewSession()
             _currentSessionId.value = newSession.id
-            _chatMessages.value = emptyList()
+            chatMutex.withLock {
+                _chatMessages.value = emptyList()
+            }
             lastApiCallSuccessful = false
             Log.d(TAG, "Created new chat session: ${newSession.id}")
         }
@@ -149,7 +158,9 @@ class ChatManager(
             chatRepository.switchToSession(sessionId)
             _currentSessionId.value = sessionId
             val messages = chatRepository.getMessagesForSessionOnce(sessionId)
-            _chatMessages.value = messages
+            chatMutex.withLock {
+                _chatMessages.value = messages
+            }
             Log.d(TAG, "Switched to chat session: $sessionId with ${messages.size} messages")
         }
     }
@@ -165,7 +176,9 @@ class ChatManager(
             if (isCurrentSession) {
                 val newSession = chatRepository.createNewSession()
                 _currentSessionId.value = newSession.id
-                _chatMessages.value = emptyList()
+                chatMutex.withLock {
+                    _chatMessages.value = emptyList()
+                }
             }
             Log.d(TAG, "Deleted chat session: $sessionId")
         }
@@ -175,7 +188,11 @@ class ChatManager(
      * Clear current chat history (keeps session, just clears messages in memory)
      */
     fun clearChatHistory() {
-        _chatMessages.value = emptyList()
+        scope.launch {
+            chatMutex.withLock {
+                _chatMessages.value = emptyList()
+            }
+        }
         Log.d(TAG, "Chat history cleared")
     }
 

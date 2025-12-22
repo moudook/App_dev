@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.theme.AudioPink
 import com.example.smarty.ui.utils.AnimationMath
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlin.math.PI
 import kotlin.math.min
 
@@ -48,41 +50,57 @@ fun LivingOrbVisualizer(
         smoothedAmplitude = AnimationMath.lerp(smoothedAmplitude, targetAmplitude, smoothing)
     }
 
-    // Continuous time for wave animations
-    val infiniteTransition = rememberInfiniteTransition(label = "orb_time")
+    // Continuous time for wave animations - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    // Main time driver (0 to 1 over 2 seconds, repeating)
-    val time by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "time"
-    )
+    val time = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "orb_time")
+        val animatedTime by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "time"
+        )
+        animatedTime
+    } else {
+        0f // Static value
+    }
 
-    // Slower rotation for outer elements
-    val slowRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "slow_rotation"
-    )
+    val slowRotation = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "orb_time")
+        val animatedRotation by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(8000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "slow_rotation"
+        )
+        animatedRotation
+    } else {
+        0f // Static value
+    }
 
-    // Counter rotation for depth
-    val counterRotation by infiniteTransition.animateFloat(
-        initialValue = 360f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(12000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "counter_rotation"
-    )
+    val counterRotation = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "orb_time")
+        val animatedCounter by infiniteTransition.animateFloat(
+            initialValue = 360f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(12000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "counter_rotation"
+        )
+        animatedCounter
+    } else {
+        0f // Static value
+    }
 
     Canvas(modifier = modifier.size(size)) {
         val centerX = this.size.width / 2

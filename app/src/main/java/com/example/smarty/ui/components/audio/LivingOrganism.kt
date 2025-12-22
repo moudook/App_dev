@@ -11,6 +11,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -40,17 +42,25 @@ fun LivingOrganism(
         label = "amplitude"
     )
 
-    // Very slow breathing cycle - 16 seconds for one complete breath
-    val infiniteTransition = rememberInfiniteTransition(label = "calm_breathing")
-    val breathPhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 2 * PI.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(16000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "breath"
-    )
+    // Very slow breathing cycle - 16 seconds for one complete breath - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    val breathPhase = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "calm_breathing")
+        val animatedPhase by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 2 * PI.toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(16000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "breath"
+        )
+        animatedPhase
+    } else {
+        0f // Static value
+    }
 
     Canvas(modifier = modifier.size(size)) {
         val centerX = this.size.width / 2

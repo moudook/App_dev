@@ -43,7 +43,7 @@ class WaveformCache(
         return try {
             val digest = java.security.MessageDigest.getInstance("MD5")
             val hash = digest.digest(key.toByteArray())
-            hash.fold("") { str, byte -> str + "%02x".format(byte) }
+            hash.joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
             key.replace(Regex("[^a-zA-Z0-9]"), "_").take(64)
         }

@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
  * Connection status indicator that shows the current network/API status.
@@ -29,18 +31,26 @@ fun ConnectionStatusIndicator(
     showLabel: Boolean = true
 ) {
     val accentColor = LocalAccentColor.current
-    
-    // Pulse animation for connecting state
-    val infiniteTransition = rememberInfiniteTransition(label = "statusPulse")
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.5f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
+
+    // Pulse animation for connecting state - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    val pulseAlpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "statusPulse")
+        val animatedAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse"
+        )
+        animatedAlpha
+    } else {
+        0.75f // Static mid-point value
+    }
     
     val statusColor = when (status) {
         ConnectionStatus.CONNECTED -> Color(0xFF4CAF50) // Green

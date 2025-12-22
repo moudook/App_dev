@@ -392,7 +392,7 @@ class CacheManager private constructor(private val context: Context) {
         return try {
             val digest = MessageDigest.getInstance("MD5")
             val hash = digest.digest(key.toByteArray())
-            hash.fold("") { str, byte -> str + "%02x".format(byte) }
+            hash.joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
             // Fallback to sanitized key
             key.replace(Regex("[^a-zA-Z0-9]"), "_").take(64)

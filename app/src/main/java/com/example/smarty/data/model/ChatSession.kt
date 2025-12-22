@@ -1,6 +1,7 @@
 package com.example.smarty.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.util.UUID
 
@@ -17,7 +18,13 @@ import java.util.UUID
  * Summaries are used to provide context in future conversations
  * without including full message history.
  */
-@Entity(tableName = "chat_sessions")
+@Entity(
+    tableName = "chat_sessions",
+    indices = [
+        Index(value = ["updatedAt"]),
+        Index(value = ["isActive"])
+    ]
+)
 data class ChatSession(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
@@ -48,7 +55,14 @@ data class ChatSession(
  * Entity for storing chat messages in the database.
  * Linked to a ChatSession via sessionId.
  */
-@Entity(tableName = "chat_messages")
+@Entity(
+    tableName = "chat_messages",
+    indices = [
+        Index(value = ["sessionId"]),
+        Index(value = ["timestamp"]),
+        Index(value = ["sessionId", "timestamp"])
+    ]
+)
 data class ChatMessageEntity(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),

@@ -80,6 +80,8 @@ import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.ui.theme.softCardShadow
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import com.example.smarty.util.rememberSpeechToText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -394,17 +396,25 @@ fun CogniInputField(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        // Animated lock icon pulse
-                        val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
-                        val alpha by infiniteTransition.animateFloat(
-                            initialValue = 0.7f,
-                            targetValue = 1f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(1500),
-                                repeatMode = RepeatMode.Reverse
-                            ),
-                            label = "alpha"
-                        )
+                        // Animated lock icon pulse - LIFECYCLE AWARE
+                        val lifecycleState by rememberAnimationLifecycleState()
+                        val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+                        val alpha = if (shouldAnimate) {
+                            val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+                            val animatedAlpha by infiniteTransition.animateFloat(
+                                initialValue = 0.7f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1500),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "alpha"
+                            )
+                            animatedAlpha
+                        } else {
+                            0.85f // Static mid-point value
+                        }
 
                         Icon(
                             imageVector = Icons.Filled.Security,

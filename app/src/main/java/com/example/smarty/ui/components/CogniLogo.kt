@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
  * Cogni Logo component - renders the hand gesture logo
@@ -34,17 +36,25 @@ fun CogniLogo(
 ) {
     val accentColor = LocalAccentColor.current
 
-    // Shimmer animation
-    val infiniteTransition = rememberInfiniteTransition(label = "logoShimmer")
-    val shimmerOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerOffset"
-    )
+    // Shimmer animation - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING && showShimmer
+
+    val shimmerOffset = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "logoShimmer")
+        val animatedOffset by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shimmerOffset"
+        )
+        animatedOffset
+    } else {
+        0.5f // Static mid-point value
+    }
 
     Box(
         modifier = modifier
@@ -156,7 +166,7 @@ fun CogniLogo(
         }
 
         // Shimmer overlay if enabled
-        if (showShimmer) {
+        if (shouldAnimate) {
             val shimmerWidth = 200f
             val shimmerStartX = (shimmerOffset * (shimmerWidth * 2)) - shimmerWidth
             Box(
@@ -190,23 +200,31 @@ fun ShimmerBox(
 ) {
     val accentColor = LocalAccentColor.current
 
-    // Shimmer animation
-    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
-    val shimmerOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerOffset"
-    )
+    // Shimmer animation - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING && isLoading
+
+    val shimmerOffset = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+        val animatedOffset by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shimmerOffset"
+        )
+        animatedOffset
+    } else {
+        0.5f // Static mid-point value
+    }
 
     Box(modifier = modifier) {
         content()
 
         // Shimmer overlay when loading
-        if (isLoading) {
+        if (shouldAnimate) {
             val shimmerWidth = 300f
             val shimmerStartX = (shimmerOffset * (shimmerWidth * 3)) - shimmerWidth
 
@@ -242,27 +260,41 @@ fun DecompressionPlaceholder(
 ) {
     val accentColor = LocalAccentColor.current
 
-    // Pulse animation
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
+    // Pulse animation - LIFECYCLE AWARE
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    val shimmerOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerOffset"
-    )
+    val alpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        val animatedAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 0.6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulseAlpha"
+        )
+        animatedAlpha
+    } else {
+        0.45f // Static mid-point value
+    }
+
+    val shimmerOffset = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        val animatedOffset by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "shimmerOffset"
+        )
+        animatedOffset
+    } else {
+        0.5f // Static mid-point value
+    }
 
     Box(
         modifier = modifier
@@ -298,20 +330,26 @@ fun DecompressionPlaceholder(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Animated dots
+            // Animated dots - LIFECYCLE AWARE
             Row(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 repeat(3) { index ->
-                    val dotAlpha by infiniteTransition.animateFloat(
-                        initialValue = 0.3f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(600, delayMillis = index * 200, easing = LinearEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "dot$index"
-                    )
+                    val dotAlpha = if (shouldAnimate) {
+                        val dotTransition = rememberInfiniteTransition(label = "dot$index")
+                        val animatedDotAlpha by dotTransition.animateFloat(
+                            initialValue = 0.3f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(600, delayMillis = index * 200, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "dotAlpha$index"
+                        )
+                        animatedDotAlpha
+                    } else {
+                        0.65f // Static mid-point value
+                    }
                     Box(
                         modifier = Modifier
                             .size(8.dp)
