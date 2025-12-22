@@ -187,73 +187,58 @@ fun SearchFilterTypeSelector(
         ) {
             Surface(
                 shape = androidx.compose.foundation.shape.CircleShape,
-                color = if (selectedFilters.isNotEmpty()) accentColor.copy(alpha = 0.9f)
-                        else MaterialTheme.colorScheme.surfaceVariant,
+                // Higher contrast background
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
-                    color = if (selectedFilters.isNotEmpty()) accentColor.copy(alpha = 0.5f)
-                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                )
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                ),
+                shadowElevation = 0.dp
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), // Compact padding
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    Text(
-                        text = "Filter:",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = if (selectedFilters.isNotEmpty()) 
-                            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f)
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    
+                    // Filter Options
                     AttachmentOption.entries.forEachIndexed { index, option ->
                         val isSelected = option in selectedFilters
+                        
+                        // Animate selection state
                         val backgroundColor by animateColorAsState(
-                            targetValue = if (isSelected) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.25f)
-                                          else androidx.compose.ui.graphics.Color.Transparent,
+                            targetValue = if (isSelected) accentColor else androidx.compose.ui.graphics.Color.Transparent,
                             animationSpec = tween(200), label = "filterBg"
                         )
-                        val textColor by animateColorAsState(
-                            targetValue = when {
-                                isSelected && selectedFilters.isNotEmpty() -> androidx.compose.ui.graphics.Color.White
-                                selectedFilters.isNotEmpty() -> androidx.compose.ui.graphics.Color.White.copy(alpha = 0.6f)
-                                isSelected -> accentColor
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+                        val contentColor by animateColorAsState(
+                            targetValue = if (isSelected) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.7f),
                             animationSpec = tween(200), label = "filterText"
-                        )
-                        val scale by animateFloatAsState(
-                            targetValue = if (isSelected) 1.1f else 1f,
-                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f), label = "filterScale"
                         )
                         
                         Box(
                             modifier = Modifier
-                                .scale(scale)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(androidx.compose.foundation.shape.CircleShape)
                                 .background(backgroundColor)
                                 .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onFilterToggle(option)
                                 }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp) // Reduced horizontal padding to prevent wrapping
                         ) {
                             Text(
                                 text = option.label,
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                                 ),
-                                color = textColor
+                                color = contentColor
                             )
                         }
+                        
                         if (index < AttachmentOption.entries.lastIndex) {
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                         }
                     }
                     
+                    // Clear Button (Only appears when selection exists)
                     AnimatedVisibility(
                         visible = selectedFilters.isNotEmpty(),
                         enter = fadeIn() + expandHorizontally(),
@@ -261,18 +246,32 @@ fun SearchFilterTypeSelector(
                     ) {
                         Row {
                             Spacer(modifier = Modifier.width(8.dp))
-                            Box(modifier = Modifier.width(1.dp).height(10.dp)
-                                .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.3f)))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Clear",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onClearFilters()
-                                }
+                            // Vertical Divider
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(14.dp)
+                                    .align(Alignment.CenterVertically)
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            Box(
+                                modifier = Modifier
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onClearFilters()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Clear filters",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }

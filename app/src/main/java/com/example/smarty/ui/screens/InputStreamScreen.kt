@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,8 +50,6 @@ import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.StaggerCalculator
-import com.example.smarty.ui.animation.rememberShakeGlowState
-import com.example.smarty.ui.animation.shakeGlowEffect
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.ui.components.ChatHistorySheet
 import com.example.smarty.ui.components.ChatMessageItem
@@ -189,16 +188,8 @@ fun InputStreamScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var lastArchivedNoteId by remember { mutableStateOf<String?>(null) }
 
-    // Shake glow animation state
-    val shakeGlowState = rememberShakeGlowState()
+    // Accent color for theming (used by ShakeCloudEffect)
     val accentColor = LocalAccentColor.current
-
-    // Trigger glow when shake mode switch detected
-    LaunchedEffect(wasShakeTriggered) {
-        if (wasShakeTriggered) {
-            shakeGlowState.triggerGlow()
-        }
-    }
 
     // Voice Input State (Speech-to-Text) - Use external from MainActivity
     val speechState = externalSpeechState ?: com.example.smarty.util.rememberSpeechToText(
@@ -498,13 +489,7 @@ fun InputStreamScreen(
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .shakeGlowEffect(
-                isActive = shakeGlowState.isGlowing,
-                glowColor = if (isChatMode) accentColor else MaterialTheme.colorScheme.primary,
-                onAnimationComplete = { shakeGlowState.onGlowComplete() }
-            )
+        modifier = modifier.fillMaxSize()
     ) {
         // Shake cloud effect overlay (0.4s expand/contract from edges)
         ShakeCloudEffect(
@@ -1209,8 +1194,19 @@ fun InputStreamScreen(
 
 
 /**
- * Animated note item with staggered entry animation
- * Uses spring physics for natural feel
+ * OPTIMIZED: Animated note item with staggered entry animation.
+ *
+ * Performance improvements:
+ * - Single Animatable drives all 3 transforms (was 3 separate animateFloatAsState)
+ * - 66% reduction in animation overhead (1 animator instead of 3)
+ * - graphicsLayer lambda defers all state reads to draw phase
+ * - Scale, alpha, and translation derived mathematically from single progress
+ * - Items beyond index 5 skip animation entirely (instant appear)
+ *
+ * Mathematical derivation from progress p ∈ [0, 1]:
+ * - scale = 0.4 + 0.6p (linear: 0.4 → 1.0)
+ * - alpha = p (linear: 0 → 1)
+ * - offsetY = 100(1-p) (linear: 100 → 0)
  */
 @Composable
 private fun AnimatedNoteItem(
@@ -1226,43 +1222,29 @@ private fun AnimatedNoteItem(
     onPlayYouTube: (String) -> Unit = {},
     searchQuery: String? = null
 ) {
-    // Track if item has appeared
-    var appeared by remember { mutableStateOf(false) }
+    // OPTIMIZED: Single animatable drives all transforms
+    // Skip animation for items beyond index 5 (instant appear)
+    val shouldAnimate = index < 5
+    val animationProgress = remember { Animatable(if (shouldAnimate) 0f else 1f) }
 
-    // Staggered delay based on index - first 5 items animate, rest appear instantly
-    val staggerDelay = if (index < 5) StaggerCalculator.logarithmic(index, 40) else 0
-
+    // Staggered delay using logarithmic spacing for natural cascade
     LaunchedEffect(Unit) {
-        delay(staggerDelay.toLong())
-        appeared = true
+        if (shouldAnimate) {
+            val staggerDelay = StaggerCalculator.logarithmic(index, 40)
+            delay(staggerDelay.toLong())
+            // Spring animation for bouncy "orb pop" effect
+            animationProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = 0.65f, // Slightly bouncy
+                    stiffness = 350f
+                )
+            )
+        }
     }
 
-    // Scale animation with spring - modified for "Orb Pop" effect
-    val scale by animateFloatAsState(
-        targetValue = if (appeared) 1f else 0.4f, // Start smaller (orb size)
-        animationSpec = spring(
-            dampingRatio = 0.6f, // Bouncy
-            stiffness = 300f
-        ),
-        label = "itemScale"
-    )
-
-    // Alpha animation
-    val alpha by animateFloatAsState(
-        targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(240, easing = CogniEasing.appleEaseOut),
-        label = "itemAlpha"
-    )
-
-    // Slide up animation - increased offset for dramatic entry
-    val offsetY by animateFloatAsState(
-        targetValue = if (appeared) 0f else 100f,
-        animationSpec = spring(
-            dampingRatio = 0.8f,
-            stiffness = 400f
-        ),
-        label = "itemOffset"
-    )
+    // OPTIMIZED: Pre-compute density for offset calculation
+    val density = LocalDensity.current
 
     NoteCard(
         note = note,
@@ -1270,11 +1252,17 @@ private fun AnimatedNoteItem(
         onDelete = onDelete,
         onOpenTodo = onOpenTodo,
         modifier = Modifier
-            .scale(scale)
+            // OPTIMIZED: Single graphicsLayer with lambda defers ALL reads to draw phase
+            // This prevents recomposition on every animation frame
             .graphicsLayer {
-                this.alpha = alpha
-            }
-            .offset(y = offsetY.dp),
+                val p = animationProgress.value
+                // Derive all transforms from single progress value
+                val scale = 0.4f + 0.6f * p
+                scaleX = scale
+                scaleY = scale
+                alpha = p
+                translationY = (1f - p) * 100f * density.density
+            },
         index = index,
         onArchive = onArchive,
         isSelected = isSelected,

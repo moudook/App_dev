@@ -58,11 +58,8 @@ docs/UI_QUICK_REFERENCE.md
 
 
 # AI Agent Documentation (local reference only)
-# Allow .agent directory for workflow files
-!/.agent/
-!/.agent/workflows/**
 .agent/
-.agent/*.md
+# .agent/*.md (now allowed for workflows)
 api_groQ_smarty_cogni.txt
 
 # Temporary files

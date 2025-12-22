@@ -124,12 +124,12 @@ fun NoteCard(
         label = "border"
     )
 
-    // Swipe indicator alpha
-    val swipeAlpha by animateFloatAsState(
-        targetValue = (abs(swipeOffset.value) / swipeThreshold).coerceIn(0f, 1f),
-        animationSpec = tween(80),
-        label = "swipeAlpha"
-    )
+    // OPTIMIZED: Swipe indicator alpha using derivedStateOf
+    // derivedStateOf only triggers recomposition when the derived value actually changes
+    // This prevents unnecessary recompositions during swipe gestures
+    val swipeAlpha by remember {
+        derivedStateOf { (abs(swipeOffset.value) / swipeThreshold).coerceIn(0f, 1f) }
+    }
 
     Box(
         modifier = modifier.fillMaxWidth()
@@ -154,25 +154,17 @@ fun NoteCard(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(shapes.cardMedium)
+                    .background(color),
+                contentAlignment = if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd
             ) {
-                // Background color and icon clipped to the swipe offset
-                Box(
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White, // Always white on colored background
                     modifier = Modifier
-                        .align(if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .width(with(density) { abs(swipeOffset.value).toDp() + 48.dp }) // Add overlap for rounded corners
-                        .background(color),
-                    contentAlignment = if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.White, // Always white on colored background
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp)
-                            .scale(0.8f + swipeAlpha * 0.4f)
-                    )
-                }
+                        .padding(horizontal = 16.dp)
+                        .scale(0.8f + swipeAlpha * 0.4f)
+                )
             }
         }
 
@@ -254,18 +246,11 @@ fun NoteCard(
                     }
                 },
             shape = LocalShapes.current.cardMedium,
-            // Subtle blue tint for private/excluded notes (matches app accent)
-            color = when {
-                note.isFullPrivacy -> LocalAccentColor.current.copy(alpha = 0.08f)
-                note.excludeFromAiChat -> LocalAccentColor.current.copy(alpha = 0.05f)
-                else -> MaterialTheme.colorScheme.surface
-            },
+            // Uniform look for all cards - distinction is via tags only
+            color = MaterialTheme.colorScheme.surface,
             shadowElevation = 0.dp,
             border = if (isSelected) {
                 androidx.compose.foundation.BorderStroke(2.dp, LocalAccentColor.current)
-            } else if (note.isFullPrivacy) {
-                // Blue border for private notes (matches tint)
-                androidx.compose.foundation.BorderStroke(1.dp, LocalAccentColor.current.copy(alpha = 0.3f))
             } else {
                 // High contrast border for better definition against background
                 androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
@@ -358,19 +343,30 @@ fun NoteCard(
                             val typeColor = remember(note.type) { getNoteTypeColor(note.type) }
                             val iconTint = if (note.isAiCreated) LocalAccentColor.current else typeColor
                             
-                            
-                            Surface(
-                                shape = CircleShape,
-                                // Darker container for better Icon contrast
-                                color = iconTint.copy(alpha = 0.15f),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = iconVector,
-                                        contentDescription = null,
-                                        tint = iconTint,
-                                        modifier = Modifier.size(20.dp)
+                                                // Icon Container with Overlays
+                            Box {
+                                Surface(
+                                    shape = CircleShape,
+                                    // Darker container for better Icon contrast
+                                    color = iconTint.copy(alpha = 0.15f),
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = iconVector,
+                                            contentDescription = null,
+                                            tint = iconTint,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                // Privacy Indicator Overlay (Bottom Right of Icon)
+                                if (note.isFullPrivacy || note.excludeFromAiChat) {
+                                    PrivacyIndicatorChip(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .offset(x = 2.dp, y = 2.dp) // Adjusted position
                                     )
                                 }
                             }
@@ -402,19 +398,6 @@ fun NoteCard(
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
-                                }
-
-                                // Privacy & Indicators
-                                if (note.isFullPrivacy || note.excludeFromAiChat) {
-                                    Row(
-                                        modifier = Modifier.padding(top = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        // Privacy Indicator (Shield + Text)
-                                        // Shows for BOTH isFullPrivacy AND excludeFromAiChat
-                                        PrivacyIndicatorChip()
-                                    }
                                 }
                             }
                         }
@@ -521,15 +504,19 @@ fun CategoryChip(
 }
 
 /**
- * Privacy indicator chip with shield icon and "Private" text.
+ * OPTIMIZED: Privacy indicator chip with shield icon.
  * Indicates that AI cannot access this note.
- * Uses a subtle shimmer animation to draw attention.
+ *
+ * Performance improvements:
+ * - Uses graphicsLayer lambda for GPU-accelerated alpha animation
+ * - Lambda version reads animation state during draw phase, reducing recompositions
  */
 @Composable
 fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
-    val privacyColor = MaterialTheme.colorScheme.tertiary
+    // Use a blue color for privacy shield as requested
+    val privacyColor = com.example.smarty.ui.theme.SystemBlue
 
-    // Shimmer animation for privacy indicator
+    // OPTIMIZED: Shimmer animation with single transition
     val infiniteTransition = rememberInfiniteTransition(label = "privacyShimmer")
     val shimmerAlpha by infiniteTransition.animateFloat(
         initialValue = 0.6f,
@@ -541,45 +528,28 @@ fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
         label = "privacyShimmerAlpha"
     )
 
-    Surface(
+    Icon(
+        imageVector = Icons.Default.Shield,
+        contentDescription = "Private - AI cannot access",
+        tint = privacyColor,
         modifier = modifier
-            .graphicsLayer { alpha = shimmerAlpha },
-        shape = LocalShapes.current.pill,
-        color = privacyColor.copy(alpha = 0.15f),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = privacyColor.copy(alpha = 0.3f)
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Shield,
-                contentDescription = "Private - AI cannot access",
-                tint = privacyColor,
-                modifier = Modifier.size(12.dp)
-            )
-            Text(
-                text = "PRIVATE",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                ),
-                color = privacyColor
-            )
-        }
-    }
+            .size(14.dp)
+            // OPTIMIZED: graphicsLayer lambda defers state read to draw phase
+            // This prevents recomposition on every animation frame
+            .graphicsLayer { alpha = shimmerAlpha }
+    )
 }
 
 /**
- * Processing indicator with pulsing animation
+ * OPTIMIZED: Processing indicator with pulsing animation
+ *
+ * Performance improvements:
+ * - Uses graphicsLayer lambda for GPU-accelerated alpha animation
+ * - Defers state read to draw phase, preventing recomposition on every frame
  */
 @Composable
 private fun ProcessingIndicator(modifier: Modifier = Modifier) {
+    val accentColor = LocalAccentColor.current
     val infiniteTransition = rememberInfiniteTransition(label = "processing")
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,
@@ -594,7 +564,9 @@ private fun ProcessingIndicator(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .background(LocalAccentColor.current.copy(alpha = alpha))
+            .background(accentColor)
+            // OPTIMIZED: Use graphicsLayer lambda for alpha - defers to draw phase
+            .graphicsLayer { this.alpha = alpha }
     )
 }
 
