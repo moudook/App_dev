@@ -83,10 +83,41 @@ class PlayAudioTool(
                         error = "Note not found"
                     )
 
+                // Build audio track - check BOTH storage methods
+                val track: AudioTrack?
+                val trackTitle: String
+
+                // METHOD 1: Check multiple attachments from attachmentsJson
                 val attachments = note.getAttachments()
                     .filter { it.mimeType.startsWith("audio/") }
 
-                if (attachments.isEmpty()) {
+                if (attachments.isNotEmpty()) {
+                    val attachment = attachments.getOrNull(args.attachmentIndex) ?: attachments[0]
+                    track = AudioTrack(
+                        uri = attachment.uri,
+                        title = attachment.fileName,
+                        fileName = attachment.fileName,
+                        mimeType = attachment.mimeType,
+                        sourceNoteId = note.id,
+                        sourceAttachmentId = attachment.id
+                    )
+                    trackTitle = attachment.fileName
+                }
+                // METHOD 2: Check legacy single attachment (fileUri field)
+                else if (note.fileUri != null && note.fileMimeType?.startsWith("audio/") == true) {
+                    val legacyFileName = note.fileName ?: "audio_${note.id.take(8)}"
+                    track = AudioTrack(
+                        uri = note.fileUri,
+                        title = legacyFileName,
+                        fileName = legacyFileName,
+                        mimeType = note.fileMimeType,
+                        sourceNoteId = note.id,
+                        sourceAttachmentId = null
+                    )
+                    trackTitle = legacyFileName
+                    Log.d(TAG, "Using legacy audio from note: ${note.title}")
+                }
+                else {
                     return AudioPlaybackResult(
                         success = false,
                         action = "play",
@@ -95,25 +126,15 @@ class PlayAudioTool(
                     )
                 }
 
-                val attachment = attachments.getOrNull(args.attachmentIndex) ?: attachments[0]
                 val startPositionMs = parseTimeToMs(args.startTime)
-                val track = AudioTrack(
-                    uri = attachment.uri,
-                    title = attachment.fileName,
-                    fileName = attachment.fileName,
-                    mimeType = attachment.mimeType,
-                    sourceNoteId = note.id,
-                    sourceAttachmentId = attachment.id
-                )
-
                 Log.d(TAG, "Playing from note: ${track.title}, startPosition=${startPositionMs}ms")
                 onPlayAudio(track)
 
                 return AudioPlaybackResult(
                     success = true,
                     action = "play",
-                    trackTitle = attachment.fileName,
-                    message = "Now playing '${attachment.fileName}' from note '${note.title}'"
+                    trackTitle = trackTitle,
+                    message = "Now playing '$trackTitle' from note '${note.title}'"
                 )
             }
 
@@ -151,13 +172,52 @@ class PlayAudioTool(
                 )
             }
 
-            // No audio found
-            AudioPlaybackResult(
-                success = false,
-                action = "play",
-                message = "No audio file found matching '${args.query}'. Make sure the audio is saved in a note.",
-                error = "Audio not found"
-            )
+            // No audio found - but let's check if there's ANY audio at all
+            val allAudioFiles = getAllAudioFiles(allNotes)
+
+            if (allAudioFiles.isEmpty()) {
+                // No audio files exist at all
+                AudioPlaybackResult(
+                    success = false,
+                    action = "play",
+                    message = "No audio files found in any notes. Save some audio first!",
+                    error = "No audio in notes"
+                )
+            } else {
+                // Audio exists but query didn't match - show available options
+                val availableNames = allAudioFiles.take(5).joinToString(", ") { it.title }
+                Log.d(TAG, "Query '${args.query}' didn't match. Available: $availableNames")
+
+                // AGGRESSIVE FALLBACK: If user clearly wants audio, play the first available
+                val queryLower = args.query.lowercase()
+                val wantsAnyAudio = queryLower.contains("any") ||
+                                   queryLower.contains("something") ||
+                                   queryLower.contains("random") ||
+                                   queryLower == "music" ||
+                                   queryLower == "audio" ||
+                                   queryLower == "song"
+
+                if (wantsAnyAudio && allAudioFiles.isNotEmpty()) {
+                    val firstTrack = allAudioFiles.first()
+                    Log.d(TAG, "Playing first available audio: ${firstTrack.title}")
+                    onPlayAudio(firstTrack)
+
+                    AudioPlaybackResult(
+                        success = true,
+                        action = "play",
+                        trackTitle = firstTrack.title,
+                        message = "Playing '${firstTrack.title}'"
+                    )
+                } else {
+                    AudioPlaybackResult(
+                        success = false,
+                        action = "play",
+                        message = "Couldn't find '${args.query}'. Available audio: $availableNames",
+                        error = "Audio not found",
+                        availableAudio = allAudioFiles.take(5).map { it.title }
+                    )
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Audio playback error: ${e.message}", e)
             AudioPlaybackResult(
@@ -174,6 +234,10 @@ class PlayAudioTool(
      * Searches across multiple fields: filename, title, content, tags, summary, category.
      * Uses fuzzy matching, phonetic similarity, and token overlap for better results.
      * Can find "pretty little baby" even if file is "pretty_baby.mp3" or tagged as "baby song".
+     *
+     * IMPORTANT: Handles BOTH storage methods:
+     * 1. Legacy single attachment: note.fileUri, note.fileName, note.fileMimeType
+     * 2. Multiple attachments: note.getAttachments() from attachmentsJson
      */
     private fun findMatchingAudio(notes: List<Note>, query: String): AudioTrack? {
         Log.d(TAG, "Robust semantic search for audio in ${notes.size} notes: '$query'")
@@ -192,15 +256,14 @@ class PlayAudioTool(
         val audioItems = mutableListOf<AudioItem>()
 
         for (note in notes) {
-            val attachments = note.getAttachments()
-                .filter { it.mimeType.startsWith("audio/") }
-
-            if (attachments.isEmpty()) continue
-
             // Get all searchable metadata from the note
             val tags = note.getTags()
             val summary = note.summary ?: ""
             val category = note.categoryName
+
+            // METHOD 1: Check multiple attachments from attachmentsJson
+            val attachments = note.getAttachments()
+                .filter { it.mimeType.startsWith("audio/") }
 
             for (attachment in attachments) {
                 val track = AudioTrack(
@@ -220,6 +283,33 @@ class PlayAudioTool(
                     noteCategory = category,
                     fileName = attachment.fileName
                 ))
+            }
+
+            // METHOD 2: Check legacy single attachment (fileUri field)
+            // Only if no audio attachments found in attachmentsJson AND legacy fields have audio
+            if (attachments.isEmpty() &&
+                note.fileUri != null &&
+                note.fileMimeType?.startsWith("audio/") == true) {
+
+                val legacyFileName = note.fileName ?: "audio_${note.id.take(8)}"
+                val track = AudioTrack(
+                    uri = note.fileUri,
+                    title = legacyFileName,
+                    fileName = legacyFileName,
+                    mimeType = note.fileMimeType,
+                    sourceNoteId = note.id,
+                    sourceAttachmentId = null  // Legacy attachment doesn't have separate ID
+                )
+                audioItems.add(AudioItem(
+                    track = track,
+                    noteTitle = note.title,
+                    noteContent = note.content,
+                    noteSummary = summary,
+                    noteTags = tags,
+                    noteCategory = category,
+                    fileName = legacyFileName
+                ))
+                Log.d(TAG, "Found legacy audio attachment in note: ${note.title}, file: $legacyFileName")
             }
         }
 
@@ -314,10 +404,10 @@ class PlayAudioTool(
             }
 
             // Ultra fallback: Check if any filename or tag CONTAINS any query word
-            val ultraFallback = audioItems.firstOrNull { item ->
-                val normalizedQuery = query.lowercase().replace(Regex("[^a-z0-9\\s]"), "")
-                val queryParts = normalizedQuery.split(" ").filter { it.length >= 2 }
+            val normalizedQuery = query.lowercase().replace(Regex("[^a-z0-9\\s]"), "")
+            val queryParts = normalizedQuery.split(" ").filter { it.length >= 2 }
 
+            val ultraFallback = audioItems.firstOrNull { item ->
                 queryParts.any { part ->
                     item.fileName.lowercase().contains(part) ||
                     item.noteTitle.lowercase().contains(part) ||
@@ -331,6 +421,25 @@ class PlayAudioTool(
                 return ultraFallback.track
             }
 
+            // SUPER fallback: Check if filename contains ANY single character sequence from query (3+ chars)
+            val superFallback = audioItems.firstOrNull { item ->
+                val fileNameLower = item.fileName.lowercase().replace(Regex("[^a-z0-9]"), "")
+                val queryClean = query.lowercase().replace(Regex("[^a-z0-9]"), "")
+
+                // Check if there's any 3+ char overlap
+                queryClean.length >= 3 && (
+                    fileNameLower.contains(queryClean) ||
+                    queryClean.contains(fileNameLower.take(5)) ||
+                    queryParts.any { part -> part.length >= 3 && fileNameLower.contains(part) }
+                )
+            }
+
+            if (superFallback != null) {
+                Log.d(TAG, "Super fallback match: ${superFallback.fileName}")
+                return superFallback.track
+            }
+
+            Log.d(TAG, "No match found for '$query' in ${audioItems.size} audio items")
             return null
         }
 
@@ -341,6 +450,53 @@ class PlayAudioTool(
                 "tags: ${bestMatch.item.noteTags})")
 
         return bestMatch.item.track
+    }
+
+    /**
+     * Get ALL audio files from notes (for fallback and listing available audio).
+     *
+     * IMPORTANT: Handles BOTH storage methods:
+     * 1. Legacy single attachment: note.fileUri, note.fileName, note.fileMimeType
+     * 2. Multiple attachments: note.getAttachments() from attachmentsJson
+     */
+    private fun getAllAudioFiles(notes: List<Note>): List<AudioTrack> {
+        val audioTracks = mutableListOf<AudioTrack>()
+
+        for (note in notes) {
+            // METHOD 1: Check multiple attachments from attachmentsJson
+            val attachments = note.getAttachments()
+                .filter { it.mimeType.startsWith("audio/") }
+
+            for (attachment in attachments) {
+                audioTracks.add(AudioTrack(
+                    uri = attachment.uri,
+                    title = attachment.fileName,
+                    fileName = attachment.fileName,
+                    mimeType = attachment.mimeType,
+                    sourceNoteId = note.id,
+                    sourceAttachmentId = attachment.id
+                ))
+            }
+
+            // METHOD 2: Check legacy single attachment (fileUri field)
+            // Only if no audio attachments found in attachmentsJson AND legacy fields have audio
+            if (attachments.isEmpty() &&
+                note.fileUri != null &&
+                note.fileMimeType?.startsWith("audio/") == true) {
+
+                val legacyFileName = note.fileName ?: "audio_${note.id.take(8)}"
+                audioTracks.add(AudioTrack(
+                    uri = note.fileUri,
+                    title = legacyFileName,
+                    fileName = legacyFileName,
+                    mimeType = note.fileMimeType,
+                    sourceNoteId = note.id,
+                    sourceAttachmentId = null
+                ))
+            }
+        }
+
+        return audioTracks
     }
 
     /**

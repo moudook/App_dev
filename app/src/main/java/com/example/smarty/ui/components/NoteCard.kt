@@ -154,17 +154,25 @@ fun NoteCard(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(shapes.cardMedium)
-                    .background(color),
-                contentAlignment = if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Color.White, // Always white on colored background
+                // Background color and icon clipped to the swipe offset
+                Box(
                     modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .scale(0.8f + swipeAlpha * 0.4f)
-                )
+                        .align(if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .width(with(density) { abs(swipeOffset.value).toDp() + 48.dp }) // Add overlap for rounded corners
+                        .background(color),
+                    contentAlignment = if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White, // Always white on colored background
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .scale(0.8f + swipeAlpha * 0.4f)
+                    )
+                }
             }
         }
 

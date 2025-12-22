@@ -170,10 +170,20 @@ fun CogniNavHost(
     // Dynamic Models
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { com.example.smarty.data.local.AIModels.getModelsForProvider(it) },
+    // Screen change callback for shake detection
+    onScreenChange: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Start at PIN screen if configured, otherwise go to main input stream
     val startDestination = if (isPinConfigured) Screen.Pin.route else Screen.InputStream.route
+
+    // Track navigation changes and notify ViewModel
+    androidx.compose.runtime.LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { backStackEntry ->
+            val route = backStackEntry.destination.route ?: "unknown"
+            onScreenChange(route)
+        }
+    }
 
     NavHost(
         navController = navController,

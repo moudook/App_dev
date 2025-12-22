@@ -282,6 +282,10 @@ class CogniViewModel(
     private val _wasShakeTriggered = MutableStateFlow(false)
     val wasShakeTriggered: StateFlow<Boolean> = _wasShakeTriggered.asStateFlow()
 
+    // Current screen route - shake only works on main screen
+    private val _currentScreen = MutableStateFlow("input_stream")
+    val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
+
     // Shared flow for speech results to be consumed by screens
     private val _speechResults = kotlinx.coroutines.flow.MutableSharedFlow<String>()
     val speechResults = _speechResults.asSharedFlow()
@@ -756,6 +760,41 @@ class CogniViewModel(
             NoteType.APK -> "APK Files"
             else -> "Files"
         }
+    }
+
+    /**
+     * Extract suggestions from agent response.
+     * Parses TOON format: {suggestions:["suggestion1","suggestion2"]}
+     * Returns cleaned response (without suggestions block) and list of suggestions.
+     */
+    private fun extractSuggestionsFromResponse(response: String): Pair<String, List<String>> {
+        // Pattern to match: {suggestions:["a","b"]} or {suggestions: ["a", "b"]}
+        val suggestionsPattern = Regex("""\{suggestions:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE)
+
+        val match = suggestionsPattern.find(response)
+
+        if (match == null) {
+            // No suggestions found, return original response
+            return Pair(response.trim(), emptyList())
+        }
+
+        // Extract the suggestions array content
+        val suggestionsContent = match.groupValues[1]
+
+        // Parse individual suggestions (handle "text" or 'text')
+        val suggestions = Regex(""""([^"]+)"|'([^']+)'""")
+            .findAll(suggestionsContent)
+            .mapNotNull { it.groupValues[1].ifEmpty { it.groupValues[2] } }
+            .filter { it.isNotBlank() }
+            .take(2)  // Maximum 2 suggestions
+            .toList()
+
+        // Remove the suggestions block from the response
+        val cleanedResponse = response.replace(match.value, "").trim()
+
+        Log.d(TAG, "Extracted ${suggestions.size} suggestions: $suggestions")
+
+        return Pair(cleanedResponse, suggestions)
     }
 
     /**
@@ -1491,10 +1530,26 @@ class CogniViewModel(
     }
 
     /**
+     * Update the current screen route - call when navigation changes
+     * Shake gesture only works on the main inputStream screen
+     */
+    fun setCurrentScreen(screen: String) {
+        _currentScreen.value = screen
+        Log.d(TAG, "Current screen updated: $screen")
+    }
+
+    /**
      * Handle shake gesture contextually
+     * ONLY works on the main input_stream screen - ignored on other screens
      * Priority: Share mode > Chat mode > Input content (text OR attachments) > Empty input
      */
     private fun handleShake() {
+        // Only process shake on main screen (input_stream)
+        if (_currentScreen.value != "input_stream") {
+            Log.d(TAG, "Shake ignored - not on main screen (current: ${_currentScreen.value})")
+            return
+        }
+
         when {
             // Priority 1: During share flow -> toggle full privacy mode
             shareFlowManager.isInShareMode() -> {
@@ -1639,11 +1694,16 @@ class CogniViewModel(
                             it.contains("song") || it.contains("podcast") || it.contains("listen")
                         }
 
+                        // Extract suggestions from TOON format: {suggestions:["a","b"]}
+                        val (cleanedResponse, suggestions) = extractSuggestionsFromResponse(result.response)
+
                         // Create assistant message from agent response
                         val assistantMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
-                            content = result.response,
-                            isAudioRelated = isAudioQuery
+                            content = cleanedResponse,
+                            isAudioRelated = isAudioQuery,
+                            suggestions = suggestions,
+                            isError = false
                         )
 
                         chatManager.addAssistantMessage(assistantMessage)
@@ -1658,11 +1718,11 @@ class CogniViewModel(
                     is AgentResult.Error -> {
                         Log.e(TAG, "Agent error: ${result.message}")
 
-
-
                         val errorMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
-                            content = result.message
+                            content = result.message,
+                            isError = true,  // Mark as error - no suggestions will show
+                            suggestions = emptyList()
                         )
                         chatManager.addAssistantMessage(errorMessage)
                     }

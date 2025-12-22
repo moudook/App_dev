@@ -98,7 +98,8 @@ data class AudioPlaybackResult(
     val action: String,
     val trackTitle: String? = null,
     val message: String,
-    val error: String? = null
+    val error: String? = null,
+    val availableAudio: List<String>? = null  // List of available audio filenames when search fails
 ) {
     override fun toString(): String {
         val jsonStr = json.encodeToString(serializer(), this)

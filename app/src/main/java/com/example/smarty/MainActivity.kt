@@ -418,6 +418,10 @@ class MainActivity : ComponentActivity() {
                                     getAvailableModels = { provider ->
                                         viewModel.getAvailableModels(provider)
                                     },
+                                    // Track screen changes for shake gesture (only works on main screen)
+                                    onScreenChange = { route ->
+                                        viewModel.setCurrentScreen(route)
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 )
 
