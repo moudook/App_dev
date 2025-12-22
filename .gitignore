@@ -58,6 +58,9 @@ docs/UI_QUICK_REFERENCE.md
 
 
 # AI Agent Documentation (local reference only)
+# Allow .agent directory for workflow files
+!/.agent/
+!/.agent/workflows/**
 .agent/
 .agent/*.md
 api_groQ_smarty_cogni.txt
@@ -72,6 +75,10 @@ temp.txt
 # Screenshots/conversation files
 thread-*.png
 screenshot*.png
+# Specific PNG files to ignore
+analyse_this_image.png
+issue_in_chat_mode.png
+Audio_player_issue.png
 
 # IDE specific
 .idea/
