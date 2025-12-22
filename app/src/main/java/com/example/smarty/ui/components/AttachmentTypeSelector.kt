@@ -209,8 +209,9 @@ fun SearchFilterTypeSelector(
                             targetValue = if (isSelected) accentColor else androidx.compose.ui.graphics.Color.Transparent,
                             animationSpec = tween(200), label = "filterBg"
                         )
+                        // FIX: Use theme-aware color for unselected state (was hardcoded black)
                         val contentColor by animateColorAsState(
-                            targetValue = if (isSelected) androidx.compose.ui.graphics.Color.White else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.7f),
+                            targetValue = if (isSelected) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                             animationSpec = tween(200), label = "filterText"
                         )
                         

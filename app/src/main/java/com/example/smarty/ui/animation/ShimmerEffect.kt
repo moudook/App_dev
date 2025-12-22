@@ -9,15 +9,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Dp
-import kotlin.math.cos
-import kotlin.math.sin
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
  * OPTIMIZED: Premium shimmering/skeleton loading effect.
  *
  * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded (zero CPU in background)
  * - Single infinite transition (reduced from 2) - 50% less animation overhead
  * - Pulse alpha derived mathematically from translate progress using fast sine
  * - Pre-computed gradient offsets to reduce per-frame allocations
@@ -30,10 +29,26 @@ fun Modifier.shimmerEffect(
     delayMs: Int = 0,
     shimmerWidth: Float = 400f
 ): Modifier = composed {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) {
+        // Return static shimmer at mid-point when backgrounded - zero animation overhead
+        val staticAlpha = shimmerColor.alpha * 0.5f
+        val staticGradient = Brush.linearGradient(
+            colors = listOf(
+                Color.Transparent,
+                shimmerColor.copy(alpha = staticAlpha),
+                Color.Transparent
+            )
+        )
+        return@composed this.background(staticGradient)
+    }
+
     val transition = rememberInfiniteTransition(label = "shimmer")
 
     // OPTIMIZED: Single animation drives both translate and pulse
-    // Reduces animation overhead by 50% (1 animator instead of 2)
     val progress by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -48,19 +63,17 @@ fun Modifier.shimmerEffect(
         label = "shimmerProgress"
     )
 
-    // Derive translate from progress (same as before)
+    // Derive translate from progress
     val translateAnimation = -shimmerWidth + progress * (1200f + shimmerWidth)
 
     // OPTIMIZED: Derive pulse alpha using Bhaskara I's fast sine approximation
-    // Creates smooth 0.4 → 0.8 → 0.4 cycle per shimmer pass
-    // Bhaskara formula: sin(x) ≈ 16x(π-x) / (5π² - 4x(π-x)) for x in [0, π]
     val pulsePhase = progress * kotlin.math.PI.toFloat()
     val fastSine = (16f * pulsePhase * (kotlin.math.PI.toFloat() - pulsePhase)) /
                    (5f * kotlin.math.PI.toFloat() * kotlin.math.PI.toFloat() -
                     4f * pulsePhase * (kotlin.math.PI.toFloat() - pulsePhase))
     val pulseAlpha = 0.4f + 0.4f * fastSine
 
-    // Pre-compute base alpha for gradient stops (reduces per-frame multiplications)
+    // Pre-compute base alpha for gradient stops
     val baseAlpha = shimmerColor.alpha * pulseAlpha
 
     // Enhanced gradient with multiple color stops for smoother transition
@@ -86,6 +99,7 @@ fun Modifier.shimmerEffect(
  * OPTIMIZED: Premium wave shimmer effect with flowing wave appearance.
  *
  * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded (zero CPU in background)
  * - Single infinite transition (reduced from 2) - 50% less animation overhead
  * - Amplitude derived from phase using fast cosine approximation
  * - Bhaskara I's formula for cos: cos(x) = sin(π/2 - x)
@@ -94,6 +108,18 @@ fun Modifier.waveShimmerEffect(
     baseColor: Color = Color.White,
     durationMs: Int = 1500
 ): Modifier = composed {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) {
+        // Static gradient when backgrounded - zero animation overhead
+        val staticGradient = Brush.linearGradient(
+            colors = listOf(Color.Transparent, baseColor.copy(alpha = 0.25f), Color.Transparent)
+        )
+        return@composed this.background(staticGradient)
+    }
+
     val transition = rememberInfiniteTransition(label = "waveShimmer")
 
     // OPTIMIZED: Single animation drives both phase and amplitude
@@ -108,15 +134,13 @@ fun Modifier.waveShimmerEffect(
     )
 
     // OPTIMIZED: Derive amplitude using Bhaskara's fast cosine
-    // Creates 0.3 → 0.7 → 0.3 → 0.7 cycle (twice per wave pass)
-    // cos(x) via sin(π/2 - x) using Bhaskara approximation
-    val amplitudePhase = (wavePhase * 2f * kotlin.math.PI.toFloat()) // Double frequency
+    val amplitudePhase = (wavePhase * 2f * kotlin.math.PI.toFloat())
     val normalizedPhase = (kotlin.math.PI.toFloat() / 2f - (amplitudePhase % kotlin.math.PI.toFloat()))
         .coerceIn(0f, kotlin.math.PI.toFloat())
     val fastCos = (16f * normalizedPhase * (kotlin.math.PI.toFloat() - normalizedPhase)) /
                   (5f * kotlin.math.PI.toFloat() * kotlin.math.PI.toFloat() -
                    4f * normalizedPhase * (kotlin.math.PI.toFloat() - normalizedPhase))
-    val waveAmplitude = 0.5f + 0.2f * fastCos // 0.3 to 0.7 range
+    val waveAmplitude = 0.5f + 0.2f * fastCos
 
     val offset = wavePhase * 1500f
 

@@ -121,37 +121,31 @@ Cogni is designed to be your second brain - a place where you can dump any conte
 |---------|---------|---------|
 | WorkManager | 2.10.0 | Scheduled background tasks |
 
-## Architecture
-
+## Project Structure
 ```
 app/
-├── data/
-│   ├── local/           # Room database, DAOs, migrations
-│   ├── model/           # Data classes (Note, Category, etc.)
-│   ├── remote/          # AI services, Google Drive
-│   ├── repository/      # Data repository pattern
-│   ├── backup/          # Backup management
-│   └── worker/          # WorkManager workers
-├── navigation/          # Navigation graph and routes
-├── service/             # Android services (audio player)
-├── ui/
-│   ├── animation/       # Custom animations
-│   ├── components/      # Reusable UI components
-│   ├── screens/         # Screen composables
-│   └── theme/           # Colors, typography, spacing
-├── util/                # Utilities (shake detector, PDF extractor)
-└── viewmodel/           # ViewModels for each feature
+├─ src/main/java/com/example/smarty/
+│   ├─ CogniApplication.kt          # Application class initializing libraries
+│   ├─ MainActivity.kt              # Entry point, UI composition and navigation
+│   ├─ agent/                       # Agent related classes and logic
+│   ├─ data/                        # Data layer: models, DAOs, repositories
+│   ├─ navigation/                  # Navigation graph and routes
+│   ├─ service/                     # Android services (audio playback, background workers)
+│   ├─ ui/                          # UI components, screens, theming
+│   ├─ util/                        # Utility helpers (shake detector, PDF extractor, etc.)
+│   └─ viewmodel/                   # ViewModels for each feature
+├─ res/                             # Resources: layouts, drawables, values
+├─ assets/                          # Static assets bundled with the app
+└─ AndroidManifest.xml              # App manifest with permissions and activities
 ```
 
 ## Requirements
-
 - **Minimum SDK**: 26 (Android 8.0)
 - **Target SDK**: 36
 - **Kotlin**: 2.0.21
 - **Gradle**: 8.13.2
 
 ## Setup
-
 1. Clone the repository
 2. Open in Android Studio
 3. Add your API keys in Settings (at least one provider required):
@@ -164,7 +158,6 @@ app/
 4. Build and run
 
 ## AI Providers
-
 Cogni supports multiple AI providers with automatic fallback. Configure one or more providers in Settings.
 
 | Provider | Model | Best For | Pricing |
@@ -177,36 +170,30 @@ Cogni supports multiple AI providers with automatic fallback. Configure one or m
 | **HuggingFace** | Mistral-7B | Good fallback option | Free tier available |
 
 ### Getting API Keys
-
-- **Gemini**: [Google AI Studio](https://aistudio.google.com/app/apikey)
-- **DeepSeek**: [DeepSeek Platform](https://platform.deepseek.com/)
-- **Groq**: [Groq Console](https://console.groq.com/)
-- **OpenAI**: [OpenAI Platform](https://platform.openai.com/api-keys)
-- **OpenRouter**: [OpenRouter](https://openrouter.ai/keys)
-- **HuggingFace**: [HuggingFace Settings](https://huggingface.co/settings/tokens)
+- **Gemini**: https://aistudio.google.com/app/apikey
+- **DeepSeek**: https://platform.deepseek.com/
+- **Groq**: https://console.groq.com/
+- **OpenAI**: https://platform.openai.com/api-keys
+- **OpenRouter**: https://openrouter.ai/keys
+- **HuggingFace**: https://huggingface.co/settings/tokens
 
 ### Fallback Order
-
-When analyzing content, Cogni tries providers in this order:
 1. Gemini
 2. DeepSeek
 3. Groq
 4. OpenAI
 5. OpenRouter
 6. HuggingFace
-
 If all providers fail, smart keyword-based categorization is used as a final fallback.
 
 ## Permissions
-
 | Permission | Purpose |
 |------------|---------|
-| `INTERNET` | AI API calls, content fetching |
+| `INTERNENT` | AI API calls, content fetching |
 | `FOREGROUND_SERVICE` | Background audio playback |
 | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Media playback notification |
 
 ## Design System
-
 ### Colors
 - **Primary (Dark)**: Acid Green (#CCFF00)
 - **Primary (Light)**: Bright Orange (#FF6B00)
@@ -224,9 +211,7 @@ If all providers fail, smart keyword-based categorization is used as a final fal
 - Screen padding: 16dp
 
 ## License
-
 [Add your license here]
 
 ## Contributing
-
 [Add contribution guidelines here]

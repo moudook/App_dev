@@ -508,25 +508,32 @@ fun CategoryChip(
  * Indicates that AI cannot access this note.
  *
  * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded (zero CPU in background)
  * - Uses graphicsLayer lambda for GPU-accelerated alpha animation
  * - Lambda version reads animation state during draw phase, reducing recompositions
  */
 @Composable
 fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
-    // Use a blue color for privacy shield as requested
     val privacyColor = com.example.smarty.ui.theme.SystemBlue
 
-    // OPTIMIZED: Shimmer animation with single transition
-    val infiniteTransition = rememberInfiniteTransition(label = "privacyShimmer")
-    val shimmerAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = CogniEasing.appleEaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "privacyShimmerAlpha"
-    )
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by com.example.smarty.ui.utils.rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == com.example.smarty.ui.utils.AnimationLifecycleState.RUNNING
+
+    val shimmerAlpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "privacyShimmer")
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = CogniEasing.appleEaseInOut),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "privacyShimmerAlpha"
+        ).value
+    } else {
+        0.8f // Static value when backgrounded - zero animation overhead
+    }
 
     Icon(
         imageVector = Icons.Default.Shield,
@@ -534,8 +541,6 @@ fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
         tint = privacyColor,
         modifier = modifier
             .size(14.dp)
-            // OPTIMIZED: graphicsLayer lambda defers state read to draw phase
-            // This prevents recomposition on every animation frame
             .graphicsLayer { alpha = shimmerAlpha }
     )
 }
@@ -544,28 +549,37 @@ fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
  * OPTIMIZED: Processing indicator with pulsing animation
  *
  * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded (zero CPU in background)
  * - Uses graphicsLayer lambda for GPU-accelerated alpha animation
  * - Defers state read to draw phase, preventing recomposition on every frame
  */
 @Composable
 private fun ProcessingIndicator(modifier: Modifier = Modifier) {
     val accentColor = LocalAccentColor.current
-    val infiniteTransition = rememberInfiniteTransition(label = "processing")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(640, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "processingAlpha"
-    )
+
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by com.example.smarty.ui.utils.rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == com.example.smarty.ui.utils.AnimationLifecycleState.RUNNING
+
+    val alpha = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "processing")
+        infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(640, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "processingAlpha"
+        ).value
+    } else {
+        0.65f // Static mid-value when backgrounded
+    }
 
     Box(
         modifier = modifier
             .clip(CircleShape)
             .background(accentColor)
-            // OPTIMIZED: Use graphicsLayer lambda for alpha - defers to draw phase
             .graphicsLayer { this.alpha = alpha }
     )
 }
