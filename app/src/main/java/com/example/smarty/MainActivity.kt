@@ -295,6 +295,9 @@ class MainActivity : ComponentActivity() {
                                     onSendChatMessage = { content, attachments ->
                                         viewModel.sendChatMessage(content, attachments)
                                     },
+                                    onExitChatMode = {
+                                        viewModel.exitChatMode()
+                                    },
                                     // Chat history management
                                     chatSessions = chatSessions,
                                     currentSessionId = currentSessionId,

@@ -242,7 +242,7 @@ private fun CategoryCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(180.dp) // Adjusted height
+            .height(120.dp) // Reduced card height
             .graphicsLayer {
                 scaleX = scale * pressScale
                 scaleY = scale * pressScale
@@ -271,7 +271,7 @@ private fun CategoryCard(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f) // Leave room at top for paper pop
+                .fillMaxHeight(0.75f) // Reduced blue panel height
                 .background(
                     color = accentColor, // Use App Theme Accent Color
                     shape = containerShape
@@ -289,7 +289,7 @@ private fun CategoryCard(
         )
 
         // 2. Stacked Papers (Sharp - Background)
-        val papersToShow = min(3, if (category.noteCount > 0) category.noteCount else 1)
+        val papersToShow = min(3, category.noteCount) // Show 0 papers when empty
         
         Box(
             modifier = Modifier
@@ -385,7 +385,7 @@ private fun CategoryCard(
             )
 
             // A. Blurred Papers Layer (Duplicate)
-            val parentHeight = 180.dp
+            val parentHeight = 120.dp
             val glassHeightFactor = 0.6f
             val shiftUp = parentHeight * (1f - glassHeightFactor)
             
@@ -527,8 +527,8 @@ private fun BoxScope.StackedPapers(papersToShow: Int, isBlurred: Boolean) {
         val visualIndex = i 
         
         // Stagger Logic
-        // Fix: Reduced base offset from 50.dp to 35.dp to prevent bottom leaking
-        val yOffset = (visualIndex * -12).dp + 35.dp  
+        // Fix: Adjusted offset to prevent bottom leaking with reduced card height
+        val yOffset = (visualIndex * -10).dp + 15.dp  
         val rotation = when(visualIndex) {
             2 -> 6f // Back right
             1 -> -3f // Mid left
@@ -544,7 +544,7 @@ private fun BoxScope.StackedPapers(papersToShow: Int, isBlurred: Boolean) {
                 .align(Alignment.TopCenter)
                 .offset(y = yOffset)
                 .fillMaxWidth(0.9f * scaleVal) // Taper back stack
-                .height(130.dp)
+                .height(70.dp)
                 .rotate(rotation)
                 .background(
                     color = if (visualIndex == 0) Color(0xFFF5F5F5) else Color(0xFFEEEEEE), 

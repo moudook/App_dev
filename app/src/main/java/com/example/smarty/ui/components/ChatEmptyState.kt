@@ -129,7 +129,7 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
         title = "Focus",
         subtitle = "Personal AI companion",
-        hint = "Help bring clarity to your ideas",
+        hint = "Everything starts with an idea; the graveyard is full of them. Execution is the only resurrection",
         modifier = modifier
     ) {
         // LIFECYCLE AWARENESS: Check if animation should run
@@ -304,9 +304,9 @@ fun NotesEmptyState(modifier: Modifier = Modifier) {
     val accentColor = LocalAccentColor.current
 
     EmptyStateContainer(
-        title = "Hello Himmu",
+        title = "Hello, Moudook!",
         subtitle = "Everything starts with an idea.",
-        hint = "Improving it is as important, as the idea itself",
+        hint = "Stop looking for the perfect 'app' and start providing the perfect effort",
     ) {
         // ORIGINAL ANIMATION: Cognitive Alignment (Restored)
         // LIFECYCLE AWARENESS: Check if animation should run

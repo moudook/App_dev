@@ -102,6 +102,7 @@ fun CogniNavHost(
     chatMessages: List<ChatMessage> = emptyList(),
     isChatProcessing: Boolean = false,
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
+    onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
@@ -232,6 +233,7 @@ fun CogniNavHost(
                 chatMessages = chatMessages,
                 isChatProcessing = isChatProcessing,
                 onSendChatMessage = onSendChatMessage,
+                onExitChatMode = onExitChatMode,
                 // Chat history
                 chatSessions = chatSessions,
                 currentSessionId = currentSessionId,

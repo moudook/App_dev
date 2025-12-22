@@ -1,6 +1,7 @@
 package com.example.smarty.ui.screens
 
 import android.graphics.BlurMaskFilter
+import android.os.Build
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -9,7 +10,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -24,44 +24,16 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * =============================================================================
- * LIFECYCLE-AWARE STARTUP ANIMATION
- * =============================================================================
+ * Startup Animation: "Three Blurred Circles"
  *
- * This screen implements:
- * 1. LIFECYCLE AWARENESS - Pauses breathing when backgrounded
- * 2. BHASKARA I OPTIMIZATION - 3x faster sine calculation
- * 3. ZERO-ALLOCATION DRAW LOOP - Pre-computed brushes
- *
- * The intro sequence (fade in, logo, expansion) completes regardless of
- * lifecycle state. Only the continuous breathing animation pauses.
- * =============================================================================
+ * Design Concept:
+ * - 3 softly blurred colored circles that float and breathe
+ * - Organic, dreamy motion with overlapping colors
+ * - Creates a calming, ethereal loading experience
  */
 
-// Pre-computed constants
 private const val TWO_PI = 2f * PI.toFloat()
 private const val PI_F = PI.toFloat()
-private const val INV_PI = 1f / PI.toFloat()
-private const val FOUR = 4f
-private const val FIVE_PI_SQ = 5f * PI.toFloat() * PI.toFloat()
-
-/**
- * Bhaskara I's sine approximation - O(1), no transcendental calls
- */
-@Suppress("NOTHING_TO_INLINE")
-private inline fun fastSin(x: Float): Float {
-    val normalized = x - (x * INV_PI * 0.5f).toInt() * TWO_PI
-    val xMod = if (normalized < 0f) normalized + TWO_PI else normalized
-
-    val (xPi, sign) = if (xMod > PI_F) {
-        (xMod - PI_F) to -1f
-    } else {
-        xMod to 1f
-    }
-
-    val xPiMinusX = xPi * (PI_F - xPi)
-    return sign * (16f * xPiMinusX) / (FIVE_PI_SQ - FOUR * xPiMinusX)
-}
 
 /**
  * Lifecycle state tracker for StartupScreen
@@ -83,27 +55,12 @@ private fun rememberStartupLifecycleState(): State<Boolean> {
         }
 
         lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     return isActive
 }
 
-/**
- * Startup Animation: "Three Blurred Circles"
- *
- * Design Concept:
- * - 3 softly blurred colored circles that float and breathe
- * - Organic, dreamy motion with overlapping colors
- * - Creates a calming, ethereal loading experience
- *
- * OPTIMIZATION:
- * - LIFECYCLE AWARE: Pauses animation when app backgrounded
- * - Bhaskara I sine approximation for smooth motion
- */
 @Composable
 fun StartupScreen(
     onComplete: () -> Unit
@@ -114,7 +71,7 @@ fun StartupScreen(
     // LIFECYCLE AWARENESS: Track if animation should be active
     val isActive by rememberStartupLifecycleState()
 
-    // --- MATHEMATICAL DRIVERS ---
+    // --- ANIMATION DRIVERS ---
     val infiniteTransition = if (isActive) {
         rememberInfiniteTransition(label = "breath")
     } else null
@@ -138,7 +95,7 @@ fun StartupScreen(
     val expansionScale = remember { Animatable(1f) }
     val logoAlpha = remember { Animatable(0f) }
 
-    // --- SYSTEM INITIALIZATION ---
+    // --- ANIMATION SEQUENCE ---
     LaunchedEffect(Unit) {
         // Phase 1: Fade In
         introAlpha.animateTo(
@@ -148,7 +105,7 @@ fun StartupScreen(
 
         delay(2500)
 
-        // Phase 2: Show Logo
+        // Phase 2: Show Logo (parallel)
         launch {
             logoAlpha.animateTo(1f, tween(800))
         }
@@ -166,58 +123,8 @@ fun StartupScreen(
     val baseSizePx = remember(density) { with(density) { 80.dp.toPx() } }
     val blurRadiusPx = remember(density) { with(density) { 60.dp.toPx() } }
 
-    // All 3 circles use the same blue color with varying alpha
-    val blueColor = Color(0xFF3B82F6)  // Blue color
-    val circle1Color = remember { blueColor.copy(alpha = 0.7f) }
-    val circle2Color = remember { blueColor.copy(alpha = 0.6f) }
-    val circle3Color = remember { blueColor.copy(alpha = 0.65f) }
-
-    // Blurred circle state
-    val circlesState by remember {
-        derivedStateOf {
-            val globalExpand = expansionScale.value
-            val globalAlpha = introAlpha.value
-
-            if (globalAlpha <= 0f) {
-                CirclesState.HIDDEN
-            } else {
-                val phase = if (isActive) breathPhase else 0f
-
-                // Circle 1 - top left, moves in circular pattern
-                val c1Angle = phase
-                val c1Distance = baseSizePx * 0.8f * (1f + fastSin(phase * 0.5f) * 0.2f)
-                val c1X = cos(c1Angle) * c1Distance
-                val c1Y = sin(c1Angle) * c1Distance - baseSizePx * 0.3f
-                val c1Radius = baseSizePx * (1.2f + fastSin(phase) * 0.15f) * globalExpand
-
-                // Circle 2 - bottom right, opposite phase
-                val c2Angle = phase + PI_F * 0.66f
-                val c2Distance = baseSizePx * 0.7f * (1f + fastSin(phase * 0.7f + 1f) * 0.25f)
-                val c2X = cos(c2Angle) * c2Distance
-                val c2Y = sin(c2Angle) * c2Distance + baseSizePx * 0.2f
-                val c2Radius = baseSizePx * (1.0f + fastSin(phase + PI_F * 0.5f) * 0.2f) * globalExpand
-
-                // Circle 3 - center-ish, gentle float
-                val c3Angle = phase + PI_F * 1.33f
-                val c3Distance = baseSizePx * 0.5f * (1f + fastSin(phase * 0.3f + 2f) * 0.15f)
-                val c3X = cos(c3Angle) * c3Distance
-                val c3Y = sin(c3Angle) * c3Distance + fastSin(phase * 0.8f) * baseSizePx * 0.15f
-                val c3Radius = baseSizePx * (0.9f + fastSin(phase + PI_F) * 0.1f) * globalExpand
-
-                CirclesState(
-                    visible = true,
-                    globalAlpha = globalAlpha,
-                    c1Offset = Offset(c1X, c1Y),
-                    c1Radius = c1Radius,
-                    c2Offset = Offset(c2X, c2Y),
-                    c2Radius = c2Radius,
-                    c3Offset = Offset(c3X, c3Y),
-                    c3Radius = c3Radius,
-                    blurRadius = blurRadiusPx * globalExpand.coerceAtMost(3f)
-                )
-            }
-        }
-    }
+    // All 3 circles use the app's accent color
+    val circleColor = remember(accentColor) { accentColor.copy(alpha = 0.65f) }
 
     Box(
         modifier = Modifier
@@ -227,96 +134,81 @@ fun StartupScreen(
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val center = this.center
-            val state = circlesState
+            val globalExpand = expansionScale.value
+            val globalAlpha = introAlpha.value
 
-            if (state.visible) {
+            if (globalAlpha > 0f) {
+                val phase = if (isActive) breathPhase else 0f
+
+                // Circle 1
+                val c1Angle = phase
+                val c1Distance = baseSizePx * 0.8f * (1f + sin(phase * 0.5f).toFloat() * 0.2f)
+                val c1X = cos(c1Angle) * c1Distance
+                val c1Y = sin(c1Angle) * c1Distance - baseSizePx * 0.3f
+                val c1Radius = baseSizePx * (1.2f + sin(phase).toFloat() * 0.15f) * globalExpand
+
+                // Circle 2
+                val c2Angle = phase + PI_F * 0.66f
+                val c2Distance = baseSizePx * 0.7f * (1f + sin(phase * 0.7f + 1f).toFloat() * 0.25f)
+                val c2X = cos(c2Angle) * c2Distance
+                val c2Y = sin(c2Angle) * c2Distance + baseSizePx * 0.2f
+                val c2Radius = baseSizePx * (1.0f + sin(phase + PI_F * 0.5f).toFloat() * 0.2f) * globalExpand
+
+                // Circle 3
+                val c3Angle = phase + PI_F * 1.33f
+                val c3Distance = baseSizePx * 0.5f * (1f + sin(phase * 0.3f + 2f).toFloat() * 0.15f)
+                val c3X = cos(c3Angle) * c3Distance
+                val c3Y = sin(c3Angle) * c3Distance + sin(phase * 0.8f).toFloat() * baseSizePx * 0.15f
+                val c3Radius = baseSizePx * (0.9f + sin(phase + PI_F).toFloat() * 0.1f) * globalExpand
+
+                val blurRadius = blurRadiusPx * globalExpand.coerceAtMost(3f)
+
                 // Create blur paint
                 val blurPaint = Paint().asFrameworkPaint().apply {
                     isAntiAlias = true
                     maskFilter = BlurMaskFilter(
-                        state.blurRadius.coerceAtLeast(1f),
+                        blurRadius.coerceAtLeast(1f),
                         BlurMaskFilter.Blur.NORMAL
                     )
+                    color = circleColor.copy(alpha = circleColor.alpha * globalAlpha).toArgb()
                 }
 
                 // Draw 3 blurred circles
                 drawContext.canvas.nativeCanvas.apply {
-                    // Circle 1
-                    blurPaint.color = circle1Color.copy(alpha = circle1Color.alpha * state.globalAlpha).toArgb()
-                    drawCircle(
-                        center.x + state.c1Offset.x,
-                        center.y + state.c1Offset.y,
-                        state.c1Radius,
-                        blurPaint
-                    )
-
-                    // Circle 2
-                    blurPaint.color = circle2Color.copy(alpha = circle2Color.alpha * state.globalAlpha).toArgb()
-                    drawCircle(
-                        center.x + state.c2Offset.x,
-                        center.y + state.c2Offset.y,
-                        state.c2Radius,
-                        blurPaint
-                    )
-
-                    // Circle 3
-                    blurPaint.color = circle3Color.copy(alpha = circle3Color.alpha * state.globalAlpha).toArgb()
-                    drawCircle(
-                        center.x + state.c3Offset.x,
-                        center.y + state.c3Offset.y,
-                        state.c3Radius,
-                        blurPaint
-                    )
+                    drawCircle(center.x + c1X, center.y + c1Y, c1Radius, blurPaint)
+                    drawCircle(center.x + c2X, center.y + c2Y, c2Radius, blurPaint)
+                    drawCircle(center.x + c3X, center.y + c3Y, c3Radius, blurPaint)
                 }
             }
         }
 
-        // Logo
-        Box(
-            modifier = Modifier
-                .offset(y = 0.dp)
-                .graphicsLayer {
-                    alpha = logoAlpha.value
-                    val invScale = 1f / expansionScale.value.coerceAtLeast(1f)
-                    scaleX = invScale
-                    scaleY = invScale
-                }
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                com.example.smarty.ui.components.CogniLogo(
-                    size = 72.dp,
-                    showShimmer = true
-                )
+        // --- TEXT RENDERING WITH GPU LAYER ---
+        val currentScale = expansionScale.value
+        if (currentScale < 10f) {
+            val fadeAlpha = if (currentScale > 5f) {
+                val fadeProgress = (currentScale - 5f) / 5f
+                (1f - fadeProgress).coerceIn(0f, 1f)
+            } else 1f
 
-                Spacer(modifier = Modifier.height(16.dp))
+            val textAlpha = logoAlpha.value * fadeAlpha
 
+            if (textAlpha > 0.01f) {
                 androidx.compose.material3.Text(
-                    text = "cogni_",
+                    text = ">,<",
                     style = MaterialTheme.typography.displayMedium,
-                    color = LocalAccentColor.current,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    color = Color.White,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    modifier = Modifier.graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                        alpha = textAlpha
+                        scaleX = currentScale
+                        scaleY = currentScale
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            renderEffect = null
+                        }
+                    }
                 )
             }
         }
-    }
-}
-
-/** State for 3 blurred circles animation */
-private data class CirclesState(
-    val visible: Boolean,
-    val globalAlpha: Float = 1f,
-    val c1Offset: Offset = Offset.Zero,
-    val c1Radius: Float = 0f,
-    val c2Offset: Offset = Offset.Zero,
-    val c2Radius: Float = 0f,
-    val c3Offset: Offset = Offset.Zero,
-    val c3Radius: Float = 0f,
-    val blurRadius: Float = 60f
-) {
-    companion object {
-        val HIDDEN = CirclesState(visible = false)
     }
 }

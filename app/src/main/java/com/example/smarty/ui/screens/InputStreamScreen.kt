@@ -97,6 +97,7 @@ fun InputStreamScreen(
     isChatMode: Boolean = false,
     chatMessages: List<ChatMessage> = emptyList(),
     isChatProcessing: Boolean = false,
+    onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     // Chat history parameters
     chatSessions: List<ChatSession> = emptyList(),
@@ -366,6 +367,12 @@ fun InputStreamScreen(
     // Handle back button press - exit selection mode instead of closing app
     BackHandler(enabled = isSelectionMode) {
         clearSelection()
+    }
+
+    // Handle back button press - exit chat mode and return to main page
+    // This only triggers when in chat mode and NOT in selection mode
+    BackHandler(enabled = isChatMode && !isSelectionMode) {
+        onExitChatMode()
     }
 
     // Todo sheet state
