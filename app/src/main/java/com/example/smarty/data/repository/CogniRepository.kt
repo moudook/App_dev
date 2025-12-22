@@ -25,6 +25,24 @@ class CogniRepository(
 
     suspend fun getNoteById(id: String): Note? = noteDao.getNoteById(id)
 
+    fun searchNotes(query: String, types: List<com.example.smarty.data.model.NoteType>): Flow<List<Note>> {
+        val hasTypeFilter = types.isNotEmpty()
+        // If types list is empty, Room requires a non-empty list for IN clause even if we use the boolean flag logic.
+        // We pass a dummy list in that case, but hasTypeFilter=false ensures it's ignored.
+        val effectiveTypes = if (types.isEmpty()) listOf(com.example.smarty.data.model.NoteType.BRAIN_DUMP) else types
+        return noteDao.searchNotes(query, effectiveTypes, hasTypeFilter)
+    }
+
+    /**
+     * Force a refresh of notes data.
+     * Since we use Room Flow, data is automatically updated.
+     * This function is mainly for pull-to-refresh visual feedback.
+     */
+    suspend fun refreshNotes() {
+        // Force recalculate category counts to ensure data integrity
+        syncAllCategoryCounts()
+    }
+
     @Transaction
     suspend fun insertNote(note: Note) {
         noteDao.insertNote(note)
@@ -53,6 +71,40 @@ class CogniRepository(
         note.categoryId?.let { categoryDao.incrementNoteCount(it) }
     }
 
+    // Bulk operations (Phase 4)
+    @Transaction
+    suspend fun archiveNotes(noteIds: List<String>) {
+        if (noteIds.isEmpty()) return
+        val notes = noteDao.getNotesByIds(noteIds)
+        noteDao.archiveNotes(noteIds)
+        // Decrement category counts for all affected categories
+        notes.forEach { note ->
+            note.categoryId?.let { categoryDao.decrementNoteCount(it) }
+        }
+    }
+
+    @Transaction
+    suspend fun unarchiveNotes(noteIds: List<String>) {
+        if (noteIds.isEmpty()) return
+        val notes = noteDao.getNotesByIds(noteIds)
+        noteDao.unarchiveNotes(noteIds)
+        // Increment category counts for all affected categories
+        notes.forEach { note ->
+            note.categoryId?.let { categoryDao.incrementNoteCount(it) }
+        }
+    }
+
+    @Transaction
+    suspend fun deleteNotes(noteIds: List<String>) {
+        if (noteIds.isEmpty()) return
+        val notes = noteDao.getNotesByIds(noteIds)
+        noteDao.deleteNotesByIds(noteIds)
+        // Decrement category counts for all affected categories
+        notes.forEach { note ->
+            note.categoryId?.let { categoryDao.decrementNoteCount(it) }
+        }
+    }
+
     @Transaction
     suspend fun updateNoteCategory(noteId: String, categoryId: String, categoryName: String) {
         val note = noteDao.getNoteById(noteId) ?: return
@@ -60,6 +112,10 @@ class CogniRepository(
         noteDao.updateNoteCategory(noteId, categoryId, categoryName)
         oldCategoryId?.let { categoryDao.decrementNoteCount(it) }
         categoryDao.incrementNoteCount(categoryId)
+    }
+
+    suspend fun updateNoteViewedStatus(noteId: String, isViewed: Boolean) {
+        noteDao.updateNoteViewedStatus(noteId, isViewed)
     }
 
     // Categories

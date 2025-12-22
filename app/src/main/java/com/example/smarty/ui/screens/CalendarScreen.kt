@@ -5,6 +5,8 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -168,6 +170,32 @@ fun CalendarScreen(
                         currentMonth = date.clone() as Calendar
                     }
                 },
+                onPreviousWeek = {
+                    // Navigate to previous week
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    val newDate = selectedDate.clone() as Calendar
+                    newDate.add(Calendar.WEEK_OF_YEAR, -1)
+                    selectedDate = newDate
+                    if (newDate.get(Calendar.MONTH) != currentMonth.get(Calendar.MONTH)) {
+                        currentMonth = newDate.clone() as Calendar
+                    }
+                },
+                onNextWeek = {
+                    // Navigate to next week
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    val newDate = selectedDate.clone() as Calendar
+                    newDate.add(Calendar.WEEK_OF_YEAR, 1)
+                    selectedDate = newDate
+                    if (newDate.get(Calendar.MONTH) != currentMonth.get(Calendar.MONTH)) {
+                        currentMonth = newDate.clone() as Calendar
+                    }
+                },
+                onDateLongPress = { date ->
+                    // Phase 6: Long press to create event for that date
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    selectedDate = date
+                    onAddEvent()  // Open event creation dialog
+                },
                 modifier = Modifier.padding(vertical = spacing.medium)
             )
 
@@ -277,11 +305,15 @@ private fun WeekStrip(
     selectedDate: Calendar,
     eventDays: Set<Int>,
     onDateSelected: (Calendar) -> Unit,
+    onDateLongPress: (Calendar) -> Unit = {},  // Phase 6: Long press for quick event creation
+    onPreviousWeek: () -> Unit = {},
+    onNextWeek: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val today = remember { Calendar.getInstance() }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val accentColor = LocalAccentColor.current
 
     // Find index of selected date
     val selectedIndex = weekDates.indexOfFirst { cal ->
@@ -294,39 +326,73 @@ private fun WeekStrip(
         listState.animateScrollToItem(maxOf(0, selectedIndex - 2))
     }
 
-    LazyRow(
-        state = listState,
+    Row(
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = LocalSpacing.current.default),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        items(weekDates.size) { index ->
-            val date = weekDates[index]
-            val isSelected = date.get(Calendar.DAY_OF_YEAR) == selectedDate.get(Calendar.DAY_OF_YEAR) &&
-                            date.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
-            val isToday = date.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
-                         date.get(Calendar.YEAR) == today.get(Calendar.YEAR)
-            val hasEvents = eventDays.contains(date.get(Calendar.DAY_OF_MONTH)) &&
-                           date.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH)
+        // Previous week arrow
+        IconButton(
+            onClick = onPreviousWeek,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ChevronLeft,
+                contentDescription = "Previous week",
+                tint = accentColor,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        
+        LazyRow(
+            state = listState,
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(weekDates.size) { index ->
+                val date = weekDates[index]
+                val isSelected = date.get(Calendar.DAY_OF_YEAR) == selectedDate.get(Calendar.DAY_OF_YEAR) &&
+                                date.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
+                val isToday = date.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
+                             date.get(Calendar.YEAR) == today.get(Calendar.YEAR)
+                val hasEvents = eventDays.contains(date.get(Calendar.DAY_OF_MONTH)) &&
+                               date.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH)
 
-            DayChip(
-                date = date,
-                isSelected = isSelected,
-                isToday = isToday,
-                hasEvents = hasEvents,
-                onClick = { onDateSelected(date) }
+                DayChip(
+                    date = date,
+                    isSelected = isSelected,
+                    isToday = isToday,
+                    hasEvents = hasEvents,
+                    onClick = { onDateSelected(date) },
+                    onLongPress = { onDateLongPress(date) }
+                )
+            }
+        }
+        
+        // Next week arrow
+        IconButton(
+            onClick = onNextWeek,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Next week",
+                tint = accentColor,
+                modifier = Modifier.size(24.dp)
             )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DayChip(
     date: Calendar,
     isSelected: Boolean,
     isToday: Boolean,
     hasEvents: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongPress: () -> Unit = {}
 ) {
     val shapes = LocalShapes.current
     val dayFormat = remember { SimpleDateFormat("EEE", Locale.getDefault()) }
@@ -352,7 +418,10 @@ private fun DayChip(
             .width(52.dp)
             .clip(shapes.button)
             .background(backgroundColor)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongPress
+            )
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)

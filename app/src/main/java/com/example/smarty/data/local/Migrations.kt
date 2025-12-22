@@ -265,4 +265,16 @@ object Migrations {
             db.execSQL("ALTER TABLE notes ADD COLUMN tagsJson TEXT DEFAULT NULL")
         }
     }
+
+    /**
+     * Migration from version 13 to 14
+     * Adds isViewed column for read/unread state
+     */
+    val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add isViewed column to notes table
+            // Default to 1 (true) for existing notes so they don't look "New"
+            db.execSQL("ALTER TABLE notes ADD COLUMN isViewed INTEGER NOT NULL DEFAULT 1")
+        }
+    }
 }

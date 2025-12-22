@@ -136,7 +136,13 @@ fun CogniInputField(
     // Agent working state (for shimmer direction)
     isAgentWorking: Boolean = false,
     // Auto-send countdown active (for fast shimmer)
-    autoSendActive: Boolean = false
+    autoSendActive: Boolean = false,
+    // Clear input callback
+    onClearInput: () -> Unit = {},
+    // Search filter parameters (used when isSearchMode = true)
+    selectedFilters: Set<AttachmentOption> = emptySet(),
+    onFilterToggle: (AttachmentOption) -> Unit = {},
+    onClearFilters: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -467,35 +473,47 @@ fun CogniInputField(
             )
         }
 
-        // Attachment type selector panel (above input)
+        // Attachment/Filter selector panel (above input)
+        // Shows filters when in search mode, attachments otherwise
         // Panel stays open while focused - doesn't close when selecting attachments
-        AttachmentTypeSelector(
-            visible = showAttachmentPanel && !isChatMode,
-            onSelectImage = {
-                onPickImage()
-                // Don't close panel - let it stay open for multiple attachments
-            },
-            onSelectVideo = {
-                onPickVideo()
-                // Don't close panel
-            },
-            onSelectDocument = {
-                onPickDocument()
-                // Don't close panel
-            },
-            onSelectAudio = {
-                onPickAudio()
-                // Don't close panel
-            },
-            onSelectFile = {
-                onPickFile()
-                // Don't close panel
-            },
-            onSelectLink = {
-                onPickLink()
-                // Don't close panel
-            }
-        )
+        if (isSearchMode) {
+            // Show filter selector in search mode
+            SearchFilterTypeSelector(
+                visible = showAttachmentPanel && !isChatMode,
+                selectedFilters = selectedFilters,
+                onFilterToggle = onFilterToggle,
+                onClearFilters = onClearFilters
+            )
+        } else {
+            // Show attachment type selector in normal mode
+            AttachmentTypeSelector(
+                visible = showAttachmentPanel && !isChatMode,
+                onSelectImage = {
+                    onPickImage()
+                    // Don't close panel - let it stay open for multiple attachments
+                },
+                onSelectVideo = {
+                    onPickVideo()
+                    // Don't close panel
+                },
+                onSelectDocument = {
+                    onPickDocument()
+                    // Don't close panel
+                },
+                onSelectAudio = {
+                    onPickAudio()
+                    // Don't close panel
+                },
+                onSelectFile = {
+                    onPickFile()
+                    // Don't close panel
+                },
+                onSelectLink = {
+                    onPickLink()
+                    // Don't close panel
+                }
+            )
+        }
 
         // Main input surface with focus glow and high contrast
         
@@ -573,6 +591,55 @@ fun CogniInputField(
                     .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Clear input button (X) - appears when there's text or attachments
+                AnimatedVisibility(
+                    visible = value.text.isNotEmpty() || attachments.isNotEmpty(),
+                    enter = scaleIn(initialScale = 0.5f, animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f)) + fadeIn(),
+                    exit = scaleOut(targetScale = 0.5f, animationSpec = tween(150)) + fadeOut()
+                ) {
+                    var isClearPressed by remember { mutableStateOf(false) }
+                    val clearScale by animateFloatAsState(
+                        targetValue = if (isClearPressed) 0.8f else 1f,
+                        animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+                        label = "clearScale"
+                    )
+                    
+                    Surface(
+                        modifier = Modifier
+                            .padding(start = 8.dp, end = 4.dp)
+                            .size(28.dp)
+                            .scale(clearScale)
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onPress = {
+                                        isClearPressed = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        tryAwaitRelease()
+                                        isClearPressed = false
+                                    },
+                                    onTap = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onClearInput()
+                                    }
+                                )
+                            },
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear input",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+                
                 // Animated Mode Toggle (Write/Search) OR Microphone (Chat Mode)
                 // In chat mode: Mic icon for speech-to-text (launches Google dialog)
                 // In main page: Arrow/Search icon for search toggle

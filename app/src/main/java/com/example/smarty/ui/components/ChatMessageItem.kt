@@ -62,7 +62,8 @@ fun ChatMessageItem(
     message: ChatMessage,
     modifier: Modifier = Modifier,
     getNote: (String) -> Note? = { null },
-    onNoteClick: (Note) -> Unit = {}
+    onNoteClick: (Note) -> Unit = {},
+    onSuggestionClick: (String) -> Unit = {}
 ) {
     val isUser = message.role == ChatRole.USER
     
@@ -272,7 +273,39 @@ fun ChatMessageItem(
                     }
                 }
                 
-                // Timestamp Row (below bubble)
+                // AI Suggestions (between bubble and timestamp)
+                if (!isUser && message.hasSuggestions) {
+                    Row(
+                        modifier = Modifier
+                            .padding(top = 8.dp, start = 4.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        message.suggestions.take(2).forEach { suggestion ->
+                            Surface(
+                                onClick = { onSuggestionClick(suggestion) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = LocalAccentColor.current.copy(alpha = 0.1f),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    LocalAccentColor.current.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Text(
+                                    text = suggestion,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Medium
+                                    ),
+                                    color = LocalAccentColor.current,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Timestamp Row (below suggestions/bubble)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

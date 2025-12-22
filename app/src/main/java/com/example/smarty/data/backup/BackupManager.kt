@@ -322,6 +322,7 @@ class BackupManager(
                     ?: throw Exception("Invalid backup: corrupt database file")
 
                 // BUG-030: Validate backup data before proceeding
+                @Suppress("SENSELESS_COMPARISON")
                 if (databaseBackup.notes == null || databaseBackup.categories == null) {
                     throw Exception("Invalid backup: missing notes or categories data")
                 }

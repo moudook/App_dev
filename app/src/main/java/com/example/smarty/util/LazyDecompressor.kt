@@ -361,6 +361,7 @@ object LazyDecompressor {
     // WORKER
     // =========================================================================
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private fun startWorker() {
         if (workerJob?.isActive == true) return
 

@@ -32,7 +32,9 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis(),
     val executedActions: List<AgentActionResult> = emptyList(),
     val referencedNoteIds: List<String> = emptyList(),
-    val isAudioRelated: Boolean = false  // True when user asked about audio/music playback
+    val isAudioRelated: Boolean = false,  // True when user asked about audio/music playback
+    val suggestions: List<String> = emptyList(),  // AI-provided suggestions (max 2, from TOON response)
+    val isError: Boolean = false  // True when this message represents an API error
 ) {
     /**
      * Check if this is a user message
@@ -58,4 +60,9 @@ data class ChatMessage(
      * Check if all actions succeeded
      */
     val allActionsSucceeded: Boolean get() = executedActions.all { it.success }
+
+    /**
+     * Check if suggestions should be shown (not an error and has suggestions)
+     */
+    val hasSuggestions: Boolean get() = !isError && suggestions.isNotEmpty()
 }

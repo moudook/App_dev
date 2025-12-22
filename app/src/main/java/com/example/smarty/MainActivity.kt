@@ -44,6 +44,7 @@ import com.example.smarty.viewmodel.CogniViewModelFactory
 import com.example.smarty.viewmodel.SharedContent
 import com.example.smarty.viewmodel.SharedFileInfo
 import com.example.smarty.ui.screens.StartupScreen
+import com.example.smarty.ui.components.AttachmentOption
 
 class MainActivity : ComponentActivity() {
     // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
@@ -98,6 +99,7 @@ class MainActivity : ComponentActivity() {
                 val selectedNote by viewModel.selectedNote.collectAsState()
                 val selectedCategory by viewModel.selectedCategory.collectAsState()
                 val isProcessing by viewModel.isProcessing.collectAsState()
+                val isNotesLoading by viewModel.isNotesLoading.collectAsState()
 
                 // API Key states
                 val providerConfigs by viewModel.providerConfigs.collectAsState()
@@ -141,6 +143,10 @@ class MainActivity : ComponentActivity() {
                 val cacheSizeBytes by viewModel.cacheSizeBytes.collectAsState()
                 val isClearingCache by viewModel.isClearingCache.collectAsState()
 
+                // Search and Filter State (Backend Integration)
+                val searchQuery by viewModel.searchQuery.collectAsState()
+                val selectedFilters by viewModel.selectedFilters.collectAsState()
+
 
                 // Tavily Web Search API state
                 val tavilyApiKey by viewModel.tavilyApiKey.collectAsState()
@@ -153,6 +159,7 @@ class MainActivity : ComponentActivity() {
 
                 // Shake mode switch animation trigger
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
+                val connectionStatus by viewModel.connectionStatus.collectAsState()
 
                 // Audio playback request from AI agent
                 val pendingAudioPlayback by viewModel.pendingAudioPlayback.collectAsState()
@@ -267,6 +274,17 @@ class MainActivity : ComponentActivity() {
                                     onUnarchiveNote = { noteId ->
                                         viewModel.unarchiveNote(noteId)
                                     },
+                                    onBulkArchive = { noteIds ->
+                                        viewModel.archiveNotes(noteIds)
+                                    },
+                                    onUndoArchive = {
+                                        viewModel.undoArchive()
+                                    },
+                                    onRefreshNotes = {
+                                        viewModel.refreshNotes()
+                                    },
+                                    isRefreshing = viewModel.isRefreshing.collectAsState().value,
+                                    isNotesLoading = isNotesLoading,
                                     onDeleteNote = { note ->
                                         viewModel.deleteNote(note)
                                     },
@@ -278,6 +296,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onEditNote = { noteId, newTitle, newContent ->
                                         viewModel.editNote(noteId, newTitle, newContent)
+                                    },
+                                    onMarkAsViewed = { noteId ->
+                                        viewModel.markNoteAsViewed(noteId)
                                     },
                                     // Pending share management
                                     pendingShare = pendingShare,
@@ -318,6 +339,18 @@ class MainActivity : ComponentActivity() {
                                     onInputAttachmentsChange = { attachments ->
                                         viewModel.updateInputAttachments(attachments)
                                     },
+                                    // Search and Filter Params
+                                    searchQuery = searchQuery,
+                                    onSearchQueryChange = { query ->
+                                        viewModel.onSearchQueryChange(query)
+                                    },
+                                    selectedFilters = selectedFilters,
+                                    onFilterToggle = { option ->
+                                        viewModel.onFilterToggle(option)
+                                    },
+                                    onClearFilters = {
+                                        viewModel.clearFilters()
+                                    },
                                     // Audio player
                                     onPlayAudio = { track ->
                                         audioPlayerViewModel.playAudio(track)
@@ -347,6 +380,7 @@ class MainActivity : ComponentActivity() {
                                     groqKeyUsageStats = groqKeyUsageStats,
                                     // Shake mode switch animation
                                     wasShakeTriggered = wasShakeTriggered,
+                                    connectionStatus = connectionStatus,
                                     // Calendar management
                                     calendarEvents = calendarEvents,
                                     onAddCalendarEvent = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->

@@ -293,6 +293,7 @@ object ResourceManager : ComponentCallbacks2 {
     // MEMORY CALLBACK IMPLEMENTATION
     // =========================================================================
 
+    @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         Log.d(TAG, "onTrimMemory: level=$level")
 
@@ -324,6 +325,7 @@ object ResourceManager : ComponentCallbacks2 {
         // No action needed
     }
 
+    @Suppress("DEPRECATION")
     override fun onLowMemory() {
         Log.w(TAG, "onLowMemory triggered")
         _memoryPressure.value = MemoryPressure.CRITICAL
@@ -334,6 +336,7 @@ object ResourceManager : ComponentCallbacks2 {
     /**
      * Trigger cache cleanup across the app
      */
+    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     private fun triggerCacheCleanup(aggressive: Boolean) {
         Log.d(TAG, "Triggering cache cleanup (aggressive=$aggressive)")
 

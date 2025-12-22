@@ -129,7 +129,7 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
         title = "Focus",
         subtitle = "Personal AI companion",
-        hint = "Everything starts with an idea; the graveyard is full of them. Execution is the only resurrection",
+        hint = "Ideas are everywhere. The graveyard's full of dead ones. Execution revives them.",
         modifier = modifier
     ) {
         // LIFECYCLE AWARENESS: Check if animation should run

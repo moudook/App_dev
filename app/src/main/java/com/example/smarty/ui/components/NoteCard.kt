@@ -48,6 +48,7 @@ import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.ui.animation.shimmerEffect
+import com.example.smarty.ui.components.NewNoteIndicatorDot
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -75,7 +76,9 @@ fun NoteCard(
     isSelected: Boolean = false,  // Multi-select: is this card selected
     isSelectionMode: Boolean = false,  // Multi-select: is selection mode active
     onLongPress: () -> Unit = {},  // Multi-select: long press to enter selection mode
-    onPlayYouTube: (String) -> Unit = {}  // Callback to play YouTube video
+    onPlayYouTube: (String) -> Unit = {},  // Callback to play YouTube video
+    searchQuery: String? = null,  // Search query for highlighting matching text
+    isNewlyProcessed: Boolean = false  // Show blue dot for newly processed notes
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -243,10 +246,18 @@ fun NoteCard(
                     }
                 },
             shape = LocalShapes.current.cardMedium,
-            color = MaterialTheme.colorScheme.surface, // Keep solid surface for readability
-            shadowElevation = 0.dp, 
+            // Subtle blue tint for private/excluded notes (matches app accent)
+            color = when {
+                note.isFullPrivacy -> LocalAccentColor.current.copy(alpha = 0.08f)
+                note.excludeFromAiChat -> LocalAccentColor.current.copy(alpha = 0.05f)
+                else -> MaterialTheme.colorScheme.surface
+            },
+            shadowElevation = 0.dp,
             border = if (isSelected) {
                 androidx.compose.foundation.BorderStroke(2.dp, LocalAccentColor.current)
+            } else if (note.isFullPrivacy) {
+                // Blue border for private notes (matches tint)
+                androidx.compose.foundation.BorderStroke(1.dp, LocalAccentColor.current.copy(alpha = 0.3f))
             } else {
                 // High contrast border for better definition against background
                 androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
@@ -317,18 +328,19 @@ fun NoteCard(
                     }
                 } else {
                     // Standard Content
-                    // Header: Title + Category + Indicators combined
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically // Center align icon and title
-                    ) {
-                        // Left: Title and Icon
+                    // Header: Title + Category + Indicators + New Note Dot
+                    Box(modifier = Modifier.fillMaxWidth()) {
                         Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Left: Title and Icon
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                             // Type Icon (Enhanced Container)
                             // If AI created, use AI icon and accent color. Otherwise, use type-specific icon/color.
                             // Memoized to avoid recomputation on every recomposition
@@ -356,19 +368,33 @@ fun NoteCard(
                             }
 
                             Column {
-                                // Title
-                                Text(
-                                    text = note.title.ifBlank { "Untitled Note" }, 
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontWeight = FontWeight.ExtraBold, // Increased weight
-                                        letterSpacing = (-0.5).sp,
-                                        fontSize = 17.sp 
-                                    ),
-                                    // Use Primary or OnSurface with full opacity for max contrast
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1, 
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                // Title with search highlighting
+                                if (searchQuery.isNullOrBlank()) {
+                                    Text(
+                                        text = note.title.ifBlank { "Untitled Note" }, 
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.ExtraBold,
+                                            letterSpacing = (-0.5).sp,
+                                            fontSize = 17.sp 
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1, 
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                } else {
+                                    HighlightedText(
+                                        text = note.title.ifBlank { "Untitled Note" },
+                                        query = searchQuery,
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.ExtraBold,
+                                            letterSpacing = (-0.5).sp,
+                                            fontSize = 17.sp 
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
 
                                 // Privacy & Indicators
                                 if (note.isFullPrivacy || note.excludeFromAiChat) {
@@ -393,6 +419,19 @@ fun NoteCard(
                             )
                         }
                     }
+                    
+                    // Blue dot indicator for newly processed notes (positioned top-right)
+                    // NOW RED: Shows if note has NOT been viewed
+                    if (!note.isViewed) {
+                        NewNoteIndicatorDot(
+                            isVisible = true,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp)
+                                .size(10.dp)
+                        )
+                    }
+                }
 
                     // Body Content - memoized to avoid recomputation
                     val displayText = remember(note.summary, note.content) {

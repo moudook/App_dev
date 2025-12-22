@@ -13,6 +13,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.model.Attachment
+import com.example.smarty.ui.components.AttachmentOption
+import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
@@ -88,10 +90,16 @@ fun CogniNavHost(
     onDeleteCategory: (Category) -> Unit,
     onArchiveNote: (String) -> Unit,
     onUnarchiveNote: (String) -> Unit,
+    onBulkArchive: (List<String>) -> Unit = {},
+    onUndoArchive: () -> Unit = {},
+    onRefreshNotes: () -> Unit = {},
+    isRefreshing: Boolean = false,
+    isNotesLoading: Boolean = false,
     onDeleteNote: (Note) -> Unit,
     onDeleteNoteById: (String) -> Unit,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
     onEditNote: (String, String, String) -> Unit = { _, _, _ -> },  // noteId, newTitle, newContent
+    onMarkAsViewed: (String) -> Unit = {}, // New tracking action
     // Pending share management
     pendingShare: PendingShareData?,
     onConfirmShare: (String?, String) -> Unit,
@@ -113,6 +121,12 @@ fun CogniNavHost(
     isAiExcluded: Boolean = false,
     onInputTextChange: (String) -> Unit = {},
     onInputAttachmentsChange: (List<Attachment>) -> Unit = {},
+    // Search and Filter (Backend Integration)
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {},
+    selectedFilters: Set<AttachmentOption> = emptySet(),
+    onFilterToggle: (AttachmentOption) -> Unit = {},
+    onClearFilters: () -> Unit = {},
     // Audio player for attachments
     onPlayAudio: (AudioTrack) -> Unit = {},
     // Theme management
@@ -132,6 +146,8 @@ fun CogniNavHost(
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     // Shake mode switch animation
     wasShakeTriggered: Boolean = false,
+    // Network status (Phase 7)
+    connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
     // Calendar management
     calendarEvents: List<CalendarEvent> = emptyList(),
     onAddCalendarEvent: (
@@ -214,6 +230,11 @@ fun CogniNavHost(
                 onDeleteNote = onDeleteNoteById,
                 onArchiveNote = onArchiveNote,
                 onUnarchiveNote = onUnarchiveNote,
+                onBulkArchive = onBulkArchive,
+                onUndoArchive = onUndoArchive,
+                onRefreshNotes = onRefreshNotes,
+                isRefreshing = isRefreshing,
+                isNotesLoading = isNotesLoading,
                 onUpdateNoteTodos = onUpdateNoteTodos,
                 onNavigateToStacks = {
                     navController.navigate(Screen.Stacks.route)
@@ -244,10 +265,17 @@ fun CogniNavHost(
                 isAiExcluded = isAiExcluded,
                 onInputTextChange = onInputTextChange,
                 onInputAttachmentsChange = onInputAttachmentsChange,
+                // Search and Filter
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                selectedFilters = selectedFilters,
+                onFilterToggle = onFilterToggle,
+                onClearFilters = onClearFilters,
                 bottomContentPadding = bottomContentPadding,
                 externalSpeechState = externalSpeechState,
                 speechResults = speechResults,
-                wasShakeTriggered = wasShakeTriggered
+                wasShakeTriggered = wasShakeTriggered,
+                connectionStatus = connectionStatus
             )
         }
 
@@ -302,6 +330,7 @@ fun CogniNavHost(
                     },
                     onEditNote = onEditNote,
                     onPlayAudio = onPlayAudio,
+                    onMarkAsViewed = { onMarkAsViewed(note.id) },
                     bottomContentPadding = bottomContentPadding
                 )
             }

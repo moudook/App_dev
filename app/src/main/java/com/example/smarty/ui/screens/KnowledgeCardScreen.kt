@@ -65,6 +65,7 @@ fun KnowledgeCardScreen(
     onDeleteClick: () -> Unit,
     onEditNote: (String, String, String) -> Unit = { _, _, _ -> },  // noteId, newTitle, newContent
     onPlayAudio: (AudioTrack) -> Unit = {},
+    onMarkAsViewed: () -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
@@ -83,6 +84,13 @@ fun KnowledgeCardScreen(
     var documentViewerUri by remember { mutableStateOf<String?>(null) }
     var documentViewerMimeType by remember { mutableStateOf<String?>(null) }
     var documentViewerFileName by remember { mutableStateOf<String?>(null) }
+
+    // Mark as viewed when screen is opened
+    LaunchedEffect(note.id) {
+        if (!note.isViewed) {
+             onMarkAsViewed()
+        }
+    }
 
     Scaffold(
         topBar = {

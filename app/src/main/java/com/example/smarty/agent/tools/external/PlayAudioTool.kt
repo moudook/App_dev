@@ -7,6 +7,7 @@ import com.example.smarty.agent.tools.base.AudioPlaybackResult
 import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.getAttachments
+import com.example.smarty.data.model.getTags
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.search.SemanticSearchEngine
 import kotlinx.serialization.KSerializer
@@ -45,9 +46,16 @@ class PlayAudioTool(
     override val description = """
         MUST USE THIS TOOL when user says: "play", "play music", "play audio", "play song", "play podcast".
         Searches and plays audio files attached to user's notes.
-        Required: query parameter with search term (filename, song name, or keyword).
-        Example: User says "play jazz" → call play_audio with query="jazz"
-        Example: User says "play my podcast" → call play_audio with query="podcast"
+
+        ROBUST SEARCH: Searches across filename, note title, tags, summary, category, and content.
+        Uses fuzzy matching - can find audio even with partial or similar names.
+
+        Required: query parameter with search term.
+        Examples:
+        - User says "play jazz" → query="jazz"
+        - User says "play my podcast" → query="podcast"
+        - User says "play pretty little baby" → query="pretty little baby"
+        - User says "play that song I tagged as workout" → query="workout"
     """.trimIndent()
 
     override suspend fun execute(args: PlayAudioArgs): AudioPlaybackResult {
@@ -162,18 +170,22 @@ class PlayAudioTool(
     }
 
     /**
-     * Search notes for audio files matching the query using SEMANTIC SEARCH.
+     * Search notes for audio files matching the query using ROBUST SEMANTIC SEARCH.
+     * Searches across multiple fields: filename, title, content, tags, summary, category.
      * Uses fuzzy matching, phonetic similarity, and token overlap for better results.
-     * Can find "pretty little baby" even if file is "pretty_baby.mp3" or "prettybaby.mp3".
+     * Can find "pretty little baby" even if file is "pretty_baby.mp3" or tagged as "baby song".
      */
     private fun findMatchingAudio(notes: List<Note>, query: String): AudioTrack? {
-        Log.d(TAG, "Semantic search for audio in ${notes.size} notes: '$query'")
+        Log.d(TAG, "Robust semantic search for audio in ${notes.size} notes: '$query'")
 
-        // Build a list of searchable audio items
+        // Build a list of searchable audio items with ALL available metadata
         data class AudioItem(
             val track: AudioTrack,
             val noteTitle: String,
             val noteContent: String,
+            val noteSummary: String,
+            val noteTags: List<String>,
+            val noteCategory: String?,
             val fileName: String
         )
 
@@ -184,6 +196,11 @@ class PlayAudioTool(
                 .filter { it.mimeType.startsWith("audio/") }
 
             if (attachments.isEmpty()) continue
+
+            // Get all searchable metadata from the note
+            val tags = note.getTags()
+            val summary = note.summary ?: ""
+            val category = note.categoryName
 
             for (attachment in attachments) {
                 val track = AudioTrack(
@@ -198,6 +215,9 @@ class PlayAudioTool(
                     track = track,
                     noteTitle = note.title,
                     noteContent = note.content,
+                    noteSummary = summary,
+                    noteTags = tags,
+                    noteCategory = category,
                     fileName = attachment.fileName
                 ))
             }
@@ -208,45 +228,107 @@ class PlayAudioTool(
             return null
         }
 
-        Log.d(TAG, "Found ${audioItems.size} audio items to search")
+        Log.d(TAG, "Found ${audioItems.size} audio items to search across all metadata")
 
-        // Use semantic search with multiple text fields per item
+        // Use semantic search with ALL available text fields
         val results = SemanticSearchEngine.search(
             query = query,
             items = audioItems,
             textExtractor = { item ->
-                listOf(
-                    item.fileName,           // Primary: filename
-                    item.noteTitle,          // Secondary: note title
-                    item.noteContent.take(500)  // Tertiary: note content (truncated)
-                )
+                // Build comprehensive searchable text list
+                val searchableTexts = mutableListOf<String>()
+
+                // Primary: filename (most important for audio)
+                searchableTexts.add(item.fileName)
+
+                // Secondary: note title
+                searchableTexts.add(item.noteTitle)
+
+                // Tertiary: tags (joined as space-separated string)
+                if (item.noteTags.isNotEmpty()) {
+                    searchableTexts.add(item.noteTags.joinToString(" "))
+                }
+
+                // Quaternary: summary (if available)
+                if (item.noteSummary.isNotBlank()) {
+                    searchableTexts.add(item.noteSummary)
+                }
+
+                // Quinary: category name (if available)
+                item.noteCategory?.let { searchableTexts.add(it) }
+
+                // Last: note content (truncated for performance)
+                searchableTexts.add(item.noteContent.take(500))
+
+                searchableTexts
             },
-            minScore = 0.25  // Lower threshold for more inclusive matching
+            minScore = 0.20  // Very low threshold for maximum inclusivity
         )
 
         if (results.isEmpty()) {
-            Log.d(TAG, "No semantic matches found for '$query'")
+            Log.d(TAG, "No semantic matches found for '$query', trying deep fallback...")
 
-            // Fallback: Try individual word matching with very low threshold
+            // Deep fallback: Try individual word matching against ALL fields
             val queryWords = SemanticSearchEngine.tokenize(query)
             val fallbackResults = audioItems.mapNotNull { item ->
-                val combinedText = "${item.fileName} ${item.noteTitle} ${item.noteContent}"
+                // Combine ALL searchable fields
+                val combinedText = buildString {
+                    append(item.fileName).append(" ")
+                    append(item.noteTitle).append(" ")
+                    append(item.noteTags.joinToString(" ")).append(" ")
+                    append(item.noteSummary).append(" ")
+                    item.noteCategory?.let { append(it).append(" ") }
+                    append(item.noteContent)
+                }
+
                 var bestWordScore = 0.0
+                var matchedWord = ""
 
                 for (word in queryWords) {
                     val wordScore = SemanticSearchEngine.calculateSimilarity(word, combinedText)
-                    if (wordScore > bestWordScore) bestWordScore = wordScore
+                    if (wordScore > bestWordScore) {
+                        bestWordScore = wordScore
+                        matchedWord = word
+                    }
+
+                    // Also check each tag individually for better tag matching
+                    for (tag in item.noteTags) {
+                        val tagScore = SemanticSearchEngine.calculateSimilarity(word, tag)
+                        if (tagScore > bestWordScore) {
+                            bestWordScore = tagScore
+                            matchedWord = "$word (tag: $tag)"
+                        }
+                    }
                 }
 
-                if (bestWordScore >= 0.20) {
+                if (bestWordScore >= 0.15) {  // Very low threshold
+                    Log.d(TAG, "Fallback candidate: ${item.fileName} score=${bestWordScore} matched='$matchedWord'")
                     bestWordScore to item
                 } else null
             }.sortedByDescending { it.first }
 
             if (fallbackResults.isNotEmpty()) {
                 val best = fallbackResults.first().second
-                Log.d(TAG, "Fallback match: ${best.fileName} (note: ${best.noteTitle})")
+                Log.d(TAG, "Fallback match: ${best.fileName} (note: ${best.noteTitle}, tags: ${best.noteTags})")
                 return best.track
+            }
+
+            // Ultra fallback: Check if any filename or tag CONTAINS any query word
+            val ultraFallback = audioItems.firstOrNull { item ->
+                val normalizedQuery = query.lowercase().replace(Regex("[^a-z0-9\\s]"), "")
+                val queryParts = normalizedQuery.split(" ").filter { it.length >= 2 }
+
+                queryParts.any { part ->
+                    item.fileName.lowercase().contains(part) ||
+                    item.noteTitle.lowercase().contains(part) ||
+                    item.noteTags.any { tag -> tag.lowercase().contains(part) } ||
+                    item.noteSummary.lowercase().contains(part)
+                }
+            }
+
+            if (ultraFallback != null) {
+                Log.d(TAG, "Ultra fallback match: ${ultraFallback.fileName}")
+                return ultraFallback.track
             }
 
             return null
@@ -255,7 +337,8 @@ class PlayAudioTool(
         val bestMatch = results.first()
         Log.d(TAG, "Best semantic match: ${bestMatch.item.fileName} " +
                 "(score: ${String.format("%.2f", bestMatch.score)}, " +
-                "type: ${bestMatch.matchType}, note: ${bestMatch.item.noteTitle})")
+                "type: ${bestMatch.matchType}, note: ${bestMatch.item.noteTitle}, " +
+                "tags: ${bestMatch.item.noteTags})")
 
         return bestMatch.item.track
     }

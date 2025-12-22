@@ -27,7 +27,7 @@ import com.example.smarty.data.model.ProviderUsage
         AgentExecution::class,      // AI agent execution tracking
         ProviderUsage::class        // Provider usage for rate limiting
     ],
-    version = 13,  // Added tagsJson for AI-generated tags
+    version = 14,  // Added isViewed for read/unread state
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -61,7 +61,8 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_9_10,
                         Migrations.MIGRATION_10_11,
                         Migrations.MIGRATION_11_12,
-                        Migrations.MIGRATION_12_13
+                        Migrations.MIGRATION_12_13,
+                        Migrations.MIGRATION_13_14
                     )
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()

@@ -219,8 +219,10 @@ fun CogniTheme(
         SideEffect {
             val window = (view.context as Activity).window
             // Use transparent status bar for edge-to-edge
-            @Suppress("DEPRECATION") window.statusBarColor = Color.Transparent.toArgb()
-            @Suppress("DEPRECATION") window.navigationBarColor = Color.Transparent.toArgb()
+            @Suppress("DEPRECATION")
+            window.statusBarColor = Color.Transparent.toArgb()
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = Color.Transparent.toArgb()
             // Set window background to animated background color to prevent flash
             window.decorView.setBackgroundColor(animatedBackground.toArgb())
             WindowCompat.getInsetsController(window, view).apply {

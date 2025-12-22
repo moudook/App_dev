@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -58,6 +59,8 @@ import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.ui.components.ChatEmptyState
 import com.example.smarty.data.model.NoteType
+import com.example.smarty.ui.components.AttachmentOption
+import com.example.smarty.ui.components.SearchFilterTypeSelector
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import com.example.smarty.ui.components.PendingShareData
@@ -66,12 +69,19 @@ import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.SafetyOrange
+import com.example.smarty.ui.components.SearchEmptyState
+import com.example.smarty.ui.components.ShakeCloudEffect
+import com.example.smarty.ui.components.NotesLoadingState
+import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.ui.components.ConnectionStatusIndicator
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +94,11 @@ fun InputStreamScreen(
     onDeleteNote: (String) -> Unit,
     onArchiveNote: (String) -> Unit,
     onUnarchiveNote: (String) -> Unit,
+    onBulkArchive: (List<String>) -> Unit = {},
+    onUndoArchive: () -> Unit = {},
+    onRefreshNotes: () -> Unit = {},
+    isRefreshing: Boolean = false,
+    isNotesLoading: Boolean = false,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
     onNavigateToStacks: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -113,8 +128,16 @@ fun InputStreamScreen(
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
+    
+    // Search and Filter (Backend Integration)
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {},
+    selectedFilters: Set<AttachmentOption> = emptySet(),
+    onFilterToggle: (AttachmentOption) -> Unit = {},
+    onClearFilters: () -> Unit = {},
 
     wasShakeTriggered: Boolean = false,  // For border glow animation on mode switch
+    connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,  // Phase 7
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -303,39 +326,10 @@ fun InputStreamScreen(
     // Search Mode State
     var isSearchMode by remember { mutableStateOf(false) }
     
-    // AI Filter State
-    var isAiFilterSelected by remember { mutableStateOf(false) }
-    
-    // File Type Categorization State
-    var selectedTypeFilter by remember { mutableStateOf<NoteType?>(null) }
-    val availableTypes by remember(notes) {
-        derivedStateOf {
-            notes.map { it.type }.toSet().sortedBy { it.name }
-        }
-    }
-
-    // Filtered Notes Logic
-    val displayedNotes by remember(notes, textValue, isSearchMode, selectedTypeFilter, isAiFilterSelected) {
-        derivedStateOf {
-            val typeFiltered = if (selectedTypeFilter != null) {
-                notes.filter { it.type == selectedTypeFilter }
-            } else if (isAiFilterSelected) {
-                notes.filter { it.isAiCreated }
-            } else {
-                notes
-            }
-
-            if (isSearchMode && textValue.text.isNotBlank()) {
-                typeFiltered.filter { note ->
-                    note.title.contains(textValue.text, ignoreCase = true) ||
-                    note.content.contains(textValue.text, ignoreCase = true) ||
-                    (note.summary?.contains(textValue.text, ignoreCase = true) == true)
-                }
-            } else {
-                typeFiltered
-            }
-        }
-    }
+    // Filtered Notes Logic (Backend Driven for Phase 2)
+    // We now use the 'notes' list directly as it is already filtered by the ViewModel
+    // based on searchQuery and selectedFilters.
+    val displayedNotes = notes
 
     // Selection handlers
     fun toggleSelection(noteId: String) {
@@ -352,13 +346,37 @@ fun InputStreamScreen(
     }
 
     fun archiveSelected() {
-        selectedNoteIds.forEach { onArchiveNote(it) }
-        val count = selectedNoteIds.size
+        val ids = selectedNoteIds.toList()
+        val count = ids.size
+        onBulkArchive(ids)
         clearSelection()
         scope.launch {
-
-            snackbarHostState.showSnackbar(
+            val result = snackbarHostState.showSnackbar(
                 message = "$count note${if (count > 1) "s" else ""} archived",
+                actionLabel = "UNDO",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                onUndoArchive()
+            }
+        }
+    }
+    
+    // Select all visible notes
+    fun selectAllNotes() {
+        selectedNoteIds = displayedNotes.map { it.id }.toSet()
+        isSelectionMode = true
+    }
+    
+    // Delete selected notes with undo capability
+    fun deleteSelected() {
+        val idsToDelete = selectedNoteIds.toList()
+        idsToDelete.forEach { onDeleteNote(it) }
+        val count = idsToDelete.size
+        clearSelection()
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                message = "$count note${if (count > 1) "s" else ""} deleted",
                 duration = SnackbarDuration.Short
             )
         }
@@ -488,6 +506,12 @@ fun InputStreamScreen(
                 onAnimationComplete = { shakeGlowState.onGlowComplete() }
             )
     ) {
+        // Shake cloud effect overlay (0.4s expand/contract from edges)
+        ShakeCloudEffect(
+            isVisible = wasShakeTriggered,
+            modifier = Modifier.fillMaxSize()
+        )
+        
         Scaffold(
         modifier = Modifier.imePadding(), // This handles keyboard
         snackbarHost = {
@@ -565,6 +589,18 @@ fun InputStreamScreen(
                             }
                         },
                         actions = {
+                            // Select All button
+                            IconButton(
+                                onClick = { selectAllNotes() }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Done,
+                                    contentDescription = "Select all",
+                                    tint = LocalAccentColor.current
+                                )
+                            }
+                            
+                            // Archive button
                             IconButton(
                                 onClick = { archiveSelected() },
                                 enabled = selectedNoteIds.isNotEmpty()
@@ -574,6 +610,21 @@ fun InputStreamScreen(
                                     contentDescription = "Archive selected",
                                     tint = if (selectedNoteIds.isNotEmpty())
                                         LocalAccentColor.current
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            
+                            // Delete button
+                            IconButton(
+                                onClick = { deleteSelected() },
+                                enabled = selectedNoteIds.isNotEmpty()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Delete selected",
+                                    tint = if (selectedNoteIds.isNotEmpty())
+                                        MaterialTheme.colorScheme.error
                                     else
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -626,6 +677,12 @@ fun InputStreamScreen(
                                     )
                                 }
                             }
+
+                            // Connection Status Indicator (Center) - Phase 7
+                            ConnectionStatusIndicator(
+                                status = connectionStatus,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
 
                             // Actions Pill (Right)
                             val isDark = isSystemInDarkTheme()
@@ -684,60 +741,16 @@ fun InputStreamScreen(
                             }
                         }
 
-                        // File Type Categorization Chips (Only show in main mode, not chat mode)
-                        // Added padding top to separate from header
-                        AnimatedVisibility(
-                            visible = availableTypes.isNotEmpty() && !isChatMode,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut(),
-                            modifier = Modifier.padding(top = 8.dp) 
-                        ) {
-                            // Original NoteTypeChip design (reverted per user request)
-                            LazyRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 12.dp),
-                                contentPadding = PaddingValues(horizontal = 24.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                item(key = "all") {
-                                    NoteTypeChip(
-                                        label = "All",
-                                        isSelected = selectedTypeFilter == null && !isAiFilterSelected,
-                                        onClick = {
-                                            selectedTypeFilter = null
-                                            isAiFilterSelected = false
-                                        },
-                                        icon = Icons.Default.GridView
-                                    )
-                                }
-                                item(key = "ai") {
-                                    NoteTypeChip(
-                                        label = "AI",
-                                        isSelected = isAiFilterSelected,
-                                        onClick = {
-                                            isAiFilterSelected = true
-                                            selectedTypeFilter = null
-                                        },
-                                        icon = Icons.Default.AutoAwesome
-                                    )
-                                }
-                                items(
-                                    items = availableTypes,
-                                    key = { it.name }
-                                ) { type ->
-                                    NoteTypeChip(
-                                        label = "",
-                                        isSelected = selectedTypeFilter == type,
-                                        onClick = {
-                                            selectedTypeFilter = type
-                                            isAiFilterSelected = false
-                                        },
-                                        icon = getNoteTypeIcon(type)
-                                    )
-                                }
-                            }
-                        }
+                        // Note Type Filter Chips (category selection for filtering notes by type)
+                        // Only show in main mode when NOT in search mode
+                        // (when search mode is active, the bottom pill becomes the filter)
+                        SearchFilterTypeSelector(
+                            visible = !isChatMode && !isSearchMode,
+                            selectedFilters = selectedFilters,
+                            onFilterToggle = onFilterToggle,
+                            onClearFilters = onClearFilters,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp).padding(horizontal = 16.dp)
+                        )
                     } // End Column
                 }
             }
@@ -802,22 +815,32 @@ fun InputStreamScreen(
                                 ChatMessageItem(
                                     message = message,
                                     getNote = stableGetNote,
-                                    onNoteClick = onNoteClick
+                                    onNoteClick = onNoteClick,
+                                    onSuggestionClick = { suggestion ->
+                                        // Send the clicked suggestion as a new message
+                                        onSendChatMessage(suggestion, emptyList())
+                                    }
                                 )
                             }
                         }
                     }
                 } else {
                     // Notes list view
-                    if (displayedNotes.isEmpty()) {
+                    if (isNotesLoading) {
+                        // Show skeleton loaders while notes are loading (Phase 8)
+                        NotesLoadingState(
+                            count = 5,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp, vertical = ComponentSpacing.listContentPadding)
+                        )
+                    } else if (displayedNotes.isEmpty()) {
                         if (isSearchMode) {
-                             // Simple "No results" or keep empty (user didn't specify empty state)
-                             // Reusing Empty State but maybe we want a "No Results" specific one later.
-                             // For now, if searching and empty, show nothing or generic.
-                             // Let's just show nothing to avoid "Hello Himmu" popping up during search.
-                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("No matches found", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                             }
+                             // Animated search empty state with query display
+                             SearchEmptyState(
+                                 searchQuery = textValue.text,
+                                 modifier = Modifier.fillMaxSize()
+                             )
                         } else {
                             com.example.smarty.ui.components.NotesEmptyState(modifier = Modifier.fillMaxSize())
                         }
@@ -828,21 +851,27 @@ fun InputStreamScreen(
                         // Max velocity = screen_height / time = ~2400px / 0.15s ≈ 4000-5000 px/s
                         // Using 4500f ensures at least one card is always readable during scroll
                         val cappedFling = rememberCappedFlingBehavior(
-                            maxVelocity = 7000f   // Ensures cards are visible even at max speed
+                            maxVelocity = 50000f   // Ensures cards are visible even at max speed
                         )
 
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxSize(),
-                            flingBehavior = cappedFling,  // Apply velocity cap
-                            contentPadding = PaddingValues(
-                                top = ComponentSpacing.listContentPadding,
-                                bottom = 140.dp + bottomContentPadding,
-                                start = 16.dp,
-                                end = 16.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
+                        // Pull-to-refresh wrapper
+                        PullToRefreshBox(
+                            isRefreshing = isRefreshing,
+                            onRefresh = onRefreshNotes,
+                            modifier = Modifier.fillMaxSize()
                         ) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                                flingBehavior = cappedFling,  // Apply velocity cap
+                                contentPadding = PaddingValues(
+                                    top = ComponentSpacing.listContentPadding,
+                                    bottom = 140.dp + bottomContentPadding,
+                                    start = 16.dp,
+                                    end = 16.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
+                            ) {
                             itemsIndexed(
                                 items = displayedNotes,
                                 key = { _, note -> note.id },
@@ -900,11 +929,13 @@ fun InputStreamScreen(
                                         isSelected = isNoteSelected,
                                         isSelectionMode = isSelectionMode,
                                         onLongPress = stableOnLongPress,
-                                        onPlayYouTube = onPlayYouTube
+                                        onPlayYouTube = onPlayYouTube,
+                                        searchQuery = if (isSearchMode) textValue.text else null
                                     )
                                 }
                             }
                         }
+                        } // End PullToRefreshBox
                     }
                 }
             }
@@ -993,6 +1024,10 @@ fun InputStreamScreen(
                                     chatModeTextValue = newTextValue
                                 } else {
                                     normalModeTextValue = newTextValue
+                                    // Search mode integration
+                                    if (isSearchMode) {
+                                        onSearchQueryChange(newTextValue.text)
+                                    }
                                 }
                                 onInputTextChange(newTextValue.text)
                             },
@@ -1031,6 +1066,23 @@ fun InputStreamScreen(
                             onRemoveAttachment = { id -> attachments = attachments.filter { it.id != id } },
                             isChatMode = isChatMode,
                             isProcessing = isChatProcessing,
+                            onClearInput = {
+                                // Clear local state depending on mode
+                                if (isChatMode) {
+                                    chatModeTextValue = androidx.compose.ui.text.input.TextFieldValue("")
+                                } else {
+                                    normalModeTextValue = androidx.compose.ui.text.input.TextFieldValue("")
+                                }
+                                // Clear attachments and common state
+                                attachments = emptyList()
+                                onInputTextChange("")
+
+
+                                // Reset search mode if active but keep it explicit
+                                if (isSearchMode) {
+                                    onSearchQueryChange("")
+                                }
+                            },
                             onOpenChatHistory = { showChatHistorySheet = true },
                             isAiExcluded = isAiExcluded,
                             isSearchMode = isSearchMode,
@@ -1052,7 +1104,11 @@ fun InputStreamScreen(
                                 speechState.stopListening()
                             },
                             isAgentWorking = isChatProcessing,
-                            autoSendActive = autoSendActive
+                            autoSendActive = autoSendActive,
+                            // Search filter parameters
+                            selectedFilters = selectedFilters,
+                            onFilterToggle = onFilterToggle,
+                            onClearFilters = onClearFilters
                         )
                     }
                 }
@@ -1148,7 +1204,7 @@ fun InputStreamScreen(
             onDeleteSession = onDeleteChatSession
         )
     }
-    }
+}
 }
 
 
@@ -1167,7 +1223,8 @@ private fun AnimatedNoteItem(
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
     onLongPress: () -> Unit = {},
-    onPlayYouTube: (String) -> Unit = {}
+    onPlayYouTube: (String) -> Unit = {},
+    searchQuery: String? = null
 ) {
     // Track if item has appeared
     var appeared by remember { mutableStateOf(false) }
@@ -1223,7 +1280,8 @@ private fun AnimatedNoteItem(
         isSelected = isSelected,
         isSelectionMode = isSelectionMode,
         onLongPress = onLongPress,
-        onPlayYouTube = onPlayYouTube
+        onPlayYouTube = onPlayYouTube,
+        searchQuery = searchQuery
     )
 }
 
@@ -1321,7 +1379,7 @@ private class CappedVelocityFlingBehavior(
  */
 @Composable
 private fun rememberCappedFlingBehavior(
-    maxVelocity: Float = 8000f  // Max pixels/second - scrolling continues, just slower
+    maxVelocity: Float = 50000f  // Max pixels/second - scrolling continues, just slower
 ): FlingBehavior {
     // Get the default scroll behavior from the platform
     val defaultFling = androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()

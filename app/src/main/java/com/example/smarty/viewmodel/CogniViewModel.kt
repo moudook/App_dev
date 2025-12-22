@@ -47,6 +47,8 @@ import com.example.smarty.util.PDFTextExtractor
 import com.example.smarty.util.PDFExtractionResult
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.ShakeDetector
+import com.example.smarty.util.NetworkMonitor
+import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.util.api.RateLimiter
 import com.example.smarty.util.api.GroqKeyManager
 import com.example.smarty.util.api.KeyUsageStats
@@ -58,6 +60,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.example.smarty.ui.components.AttachmentOption
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -280,6 +286,28 @@ class CogniViewModel(
     private val _speechResults = kotlinx.coroutines.flow.MutableSharedFlow<String>()
     val speechResults = _speechResults.asSharedFlow()
 
+    // Pull-to-refresh state
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    fun refreshNotes() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                // Force reload from database
+                repository.refreshNotes()
+                // Brief delay for visual feedback
+                kotlinx.coroutines.delay(500)
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
+    }
+    fun clearInput() {
+        _currentInputText.value = ""
+        _currentInputAttachments.value = emptyList()
+    }
+
     fun onSpeechResult(text: String) {
         viewModelScope.launch {
             _speechResults.emit(text)
@@ -315,8 +343,87 @@ class CogniViewModel(
     }
 
 
-    val notes = repository.getAllNotes()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Selected category (must be declared before notes flow that uses it)
+    private val _selectedCategory = MutableStateFlow<Category?>(null)
+    val selectedCategory: StateFlow<Category?> = _selectedCategory.asStateFlow()
+
+    // Search and Filter State
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _selectedFilters = MutableStateFlow<Set<AttachmentOption>>(emptySet())
+    val selectedFilters: StateFlow<Set<AttachmentOption>> = _selectedFilters.asStateFlow()
+
+    fun onSearchQueryChange(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun onFilterToggle(option: AttachmentOption) {
+        val current = _selectedFilters.value
+        _selectedFilters.value = if (option in current) current - option else current + option
+    }
+
+    fun clearFilters() {
+        _selectedFilters.value = emptySet()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val notes: StateFlow<List<Note>> = combine(
+        _searchQuery,
+        _selectedFilters,
+        _selectedCategory
+    ) { query, filters, category ->
+        Triple(query, filters, category)
+    }.flatMapLatest { (query, filters, category) ->
+        val effectiveQuery = query.trim()
+        val hasFilters = filters.isNotEmpty()
+
+        if (effectiveQuery.isEmpty() && !hasFilters) {
+            // Standard viewing mode
+            if (category != null) repository.getNotesByCategory(category.id)
+            else repository.getAllNotes()
+        } else {
+            // Search/Filter mode (BACKEND INTEGRATION)
+            val noteTypes = mapFiltersToNoteTypes(filters)
+            repository.searchNotes(effectiveQuery, noteTypes)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun mapFiltersToNoteTypes(filters: Set<AttachmentOption>): List<NoteType> {
+        if (filters.isEmpty()) return emptyList()
+        val types = mutableListOf<NoteType>()
+        filters.forEach { option ->
+            when (option) {
+                AttachmentOption.IMAGE -> {
+                    types.add(NoteType.IMAGE)
+                    types.add(NoteType.INSTAGRAM) // Include related visual types
+                }
+                AttachmentOption.VIDEO -> {
+                    types.add(NoteType.VIDEO)
+                    types.add(NoteType.YOUTUBE) // Include video sources
+                }
+                AttachmentOption.AUDIO -> types.add(NoteType.AUDIO)
+                AttachmentOption.DOCUMENT -> {
+                    types.add(NoteType.DOCUMENT)
+                    types.add(NoteType.SPREADSHEET)
+                    types.add(NoteType.PRESENTATION)
+                }
+                AttachmentOption.FILE -> {
+                    types.add(NoteType.FILE)
+                    types.add(NoteType.ARCHIVE)
+                    types.add(NoteType.APK)
+                    types.add(NoteType.CODE)
+                }
+                AttachmentOption.LINK -> {
+                    types.add(NoteType.WEBSITE)
+                    types.add(NoteType.TWITTER)
+                }
+            }
+        }
+        return types
+    }
+
 
     val categories = repository.getAllCategories()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -328,15 +435,32 @@ class CogniViewModel(
     private val _selectedNote = MutableStateFlow<Note?>(null)
     val selectedNote: StateFlow<Note?> = _selectedNote.asStateFlow()
 
-    private val _selectedCategory = MutableStateFlow<Category?>(null)
-    val selectedCategory: StateFlow<Category?> = _selectedCategory.asStateFlow()
-
     private val _isProcessing = MutableStateFlow(false)
     val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
 
+    // Loading state for notes list (Phase 8)
+    private val _isNotesLoading = MutableStateFlow(true)
+    val isNotesLoading: StateFlow<Boolean> = _isNotesLoading.asStateFlow()
 
+    // Undo state for bulk archive operations (Phase 4)
+    private val _lastArchivedNoteIds = MutableStateFlow<List<String>>(emptyList())
+    val lastArchivedNoteIds: StateFlow<List<String>> = _lastArchivedNoteIds.asStateFlow()
+
+    // Network monitoring (Phase 7)
+    private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor(application) }
+    val connectionStatus: StateFlow<ConnectionStatus> = networkMonitor.connectionStatus
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionStatus.CONNECTED)
 
     init {
+        // Track notes loading state (Phase 8)
+        viewModelScope.launch {
+            notes.collect {
+                if (_isNotesLoading.value) {
+                    _isNotesLoading.value = false
+                }
+            }
+        }
+
         // Sync category counts on app start to fix any existing mismatches
         viewModelScope.launch {
             repository.syncAllCategoryCounts()
@@ -746,6 +870,42 @@ class CogniViewModel(
         }
     }
 
+    // Bulk operations with undo support (Phase 4)
+    fun archiveNotes(noteIds: List<String>) {
+        if (noteIds.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                noteOperationMutex.withLock {
+                    repository.archiveNotes(noteIds)
+                }
+                // Store for undo
+                _lastArchivedNoteIds.value = noteIds
+            } catch (e: Exception) {
+                Log.e(TAG, "Error bulk archiving notes: ${e.message}", e)
+            }
+        }
+    }
+
+    fun undoArchive() {
+        val ids = _lastArchivedNoteIds.value
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                noteOperationMutex.withLock {
+                    repository.unarchiveNotes(ids)
+                }
+                // Clear undo state
+                _lastArchivedNoteIds.value = emptyList()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error undoing archive: ${e.message}", e)
+            }
+        }
+    }
+
+    fun clearUndoState() {
+        _lastArchivedNoteIds.value = emptyList()
+    }
+
     // Archived notes for archive screen
     val archivedNotes = repository.getArchivedNotes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -806,6 +966,17 @@ class CogniViewModel(
         }
     }
 
+    fun updateNoteCategory(noteId: String, categoryId: String, categoryName: String) {
+        viewModelScope.launch {
+            repository.updateNoteCategory(noteId, categoryId, categoryName)
+        }
+    }
+
+    fun markNoteAsViewed(noteId: String) {
+        viewModelScope.launch {
+            repository.updateNoteViewedStatus(noteId, true)
+        }
+    }
     /**
      * Edit a note's title and content.
      * Called when user edits a note from the detail view.
