@@ -133,6 +133,8 @@ IMPORTS_CHECK.md
 issue_with_ai_agent_audio_player_case_2.png
 issue_with_ai_agent_audio_player.png
 agent_issue_during_chat.png
+new_app_icon_for_cogni_11zon.png
+new_app_icon_for_cogni.png
 
 #solutions
 error_and_warning_solution.txt
@@ -146,3 +148,5 @@ update_settings.py
 .env
 
 #research
+# on the wake words
+terminator_android.ppn

@@ -1,59 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <!-- Blue glow effect behind hand -->
-    <path android:pathData="M54,75 m-25,0 a25,20 0 1,0 50,0 a25,20 0 1,0 -50,0">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:centerX="54"
-                android:centerY="70"
-                android:gradientRadius="30"
-                android:type="radial">
-                <item android:color="#660066FF" android:offset="0.0" />
-                <item android:color="#330066FF" android:offset="0.5" />
-                <item android:color="#000066FF" android:offset="1.0" />
-            </gradient>
-        </aapt:attr>
-    </path>
-
-    <!-- Hand - Palm base -->
-    <path
-        android:fillColor="#F5F5F5"
-        android:pathData="M44,58 L44,72 Q44,76 48,76 L60,76 Q64,76 64,72 L64,58 Q64,55 54,55 Q44,55 44,58 Z" />
-
-    <!-- Thumb (pointing left-up) -->
-    <path
-        android:fillColor="#EEEEEE"
-        android:pathData="M44,62 L38,54 Q36,51 38,49 Q40,47 43,49 L48,55 L48,62 Z" />
-
-    <!-- Index finger (pointing up) -->
-    <path
-        android:fillColor="#F5F5F5"
-        android:pathData="M46,58 L46,38 Q46,34 49,34 Q52,34 52,38 L52,58 Z" />
-
-    <!-- Middle finger (folded - small bump) -->
-    <path
-        android:fillColor="#E8E8E8"
-        android:pathData="M52,58 L52,52 Q54,50 56,52 L56,58 Z" />
-
-    <!-- Ring finger (folded - small bump) -->
-    <path
-        android:fillColor="#E8E8E8"
-        android:pathData="M56,58 L56,54 Q58,52 60,54 L60,58 Z" />
-
-    <!-- Pinky finger (pointing up) -->
-    <path
-        android:fillColor="#F5F5F5"
-        android:pathData="M60,58 L60,42 Q60,38 63,38 Q66,38 66,42 L66,58 Z" />
-
-    <!-- Subtle shadow under palm -->
-    <path
-        android:fillColor="#00000022"
-        android:pathData="M46,76 Q54,80 62,76 L62,78 Q54,82 46,78 Z" />
-
-</vector>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/app_icon_foreground"
+    android:insetLeft="15%"
+    android:insetTop="15%"
+    android:insetRight="15%"
+    android:insetBottom="15%" />

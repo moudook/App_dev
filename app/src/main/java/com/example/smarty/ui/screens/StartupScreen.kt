@@ -193,20 +193,26 @@ fun StartupScreen(
             val textAlpha = logoAlpha.value * fadeAlpha
 
             if (textAlpha > 0.01f) {
-                androidx.compose.material3.Text(
-                    text = ">,<",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = Color.White,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                    modifier = Modifier.graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                        alpha = textAlpha
-                        scaleX = currentScale
-                        scaleY = currentScale
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            renderEffect = null
+                coil.compose.AsyncImage(
+                    model = androidx.compose.ui.platform.LocalContext.current.let { context ->
+                        coil.request.ImageRequest.Builder(context)
+                            .data(com.example.smarty.R.drawable.startup_logo)
+                            .size(256) // Downsample to ~256px, sufficient for 64dp
+                            .crossfade(true)
+                            .build()
+                    },
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .graphicsLayer {
+                            compositingStrategy = CompositingStrategy.Offscreen
+                            alpha = textAlpha
+                            scaleX = currentScale
+                            scaleY = currentScale
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                renderEffect = null
+                            }
                         }
-                    }
                 )
             }
         }
