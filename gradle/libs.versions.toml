@@ -25,6 +25,7 @@ googleApiServicesDrive = "v3-rev20241206-2.0.0"
 googleApiClientAndroid = "2.7.0"
 googleHttpClientGson = "1.45.1"
 workRuntimeKtx = "2.10.0"
+paging = "3.3.5"
 pdfboxAndroid = "2.0.27.0"
 media3 = "1.5.1"
 # Koog AI Agent Framework
@@ -70,6 +71,10 @@ google-api-services-drive = { group = "com.google.apis", name = "google-api-serv
 google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClientAndroid" }
 google-http-client-gson = { group = "com.google.http-client", name = "google-http-client-gson", version.ref = "googleHttpClientGson" }
 androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
+# Paging3 for large list pagination
+androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
+androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
+androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "roomVersion" }
 pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfboxAndroid" }
 # Media3 ExoPlayer for audio playback
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }

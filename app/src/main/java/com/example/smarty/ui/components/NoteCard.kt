@@ -401,34 +401,104 @@ fun NoteCard(
                             }
                         }
 
-                        // Right: Timestamp or Category (Minimal pill)
-                        note.categoryName?.let { category ->
-                            CategoryChip(
-                                name = category,
-                                isNew = note.processingStatus == ProcessingStatus.COMPLETED
-                            )
+                            // Right side: Pin icon + Category
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Pin indicator
+                                if (note.isPinned) {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = "Pinned",
+                                        tint = LocalAccentColor.current,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+
+                                // Category chip
+                                note.categoryName?.let { category ->
+                                    CategoryChip(
+                                        name = category,
+                                        isNew = note.processingStatus == ProcessingStatus.COMPLETED
+                                    )
+                                }
+                            }
                         }
                     }
-                }
 
                     // Body Content - memoized to avoid recomputation
                     val displayText = remember(note.summary, note.content) {
                         note.summary ?: note.content
                     }
-                    // Only show body if we have content
-                    if (displayText.isNotBlank()) {
-                        Text(
-                            text = displayText,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                lineHeight = 20.sp,
-                                fontWeight = FontWeight.Medium, // Increased from Normal to Medium
-                                // Darker, higher contrast text color (Alpha 0.8 -> 0.9)
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f) 
-                            ),
-                            maxLines = 1, // Limit to 1 line for compact fixed height
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 48.dp) // Aligned with text, bypassing icon
-                        )
+
+                    // Smart Reminder: Check if reminder is active
+                    val hasActiveReminder = remember(note.reminderText, note.reminderExpiresAt) {
+                        note.reminderText != null &&
+                            (note.reminderExpiresAt == null || note.reminderExpiresAt > System.currentTimeMillis())
+                    }
+
+                    // Reminder display state: show shimmer for 2.5 seconds, then fade to normal
+                    var showReminderShimmer by remember(note.id, note.reminderText) { mutableStateOf(hasActiveReminder) }
+
+                    // Auto-dismiss shimmer after 2.5 seconds
+                    LaunchedEffect(note.id, note.reminderText, hasActiveReminder) {
+                        if (hasActiveReminder && showReminderShimmer) {
+                            kotlinx.coroutines.delay(2500L)
+                            showReminderShimmer = false
+                        }
+                    }
+
+                    // Animated crossfade between reminder and normal text
+                    val reminderAlpha by animateFloatAsState(
+                        targetValue = if (showReminderShimmer) 1f else 0f,
+                        animationSpec = tween(300),
+                        label = "reminderAlpha"
+                    )
+                    val bodyAlpha by animateFloatAsState(
+                        targetValue = if (showReminderShimmer) 0f else 1f,
+                        animationSpec = tween(300),
+                        label = "bodyAlpha"
+                    )
+
+                    // Show reminder shimmer OR regular content using crossfade
+                    Box(modifier = Modifier.padding(start = 48.dp)) {
+                        // Reminder shimmer overlay (shows for 2.5 seconds)
+                        if (hasActiveReminder && reminderAlpha > 0f) {
+                            Text(
+                                text = note.reminderText ?: "",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    lineHeight = 20.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = LocalAccentColor.current
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .graphicsLayer { alpha = reminderAlpha }
+                                    .shimmerEffect(
+                                        shimmerColor = LocalAccentColor.current.copy(alpha = 0.7f),
+                                        durationMs = 1200,
+                                        delayMs = 0,
+                                        shimmerWidth = 300f
+                                    )
+                            )
+                        }
+
+                        // Regular body content (fades in after shimmer)
+                        if (displayText.isNotBlank() && bodyAlpha > 0f) {
+                            Text(
+                                text = displayText,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    lineHeight = 20.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.graphicsLayer { alpha = bodyAlpha }
+                            )
+                        }
                     }
 
                     // YouTube Button

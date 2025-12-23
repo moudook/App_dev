@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -138,6 +140,10 @@ fun InputStreamScreen(
 
     wasShakeTriggered: Boolean = false,  // For border glow animation on mode switch
     connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,  // Phase 7
+    // Pin and Share callbacks
+    onPinNote: (String) -> Unit = {},
+    onUnpinNote: (String) -> Unit = {},
+    onShareNotes: (List<Note>) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -376,6 +382,29 @@ fun InputStreamScreen(
                 duration = SnackbarDuration.Short
             )
         }
+    }
+
+    // Pin selected notes
+    fun pinSelected() {
+        val ids = selectedNoteIds.toList()
+        ids.forEach { onPinNote(it) }
+        val count = ids.size
+        clearSelection()
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                message = "$count note${if (count > 1) "s" else ""} pinned",
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
+
+    // Share selected notes
+    fun shareSelected() {
+        val selectedNotes = displayedNotes.filter { it.id in selectedNoteIds }
+        if (selectedNotes.isNotEmpty()) {
+            onShareNotes(selectedNotes)
+        }
+        clearSelection()
     }
 
     // Handle back button press - exit selection mode instead of closing app
@@ -664,7 +693,37 @@ fun InputStreamScreen(
                                     tint = LocalAccentColor.current
                                 )
                             }
-                            
+
+                            // Pin button
+                            IconButton(
+                                onClick = { pinSelected() },
+                                enabled = selectedNoteIds.isNotEmpty()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = "Pin selected",
+                                    tint = if (selectedNoteIds.isNotEmpty())
+                                        LocalAccentColor.current
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            // Share button
+                            IconButton(
+                                onClick = { shareSelected() },
+                                enabled = selectedNoteIds.isNotEmpty()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "Share selected",
+                                    tint = if (selectedNoteIds.isNotEmpty())
+                                        LocalAccentColor.current
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
                             // Archive button
                             IconButton(
                                 onClick = { archiveSelected() },
@@ -679,7 +738,7 @@ fun InputStreamScreen(
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            
+
                             // Delete button
                             IconButton(
                                 onClick = { deleteSelected() },

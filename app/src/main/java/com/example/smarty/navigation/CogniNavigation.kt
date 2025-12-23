@@ -100,6 +100,10 @@ fun CogniNavHost(
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
     onEditNote: (String, String, String) -> Unit = { _, _, _ -> },  // noteId, newTitle, newContent
     onMarkAsViewed: (String) -> Unit = {}, // New tracking action
+    // Pin and share management
+    onPinNote: (String) -> Unit = {},
+    onUnpinNote: (String) -> Unit = {},
+    onShareNotes: (List<Note>) -> Unit = {},
     // Pending share management
     pendingShare: PendingShareData?,
     onConfirmShare: (String?, String) -> Unit,
@@ -285,7 +289,11 @@ fun CogniNavHost(
                 externalSpeechState = externalSpeechState,
                 speechResults = speechResults,
                 wasShakeTriggered = wasShakeTriggered,
-                connectionStatus = connectionStatus
+                connectionStatus = connectionStatus,
+                // Pin and Share
+                onPinNote = onPinNote,
+                onUnpinNote = onUnpinNote,
+                onShareNotes = onShareNotes
             )
         }
 

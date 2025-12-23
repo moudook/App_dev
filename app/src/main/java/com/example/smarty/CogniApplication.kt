@@ -29,6 +29,15 @@ class CogniApplication : Application() {
         // Initialize LazyDecompressor (uses ResourceManager settings)
         LazyDecompressor.initialize(this)
         Log.d(TAG, "LazyDecompressor initialized")
+
+        // Setup app shortcuts (launcher long-press menu)
+        com.example.smarty.util.AppShortcutsManager.setupShortcuts(this)
+        Log.d(TAG, "App shortcuts initialized")
+
+        // Setup daily digest notification channel and schedule worker
+        com.example.smarty.worker.DailyDigestWorker.createNotificationChannel(this)
+        com.example.smarty.worker.DailyDigestWorker.schedule(this)
+        Log.d(TAG, "Daily digest scheduled for 6:30 AM")
     }
 
     override fun onTerminate() {

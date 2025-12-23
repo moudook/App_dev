@@ -14,6 +14,7 @@ import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.ImpressedEntry
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.ProviderUsage
+import com.example.smarty.data.model.NoteVersion
 
 @Database(
     entities = [
@@ -25,9 +26,10 @@ import com.example.smarty.data.model.ProviderUsage
         ImpressedEntry::class,
         CalendarEvent::class,
         AgentExecution::class,      // AI agent execution tracking
-        ProviderUsage::class        // Provider usage for rate limiting
+        ProviderUsage::class,       // Provider usage for rate limiting
+        NoteVersion::class          // Note version history for git-like versioning
     ],
-    version = 14,  // Added isViewed for read/unread state
+    version = 18,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -39,6 +41,7 @@ abstract class CogniDatabase : RoomDatabase() {
     abstract fun impressedLogDao(): ImpressedLogDao
     abstract fun calendarDao(): CalendarDao
     abstract fun agentExecutionDao(): AgentExecutionDao
+    abstract fun noteVersionDao(): NoteVersionDao
 
     companion object {
         @Volatile
@@ -62,9 +65,14 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_10_11,
                         Migrations.MIGRATION_11_12,
                         Migrations.MIGRATION_12_13,
-                        Migrations.MIGRATION_13_14
+                        Migrations.MIGRATION_13_14,
+                        Migrations.MIGRATION_14_15,
+                        Migrations.MIGRATION_15_16,
+                        Migrations.MIGRATION_16_17,
+                        Migrations.MIGRATION_17_18
                     )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    // NOTE: Removed fallbackToDestructiveMigration to preserve user data
+                    // All migrations must be properly defined in Migrations.kt
                     .build()
                 INSTANCE = instance
                 instance

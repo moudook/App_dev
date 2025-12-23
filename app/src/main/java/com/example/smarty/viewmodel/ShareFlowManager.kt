@@ -12,6 +12,7 @@ import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.FileStorageHelper
 import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.util.UrlMetadataExtractor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,7 +53,8 @@ class ShareFlowManager(
     val isActiveShareMode: StateFlow<Boolean> = _isActiveShareMode.asStateFlow()
 
     /**
-     * Intercept shared content for preview in bottom sheet
+     * Intercept shared content for preview in bottom sheet.
+     * Enhanced with URL metadata extraction for web clipper functionality.
      */
     fun interceptShareForPreview(sharedContent: SharedContent) {
         scope.launch {
@@ -60,19 +62,47 @@ class ShareFlowManager(
             _isActiveShareMode.value = true
             _pendingShareFullPrivacy.value = false
 
-            val type = when {
+            var type = when {
                 sharedContent.fileUri != null -> ContentTypeDetector.detectTypeFromMime(sharedContent.mimeType)
                 sharedContent.text != null -> ContentTypeDetector.detectContentType(sharedContent.text)
                 else -> NoteType.FILE
+            }
+
+            // Enhanced text for URLs with metadata
+            var enhancedText = sharedContent.text
+            var urlMetadata: UrlMetadataExtractor.UrlMetadata? = null
+
+            // Web Clipper: If text contains a URL, try to fetch its metadata
+            if (sharedContent.text != null && UrlMetadataExtractor.containsUrl(sharedContent.text)) {
+                val url = UrlMetadataExtractor.extractUrl(sharedContent.text)
+                if (url != null) {
+                    Log.d(TAG, "Web clipper: Fetching metadata for URL: $url")
+                    urlMetadata = UrlMetadataExtractor.fetchMetadata(url)
+
+                    if (urlMetadata != null) {
+                        Log.d(TAG, "Web clipper: Got metadata - title: ${urlMetadata.title}")
+                        type = NoteType.WEBSITE
+
+                        // Build enhanced text with metadata
+                        enhancedText = buildString {
+                            append("📎 ${urlMetadata.title}\n")
+                            append("🔗 ${urlMetadata.domain ?: url}\n")
+                            urlMetadata.description?.let {
+                                append("\n$it\n")
+                            }
+                            append("\nSource: $url")
+                        }
+                    }
+                }
             }
 
             // Find potentially related notes
             val relatedNotes = findRelatedNotes(sharedContent)
 
             _pendingShare.value = PendingShareData(
-                text = sharedContent.text,
+                text = enhancedText,
                 fileUri = sharedContent.fileUri,
-                fileName = sharedContent.fileName,
+                fileName = urlMetadata?.title ?: sharedContent.fileName,
                 mimeType = sharedContent.mimeType,
                 fileSize = sharedContent.fileSize,
                 detectedType = type,

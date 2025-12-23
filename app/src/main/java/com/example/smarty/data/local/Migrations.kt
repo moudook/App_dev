@@ -277,4 +277,99 @@ object Migrations {
             db.execSQL("ALTER TABLE notes ADD COLUMN isViewed INTEGER NOT NULL DEFAULT 1")
         }
     }
+
+    /**
+     * Migration from version 14 to 15
+     * Adds isPinned column for note pinning feature
+     */
+    val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE notes ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    /**
+     * Migration from version 15 to 16
+     * Adds reminderText and reminderExpiresAt columns for smart reminders
+     */
+    val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE notes ADD COLUMN reminderText TEXT DEFAULT NULL")
+            db.execSQL("ALTER TABLE notes ADD COLUMN reminderExpiresAt INTEGER DEFAULT NULL")
+        }
+    }
+
+    /**
+     * Migration from version 16 to 17
+     * Creates note_versions table for git-like versioning
+     */
+    val MIGRATION_16_17 = object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS note_versions (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    noteId TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    summary TEXT,
+                    versionNumber INTEGER NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    changeDescription TEXT,
+                    FOREIGN KEY (noteId) REFERENCES notes(id) ON DELETE CASCADE
+                )
+            """)
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_note_versions_noteId ON note_versions(noteId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_note_versions_createdAt ON note_versions(createdAt)")
+        }
+    }
+
+    /**
+     * Migration from version 17 to 18
+     * Creates FTS5 virtual table for full-text search
+     */
+    val MIGRATION_17_18 = object : Migration(17, 18) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Create FTS5 virtual table for fast text search
+            // Using external content mode pointing to notes table
+            db.execSQL("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+                    title,
+                    content,
+                    summary,
+                    content='notes',
+                    content_rowid='rowid'
+                )
+            """)
+
+            // Populate FTS table with existing data
+            db.execSQL("""
+                INSERT INTO notes_fts(rowid, title, content, summary)
+                SELECT rowid, COALESCE(title, ''), COALESCE(content, ''), COALESCE(summary, '') FROM notes
+            """)
+
+            // Create triggers to keep FTS table in sync with notes table
+            db.execSQL("""
+                CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN
+                    INSERT INTO notes_fts(rowid, title, content, summary)
+                    VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.content, ''), COALESCE(new.summary, ''));
+                END
+            """)
+
+            db.execSQL("""
+                CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN
+                    INSERT INTO notes_fts(notes_fts, rowid, title, content, summary)
+                    VALUES('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.content, ''), COALESCE(old.summary, ''));
+                END
+            """)
+
+            db.execSQL("""
+                CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN
+                    INSERT INTO notes_fts(notes_fts, rowid, title, content, summary)
+                    VALUES('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.content, ''), COALESCE(old.summary, ''));
+                    INSERT INTO notes_fts(rowid, title, content, summary)
+                    VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.content, ''), COALESCE(new.summary, ''));
+                END
+            """)
+        }
+    }
 }

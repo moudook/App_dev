@@ -334,6 +334,33 @@ class MainActivity : ComponentActivity() {
                                     onMarkAsViewed = { noteId ->
                                         viewModel.markNoteAsViewed(noteId)
                                     },
+                                    // Pin and Share management
+                                    onPinNote = { noteId ->
+                                        viewModel.pinNote(noteId)
+                                    },
+                                    onUnpinNote = { noteId ->
+                                        viewModel.unpinNote(noteId)
+                                    },
+                                    onShareNotes = { notesToShare ->
+                                        // Create share intent with note titles and descriptions
+                                        val shareText = notesToShare.joinToString("\n\n") { note ->
+                                            buildString {
+                                                append("📝 ${note.title}")
+                                                if (!note.summary.isNullOrBlank()) {
+                                                    append("\n${note.summary}")
+                                                } else if (note.content.isNotBlank()) {
+                                                    append("\n${note.content.take(200)}")
+                                                    if (note.content.length > 200) append("...")
+                                                }
+                                            }
+                                        }
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Shared from Cogni")
+                                        }
+                                        startActivity(android.content.Intent.createChooser(intent, "Share notes"))
+                                    },
                                     // Pending share management
                                     pendingShare = pendingShare,
                                     onConfirmShare = { category, instructions ->

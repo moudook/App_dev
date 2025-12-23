@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Cogni</string>
+
+    <!-- Widget strings -->
+    <string name="widget_description">Quick note widget - tap to add a note</string>
+    <string name="widget_tap_to_add">Quick Note</string>
+    <string name="widget_subtitle">Tap to capture a thought</string>
+    <string name="widget_add_note">Add note</string>
 </resources>

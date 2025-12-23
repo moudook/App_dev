@@ -143,7 +143,8 @@ class CogniViewModel(
         CogniRepository(
             database.noteDao(),
             database.categoryDao(),
-            database.calendarDao()
+            database.calendarDao(),
+            database.noteVersionDao()
         )
     }
 
@@ -1122,9 +1123,93 @@ class CogniViewModel(
             repository.updateNoteViewedStatus(noteId, true)
         }
     }
+
+    // =========================================================================
+    // PIN OPERATIONS
+    // =========================================================================
+
+    fun pinNote(noteId: String) {
+        viewModelScope.launch {
+            repository.pinNote(noteId)
+            Log.d(TAG, "Note pinned: $noteId")
+        }
+    }
+
+    fun unpinNote(noteId: String) {
+        viewModelScope.launch {
+            repository.unpinNote(noteId)
+            Log.d(TAG, "Note unpinned: $noteId")
+        }
+    }
+
+    fun toggleNotePin(noteId: String) {
+        viewModelScope.launch {
+            repository.toggleNotePin(noteId)
+            Log.d(TAG, "Note pin toggled: $noteId")
+        }
+    }
+
+    // =========================================================================
+    // REMINDER OPERATIONS
+    // =========================================================================
+
+    fun setNoteReminder(noteId: String, reminderText: String, durationMs: Long? = null) {
+        viewModelScope.launch {
+            val expiresAt = durationMs?.let { System.currentTimeMillis() + it }
+            repository.setNoteReminder(noteId, reminderText, expiresAt)
+            Log.d(TAG, "Reminder set for note: $noteId, expires: $expiresAt")
+        }
+    }
+
+    fun clearNoteReminder(noteId: String) {
+        viewModelScope.launch {
+            repository.clearNoteReminder(noteId)
+            Log.d(TAG, "Reminder cleared for note: $noteId")
+        }
+    }
+
+    // =========================================================================
+    // VERSION OPERATIONS (Git-like history)
+    // =========================================================================
+
+    /**
+     * Get version history for a note
+     */
+    fun getNoteVersions(noteId: String) = repository.getNoteVersions(noteId)
+
+    /**
+     * Get version history as one-shot query
+     */
+    suspend fun getNoteVersionsOnce(noteId: String) = repository.getNoteVersionsOnce(noteId)
+
+    /**
+     * Restore a note to a previous version
+     */
+    fun restoreNoteVersion(noteId: String, versionId: String, onComplete: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            val success = repository.restoreNoteVersion(noteId, versionId)
+            if (success) {
+                // Refresh selected note if viewing this note
+                if (_selectedNote.value?.id == noteId) {
+                    _selectedNote.value = repository.getNoteById(noteId)
+                }
+                Log.d(TAG, "Note restored to version: $versionId")
+            } else {
+                Log.e(TAG, "Failed to restore note to version: $versionId")
+            }
+            onComplete?.invoke(success)
+        }
+    }
+
+    /**
+     * Get version count for a note
+     */
+    suspend fun getNoteVersionCount(noteId: String) = repository.getNoteVersionCount(noteId)
+
     /**
      * Edit a note's title and content.
      * Called when user edits a note from the detail view.
+     * Automatically saves a version snapshot before updating.
      */
     fun editNote(noteId: String, newTitle: String, newContent: String) {
         viewModelScope.launch {
@@ -1137,12 +1222,13 @@ class CogniViewModel(
                             content = newContent,
                             updatedAt = System.currentTimeMillis()
                         )
-                        repository.updateNote(updatedNote)
+                        // Use updateNoteWithVersion to save version history
+                        repository.updateNoteWithVersion(updatedNote, "User edit")
                         // Update selected note if this is the currently viewed note
                         if (_selectedNote.value?.id == noteId) {
                             _selectedNote.value = updatedNote
                         }
-                        Log.d(TAG, "Note edited: $noteId")
+                        Log.d(TAG, "Note edited with version: $noteId")
                     }
                 }
             } catch (e: Exception) {
