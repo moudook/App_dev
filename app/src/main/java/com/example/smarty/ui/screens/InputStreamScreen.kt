@@ -4,6 +4,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -400,13 +401,66 @@ fun InputStreamScreen(
     var noteToDelete by remember { mutableStateOf<Note?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    // Helper function to get file info from URI
+    // MIME type detection from file extension (fallback when ContentResolver fails)
+    fun getMimeTypeFromExtension(fileName: String): String {
+        val extension = fileName.substringAfterLast('.', "").lowercase()
+        return when (extension) {
+            // Images
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            "bmp" -> "image/bmp"
+            "svg" -> "image/svg+xml"
+            "heic", "heif" -> "image/heic"
+            // Videos
+            "mp4", "m4v" -> "video/mp4"
+            "mkv" -> "video/x-matroska"
+            "avi" -> "video/x-msvideo"
+            "mov" -> "video/quicktime"
+            "webm" -> "video/webm"
+            "3gp" -> "video/3gpp"
+            // Audio
+            "mp3" -> "audio/mpeg"
+            "wav" -> "audio/wav"
+            "ogg", "oga" -> "audio/ogg"
+            "m4a", "aac" -> "audio/mp4"
+            "flac" -> "audio/flac"
+            "wma" -> "audio/x-ms-wma"
+            // Documents
+            "pdf" -> "application/pdf"
+            "doc" -> "application/msword"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "xls" -> "application/vnd.ms-excel"
+            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "ppt" -> "application/vnd.ms-powerpoint"
+            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            "txt" -> "text/plain"
+            "rtf" -> "application/rtf"
+            "csv" -> "text/csv"
+            "json" -> "application/json"
+            "xml" -> "application/xml"
+            "html", "htm" -> "text/html"
+            "md" -> "text/markdown"
+            // Archives
+            "zip" -> "application/zip"
+            "rar" -> "application/x-rar-compressed"
+            "7z" -> "application/x-7z-compressed"
+            "tar" -> "application/x-tar"
+            "gz" -> "application/gzip"
+            // Other
+            "apk" -> "application/vnd.android.package-archive"
+            else -> "application/octet-stream"
+        }
+    }
+
+    // Helper function to get file info from URI with robust MIME type detection
     fun getFileInfo(uri: Uri): Attachment? {
         return try {
             var fileName: String? = null
             var fileSize: Long = 0
-            val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
 
+            // Query file metadata from ContentResolver
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
                     val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -419,10 +473,25 @@ fun InputStreamScreen(
                 }
             }
 
-            // Safe fallback chain - never force unwrap
+            // Safe fallback chain for filename - never force unwrap
             val safeName = fileName
                 ?: uri.lastPathSegment
                 ?: "Unknown_${System.currentTimeMillis()}"
+
+            // Robust MIME type detection:
+            // 1. Try ContentResolver first
+            // 2. Fall back to extension-based detection if null or generic
+            val contentResolverMime = context.contentResolver.getType(uri)
+            val mimeType = when {
+                // ContentResolver returned a specific type (not generic)
+                contentResolverMime != null &&
+                contentResolverMime != "application/octet-stream" &&
+                contentResolverMime != "binary/octet-stream" -> contentResolverMime
+                // Fall back to extension-based detection
+                else -> getMimeTypeFromExtension(safeName)
+            }
+
+            android.util.Log.d("AttachmentPicker", "File: $safeName, MIME: $mimeType (ContentResolver: $contentResolverMime)")
 
             Attachment(
                 uri = uri,
@@ -431,35 +500,41 @@ fun InputStreamScreen(
                 fileSize = fileSize
             )
         } catch (e: Exception) {
+            android.util.Log.e("AttachmentPicker", "Failed to get file info: ${e.message}", e)
             null
         }
     }
 
-    // File picker launchers
+    // File picker launchers - using modern contracts for better MIME type handling
+
+    // Image picker - uses PickMultipleVisualMedia for reliable image selection
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
             attachments = attachments + newAttachments
         }
     }
 
+    // Video picker - uses PickMultipleVisualMedia with VideoOnly filter
     val videoPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
             attachments = attachments + newAttachments
         }
     }
 
+    // Audio picker - uses OpenMultipleDocuments with audio MIME types
     val audioPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
             attachments = attachments + newAttachments
         }
     }
 
+    // Document picker - uses OpenMultipleDocuments for documents
     val documentPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
@@ -468,8 +543,9 @@ fun InputStreamScreen(
         }
     }
 
+    // Generic file picker - uses OpenMultipleDocuments for any file type
     val filePickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
+        ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
         uris.mapNotNull { getFileInfo(it) }.let { newAttachments ->
             attachments = attachments + newAttachments
@@ -1016,20 +1092,52 @@ fun InputStreamScreen(
                                 }
                             },
                             attachments = attachments,
-                            onPickImage = { imagePickerLauncher.launch("image/*") },
-                            onPickVideo = { videoPickerLauncher.launch("video/*") },
+                            onPickImage = {
+                                // Use PickVisualMedia with ImageOnly filter for reliable image selection
+                                imagePickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            onPickVideo = {
+                                // Use PickVisualMedia with VideoOnly filter for reliable video selection
+                                videoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly)
+                                )
+                            },
                             onPickDocument = {
+                                // OpenMultipleDocuments for document types
                                 documentPickerLauncher.launch(
                                     arrayOf(
                                         "application/pdf",
                                         "application/msword",
                                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                        "text/plain"
+                                        "application/vnd.ms-excel",
+                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        "application/vnd.ms-powerpoint",
+                                        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                        "text/plain",
+                                        "text/csv",
+                                        "application/rtf"
                                     )
                                 )
                             },
-                            onPickAudio = { audioPickerLauncher.launch("audio/*") },
-                            onPickFile = { filePickerLauncher.launch("*/*") },
+                            onPickAudio = {
+                                // OpenMultipleDocuments for audio types
+                                audioPickerLauncher.launch(
+                                    arrayOf(
+                                        "audio/*",
+                                        "audio/mpeg",
+                                        "audio/mp4",
+                                        "audio/wav",
+                                        "audio/ogg",
+                                        "audio/flac"
+                                    )
+                                )
+                            },
+                            onPickFile = {
+                                // OpenMultipleDocuments for any file type
+                                filePickerLauncher.launch(arrayOf("*/*"))
+                            },
                             onRemoveAttachment = { id -> attachments = attachments.filter { it.id != id } },
                             isChatMode = isChatMode,
                             isProcessing = isChatProcessing,

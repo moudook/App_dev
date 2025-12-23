@@ -201,13 +201,15 @@ class MainActivity : ComponentActivity() {
                     }
                 )
 
-                // Trigger existing speech input when wake word "Hey Bat" is detected
+                // Trigger existing speech input when wake word is detected
+                // CONTEXT-AWARE: Routes speech to main page or chat based on current mode
                 // Uses the shimmer effect on input block instead of Google's popup
-                LaunchedEffect(wakeWordTriggered) {
+                LaunchedEffect(wakeWordTriggered, isChatMode) {
                     if (wakeWordTriggered) {
-                        android.util.Log.i("WakeWord", "Triggering shimmer speech input")
+                        android.util.Log.i("WakeWord", "Triggering speech input in ${if (isChatMode) "CHAT" else "MAIN"} mode")
                         viewModel.clearWakeWordTrigger()
-                        globalSpeechState.startListening()
+                        // Pass current mode so speech result goes to correct input field
+                        globalSpeechState.startListening(isChatMode = isChatMode)
                     }
                 }
 

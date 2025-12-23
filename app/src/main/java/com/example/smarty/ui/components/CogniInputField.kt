@@ -767,9 +767,12 @@ fun CogniInputField(
                         maxLines = 4
                     )
 
-                    // Animated placeholder - shows "Listening..." in blue when voice active
+                    // Animated placeholder - shows when input is empty
+                    // "Listening..." only shows when voice active AND no text yet
+                    // This prevents overlap when speech is being transcribed
+                    val showPlaceholder = value.text.isEmpty() && attachments.isEmpty()
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = isVoiceListening || (value.text.isEmpty() && attachments.isEmpty()),
+                        visible = showPlaceholder,
                         enter = fadeIn(tween(150)),
                         exit = fadeOut(tween(100))
                     ) {

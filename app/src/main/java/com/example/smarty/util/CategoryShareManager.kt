@@ -8,6 +8,8 @@ import androidx.core.content.FileProvider
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
 import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Base64
@@ -66,9 +68,9 @@ object CategoryShareManager {
     }
 
     /**
-     * Generate QR code bitmap for a category
+     * Generate QR code bitmap for a category (runs on background thread)
      */
-    fun generateCategoryQRCode(
+    suspend fun generateCategoryQRCode(
         category: Category,
         notes: List<Note>,
         size: Int = 512
@@ -109,8 +111,9 @@ object CategoryShareManager {
 
     /**
      * Share category via Android's share sheet (integrates with Quick Share)
+     * Runs QR code generation on background thread to avoid blocking main thread
      */
-    fun shareCategory(
+    suspend fun shareCategory(
         context: Context,
         category: Category,
         notes: List<Note>,
@@ -137,11 +140,13 @@ object CategoryShareManager {
             putExtra(Intent.EXTRA_TEXT, shareText)
         }
 
-        // If QR code should be included, generate and attach it
+        // If QR code should be included, generate and attach it (runs on background thread)
         if (includeQRCode) {
             val qrBitmap = generateCategoryQRCode(category, notes)
             qrBitmap?.let { bitmap ->
-                val uri = saveQRCodeToCache(context, bitmap, category.name)
+                val uri = withContext(Dispatchers.IO) {
+                    saveQRCodeToCache(context, bitmap, category.name)
+                }
                 uri?.let {
                     intent.type = "image/*"
                     intent.putExtra(Intent.EXTRA_STREAM, it)

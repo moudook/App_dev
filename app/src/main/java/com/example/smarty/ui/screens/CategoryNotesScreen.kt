@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +28,7 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.util.CategoryShareManager
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,7 +42,11 @@ fun CategoryNotesScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val categoryNotes = notes.filter { it.categoryId == category.id }
+    val scope = rememberCoroutineScope()
+    // Use derivedStateOf to avoid filtering on every recomposition
+    val categoryNotes by remember(category.id) {
+        derivedStateOf { notes.filter { it.categoryId == category.id } }
+    }
     var showQRDialog by remember { mutableStateOf(false) }
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
@@ -87,12 +93,14 @@ fun CategoryNotesScreen(
                     // Share button
                     IconButton(
                         onClick = {
-                            CategoryShareManager.shareCategory(
-                                context = context,
-                                category = category,
-                                notes = categoryNotes,
-                                includeQRCode = true
-                            )
+                            scope.launch {
+                                CategoryShareManager.shareCategory(
+                                    context = context,
+                                    category = category,
+                                    notes = categoryNotes,
+                                    includeQRCode = true
+                                )
+                            }
                         }
                     ) {
                         Icon(
@@ -149,12 +157,14 @@ fun CategoryNotesScreen(
             qrBitmap = qrBitmap,
             onDismiss = { showQRDialog = false },
             onShare = {
-                CategoryShareManager.shareCategory(
-                    context = context,
-                    category = category,
-                    notes = categoryNotes,
-                    includeQRCode = true
-                )
+                scope.launch {
+                    CategoryShareManager.shareCategory(
+                        context = context,
+                        category = category,
+                        notes = categoryNotes,
+                        includeQRCode = true
+                    )
+                }
                 showQRDialog = false
             }
         )
