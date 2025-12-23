@@ -48,7 +48,6 @@ import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.ui.animation.shimmerEffect
-import com.example.smarty.ui.components.NewNoteIndicatorDot
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -409,18 +408,6 @@ fun NoteCard(
                                 isNew = note.processingStatus == ProcessingStatus.COMPLETED
                             )
                         }
-                    }
-                    
-                    // Blue dot indicator for newly processed notes (positioned top-right)
-                    // NOW RED: Shows if note has NOT been viewed
-                    if (!note.isViewed) {
-                        NewNoteIndicatorDot(
-                            isVisible = true,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(4.dp)
-                                .size(10.dp)
-                        )
                     }
                 }
 

@@ -49,11 +49,13 @@ import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.ShakeDetector
 import com.example.smarty.util.NetworkMonitor
 import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.voice.VoskWakeWordManager
 import com.example.smarty.util.api.RateLimiter
 import com.example.smarty.util.api.GroqKeyManager
 import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.service.AlarmScheduler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -230,6 +232,16 @@ class CogniViewModel(
 
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null
+
+    // Vosk wake word manager for offline "Terminator" detection
+    private var voskWakeWordManager: VoskWakeWordManager? = null
+
+    // Wake word detection state
+    private val _isWakeWordActive = MutableStateFlow(false)
+    val isWakeWordActive: StateFlow<Boolean> = _isWakeWordActive.asStateFlow()
+
+    private val _wakeWordTriggered = MutableStateFlow(false)
+    val wakeWordTriggered: StateFlow<Boolean> = _wakeWordTriggered.asStateFlow()
 
     // Mutex for thread-safe note operations (BUG-016 fix)
     private val noteOperationMutex = Mutex()
@@ -1574,6 +1586,83 @@ class CogniViewModel(
         Log.d(TAG, "Shake detector initialized with contextual handler")
     }
 
+    // Job for wake word state collection - cancelled on re-init
+    private var wakeWordCollectorJob: Job? = null
+
+    /**
+     * Initialize Vosk wake word detection (fully offline).
+     * Call this from MainActivity.onCreate() after permissions are granted.
+     * Idempotent - safe to call multiple times.
+     *
+     * When "hello reddit" is detected:
+     * - Vosk stops listening (frees mic)
+     * - wakeWordTriggered becomes true
+     * - MainActivity should launch Google Speech Recognizer
+     * - After STT completes, call restartWakeWordDetection()
+     */
+    fun initVoskWakeWord(context: Context) {
+        // Prevent double initialization
+        if (voskWakeWordManager != null) {
+            Log.d(TAG, "Vosk wake word manager already initialized, skipping")
+            return
+        }
+
+        voskWakeWordManager = VoskWakeWordManager(
+            context = context,
+            scope = viewModelScope,
+            onWakeWordDetected = {
+                Log.i(TAG, "Wake word detected - triggering STT")
+                _wakeWordTriggered.value = true
+            }
+        )
+        voskWakeWordManager?.initialize()
+
+        // Cancel any existing collector before starting new one
+        wakeWordCollectorJob?.cancel()
+
+        // Observe listening state
+        wakeWordCollectorJob = viewModelScope.launch {
+            voskWakeWordManager?.isListening?.collect { isListening ->
+                _isWakeWordActive.value = isListening
+            }
+        }
+
+        Log.i(TAG, "Vosk wake word manager initialized")
+    }
+
+    /**
+     * Start wake word detection.
+     * Call this from Activity.onResume().
+     */
+    fun startWakeWordDetection() {
+        voskWakeWordManager?.startListening()
+    }
+
+    /**
+     * Stop wake word detection.
+     * Call this from Activity.onPause().
+     */
+    fun stopWakeWordDetection() {
+        voskWakeWordManager?.stopListening()
+    }
+
+    /**
+     * Restart wake word detection after Google STT completes.
+     * Call this from onActivityResult after speech recognition finishes.
+     */
+    fun restartWakeWordDetection() {
+        _wakeWordTriggered.value = false
+        voskWakeWordManager?.restartListening()
+    }
+
+    /**
+     * Clear the wake word triggered flag.
+     * Call this if STT is cancelled.
+     */
+    fun clearWakeWordTrigger() {
+        _wakeWordTriggered.value = false
+    }
+
     /**
      * Update the current screen route - call when navigation changes
      * Shake gesture only works on the main inputStream screen
@@ -1965,6 +2054,8 @@ class CogniViewModel(
         super.onCleared()
         shakeDetector?.stop()
         shakeDetector = null
+        voskWakeWordManager?.destroy()
+        voskWakeWordManager = null
     }
 }
 

@@ -223,8 +223,11 @@ fun CogniInputField(
         animationSpec = CogniMotion.bouncy,
         label = "basePromptScale"
     )
-    // Add breathing effect on top of base scale
-    val breathingScale = com.example.smarty.ui.animation.rememberBreathingScale(periodMs = 1500)
+    // Add breathing effect on top of base scale - only runs when focused (static when not)
+    val breathingScale = com.example.smarty.ui.animation.rememberBreathingScale(
+        periodMs = 1500,
+        isActive = isFocused  // Only animate when focused - saves CPU/GPU when idle
+    )
     val promptScale = if (isFocused) basePromptScale * breathingScale else basePromptScale
 
     // Send button animations - enabled if text or attachments present
@@ -282,7 +285,9 @@ fun CogniInputField(
     )
 
     // Use appropriate placeholder based on mode
+    // Priority: Listening > Search > Chat > Default
     val currentPlaceholder = when {
+        isVoiceListening -> "Listening..."
         isSearchMode -> "Search notes..."
         isChatMode -> chatPlaceholder
         else -> placeholder
@@ -382,7 +387,9 @@ fun CogniInputField(
                 contentAlignment = Alignment.Center
             ) {
                 Surface(
-                    modifier = Modifier.halftoneShimmer(true, MaterialTheme.colorScheme.inverseOnSurface),
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.CircleShape)  // Clip shimmer to pill bounds
+                        .halftoneShimmer(true, MaterialTheme.colorScheme.inverseOnSurface),
                     shape = androidx.compose.foundation.shape.CircleShape,
                     color = MaterialTheme.colorScheme.inverseSurface, // "Stealth" look (Dark in light mode, Light in dark mode)
                     shadowElevation = 4.dp,
@@ -400,21 +407,19 @@ fun CogniInputField(
                         val lifecycleState by rememberAnimationLifecycleState()
                         val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-                        val alpha = if (shouldAnimate) {
-                            val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
-                            val animatedAlpha by infiniteTransition.animateFloat(
-                                initialValue = 0.7f,
-                                targetValue = 1f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(1500),
-                                    repeatMode = RepeatMode.Reverse
-                                ),
-                                label = "alpha"
-                            )
-                            animatedAlpha
-                        } else {
-                            0.85f // Static mid-point value
-                        }
+                        // Always create transition unconditionally (Compose rule)
+                        val infiniteTransition = rememberInfiniteTransition(label = "privacy_pulse")
+                        val animatedAlpha by infiniteTransition.animateFloat(
+                            initialValue = 0.7f,
+                            targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1500),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "alpha"
+                        )
+                        // Only use animated value when animation should run
+                        val alpha = if (shouldAnimate) animatedAlpha else 0.85f
 
                         Icon(
                             imageVector = Icons.Filled.Security,
@@ -601,67 +606,18 @@ fun CogniInputField(
                     .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Clear input button (X) - appears when there's text or attachments
-                AnimatedVisibility(
-                    visible = value.text.isNotEmpty() || attachments.isNotEmpty(),
-                    enter = scaleIn(initialScale = 0.5f, animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f)) + fadeIn(),
-                    exit = scaleOut(targetScale = 0.5f, animationSpec = tween(150)) + fadeOut()
-                ) {
-                    var isClearPressed by remember { mutableStateOf(false) }
-                    val clearScale by animateFloatAsState(
-                        targetValue = if (isClearPressed) 0.8f else 1f,
-                        animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-                        label = "clearScale"
-                    )
-                    
-                    Surface(
-                        modifier = Modifier
-                            .padding(start = 8.dp, end = 4.dp)
-                            .size(28.dp)
-                            .scale(clearScale)
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onPress = {
-                                        isClearPressed = true
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        tryAwaitRelease()
-                                        isClearPressed = false
-                                    },
-                                    onTap = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onClearInput()
-                                    }
-                                )
-                            },
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear input",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-                
                 // Animated Mode Toggle (Write/Search) OR Microphone (Chat Mode)
                 // In chat mode: Mic icon for speech-to-text (launches Google dialog)
-                // In main page: Arrow/Search icon for search toggle
+                // In main page: Arrow/Search icon OR Cancel when text exists
+                val hasText = value.text.isNotEmpty()
                 val leftIcon = when {
                     isChatMode -> Icons.Default.Mic
                     isSearchMode -> Icons.Default.Search
+                    hasText -> Icons.Default.Close  // Cancel button when there's text
                     else -> Icons.AutoMirrored.Filled.KeyboardArrowRight
                 }
 
                 val leftButtonColor = LocalAccentColor.current
-
-                // YouTube-style Shimmer Effect REMOVED - Replaced by Halftone on Surface
 
                 Box(
                     contentAlignment = Alignment.Center,
@@ -741,6 +697,9 @@ fun CogniInputField(
                                 if (isChatMode) {
                                     focusRequester.requestFocus()
                                     onStartVoiceInput()
+                                } else if (hasText && !isSearchMode) {
+                                    // Clear text when cancel button is shown
+                                    onValueChange(TextFieldValue(""))
                                 } else {
                                     onToggleSearch()
                                 }
@@ -762,6 +721,7 @@ fun CogniInputField(
                                         isVoiceListening -> "Stop Listening"
                                         isChatMode -> "Voice Input"
                                         isSearchMode -> "Search Mode"
+                                        hasText -> "Clear Text"
                                         else -> "Write Mode"
                                     },
                                     tint = if (isVoiceListening) Color.White else leftButtonColor,
@@ -774,10 +734,11 @@ fun CogniInputField(
 
 
                 // Input field with focus tracking
+                var lineCount by remember { mutableIntStateOf(1) }
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(vertical = 16.dp) // Increased padding for clearer UI
+                        .padding(vertical = if (lineCount > 1) 12.dp else 16.dp) // Reduced padding when expanded
                 ) {
                     BasicTextField(
                         value = value,
@@ -792,6 +753,9 @@ fun CogniInputField(
                                     onStopVoiceInput()
                                 }
                             },
+                        onTextLayout = { textLayoutResult ->
+                            lineCount = textLayoutResult.lineCount
+                        },
                         textStyle = TextStyle(
                             fontFamily = MonoFont,
                             fontWeight = if (isVoiceListening) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
@@ -803,18 +767,19 @@ fun CogniInputField(
                         maxLines = 4
                     )
 
-                    // Animated placeholder
+                    // Animated placeholder - shows "Listening..." in blue when voice active
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = value.text.isEmpty() && attachments.isEmpty(),
+                        visible = isVoiceListening || (value.text.isEmpty() && attachments.isEmpty()),
                         enter = fadeIn(tween(150)),
                         exit = fadeOut(tween(100))
                     ) {
                         Text(
                             text = currentPlaceholder,
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = MonoFont
+                                fontFamily = MonoFont,
+                                fontWeight = if (isVoiceListening) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            color = if (isVoiceListening) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
 

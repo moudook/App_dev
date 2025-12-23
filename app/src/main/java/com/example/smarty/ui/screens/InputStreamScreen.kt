@@ -225,7 +225,9 @@ fun InputStreamScreen(
                 }
 
                 // Replace the previous partial with the new one
-                val baseText = currentText.take(partialTextStartIndex)
+                // Bounds check: ensure index doesn't exceed current text length
+                val safeStartIndex = partialTextStartIndex.coerceAtMost(currentText.length)
+                val baseText = currentText.take(safeStartIndex)
                 val newText = baseText + partialText
                 val newValue = TextFieldValue(newText, TextRange(newText.length))
 
@@ -255,8 +257,10 @@ fun InputStreamScreen(
             val currentText = currentTextValue.text
 
             // Use the base text before any partial results
+            // Bounds check: ensure index doesn't exceed current text length
             val baseText = if (lastPartialText.isNotEmpty()) {
-                currentText.take(partialTextStartIndex)
+                val safeIndex = partialTextStartIndex.coerceAtMost(currentText.length)
+                currentText.take(safeIndex)
             } else {
                 val spacer = if (currentText.isNotEmpty() && !currentText.endsWith(" ")) " " else ""
                 currentText + spacer
@@ -752,13 +756,15 @@ fun InputStreamScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = topPadding) // Only respect top padding
-                .pointerInput(Unit) {
+                .pointerInput(speechState.isListening) {
                     detectTapGestures(
                         onTap = {
-                            // Only clear focus on tap - do NOT stop voice input here
-                            // Voice input should only be stopped via the mic button
-                            // Stopping on tap causes issues when user scrolls/touches while speaking
+                            // Clear focus and stop voice input on tap
+                            // Scrolling does NOT trigger this - only deliberate taps
                             focusManager.clearFocus()
+                            if (speechState.isListening) {
+                                speechState.stopListening()
+                            }
                         }
                     )
                 }
@@ -966,33 +972,9 @@ fun InputStreamScreen(
                         }
                     }
 
-                    // Floating Input Field with Blue Glow Pop
+                    // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
                     Box(contentAlignment = Alignment.Center) {
-                        // 1. Blue Blur Glow (The "Pop")
-                        // Visible mostly on newer Android versions that support RenderEffect well,
-                        // creates a soft colored shadow/glow behind the pill.
-                        if (android.os.Build.VERSION.SDK_INT >= 31) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp) // Approximate height of the input pill
-                                    .graphicsLayer {
-                                        scaleX = 0.98f
-                                        scaleY = 0.85f
-                                        alpha = 1f
-                                        renderEffect = android.graphics.RenderEffect
-                                            .createBlurEffect(
-                                                50f,
-                                                50f,
-                                                android.graphics.Shader.TileMode.DECAL
-                                            )
-                                            .asComposeRenderEffect()
-                                    }
-                                    .background(LocalAccentColor.current, androidx.compose.foundation.shape.RoundedCornerShape(50))
-                            )
-                        }
-
-                        // 2. The Actual Input Field
+                        // The Actual Input Field with halftone shimmer inside
                         CogniInputField(
                             value = textValue,
                             onValueChange = { newTextValue ->

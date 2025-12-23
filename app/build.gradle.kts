@@ -119,6 +119,9 @@ dependencies {
     implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
     implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
 
+    // Vosk - Offline speech recognition for wake word detection
+    implementation("com.alphacephei:vosk-android:0.3.75")
+
     // Koog AI Agent Framework
     implementation(libs.koog.agents)
     implementation(libs.koog.executor.google)

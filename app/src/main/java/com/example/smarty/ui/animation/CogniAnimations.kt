@@ -367,23 +367,42 @@ fun rememberShimmerOffset(
  * OPTIMIZED: Breathing animation - smooth expansion/contraction
  * Uses fast sine: scale = base + amplitude * fastSin(2πt)
  * Performance: ~3-5x faster than standard sin()
+ *
+ * STATIC RENDERING: When isActive=false, no animation runs = no frame requests.
+ * This prevents CPU/GPU usage when breathing isn't needed.
+ *
+ * @param isActive Whether the breathing animation should run (default: true for backwards compatibility)
  */
 @Composable
 fun rememberBreathingScale(
     baseScale: Float = 1f,
     amplitude: Float = 0.03f,
-    periodMs: Int = 1600
+    periodMs: Int = 1600,
+    isActive: Boolean = true
 ): Float {
-    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
-    val progress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(periodMs, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "breathingProgress"
+    // Early exit when not active - no animation overhead
+    if (!isActive) return baseScale
+
+    val infiniteTransition = com.example.smarty.ui.utils.rememberStaticAwareTransition(
+        isActive = true,
+        label = "breathing"
     )
+
+    val progress = if (infiniteTransition != null) {
+        val animatedProgress by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(periodMs, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "breathingProgress"
+        )
+        animatedProgress
+    } else {
+        0.5f  // Static mid-value when paused
+    }
+
     // OPTIMIZED: Use FastMath.fastSin instead of kotlin.math.sin
     return baseScale + amplitude * FastMath.fastSin(2f * PI.toFloat() * progress)
 }

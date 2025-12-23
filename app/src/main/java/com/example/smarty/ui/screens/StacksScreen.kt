@@ -1,11 +1,9 @@
 package com.example.smarty.ui.screens
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
+
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -242,7 +240,7 @@ private fun CategoryCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(120.dp) // Reduced card height
+            .height(180.dp) // Increased card height for visibility
             .graphicsLayer {
                 scaleX = scale * pressScale
                 scaleY = scale * pressScale
@@ -271,7 +269,7 @@ private fun CategoryCard(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .fillMaxHeight(0.75f) // Reduced blue panel height
+                .fillMaxHeight(0.75f) 
                 .background(
                     color = accentColor, // Use App Theme Accent Color
                     shape = containerShape
@@ -380,12 +378,12 @@ private fun CategoryCard(
             // Hides the sharp papers that are physically behind this glass area.
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(accentColor)
+                .fillMaxSize()
+                .background(accentColor)
             )
 
             // A. Blurred Papers Layer (Duplicate)
-            val parentHeight = 120.dp
+            val parentHeight = 180.dp
             val glassHeightFactor = 0.6f
             val shiftUp = parentHeight * (1f - glassHeightFactor)
             
@@ -445,7 +443,7 @@ private fun CategoryCard(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp),
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.Bottom
             ) {
                 // Header (Icon + AI)

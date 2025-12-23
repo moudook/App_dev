@@ -61,6 +61,10 @@ class MainActivity : ComponentActivity() {
         permissions.entries.forEach { entry ->
             android.util.Log.d("Permissions", "${entry.key}: ${if (entry.value) "GRANTED" else "DENIED"}")
         }
+        // Initialize Vosk after permissions granted
+        if (permissions[Manifest.permission.RECORD_AUDIO] == true) {
+            viewModel.initVoskWakeWord(this)
+        }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -75,6 +79,12 @@ class MainActivity : ComponentActivity() {
 
         // Initialize shake detector for chat mode toggle
         viewModel.initShakeDetector(this)
+
+        // Initialize Vosk wake word detection if permission already granted
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED) {
+            viewModel.initVoskWakeWord(this)
+        }
 
         // Schedule periodic cache cleanup
         CacheCleanupWorker.schedule(this)
@@ -161,6 +171,9 @@ class MainActivity : ComponentActivity() {
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
                 val connectionStatus by viewModel.connectionStatus.collectAsState()
 
+                // Wake word detection state
+                val wakeWordTriggered by viewModel.wakeWordTriggered.collectAsState()
+
                 // Audio playback request from AI agent
                 val pendingAudioPlayback by viewModel.pendingAudioPlayback.collectAsState()
 
@@ -188,11 +201,32 @@ class MainActivity : ComponentActivity() {
                     }
                 )
 
+                // Trigger existing speech input when wake word "Hey Bat" is detected
+                // Uses the shimmer effect on input block instead of Google's popup
+                LaunchedEffect(wakeWordTriggered) {
+                    if (wakeWordTriggered) {
+                        android.util.Log.i("WakeWord", "Triggering shimmer speech input")
+                        viewModel.clearWakeWordTrigger()
+                        globalSpeechState.startListening()
+                    }
+                }
+
                 // Sync mic state to ViewModel for contextual shake detection
                 // Also coordinate audio playback with speech recognition
+                // Pause/resume wake word detection based on mic usage
                 LaunchedEffect(globalSpeechState.isListening) {
                     viewModel.updateMicListening(globalSpeechState.isListening)
                     audioPlayerViewModel.onSpeechListeningChanged(globalSpeechState.isListening)
+
+                    if (globalSpeechState.isListening) {
+                        // Mic is in use (user tapped mic button) - pause wake word detection
+                        android.util.Log.d("WakeWord", "Mic active - pausing wake word detection")
+                        viewModel.stopWakeWordDetection()
+                    } else {
+                        // Mic released - restart wake word detection
+                        android.util.Log.d("WakeWord", "Mic released - resuming wake word detection")
+                        viewModel.restartWakeWordDetection()
+                    }
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -462,6 +496,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Start shake detection when app is in foreground
         viewModel.startShakeDetection()
+        // Start wake word detection (Vosk)
+        viewModel.startWakeWordDetection()
         // Resume resource-intensive operations
         viewModel.resumeResourceIntensiveOperations()
     }
@@ -470,6 +506,8 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         // Stop shake detection to save battery when app is in background
         viewModel.stopShakeDetection()
+        // Stop wake word detection to free mic and save battery
+        viewModel.stopWakeWordDetection()
         // Pause resource-intensive operations
         viewModel.pauseResourceIntensiveOperations()
     }
@@ -596,28 +634,34 @@ class MainActivity : ComponentActivity() {
     private fun requestRequiredPermissions() {
         val permissionsToRequest = mutableListOf<String>()
 
+        // RECORD_AUDIO - Required for wake word detection and speech recognition
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             // Android 13+ - Need granular media permissions
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) 
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
             }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) 
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
             }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) 
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
             }
             // Notification permission for Android 13+
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
             }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             // Android 6-12 - Need READ_EXTERNAL_STORAGE
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) 
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
             }

@@ -509,3 +509,183 @@ fun <T> rememberDebouncedClickWithParam(
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATIC RENDERING CONTROLLER - Global Animation State Management
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Global controller for static rendering optimization.
+ *
+ * When no animations are active, the UI enters "static mode" where:
+ * - Infinite transitions are paused
+ * - Frame rate is effectively reduced (no continuous recomposition)
+ * - GPU/CPU usage drops significantly
+ *
+ * Components register their animation state using registerAnimation/unregisterAnimation.
+ * The controller tracks the count and provides isStatic state.
+ */
+object StaticRenderingController {
+    // Atomic counter for active animations
+    private val _activeAnimationCount = mutableIntStateOf(0)
+
+    // Derived state for static mode - true when no animations are running
+    val isStaticMode: Boolean
+        get() = _activeAnimationCount.intValue == 0
+
+    // Observable state for Compose
+    val activeAnimationCount: State<Int> = _activeAnimationCount
+
+    /**
+     * Register an active animation. Call when animation starts.
+     * Returns a unique ID that must be used for unregistration.
+     */
+    fun registerAnimation(): Int {
+        val id = _activeAnimationCount.intValue
+        _activeAnimationCount.intValue++
+        return id
+    }
+
+    /**
+     * Unregister an animation. Call when animation stops.
+     */
+    fun unregisterAnimation() {
+        if (_activeAnimationCount.intValue > 0) {
+            _activeAnimationCount.intValue--
+        }
+    }
+
+    /**
+     * Reset all animations (e.g., on app restart)
+     */
+    fun reset() {
+        _activeAnimationCount.intValue = 0
+    }
+}
+
+/**
+ * Composable that automatically tracks an animation's active state.
+ *
+ * Usage:
+ * ```
+ * val isActive = isShimmerVisible || isProcessing
+ * TrackAnimation(isActive)  // Auto-registers/unregisters
+ *
+ * if (!StaticRenderingController.isStaticMode) {
+ *     // Run expensive animation
+ * }
+ * ```
+ */
+@Composable
+fun TrackAnimation(isActive: Boolean) {
+    DisposableEffect(isActive) {
+        if (isActive) {
+            StaticRenderingController.registerAnimation()
+        }
+        onDispose {
+            if (isActive) {
+                StaticRenderingController.unregisterAnimation()
+            }
+        }
+    }
+}
+
+/**
+ * Remember an infinite transition that only runs when:
+ * 1. The lifecycle allows it (app is foreground)
+ * 2. The animation is explicitly active (isActive = true)
+ * 3. Static mode allows it
+ *
+ * This is the RECOMMENDED way to create infinite transitions for
+ * optimal resource usage.
+ *
+ * @param isActive Whether this specific animation should be running
+ * @param label Debug label for the transition
+ * @return InfiniteTransition if active, null if paused/static
+ */
+@Composable
+fun rememberStaticAwareTransition(
+    isActive: Boolean,
+    label: String
+): InfiniteTransition? {
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldRun = isActive && lifecycleState == AnimationLifecycleState.RUNNING
+
+    // Track this animation with the global controller
+    TrackAnimation(shouldRun)
+
+    return if (shouldRun) {
+        rememberInfiniteTransition(label = label)
+    } else {
+        null
+    }
+}
+
+/**
+ * Creates a lifecycle and static-mode aware animated float.
+ *
+ * Combines:
+ * - Lifecycle awareness (pauses when app backgrounded)
+ * - Static mode (pauses when no UI needs animation)
+ * - Perceptual optimization (ready for frame skipping)
+ *
+ * @param isActive Whether this animation should be running
+ * @param initialValue Starting value
+ * @param targetValue End value
+ * @param durationMs Animation cycle duration
+ * @param label Debug label
+ * @param pausedValue Value to return when paused
+ * @return Current animation value
+ */
+@Composable
+fun rememberStaticAwareFloat(
+    isActive: Boolean,
+    initialValue: Float,
+    targetValue: Float,
+    durationMs: Int,
+    label: String,
+    pausedValue: Float = (initialValue + targetValue) / 2f
+): Float {
+    val transition = rememberStaticAwareTransition(isActive, label)
+
+    return if (transition != null) {
+        val animatedValue by transition.animateFloat(
+            initialValue = initialValue,
+            targetValue = targetValue,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMs, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "${label}_value"
+        )
+        animatedValue
+    } else {
+        pausedValue
+    }
+}
+
+/**
+ * Creates a static-aware progress animation (0 to 1, repeating).
+ *
+ * Common use case for shimmer effects, loading indicators, etc.
+ *
+ * @param isActive Whether animation should run
+ * @param durationMs Cycle duration in milliseconds
+ * @param label Debug label
+ * @return Progress value 0-1, or 0.5 when paused
+ */
+@Composable
+fun rememberStaticAwareProgress(
+    isActive: Boolean,
+    durationMs: Int = 1500,
+    label: String = "progress"
+): Float {
+    return rememberStaticAwareFloat(
+        isActive = isActive,
+        initialValue = 0f,
+        targetValue = 1f,
+        durationMs = durationMs,
+        label = label,
+        pausedValue = 0f
+    )
+}

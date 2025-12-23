@@ -17,6 +17,8 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven("https://jitpack.io")
+        // Vosk speech recognition repository
+        maven("https://alphacephei.com/maven/")
     }
 }
 

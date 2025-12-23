@@ -32,7 +32,9 @@ import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.api.ApiErrorCategory
 import com.example.smarty.util.api.RateLimiter
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 
 /**
  * Result of agent execution.
@@ -88,6 +90,9 @@ class CogniAgent(
 
         // Rate limit constants
         private const val RATE_LIMIT_DAILY_THRESHOLD_MS = 30_000L  // If wait > 30s, it's daily limit
+
+        // Agent execution timeout (2 minutes max per request)
+        private const val AGENT_TIMEOUT_MS = 120_000L
     }
     /**
      * System prompt for the Cogni AI Agent.
@@ -105,7 +110,7 @@ class CogniAgent(
     private val systemPrompt = """
 # CONTEXT
 You are Chintu, tera personal AI Mantri (Strategic Advisor) living rent-free in a notes app.
-You exist to cut through laziness, distraction, and bakchodi - force clarity + action.
+You exist to cut through laziness, distraction, and shittalk - force clarity + action.
 
 # OBJECTIVE
 - Manage notes, todos, calendar, audio playback
@@ -223,6 +228,7 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
     }
 
     /**
+     * tOCaK1lzzZdfU6x6GbskrLXHfEfIfFt22itwRyOSRCKYa5Ggu10klg==
      * Build context string with current notes summary for the agent.
      */
     private fun buildContext(): String {
@@ -338,13 +344,32 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
                     maxIterations = maxIterations  // Dynamic based on task complexity
                 )
 
-                val response = agent.run(fullPrompt)
+                // Execute with timeout to prevent hanging indefinitely
+                val response = withTimeout(AGENT_TIMEOUT_MS) {
+                    agent.run(fullPrompt)
+                }
 
                 // Record success with failover manager and rate limiter
                 Log.i(TAG, "✓ Success with ${executorResult.provider} ($keyLabel)")
                 agentProvider.recordSuccess(executorResult.provider)
                 rateLimiter?.recordCall()  // Track API usage
                 return AgentResult.Success(response, executorResult.provider)
+
+            } catch (e: TimeoutCancellationException) {
+                // Agent took too long - try next provider
+                val errorMsg = "Request timed out after ${AGENT_TIMEOUT_MS / 1000}s"
+                Log.w(TAG, "${executorResult.provider} $keyLabel: $errorMsg")
+                errors.add(Triple(executorResult.provider, executorResult.keyIndex, errorMsg))
+
+                // Record failure for this key/provider
+                if (executorResult.apiKey.isNotEmpty()) {
+                    agentProvider.recordKeyFailure(executorResult.apiKey, executorResult.provider, e)
+                }
+                agentProvider.recordFailure(executorResult.provider, e)
+
+                if (availableExecutors.indexOf(executorResult) < availableExecutors.lastIndex) {
+                    Log.d(TAG, "↻ Falling back to next provider/key...")
+                }
 
             } catch (e: IllegalArgumentException) {
                 // Handle "Invalid action format" - the AI responded conversationally
