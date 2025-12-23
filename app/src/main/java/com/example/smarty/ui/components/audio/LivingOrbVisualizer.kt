@@ -8,168 +8,164 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.theme.AudioPink
 import com.example.smarty.ui.utils.AnimationMath
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.PI
 import kotlin.math.min
 
 /**
- * A living orb music visualizer that continuously reacts to audio amplitude.
+ * A vibrant "Living Pulse" music visualizer that feels ALIVE.
  *
- * Design principles:
- * - No thresholds: Every amplitude value produces visible change
- * - Continuous motion: Multiple overlapping wave animations
- * - Layered depth: Core, glow, rings, and particles create 3D feel
- * - Mathematical smoothness: Uses sine waves and easing curves
+ * Key features:
+ * - Pulsing frequency bars that react to bass
+ * - Spinning orbital rings that accelerate with treble
+ * - A breathing core that pumps with the beat
+ * - Energy particles that burst on peaks
+ * - CONTINUOUS motion - never stops animating
  */
 @Composable
 fun LivingOrbVisualizer(
     isPlaying: Boolean,
     progress: Float,
     amplitude: Float = 0f,
+    bass: Float = 0f,
+    mid: Float = 0f,
+    treble: Float = 0f,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
     primaryColor: Color = AudioPink,
     secondaryColor: Color = AudioPink.copy(alpha = 0.5f),
     backgroundColor: Color = AudioPink.copy(alpha = 0.1f)
 ) {
-    // Smooth amplitude with fast response for reactivity
-    var smoothedAmplitude by remember { mutableFloatStateOf(0f) }
+    // Smoothed values - updated CONTINUOUSLY via animation loop
+    var smoothedBass by remember { mutableFloatStateOf(0f) }
+    var smoothedMid by remember { mutableFloatStateOf(0f) }
+    var smoothedTreble by remember { mutableFloatStateOf(0f) }
+    var peakBass by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(amplitude, isPlaying) {
-        // Fast attack, slower decay for punchy response
-        val targetAmplitude = if (isPlaying) amplitude else 0f
-        val smoothing = if (targetAmplitude > smoothedAmplitude) 0.4f else 0.15f
-        smoothedAmplitude = AnimationMath.lerp(smoothedAmplitude, targetAmplitude, smoothing)
+    // CONTINUOUS animation loop - runs every frame regardless of input changes
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(16) // ~60fps
+            // Always interpolate towards current targets
+            val targetBass = if (isPlaying) bass else 0f
+            val targetMid = if (isPlaying) mid else 0f
+            val targetTreble = if (isPlaying) treble else 0f
+
+            // Responsive attack, smooth decay
+            smoothedBass = AnimationMath.lerp(smoothedBass, targetBass, if (targetBass > smoothedBass) 0.4f else 0.12f)
+            smoothedMid = AnimationMath.lerp(smoothedMid, targetMid, if (targetMid > smoothedMid) 0.35f else 0.1f)
+            smoothedTreble = AnimationMath.lerp(smoothedTreble, targetTreble, if (targetTreble > smoothedTreble) 0.5f else 0.15f)
+
+            // Peak tracking
+            if (targetBass > peakBass) peakBass = targetBass
+            else peakBass = AnimationMath.lerp(peakBass, 0f, 0.06f)
+        }
     }
 
-    // Continuous time for wave animations - LIFECYCLE AWARE
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
+    // Main time - continuous pulse
     val time = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "orb_time")
-        val animatedTime by infiniteTransition.animateFloat(
+        val infiniteTransition = rememberInfiniteTransition(label = "main_time")
+        val t by infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(2000, easing = LinearEasing),
+                animation = tween(3000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
             label = "time"
         )
-        animatedTime
-    } else {
-        0f // Static value
-    }
+        t
+    } else 0f
 
-    val slowRotation = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "orb_time")
-        val animatedRotation by infiniteTransition.animateFloat(
+    // Spin rotation - continuous
+    val baseSpinSpeed = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "spin")
+        val spin by infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 360f,
             animationSpec = infiniteRepeatable(
-                animation = tween(8000, easing = LinearEasing),
+                animation = tween(4000, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
-            label = "slow_rotation"
+            label = "spin"
         )
-        animatedRotation
-    } else {
-        0f // Static value
-    }
-
-    val counterRotation = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "orb_time")
-        val animatedCounter by infiniteTransition.animateFloat(
-            initialValue = 360f,
-            targetValue = 0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(12000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "counter_rotation"
-        )
-        animatedCounter
-    } else {
-        0f // Static value
-    }
+        spin
+    } else 0f
 
     Canvas(modifier = modifier.size(size)) {
         val centerX = this.size.width / 2
         val centerY = this.size.height / 2
         val maxRadius = min(centerX, centerY)
+        val center = Offset(centerX, centerY)
 
-        // Effective amplitude: always some base activity when playing
-        val effectiveAmplitude = if (isPlaying) {
-            0.15f + smoothedAmplitude * 0.85f // Minimum 15% activity
-        } else {
-            smoothedAmplitude * 0.3f // Fade out when stopped
-        }
+        // Fallback to amplitude if no frequency data
+        val hasBands = bass + mid + treble > 0.01f
+        val activeBass = if (hasBands) smoothedBass else amplitude
+        val activeMid = if (hasBands) smoothedMid else amplitude * 0.7f
+        val activeTreble = if (hasBands) smoothedTreble else amplitude * 0.5f
+        val activePeak = if (hasBands) peakBass else amplitude
 
-        // === LAYER 1: Outer Ripple Rings ===
-        drawRippleRings(
-            center = Offset(centerX, centerY),
+        // === LAYER 1: OUTER GLOW (Always breathing) ===
+        drawBreathingGlow(
+            center = center,
             maxRadius = maxRadius,
             time = time,
-            amplitude = effectiveAmplitude,
-            color = primaryColor,
-            isPlaying = isPlaying
-        )
-
-        // === LAYER 2: Pulsing Glow Field ===
-        drawGlowField(
-            center = Offset(centerX, centerY),
-            maxRadius = maxRadius,
-            time = time,
-            amplitude = effectiveAmplitude,
+            energy = activeMid,
             color = secondaryColor,
             isPlaying = isPlaying
         )
 
-        // === LAYER 3: Orbiting Particles ===
-        if (isPlaying || effectiveAmplitude > 0.05f) {
-            drawOrbitingParticles(
-                center = Offset(centerX, centerY),
-                baseRadius = maxRadius * 0.55f,
-                rotation = slowRotation,
-                amplitude = effectiveAmplitude,
-                color = primaryColor
-            )
-        }
-
-        // === LAYER 4: Core Orb ===
-        drawCoreOrb(
-            center = Offset(centerX, centerY),
+        // === LAYER 2: FREQUENCY BARS (Bass reactive) ===
+        drawFrequencyBars(
+            center = center,
             maxRadius = maxRadius,
-            time = time,
-            amplitude = effectiveAmplitude,
-            primaryColor = primaryColor,
-            secondaryColor = secondaryColor,
+            bassEnergy = activeBass,
+            midEnergy = activeMid,
+            trebleEnergy = activeTreble,
+            rotation = baseSpinSpeed,
+            color = primaryColor,
             isPlaying = isPlaying
         )
 
-        // === LAYER 5: Inner Highlight ===
-        drawInnerHighlight(
-            center = Offset(centerX, centerY),
-            coreRadius = maxRadius * 0.35f * (1f + effectiveAmplitude * 0.3f),
-            rotation = counterRotation
+        // === LAYER 3: ORBITAL RINGS (Treble accelerates) ===
+        drawOrbitalRings(
+            center = center,
+            maxRadius = maxRadius * 0.7f,
+            rotation = baseSpinSpeed + (activeTreble * 180f),
+            energy = activeTreble,
+            color = primaryColor
         )
 
-        // === LAYER 6: Amplitude Ring ===
-        if (isPlaying) {
-            drawAmplitudeRing(
-                center = Offset(centerX, centerY),
-                baseRadius = maxRadius * 0.4f,
-                amplitude = effectiveAmplitude,
-                time = time,
+        // === LAYER 4: PULSING CORE (Bass pumps) ===
+        drawPulsingCore(
+            center = center,
+            maxRadius = maxRadius * 0.35f,
+            bassEnergy = activeBass,
+            time = time,
+            color = primaryColor
+        )
+
+        // === LAYER 5: PEAK BURST (On heavy beats) ===
+        if (activePeak > 0.4f) {
+            drawPeakBurst(
+                center = center,
+                maxRadius = maxRadius,
+                peakEnergy = activePeak,
                 color = primaryColor
             )
         }
@@ -177,228 +173,194 @@ fun LivingOrbVisualizer(
 }
 
 /**
- * Draws continuous ripple rings that expand outward.
- * Multiple rings with staggered phases create flowing motion.
+ * Soft outer glow that breathes continuously
  */
-private fun DrawScope.drawRippleRings(
+private fun DrawScope.drawBreathingGlow(
     center: Offset,
     maxRadius: Float,
     time: Float,
-    amplitude: Float,
+    energy: Float,
     color: Color,
     isPlaying: Boolean
 ) {
-    val ringCount = 3
+    val breathe = AnimationMath.sinWaveNormalized(time, 0.5f)
+    val baseAlpha = if (isPlaying) 0.15f else 0.08f
+    val glowRadius = maxRadius * (0.9f + breathe * 0.1f + energy * 0.15f)
 
-    for (i in 0 until ringCount) {
-        // Stagger each ring's phase
-        val phase = (time + i * 0.33f) % 1f
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                color.copy(alpha = baseAlpha + energy * 0.15f),
+                color.copy(alpha = baseAlpha * 0.5f),
+                Color.Transparent
+            ),
+            center = center,
+            radius = glowRadius
+        ),
+        radius = glowRadius,
+        center = center
+    )
+}
 
-        // Ring expands from 40% to 100% of max radius
-        val ringRadius = maxRadius * (0.4f + phase * 0.6f)
+/**
+ * Frequency bars radiating from center - the heart of the visualizer feel
+ */
+private fun DrawScope.drawFrequencyBars(
+    center: Offset,
+    maxRadius: Float,
+    bassEnergy: Float,
+    midEnergy: Float,
+    trebleEnergy: Float,
+    rotation: Float,
+    color: Color,
+    isPlaying: Boolean
+) {
+    val barCount = 12
+    val baseLength = maxRadius * 0.25f
+    val maxLength = maxRadius * 0.5f
 
-        // Alpha fades as ring expands (inverse relationship)
-        val baseAlpha = (1f - phase) * 0.6f
-        val amplitudeBoost = amplitude * 0.4f
-        val finalAlpha = (baseAlpha + amplitudeBoost) * if (isPlaying) 1f else 0.3f
+    rotate(degrees = rotation, pivot = center) {
+        for (i in 0 until barCount) {
+            val angle = (i.toFloat() / barCount) * 360f
+            val angleRad = angle * (PI.toFloat() / 180f)
 
-        // Ring thickness varies with amplitude
-        val strokeWidth = (1f + amplitude * 2f).dp.toPx()
+            // Each bar responds to different frequency based on position
+            val freqResponse = when {
+                i % 3 == 0 -> bassEnergy
+                i % 3 == 1 -> midEnergy
+                else -> trebleEnergy
+            }
 
-        if (finalAlpha > 0.01f) {
-            drawCircle(
-                color = color.copy(alpha = finalAlpha.coerceIn(0f, 0.8f)),
-                radius = ringRadius,
-                center = center,
-                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            // Bar length based on frequency + always some base movement
+            val baseMotion = if (isPlaying) 0.3f else 0.1f
+            val barLength = baseLength + (maxLength - baseLength) * (baseMotion + freqResponse * 0.7f)
+
+            // Starting position (inside the core)
+            val innerRadius = maxRadius * 0.4f
+            val startX = center.x + AnimationMath.fastCos(angleRad) * innerRadius
+            val startY = center.y + AnimationMath.fastSin(angleRad) * innerRadius
+
+            // End position
+            val endX = center.x + AnimationMath.fastCos(angleRad) * (innerRadius + barLength)
+            val endY = center.y + AnimationMath.fastSin(angleRad) * (innerRadius + barLength)
+
+            // Width and alpha based on energy
+            val barWidth = (2f + freqResponse * 3f).dp.toPx()
+            val barAlpha = (0.5f + freqResponse * 0.5f).coerceIn(0.3f, 1f)
+
+            drawLine(
+                color = color.copy(alpha = barAlpha),
+                start = Offset(startX, startY),
+                end = Offset(endX, endY),
+                strokeWidth = barWidth,
+                cap = StrokeCap.Round
             )
         }
     }
 }
 
 /**
- * Draws a pulsing glow field behind the core orb.
- * Uses radial gradient with amplitude-reactive size.
+ * Spinning orbital rings - speed responds to treble
  */
-private fun DrawScope.drawGlowField(
+private fun DrawScope.drawOrbitalRings(
     center: Offset,
     maxRadius: Float,
-    time: Float,
-    amplitude: Float,
-    color: Color,
-    isPlaying: Boolean
-) {
-    // Glow pulses with sine wave + amplitude
-    val breathe = AnimationMath.sinWaveNormalized(time, 0.5f)
-    val glowPulse = 0.9f + breathe * 0.2f + amplitude * 0.3f
-    val glowRadius = maxRadius * 0.65f * glowPulse
-
-    val glowAlpha = if (isPlaying) {
-        0.25f + amplitude * 0.35f
-    } else {
-        0.1f + amplitude * 0.1f
-    }
-
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                color.copy(alpha = glowAlpha),
-                color.copy(alpha = glowAlpha * 0.5f),
-                color.copy(alpha = glowAlpha * 0.2f),
-                Color.Transparent
-            ),
-            center = center,
-            radius = glowRadius * 1.5f
-        ),
-        radius = glowRadius * 1.5f,
-        center = center
-    )
-}
-
-/**
- * Draws small particles orbiting around the core.
- * Creates dynamic, living feel.
- * Optimized: Uses fast sin/cos approximations.
- */
-private fun DrawScope.drawOrbitingParticles(
-    center: Offset,
-    baseRadius: Float,
     rotation: Float,
-    amplitude: Float,
+    energy: Float,
     color: Color
 ) {
-    val particleCount = 6
-    val rotationRad = rotation * PI.toFloat() / 180f
+    val ringCount = 2
 
-    for (i in 0 until particleCount) {
-        val angle = rotationRad + (i * 2f * PI.toFloat() / particleCount)
+    for (i in 0 until ringCount) {
+        val ringRotation = rotation + (i * 90f)
+        val ringRadius = maxRadius * (0.8f + i * 0.15f)
+        val arcSweep = 60f + energy * 30f
 
-        // Radius varies with amplitude (breathing effect) - using fast sin
-        val radiusVariation = 1f + AnimationMath.fastSin(angle * 2f) * amplitude * 0.2f
-        val particleRadius = baseRadius * radiusVariation
+        rotate(degrees = ringRotation, pivot = center) {
+            val path = Path().apply {
+                val startAngle = -arcSweep / 2
+                addArc(
+                    oval = androidx.compose.ui.geometry.Rect(
+                        center.x - ringRadius,
+                        center.y - ringRadius,
+                        center.x + ringRadius,
+                        center.y + ringRadius
+                    ),
+                    startAngleDegrees = startAngle,
+                    sweepAngleDegrees = arcSweep
+                )
+            }
 
-        // Using fast sin/cos for position calculation
-        val x = center.x + AnimationMath.fastCos(angle) * particleRadius
-        val y = center.y + AnimationMath.fastSin(angle) * particleRadius
-
-        // Particle size based on amplitude
-        val particleSize = (1.5f + amplitude * 2f).dp.toPx()
-
-        // Alpha varies by position for depth - using fast sin
-        val particleAlpha = 0.4f + amplitude * 0.4f + AnimationMath.fastSin(angle) * 0.2f
-
-        drawCircle(
-            color = color.copy(alpha = particleAlpha.coerceIn(0.2f, 0.9f)),
-            radius = particleSize,
-            center = Offset(x, y)
-        )
+            drawPath(
+                path = path,
+                color = color.copy(alpha = 0.6f + energy * 0.4f),
+                style = Stroke(width = (1.5f + energy * 2f).dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
     }
 }
 
 /**
- * Draws the main core orb with gradient.
- * Size and intensity react to amplitude.
+ * The core that pulses with bass - the heartbeat
  */
-private fun DrawScope.drawCoreOrb(
+private fun DrawScope.drawPulsingCore(
     center: Offset,
     maxRadius: Float,
+    bassEnergy: Float,
     time: Float,
-    amplitude: Float,
-    primaryColor: Color,
-    secondaryColor: Color,
-    isPlaying: Boolean
+    color: Color
 ) {
-    // Core size: base + amplitude + subtle breathing
-    val breathe = AnimationMath.sinWaveNormalized(time, 0.7f)
-    val baseScale = if (isPlaying) 1f else 0.9f
-    val coreScale = baseScale + amplitude * 0.35f + breathe * 0.05f
-    val coreRadius = maxRadius * 0.35f * coreScale
+    val pump = bassEnergy * bassEnergy
+    val breathe = AnimationMath.sinWaveNormalized(time, 0.3f) * 0.1f
+    val coreRadius = maxRadius * (0.7f + pump * 0.5f + breathe)
 
-    // Alpha increases with amplitude
-    val coreAlpha = if (isPlaying) {
-        0.75f + amplitude * 0.25f
-    } else {
-        0.5f + amplitude * 0.2f
-    }
-
-    // Draw core with radial gradient
     drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                primaryColor.copy(alpha = coreAlpha),
-                primaryColor.copy(alpha = coreAlpha * 0.85f),
-                secondaryColor.copy(alpha = coreAlpha * 0.6f)
-            ),
-            center = center,
-            radius = coreRadius
-        ),
+        color = color.copy(alpha = 0.9f),
         radius = coreRadius,
         center = center
     )
-}
 
-/**
- * Draws a small highlight on the core for 3D depth.
- * Optimized: Uses fast sin/cos approximations.
- */
-private fun DrawScope.drawInnerHighlight(
-    center: Offset,
-    coreRadius: Float,
-    rotation: Float
-) {
-    val rotationRad = rotation * PI.toFloat() / 180f
-
-    // Highlight offset from center (top-left area) - using fast sin/cos
-    val offsetX = AnimationMath.fastCos(rotationRad) * coreRadius * 0.15f
-    val offsetY = -coreRadius * 0.3f + AnimationMath.fastSin(rotationRad) * coreRadius * 0.1f
-
-    val highlightCenter = Offset(center.x + offsetX, center.y + offsetY)
-    val highlightRadius = coreRadius * 0.35f
-
+    val highlightOffset = Offset(center.x - coreRadius * 0.2f, center.y - coreRadius * 0.25f)
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.4f),
+                Color.White.copy(alpha = 0.5f),
                 Color.White.copy(alpha = 0.15f),
                 Color.Transparent
             ),
-            center = highlightCenter,
-            radius = highlightRadius
+            center = highlightOffset,
+            radius = coreRadius * 0.4f
         ),
-        radius = highlightRadius,
-        center = highlightCenter
+        radius = coreRadius * 0.5f,
+        center = highlightOffset
     )
 }
 
 /**
- * Draws a ring around the core that pulses with amplitude.
- * Thickness and opacity directly tied to audio level.
+ * Burst effect on heavy beats
  */
-private fun DrawScope.drawAmplitudeRing(
+private fun DrawScope.drawPeakBurst(
     center: Offset,
-    baseRadius: Float,
-    amplitude: Float,
-    time: Float,
+    maxRadius: Float,
+    peakEnergy: Float,
     color: Color
 ) {
-    // Ring expands with amplitude
-    val ringRadius = baseRadius * (1.15f + amplitude * 0.25f)
-
-    // Thickness scales with amplitude (always visible when playing)
-    val minThickness = 0.5f.dp.toPx()
-    val maxThickness = 3f.dp.toPx()
-    val thickness = minThickness + amplitude * (maxThickness - minThickness)
-
-    // Alpha: base visibility + amplitude boost
-    val ringAlpha = 0.2f + amplitude * 0.6f
-
-    // Subtle wave distortion for organic feel
-    val waveOffset = AnimationMath.sinWave(time, 2f, amplitude * 0.1f)
+    val burstRadius = maxRadius * (0.5f + peakEnergy * 0.5f)
+    val burstAlpha = ((peakEnergy - 0.4f) / 0.6f).coerceIn(0f, 0.6f)
 
     drawCircle(
-        color = color.copy(alpha = ringAlpha.coerceIn(0.1f, 0.8f)),
-        radius = ringRadius + waveOffset * baseRadius,
+        color = color.copy(alpha = burstAlpha),
+        radius = burstRadius,
         center = center,
-        style = Stroke(width = thickness, cap = StrokeCap.Round)
+        style = Stroke(width = 3.dp.toPx())
     )
+
+    if (peakEnergy > 0.6f) {
+        drawCircle(
+            color = color.copy(alpha = burstAlpha * 0.5f),
+            radius = burstRadius * 1.2f,
+            center = center,
+            style = Stroke(width = 1.5.dp.toPx())
+        )
+    }
 }

@@ -51,10 +51,20 @@ class AudioPlayerService : MediaSessionService() {
         const val ACTION_RESUME = "com.example.smarty.action.RESUME"
         const val ACTION_STOP = "com.example.smarty.action.STOP"
         const val ACTION_SEEK = "com.example.smarty.action.SEEK"
+        const val ACTION_ENTER_FOREGROUND = "com.example.smarty.action.ENTER_FOREGROUND"
+        const val ACTION_ENTER_BACKGROUND = "com.example.smarty.action.ENTER_BACKGROUND"
 
         // Extra constants
         const val EXTRA_TRACK = "extra_track"
         const val EXTRA_POSITION = "extra_position"
+
+        // Track if app is in foreground for resource optimization
+        @Volatile
+        private var isAppInForeground = true
+
+        // Position update intervals
+        private const val UPDATE_INTERVAL_FOREGROUND = 100L  // 100ms for smooth UI
+        private const val UPDATE_INTERVAL_BACKGROUND = 1000L // 1000ms when in background
 
         // Singleton state flow accessible from ViewModel
         private val _playerState = MutableStateFlow(AudioPlayerState())
@@ -119,6 +129,28 @@ class AudioPlayerService : MediaSessionService() {
         fun stop(context: Context) {
             val intent = Intent(context, AudioPlayerService::class.java).apply {
                 action = ACTION_STOP
+            }
+            context.startService(intent)
+        }
+
+        /**
+         * Notify service that app entered foreground - enable high-frequency updates
+         */
+        fun enterForeground(context: Context) {
+            isAppInForeground = true
+            val intent = Intent(context, AudioPlayerService::class.java).apply {
+                action = ACTION_ENTER_FOREGROUND
+            }
+            context.startService(intent)
+        }
+
+        /**
+         * Notify service that app entered background - reduce resource usage
+         */
+        fun enterBackground(context: Context) {
+            isAppInForeground = false
+            val intent = Intent(context, AudioPlayerService::class.java).apply {
+                action = ACTION_ENTER_BACKGROUND
             }
             context.startService(intent)
         }
@@ -256,7 +288,9 @@ class AudioPlayerService : MediaSessionService() {
                         )
                     }
                 }
-                delay(100)  // Update every 100ms for smooth progress
+                // Use faster updates in foreground for smooth UI, slower in background to save resources
+                val interval = if (isAppInForeground) UPDATE_INTERVAL_FOREGROUND else UPDATE_INTERVAL_BACKGROUND
+                delay(interval)
             }
         }
     }
@@ -264,6 +298,39 @@ class AudioPlayerService : MediaSessionService() {
     private fun stopPositionUpdates() {
         positionUpdateJob?.cancel()
         positionUpdateJob = null
+    }
+
+    /**
+     * Called when app enters foreground - enable high-frequency updates and visualizer
+     */
+    private fun onEnterForeground() {
+        Log.d(TAG, "App entered foreground - enabling visualizer")
+        // Restart position updates with foreground interval
+        if (_playerState.value.playbackState == PlaybackState.PLAYING) {
+            startPositionUpdates()
+        }
+        // Re-enable visualizer for UI
+        if (player?.isPlaying == true) {
+            setupVisualizer()
+        }
+    }
+
+    /**
+     * Called when app enters background - reduce resource usage
+     */
+    private fun onEnterBackground() {
+        Log.d(TAG, "App entered background - disabling visualizer to save resources")
+        // Restart position updates with background interval (slower)
+        if (_playerState.value.playbackState == PlaybackState.PLAYING) {
+            startPositionUpdates()
+        }
+        // Disable visualizer to save CPU - no one is watching the UI
+        releaseVisualizer()
+        // Reset amplitude values since visualizer is off
+        _currentAmplitude.value = 0f
+        _bassAmplitude.value = 0f
+        _midAmplitude.value = 0f
+        _trebleAmplitude.value = 0f
     }
 
     private fun setupVisualizer() {
@@ -448,6 +515,8 @@ class AudioPlayerService : MediaSessionService() {
                     val position = intentVal.getLongExtra(EXTRA_POSITION, 0L)
                     seekTo(position)
                 }
+                ACTION_ENTER_FOREGROUND -> onEnterForeground()
+                ACTION_ENTER_BACKGROUND -> onEnterBackground()
             }
         }
 

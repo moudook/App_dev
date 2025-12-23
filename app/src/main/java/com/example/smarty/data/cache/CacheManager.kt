@@ -398,4 +398,14 @@ class CacheManager private constructor(private val context: Context) {
             key.replace(Regex("[^a-zA-Z0-9]"), "_").take(64)
         }
     }
+
+    /**
+     * Clear in-memory tracking data to reduce memory footprint when app is in background.
+     * File cache remains intact, but LRU tracking is reset.
+     * Called when app goes to background to free up memory.
+     */
+    fun clearTemporaryData() {
+        accessTimes.clear()
+        Log.d(TAG, "Cleared temporary memory data (access times)")
+    }
 }

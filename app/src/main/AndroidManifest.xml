@@ -136,8 +136,8 @@
             android:name=".service.FileOperationService"
             android:exported="false"
             android:foregroundServiceType="dataSync"
-            android:stopWithTask="false">
-            <!-- stopWithTask="false" ensures operations complete even if app is swiped away -->
+            android:stopWithTask="true">
+            <!-- stopWithTask="true" stops service when app is swiped away to conserve resources -->
         </service>
 
         <!-- Timer/Alarm Receivers -->

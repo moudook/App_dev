@@ -38,6 +38,7 @@ import com.example.smarty.ui.components.audio.FullAudioPlayer
 
 import com.example.smarty.ui.theme.CogniTheme
 import com.example.smarty.data.worker.CacheCleanupWorker
+import com.example.smarty.service.AudioPlayerService
 import com.example.smarty.viewmodel.AudioPlayerViewModel
 import com.example.smarty.viewmodel.CogniViewModel
 import com.example.smarty.viewmodel.CogniViewModelFactory
@@ -80,11 +81,8 @@ class MainActivity : ComponentActivity() {
         // Initialize shake detector for chat mode toggle
         viewModel.initShakeDetector(this)
 
-        // Initialize Vosk wake word detection if permission already granted
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            == PackageManager.PERMISSION_GRANTED) {
-            viewModel.initVoskWakeWord(this)
-        }
+        // NOTE: Vosk wake word init moved to onResume for faster startup
+        // Model unpacking (5-15s on first run) now happens lazily
 
         // Schedule periodic cache cleanup
         CacheCleanupWorker.schedule(this)
@@ -498,10 +496,20 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Start shake detection when app is in foreground
         viewModel.startShakeDetection()
+
+        // Initialize Vosk wake word detection lazily on first resume (if permission granted)
+        // This defers the 5-15s model unpacking from blocking app startup
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED) {
+            viewModel.initVoskWakeWord(this)  // No-op if already initialized
+        }
+
         // Start wake word detection (Vosk)
         viewModel.startWakeWordDetection()
         // Resume resource-intensive operations
         viewModel.resumeResourceIntensiveOperations()
+        // Notify audio service to use high-frequency updates
+        AudioPlayerService.enterForeground(this)
     }
 
     override fun onPause() {
@@ -512,6 +520,8 @@ class MainActivity : ComponentActivity() {
         viewModel.stopWakeWordDetection()
         // Pause resource-intensive operations
         viewModel.pauseResourceIntensiveOperations()
+        // Notify audio service to reduce resource usage
+        AudioPlayerService.enterBackground(this)
     }
 
     override fun onStop() {

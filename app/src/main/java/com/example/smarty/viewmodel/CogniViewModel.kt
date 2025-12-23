@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.cache.CacheManager
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
@@ -511,18 +512,12 @@ class CogniViewModel(
             }
         }
 
-        // Sync category counts on app start to fix any existing mismatches
-        viewModelScope.launch {
-            repository.syncAllCategoryCounts()
-        }
+        // DEFERRED: Category count sync moved to lazy initialization
+        // This saves 500-2000ms on startup. Will sync when categories are first accessed.
 
-        // Sync GROQ keys with manager for usage tracking on startup
-        viewModelScope.launch {
-            agentProvider.syncGroqKeys()
-        }
+        // DEFERRED: GROQ key sync moved to first AI request
 
-        // Initialize chat manager (loads sessions and cleans up empty ones)
-        chatManager.initialize()
+        // DEFERRED: Chat manager initialization moved to when chat mode is entered
 
         // Set up NoteOperationsManager callback for AI processing
         noteOperationsManager.setAiProcessingCallback(object : com.example.smarty.viewmodel.managers.NoteOperationsManager.AiProcessingCallback {
@@ -535,7 +530,58 @@ class CogniViewModel(
         })
 
         // Restore state from SavedStateHandle after process death (BUG-053)
+        // Made non-blocking - failures won't affect startup
         restoreState()
+    }
+
+    // Track if deferred initialization has been done
+    private var categorySyncDone = false
+    private var chatManagerInitialized = false
+    private var groqKeysSynced = false
+
+    /**
+     * Perform deferred initialization for categories.
+     * Called when categories are first accessed.
+     */
+    private fun ensureCategorySyncDone() {
+        if (categorySyncDone) return
+        categorySyncDone = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                repository.syncAllCategoryCounts()
+                Log.d(TAG, "Deferred category sync complete")
+            } catch (e: Exception) {
+                Log.w(TAG, "Category sync failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Perform deferred initialization for chat manager.
+     * Called when chat mode is first entered.
+     */
+    private fun ensureChatManagerInitialized() {
+        if (chatManagerInitialized) return
+        chatManagerInitialized = true
+        chatManager.initialize()
+        Log.d(TAG, "Deferred chat manager initialization complete")
+    }
+
+    /**
+     * Perform deferred initialization for GROQ keys.
+     * Called before first AI request.
+     */
+    private fun ensureGroqKeysSynced() {
+        if (groqKeysSynced) return
+        groqKeysSynced = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                agentProvider.syncGroqKeys()
+                Log.d(TAG, "Deferred GROQ key sync complete")
+            } catch (e: Exception) {
+                Log.w(TAG, "GROQ key sync failed: ${e.message}")
+            }
+        }
     }
 
     /**
@@ -586,6 +632,9 @@ class CogniViewModel(
     }
 
     fun selectCategory(category: Category?) {
+        // Ensure category counts are synced when user first interacts with categories
+        ensureCategorySyncDone()
+
         _selectedCategory.value = category
         // Persist to SavedStateHandle for process death recovery (BUG-053)
         savedStateHandle[KEY_SELECTED_CATEGORY_ID] = category?.id
@@ -1729,6 +1778,9 @@ class CogniViewModel(
      * @param fromShake Whether this toggle was triggered by a shake gesture
      */
     fun toggleChatMode(fromShake: Boolean = false) {
+        // Ensure chat manager is initialized before toggling
+        ensureChatManagerInitialized()
+
         // Track if this was shake-triggered for glow animation
         if (fromShake) {
             _wasShakeTriggered.value = true
@@ -1789,6 +1841,11 @@ class CogniViewModel(
      */
     fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
+
+        // Ensure GROQ keys are synced before first AI request
+        ensureGroqKeysSynced()
+        // Ensure chat manager is initialized
+        ensureChatManagerInitialized()
 
         viewModelScope.launch {
             chatManager.setProcessing(true)
@@ -2014,9 +2071,16 @@ class CogniViewModel(
         if (isResourceOptimized) return
         isResourceOptimized = true
         Log.d(TAG, "Pausing resource-intensive operations")
+
+        // Clear in-memory caches to reduce memory footprint
+        AIResponseCache.clear()
+        cacheManager.clearTemporaryData()
+
         // Image loading is handled by Coil which auto-pauses when lifecycle not active
         // Database access remains active for scheduled backups
         // Audio service continues if playing (handled by AudioPlayerService)
+
+        Log.d(TAG, "Background optimization complete - cleared temporary caches")
     }
 
     /**
