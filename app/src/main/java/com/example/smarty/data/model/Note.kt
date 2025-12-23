@@ -73,7 +73,10 @@ enum class ProcessingStatus {
         Index(value = ["isArchived", "createdAt"]),  // Archived/active notes by date
         Index(value = ["categoryId", "isArchived"]),  // Category notes filtering
         Index(value = ["excludeFromAiChat"]),  // AI chat exclusion filtering
-        Index(value = ["isFullPrivacy"])  // Full privacy mode filtering
+        Index(value = ["isFullPrivacy"]),  // Full privacy mode filtering
+        // PERFORMANCE: isPinned indices for efficient note list queries
+        Index(value = ["isPinned"]),  // Single column for pinned status
+        Index(value = ["isPinned", "createdAt"])  // Composite for sorted queries (pinned first, then by date)
     ]
 )
 data class Note(

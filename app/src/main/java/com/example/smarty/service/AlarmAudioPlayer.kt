@@ -22,14 +22,19 @@ object AlarmAudioPlayer {
     private val handler = Handler(Looper.getMainLooper())
     private var stopRunnable: Runnable? = null
 
+    // Maximum allowed duration to prevent indefinite playback (failsafe)
+    private const val MAX_DURATION_MS = 60_000L  // 60 seconds max
+
     /**
      * Play alarm audio for the specified duration.
      *
      * @param context Application context
-     * @param duration Duration in milliseconds (default 5000ms = 5 seconds)
+     * @param duration Duration in milliseconds (default 5000ms = 5 seconds, max 60 seconds)
      */
     fun play(context: Context, duration: Long = 5000) {
-        Log.d(TAG, "Playing alarm audio for ${duration}ms")
+        // Clamp duration to prevent indefinite playback
+        val safeDuration = duration.coerceIn(1000L, MAX_DURATION_MS)
+        Log.d(TAG, "Playing alarm audio for ${safeDuration}ms")
 
         // Stop any existing playback
         stop()
@@ -69,6 +74,20 @@ object AlarmAudioPlayer {
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
                     )
+
+                    // Add error listener to prevent orphaned MediaPlayer (fixes memory leak)
+                    setOnErrorListener { _, what, extra ->
+                        Log.e(TAG, "MediaPlayer error: what=$what, extra=$extra")
+                        stop()
+                        true
+                    }
+
+                    // Add completion listener as backup
+                    setOnCompletionListener {
+                        Log.d(TAG, "MediaPlayer completed")
+                        // Don't call stop() here as looping should handle it
+                    }
+
                     setDataSource(context, defaultAlarmUri)
                     isLooping = true  // Loop until stopped
                     prepare()
@@ -79,9 +98,17 @@ object AlarmAudioPlayer {
                 Log.w(TAG, "No alarm sound available")
             }
 
-            // Schedule stop after duration
+            // Schedule stop after duration (primary timeout)
             stopRunnable = Runnable { stop() }
-            handler.postDelayed(stopRunnable!!, duration)
+            handler.postDelayed(stopRunnable!!, safeDuration)
+
+            // Failsafe timeout at 2x duration to prevent indefinite playback
+            handler.postDelayed({
+                if (isPlaying()) {
+                    Log.w(TAG, "Failsafe timeout triggered - stopping alarm")
+                    stop()
+                }
+            }, safeDuration * 2)
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to play alarm audio: ${e.message}", e)

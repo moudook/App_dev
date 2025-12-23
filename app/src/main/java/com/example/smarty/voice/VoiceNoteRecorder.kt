@@ -85,6 +85,8 @@ class VoiceNoteRecorder(
             return false
         }
 
+        // Create recorder in local variable first to prevent leak on exception
+        var recorder: MediaRecorder? = null
         try {
             // Create output file
             val voiceNotesDir = File(context.filesDir, "voice_notes")
@@ -95,15 +97,15 @@ class VoiceNoteRecorder(
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
             outputFile = File(voiceNotesDir, "voice_note_$timestamp.m4a")
 
-            // Configure MediaRecorder
-            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Configure MediaRecorder in local variable first
+            recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 MediaRecorder(context)
             } else {
                 @Suppress("DEPRECATION")
                 MediaRecorder()
             }
 
-            mediaRecorder?.apply {
+            recorder.apply {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
@@ -115,6 +117,9 @@ class VoiceNoteRecorder(
                 prepare()
                 start()
             }
+
+            // Only assign to field after successful start (prevents leak)
+            mediaRecorder = recorder
 
             startTimeMs = System.currentTimeMillis()
             _state.value = RecordingState.Recording
@@ -131,6 +136,10 @@ class VoiceNoteRecorder(
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start recording: ${e.message}", e)
+            // Release local recorder if setup failed (fixes memory leak)
+            try {
+                recorder?.release()
+            } catch (_: Exception) {}
             _state.value = RecordingState.Error("Failed to start recording: ${e.message}")
             cleanup()
             return false

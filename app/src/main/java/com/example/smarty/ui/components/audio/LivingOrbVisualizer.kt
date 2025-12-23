@@ -77,35 +77,32 @@ fun LivingOrbVisualizer(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
+    // OPTIMIZED: Single infinite transition for all animations (reduces CPU overhead)
+    val infiniteTransition = rememberInfiniteTransition(label = "orb_animations")
+
     // Main time - continuous pulse
-    val time = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "main_time")
-        val t by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(3000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "time"
-        )
-        t
-    } else 0f
+    val time by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "time"
+    )
+    val effectiveTime = if (shouldAnimate) time else 0f
 
     // Spin rotation - continuous
-    val baseSpinSpeed = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "spin")
-        val spin by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(4000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "spin"
-        )
-        spin
-    } else 0f
+    val spin by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "spin"
+    )
+    val baseSpinSpeed = if (shouldAnimate) spin else 0f
 
     Canvas(modifier = modifier.size(size)) {
         val centerX = this.size.width / 2
@@ -124,7 +121,7 @@ fun LivingOrbVisualizer(
         drawBreathingGlow(
             center = center,
             maxRadius = maxRadius,
-            time = time,
+            time = effectiveTime,
             energy = activeMid,
             color = secondaryColor,
             isPlaying = isPlaying
@@ -156,7 +153,7 @@ fun LivingOrbVisualizer(
             center = center,
             maxRadius = maxRadius * 0.35f,
             bassEnergy = activeBass,
-            time = time,
+            time = effectiveTime,
             color = primaryColor
         )
 

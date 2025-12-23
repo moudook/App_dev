@@ -53,6 +53,8 @@ class HighSensitivitySpeechService(
 
         this.listener = listener
 
+        // Create recorder in local variable first to prevent leak on exception
+        var record: AudioRecord? = null
         try {
             val bufferSize = AudioRecord.getMinBufferSize(
                 sampleRate.toInt(),
@@ -63,7 +65,7 @@ class HighSensitivitySpeechService(
             // Use larger buffer for better audio capture (2x minimum)
             val actualBufferSize = bufferSize * 2
 
-            audioRecord = AudioRecord(
+            record = AudioRecord(
                 AUDIO_SOURCE,
                 sampleRate.toInt(),
                 CHANNEL_CONFIG,
@@ -71,11 +73,18 @@ class HighSensitivitySpeechService(
                 actualBufferSize
             )
 
-            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+            if (record.state != AudioRecord.STATE_INITIALIZED) {
+                // Release before throwing to prevent leak
+                try {
+                    record.release()
+                } catch (_: Exception) {}
                 throw IOException("Failed to initialize AudioRecord")
             }
 
-            audioRecord?.startRecording()
+            record.startRecording()
+
+            // Only assign to field after successful start (prevents leak)
+            audioRecord = record
             isRunning = true
 
             recognitionThread = Thread({
@@ -88,6 +97,12 @@ class HighSensitivitySpeechService(
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start: ${e.message}", e)
+            // Release local record if setup failed (fixes memory leak)
+            if (audioRecord == null) {
+                try {
+                    record?.release()
+                } catch (_: Exception) {}
+            }
             listener.onError(e)
             cleanup()
         }

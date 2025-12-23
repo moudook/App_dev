@@ -92,13 +92,14 @@ class CogniRepository(
     /**
      * Sanitize query for FTS5 to prevent syntax errors.
      * FTS5 has special characters that need escaping or removal.
+     * OPTIMIZED: Uses pre-compiled regex from companion object.
      */
     private fun sanitizeFtsQuery(query: String): String {
         // Remove FTS5 special characters that could cause syntax errors
         // Keep alphanumeric, spaces, and basic punctuation
         val cleaned = query
-            .replace(Regex("[\"'*^():]"), " ")  // Remove FTS operators
-            .replace(Regex("\\s+"), " ")        // Normalize whitespace
+            .replace(FTS_OPERATORS_REGEX, " ")  // Remove FTS operators (pre-compiled)
+            .replace(WHITESPACE_REGEX, " ")     // Normalize whitespace (pre-compiled)
             .trim()
 
         // Add wildcards for prefix matching (e.g., "test" becomes "test*")
@@ -121,6 +122,10 @@ class CogniRepository(
             enablePlaceholders = false,
             initialLoadSize = 40
         )
+
+        // OPTIMIZED: Pre-compiled regex patterns (avoid recompilation per call)
+        private val FTS_OPERATORS_REGEX = Regex("[\"'*^():]")
+        private val WHITESPACE_REGEX = Regex("\\s+")
     }
 
     /**

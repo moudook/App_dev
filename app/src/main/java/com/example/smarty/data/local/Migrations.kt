@@ -372,4 +372,17 @@ object Migrations {
             """)
         }
     }
+
+    /**
+     * Migration from version 18 to 19
+     * PERFORMANCE: Adds indices for isPinned column to optimize note list queries
+     */
+    val MIGRATION_18_19 = object : Migration(18, 19) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Create index on isPinned for single-column queries
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_isPinned ON notes(isPinned)")
+            // Create composite index for the common query pattern: ORDER BY isPinned DESC, createdAt DESC
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_isPinned_createdAt ON notes(isPinned, createdAt)")
+        }
+    }
 }

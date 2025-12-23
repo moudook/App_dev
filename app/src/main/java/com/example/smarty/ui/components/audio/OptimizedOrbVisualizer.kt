@@ -57,37 +57,30 @@ fun OptimizedOrbVisualizer(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    val phase = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "orb")
-        val animatedPhase by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(3000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "phase"
-        )
-        animatedPhase
-    } else {
-        0f // Static value
-    }
+    // OPTIMIZED: Single infinite transition for all animations (reduces CPU overhead)
+    val infiniteTransition = rememberInfiniteTransition(label = "orb")
 
-    val rotation = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "orb")
-        val animatedRotation by infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = TWO_PI_F,
-            animationSpec = infiniteRepeatable(
-                animation = tween(10000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "rotation"
-        )
-        animatedRotation
-    } else {
-        0f // Static value
-    }
+    val animatedPhase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "phase"
+    )
+    val phase = if (shouldAnimate) animatedPhase else 0f
+
+    val animatedRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = TWO_PI_F,
+        animationSpec = infiniteRepeatable(
+            animation = tween(10000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    val rotation = if (shouldAnimate) animatedRotation else 0f
 
     Canvas(modifier = modifier.size(size)) {
         val centerX = this.size.width / 2f

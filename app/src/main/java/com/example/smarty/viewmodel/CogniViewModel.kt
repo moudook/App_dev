@@ -2202,6 +2202,9 @@ class CogniViewModel(
      */
     override fun onCleared() {
         super.onCleared()
+        // Cancel wake word collector job to prevent coroutine leak
+        wakeWordCollectorJob?.cancel()
+        wakeWordCollectorJob = null
         shakeDetector?.stop()
         shakeDetector = null
         voskWakeWordManager?.destroy()

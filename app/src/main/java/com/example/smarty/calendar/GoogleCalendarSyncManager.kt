@@ -127,25 +127,23 @@ class GoogleCalendarSyncManager(
         val calendars = mutableListOf<DeviceCalendar>()
         val uri: Uri = CalendarContract.Calendars.CONTENT_URI
 
-        var cursor: Cursor? = null
         try {
-            cursor = context.contentResolver.query(
+            // Use .use{} to ensure cursor is always closed (fixes memory leak)
+            context.contentResolver.query(
                 uri,
                 CALENDAR_PROJECTION,
                 null,
                 null,
                 null
-            )
-
-            cursor?.let {
-                while (it.moveToNext()) {
+            )?.use { cursor ->
+                while (cursor.moveToNext()) {
                     val calendar = DeviceCalendar(
-                        id = it.getLong(CALENDAR_ID_INDEX),
-                        displayName = it.getString(CALENDAR_DISPLAY_NAME_INDEX) ?: "Unknown",
-                        accountName = it.getString(CALENDAR_ACCOUNT_NAME_INDEX) ?: "",
-                        accountType = it.getString(CALENDAR_ACCOUNT_TYPE_INDEX) ?: "",
-                        color = if (!it.isNull(CALENDAR_COLOR_INDEX)) it.getInt(CALENDAR_COLOR_INDEX) else null,
-                        isVisible = it.getInt(CALENDAR_VISIBLE_INDEX) == 1
+                        id = cursor.getLong(CALENDAR_ID_INDEX),
+                        displayName = cursor.getString(CALENDAR_DISPLAY_NAME_INDEX) ?: "Unknown",
+                        accountName = cursor.getString(CALENDAR_ACCOUNT_NAME_INDEX) ?: "",
+                        accountType = cursor.getString(CALENDAR_ACCOUNT_TYPE_INDEX) ?: "",
+                        color = if (!cursor.isNull(CALENDAR_COLOR_INDEX)) cursor.getInt(CALENDAR_COLOR_INDEX) else null,
+                        isVisible = cursor.getInt(CALENDAR_VISIBLE_INDEX) == 1
                     )
                     calendars.add(calendar)
                 }
@@ -154,8 +152,6 @@ class GoogleCalendarSyncManager(
             Log.d(TAG, "Found ${calendars.size} calendars on device")
         } catch (e: Exception) {
             Log.e(TAG, "Error reading calendars: ${e.message}", e)
-        } finally {
-            cursor?.close()
         }
 
         calendars
@@ -263,31 +259,29 @@ class GoogleCalendarSyncManager(
             endMillis.toString()
         )
 
-        var cursor: Cursor? = null
         try {
-            cursor = context.contentResolver.query(
+            // Use .use{} to ensure cursor is always closed (fixes memory leak)
+            context.contentResolver.query(
                 uri,
                 EVENT_PROJECTION,
                 selection,
                 selectionArgs,
                 "${CalendarContract.Events.DTSTART} ASC"
-            )
-
-            cursor?.let {
-                while (it.moveToNext()) {
-                    val eventId = it.getLong(EVENT_ID_INDEX)
-                    val title = it.getString(EVENT_TITLE_INDEX) ?: "Untitled Event"
-                    val description = it.getString(EVENT_DESCRIPTION_INDEX)
-                    val dtStart = it.getLong(EVENT_DTSTART_INDEX)
-                    val dtEnd = if (!it.isNull(EVENT_DTEND_INDEX)) {
-                        it.getLong(EVENT_DTEND_INDEX)
+            )?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val eventId = cursor.getLong(EVENT_ID_INDEX)
+                    val title = cursor.getString(EVENT_TITLE_INDEX) ?: "Untitled Event"
+                    val description = cursor.getString(EVENT_DESCRIPTION_INDEX)
+                    val dtStart = cursor.getLong(EVENT_DTSTART_INDEX)
+                    val dtEnd = if (!cursor.isNull(EVENT_DTEND_INDEX)) {
+                        cursor.getLong(EVENT_DTEND_INDEX)
                     } else {
                         // Default to 1 hour if no end time
                         dtStart + (60 * 60 * 1000)
                     }
-                    val allDay = it.getInt(EVENT_ALL_DAY_INDEX) == 1
-                    val location = it.getString(EVENT_LOCATION_INDEX)
-                    val color = if (!it.isNull(EVENT_COLOR_INDEX)) it.getInt(EVENT_COLOR_INDEX) else null
+                    val allDay = cursor.getInt(EVENT_ALL_DAY_INDEX) == 1
+                    val location = cursor.getString(EVENT_LOCATION_INDEX)
+                    val color = if (!cursor.isNull(EVENT_COLOR_INDEX)) cursor.getInt(EVENT_COLOR_INDEX) else null
 
                     // Use a composite ID to track imported events
                     val compositeId = "gcal_${calendarId}_${eventId}"
@@ -312,8 +306,6 @@ class GoogleCalendarSyncManager(
 
         } catch (e: Exception) {
             Log.e(TAG, "Error querying events: ${e.message}", e)
-        } finally {
-            cursor?.close()
         }
 
         return events

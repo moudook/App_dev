@@ -26,6 +26,10 @@ object SemanticSearchEngine {
     private const val LOW_SIMILARITY_THRESHOLD = 0.45
     private const val MINIMUM_MATCH_THRESHOLD = 0.30
 
+    // PERFORMANCE: Limits to prevent excessive CPU usage on large datasets
+    private const val MAX_RESULTS_LIMIT = 50
+    private const val EARLY_TERMINATION_EXACT_MATCHES = 10
+
     /**
      * Search result with relevance score and match details.
      */
@@ -70,19 +74,38 @@ object SemanticSearchEngine {
 
         Log.d(TAG, "Searching for: '$normalizedQuery' (tokens: $queryTokens)")
 
-        return items.mapNotNull { item ->
+        // OPTIMIZED: Early termination and result limiting for better performance
+        val results = mutableListOf<SearchResult<T>>()
+        var exactMatchCount = 0
+
+        for (item in items) {
             val textFields = textExtractor(item)
             val bestMatch = findBestMatch(normalizedQuery, queryTokens, querySoundex, textFields)
 
             if (bestMatch.score >= minScore) {
-                SearchResult(
-                    item = item,
-                    score = bestMatch.score,
-                    matchType = bestMatch.matchType,
-                    matchedTerms = bestMatch.matchedTerms
+                results.add(
+                    SearchResult(
+                        item = item,
+                        score = bestMatch.score,
+                        matchType = bestMatch.matchType,
+                        matchedTerms = bestMatch.matchedTerms
+                    )
                 )
-            } else null
-        }.sortedByDescending { it.score }
+
+                // Track exact matches for early termination
+                if (bestMatch.matchType == MatchType.EXACT) {
+                    exactMatchCount++
+                }
+
+                // Early termination: stop after enough exact matches or max results
+                if (exactMatchCount >= EARLY_TERMINATION_EXACT_MATCHES ||
+                    results.size >= MAX_RESULTS_LIMIT) {
+                    break
+                }
+            }
+        }
+
+        return results.sortedByDescending { it.score }
     }
 
     /**

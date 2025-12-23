@@ -6,7 +6,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 /**
@@ -17,14 +16,9 @@ object UrlMetadataExtractor {
     private const val TAG = "UrlMetadataExtractor"
     private const val TIMEOUT_MS = 5000L
 
-    // Lazy-initialized OkHttpClient with short timeouts
-    private val client by lazy {
-        OkHttpClient.Builder()
-            .connectTimeout(3, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .build()
-    }
+    // Use shared HttpClient to prevent connection pool exhaustion
+    private val client: OkHttpClient
+        get() = HttpClientProvider.quick
 
     // Regex patterns for extracting metadata
     private val titlePattern = Pattern.compile(
@@ -81,20 +75,20 @@ object UrlMetadataExtractor {
                     .header("Accept", "text/html")
                     .build()
 
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "Failed to fetch URL: $url, code: ${response.code}")
-                    return@withTimeoutOrNull null
-                }
+                // Use .use{} to ensure response is always closed (fixes memory leak)
+                val body = client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        Log.w(TAG, "Failed to fetch URL: $url, code: ${response.code}")
+                        return@withTimeoutOrNull null
+                    }
 
-                // Read only first 50KB to avoid memory issues
-                val body = response.body?.source()?.let { source ->
-                    val buffer = okio.Buffer()
-                    source.read(buffer, 50 * 1024)
-                    buffer.readUtf8()
+                    // Read only first 50KB to avoid memory issues
+                    response.body?.source()?.let { source ->
+                        val buffer = okio.Buffer()
+                        source.read(buffer, 50 * 1024)
+                        buffer.readUtf8()
+                    }
                 }
-
-                response.close()
 
                 if (body.isNullOrBlank()) {
                     Log.w(TAG, "Empty response body for URL: $url")

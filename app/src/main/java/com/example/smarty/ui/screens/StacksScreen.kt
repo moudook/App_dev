@@ -216,17 +216,15 @@ private fun CategoryCard(
         appeared = true
     }
 
-    val scale by animateFloatAsState(
-        targetValue = if (appeared) 1f else 0.5f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
-        label = "scale"
-    )
-
-    val alpha by animateFloatAsState(
+    // OPTIMIZED: Single animation progress drives all derived values (reduces 3 animations to 1)
+    val appearProgress by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(300),
-        label = "alpha"
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
+        label = "appearProgress"
     )
+    // Derive scale and alpha from single progress value
+    val scale = 0.5f + appearProgress * 0.5f  // 0.5 -> 1.0
+    val alpha = appearProgress               // 0.0 -> 1.0
 
     // Press Animation
     var isPressed by remember { mutableStateOf(false) }

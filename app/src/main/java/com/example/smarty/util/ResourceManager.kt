@@ -6,6 +6,10 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -75,6 +79,9 @@ object ResourceManager : ComponentCallbacks2 {
     // Low memory mode flag
     private val _isLowMemoryMode = MutableStateFlow(false)
     val isLowMemoryMode: StateFlow<Boolean> = _isLowMemoryMode.asStateFlow()
+
+    // Scoped coroutine scope to replace GlobalScope (fixes memory leak)
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Device classification based on hardware capabilities
@@ -334,14 +341,14 @@ object ResourceManager : ComponentCallbacks2 {
     }
 
     /**
-     * Trigger cache cleanup across the app
+     * Trigger cache cleanup across the app.
+     * Uses scoped coroutine instead of GlobalScope to prevent memory leaks.
      */
-    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     private fun triggerCacheCleanup(aggressive: Boolean) {
         Log.d(TAG, "Triggering cache cleanup (aggressive=$aggressive)")
 
-        // Clear decompression cache
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        // Clear decompression cache using scoped coroutine (fixes GlobalScope leak)
+        cleanupScope.launch {
             try {
                 FileCompressor.clearCache()
 
@@ -354,6 +361,19 @@ object ResourceManager : ComponentCallbacks2 {
             } catch (e: Exception) {
                 Log.e(TAG, "Cache cleanup failed", e)
             }
+        }
+    }
+
+    /**
+     * Shutdown ResourceManager and cancel pending operations.
+     * Call this when the application is being destroyed.
+     */
+    fun shutdown() {
+        try {
+            cleanupScope.cancel()
+            appContext?.applicationContext?.unregisterComponentCallbacks(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during shutdown", e)
         }
     }
 

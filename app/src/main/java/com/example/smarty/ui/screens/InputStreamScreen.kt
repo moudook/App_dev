@@ -1040,8 +1040,9 @@ fun InputStreamScreen(
                                         selectedNoteIds = setOf(note.id)
                                     }
                                 }
-                                val isNoteSelected = remember(selectedNoteIds, note.id) {
-                                    note.id in selectedNoteIds
+                                // OPTIMIZED: Use derivedStateOf to avoid recomposition on every selectedNoteIds change
+                                val isNoteSelected by remember(note.id) {
+                                    derivedStateOf { note.id in selectedNoteIds }
                                 }
 
                                 Box(modifier = Modifier.animateItem()) {
