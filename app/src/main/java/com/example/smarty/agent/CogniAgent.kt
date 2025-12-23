@@ -228,7 +228,6 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
     }
 
     /**
-     * tOCaK1lzzZdfU6x6GbskrLXHfEfIfFt22itwRyOSRCKYa5Ggu10klg==
      * Build context string with current notes summary for the agent.
      */
     private fun buildContext(): String {

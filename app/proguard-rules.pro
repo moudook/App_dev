@@ -79,3 +79,148 @@
 
 -keep class com.example.smarty.util.PrivacyGuard { *; }
 -keep class com.example.smarty.util.ContentSecurityFilter { *; }
+
+# ============================================================================
+# Vosk Speech Recognition
+# ============================================================================
+
+-keep class org.vosk.** { *; }
+-keep class com.sun.jna.** { *; }
+-dontwarn org.vosk.**
+
+# ============================================================================
+# Koog AI Agent Framework
+# ============================================================================
+
+-keep class ai.koog.** { *; }
+-keepclassmembers class ai.koog.** { *; }
+-dontwarn ai.koog.**
+
+# ============================================================================
+# Kotlinx Serialization
+# ============================================================================
+
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+
+-keepclassmembers class kotlinx.serialization.json.** {
+    *** Companion;
+}
+-keepclasseswithmembers class kotlinx.serialization.json.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# Keep `Serializable` class members
+-keepclassmembers @kotlinx.serialization.Serializable class ** {
+    *** Companion;
+    *** INSTANCE;
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# Keep serializers defined in companion objects
+-if @kotlinx.serialization.Serializable class **
+-keepclassmembers class <1>$Companion {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# ============================================================================
+# Ktor Client
+# ============================================================================
+
+-keep class io.ktor.** { *; }
+-keepclassmembers class io.ktor.** { *; }
+-dontwarn io.ktor.**
+-dontwarn org.slf4j.**
+
+# ============================================================================
+# Media3 ExoPlayer
+# ============================================================================
+
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
+# ============================================================================
+# Compose - Keep Compose runtime classes
+# ============================================================================
+
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# ============================================================================
+# Coil Image Loading
+# ============================================================================
+
+-keep class coil.** { *; }
+-dontwarn coil.**
+
+# ============================================================================
+# ZXing QR Code
+# ============================================================================
+
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.zxing.**
+
+# ============================================================================
+# PDFBox Android
+# ============================================================================
+
+-keep class org.apache.pdfbox.** { *; }
+-dontwarn org.apache.pdfbox.**
+-dontwarn org.bouncycastle.**
+-dontwarn javax.activation.**
+
+# ============================================================================
+# Google APIs (Drive, Auth)
+# ============================================================================
+
+-keep class com.google.api.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.api.**
+-dontwarn com.google.android.gms.**
+
+# ============================================================================
+# YouTube Player (IFrame)
+# ============================================================================
+
+-keep class com.pierfrancescosoffritti.** { *; }
+-dontwarn com.pierfrancescosoffritti.**
+
+# ============================================================================
+# Richtext Markdown
+# ============================================================================
+
+-keep class com.halilibo.richtext.** { *; }
+-dontwarn com.halilibo.richtext.**
+
+# ============================================================================
+# Encrypted Preferences
+# ============================================================================
+
+-keep class dev.spght.encryptedprefs.** { *; }
+-dontwarn dev.spght.encryptedprefs.**
+
+# ============================================================================
+# DataStore
+# ============================================================================
+
+-keep class androidx.datastore.** { *; }
+-dontwarn androidx.datastore.**
+
+# ============================================================================
+# WorkManager
+# ============================================================================
+
+-keep class androidx.work.** { *; }
+-dontwarn androidx.work.**
+
+# ============================================================================
+# Keep app's voice package for Vosk callbacks
+# ============================================================================
+
+-keep class com.example.smarty.voice.** { *; }
+
+# ============================================================================
+# Keep agent package for reflection/callbacks
+# ============================================================================
+
+-keep class com.example.smarty.agent.** { *; }
