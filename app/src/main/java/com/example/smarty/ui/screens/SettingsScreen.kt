@@ -499,208 +499,50 @@ fun SettingsScreen(
                         .padding(bottom = 32.dp)
                 ) {
                     Text(
-                        text =  "Hello, I am moudook.\n\n" +
-                                "Cogni is an AI-powered personal knowledge management app. Capture anything - text, images, videos, documents, audio, links - and let AI handle organization, search, and recall.\n\n" +
-                                "=== NOTES & CONTENT ===\n\n" +
-                                "Supported Content Types:\n" +
-                                "- Brain dumps (quick text notes)\n" +
-                                "- Images with AI analysis\n" +
-                                "- Videos (YouTube and local)\n" +
-                                "- PDFs and documents (DOCX, XLSX, PPTX)\n" +
-                                "- Website links with metadata extraction\n" +
-                                "- Audio files and voice memos\n" +
-                                "- Code snippets\n" +
-                                "- Twitter/X and Instagram posts\n" +
-                                "- APK and archive files\n\n" +
-                                "Organization:\n" +
-                                "- Pin notes to keep important ones at top\n" +
-                                "- Smart categories with automatic sorting\n" +
-                                "- AI-generated tags for each note\n" +
-                                "- Archive unwanted notes without deleting\n" +
-                                "- Bulk selection for mass operations\n\n" +
-                                "Note Versioning:\n" +
-                                "- Git-like version history for every note\n" +
-                                "- Up to 10 versions saved automatically\n" +
-                                "- Restore any previous version instantly\n" +
-                                "- View change history with timestamps\n\n" +
-                                "=== SEARCH ===\n\n" +
-                                "FTS5 Full-Text Search:\n" +
-                                "- Instant search across all notes\n" +
-                                "- BM25 ranking for relevance\n" +
-                                "- Searches title, content, and summary\n" +
-                                "- Prefix matching for partial words\n\n" +
-                                "Semantic Search:\n" +
-                                "- Fuzzy matching for typos\n" +
-                                "- Jaro-Winkler similarity\n" +
-                                "- Phonetic matching (Soundex)\n" +
-                                "- N-gram and token overlap\n\n" +
-                                "=== AI ASSISTANT ===\n\n" +
-                                "Agentic Capabilities:\n" +
-                                "- Search and retrieve notes by context\n" +
-                                "- Create new notes from conversation\n" +
-                                "- Edit and update existing notes\n" +
-                                "- Delete notes on request\n" +
-                                "- Manage to-do lists within notes\n" +
-                                "- Set smart reminders on cards\n" +
-                                "- Access calendar events\n" +
-                                "- Deep research with web search\n\n" +
-                                "Citations:\n" +
-                                "- Every AI response shows sources\n" +
-                                "- Tap citations to jump to notes\n" +
-                                "- Never wonder where info comes from\n\n" +
-                                "Smart Reminders:\n" +
-                                "- AI can highlight important notes\n" +
-                                "- Shimmer animation draws attention\n" +
-                                "- Set expiration for temporary reminders\n\n" +
-                                "Providers Supported:\n" +
-                                "- Google Gemini (default)\n" +
-                                "- OpenAI (GPT-4o, GPT-4)\n" +
-                                "- Anthropic (Claude)\n" +
-                                "- Groq (ultra-fast inference)\n" +
-                                "- DeepSeek (cost-effective)\n" +
-                                "- Cerebras (2000+ tokens/sec)\n" +
-                                "- Cohere (Command models)\n" +
-                                "- OpenRouter (multi-model)\n" +
-                                "- HuggingFace (open source)\n\n" +
-                                "Provider Features:\n" +
-                                "- Drag to reorder fallback priority\n" +
-                                "- Multiple API keys per provider\n" +
-                                "- Automatic key rotation\n" +
-                                "- Rate limit handling\n" +
-                                "- Model selection per provider\n\n" +
-                                "Web Search:\n" +
-                                "- Tavily integration for real-time info\n" +
-                                "- 1000 free requests per month\n" +
-                                "- AI summarizes search results\n\n" +
-                                "Daily Digest:\n" +
-                                "- Automatic notification at 6:30 AM\n" +
-                                "- Summarizes last 24 hours activity\n" +
-                                "- New notes and important updates\n\n" +
-                                "=== VOICE & AUDIO ===\n\n" +
-                                "Voice Notes:\n" +
-                                "- Tap mic to record instantly\n" +
-                                "- Real-time amplitude visualization\n" +
-                                "- M4A format (AAC, 44.1kHz, 128kbps)\n" +
-                                "- Up to 10 minutes per recording\n" +
-                                "- Cancel or save with confirmation\n\n" +
-                                "Speech-to-Text:\n" +
-                                "- Google Speech Recognition\n" +
-                                "- Halftone shimmer shows active listening\n" +
-                                "- Continuous recognition mode\n\n" +
-                                "Wake Word Detection:\n" +
-                                "- Vosk on-device recognition\n" +
-                                "- High sensitivity mode available\n" +
-                                "- Works without internet\n\n" +
-                                "Music Player:\n" +
-                                "- Living orb visualizer\n" +
-                                "- Responds to audio amplitude\n" +
-                                "- Frequency band analysis\n" +
-                                "- Mini player and full-screen modes\n\n" +
-                                "=== CALENDAR ===\n\n" +
-                                "Calendar Sync:\n" +
-                                "- Import from Google Calendar\n" +
-                                "- Support for Exchange and others\n" +
-                                "- Syncs 30 days past, 90 days future\n" +
-                                "- Automatic event updates\n\n" +
-                                "AI Calendar Access:\n" +
-                                "- AI can read your schedule\n" +
-                                "- Create events from conversation\n" +
-                                "- Link notes to calendar events\n" +
-                                "- Private events hidden from AI\n\n" +
-                                "=== PRIVACY & SECURITY ===\n\n" +
-                                "Privacy Modes:\n" +
-                                "- Full Privacy: AI cannot see note at all\n" +
-                                "- Exclude from Chat: Hidden from AI context\n" +
-                                "- Private events invisible to AI\n\n" +
-                                "Shake to Private:\n" +
-                                "- Shake device to toggle privacy mode\n" +
-                                "- Adjustable sensitivity (low/medium/high)\n" +
-                                "- Visual feedback on mode change\n\n" +
-                                "PIN Protection:\n" +
-                                "- 4-digit PIN for app access\n" +
-                                "- Biometric unlock supported\n" +
-                                "- Change or remove anytime\n\n" +
-                                "Prompt Injection Protection:\n" +
-                                "- Multi-language sanitization\n" +
-                                "- Prevents malicious note content\n" +
-                                "- On-device filtering layer\n\n" +
-                                "Data Storage:\n" +
-                                "- Everything stored locally on device\n" +
-                                "- Room database with encryption support\n" +
-                                "- Only API calls leave the device\n\n" +
-                                "=== USER EXPERIENCE ===\n\n" +
-                                "Home Screen Widget:\n" +
-                                "- Quick note capture from home screen\n" +
-                                "- One tap to start new note\n" +
-                                "- Add via Widgets menu\n\n" +
-                                "App Shortcuts:\n" +
-                                "- Long-press app icon for quick actions\n" +
-                                "- New Note, Search, Voice Note\n" +
-                                "- Dynamic shortcuts for recent notes\n\n" +
-                                "Share Integration:\n" +
-                                "- Share from any app to Cogni\n" +
-                                "- Automatic content type detection\n" +
-                                "- URL metadata extraction (Open Graph)\n" +
-                                "- Bulk select and share multiple notes\n\n" +
-                                "UI Design:\n" +
-                                "- Slide-in panels instead of popups\n" +
-                                "- Smooth spring animations\n" +
-                                "- Staggered entry animations\n" +
-                                "- Dark and light theme support\n" +
-                                "- Custom accent colors\n\n" +
-                                "Animations:\n" +
-                                "- Cloud startup animation\n" +
-                                "- Living orb on main screen\n" +
-                                "- Chat personality animations\n" +
-                                "- Shimmer effects for reminders\n" +
-                                "- Halftone speech indicator\n\n" +
-                                "=== PERFORMANCE ===\n\n" +
-                                "Memory Optimization:\n" +
-                                "- Shared HTTP client pool\n" +
-                                "- Automatic cursor/resource cleanup\n" +
-                                "- Scoped coroutines (no leaks)\n" +
-                                "- Cache management with size limits\n\n" +
-                                "CPU Optimization:\n" +
-                                "- Merged animation transitions\n" +
-                                "- derivedStateOf for selections\n" +
-                                "- Pre-compiled regex patterns\n" +
-                                "- Early search termination\n" +
-                                "- Fast sine/cosine approximations\n\n" +
-                                "Database:\n" +
-                                "- Room with SQLite\n" +
-                                "- Indexed queries for fast lookup\n" +
-                                "- FTS5 virtual table for search\n" +
-                                "- Automatic migrations\n" +
-                                "- Paging3 for infinite scroll\n\n" +
-                                "Edge Device Support:\n" +
-                                "- Works on low-end devices\n" +
-                                "- Adaptive quality rendering\n" +
-                                "- Efficient memory footprint\n" +
-                                "- Battery-conscious background work\n\n" +
-                                "=== BACKUP ===\n\n" +
-                                "Export:\n" +
-                                "- Full ZIP backup of everything\n" +
-                                "- Notes, categories, settings\n" +
-                                "- Chat history and AI memories\n" +
-                                "- Calendar events and attachments\n\n" +
-                                "Restore:\n" +
-                                "- Import backup anytime\n" +
-                                "- Merge or replace options\n" +
-                                "- Preserves all data integrity\n\n" +
-                                "=== TECHNICAL ===\n\n" +
-                                "Built With:\n" +
-                                "- Kotlin and Jetpack Compose\n" +
-                                "- Material Design 3\n" +
-                                "- Room Database (v19)\n" +
-                                "- WorkManager for background tasks\n" +
-                                "- OkHttp for networking\n" +
-                                "- Vosk for offline speech\n" +
-                                "- ExoPlayer for media\n\n" +
-                                "Database Version: 19\n" +
-                                "Min SDK: 26 (Android 8.0)\n" +
-                                "Target SDK: 36\n\n" +
-                                "Your data stays on your device. Only AI and speech recognition APIs require internet.\n\n" +
-                                "Found an issue? Report it on GitHub.\n\n" +
+                        text =  "Hello, I am Moudook.\n\n" +
+                                "Cogni is an AI-powered personal knowledge management app. I made this mainly for myself so I do not get fussed managing my notes and content. The idea is simple. Capture anything, and let the AI help later with organizing, searching, and recalling things when needed.\n\n" +
+                                "You can add many types of content. Text notes for brain dumps. Images. Videos, both YouTube and local. Documents like PDF, DOCX, XLSX, and PPTX. Website links with metadata. Audio files and voice notes. Code snippets. Twitter or X posts, Instagram posts, APK files, and archive files.\n\n" +
+                                "For organization, I added basic but useful things. You can pin notes so important ones stay on top. Notes get smart categories automatically. AI also generates tags for every note. If you do not want something but also do not want to delete it, you can archive it. There is also bulk selection so you can operate on many notes at once.\n\n" +
+                                "I also added note versioning. Every note has a Git-like history. Up to 10 versions are saved automatically. You can restore any older version instantly. You can also see what changed and when it changed.\n\n" +
+                                "Search was one of the main focus areas.\n\n" +
+                                "I added full-text search using FTS5. It searches across all notes instantly. It uses BM25 ranking so relevant notes come first. It searches titles, content, and summaries. It also supports prefix matching for partial words.\n\n" +
+                                "Along with that, I added semantic search. It can handle typos. It uses fuzzy matching, Jaro-Winkler similarity, phonetic matching using Soundex, and n-gram token overlap so search still works even if you do not type things perfectly.\n\n" +
+                                "The AI assistant is agentic.\n\n" +
+                                "It can search and retrieve notes based on context. It can create new notes directly from conversation. It can edit and update existing notes. It can delete notes when asked. It can manage to-do lists inside notes. It can also set smart reminders on cards.\n\n" +
+                                "Every AI response shows citations. You can tap a citation and jump directly to the source note. So you always know where the information is coming from.\n\n" +
+                                "I also added smart reminders. AI can highlight important notes. A shimmer animation is used to draw attention. You can also set expiration on reminders so temporary things do not stay forever.\n\n" +
+                                "Multiple AI providers are supported. Google Gemini is the default. I also added support for OpenAI, Anthropic, Groq, DeepSeek, Cerebras, Cohere, OpenRouter, and HuggingFace. You can manage multiple API keys per provider. You can reorder provider priority by drag and drop. Automatic key rotation and rate limit handling are also there. You can choose models per provider.\n\n" +
+                                "For web search, I integrated Tavily. It gives real-time information. There are 1000 free requests per month. AI summarizes the results so you do not need to read everything manually.\n\n" +
+                                "I also added a daily digest. It sends a notification at 6:30 AM. It summarizes what happened in the last 24 hours. New notes and important updates show up there.\n\n" +
+                                "Voice and audio were also important.\n\n" +
+                                "You can record voice notes instantly by tapping the mic. There is a real-time amplitude visualizer. Audio is saved in M4A format. You can record up to 10 minutes. You always get a confirmation before saving or canceling.\n\n" +
+                                "Speech-to-text uses Google Speech Recognition. A halftone shimmer shows when it is actively listening. Continuous recognition mode is also supported.\n\n" +
+                                "I also added wake word detection using Vosk. It runs on device. It works without internet. There is also a high sensitivity mode.\n\n" +
+                                "The music player has a living orb visualizer. It reacts to audio amplitude and frequency bands. There is a mini player and a full-screen mode. I tried to make it feel alive.\n\n" +
+                                "Calendar support is also there.\n\n" +
+                                "You can import events from Google Calendar. Exchange and other providers are supported. It syncs past 30 days and next 90 days. Events update automatically.\n\n" +
+                                "AI can access your calendar, but only non-private events. It can create events from conversation. You can also link notes to calendar events. Private events stay hidden from AI.\n\n" +
+                                "Privacy was non-negotiable.\n\n" +
+                                "There are multiple privacy modes. Full privacy means AI cannot see the note at all. Exclude from chat means the note stays hidden from AI context. Private calendar events are also invisible to AI.\n\n" +
+                                "I added shake-to-private mode. You can shake the device to toggle privacy. Sensitivity can be adjusted. There is visual feedback so you know when the mode changes.\n\n" +
+                                "The app supports PIN protection. You can use a 4-digit PIN or biometrics. You can change or remove it anytime.\n\n" +
+                                "I also added prompt injection protection. Content is sanitized across multiple languages. This runs on device. It prevents malicious note content from affecting the AI.\n\n" +
+                                "All data is stored locally on the device. I use a Room database with encryption support. Only API calls go out of the device.\n\n" +
+                                "For user experience, I added widgets. You can capture notes directly from the home screen. One tap and you are inside a new note.\n\n" +
+                                "App shortcuts are also there. Long press the app icon for quick actions like new note, search, or voice note. Recent notes also show up dynamically.\n\n" +
+                                "Sharing is deeply integrated. You can share content from any app into Cogni. Content type is detected automatically. URL metadata is extracted. You can also bulk select and share multiple notes.\n\n" +
+                                "For UI, I avoided popups. I use slide-in panels instead. Animations are smooth and spring-based. Entry animations are staggered. Dark and light themes are supported. You can also customize accent colors.\n\n" +
+                                "There are many animations. Cloud-like startup animation. Living orb on the main screen. Chat personality animations. Shimmer effects for reminders. Halftone indicator for speech.\n\n" +
+                                "Performance was a big focus.\n\n" +
+                                "I optimized memory usage using shared HTTP clients. Resources are cleaned automatically. Coroutines are scoped properly so there are no leaks. Cache size is managed.\n\n" +
+                                "CPU usage is optimized by merging animation transitions, using derivedStateOf where needed, pre-compiling regex patterns, early terminating searches, and using fast math approximations.\n\n" +
+                                "The database uses Room with SQLite. Queries are indexed. FTS5 is used for search. Migrations are automatic. Paging3 is used for infinite scrolling.\n\n" +
+                                "The app is built to work on edge and low-end devices. Rendering quality adapts. Memory usage stays low. Background work is battery conscious.\n\n" +
+                                "Backup is simple.\n\n" +
+                                "You can export a full ZIP backup. It contains notes, categories, settings, chat history, AI memories, calendar events, and attachments. You can restore anytime. You can choose to merge or replace data. Integrity is preserved.\n\n" +
+                                "The app is built using Kotlin and Jetpack Compose. It follows Material Design 3. Room Database version is 19. Min SDK is 26. Target SDK is 36. WorkManager is used for background tasks. OkHttp handles networking. Vosk is used for offline speech. ExoPlayer handles media.\n\n" +
+                                "Your data stays on your device. Only AI and speech recognition APIs need internet.\n\n" +
+                                "I am still working on the UI and the agentic part. If you find any issues, please mention them on GitHub.\n\n" +
                                 "Thank you for using Cogni.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             lineHeight = androidx.compose.ui.unit.TextUnit(24f, androidx.compose.ui.unit.TextUnitType.Sp)
