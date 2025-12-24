@@ -1,45 +1,54 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material.icons.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.ui.draw.scale
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.shadow
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.ui.theme.softCardShadow
+import com.example.smarty.ui.theme.activeGlow
 import java.util.UUID
 
 /**
@@ -56,88 +65,190 @@ fun NoteTodoSheet(
 ) {
     // Use note.id AND note.todoContent as keys to properly refresh when todos change
     var todos by remember(note.id, note.todoContent) { mutableStateOf(note.getTodos()) }
-    var newTodoText by remember { mutableStateOf("") }
+    // Reset text input when note changes to avoid stale text from previous note
+    var newTodoText by remember(note.id) { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
-            Surface(
-                modifier = Modifier.padding(vertical = 12.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(2.dp)
-            ) {
-                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
-            }
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 16.dp)
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                LocalAccentColor.current.copy(alpha = 0.3f),
+                                LocalAccentColor.current,
+                                LocalAccentColor.current.copy(alpha = 0.3f)
+                            )
+                        )
+                    )
+            )
         }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp)
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp)
         ) {
-            // Header
+            // ═══════════════════════════════════════════════════════════════
+            // HEADER with accent styling
+            // ═══════════════════════════════════════════════════════════════
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "todos_",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = LocalAccentColor.current
-                )
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Accent dot
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(LocalAccentColor.current)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Tasks",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Original note content section
-            Text(
-                text = "Original Note",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        RoundedCornerShape(12.dp)
-                    ),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-            ) {
-                Text(
-                    text = note.content,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFont),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(12.dp)
-                )
+                
+                // Close button with subtle background
+                Surface(
+                    modifier = Modifier.size(36.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                ) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Todo list section
-            Text(
-                text = "Tasks (${todos.count { it.isCompleted }}/${todos.size})",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            // ═══════════════════════════════════════════════════════════════
+            // PROGRESS BAR - Visual completion status
+            // ═══════════════════════════════════════════════════════════════
+            val completedCount = todos.count { it.isCompleted }
+            val totalCount = todos.size
+            val progress by animateFloatAsState(
+                targetValue = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f,
+                animationSpec = spring(stiffness = 100f),
+                label = "progress"
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            
+            if (totalCount > 0) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "$completedCount of $totalCount completed",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${(progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = MonoFont
+                            ),
+                            color = LocalAccentColor.current
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // Progress track
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        // Progress fill with gradient
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progress)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            LocalAccentColor.current,
+                                            LocalAccentColor.current.copy(alpha = 0.7f)
+                                        )
+                                    )
+                                )
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // ORIGINAL NOTE - Card with icon (dark mode optimized)
+            // ═══════════════════════════════════════════════════════════════
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .softCardShadow(shape = RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                color = LocalAccentColor.current.copy(alpha = 0.1f), // Electric Blue tint
+                border = BorderStroke(1.dp, LocalAccentColor.current.copy(alpha = 0.3f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    // Note icon
+                    Icon(
+                        imageVector = Icons.Outlined.Notes,
+                        contentDescription = null,
+                        tint = LocalAccentColor.current,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = note.content,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = MonoFont,
+                            lineHeight = 20.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ═══════════════════════════════════════════════════════════════
+            // TASKS SECTION LABEL
+            // ═══════════════════════════════════════════════════════════════
 
             // Todo items list - all actions auto-save
             if (todos.isNotEmpty()) {
@@ -171,37 +282,32 @@ fun NoteTodoSheet(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Add new todo input
+            // Add new todo input - dark mode optimized
+            val isInputActive = newTodoText.isNotEmpty()
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        if (newTodoText.isNotEmpty()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
-                        RoundedCornerShape(12.dp)
+                    .then(
+                        if (isInputActive) Modifier.activeGlow(shape = RoundedCornerShape(16.dp))
+                        else Modifier.softCardShadow(shape = RoundedCornerShape(16.dp))
                     ),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surface
+                shape = RoundedCornerShape(16.dp),
+                color = LocalAccentColor.current.copy(alpha = 0.1f), // Electric Blue tint
+                border = BorderStroke(
+                    1.5.dp,
+                    if (isInputActive) LocalAccentColor.current else LocalAccentColor.current.copy(alpha = 0.3f)
+                )
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(4.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        tint = if (newTodoText.isNotEmpty()) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(start = 12.dp)
-                            .size(20.dp)
-                    )
-
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(horizontal = 12.dp, vertical = 14.dp)
+                            .padding(vertical = 14.dp)
                     ) {
                         BasicTextField(
                             value = newTodoText,
@@ -216,9 +322,9 @@ fun NoteTodoSheet(
                         )
                         if (newTodoText.isEmpty()) {
                             Text(
-                                text = "Add task or mention anything...",
+                                text = "Add a new task...",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = MonoFont),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                         }
                     }
@@ -243,7 +349,7 @@ fun NoteTodoSheet(
                             }
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Check,
+                                imageVector = Icons.Default.Add,
                                 contentDescription = "Add",
                                 tint = LocalAccentColor.current
                             )
@@ -259,60 +365,15 @@ fun NoteTodoSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
 
-            // Single Done button - all changes auto-save
-            var isDonePressed by remember { mutableStateOf(false) }
-            val doneScale by animateFloatAsState(
-                targetValue = if (isDonePressed) 0.95f else 1f,
-                animationSpec = spring(stiffness = 400f, dampingRatio = 0.6f),
-                label = "doneScale"
-            )
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .scale(doneScale)
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = CircleShape,
-                        spotColor = LocalAccentColor.current.copy(alpha = 0.5f),
-                        ambientColor = LocalAccentColor.current.copy(alpha = 0.3f)
-                    )
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = {
-                                isDonePressed = true
-                                tryAwaitRelease()
-                                isDonePressed = false
-                            },
-                            onTap = { onDismiss() }
-                        )
-                    },
-                shape = CircleShape,
-                color = LocalAccentColor.current
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Text(
-                        text = "Done",
-                        style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            letterSpacing = 0.5.sp
-                        ),
-                        color = Color.White
-                    )
-                }
-            }
         }
     }
 }
 
+
 /**
- * Individual todo item row with checkbox, text, and delete button
+ * Individual todo item row with custom circular checkbox, text, and delete button
+ * Features: Animated checkbox, smooth color transitions, premium styling
  */
 @Composable
 private fun TodoItemRow(
@@ -320,55 +381,112 @@ private fun TodoItemRow(
     onToggle: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Surface(
+    // Animations for smooth transitions
+    val scale by animateFloatAsState(
+        targetValue = if (todo.isCompleted) 0.98f else 1f,
+        animationSpec = spring(stiffness = 300f),
+        label = "scale"
+    )
+    val checkScale by animateFloatAsState(
+        targetValue = if (todo.isCompleted) 1f else 0f,
+        animationSpec = spring(stiffness = 400f),
+        label = "checkScale"
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = if (todo.isCompleted) 
+            MaterialTheme.colorScheme.surfaceContainerLow
+        else 
+            LocalAccentColor.current.copy(alpha = 0.1f), // Electric Blue tint
+        animationSpec = tween(200),
+        label = "bgColor"
+    )
+    val textAlpha by animateFloatAsState(
+        targetValue = if (todo.isCompleted) 0.5f else 1f,
+        animationSpec = tween(200),
+        label = "textAlpha"
+    )
+    
+    val accentColor = LocalAccentColor.current
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onToggle() },
-        color = if (todo.isCompleted)
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        else
-            MaterialTheme.colorScheme.surface
+            .scale(scale)
+            .clip(RoundedCornerShape(14.dp))
+            .background(backgroundColor)
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) { onToggle() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        // Custom circular checkbox
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .size(24.dp)
+                .clip(CircleShape)
+                .border(
+                    width = 2.dp,
+                    color = if (todo.isCompleted) accentColor else MaterialTheme.colorScheme.outline,
+                    shape = CircleShape
+                )
+                .background(
+                    if (todo.isCompleted) accentColor else MaterialTheme.colorScheme.surface
+                )
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onToggle() },
+            contentAlignment = Alignment.Center
         ) {
-            Checkbox(
-                checked = todo.isCompleted,
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(
-                    checkedColor = LocalAccentColor.current,
-                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            // Animated checkmark
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .size(14.dp)
+                    .scale(checkScale)
             )
+        }
 
-            Text(
-                text = todo.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (todo.isCompleted)
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                else
-                    MaterialTheme.colorScheme.onSurface,
-                textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
-                modifier = Modifier.weight(1f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+        Spacer(modifier = Modifier.width(14.dp))
+
+        // Task text
+        Text(
+            text = todo.text,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = MonoFont,
+                fontWeight = if (todo.isCompleted) FontWeight.Normal else FontWeight.Medium
+            ),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = textAlpha),
+            textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f),
+            maxLines = 5,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        // Delete button - subtle until hovered/focused
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { onDelete() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Remove task",
+                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                modifier = Modifier.size(14.dp)
             )
-
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
         }
     }
 }

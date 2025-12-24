@@ -332,7 +332,7 @@ object ResourceManager : ComponentCallbacks2 {
         // No action needed
     }
 
-    @Suppress("DEPRECATION")
+    @Deprecated("Deprecated in ComponentCallbacks")
     override fun onLowMemory() {
         Log.w(TAG, "onLowMemory triggered")
         _memoryPressure.value = MemoryPressure.CRITICAL
@@ -370,8 +370,22 @@ object ResourceManager : ComponentCallbacks2 {
      */
     fun shutdown() {
         try {
+            // Cancel all pending cleanup operations
             cleanupScope.cancel()
+
+            // Unregister memory callbacks to prevent leaks
             appContext?.applicationContext?.unregisterComponentCallbacks(this)
+
+            // Clear all references to prevent memory leaks
+            appContext = null
+            activityManager = null
+            isInitialized = false
+
+            // Reset state flows
+            _memoryPressure.value = MemoryPressure.NORMAL
+            _isLowMemoryMode.value = false
+
+            Log.d(TAG, "ResourceManager shutdown complete")
         } catch (e: Exception) {
             Log.e(TAG, "Error during shutdown", e)
         }

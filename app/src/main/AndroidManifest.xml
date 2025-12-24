@@ -72,6 +72,18 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Disable default WorkManager initialization to use custom Configuration.Provider -->
+        <!-- This prevents SystemForegroundService memory leaks -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                tools:node="remove" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

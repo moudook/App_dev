@@ -36,6 +36,8 @@ class QuickNoteWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_QUICK_NOTE = "com.example.smarty.action.QUICK_NOTE"
+        const val ACTION_VOICE_NOTE = "com.example.smarty.action.VOICE_NOTE"
+        const val ACTION_CAMERA_NOTE = "com.example.smarty.action.CAMERA_NOTE"
 
         private fun updateAppWidget(
             context: Context,
@@ -46,21 +48,28 @@ class QuickNoteWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_quick_note)
 
             // Create intent to open the app
+            // Main Add Button (Text Note)
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = ACTION_QUICK_NOTE
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-
             val pendingIntent = PendingIntent.getActivity(
-                context,
-                appWidgetId,
-                intent,
+                context, appWidgetId, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-
-            // Set click listener on the entire widget
-            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent)
             views.setOnClickPendingIntent(R.id.widget_add_button, pendingIntent)
+            views.setOnClickPendingIntent(R.id.widget_container, pendingIntent) // Tap background opens app too
+
+            // Voice Note Button
+            val voiceIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_VOICE_NOTE
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val voicePendingIntent = PendingIntent.getActivity(
+                context, appWidgetId + 1000, voiceIntent, // Unique RequestCode
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_voice_button, voicePendingIntent)
 
             // Update the widget
             appWidgetManager.updateAppWidget(appWidgetId, views)

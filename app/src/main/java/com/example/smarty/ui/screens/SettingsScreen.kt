@@ -38,7 +38,11 @@ import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.ProviderSection
 import com.example.smarty.ui.screens.settings.maskApiKey
+import com.example.smarty.util.api.ApiMetrics
 import com.example.smarty.util.api.KeyUsageStats
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.example.smarty.ui.components.ShakeSensitivityControl
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
@@ -233,10 +237,165 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // API Info & Metrics Section
+            val metrics by ApiMetrics.metricsFlow.collectAsState()
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(26.dp)),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
+                elevation = CardDefaults.cardElevation(0.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(LocalAccentColor.current.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QueryStats,
+                                contentDescription = null,
+                                tint = LocalAccentColor.current,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        Text(
+                            text = "API Info & Metrics",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Success Rate
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total API Calls", style = MaterialTheme.typography.bodyMedium)
+                        Text("${metrics.totalCalls}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Successful", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4CAF50))
+                        Text("${metrics.successfulCalls}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Failed", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFF44336))
+                        Text("${metrics.failedCalls}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Success Rate Bar
+                    val successRate = metrics.successRate
+                    Text(
+                        "Success Rate: ${(successRate * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LinearProgressIndicator(
+                        progress = { successRate },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color(0xFF4CAF50),
+                        trackColor = Color(0xFFF44336).copy(alpha = 0.3f)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Cache Stats
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Cache Hits", style = MaterialTheme.typography.bodyMedium)
+                        Text("${metrics.cacheHits}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Cache Misses", style = MaterialTheme.typography.bodyMedium)
+                        Text("${metrics.cacheMisses}", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Cache Hit Rate Bar
+                    val cacheHitRate = metrics.cacheHitRate
+                    Text(
+                        "Cache Hit Rate: ${(cacheHitRate * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    LinearProgressIndicator(
+                        progress = { cacheHitRate },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Last Reset Time
+                    val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
+                    Text(
+                        "Stats since: ${dateFormat.format(Date(metrics.lastResetTime))}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Reset Button
+                    OutlinedButton(
+                        onClick = { ApiMetrics.reset() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Reset Statistics")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // About Section
             SettingsItem(
                 icon = Icons.Default.Info,
-                title = "About Cogni",
+                title = "About Loum",
                 subtitle = "Version 1.1.0",
                 onClick = { showAboutSheet = true },
                 showArrow = true
@@ -481,7 +640,7 @@ fun SettingsScreen(
             ) {
                 // Fixed Header
                 Text(
-                    text = "About Cogni",
+                    text = "About Loum",
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
@@ -500,7 +659,7 @@ fun SettingsScreen(
                 ) {
                     Text(
                         text =  "Hello, I am Moudook.\n\n" +
-                                "Cogni is an AI-powered personal knowledge management app. I made this mainly for myself so I do not get fussed managing my notes and content. The idea is simple. Capture anything, and let the AI help later with organizing, searching, and recalling things when needed.\n\n" +
+                                "Loum is an AI-powered personal knowledge management app. I made this mainly for myself so I do not get fussed managing my notes and content. The idea is simple. Capture anything, and let the AI help later with organizing, searching, and recalling things when needed.\n\n" +
                                 "You can add many types of content. Text notes for brain dumps. Images. Videos, both YouTube and local. Documents like PDF, DOCX, XLSX, and PPTX. Website links with metadata. Audio files and voice notes. Code snippets. Twitter or X posts, Instagram posts, APK files, and archive files.\n\n" +
                                 "For organization, I added basic but useful things. You can pin notes so important ones stay on top. Notes get smart categories automatically. AI also generates tags for every note. If you do not want something but also do not want to delete it, you can archive it. There is also bulk selection so you can operate on many notes at once.\n\n" +
                                 "I also added note versioning. Every note has a Git-like history. Up to 10 versions are saved automatically. You can restore any older version instantly. You can also see what changed and when it changed.\n\n" +
@@ -511,6 +670,7 @@ fun SettingsScreen(
                                 "It can search and retrieve notes based on context. It can create new notes directly from conversation. It can edit and update existing notes. It can delete notes when asked. It can manage to-do lists inside notes. It can also set smart reminders on cards.\n\n" +
                                 "Every AI response shows citations. You can tap a citation and jump directly to the source note. So you always know where the information is coming from.\n\n" +
                                 "I also added smart reminders. AI can highlight important notes. A shimmer animation is used to draw attention. You can also set expiration on reminders so temporary things do not stay forever.\n\n" +
+                                "For the agentic AI, I use KOOG by JetBrains. KOOG stands for Kotlin Object-Oriented Graphs. It lets the AI work with structured tool calls and function execution. The AI can decide which tools to use and chain them together. This is what makes the assistant truly agentic instead of just a chatbot. KOOG handles the execution graph and makes sure everything runs in the right order.\n\n" +
                                 "Multiple AI providers are supported. Google Gemini is the default. I also added support for OpenAI, Anthropic, Groq, DeepSeek, Cerebras, Cohere, OpenRouter, and HuggingFace. You can manage multiple API keys per provider. You can reorder provider priority by drag and drop. Automatic key rotation and rate limit handling are also there. You can choose models per provider.\n\n" +
                                 "For web search, I integrated Tavily. It gives real-time information. There are 1000 free requests per month. AI summarizes the results so you do not need to read everything manually.\n\n" +
                                 "I also added a daily digest. It sends a notification at 6:30 AM. It summarizes what happened in the last 24 hours. New notes and important updates show up there.\n\n" +
@@ -530,7 +690,7 @@ fun SettingsScreen(
                                 "All data is stored locally on the device. I use a Room database with encryption support. Only API calls go out of the device.\n\n" +
                                 "For user experience, I added widgets. You can capture notes directly from the home screen. One tap and you are inside a new note.\n\n" +
                                 "App shortcuts are also there. Long press the app icon for quick actions like new note, search, or voice note. Recent notes also show up dynamically.\n\n" +
-                                "Sharing is deeply integrated. You can share content from any app into Cogni. Content type is detected automatically. URL metadata is extracted. You can also bulk select and share multiple notes.\n\n" +
+                                "Sharing is deeply integrated. You can share content from any app into Loum. Content type is detected automatically. URL metadata is extracted. You can also bulk select and share multiple notes.\n\n" +
                                 "For UI, I avoided popups. I use slide-in panels instead. Animations are smooth and spring-based. Entry animations are staggered. Dark and light themes are supported. You can also customize accent colors.\n\n" +
                                 "There are many animations. Cloud-like startup animation. Living orb on the main screen. Chat personality animations. Shimmer effects for reminders. Halftone indicator for speech.\n\n" +
                                 "Performance was a big focus.\n\n" +
@@ -543,7 +703,7 @@ fun SettingsScreen(
                                 "The app is built using Kotlin and Jetpack Compose. It follows Material Design 3. Room Database version is 19. Min SDK is 26. Target SDK is 36. WorkManager is used for background tasks. OkHttp handles networking. Vosk is used for offline speech. ExoPlayer handles media.\n\n" +
                                 "Your data stays on your device. Only AI and speech recognition APIs need internet.\n\n" +
                                 "I am still working on the UI and the agentic part. If you find any issues, please mention them on GitHub.\n\n" +
-                                "Thank you for using Cogni.",
+                                "Thank you for using Loum.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             lineHeight = androidx.compose.ui.unit.TextUnit(24f, androidx.compose.ui.unit.TextUnitType.Sp)
                         ),
@@ -967,6 +1127,7 @@ private fun TavilyApiSection(
     var showKeyInput by remember { mutableStateOf(false) }
     var keyInput by remember { mutableStateOf("") }
     var showKey by remember { mutableStateOf(false) }
+    var showKeyWhileTyping by remember { mutableStateOf(false) }  // For masking input
     var isExpanded by remember { mutableStateOf(false) }
 
     Column(
@@ -1108,7 +1269,13 @@ private fun TavilyApiSection(
                                             color = MaterialTheme.colorScheme.onSurface
                                         ),
                                         cursorBrush = androidx.compose.ui.graphics.SolidColor(LocalAccentColor.current),
-                                        singleLine = true
+                                        singleLine = true,
+                                        // Mask the key while typing for security
+                                        visualTransformation = if (showKeyWhileTyping) {
+                                            androidx.compose.ui.text.input.VisualTransformation.None
+                                        } else {
+                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
+                                        }
                                     )
                                     if (keyInput.isEmpty()) {
                                         Text(
@@ -1119,6 +1286,18 @@ private fun TavilyApiSection(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         )
                                     }
+                                }
+                                // Toggle to show/hide key while typing
+                                IconButton(
+                                    onClick = { showKeyWhileTyping = !showKeyWhileTyping },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (showKeyWhileTyping) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (showKeyWhileTyping) "Hide key" else "Show key",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
 

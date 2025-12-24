@@ -28,6 +28,65 @@ object ApiKeyRotator {
     // Number of keys reserved for agent operations (legacy compatibility)
     private const val AGENT_KEY_COUNT = 2
 
+    // Track which keys are currently in use
+    private val busyKeys = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private const val BUSY_TIMEOUT_MS = 30_000L // 30 seconds
+
+    /**
+     * Mark a key as busy (currently in use)
+     */
+    fun markKeyBusy(key: String) {
+        busyKeys[key] = System.currentTimeMillis()
+    }
+
+    /**
+     * Mark a key as available (call completed)
+     */
+    fun markKeyAvailable(key: String) {
+        busyKeys.remove(key)
+    }
+
+    /**
+     * Check if a key is currently busy
+     */
+    fun isKeyBusy(key: String): Boolean {
+        val busyTime = busyKeys[key] ?: return false
+        // Auto-clear stale busy markers
+        if (System.currentTimeMillis() - busyTime > BUSY_TIMEOUT_MS) {
+            busyKeys.remove(key)
+            return false
+        }
+        return true
+    }
+
+    /**
+     * Get the next available key (not busy)
+     */
+    fun getNextAvailableKey(keys: List<String>): String? {
+        // First, try to find a non-busy key
+        for (key in keys) {
+            if (!isKeyBusy(key)) {
+                return key
+            }
+        }
+        // If all are busy, return the first one (it will wait)
+        return keys.firstOrNull()
+    }
+
+    /**
+     * Get rotated keys prioritizing non-busy ones
+     */
+    fun getRotatedKeysWithBusyAwareness(keys: List<String>): List<String> {
+        if (keys.size <= 1) return keys
+
+        // Separate busy and available keys
+        val available = keys.filter { !isKeyBusy(it) }
+        val busy = keys.filter { isKeyBusy(it) }
+
+        // Available keys first, then busy ones as fallback
+        return available + busy
+    }
+
     // ==================== FEATURE-SPECIFIC KEY GETTERS ====================
 
     /**

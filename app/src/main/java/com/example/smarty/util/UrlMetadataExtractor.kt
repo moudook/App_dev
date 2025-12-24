@@ -71,7 +71,7 @@ object UrlMetadataExtractor {
             withTimeoutOrNull(TIMEOUT_MS) {
                 val request = Request.Builder()
                     .url(url)
-                    .header("User-Agent", "Mozilla/5.0 (compatible; CogniApp/1.0)")
+                    .header("User-Agent", "Mozilla/5.0 (compatible; LoumApp/1.0)")
                     .header("Accept", "text/html")
                     .build()
 

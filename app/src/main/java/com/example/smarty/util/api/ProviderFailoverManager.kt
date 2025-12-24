@@ -179,9 +179,11 @@ class ProviderFailoverManager private constructor() {
         val message = exception.message?.lowercase() ?: ""
 
         return when {
-            // Authentication errors
+            // Authentication errors (including 400 bad request - often means invalid key/params)
+            message.contains("400") ||
             message.contains("401") ||
             message.contains("403") ||
+            message.contains("bad request") ||
             message.contains("unauthorized") ||
             message.contains("invalid api key") ||
             message.contains("invalid_api_key") ||
@@ -228,9 +230,11 @@ class ProviderFailoverManager private constructor() {
 
     /**
      * Categorize error from HTTP status code.
+     * 400 = Bad Request - treat as key/request issue, try next key
      */
     fun categorizeHttpError(statusCode: Int): ApiErrorCategory {
         return when (statusCode) {
+            400 -> ApiErrorCategory.AUTH_ERROR  // Bad request often means invalid key format/params
             401, 403 -> ApiErrorCategory.AUTH_ERROR
             429 -> ApiErrorCategory.RATE_LIMIT
             in 500..599 -> ApiErrorCategory.SERVER_ERROR
@@ -434,23 +438,15 @@ class ProviderFailoverManager private constructor() {
     }
 
     /**
-     * Get ordered list of all providers, prioritizing healthy ones.
-     * Degraded providers come after healthy, recovering last.
+     * Get ordered list of all providers, preserving user priority order.
+     * Only filters out providers with open circuits.
+     *
+     * IMPORTANT: User priority is ALWAYS respected. We don't reorder based on health
+     * because the user explicitly chose their preference. We only skip unavailable ones.
      */
     fun getOrderedHealthyProviders(providers: List<AIProvider>): List<AIProvider> {
-        val now = System.currentTimeMillis()
-
-        return providers
-            .filter { isProviderAvailable(it) }
-            .sortedBy { provider ->
-                val state = healthStates[provider]
-                when (state?.status) {
-                    null, ProviderHealthStatus.HEALTHY -> 0
-                    ProviderHealthStatus.DEGRADED -> 1
-                    ProviderHealthStatus.RECOVERING -> 2
-                    ProviderHealthStatus.CIRCUIT_OPEN -> 3
-                }
-            }
+        // Simply filter unavailable providers while preserving user's priority order
+        return providers.filter { isProviderAvailable(it) }
     }
 
     /**

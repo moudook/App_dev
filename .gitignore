@@ -138,6 +138,13 @@ issue_with_ai_agent_audio_player.png
 agent_issue_during_chat.png
 new_app_icon_for_cogni_11zon.png
 new_app_icon_for_cogni.png
+VISUALIZER_IMPROVEMENT_TASK.md
+NOTECARD_PROCESSING_FLOW.md
+DATABASE_VS_API_EXPLANATION.md
+AI_AGENT_PROCESSING_FLOW.md
+SIMPLE_COST_EXPLANATION.md
+issues_with_the_app/
+
 
 #solutions
 error_and_warning_solution.txt
@@ -154,3 +161,6 @@ update_settings.py
 # on the wake words
 terminator_android.ppn
 input_block_issue.png
+
+#memory_leaks
+memory_leaks.jpeg

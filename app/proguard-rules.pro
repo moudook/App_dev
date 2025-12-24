@@ -224,3 +224,89 @@
 # ============================================================================
 
 -keep class com.example.smarty.agent.** { *; }
+
+# ============================================================================
+# Missing optional dependencies - dontwarn for R8
+# ============================================================================
+
+# Jackson (optional for OpenTelemetry)
+-dontwarn com.fasterxml.jackson.**
+
+# PDFBox JP2/JPEG2000 (optional image format)
+-dontwarn com.gemalto.jp2.**
+
+# Reactor/Micrometer context propagation (optional)
+-dontwarn io.micrometer.context.**
+-dontwarn reactor.blockhound.**
+
+# Netty optional dependencies
+-dontwarn io.netty.handler.codec.compression.**
+-dontwarn io.netty.handler.ssl.**
+-dontwarn io.netty.handler.proxy.**
+-dontwarn io.netty.resolver.dns.**
+-dontwarn io.netty.util.internal.logging.**
+-dontwarn com.aayushatharva.brotli4j.**
+-dontwarn com.jcraft.jzlib.**
+-dontwarn com.ning.compress.**
+-dontwarn net.jpountz.**
+-dontwarn lzma.sdk.**
+
+# Apache commons and logging (optional)
+-dontwarn org.apache.commons.logging.**
+-dontwarn org.apache.log4j.**
+-dontwarn org.apache.logging.log4j.**
+-dontwarn commons.logging.**
+-dontwarn org.apache.http.impl.auth.**
+
+# Eclipse Jetty ALPN/NPN (optional for HTTP/2)
+-dontwarn org.eclipse.jetty.alpn.**
+-dontwarn org.eclipse.jetty.npn.**
+
+# GSS/Kerberos (optional authentication)
+-dontwarn org.ietf.jgss.**
+
+# Conscrypt (optional SSL provider)
+-dontwarn org.conscrypt.**
+
+# BouncyCastle (optional crypto)
+-dontwarn org.bouncycastle.**
+
+# OpenTelemetry exporters
+-dontwarn io.opentelemetry.exporter.**
+
+# Azul CA (optional certificate authority)
+-dontwarn com.azul.crs.client.**
+
+# SLF4J implementations (optional logging backends)
+-dontwarn org.slf4j.impl.**
+
+# Tom Roush PDFBox Android
+-dontwarn com.tom_roush.pdfbox.**
+
+# Sun JNA
+-dontwarn com.sun.jna.**
+
+# Netty platform-specific (epoll, kqueue, io_uring - Linux/macOS only)
+-dontwarn io.netty.channel.epoll.**
+-dontwarn io.netty.channel.kqueue.**
+-dontwarn io.netty.incubator.channel.uring.**
+
+# Lettuce Redis client (optional dependencies)
+-dontwarn io.lettuce.core.**
+-dontwarn org.HdrHistogram.**
+-dontwarn org.LatencyUtils.**
+
+# OpenTelemetry incubator/experimental APIs
+-dontwarn io.opentelemetry.api.incubator.**
+-dontwarn io.opentelemetry.sdk.**
+
+# Java EE / Jakarta EE (optional)
+-dontwarn javax.enterprise.**
+-dontwarn javax.naming.**
+
+# JDK JFR (Java Flight Recorder - not on Android)
+-dontwarn jdk.jfr.**
+-dontwarn jdk.net.**
+
+# JDK internal (not on Android)
+-dontwarn jdk.internal.**

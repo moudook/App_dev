@@ -21,12 +21,17 @@ import com.example.smarty.data.model.ChatRole
 object HistoryCompressor {
 
     private const val DEFAULT_RECENT_EXCHANGES = 3  // Keep 3 most recent exchanges verbatim
-    private const val MAX_SUMMARY_CHARS = 500       // Max chars for summary section
-    private const val MAX_MESSAGE_EXCERPT = 100     // Max chars per message in summary
+    private const val MAX_SUMMARY_CHARS = 300       // Max chars for summary section (reduced for small models)
+    private const val MAX_MESSAGE_EXCERPT = 80      // Max chars per message in summary
 
-    // Compression trigger thresholds (from research: compress when exceeded)
-    private const val MESSAGE_COUNT_THRESHOLD = 20  // Compress when > 20 messages
-    private const val TOKEN_COUNT_THRESHOLD = 4000  // Compress when > 4000 estimated tokens
+    // Compression trigger thresholds
+    private const val MESSAGE_COUNT_THRESHOLD = 10  // Compress when > 10 messages (reduced)
+    private const val TOKEN_COUNT_THRESHOLD = 2000  // Compress when > 2000 estimated tokens (reduced for small models)
+
+    // CRITICAL: Hard limit for small model compatibility
+    // Most free tier models have 4k-8k context windows
+    private const val MAX_TOTAL_TOKENS = 3000       // Absolute max tokens to return
+    private const val MAX_TOTAL_CHARS = 12000       // ~3000 tokens (4 chars per token)
 
     // Pre-compiled patterns for extracting key information
     private val ENTITY_PATTERNS = listOf(
@@ -50,9 +55,12 @@ object HistoryCompressor {
     /**
      * Compress conversation history for optimal token usage.
      *
+     * CRITICAL: Enforces hard limits for small model compatibility.
+     * Will aggressively trim older messages if total exceeds MAX_TOTAL_CHARS.
+     *
      * @param messages Full conversation history
      * @param recentExchanges Number of recent exchanges to keep verbatim (default: 3)
-     * @param maxSummaryChars Maximum characters for summary (default: 500)
+     * @param maxSummaryChars Maximum characters for summary (default: 300)
      * @param forceCompress If true, compress even if below thresholds (default: false)
      * @return Compressed history with structured facts + summary + recent messages
      */
@@ -67,18 +75,22 @@ object HistoryCompressor {
         // Calculate threshold: 2 messages per exchange (user + assistant)
         val recentMessageCount = recentExchanges * 2
 
-        // If short enough, return as-is
-        if (messages.size <= recentMessageCount) return messages
+        // If short enough, return as-is (but still check total size)
+        if (messages.size <= recentMessageCount) {
+            return enforceSizeLimit(messages)
+        }
 
         // Check if compression should be triggered (unless forced)
-        if (!forceCompress && !shouldCompress(messages)) return messages
+        if (!forceCompress && !shouldCompress(messages)) {
+            return enforceSizeLimit(messages)
+        }
 
         // Split into older and recent
         val recent = messages.takeLast(recentMessageCount)
         val older = messages.dropLast(recentMessageCount)
 
-        // Extract structured facts from older messages
-        val facts = extractFacts(older)
+        // Extract structured facts from older messages (limit to 5 for small models)
+        val facts = extractFacts(older).take(5)
 
         // Summarize older messages
         val summary = summarize(older, maxSummaryChars)
@@ -86,13 +98,13 @@ object HistoryCompressor {
         // Build context message with structured facts + summary
         val contextContent = buildString {
             if (facts.isNotEmpty()) {
-                appendLine("[FACTS FROM CONVERSATION:]")
+                appendLine("[FACTS:]")
                 facts.forEach { fact ->
                     appendLine("- ${fact.category}: ${fact.value}")
                 }
                 appendLine()
             }
-            appendLine("[CONVERSATION SUMMARY: $summary]")
+            appendLine("[SUMMARY: $summary]")
         }
 
         val contextMessage = ChatMessage(
@@ -100,7 +112,44 @@ object HistoryCompressor {
             content = contextContent.trim()
         )
 
-        return listOf(contextMessage) + recent
+        val result = listOf(contextMessage) + recent
+        return enforceSizeLimit(result)
+    }
+
+    /**
+     * Enforce hard size limit by trimming older messages.
+     * Keeps most recent messages, drops older ones until under limit.
+     */
+    private fun enforceSizeLimit(messages: List<ChatMessage>): List<ChatMessage> {
+        var result = messages
+        var totalChars = result.sumOf { it.content.length }
+
+        // Keep dropping oldest messages until under limit
+        while (totalChars > MAX_TOTAL_CHARS && result.size > 2) {
+            // Find oldest non-system message to drop
+            val indexToDrop = result.indexOfFirst { it.role != ChatRole.SYSTEM }
+            if (indexToDrop == -1) {
+                // Only system messages left, truncate the first one
+                val first = result.first()
+                val truncated = first.copy(content = first.content.take(MAX_TOTAL_CHARS / 2) + "...[truncated]")
+                result = listOf(truncated) + result.drop(1)
+                break
+            }
+            result = result.filterIndexed { index, _ -> index != indexToDrop }
+            totalChars = result.sumOf { it.content.length }
+        }
+
+        // Final safety: truncate individual messages if still too large
+        if (totalChars > MAX_TOTAL_CHARS) {
+            val budget = MAX_TOTAL_CHARS / result.size
+            result = result.map { msg ->
+                if (msg.content.length > budget) {
+                    msg.copy(content = msg.content.take(budget) + "...[truncated]")
+                } else msg
+            }
+        }
+
+        return result
     }
 
     /**
@@ -200,7 +249,7 @@ object HistoryCompressor {
                 } else {
                     val excerpt = extractKeyPoints(it.content)
                     if (excerpt.isNotBlank()) {
-                        summaryParts.add("Cogni: $excerpt")
+                        summaryParts.add("Loum: $excerpt")
                     }
                 }
             }

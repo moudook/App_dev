@@ -32,7 +32,7 @@ class DailyDigestWorker(
         private const val TAG = "DailyDigestWorker"
         private const val WORK_NAME = "daily_digest_work"
         private const val CHANNEL_ID = "daily_digest_channel"
-        private const val NOTIFICATION_ID = 1001
+        private const val NOTIFICATION_ID = 1003  // Unique ID to avoid conflicts with other services
 
         /**
          * Schedule the daily digest to run at 6:30 AM every day.
@@ -120,7 +120,9 @@ class DailyDigestWorker(
     }
 
     private suspend fun generateDigest(): DigestContent {
-        val database = CogniDatabase.getDatabase(context)
+        // Use applicationContext to prevent context leaks
+        val appContext = applicationContext
+        val database = CogniDatabase.getDatabase(appContext)
         val noteDao = database.noteDao()
 
         // Get notes from the last 24 hours
@@ -135,7 +137,7 @@ class DailyDigestWorker(
 
         // Build digest
         val title = when {
-            recentNotes.isEmpty() -> "Good morning! 🌅"
+            recentNotes.isEmpty() -> "Good morning!"
             recentNotes.size == 1 -> "You captured 1 note yesterday"
             else -> "You captured ${recentNotes.size} notes yesterday"
         }
@@ -147,10 +149,10 @@ class DailyDigestWorker(
                 append("\n")
             }
 
-            append("📝 $totalNotes total notes")
+            append("$totalNotes total notes")
 
             if (pinnedNotes > 0) {
-                append(" • 📌 $pinnedNotes pinned")
+                append(" | $pinnedNotes pinned")
             }
         }
 
@@ -158,9 +160,12 @@ class DailyDigestWorker(
     }
 
     private fun showNotification(digest: DigestContent) {
+        // Use applicationContext to prevent context leaks
+        val appContext = applicationContext
+
         // Check notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
                 Log.w(TAG, "Notification permission not granted")
                 return
@@ -168,17 +173,17 @@ class DailyDigestWorker(
         }
 
         // Create intent to open app
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val intent = Intent(appContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pendingIntent = PendingIntent.getActivity(
-            context,
+            appContext,
             0,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_shortcut_note)
             .setContentTitle(digest.title)
             .setContentText(digest.body)
@@ -188,7 +193,7 @@ class DailyDigestWorker(
             .setAutoCancel(true)
             .build()
 
-        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        NotificationManagerCompat.from(appContext).notify(NOTIFICATION_ID, notification)
         Log.d(TAG, "Daily digest notification shown")
     }
 

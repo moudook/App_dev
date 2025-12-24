@@ -235,9 +235,9 @@ fun NoteCard(
                                 // Only update swipe offset if activated
                                 if (swipeActivated) {
                                     coroutineScope.launch {
-                                        // Start from where we exceeded threshold, not from 0
-                                        val effectiveDrag = accumulatedDrag - (swipeActivationThreshold * if (accumulatedDrag > 0) 1 else -1)
-                                        swipeOffset.snapTo(effectiveDrag)
+                                        // DIRECT 1:1 MAPPING: Once activated, follow the finger exactly.
+                                        // This removes the "resistance" or "reset" feeling when changing directions.
+                                        swipeOffset.snapTo(accumulatedDrag)
                                     }
                                 }
                             }

@@ -48,10 +48,13 @@ enum class NoteType {
     APK,
     FILE;
 
-    // O(1) lookup for analyzable types using bit flag
+    // Explicit type checking for analyzable types
     companion object {
-        private const val ANALYZABLE_MASK = 0b0000001111111111 // First 10 types are analyzable
-        fun isAnalyzable(type: NoteType): Boolean = type.ordinal < 10
+        fun isAnalyzable(type: NoteType): Boolean = when(type) {
+            BRAIN_DUMP, YOUTUBE, WEBSITE, IMAGE, TWITTER, INSTAGRAM,
+            DOCUMENT, SPREADSHEET, PRESENTATION, CODE -> true  // CODE is now analyzable
+            VIDEO, AUDIO, ARCHIVE, APK, FILE -> false  // VIDEO is now NOT analyzable
+        }
     }
 }
 

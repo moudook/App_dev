@@ -128,10 +128,8 @@ class ShakeDetector(
                 lastShakeTime = currentTime
                 Log.d(TAG, "Shake detected! Speed: $speed")
 
-                // Provide haptic feedback
-                triggerHapticFeedback()
-
-                // Notify listener
+                // Notify listener - haptic feedback is handled by the callback
+                // (so it only vibrates when shake is actually processed on correct screen)
                 onShakeDetected()
             }
         }
@@ -147,9 +145,11 @@ class ShakeDetector(
     }
 
     /**
-     * Provide haptic feedback when shake is detected
+     * Provide haptic feedback when shake is detected.
+     * Call this from the callback only when the shake action is actually processed.
+     * This ensures no haptic feedback on screens where shake is ignored.
      */
-    private fun triggerHapticFeedback() {
+    fun triggerHapticFeedback() {
         try {
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager

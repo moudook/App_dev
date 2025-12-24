@@ -187,12 +187,32 @@ class CogniRepository(
         note.categoryId?.let { categoryDao.incrementNoteCount(it) }
     }
 
+    @Transaction
+    suspend fun insertNotes(notes: List<Note>) {
+        if (notes.isEmpty()) return
+        noteDao.insertNotes(notes)
+        // Update category counts
+        notes.mapNotNull { it.categoryId }
+            .groupingBy { it }
+            .eachCount()
+            .forEach { (categoryId, count) ->
+                repeat(count) { categoryDao.incrementNoteCount(categoryId) }
+            }
+    }
+
     suspend fun updateNote(note: Note) = noteDao.updateNote(note)
+
+    suspend fun updateNotes(notes: List<Note>) {
+        if (notes.isEmpty()) return
+        noteDao.updateNotes(notes)
+    }
 
     @Transaction
     suspend fun deleteNote(note: Note) {
         noteDao.deleteNote(note)
         note.categoryId?.let { categoryDao.decrementNoteCount(it) }
+        // Clean up any calendar events linked to this note
+        calendarDao.clearNoteLinkForNote(note.id)
     }
 
     @Transaction
@@ -237,9 +257,10 @@ class CogniRepository(
         if (noteIds.isEmpty()) return
         val notes = noteDao.getNotesByIds(noteIds)
         noteDao.deleteNotesByIds(noteIds)
-        // Decrement category counts for all affected categories
+        // Decrement category counts and clean up calendar links for all affected notes
         notes.forEach { note ->
             note.categoryId?.let { categoryDao.decrementNoteCount(it) }
+            calendarDao.clearNoteLinkForNote(note.id)
         }
     }
 

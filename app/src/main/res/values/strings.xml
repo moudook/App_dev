@@ -1,9 +1,12 @@
 <resources>
-    <string name="app_name">Cogni</string>
+    <string name="app_name">Loum</string>
 
     <!-- Widget strings -->
-    <string name="widget_description">Quick note widget - tap to add a note</string>
-    <string name="widget_tap_to_add">Quick Note</string>
-    <string name="widget_subtitle">Tap to capture a thought</string>
+    <string name="widget_description">Premium quick capture widget - Voice, Text, or Camera notes with one tap</string>
+    <string name="widget_tap_to_add">Tap to capture</string>
+    <string name="widget_subtitle">Brain dump</string>
     <string name="widget_add_note">Add note</string>
+    <string name="widget_voice_note">Voice note</string>
+    <string name="widget_camera_note">Camera note</string>
+    <string name="widget_capture_hint">Capture thought</string>
 </resources>

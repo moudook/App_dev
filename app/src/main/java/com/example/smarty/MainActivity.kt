@@ -11,6 +11,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -87,8 +90,14 @@ class MainActivity : ComponentActivity() {
         // Schedule periodic cache cleanup
         CacheCleanupWorker.schedule(this)
 
-        // Detect if launched via share intent - skip splash animation
-        val isShareIntent = intent?.action in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)
+        // Detect if launched via share intent or widget - skip splash animation for instant access
+        val shouldSkipSplash = intent?.action in listOf(
+            Intent.ACTION_SEND, 
+            Intent.ACTION_SEND_MULTIPLE,
+            "com.example.smarty.action.QUICK_NOTE",
+            "com.example.smarty.action.VOICE_NOTE",
+            "com.example.smarty.action.CAMERA_NOTE"
+        )
 
         // Handle share intent on launch
         handleIntent(intent)
@@ -98,8 +107,8 @@ class MainActivity : ComponentActivity() {
             val isDarkThemeTop by viewModel.isDarkTheme.collectAsState()
 
             CogniTheme(darkTheme = isDarkThemeTop) {
-                // Splash Screen State - Skip for share intents
-                var showSplash by remember { mutableStateOf(!isShareIntent) }
+                // Splash Screen State - Skip for share/widget intents
+                var showSplash by remember { mutableStateOf(!shouldSkipSplash) }
 
                 val navController = rememberNavController()
                 val notes by viewModel.notes.collectAsState()
@@ -172,6 +181,9 @@ class MainActivity : ComponentActivity() {
                 // Wake word detection state
                 val wakeWordTriggered by viewModel.wakeWordTriggered.collectAsState()
 
+                // App foreground state - CRITICAL for microphone privacy
+                val isAppInForeground by viewModel.isAppInForeground.collectAsState()
+
                 // Audio playback request from AI agent
                 val pendingAudioPlayback by viewModel.pendingAudioPlayback.collectAsState()
 
@@ -199,6 +211,15 @@ class MainActivity : ComponentActivity() {
                     }
                 )
 
+                // CRITICAL: Stop speech recognition when app goes to background
+                // This prevents microphone access when app is minimized (privacy fix)
+                LaunchedEffect(isAppInForeground) {
+                    if (!isAppInForeground && globalSpeechState.isListening) {
+                        android.util.Log.d("Privacy", "Stopping speech recognition - app went to background")
+                        globalSpeechState.stopListening()
+                    }
+                }
+
                 // Trigger existing speech input when wake word is detected
                 // CONTEXT-AWARE: Routes speech to main page or chat based on current mode
                 // Uses the shimmer effect on input block instead of Google's popup
@@ -214,7 +235,8 @@ class MainActivity : ComponentActivity() {
                 // Sync mic state to ViewModel for contextual shake detection
                 // Also coordinate audio playback with speech recognition
                 // Pause/resume wake word detection based on mic usage
-                LaunchedEffect(globalSpeechState.isListening) {
+                // PRIVACY: Also check foreground state to prevent background mic access
+                LaunchedEffect(globalSpeechState.isListening, isAppInForeground) {
                     viewModel.updateMicListening(globalSpeechState.isListening)
                     audioPlayerViewModel.onSpeechListeningChanged(globalSpeechState.isListening)
 
@@ -222,10 +244,13 @@ class MainActivity : ComponentActivity() {
                         // Mic is in use (user tapped mic button) - pause wake word detection
                         android.util.Log.d("WakeWord", "Mic active - pausing wake word detection")
                         viewModel.stopWakeWordDetection()
-                    } else {
-                        // Mic released - restart wake word detection
+                    } else if (isAppInForeground) {
+                        // Mic released AND app is in foreground - restart wake word detection
                         android.util.Log.d("WakeWord", "Mic released - resuming wake word detection")
                         viewModel.restartWakeWordDetection()
+                    } else {
+                        // App is in background - don't restart wake word detection
+                        android.util.Log.d("Privacy", "Mic released but app is in background - not restarting wake word")
                     }
                 }
 
@@ -328,11 +353,19 @@ class MainActivity : ComponentActivity() {
                                     onUpdateNoteTodos = { noteId, todos, onComplete ->
                                         viewModel.updateNoteTodos(noteId, todos, onComplete)
                                     },
-                                    onEditNote = { noteId, newTitle, newContent ->
-                                        viewModel.editNote(noteId, newTitle, newContent)
+                                    onEditNote = { noteId, newTitle, newContent, newAttachments ->
+                                        viewModel.editNote(noteId, newTitle, newContent, newAttachments)
                                     },
                                     onMarkAsViewed = { noteId ->
                                         viewModel.markNoteAsViewed(noteId)
+                                    },
+                                    // Version history
+                                    selectedNoteVersions = viewModel.selectedNoteVersions.collectAsState().value,
+                                    onLoadNoteVersions = { noteId ->
+                                        viewModel.loadNoteVersions(noteId)
+                                    },
+                                    onRestoreNoteVersion = { noteId, versionId ->
+                                        viewModel.restoreNoteVersion(noteId, versionId)
                                     },
                                     // Pin and Share management
                                     onPinNote = { noteId ->
@@ -357,7 +390,7 @@ class MainActivity : ComponentActivity() {
                                         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                             type = "text/plain"
                                             putExtra(android.content.Intent.EXTRA_TEXT, shareText)
-                                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Shared from Cogni")
+                                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Shared from Loum")
                                         }
                                         startActivity(android.content.Intent.createChooser(intent, "Share notes"))
                                     },
@@ -521,22 +554,35 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // CRITICAL: Resume resource-intensive operations FIRST to set foreground flag
+        // This must happen before any mic operations to ensure proper privacy controls
+        viewModel.resumeResourceIntensiveOperations()
+
         // Start shake detection when app is in foreground
         viewModel.startShakeDetection()
 
-        // Initialize Vosk wake word detection lazily on first resume (if permission granted)
-        // This defers the 5-15s model unpacking from blocking app startup
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            == PackageManager.PERMISSION_GRANTED) {
-            viewModel.initVoskWakeWord(this)  // No-op if already initialized
-        }
-
-        // Start wake word detection (Vosk)
-        viewModel.startWakeWordDetection()
-        // Resume resource-intensive operations
-        viewModel.resumeResourceIntensiveOperations()
-        // Notify audio service to use high-frequency updates
+        // Notify audio service to use high-frequency updates (immediate, no delay needed)
         AudioPlayerService.enterForeground(this)
+
+        // PROCESS DEATH SAFE: Delay Vosk operations to allow ViewModel initialization
+        // Vosk uses native JNI objects that are invalidated after process death
+        // VoskWakeWordManager now handles this internally, but we add a small delay
+        // to ensure the ViewModel and its coroutine scope are fully ready
+        lifecycleScope.launch {
+            // Small delay to ensure ViewModel is ready after process death
+            delay(300)
+
+            // Initialize Vosk wake word detection lazily on first resume (if permission granted)
+            // This defers the 5-15s model unpacking from blocking app startup
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED) {
+                viewModel.initVoskWakeWord(this@MainActivity)  // Handles process death internally
+            }
+
+            // Start wake word detection (Vosk) - only after foreground flag is set
+            // VoskWakeWordManager will auto-reinitialize if model was invalidated
+            viewModel.startWakeWordDetection()
+        }
     }
 
     override fun onPause() {
@@ -631,6 +677,15 @@ class MainActivity : ComponentActivity() {
                             viewModel.interceptShareForPreview(SharedContent(files = files))
                         }
                     }
+                }
+                // Widget Actions
+                "com.example.smarty.action.VOICE_NOTE" -> {
+                    // Trigger voice input mode directly
+                    viewModel.triggerVoiceInput()
+                }
+                "com.example.smarty.action.CAMERA_NOTE" -> {
+                    // Open purely for now (Camera intent to come later)
+                    // Could potentially trigger attachment picker if exposed
                 }
             }
         } catch (e: Exception) {

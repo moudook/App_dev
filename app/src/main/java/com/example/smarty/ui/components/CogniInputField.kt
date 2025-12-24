@@ -19,7 +19,11 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Search
@@ -90,7 +95,7 @@ import kotlinx.coroutines.launch
 private val AttachmentRedColor = androidx.compose.ui.graphics.Color(0xFFF44336)
 private val AttachmentGreenColor = androidx.compose.ui.graphics.Color(0xFF4CAF50)
 private val AttachmentBlueColor = androidx.compose.ui.graphics.Color(0xFF2196F3)
-private val AttachmentPurpleColor = androidx.compose.ui.graphics.Color(0xFF9C27B0)
+private val AttachmentOrangeColor = androidx.compose.ui.graphics.Color(0xFFFF9500)
 private val AttachmentGrayColor = androidx.compose.ui.graphics.Color(0xFF607D8B)
 
 // Agent shimmer color (purple/blue gradient feel)
@@ -135,6 +140,10 @@ fun CogniInputField(
     onToggleSearch: () -> Unit = {},
     onStartVoiceInput: () -> Unit = {},
     onStopVoiceInput: () -> Unit = {},
+    // Voice recording (hold mic button to record, release to stop)
+    onStartRecording: () -> Unit = {},
+    onStopRecording: () -> Unit = {},
+    isRecording: Boolean = false,
     // Agent working state (for shimmer direction)
     isAgentWorking: Boolean = false,
     // Auto-send countdown active (for fast shimmer)
@@ -672,7 +681,7 @@ fun CogniInputField(
                                     com.example.smarty.data.model.AttachmentType.DOCUMENT,
                                     com.example.smarty.data.model.AttachmentType.SPREADSHEET,
                                     com.example.smarty.data.model.AttachmentType.PRESENTATION -> AttachmentBlueColor
-                                    com.example.smarty.data.model.AttachmentType.AUDIO -> AttachmentPurpleColor
+                                    com.example.smarty.data.model.AttachmentType.AUDIO -> AttachmentOrangeColor
                                     else -> AttachmentGrayColor
                                 }
                                 
@@ -768,13 +777,18 @@ fun CogniInputField(
                     )
 
                     // Animated placeholder - shows when input is empty
-                    // "Listening..." only shows when voice active AND no text yet
-                    // This prevents overlap when speech is being transcribed
-                    val showPlaceholder = value.text.isEmpty() && attachments.isEmpty()
+                    // CRITICAL: When voice listening is active, NEVER show placeholder if there's any text
+                    // This prevents overlap between "Listening..." and incoming speech transcription
+                    val showPlaceholder = when {
+                        // Voice listening: only show "Listening..." if completely empty
+                        isVoiceListening -> value.text.isEmpty()
+                        // Normal mode: show placeholder if empty and no attachments
+                        else -> value.text.isEmpty() && attachments.isEmpty()
+                    }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = showPlaceholder,
                         enter = fadeIn(tween(150)),
-                        exit = fadeOut(tween(100))
+                        exit = fadeOut(tween(50))  // Faster exit to prevent overlap
                     ) {
                         Text(
                             text = currentPlaceholder,
@@ -801,47 +815,100 @@ fun CogniInputField(
                 
                 if (!isChatMode) {
                     // MICROPHONE BUTTON (always visible in main mode)
+                    // TAP = Speech-to-text (Google recognizer) - disabled during recording
+                    // HOLD = Record audio (starts on hold, stops on release)
                     val micButtonScale by animateFloatAsState(
                         targetValue = if (isButtonPressed && !buttonEnabled) 0.85f else 1f,
                         animationSpec = CogniMotion.quick,
                         label = "micScale"
                     )
-                    
+
+                    // Recording indicator animation
+                    val recordingPulse by rememberInfiniteTransition(label = "recording").animateFloat(
+                        initialValue = 1f,
+                        targetValue = 1.15f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(600),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "recordingPulse"
+                    )
+                    val micScale = if (isRecording) recordingPulse else 1f
+
+                    // Track if recording was started during this press (for hold-to-record)
+                    var recordingStartedThisPress by remember { mutableStateOf(false) }
+
+                    // Capture current state/lambdas to allow pointerInput(Unit) to use latest values
+                    val currentOnStartRecording by rememberUpdatedState(onStartRecording)
+                    val currentOnStopRecording by rememberUpdatedState(onStopRecording)
+                    val currentOnStartVoiceInput by rememberUpdatedState(onStartVoiceInput)
+                    val currentIsRecording by rememberUpdatedState(isRecording)
+                    val currentIsVoiceListening by rememberUpdatedState(isVoiceListening)
+
                     Surface(
                         modifier = Modifier
                             .size(36.dp)
-                            .scale(micButtonScale)
+                            .scale(micButtonScale * micScale)
                             .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onPress = {
-                                        isButtonPressed = true
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        tryAwaitRelease()
-                                        isButtonPressed = false
-                                    },
-                                    onTap = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        focusRequester.requestFocus()
-                                        onStartVoiceInput()
+                                awaitEachGesture {
+                                    val down = awaitFirstDown()
+                                    down.consume()
+                                    isButtonPressed = true
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    recordingStartedThisPress = false
+                                    val downTime = System.currentTimeMillis()
+
+                                    // Long press threshold (300ms)
+                                    val longPressThreshold = 300L
+
+                                    // Wait for release with timeout to check for long press
+                                    val up = withTimeoutOrNull(longPressThreshold) {
+                                        waitForUpOrCancellation()
                                     }
-                                )
+
+                                    if (up == null) {
+                                        // Timeout occurred - long press detected, start recording
+                                        recordingStartedThisPress = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        currentOnStartRecording()
+
+                                        // Now wait for the actual release
+                                        val finalUp = waitForUpOrCancellation()
+                                        finalUp?.consume()
+
+                                        // Stop recording on release
+                                        isButtonPressed = false
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        currentOnStopRecording()
+                                    } else {
+                                        // Released before timeout - short tap
+                                        up.consume()
+                                        isButtonPressed = false
+
+                                        // Trigger speech-to-text (only if not already recording)
+                                        if (!currentIsRecording && !currentIsVoiceListening) {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            currentOnStartVoiceInput()
+                                        }
+                                    }
+                                }
                             },
                         shape = androidx.compose.foundation.shape.CircleShape,
-                        color = LocalAccentColor.current,
+                        color = if (isRecording) MaterialTheme.colorScheme.error else LocalAccentColor.current,
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier.fillMaxSize()
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Mic,
-                                contentDescription = "Voice Input",
+                                imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                                contentDescription = if (isRecording) "Recording... Release to stop" else "Tap for voice, Hold to record",
                                 tint = androidx.compose.ui.graphics.Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
-                    
+
                     // Small spacer between mic and send
                     Spacer(modifier = Modifier.width(8.dp))
                 }

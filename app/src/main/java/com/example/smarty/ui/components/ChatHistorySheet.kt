@@ -43,7 +43,9 @@ fun ChatHistorySheet(
     onNewChat: () -> Unit,
     onDeleteSession: (String) -> Unit
 ) {
-    var sessionToDelete by remember { mutableStateOf<ChatSession?>(null) }
+    // Store ID only and derive session from list to stay in sync
+    var sessionToDeleteId by remember { mutableStateOf<String?>(null) }
+    val sessionToDelete = sessionToDeleteId?.let { id -> sessions.find { it.id == id } }
     val accentColor = LocalAccentColor.current
 
     ModalBottomSheet(
@@ -136,7 +138,7 @@ fun ChatHistorySheet(
                                 onSelectSession(session.id)
                                 onDismiss()
                             },
-                            onDelete = { sessionToDelete = session }
+                            onDelete = { sessionToDeleteId = session.id }
                         )
                     }
                 }
@@ -147,21 +149,21 @@ fun ChatHistorySheet(
     // Delete Dialog (Minimalist)
     sessionToDelete?.let { session ->
         AlertDialog(
-            onDismissRequest = { sessionToDelete = null },
+            onDismissRequest = { sessionToDeleteId = null },
             title = { Text("Delete chat?") },
             text = { Text("This action cannot be undone.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         onDeleteSession(session.id)
-                        sessionToDelete = null
+                        sessionToDeleteId = null
                     }
                 ) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { sessionToDelete = null }) {
+                TextButton(onClick = { sessionToDeleteId = null }) {
                     Text("Cancel")
                 }
             },

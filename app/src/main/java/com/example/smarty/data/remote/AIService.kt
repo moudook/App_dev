@@ -15,6 +15,7 @@ data class AIResponse(
     val summary: String,
     val whySaved: String,
     val tags: List<String> = emptyList(),  // AI-generated tags for the note
+    val todos: List<String> = emptyList(),  // AI-extracted todo items
     val success: Boolean = true,
     val error: String? = null
 )

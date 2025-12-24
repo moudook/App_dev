@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 import org.vosk.LibVosk
 import org.vosk.LogLevel
@@ -17,15 +19,23 @@ import org.vosk.android.RecognitionListener
 import org.vosk.android.StorageService
 
 /**
- * Vosk-based wake word manager for fully offline "Terminator" detection.
+ * Vosk-based wake word manager for fully offline Hindi wake word detection.
  *
  * Architecture:
  * - Uses Vosk (open source, on-device) for wake word detection
- * - When "terminator" is detected, stops listening and triggers callback
+ * - Hindi model: vosk-model-small-hi-0.22
+ * - Wake word: "जादूगर" (Jaadoogar - Magician) - unique and distinctive
+ * - When wake word is detected, stops listening and triggers callback
  * - Caller should then launch Google Speech Recognizer for full STT
  * - After STT completes, call restartListening() to resume wake word detection
  *
- * Benefits over Porcupine:
+ * PROCESS DEATH HANDLING:
+ * - Native Model/Recognizer objects are invalidated after process death
+ * - isModelValid() checks if native resources are still usable
+ * - Automatic re-initialization when model is detected as invalid
+ * - All operations check model validity before proceeding
+ *
+ * Benefits:
  * - 100% open source (Apache 2.0)
  * - No API key required
  * - All processing on-device
@@ -39,14 +49,19 @@ class VoskWakeWordManager(
 
     companion object {
         private const val TAG = "VoskWakeWord"
-        private const val MODEL_PATH = "vosk-model-small-en-in-0.4"
+
+        // Hindi model for better Hindi word recognition
+        private const val MODEL_PATH = "vosk-model-small-hi-0.22"
         private const val SAMPLE_RATE = 16000.0f
-        private const val WAKE_WORD = "hello reddit"
+
+        // Wake word: "जादूगर" (Jaadoogar) = Magician
+        // Very unique word, unlikely to trigger accidentally
+        private const val WAKE_WORD = "जादूगर"
 
         // Audio gain multiplier for increased microphone sensitivity
         // 1.0 = normal, 2.0 = 2x louder, 3.0 = 3x louder
         // Higher values = detect from further away, but more background noise
-        private const val AUDIO_GAIN = 3.0f  // 3x amplification for long-range detection
+        private const val AUDIO_GAIN = 8.0f  // 8x amplification for maximum range
 
         // NOTE: Grammar-restricted mode requires dynamic graph models.
         // Static graph models (like vosk-model-small-*) may not support grammar.
@@ -54,28 +69,27 @@ class VoskWakeWordManager(
         private val GRAMMAR: String? = null  // Full vocabulary - filter in software
 
         // Pre-compiled wake word patterns for faster matching
-        // Expanded set for better detection at distance (more fuzzy matches)
+        // "जादूगर" (Jaadoogar) - Magician - unique Hindi word
+        // Reduced to essential patterns since Hindi model is accurate
         private val WAKE_WORD_PATTERNS = setOf(
-            // Primary patterns
-            "hello reddit", "hello read it", "hello red it", "hallo reddit",
-            "hollow reddit", "hello redditt", "hello readit", "hello reddit's",
-            // Variations for distance/quiet speech
-            "hello ready", "hello red", "ello reddit", "yellow reddit",
-            "jello reddit", "fellow reddit", "hello credit", "hello edit",
-            "lo reddit", "hello reading", "hello redid", "hello rabbit",
-            // Additional fuzzy patterns for long-range detection
-            "hello read", "hello rea", "ello read", "helo reddit",
-            "hell reddit", "hello redd", "hello redit", "allo reddit",
-            "hellow reddit", "hullo reddit", "halo reddit", "hello reddit it",
-            "hello read itt", "hello reddit you", "hello reddits"
+            // Primary Hindi pattern
+            "जादूगर",
+
+            // Minor spelling variations
+            "जादुगर",
+            "जादू गर"
         )
     }
 
+    // Thread-safe mutex for state operations
+    private val stateMutex = Mutex()
+
     private var model: Model? = null
-    private var speechService: HighSensitivitySpeechService? = null  // Custom high-gain audio service
+    private var speechService: HighSensitivitySpeechService? = null
     private var recognizer: Recognizer? = null
 
     // Flag to auto-start listening after initialization
+    @Volatile
     private var shouldStartAfterInit = false
 
     // Flag to prevent multiple wake word callbacks from same detection
@@ -103,8 +117,61 @@ class VoskWakeWordManager(
     val initError: StateFlow<String?> = _initError.asStateFlow()
 
     /**
+     * Check if the native model is still valid.
+     * After process death, native objects become invalid even though references exist.
+     * This safely tests model validity without crashing.
+     */
+    private fun isModelValid(): Boolean {
+        val m = model ?: return false
+        return try {
+            // Try to create a recognizer - if model is invalid, this will throw
+            val testRecognizer = Recognizer(m, SAMPLE_RATE)
+            testRecognizer.close()
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Model validity check failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Force invalidate all state - used after detecting invalid model.
+     * This resets everything so re-initialization can occur.
+     */
+    private fun invalidateState() {
+        Log.w(TAG, "Invalidating all Vosk state for re-initialization")
+
+        // Stop any active listening
+        try {
+            speechService?.stop()
+            speechService?.shutdown()
+        } catch (_: Exception) {}
+        speechService = null
+
+        // Close recognizer
+        try {
+            recognizer?.close()
+        } catch (_: Exception) {}
+        recognizer = null
+
+        // Close model
+        try {
+            model?.close()
+        } catch (_: Exception) {}
+        model = null
+
+        // Reset state flags
+        _isInitialized.value = false
+        _isListening.value = false
+        isInitializing = false
+        wakeWordTriggered = false
+    }
+
+    /**
      * Initialize Vosk model asynchronously.
      * Call this once during app startup.
+     *
+     * PROCESS DEATH SAFE: Checks model validity and re-initializes if needed.
      *
      * Timing:
      * - First run: 5-15 seconds (extracts ~50MB model to internal storage)
@@ -116,30 +183,40 @@ class VoskWakeWordManager(
             Log.d(TAG, "Manager destroyed - aborting initialization")
             return
         }
+
+        // If we think we're initialized, verify model is actually valid
         if (_isInitialized.value) {
-            Log.d(TAG, "Already initialized")
-            return
+            if (isModelValid()) {
+                Log.d(TAG, "Already initialized with valid model")
+                return
+            } else {
+                // Model became invalid (process death) - need to reinitialize
+                Log.w(TAG, "Model invalid after process death - reinitializing")
+                invalidateState()
+            }
         }
+
         if (isInitializing) {
             Log.d(TAG, "Initialization already in progress")
             return
         }
 
         isInitializing = true
+        _initError.value = null
 
         try {
             // Enable Vosk logging for debugging
             LibVosk.setLogLevel(LogLevel.INFO)
 
             val startTime = System.currentTimeMillis()
-            Log.i(TAG, "Unpacking Vosk model from assets: $MODEL_PATH")
+            Log.i(TAG, "Unpacking Vosk Hindi model from assets: $MODEL_PATH")
 
             // StorageService.unpack already runs on background thread
             // Callbacks are invoked on main thread
             StorageService.unpack(
                 context,
                 MODEL_PATH,
-                "model",
+                "model-hi",  // Different folder name to avoid conflicts
                 { loadedModel ->
                     // CRITICAL: Check if destroyed before proceeding with callback
                     // This handles the case where user closes app during model loading
@@ -153,7 +230,7 @@ class VoskWakeWordManager(
                     }
 
                     val elapsed = System.currentTimeMillis() - startTime
-                    Log.i(TAG, "Model unpacked in ${elapsed}ms")
+                    Log.i(TAG, "Hindi model unpacked in ${elapsed}ms")
                     model = loadedModel
                     isInitializing = false
                     setupRecognizer()
@@ -166,7 +243,7 @@ class VoskWakeWordManager(
                         return@unpack
                     }
 
-                    val errorMsg = "Failed to unpack model: ${exception.message}"
+                    val errorMsg = "Failed to unpack Hindi model: ${exception.message}"
                     Log.e(TAG, errorMsg, exception)
                     _initError.value = errorMsg
                     isInitializing = false
@@ -193,31 +270,33 @@ class VoskWakeWordManager(
         }
 
         try {
-            model?.let { m ->
-                // Use full vocabulary mode for maximum compatibility
-                // Static graph models don't support grammar restriction
-                recognizer = if (GRAMMAR != null) {
-                    Log.i(TAG, "Creating recognizer with grammar: $GRAMMAR")
-                    Recognizer(m, SAMPLE_RATE, GRAMMAR)
-                } else {
-                    Log.i(TAG, "Creating recognizer with full vocabulary (no grammar)")
-                    Recognizer(m, SAMPLE_RATE)
-                }
-
-                _isInitialized.value = true
-                _initError.value = null
-                Log.i(TAG, "Recognizer ready - listening for '$WAKE_WORD'")
-
-                // Auto-start if startListening was called before init completed
-                // But only if not destroyed
-                if (shouldStartAfterInit && !isDestroyed) {
-                    shouldStartAfterInit = false
-                    Log.i(TAG, "Auto-starting listener after init")
-                    startListening()
-                }
-            } ?: run {
+            val m = model
+            if (m == null) {
                 Log.e(TAG, "Cannot setup recognizer - model is null")
                 _initError.value = "Model not loaded"
+                return
+            }
+
+            // Use full vocabulary mode for maximum compatibility
+            // Static graph models don't support grammar restriction
+            recognizer = if (GRAMMAR != null) {
+                Log.i(TAG, "Creating recognizer with grammar: $GRAMMAR")
+                Recognizer(m, SAMPLE_RATE, GRAMMAR)
+            } else {
+                Log.i(TAG, "Creating recognizer with full vocabulary (no grammar)")
+                Recognizer(m, SAMPLE_RATE)
+            }
+
+            _isInitialized.value = true
+            _initError.value = null
+            Log.i(TAG, "Recognizer ready - listening for Hindi wake word '$WAKE_WORD' (Jaadoogar)")
+
+            // Auto-start if startListening was called before init completed
+            // But only if not destroyed
+            if (shouldStartAfterInit && !isDestroyed) {
+                shouldStartAfterInit = false
+                Log.i(TAG, "Auto-starting listener after init")
+                startListening()
             }
         } catch (e: Exception) {
             val errorMsg = "Failed to create recognizer: ${e.message}"
@@ -230,6 +309,8 @@ class VoskWakeWordManager(
      * Start listening for the wake word.
      * Call this when app comes to foreground.
      * If model is still loading, will auto-start when ready.
+     *
+     * PROCESS DEATH SAFE: Validates model before starting.
      */
     fun startListening() {
         // CRITICAL: Check if destroyed
@@ -237,11 +318,26 @@ class VoskWakeWordManager(
             Log.d(TAG, "Manager destroyed - not starting listener")
             return
         }
+
+        // Check if model needs re-initialization after process death
+        if (_isInitialized.value && !isModelValid()) {
+            Log.w(TAG, "Model invalid - triggering re-initialization before listening")
+            invalidateState()
+            shouldStartAfterInit = true
+            initialize()
+            return
+        }
+
         if (!_isInitialized.value) {
             Log.w(TAG, "Not initialized yet - will start after init completes")
             shouldStartAfterInit = true
+            // Trigger initialization if not already in progress
+            if (!isInitializing) {
+                initialize()
+            }
             return
         }
+
         if (_isListening.value) {
             Log.d(TAG, "Already listening")
             return
@@ -249,7 +345,10 @@ class VoskWakeWordManager(
 
         val rec = recognizer
         if (rec == null) {
-            Log.e(TAG, "Cannot start - recognizer is null")
+            Log.e(TAG, "Cannot start - recognizer is null, triggering re-init")
+            invalidateState()
+            shouldStartAfterInit = true
+            initialize()
             return
         }
 
@@ -262,10 +361,18 @@ class VoskWakeWordManager(
             speechService = HighSensitivitySpeechService(rec, SAMPLE_RATE, AUDIO_GAIN)
             speechService?.startListening(this)
             _isListening.value = true
-            Log.i(TAG, "Started listening for wake word '$WAKE_WORD' with ${AUDIO_GAIN}x gain")
+            Log.i(TAG, "Started listening for Hindi wake word '$WAKE_WORD' with ${AUDIO_GAIN}x gain")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start speech service: ${e.message}", e)
             _initError.value = "Failed to start: ${e.message}"
+
+            // Might be invalid AudioRecord - try re-init
+            if (e is IllegalStateException) {
+                Log.w(TAG, "IllegalStateException - attempting recovery")
+                invalidateState()
+                shouldStartAfterInit = true
+                initialize()
+            }
         }
     }
 
@@ -285,12 +392,17 @@ class VoskWakeWordManager(
             Log.d(TAG, "Stopped listening")
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping: ${e.message}", e)
+            // Force cleanup even on error
+            speechService = null
+            _isListening.value = false
         }
     }
 
     /**
      * Restart listening after Google STT completes.
      * This re-enables wake word detection.
+     *
+     * PROCESS DEATH SAFE: Validates model and re-initializes if needed.
      */
     fun restartListening() {
         // CRITICAL: Check if destroyed
@@ -311,6 +423,15 @@ class VoskWakeWordManager(
             return
         }
 
+        // Check model validity - might be invalid after process death
+        if (!isModelValid()) {
+            Log.w(TAG, "Model invalid - triggering full re-initialization")
+            invalidateState()
+            shouldStartAfterInit = true
+            initialize()
+            return
+        }
+
         // Need to recreate recognizer after it's been used
         try {
             // Close old recognizer to prevent resource leak
@@ -321,22 +442,36 @@ class VoskWakeWordManager(
             }
             recognizer = null
 
-            model?.let { m ->
+            val m = model
+            if (m != null) {
                 recognizer = if (GRAMMAR != null) {
                     Recognizer(m, SAMPLE_RATE, GRAMMAR)
                 } else {
                     Recognizer(m, SAMPLE_RATE)
                 }
                 startListening()
-            } ?: run {
-                // Model is null and not initializing - need to reinitialize
+            } else {
+                // Model is null - need to reinitialize
                 Log.w(TAG, "Model is null - triggering re-initialization")
+                invalidateState()
                 shouldStartAfterInit = true
                 initialize()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to restart: ${e.message}", e)
+            // Attempt recovery through full re-init
+            invalidateState()
+            shouldStartAfterInit = true
+            initialize()
         }
+    }
+
+    /**
+     * Check if wake word detection is ready and operational.
+     * Use this before relying on wake word functionality.
+     */
+    fun isReady(): Boolean {
+        return !isDestroyed && _isInitialized.value && isModelValid()
     }
 
     /**
@@ -403,6 +538,11 @@ class VoskWakeWordManager(
         if (isDestroyed) return  // Ignore errors after destruction
         Log.e(TAG, "Recognition error: ${exception?.message}", exception)
         _initError.value = "Recognition error: ${exception?.message}"
+
+        // Check if error indicates invalid state - might need re-init
+        if (exception is IllegalStateException) {
+            Log.w(TAG, "IllegalStateException in recognition - may need re-init")
+        }
     }
 
     override fun onTimeout() {
@@ -430,16 +570,42 @@ class VoskWakeWordManager(
 
             if (text.isBlank()) return
 
+            // =====================================================
+            // DEBUG LOGGING: Log ALL recognized speech to logcat
+            // Filter in logcat using: VoskWakeWord or VOSK_SPEECH
+            // =====================================================
+            if (isPartial) {
+                // Log partial results (real-time as user speaks)
+                Log.d(TAG, "VOSK_SPEECH [PARTIAL]: \"$text\"")
+            } else {
+                // Log final results (after pause in speech)
+                Log.i(TAG, "VOSK_SPEECH [FINAL]: \"$text\"")
+            }
+
             // Check for wake word using pre-compiled patterns (faster than multiple contains)
             val lowerText = text.lowercase()
-            val detected = WAKE_WORD_PATTERNS.any { pattern -> lowerText.contains(pattern) }
+            val containsWakeWord = WAKE_WORD_PATTERNS.any { pattern ->
+                lowerText.contains(pattern) || text.contains(pattern)
+            }
 
-            if (detected) {
+            // Only trigger if wake word is standalone (not embedded in a longer sentence)
+            // Threshold: 4 words or less = intentional wake word
+            // More than 4 words = wake word used in conversation, ignore
+            val wordCount = text.trim().split("\\s+".toRegex()).size
+            val isStandalone = wordCount <= 4
+
+            if (containsWakeWord && !isStandalone) {
+                Log.d(TAG, "VOSK_SPEECH [IGNORED]: Wake word in sentence ($wordCount words): \"$text\"")
+            }
+
+            if (containsWakeWord && isStandalone) {
                 // Atomically set flag to prevent duplicate triggers
                 if (wakeWordTriggered || isDestroyed) return
                 wakeWordTriggered = true
 
-                Log.i(TAG, ">>> WAKE WORD DETECTED: '$text' <<<")
+                Log.w(TAG, "============================================")
+                Log.w(TAG, ">>> WAKE WORD DETECTED: '$text' <<<")
+                Log.w(TAG, "============================================")
 
                 // Stop listening to free the mic for Google STT
                 stopListening()
@@ -454,8 +620,9 @@ class VoskWakeWordManager(
                     }
                 }
             }
-        } catch (_: Exception) {
-            // Silently ignore parse errors - not critical
+        } catch (e: Exception) {
+            // Log parse errors for debugging
+            Log.w(TAG, "VOSK_SPEECH [PARSE_ERROR]: ${e.message}")
         }
     }
 }

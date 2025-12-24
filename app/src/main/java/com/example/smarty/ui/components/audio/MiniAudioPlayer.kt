@@ -70,7 +70,7 @@ fun MiniAudioPlayer(
                 .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 1. Visual Anchor: Living Orb Visualizer (reacts to music amplitude)
+                // 1. Visual Anchor: Living Orb Visualizer (reacts to music amplitude)
             Box(
                 modifier = Modifier.size(48.dp),
                 contentAlignment = Alignment.Center

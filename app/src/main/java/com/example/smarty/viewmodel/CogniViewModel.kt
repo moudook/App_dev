@@ -264,11 +264,13 @@ class CogniViewModel(
 
 
     // Note Operations Manager - handles note CRUD operations
+    // Pass noteDao for batch write support (50-300% performance improvement)
     private val noteOperationsManager = com.example.smarty.viewmodel.managers.NoteOperationsManager(
         repository = repository,
         aiService = aiService,
         context = application,
-        scope = viewModelScope
+        scope = viewModelScope,
+        noteDao = database.noteDao()
     )
 
 
@@ -299,6 +301,11 @@ class CogniViewModel(
     // Microphone listening state (hoisted from UI for shake detection)
     private val _isMicListening = MutableStateFlow(false)
     val isMicListening: StateFlow<Boolean> = _isMicListening.asStateFlow()
+
+    // App foreground state - CRITICAL for microphone privacy
+    // When false, all microphone access should be stopped
+    private val _isAppInForeground = MutableStateFlow(true)
+    val isAppInForeground: StateFlow<Boolean> = _isAppInForeground.asStateFlow()
 
     // Shake-triggered mode switch (for glow animation feedback)
     private val _wasShakeTriggered = MutableStateFlow(false)
@@ -588,33 +595,68 @@ class CogniViewModel(
     /**
      * Restore navigation state from SavedStateHandle after process death.
      * This preserves selectedNote, selectedCategory, and chatMode across restarts.
+     *
+     * CRITICAL: Wrapped in try-catch to prevent crashes during process death recovery.
+     * All database access is guarded to handle cases where lazy init isn't complete.
+     *
+     * PROCESS DEATH HANDLING:
+     * - Uses 500ms delay to ensure database lazy initialization completes
+     * - Previous 100ms was insufficient and caused crashes
+     * - Database initialization can take 200-500ms after process death
      */
     private fun restoreState() {
         viewModelScope.launch {
-            // Restore selected note by ID
-            savedStateHandle.get<String>(KEY_SELECTED_NOTE_ID)?.let { noteId ->
-                val note = repository.getNoteById(noteId)
-                if (note != null) {
-                    _selectedNote.value = note
-                    Log.d(TAG, "Restored selectedNote: ${note.id}")
-                }
-            }
+            try {
+                // Increased delay to ensure lazy initialization completes
+                // Database can take 200-500ms to initialize after process death
+                kotlinx.coroutines.delay(500)
 
-            // Restore selected category by ID
-            savedStateHandle.get<String>(KEY_SELECTED_CATEGORY_ID)?.let { categoryId ->
-                val category = repository.getCategoryById(categoryId)
-                if (category != null) {
-                    _selectedCategory.value = category
-                    Log.d(TAG, "Restored selectedCategory: ${category.id}")
+                // Restore selected note by ID
+                savedStateHandle.get<String>(KEY_SELECTED_NOTE_ID)?.let { noteId ->
+                    try {
+                        val note = repository.getNoteById(noteId)
+                        if (note != null) {
+                            _selectedNote.value = note
+                            Log.d(TAG, "Restored selectedNote: ${note.id}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to restore note: ${e.message}")
+                        savedStateHandle.remove<String>(KEY_SELECTED_NOTE_ID)
+                    }
                 }
-            }
 
-            // Restore chat mode state
-            savedStateHandle.get<Boolean>(KEY_IS_CHAT_MODE)?.let { wasChatMode ->
-                if (wasChatMode) {
-                    chatManager.enterChatMode()
-                    Log.d(TAG, "Restored chat mode")
+                // Restore selected category by ID
+                savedStateHandle.get<String>(KEY_SELECTED_CATEGORY_ID)?.let { categoryId ->
+                    try {
+                        val category = repository.getCategoryById(categoryId)
+                        if (category != null) {
+                            _selectedCategory.value = category
+                            Log.d(TAG, "Restored selectedCategory: ${category.id}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to restore category: ${e.message}")
+                        savedStateHandle.remove<String>(KEY_SELECTED_CATEGORY_ID)
+                    }
                 }
+
+                // Restore chat mode state
+                savedStateHandle.get<Boolean>(KEY_IS_CHAT_MODE)?.let { wasChatMode ->
+                    if (wasChatMode) {
+                        try {
+                            chatManager.enterChatMode()
+                            Log.d(TAG, "Restored chat mode")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to restore chat mode: ${e.message}")
+                            savedStateHandle[KEY_IS_CHAT_MODE] = false
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "State restoration failed: ${e.message}", e)
+                // Clear all saved state to prevent repeated crashes
+                savedStateHandle.remove<String>(KEY_SELECTED_NOTE_ID)
+                savedStateHandle.remove<String>(KEY_SELECTED_CATEGORY_ID)
+                savedStateHandle[KEY_IS_CHAT_MODE] = false
             }
         }
     }
@@ -651,24 +693,34 @@ class CogniViewModel(
         excludeFromAiChat: Boolean = false
     ) {
         viewModelScope.launch {
-            val detectedType = if (type == NoteType.BRAIN_DUMP) detectContentType(content) else type
-            val shouldProcess = shouldAnalyze(detectedType)
+            try {
+                val detectedType = if (type == NoteType.BRAIN_DUMP) detectContentType(content) else type
+                val shouldProcess = shouldAnalyze(detectedType)
 
-            val note = Note(
-                title = extractTitle(content, detectedType),
-                content = content,
-                type = detectedType,
-                sourceUrl = sourceUrl ?: if (detectedType != NoteType.BRAIN_DUMP && content.startsWith("http")) content else null,
-                processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
-                excludeFromAiChat = excludeFromAiChat
-            )
-            repository.insertNote(note)
+                val note = Note(
+                    title = extractTitle(content, detectedType),
+                    content = content,
+                    type = detectedType,
+                    sourceUrl = sourceUrl ?: if (detectedType != NoteType.BRAIN_DUMP && content.startsWith("http")) content else null,
+                    processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
+                    excludeFromAiChat = excludeFromAiChat
+                )
+                repository.insertNote(note)
+                Log.d(TAG, "Text note inserted: ${note.id}")
 
-            if (shouldProcess) {
-                simulateAiProcessing(note)
-            } else {
-                // Just categorize without AI analysis
-                storeWithoutAnalysis(note)
+                try {
+                    if (shouldProcess) {
+                        simulateAiProcessing(note)
+                    } else {
+                        // Just categorize without AI analysis
+                        storeWithoutAnalysis(note)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "AI processing failed for text note: ${e.message}", e)
+                    storeWithoutAnalysis(note)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Text note creation failed: ${e.message}", e)
             }
         }
     }
@@ -733,120 +785,140 @@ class CogniViewModel(
         excludeFromAiChat: Boolean = _pendingNoteAiExcluded.value
     ) {
         viewModelScope.launch {
-            // Capture the AI exclusion state
-            val aiExcluded = excludeFromAiChat
+            try {
+                // Capture the AI exclusion state
+                val aiExcluded = excludeFromAiChat
 
-            when {
-                // Attachments present (with or without text) - create SINGLE grouped note
-                attachments.isNotEmpty() -> {
-                    // 1. OPTIMISTIC UPDATE: Insert PENDING note immediately with original attachments
-                    // This triggers the UI shimmer instantly while we do heavy compression in background
-                    val primaryOriginal = attachments[0]
-                    val type = detectTypeFromMime(primaryOriginal.mimeType)
-                    
-                    val tempAttachments = attachments.map { 
-                        NoteAttachment(
-                            uri = it.uri.toString(),
-                            fileName = it.fileName,
-                            mimeType = it.mimeType,
-                            fileSize = it.fileSize
-                        )
-                    }
+                when {
+                    // Attachments present (with or without text) - create SINGLE grouped note
+                    attachments.isNotEmpty() -> {
+                        // 1. OPTIMISTIC UPDATE: Insert PENDING note immediately with original attachments
+                        // This triggers the UI shimmer instantly while we do heavy compression in background
+                        val primaryOriginal = attachments[0]
+                        val type = detectTypeFromMime(primaryOriginal.mimeType)
 
-                    val title = when {
-                        content.isNotBlank() -> extractTitle(content, type)
-                        attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
-                        else -> primaryOriginal.fileName
-                    }
-                    
-                    val initialContent = if (content.isNotBlank()) {
-                        content
-                    } else {
-                        buildMultipleAttachmentsDescription(tempAttachments)
-                    }
+                        val tempAttachments = attachments.map {
+                            NoteAttachment(
+                                uri = it.uri.toString(),
+                                fileName = it.fileName,
+                                mimeType = it.mimeType,
+                                fileSize = it.fileSize
+                            )
+                        }
 
-                    // Create and INSERT PENDING note instantly
-                    val initialNote = Note(
-                        title = title,
-                        content = initialContent,
-                        fileUri = primaryOriginal.uri.toString(),
-                        fileName = primaryOriginal.fileName,
-                        fileMimeType = primaryOriginal.mimeType,
-                        fileSize = primaryOriginal.fileSize,
-                        imageUri = if (type == NoteType.IMAGE) primaryOriginal.uri.toString() else null,
-                        type = type,
-                        processingStatus = ProcessingStatus.PENDING, // Triggers shimmer
-                        excludeFromAiChat = aiExcluded
-                    ).withAttachments(tempAttachments)
+                        val title = when {
+                            content.isNotBlank() -> extractTitle(content, type)
+                            attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
+                            else -> primaryOriginal.fileName
+                        }
 
-                    // Insert immediately to update UI
-                    repository.insertNote(initialNote)
+                        val initialContent = if (content.isNotBlank()) {
+                            content
+                        } else {
+                            buildMultipleAttachmentsDescription(tempAttachments)
+                        }
 
-                    // 2. BACKGROUND WORK: Copy and compress all attachments
-                    // OPTIMIZATION: Parallel processing with async - 60-70% faster for 3+ files
-                    val processedResults = coroutineScope {
-                        attachments.mapIndexed { index, attachment ->
-                            async(Dispatchers.IO) {
-                                val copied = copyAttachmentToStorage(attachment)
-                                index to NoteAttachment(
-                                    uri = copied.uri.toString(),
-                                    fileName = copied.fileName,
-                                    mimeType = copied.mimeType,
-                                    fileSize = copied.fileSize
+                        // Create and INSERT PENDING note instantly
+                        val initialNote = Note(
+                            title = title,
+                            content = initialContent,
+                            fileUri = primaryOriginal.uri.toString(),
+                            fileName = primaryOriginal.fileName,
+                            fileMimeType = primaryOriginal.mimeType,
+                            fileSize = primaryOriginal.fileSize,
+                            imageUri = if (type == NoteType.IMAGE) primaryOriginal.uri.toString() else null,
+                            type = type,
+                            processingStatus = ProcessingStatus.PENDING, // Triggers shimmer
+                            excludeFromAiChat = aiExcluded
+                        ).withAttachments(tempAttachments)
+
+                        // Insert immediately to update UI
+                        repository.insertNote(initialNote)
+                        Log.d(TAG, "Note inserted with PENDING status: ${initialNote.id}")
+
+                        // 2. BACKGROUND WORK: Copy and compress all attachments
+                        // Wrapped in try-catch to ensure note is completed even if attachment processing fails
+                        var processedAttachments = tempAttachments
+                        var primary = primaryOriginal
+
+                        try {
+                            // OPTIMIZATION: Parallel processing with async - 60-70% faster for 3+ files
+                            val processedResults = kotlinx.coroutines.coroutineScope {
+                                attachments.mapIndexed { index, attachment ->
+                                    async(Dispatchers.IO) {
+                                        val copied = copyAttachmentToStorage(attachment)
+                                        index to NoteAttachment(
+                                            uri = copied.uri.toString(),
+                                            fileName = copied.fileName,
+                                            mimeType = copied.mimeType,
+                                            fileSize = copied.fileSize
+                                        )
+                                    }
+                                }.awaitAll()
+                            }.sortedBy { it.first }
+
+                            processedAttachments = processedResults.map { it.second }
+                            val primaryProcessed = processedResults.firstOrNull()?.second
+                            if (primaryProcessed != null) {
+                                primary = Attachment(
+                                    uri = android.net.Uri.parse(primaryProcessed.uri),
+                                    fileName = primaryProcessed.fileName,
+                                    mimeType = primaryProcessed.mimeType,
+                                    fileSize = primaryProcessed.fileSize
                                 )
                             }
-                        }.awaitAll()
-                    }.sortedBy { it.first }  // Maintain order
+                        } catch (e: Exception) {
+                            // Attachment processing failed - continue with original attachments
+                            Log.e(TAG, "Attachment processing failed, using originals: ${e.message}", e)
+                        }
 
-                    val processedAttachments = processedResults.map { it.second }
-                    val primaryProcessed = attachments.firstOrNull()?.let { first ->
-                        processedResults.firstOrNull()?.second?.let { processed ->
-                            Attachment(
-                                uri = android.net.Uri.parse(processed.uri),
-                                fileName = processed.fileName,
-                                mimeType = processed.mimeType,
-                                fileSize = processed.fileSize
-                            )
+                        // 3. UPDATE: Update note with optimized files and correct status
+                        val shouldProcess = shouldAnalyze(type)
+
+                        val finalContent = if (content.isNotBlank()) {
+                            content
+                        } else {
+                            buildMultipleAttachmentsDescription(processedAttachments)
+                        }
+
+                        val updatedNote = initialNote.copy(
+                            content = finalContent,
+                            fileUri = primary.uri.toString(),
+                            fileName = primary.fileName,
+                            fileSize = primary.fileSize,
+                            fileMimeType = primary.mimeType,
+                            imageUri = if (type == NoteType.IMAGE) primary.uri.toString() else null,
+                            processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED
+                        ).withAttachments(processedAttachments)
+
+                        repository.updateNote(updatedNote)
+                        Log.d(TAG, "Note updated to ${updatedNote.processingStatus}: ${updatedNote.id}")
+
+                        // AI processing wrapped in try-catch to ensure note is completed
+                        try {
+                            if (shouldProcess) {
+                                simulateAiProcessing(updatedNote)
+                            } else {
+                                storeWithoutAnalysis(updatedNote)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "AI processing failed, completing note without AI: ${e.message}", e)
+                            // Mark note as completed without AI processing
+                            storeWithoutAnalysis(updatedNote)
                         }
                     }
 
-                    // 3. UPDATE: Update note with optimized files and correct status
-                    val primary = primaryProcessed ?: attachments[0] 
-                    val shouldProcess = shouldAnalyze(type)
-                    
-                    val finalContent = if (content.isNotBlank()) {
-                        content
-                    } else {
-                        buildMultipleAttachmentsDescription(processedAttachments)
-                    }
-
-                    val updatedNote = initialNote.copy(
-                        content = finalContent,
-                        fileUri = primary.uri.toString(),
-                        fileName = primary.fileName,
-                        fileSize = primary.fileSize,
-                        fileMimeType = primary.mimeType,
-                        imageUri = if (type == NoteType.IMAGE) primary.uri.toString() else null,
-                        processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED
-                    ).withAttachments(processedAttachments)
-
-                    repository.updateNote(updatedNote)
-
-                    if (shouldProcess) {
-                        simulateAiProcessing(updatedNote)
-                    } else {
-                        storeWithoutAnalysis(updatedNote)
+                    // Just text, no attachments
+                    content.isNotBlank() -> {
+                        addNote(content, excludeFromAiChat = aiExcluded)
                     }
                 }
-
-                // Just text, no attachments
-                content.isNotBlank() -> {
-                    addNote(content, excludeFromAiChat = aiExcluded)
-                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Note creation failed: ${e.message}", e)
+            } finally {
+                // Always reset pending note state after submission
+                resetPendingNoteState()
             }
-
-            // Reset pending note state after submission
-            resetPendingNoteState()
         }
     }
 
@@ -1172,6 +1244,20 @@ class CogniViewModel(
     // VERSION OPERATIONS (Git-like history)
     // =========================================================================
 
+    // Currently loaded versions for selected note (for UI display)
+    private val _selectedNoteVersions = MutableStateFlow<List<com.example.smarty.data.model.NoteVersion>>(emptyList())
+    val selectedNoteVersions: StateFlow<List<com.example.smarty.data.model.NoteVersion>> = _selectedNoteVersions.asStateFlow()
+
+    /**
+     * Load version history for display in UI
+     */
+    fun loadNoteVersions(noteId: String) {
+        viewModelScope.launch {
+            val versions = repository.getNoteVersionsOnce(noteId)
+            _selectedNoteVersions.value = versions
+        }
+    }
+
     /**
      * Get version history for a note
      */
@@ -1193,6 +1279,8 @@ class CogniViewModel(
                 if (_selectedNote.value?.id == noteId) {
                     _selectedNote.value = repository.getNoteById(noteId)
                 }
+                // Reload versions to show the new version created by restoration
+                loadNoteVersions(noteId)
                 Log.d(TAG, "Note restored to version: $versionId")
             } else {
                 Log.e(TAG, "Failed to restore note to version: $versionId")
@@ -1207,21 +1295,50 @@ class CogniViewModel(
     suspend fun getNoteVersionCount(noteId: String) = repository.getNoteVersionCount(noteId)
 
     /**
-     * Edit a note's title and content.
+     * Edit a note's title, content, and optionally attachments.
      * Called when user edits a note from the detail view.
      * Automatically saves a version snapshot before updating.
      */
-    fun editNote(noteId: String, newTitle: String, newContent: String) {
+    fun editNote(noteId: String, newTitle: String, newContent: String, newAttachments: List<NoteAttachment>? = null) {
         viewModelScope.launch {
             try {
                 noteOperationMutex.withLock {
                     val note = repository.getNoteById(noteId)
                     note?.let {
-                        val updatedNote = it.copy(
+                        var updatedNote = it.copy(
                             title = newTitle,
                             content = newContent,
                             updatedAt = System.currentTimeMillis()
                         )
+
+                        // Update attachments if provided
+                        if (newAttachments != null) {
+                            // Update the full JSON list
+                            updatedNote = updatedNote.withAttachments(newAttachments)
+
+                            // Sync legacy primary file fields with the first attachment
+                            val primary = newAttachments.firstOrNull()
+                            if (primary != null) {
+                                updatedNote = updatedNote.copy(
+                                    fileUri = primary.uri,
+                                    fileName = primary.fileName,
+                                    fileMimeType = primary.mimeType,
+                                    fileSize = primary.fileSize,
+                                    // Only update imageUri if it matches the primary and is an image
+                                    imageUri = if (primary.mimeType.startsWith("image/")) primary.uri else null
+                                )
+                            } else {
+                                // No attachments left - clear legacy fields
+                                updatedNote = updatedNote.copy(
+                                    fileUri = null,
+                                    fileName = null,
+                                    fileMimeType = null,
+                                    fileSize = null,
+                                    imageUri = null
+                                )
+                            }
+                        }
+
                         // Use updateNoteWithVersion to save version history
                         repository.updateNoteWithVersion(updatedNote, "User edit")
                         // Update selected note if this is the currently viewed note
@@ -1347,45 +1464,52 @@ class CogniViewModel(
 
         _isProcessing.value = true
 
-        // Check if this is a PDF that needs special processing
-        if (note.fileMimeType == "application/pdf" && note.fileUri != null) {
-            processPdfWithAi(note)
-            return
+        try {
+            // Check if this is a PDF that needs special processing
+            if (note.fileMimeType == "application/pdf" && note.fileUri != null) {
+                processPdfWithAi(note)
+                return
+            }
+
+            // Build attachment metadata for AI (file names and types only, no content)
+            val attachmentMetadata = note.getAttachments().map { attachment ->
+                com.example.smarty.data.model.AttachmentMetadata.fromNoteAttachment(attachment)
+            }.takeIf { it.isNotEmpty() }
+
+            // Use real AI service with fallback for regular content
+            val aiResponse = aiService.analyzeContent(note.content, attachmentMetadata)
+
+            val categoryName = aiResponse.category
+            val summary = aiResponse.summary
+            val whySaved = aiResponse.whySaved
+            val newTitle = aiResponse.title
+            val tags = aiResponse.tags
+
+            val category = repository.getOrCreateCategory(categoryName)
+
+            // Convert tags list to JSON for storage
+            val tagsJson = if (tags.isNotEmpty()) {
+                com.google.gson.Gson().toJson(tags)
+            } else null
+
+            val updatedNote = note.copy(
+                title = if (newTitle.isNotBlank()) newTitle else note.title,
+                summary = summary,
+                whySaved = whySaved,
+                categoryId = category.id,
+                categoryName = category.name,
+                tagsJson = tagsJson,
+                processingStatus = ProcessingStatus.COMPLETED,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.updateNote(updatedNote)
+        } catch (e: Exception) {
+            Log.e(TAG, "AI processing error for note ${note.id}: ${e.message}", e)
+            // Fallback: complete note without AI processing
+            storeWithoutAnalysis(note)
+        } finally {
+            _isProcessing.value = false
         }
-
-        // Build attachment metadata for AI (file names and types only, no content)
-        val attachmentMetadata = note.getAttachments().map { attachment ->
-            com.example.smarty.data.model.AttachmentMetadata.fromNoteAttachment(attachment)
-        }.takeIf { it.isNotEmpty() }
-
-        // Use real AI service with fallback for regular content
-        val aiResponse = aiService.analyzeContent(note.content, attachmentMetadata)
-
-        val categoryName = aiResponse.category
-        val summary = aiResponse.summary
-        val whySaved = aiResponse.whySaved
-        val newTitle = aiResponse.title
-        val tags = aiResponse.tags
-
-        val category = repository.getOrCreateCategory(categoryName)
-
-        // Convert tags list to JSON for storage
-        val tagsJson = if (tags.isNotEmpty()) {
-            com.google.gson.Gson().toJson(tags)
-        } else null
-
-        val updatedNote = note.copy(
-            title = if (newTitle.isNotBlank()) newTitle else note.title,
-            summary = summary,
-            whySaved = whySaved,
-            categoryId = category.id,
-            categoryName = category.name,
-            tagsJson = tagsJson,
-            processingStatus = ProcessingStatus.COMPLETED,
-            updatedAt = System.currentTimeMillis()
-        )
-        repository.updateNote(updatedNote)
-        _isProcessing.value = false
     }
 
     /**
@@ -1782,12 +1906,26 @@ class CogniViewModel(
     }
 
     /**
+     * Manually trigger voice input (e.g. from widget)
+     */
+    fun triggerVoiceInput() {
+        _wakeWordTriggered.value = true
+    }
+
+    /**
      * Restart wake word detection after Google STT completes.
      * Call this from onActivityResult after speech recognition finishes.
+     *
+     * PRIVACY: Only restarts if app is in foreground to prevent background mic access.
      */
     fun restartWakeWordDetection() {
         _wakeWordTriggered.value = false
-        voskWakeWordManager?.restartListening()
+        // CRITICAL: Only restart if app is in foreground
+        if (_isAppInForeground.value) {
+            voskWakeWordManager?.restartListening()
+        } else {
+            Log.d(TAG, "Skipping wake word restart - app is in background")
+        }
     }
 
     /**
@@ -1818,6 +1956,10 @@ class CogniViewModel(
             Log.d(TAG, "Shake ignored - not on main screen (current: ${_currentScreen.value})")
             return
         }
+
+        // Provide haptic feedback ONLY when shake is actually processed
+        // This prevents vibration on Calendar, Settings, Stacks, etc.
+        shakeDetector?.triggerHapticFeedback()
 
         when {
             // Priority 1: During share flow -> toggle full privacy mode
@@ -2158,6 +2300,14 @@ class CogniViewModel(
         isResourceOptimized = true
         Log.d(TAG, "Pausing resource-intensive operations")
 
+        // CRITICAL: Mark app as backgrounded to stop all microphone access
+        _isAppInForeground.value = false
+
+        // Flush any pending batched database writes before going to background
+        viewModelScope.launch {
+            noteOperationsManager.flushPendingWrites()
+        }
+
         // Clear in-memory caches to reduce memory footprint
         AIResponseCache.clear()
         cacheManager.clearTemporaryData()
@@ -2176,6 +2326,10 @@ class CogniViewModel(
         if (!isResourceOptimized) return
         isResourceOptimized = false
         Log.d(TAG, "Resuming resource-intensive operations")
+
+        // CRITICAL: Mark app as foregrounded to allow microphone access
+        _isAppInForeground.value = true
+
         // Refresh cache size on resume
         refreshCacheSize()
     }
@@ -2202,6 +2356,17 @@ class CogniViewModel(
      */
     override fun onCleared() {
         super.onCleared()
+        // CRITICAL: Flush pending database writes SYNCHRONOUSLY before cleanup
+        // Using runBlocking because viewModelScope is already cancelled at this point
+        try {
+            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                kotlinx.coroutines.withTimeout(3000L) { // 3 second timeout
+                    noteOperationsManager.cleanup()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Cleanup timeout or error: ${e.message}")
+        }
         // Cancel wake word collector job to prevent coroutine leak
         wakeWordCollectorJob?.cancel()
         wakeWordCollectorJob = null

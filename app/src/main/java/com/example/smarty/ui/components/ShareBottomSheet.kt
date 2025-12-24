@@ -90,9 +90,11 @@ fun ShareBottomSheet(
     onDismiss: () -> Unit,
     onSave: (selectedCategory: String?, aiInstructions: String) -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf<String?>(pendingShare.suggestedCategory) }
-    var letAIDecide by remember { mutableStateOf(!isFullPrivacy) }
-    var aiInstructions by remember { mutableStateOf("") }
+    // Add pendingShare as dependency to reset state when share data changes
+    val shareKey = pendingShare.text ?: pendingShare.fileUri ?: pendingShare.fileName
+    var selectedCategory by remember(shareKey) { mutableStateOf<String?>(pendingShare.suggestedCategory) }
+    var letAIDecide by remember(shareKey, isFullPrivacy) { mutableStateOf(!isFullPrivacy) }
+    var aiInstructions by remember(shareKey) { mutableStateOf("") }
 
     LaunchedEffect(isFullPrivacy) {
         if (isFullPrivacy) {

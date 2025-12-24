@@ -97,23 +97,23 @@ fun StartupScreen(
 
     // --- ANIMATION SEQUENCE ---
     LaunchedEffect(Unit) {
-        // Phase 1: Fade In
+        // Phase 1: Fade In (faster)
         introAlpha.animateTo(
             targetValue = 1f,
-            animationSpec = tween(1500, easing = EaseInOutSine)
+            animationSpec = tween(800, easing = EaseInOutSine)
         )
 
-        delay(2500)
+        delay(1000)
 
-        // Phase 2: Show Logo (parallel)
+        // Phase 2: Show Logo (parallel - faster)
         launch {
-            logoAlpha.animateTo(1f, tween(800))
+            logoAlpha.animateTo(1f, tween(400))
         }
 
-        // Phase 3: Expansion
+        // Phase 3: Expansion (faster)
         expansionScale.animateTo(
             targetValue = 40f,
-            animationSpec = tween(1200, easing = EaseInExpo)
+            animationSpec = tween(600, easing = EaseInExpo)
         )
 
         onComplete()

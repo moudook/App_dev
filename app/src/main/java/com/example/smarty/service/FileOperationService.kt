@@ -48,7 +48,7 @@ class FileOperationService : Service() {
     companion object {
         private const val TAG = "FileOperationService"
         private const val CHANNEL_ID = "file_operations_channel"
-        private const val NOTIFICATION_ID = 1001
+        private const val NOTIFICATION_ID = 1002  // Unique ID to avoid conflicts with other services
 
         // Actions
         const val ACTION_COMPRESS_FILE = "com.example.smarty.action.COMPRESS_FILE"
@@ -358,7 +358,7 @@ class FileOperationService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Cogni")
+            .setContentTitle("Loum")
             .setContentText(message)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_LOW)

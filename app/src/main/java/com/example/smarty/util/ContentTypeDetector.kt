@@ -146,7 +146,7 @@ object ContentTypeDetector {
     private val STORAGE_CATEGORY_MAP: Map<NoteType, String> = hashMapOf(
         NoteType.APK to "Saved Apps",
         NoteType.ARCHIVE to "Saved Archives",
-        NoteType.CODE to "Saved Code",
+        NoteType.VIDEO to "Saved Videos",
         NoteType.AUDIO to "Saved Audio",
         NoteType.FILE to "Saved Files"
     )

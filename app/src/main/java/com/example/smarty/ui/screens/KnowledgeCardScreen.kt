@@ -34,6 +34,7 @@ import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
+import com.example.smarty.data.model.NoteVersion
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.ui.components.CategoryChip
 import com.example.smarty.ui.components.DecompressionPlaceholder
@@ -65,15 +66,20 @@ fun KnowledgeCardScreen(
     onBackClick: () -> Unit,
     onArchiveClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onEditNote: (String, String, String) -> Unit = { _, _, _ -> },  // noteId, newTitle, newContent
+    onEditNote: (String, String, String, List<NoteAttachment>) -> Unit = { _, _, _, _ -> },  // noteId, newTitle, newContent, attachments
     onPlayAudio: (AudioTrack) -> Unit = {},
     onMarkAsViewed: () -> Unit = {},
+    // Version history callbacks
+    noteVersions: List<NoteVersion> = emptyList(),
+    onLoadVersions: () -> Unit = {},
+    onRestoreVersion: (String) -> Unit = {},  // versionId
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditSheet by remember { mutableStateOf(false) }
+    var showVersionHistory by remember { mutableStateOf(false) }
 
     // Viewer states
     var showImageViewer by remember { mutableStateOf(false) }
@@ -225,57 +231,35 @@ fun KnowledgeCardScreen(
                 )
             }
 
-            // Image Preview Section (for image notes or notes with image attachments)
-            if (note.type == NoteType.IMAGE || note.imageUri != null) {
-                val imageUri = note.imageUri ?: note.fileUri
-                if (imageUri != null) {
-                    ImagePreviewSection(
-                        imageUri = imageUri,
-                        fileName = note.fileName,
-                        onOpenImage = {
-                            imageViewerUri = imageUri
-                            showImageViewer = true
-                        }
-                    )
-                }
-            }
-
-            // Video Preview Section (for video notes)
-            if (note.type == NoteType.VIDEO || note.fileMimeType?.startsWith("video/") == true) {
-                val videoUri = note.fileUri ?: note.imageUri
-                if (videoUri != null) {
-                    VideoPreviewSection(
-                        videoUri = videoUri,
-                        fileName = note.fileName,
-                        fileSize = note.fileSize,
-                        onPlayVideo = {
-                            videoPlayerUri = videoUri
-                            showVideoPlayer = true
-                        }
-                    )
-                }
-            }
-
-            // Document/File Preview Section (for documents, spreadsheets, etc.)
-            if (note.fileUri != null && note.type !in listOf(NoteType.IMAGE, NoteType.VIDEO, NoteType.AUDIO)) {
-                FilePreviewSection(
-                    fileName = note.fileName ?: "Attached file",
-                    fileSize = note.fileSize,
-                    mimeType = note.fileMimeType,
-                    onOpenFile = {
-                        documentViewerUri = note.fileUri
-                        documentViewerMimeType = note.fileMimeType
-                        documentViewerFileName = note.fileName
-                        showDocumentViewer = true
-                    }
-                )
-            }
-
-            // Multiple Attachments Section
+            // Unified File/Attachment Section
+            // We combine legacy main file (if no attachments exist) with the attachments list
+            // to avoid duplicates and ensure a consistent list UI.
             val attachments = note.getAttachments()
-            if (attachments.size > 1) {
+            
+            val legacyMainAttachment = if (attachments.isEmpty() && note.type != NoteType.AUDIO && (note.imageUri != null || note.fileUri != null)) {
+                val uri = note.imageUri ?: note.fileUri
+                if (uri != null) {
+                    val fallbackMime = when (note.type) {
+                        NoteType.IMAGE -> "image/*"
+                        NoteType.VIDEO -> "video/*"
+                        else -> "*/*"
+                    }
+                    NoteAttachment(
+                        uri = uri,
+                        fileName = note.fileName ?: "File",
+                        mimeType = note.fileMimeType ?: fallbackMime,
+                        fileSize = note.fileSize ?: 0L
+                    )
+                } else null
+            } else null
+
+            val otherAttachments = attachments.filter { !it.mimeType.startsWith("audio/") } + listOfNotNull(legacyMainAttachment)
+            val audioAttachments = attachments.filter { it.mimeType.startsWith("audio/") }
+
+            // 1. Render Non-Audio Attachments
+            if (otherAttachments.isNotEmpty()) {
                 MultipleAttachmentsSection(
-                    attachments = attachments,
+                    attachments = otherAttachments,
                     onOpenAttachment = { attachment ->
                         val mimeType = attachment.mimeType.ifEmpty { "*/*" }
                         when {
@@ -298,56 +282,81 @@ fun KnowledgeCardScreen(
                 )
             }
 
-            // Audio Playback Section (for audio notes)
-            if (note.type == NoteType.AUDIO && note.fileUri != null) {
+            // 2. Audio Gallery Section (Unified for all audio files)
+            // Combine strict attachments with legacy fileUri if applicable (for backward compatibility)
+            val legacyAudioItem = if (note.type == NoteType.AUDIO && note.fileUri != null && attachments.isEmpty()) {
+                NoteAttachment(
+                    uri = note.fileUri,
+                    fileName = note.fileName ?: "Audio file",
+                    mimeType = "audio/*",
+                    fileSize = note.fileSize ?: 0L
+                )
+            } else null
+
+            // Combine both sources
+            val allAudioItems = audioAttachments + listOfNotNull(legacyAudioItem)
+
+            if (allAudioItems.isNotEmpty()) {
                 SectionCard(
-                    title = "Audio",
+                    title = if (allAudioItems.size > 1) "${allAudioItems.size} Audio Files" else "Audio",
                     icon = Icons.Default.MusicNote,
                     accentColor = AudioPink
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = note.fileName ?: "Audio file",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            note.fileSize?.let { size ->
-                                Text(
-                                    text = formatFileSize(size),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        allAudioItems.forEachIndexed { index, audioItem ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = audioItem.fileName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val sizeText = if (audioItem.fileSize > 0) formatFileSize(audioItem.fileSize) else null
+                                    if (sizeText != null) {
+                                        Text(
+                                            text = sizeText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                FilledIconButton(
+                                    onClick = {
+                                        val track = AudioTrack(
+                                            uri = audioItem.uri,
+                                            title = note.title, // Use note title as context
+                                            fileName = audioItem.fileName,
+                                            sourceNoteId = note.id,
+                                            mimeType = audioItem.mimeType
+                                        )
+                                        onPlayAudio(track)
+                                    },
+                                    colors = IconButtonDefaults.filledIconButtonColors(
+                                        containerColor = AudioPink,
+                                        contentColor = MaterialTheme.colorScheme.surface
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play audio"
+                                    )
+                                }
+                            }
+                            
+                            // Divider between items
+                            if (index < allAudioItems.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                                 )
                             }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                            FilledIconButton(
-                            onClick = {
-                                val mimeType = context.contentResolver.getType(Uri.parse(note.fileUri))
-                                val track = AudioTrack(
-                                    uri = note.fileUri!!,
-                                    title = note.title,
-                                    fileName = note.fileName,
-                                    sourceNoteId = note.id,
-                                    mimeType = mimeType
-                                )
-                                onPlayAudio(track)
-                            },
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = AudioPink,
-                                contentColor = MaterialTheme.colorScheme.surface
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Play audio"
-                            )
                         }
                     }
                 }
@@ -397,6 +406,34 @@ fun KnowledgeCardScreen(
                     text = "ID: ${note.id.take(8)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+            }
+
+            // Version History Button
+            OutlinedButton(
+                onClick = {
+                    onLoadVersions()
+                    showVersionHistory = true
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.History,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "View History",
+                    style = MaterialTheme.typography.labelLarge
                 )
             }
         }
@@ -480,12 +517,40 @@ fun KnowledgeCardScreen(
 
     // Edit Note Sheet
     if (showEditSheet) {
+        val initialAttachments = remember(note) {
+            val list = note.getAttachments().toMutableList()
+            if (list.isEmpty() && note.fileUri != null) {
+                list.add(
+                    NoteAttachment(
+                        uri = note.fileUri,
+                        fileName = note.fileName ?: "File",
+                        mimeType = note.fileMimeType ?: "*/*",
+                        fileSize = note.fileSize ?: 0L
+                    )
+                )
+            }
+            list
+        }
+
         EditNoteSheet(
             note = note,
+            initialAttachments = initialAttachments,
             onDismiss = { showEditSheet = false },
-            onSave = { newTitle, newContent ->
-                onEditNote(note.id, newTitle, newContent)
+            onSave = { newTitle, newContent, newAttachments ->
+                onEditNote(note.id, newTitle, newContent, newAttachments)
                 showEditSheet = false
+            }
+        )
+    }
+
+    // Version History Sheet
+    if (showVersionHistory) {
+        VersionHistorySheet(
+            versions = noteVersions,
+            onDismiss = { showVersionHistory = false },
+            onRestoreVersion = { versionId ->
+                onRestoreVersion(versionId)
+                showVersionHistory = false
             }
         )
     }
@@ -576,131 +641,37 @@ private fun formatDate(timestamp: Long): String {
 
 private fun formatFileSize(bytes: Long): String = com.example.smarty.util.ContentTypeDetector.formatFileSize(bytes)
 
-/**
- * Image preview section showing full-width image with tap to open.
- * Supports decompression of WebP compressed images with shimmer effect.
- */
-@Composable
-private fun ImagePreviewSection(
-    imageUri: String,
-    fileName: String?,
-    onOpenImage: () -> Unit
-) {
-    SectionCard(
-        title = "Image",
-        icon = Icons.Default.Image,
-        accentColor = LocalAccentColor.current
-    ) {
-        CompactFileRow(
-            fileName = fileName ?: "Image",
-            fileSize = null, // Size might not be available here, or we can pass it if we have it
-            mimeType = "image/*",
-            onAction = onOpenImage
-        )
-    }
-}
 
-/**
- * Video preview section with thumbnail and play button
- */
-@Composable
-private fun VideoPreviewSection(
-    videoUri: String,
-    fileName: String?,
-    fileSize: Long?,
-    onPlayVideo: () -> Unit
-) {
-    SectionCard(
-        title = "Video",
-        icon = Icons.Default.VideoFile,
-        accentColor = com.example.smarty.ui.theme.VideoRed
-    ) {
-        CompactFileRow(
-            fileName = fileName ?: "Video",
-            fileSize = fileSize,
-            mimeType = "video/*",
-            onAction = onPlayVideo
-        )
-    }
-}
-
-/**
- * File/Document preview section for non-media files
- */
-@Composable
-private fun FilePreviewSection(
-    fileName: String,
-    fileSize: Long?,
-    mimeType: String?,
-    onOpenFile: () -> Unit
-) {
-    // Determine icon color
-    val iconColor = when {
-        mimeType?.contains("pdf") == true -> com.example.smarty.ui.theme.DocumentBlue
-        mimeType?.contains("sheet") == true || mimeType?.contains("excel") == true -> com.example.smarty.ui.theme.SpreadsheetGreen
-        mimeType?.contains("presentation") == true -> com.example.smarty.ui.theme.PresentationOrange
-        mimeType?.contains("zip") == true -> com.example.smarty.ui.theme.ArchiveYellow
-        mimeType == "application/vnd.android.package-archive" -> com.example.smarty.ui.theme.ApkGreen
-        else -> com.example.smarty.ui.theme.FileGray
-    }
-
-    SectionCard(
-        title = "Attachment",
-        icon = Icons.Default.AttachFile,
-        accentColor = iconColor
-    ) {
-        CompactFileRow(
-            fileName = fileName,
-            fileSize = fileSize,
-            mimeType = mimeType ?: "*/*",
-            onAction = onOpenFile
-        )
-    }
-}
 
 /**
  * Section displaying multiple attachments as a list of clickable items
- * Each attachment shows: icon, file name, size, and open button
+ * Each attachment shows: icon, file name, size (no header, just items)
  */
 @Composable
 private fun MultipleAttachmentsSection(
     attachments: List<NoteAttachment>,
     onOpenAttachment: (NoteAttachment) -> Unit
 ) {
-    // Determine header based on attachment types
-    val allImages = attachments.all { it.mimeType.startsWith("image/") }
-    val allVideos = attachments.all { it.mimeType.startsWith("video/") }
-    val allAudio = attachments.all { it.mimeType.startsWith("audio/") }
-
-    val (headerTitle, headerIcon, headerColor) = when {
-        allImages -> Triple("${attachments.size} Images", Icons.Default.Photo, com.example.smarty.ui.theme.ImageTeal)
-        allVideos -> Triple("${attachments.size} Videos", Icons.Default.Videocam, com.example.smarty.ui.theme.VideoRed)
-        allAudio -> Triple("${attachments.size} Audio Files", Icons.Default.MusicNote, AudioPink)
-        else -> Triple("${attachments.size} Attachments", Icons.Default.AttachFile, com.example.smarty.ui.theme.FileGray)
-    }
-
-    SectionCard(
-        title = headerTitle,
-        icon = headerIcon,
-        accentColor = headerColor
+    // Just show the items directly without a section header
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            attachments.forEachIndexed { index, attachment ->
-                AttachmentItem(
-                    attachment = attachment,
-                    index = index + 1,
-                    onOpen = { onOpenAttachment(attachment) }
-                )
+        attachments.forEachIndexed { index, attachment ->
+            AttachmentItem(
+                attachment = attachment,
+                index = index + 1,
+                onOpen = { onOpenAttachment(attachment) }
+            )
 
-                // Add divider between items (but not after the last)
-                if (index < attachments.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                    )
-                }
+            // Add divider between items (but not after the last)
+            if (index < attachments.lastIndex) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                )
             }
         }
     }
@@ -805,24 +776,8 @@ private fun CompactFileRow(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // Action Button
-        FilledIconButton(
-            onClick = onAction,
-            modifier = Modifier.size(36.dp),
-            colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = iconColor,
-                contentColor = Color.White
-            )
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = "Open",
-                modifier = Modifier.size(16.dp)
-            )
-        }
+        
+        // Removed separate open button as per request - whole row is clickable
     }
 }
 
@@ -918,11 +873,26 @@ private fun PrivacyBanner() {
 @Composable
 private fun EditNoteSheet(
     note: Note,
+    initialAttachments: List<NoteAttachment>,
     onDismiss: () -> Unit,
-    onSave: (title: String, content: String) -> Unit
+    onSave: (title: String, content: String, attachments: List<NoteAttachment>) -> Unit
 ) {
-    var editedTitle by remember { mutableStateOf(note.title) }
-    var editedContent by remember { mutableStateOf(note.content) }
+    // Add note.id as dependency to reset state when note changes
+    var editedTitle by remember(note.id) { mutableStateOf(note.title) }
+
+    // Clean up content if it contains the auto-generated attachment header
+    var editedContent by remember(note.id) {
+        mutableStateOf(
+            if (note.content.contains("files attached:\n\n")) {
+                // If it looks like a generated list, start with empty content
+                ""
+            } else {
+                note.content
+            }
+        )
+    }
+
+    var currentAttachments by remember(note.id, initialAttachments) { mutableStateOf(initialAttachments) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -967,13 +937,89 @@ private fun EditNoteSheet(
                         Text("Cancel")
                     }
                     Button(
-                        onClick = { onSave(editedTitle, editedContent) },
+                        onClick = { 
+                            // filtering duplicates before saving
+                            onSave(editedTitle, editedContent, currentAttachments.distinctBy { it.uri }) 
+                        },
                         enabled = editedTitle.isNotBlank(),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text("Save")
                     }
                 }
+            }
+
+            // Attachments Management Section
+            if (currentAttachments.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Attachments",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(12.dp))
+                    ) {
+                        currentAttachments.forEachIndexed { index, attachment ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = when {
+                                            attachment.mimeType.startsWith("image/") -> Icons.Default.Photo
+                                            attachment.mimeType.startsWith("audio/") -> Icons.Default.MusicNote
+                                            attachment.mimeType.startsWith("video/") -> Icons.Default.Videocam
+                                            else -> Icons.Default.AttachFile
+                                        },
+                                        contentDescription = null,
+                                        tint = LocalAccentColor.current,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = attachment.fileName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                
+                                // Remove Button
+                                IconButton(
+                                    onClick = { 
+                                        currentAttachments = currentAttachments.toMutableList().apply { removeAt(index) }
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove attachment",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            
+                            if (index < currentAttachments.lastIndex) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // Title Field
@@ -1003,6 +1049,295 @@ private fun EditNoteSheet(
                     focusedBorderColor = LocalAccentColor.current,
                     focusedLabelColor = LocalAccentColor.current
                 )
+            )
+        }
+    }
+}
+
+/**
+ * Version History Sheet - displays past versions of a note with ability to restore
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VersionHistorySheet(
+    versions: List<NoteVersion>,
+    onDismiss: () -> Unit,
+    onRestoreVersion: (String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedVersion by remember { mutableStateOf<NoteVersion?>(null) }
+    var showRestoreDialog by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Surface(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(2.dp)
+            ) {
+                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
+            }
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = LocalAccentColor.current.copy(alpha = 0.12f),
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = LocalAccentColor.current,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Column {
+                    Text(
+                        text = "Version History",
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${versions.size} version${if (versions.size != 1) "s" else ""} saved",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (versions.isEmpty()) {
+                // Empty state
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            text = "No versions yet",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Edit this note to create a version",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            } else {
+                // Version list
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    versions.forEach { version ->
+                        VersionItem(
+                            version = version,
+                            isFirst = version == versions.firstOrNull(),
+                            onClick = {
+                                selectedVersion = version
+                                showRestoreDialog = true
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Restore Confirmation Dialog
+    if (showRestoreDialog && selectedVersion != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showRestoreDialog = false
+                selectedVersion = null
+            },
+            title = {
+                Text(
+                    text = "Restore Version?",
+                    style = MaterialTheme.typography.headlineSmall
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "This will restore the note to version ${selectedVersion!!.versionNumber}.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "A new version will be created with the current content before restoring.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        selectedVersion?.let { onRestoreVersion(it.id) }
+                        showRestoreDialog = false
+                        selectedVersion = null
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Restore")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRestoreDialog = false
+                        selectedVersion = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(18.dp)
+        )
+    }
+}
+
+/**
+ * Individual version item in the history list
+ */
+@Composable
+private fun VersionItem(
+    version: NoteVersion,
+    isFirst: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        color = if (isFirst) {
+            LocalAccentColor.current.copy(alpha = 0.08f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        },
+        border = if (isFirst) {
+            androidx.compose.foundation.BorderStroke(1.dp, LocalAccentColor.current.copy(alpha = 0.3f))
+        } else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Version number badge
+            Surface(
+                shape = CircleShape,
+                color = if (isFirst) LocalAccentColor.current else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "v${version.versionNumber}",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        ),
+                        color = if (isFirst) Color.White else MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            // Version details
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = version.title,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (isFirst) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = LocalAccentColor.current.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = "Latest",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = LocalAccentColor.current,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = formatDate(version.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                version.changeDescription?.let { desc ->
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Restore arrow
+            Icon(
+                imageVector = Icons.Default.Restore,
+                contentDescription = "Restore this version",
+                tint = if (isFirst) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
         }
     }

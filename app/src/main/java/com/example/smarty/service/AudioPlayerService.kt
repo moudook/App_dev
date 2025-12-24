@@ -581,6 +581,13 @@ class AudioPlayerService : MediaSessionService() {
 
     private fun stop() {
         Log.d(TAG, "Stopping playback")
+
+        // 1. Remove notification IMMEDIATELY for responsive UI
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationManager.cancel(NOTIFICATION_ID)
+
+        // 2. Then proceed with resource cleanup (which might take time)
         releaseVisualizer()
         player?.stop()
         player?.clearMediaItems()
@@ -591,7 +598,9 @@ class AudioPlayerService : MediaSessionService() {
             updateState { AudioPlayerState() }
             stopPositionUpdates()
         }
-        stopForeground(STOP_FOREGROUND_REMOVE)
+
+        // 3. Finally stop the service
+        stopSelf()
     }
 
     private fun seekTo(position: Long) {
@@ -631,6 +640,19 @@ class AudioPlayerService : MediaSessionService() {
         player = null
         mediaSession?.release()
         mediaSession = null
+
+        // Clear static companion object state to prevent memory leaks
+        serviceScope.launch {
+            stateMutex.withLock {
+                currentTrack = null
+                _playerState.value = AudioPlayerState()
+                _currentAmplitude.value = 0f
+                _bassAmplitude.value = 0f
+                _midAmplitude.value = 0f
+                _trebleAmplitude.value = 0f
+            }
+        }
+
         super.onDestroy()
     }
 }

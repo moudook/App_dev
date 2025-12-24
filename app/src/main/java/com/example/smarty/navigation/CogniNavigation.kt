@@ -21,6 +21,8 @@ import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.NoteAttachment
+import com.example.smarty.data.model.NoteVersion
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.screens.*
@@ -98,8 +100,12 @@ fun CogniNavHost(
     onDeleteNote: (Note) -> Unit,
     onDeleteNoteById: (String) -> Unit,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
-    onEditNote: (String, String, String) -> Unit = { _, _, _ -> },  // noteId, newTitle, newContent
+    onEditNote: (String, String, String, List<NoteAttachment>) -> Unit = { _, _, _, _ -> },  // noteId, newTitle, newContent, newAttachments
     onMarkAsViewed: (String) -> Unit = {}, // New tracking action
+    // Version history
+    selectedNoteVersions: List<NoteVersion> = emptyList(),
+    onLoadNoteVersions: (String) -> Unit = {},  // noteId
+    onRestoreNoteVersion: (String, String) -> Unit = { _, _ -> },  // noteId, versionId
     // Pin and share management
     onPinNote: (String) -> Unit = {},
     onUnpinNote: (String) -> Unit = {},
@@ -349,6 +355,10 @@ fun CogniNavHost(
                     onEditNote = onEditNote,
                     onPlayAudio = onPlayAudio,
                     onMarkAsViewed = { onMarkAsViewed(note.id) },
+                    // Version history
+                    noteVersions = selectedNoteVersions,
+                    onLoadVersions = { onLoadNoteVersions(note.id) },
+                    onRestoreVersion = { versionId -> onRestoreNoteVersion(note.id, versionId) },
                     bottomContentPadding = bottomContentPadding
                 )
             }

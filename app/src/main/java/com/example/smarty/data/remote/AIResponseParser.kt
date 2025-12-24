@@ -59,6 +59,93 @@ object AIResponseParser {
     // ==================== JSON Extraction ====================
 
     /**
+     * Parse TOON format response (more token-efficient than JSON).
+     * Format:
+     * title: value
+     * category: value
+     * summary: multiline value
+     * whySaved: value
+     * todos: comma,separated,items or "none"
+     */
+    fun parseToonResponse(text: String): AIResponse? {
+        if (text.isBlank()) return null
+
+        try {
+            val lines = text.trim().lines()
+            var title: String? = null
+            var category: String? = null
+            var summary = StringBuilder()
+            var whySaved: String? = null
+            var todos: List<String> = emptyList()
+
+            var currentField: String? = null
+            var inSummary = false
+
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.isEmpty()) continue
+
+                when {
+                    trimmed.startsWith("title:", ignoreCase = true) -> {
+                        title = trimmed.substringAfter(":").trim()
+                        currentField = "title"
+                        inSummary = false
+                    }
+                    trimmed.startsWith("category:", ignoreCase = true) -> {
+                        category = trimmed.substringAfter(":").trim()
+                        currentField = "category"
+                        inSummary = false
+                    }
+                    trimmed.startsWith("summary:", ignoreCase = true) -> {
+                        summary.append(trimmed.substringAfter(":").trim())
+                        currentField = "summary"
+                        inSummary = true
+                    }
+                    trimmed.startsWith("whySaved:", ignoreCase = true) ||
+                    trimmed.startsWith("whysaved:", ignoreCase = true) -> {
+                        whySaved = trimmed.substringAfter(":").trim()
+                        currentField = "whySaved"
+                        inSummary = false
+                    }
+                    trimmed.startsWith("todos:", ignoreCase = true) -> {
+                        val todoStr = trimmed.substringAfter(":").trim()
+                        todos = if (todoStr.equals("none", ignoreCase = true) || todoStr.isEmpty()) {
+                            emptyList()
+                        } else {
+                            todoStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+                        }
+                        currentField = "todos"
+                        inSummary = false
+                    }
+                    inSummary && currentField == "summary" -> {
+                        // Continuation of summary (multiline)
+                        if (summary.isNotEmpty()) summary.append(" ")
+                        summary.append(trimmed)
+                    }
+                }
+            }
+
+            // Validate required fields
+            if (title.isNullOrBlank() || category.isNullOrBlank()) {
+                Log.w(TAG, "TOON parse missing required fields: title=$title, category=$category")
+                return null
+            }
+
+            return AIResponse(
+                title = title.take(50), // Enforce max length
+                category = validateCategory(category),
+                summary = if (summary.isEmpty()) "Content saved." else cleanSummary(summary.toString(), 300),
+                whySaved = whySaved?.take(20) ?: "Saved",
+                success = true,
+                todos = todos
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "TOON parse error: ${e.message}")
+            return null
+        }
+    }
+
+    /**
      * Extract JSON from AI response text and parse it into AIResponse.
      *
      * Handles various AI output formats:
@@ -70,6 +157,9 @@ object AIResponseParser {
      * @return Parsed AIResponse or null if parsing fails
      */
     fun extractAndParseJson(text: String): AIResponse? {
+        // Try TOON format first (more efficient)
+        parseToonResponse(text)?.let { return it }
+        // Fall back to JSON parsing
         // BUG-035: Truncate excessively long responses to prevent memory issues
         var cleanText = if (text.length > MAX_RESPONSE_LENGTH) {
             Log.w(TAG, "Response truncated from ${text.length} to $MAX_RESPONSE_LENGTH chars")

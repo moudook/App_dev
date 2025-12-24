@@ -67,7 +67,10 @@ class ChatManager(
             chatRepository.getAllSessions()
                 .distinctUntilChanged()
                 .collect { sessions ->
-                    _chatSessions.value = sessions
+                    // Use mutex to prevent race conditions with session switches
+                    chatMutex.withLock {
+                        _chatSessions.value = sessions
+                    }
                 }
         }
         scope.launch {

@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.model.AttachmentMetadata
 import com.example.smarty.util.ContentSecurityFilter
+import com.example.smarty.util.api.ApiMetrics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -23,50 +24,36 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
         private const val TAG = "ContentAnalyzer"
 
         /**
-         * Optimized system prompt for note-taking app.
-         * Designed to be concise, clear, and produce consistent JSON output.
+         * Optimized system prompt for note-taking app using TOON format.
+         * More compact and token-efficient than JSON.
          */
         val SYSTEM_PROMPT = """
-You are an AI assistant for a note-taking app called Cogni. Your job is to analyze user content and generate rich metadata.
+You are Loum's AI. Analyze content and respond in TOON format (not JSON).
 
-TASK: Analyze the content and respond with a JSON object containing:
-1. "title" - A short, descriptive title (4-8 words) summarizing the essence
-2. "category" - A single word category (see list below)
-3. "summary" - A 1-2 sentence summary capturing the key point
-4. "whySaved" - 2-4 words describing why the user likely saved this
-5. "tags" - Array of 2-5 relevant keywords/tags for searching later
+OUTPUT FORMAT (use exactly this):
+title: [max 3 words, punchy title]
+category: [one word from list]
+summary: [max 3 lines, comprehensive, no fluff]
+whySaved: [2-3 words]
+todos: [comma-separated tasks if any, or "none"]
 
-CATEGORIES (use exactly one):
-- Learn: tutorials, courses, educational content
-- Read: articles, blog posts, news
-- Watch: videos, movies, streams
-- Idea: thoughts, brainstorms, concepts
-- Todo: tasks, reminders, action items
-- Buy: shopping, products, wishlists
-- Meet: contacts, appointments, events
-- Code: programming, technical snippets
-- Quote: memorable phrases, wisdom
-- Inspo: creative inspiration, designs
-- Recipe: food, cooking, ingredients
-- Health: fitness, medical, wellness
-- Finance: money, budgets, investments
-- Work: professional, projects, career
-- Play: entertainment, hobbies, fun
-- Note: anything that doesn't fit above
+CATEGORIES: Learn, Read, Watch, Idea, Todo, Buy, Meet, Code, Quote, Inspo, Recipe, Health, Finance, Work, Play, Note
 
 RULES:
-1. Respond with ONLY valid JSON, no other text
-2. No markdown, no code blocks, no explanations
-3. Category must be exactly one word from the list
-4. Title should be punchy and clear (not "Note Title" or generic)
-5. Summary should be informative and direct
-6. whySaved should be brief (2-4 words)
-7. Tags should be lowercase, single words or short phrases
+- Title MUST be 3 words max, capture essence
+- Summary MUST be 3 lines max but cover ALL key points
+- Extract any actionable items as todos
+- No JSON, no markdown, no code blocks
+- Each field on its own line with colon separator
 
-EXAMPLE OUTPUT:
-{"title":"Python Data Structures Basics","category":"Learn","summary":"Python tutorial covering data structures and algorithms basics.","whySaved":"Skill building","tags":["python","programming","data structures","tutorial","algorithms"]}
+EXAMPLE:
+title: Python Tutorial Basics
+category: Learn
+summary: Covers Python fundamentals including variables, loops, and functions. Good for beginners starting their programming journey. Includes practical exercises.
+whySaved: Skill building
+todos: practice loops, try exercises, review functions
 
-Analyze this content:
+Content:
 """.trimIndent()
 
         /**
@@ -74,7 +61,7 @@ Analyze this content:
          * Provides comprehensive analysis with key points and action items.
          */
         val DOCUMENT_ANALYSIS_PROMPT = """
-You are an intelligent document analyst for the Cogni note-taking app. Analyze the document content and provide a comprehensive summary.
+You are an intelligent document analyst for the Loum note-taking app. Analyze the document content and provide a comprehensive summary.
 
 TASK: Analyze the document and respond with a JSON object containing:
 1. "title" - A concise descriptive title (5-10 words)
@@ -160,8 +147,10 @@ Document content:
         val cacheKey = AIResponseCache.generateKey(contentWithMetadata)
         AIResponseCache.get(cacheKey)?.let { cachedResponse ->
             Log.i(TAG, "Returning cached AI response")
+            ApiMetrics.recordCacheResult(true)
             return@withContext cachedResponse
         }
+        ApiMetrics.recordCacheResult(false)
 
         Log.d(TAG, "Content preview: ${contentWithMetadata.take(100)}...")
 

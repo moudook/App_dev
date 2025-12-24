@@ -62,8 +62,8 @@ class HighSensitivitySpeechService(
                 AUDIO_FORMAT
             )
 
-            // Use larger buffer for better audio capture (2x minimum)
-            val actualBufferSize = bufferSize * 2
+            // Use larger buffer for better long-range audio capture (4x minimum)
+            val actualBufferSize = bufferSize * 4
 
             record = AudioRecord(
                 AUDIO_SOURCE,

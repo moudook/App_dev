@@ -23,6 +23,8 @@ import kotlin.math.sign
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -203,6 +205,41 @@ fun InputStreamScreen(
         onResult = { /* Handled by global flow */ }
     )
 
+    // Voice Recording State (Long-press on mic to record audio note)
+    val voiceRecorder = remember { com.example.smarty.voice.VoiceNoteRecorder(context, scope) }
+    val recordingState by voiceRecorder.state.collectAsState()
+    val isRecording = recordingState is com.example.smarty.voice.VoiceNoteRecorder.RecordingState.Recording
+
+    // Handle recording completion - add as audio attachment
+    LaunchedEffect(recordingState) {
+        when (val state = recordingState) {
+            is com.example.smarty.voice.VoiceNoteRecorder.RecordingState.Completed -> {
+                // Add the recorded audio as an attachment
+                val file = java.io.File(state.filePath)
+                val uri = android.net.Uri.fromFile(file)
+                val newAttachment = Attachment(
+                    id = java.util.UUID.randomUUID().toString(),
+                    uri = uri,
+                    mimeType = "audio/mp4",
+                    fileName = file.name,
+                    fileSize = file.length()
+                )
+                attachments = attachments + newAttachment
+                voiceRecorder.reset()
+            }
+            else -> { /* Other states handled by UI */ }
+        }
+    }
+
+    // Cancel recording on dispose if still active
+    DisposableEffect(Unit) {
+        onDispose {
+            if (voiceRecorder.state.value is com.example.smarty.voice.VoiceNoteRecorder.RecordingState.Recording) {
+                voiceRecorder.cancelRecording()
+            }
+        }
+    }
+
     // Handle partial results for progressive text append
     // Use the mode that INITIATED the speech, not the current mode
     LaunchedEffect(speechState) {
@@ -364,10 +401,18 @@ fun InputStreamScreen(
         }
     }
     
-    // Select all visible notes
+    // Select all visible notes (or deselect all if already all selected)
     fun selectAllNotes() {
-        selectedNoteIds = displayedNotes.map { it.id }.toSet()
-        isSelectionMode = true
+        val allNoteIds = displayedNotes.map { it.id }.toSet()
+        if (selectedNoteIds == allNoteIds) {
+            // All are selected - deselect all
+            selectedNoteIds = emptySet()
+            isSelectionMode = false
+        } else {
+            // Not all selected - select all
+            selectedNoteIds = allNoteIds
+            isSelectionMode = true
+        }
     }
     
     // Delete selected notes with undo capability
@@ -418,16 +463,18 @@ fun InputStreamScreen(
         onExitChatMode()
     }
 
-    // Todo sheet state
-    var selectedNoteForTodo by remember { mutableStateOf<Note?>(null) }
+    // Todo sheet state - store ID only and derive note from notes list to stay in sync
+    var selectedNoteIdForTodo by remember { mutableStateOf<String?>(null) }
+    val selectedNoteForTodo = selectedNoteIdForTodo?.let { id -> notes.find { it.id == id } }
     val todoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Chat history sheet state
     var showChatHistorySheet by remember { mutableStateOf(false) }
     val chatHistorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Delete confirmation state
-    var noteToDelete by remember { mutableStateOf<Note?>(null) }
+    // Delete confirmation state - store ID only and derive note from list to stay in sync
+    var noteToDeleteId by remember { mutableStateOf<String?>(null) }
+    val noteToDelete = noteToDeleteId?.let { id -> notes.find { it.id == id } }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     // MIME type detection from file extension (fallback when ContentResolver fails)
@@ -665,14 +712,9 @@ fun InputStreamScreen(
                 label = "topBarTransition"
             ) { inSelectionMode ->
                 if (inSelectionMode) {
-                    // Selection mode top bar
+                    // Selection mode top bar - minimal design with only cross icon on left
                     TopAppBar(
-                        title = {
-                            Text(
-                                text = "${selectedNoteIds.size} selected",
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                        },
+                        title = { /* Empty - no text displayed */ },
                         navigationIcon = {
                             IconButton(onClick = { clearSelection() }) {
                                 Icon(
@@ -688,7 +730,7 @@ fun InputStreamScreen(
                                 onClick = { selectAllNotes() }
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Done,
+                                    imageVector = Icons.Default.DoneAll,
                                     contentDescription = "Select all",
                                     tint = LocalAccentColor.current
                                 )
@@ -745,7 +787,7 @@ fun InputStreamScreen(
                                 enabled = selectedNoteIds.isNotEmpty()
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
+                                    imageVector = Icons.Default.Delete,
                                     contentDescription = "Delete selected",
                                     tint = if (selectedNoteIds.isNotEmpty())
                                         MaterialTheme.colorScheme.error
@@ -1010,14 +1052,14 @@ fun InputStreamScreen(
                                         else onNoteClick(note)
                                     }
                                 }
-                                val stableOnDelete = remember(note) {
+                                val stableOnDelete = remember(note.id) {
                                     {
-                                        noteToDelete = note
+                                        noteToDeleteId = note.id
                                         showDeleteDialog = true
                                     }
                                 }
-                                val stableOnOpenTodo = remember(note) {
-                                    { selectedNoteForTodo = note }
+                                val stableOnOpenTodo = remember(note.id) {
+                                    { selectedNoteIdForTodo = note.id }
                                 }
                                 val stableOnArchive: () -> Unit = remember(note.id) {
                                     {
@@ -1243,7 +1285,19 @@ fun InputStreamScreen(
                             // Search filter parameters
                             selectedFilters = selectedFilters,
                             onFilterToggle = onFilterToggle,
-                            onClearFilters = onClearFilters
+                            onClearFilters = onClearFilters,
+                            // Voice recording (hold mic to record, release to stop)
+                            onStartRecording = {
+                                // Stop any active speech recognition before recording
+                                if (speechState.isListening) {
+                                    speechState.stopListening()
+                                }
+                                voiceRecorder.startRecording()
+                            },
+                            onStopRecording = {
+                                voiceRecorder.stopRecording()
+                            },
+                            isRecording = isRecording
                         )
                     }
                 }
@@ -1258,7 +1312,7 @@ fun InputStreamScreen(
         AlertDialog(
             onDismissRequest = {
                 showDeleteDialog = false
-                noteToDelete = null
+                noteToDeleteId = null
             },
             title = {
                 Text(
@@ -1277,7 +1331,7 @@ fun InputStreamScreen(
                     onClick = {
                         noteToDelete?.let { onDeleteNote(it.id) }
                         showDeleteDialog = false
-                        noteToDelete = null
+                        noteToDeleteId = null
                     }
                 ) {
                     Text("Delete", color = SafetyOrange)
@@ -1287,7 +1341,7 @@ fun InputStreamScreen(
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
-                        noteToDelete = null
+                        noteToDeleteId = null
                     }
                 ) {
                     Text("Cancel")
@@ -1302,7 +1356,7 @@ fun InputStreamScreen(
         NoteTodoSheet(
             note = note,
             sheetState = todoSheetState,
-            onDismiss = { selectedNoteForTodo = null },
+            onDismiss = { selectedNoteIdForTodo = null },
             onSaveTodos = { todos ->
                 // Auto-save without dismissing - user clicks Done to close
                 onUpdateNoteTodos(note.id, todos, null)

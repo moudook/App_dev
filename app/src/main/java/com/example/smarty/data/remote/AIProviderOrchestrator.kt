@@ -12,6 +12,7 @@ import com.example.smarty.data.remote.providers.OpenAICompatibleProvider
 import com.example.smarty.data.remote.providers.OpenRouterProvider
 import com.example.smarty.util.api.ApiErrorCategory
 import com.example.smarty.util.api.ApiKeyRotator
+import com.example.smarty.util.api.ApiMetrics
 import com.example.smarty.util.api.ProviderFailoverManager
 import com.example.smarty.util.api.ProviderPriorityResolver
 import com.example.smarty.util.retry.RetryExecutor
@@ -173,8 +174,9 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             return null
         }
 
-        val keysToTry = ApiKeyRotator.getRotatedKeysWithAgentFallback(config.apiKeys)
-            .filter { !failoverManager.isKeyFailed(it) } // Skip known bad keys
+        val keysToTry = ApiKeyRotator.getRotatedKeysWithBusyAwareness(
+            ApiKeyRotator.getRotatedKeysWithAgentFallback(config.apiKeys)
+        ).filter { !failoverManager.isKeyFailed(it) } // Skip known bad keys
 
         if (keysToTry.isEmpty()) {
             Log.w(TAG, "$provider has no healthy keys available")
@@ -190,6 +192,9 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             Log.d(TAG, "Trying $provider $keyLabel")
 
             try {
+                // Mark key as busy before use
+                ApiKeyRotator.markKeyBusy(apiKey)
+
                 val result = RetryExecutor.withRetry(
                     maxRetries = MAX_RETRIES,
                     initialDelayMs = INITIAL_RETRY_DELAY_MS,
@@ -200,11 +205,15 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
 
                 if (result != null && result.success) {
                     Log.i(TAG, "✓ $provider SUCCESS ($keyLabel): category=${result.category}")
+                    ApiKeyRotator.markKeyAvailable(apiKey)
+                    ApiMetrics.recordApiCall(true)
                     failoverManager.recordSuccess(provider)
                     return result
                 }
 
                 // Result was null or not successful
+                ApiKeyRotator.markKeyAvailable(apiKey)
+                ApiMetrics.recordApiCall(false)
                 if (result?.error != null) {
                     val category = categorizeErrorMessage(result.error)
                     if (failoverManager.shouldTryDifferentKey(category)) {
@@ -213,6 +222,8 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
                 }
             } catch (e: Exception) {
                 lastException = e
+                ApiKeyRotator.markKeyAvailable(apiKey)
+                ApiMetrics.recordApiCall(false)
                 val category = failoverManager.categorizeError(e)
                 Log.w(TAG, "$provider $keyLabel failed: ${e.message} [$category]")
 
