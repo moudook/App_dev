@@ -28,6 +28,7 @@ import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.screens.*
 import com.example.smarty.viewmodel.BackupViewModel
 import com.example.smarty.util.api.KeyUsageStats
+import com.example.smarty.voice.speaker.VoiceEnrollmentManager
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -49,6 +50,7 @@ sealed class Screen(val route: String) {
     data object Pin : Screen("pin")
     data object PinSetup : Screen("pin_setup")
     data object PinChange : Screen("pin_change")
+    data object VoiceEnrollment : Screen("voice_enrollment")
     data object InputStream : Screen("input_stream")
     data object Stacks : Screen("stacks")
     data object CategoryNotes : Screen("category_notes")
@@ -57,6 +59,7 @@ sealed class Screen(val route: String) {
     data object Archive : Screen("archive")
     data object BackupSettings : Screen("backup_settings")
     data object Calendar : Screen("calendar")
+    data object Login : Screen("login")
 }
 
 @Composable
@@ -182,8 +185,20 @@ fun CogniNavHost(
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { com.example.smarty.data.local.AIModels.getModelsForProvider(it) },
     // Screen change callback for shake detection
     onScreenChange: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    // Voice fingerprint management
+    isVoiceEnrolled: Boolean = false,
+    onDeleteVoiceFingerprint: () -> Unit = {},
+    onRetrainVoice: () -> Unit = {},
+    // TTS for AI responses
+    isTTSEnabled: Boolean = true,
+    onTTSEnabledChange: (Boolean) -> Unit = {},
+    modifier: Modifier = Modifier,
+    // Auth State
+    isLoggedIn: Boolean = false,
+    onSignOut: () -> Unit = {}
 ) {
+    // NOTE: Login is now handled in MainActivity BEFORE CogniNavHost is rendered
+    // When we get here, user is ALWAYS logged in
     // Start at PIN screen if configured, otherwise go to main input stream
     val startDestination = if (isPinConfigured) Screen.Pin.route else Screen.InputStream.route
 
@@ -394,6 +409,13 @@ fun CogniNavHost(
                 onShakeSensitivityChange = onShakeSensitivityChange,
                 // GROQ key usage stats
                 groqKeyUsageStats = groqKeyUsageStats,
+                // Voice fingerprint management
+                isVoiceEnrolled = isVoiceEnrolled,
+                onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
+                onRetrainVoice = onRetrainVoice,
+                // TTS for AI responses
+                isTTSEnabled = isTTSEnabled,
+                onTTSEnabledChange = onTTSEnabledChange,
                 // Dynamic Models
                 onRefreshModels = onRefreshModels,
                 getAvailableModels = getAvailableModels,
@@ -429,7 +451,8 @@ fun CogniNavHost(
                         onComplete = onDismiss,
                         isEmbedded = true
                     )
-                }
+                },
+                onSignOut = onSignOut
             )
         }
 
@@ -460,6 +483,16 @@ fun CogniNavHost(
                 onAddCalendarEvent = onAddCalendarEvent,
                 onUpdateCalendarEvent = onUpdateCalendarEvent,
                 onDeleteCalendarEvent = onDeleteCalendarEvent
+            )
+        }
+
+        composable(Screen.Login.route) {
+            LoginScreen(
+                onLoginSuccess = {
+                    navController.navigate(Screen.InputStream.route) {
+                        popUpTo(Screen.Login.route) { inclusive = true }
+                    }
+                }
             )
         }
     }

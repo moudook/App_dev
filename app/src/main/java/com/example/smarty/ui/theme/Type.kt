@@ -30,7 +30,27 @@ import androidx.compose.ui.unit.sp
 //     Font(R.font.inter_bold, FontWeight.Bold)
 // )
 
-val InterFont = FontFamily.SansSerif  // Fallback to system sans-serif
+import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.googlefonts.Font
+import com.example.smarty.R
+
+// Google Font Provider Configuration
+val provider = GoogleFont.Provider(
+    providerAuthority = "com.google.android.gms.fonts",
+    providerPackage = "com.google.android.gms",
+    certificates = R.array.com_google_android_gms_fonts_certs
+)
+
+// Using DM Sans as it is a high-quality geometric sans-serif similar to Google Sans
+// and widely available via Google Fonts.
+val GoogleSans = FontFamily(
+    Font(googleFont = GoogleFont("DM Sans"), fontProvider = provider, weight = FontWeight.Bold),
+    Font(googleFont = GoogleFont("DM Sans"), fontProvider = provider, weight = FontWeight.SemiBold),
+    Font(googleFont = GoogleFont("DM Sans"), fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = GoogleFont("DM Sans"), fontProvider = provider, weight = FontWeight.Normal),
+)
+
+val InterFont = GoogleSans  // Alias InterFont to GoogleSans to apply global change
 val MonoFont = FontFamily.Monospace   // For code/terminal elements
 
 val CogniTypography = Typography(

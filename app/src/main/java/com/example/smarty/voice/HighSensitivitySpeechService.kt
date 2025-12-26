@@ -15,6 +15,7 @@ import java.io.IOException
  * 1. Using VOICE_RECOGNITION audio source (has AGC - Automatic Gain Control)
  * 2. Applying software gain amplification to boost quiet audio
  * 3. Using larger buffer for better capture
+ * 4. Keeps rolling audio buffer for speaker verification
  *
  * Gain multiplier: 2.0x - 4.0x recommended for wake word detection
  * Higher values = more sensitive but also more noise
@@ -33,6 +34,9 @@ class HighSensitivitySpeechService(
 
         // Use VOICE_RECOGNITION for built-in AGC and noise suppression
         private const val AUDIO_SOURCE = MediaRecorder.AudioSource.VOICE_RECOGNITION
+
+        // Rolling buffer for speaker verification (3 seconds of audio at 16kHz)
+        private const val VERIFICATION_BUFFER_SECONDS = 3
     }
 
     private var audioRecord: AudioRecord? = null
@@ -41,6 +45,12 @@ class HighSensitivitySpeechService(
 
     @Volatile
     private var isRunning = false
+
+    // Rolling buffer for speaker verification
+    private val verificationBufferSize = (sampleRate * VERIFICATION_BUFFER_SECONDS).toInt()
+    private val verificationBuffer = ShortArray(verificationBufferSize)
+    private var bufferWriteIndex = 0
+    private val bufferLock = Any()
 
     /**
      * Start listening with gain amplification.
@@ -114,25 +124,62 @@ class HighSensitivitySpeechService(
     private fun processAudio(bufferSize: Int) {
         val buffer = ShortArray(bufferSize / 2)  // 16-bit = 2 bytes per sample
         val amplifiedBuffer = ShortArray(buffer.size)
+        var audioRecordInvalidated = false  // Track if AudioRecord became invalid
 
         try {
-            while (isRunning && audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                val readCount = audioRecord?.read(buffer, 0, buffer.size) ?: -1
+            while (isRunning) {
+                // CRASH FIX: Validate AudioRecord state before read
+                // After process death, reference may exist but native resources are gone
+                val record = audioRecord
+                if (record == null || record.state != AudioRecord.STATE_INITIALIZED) {
+                    Log.e(TAG, "AudioRecord invalid - stopping processing")
+                    audioRecordInvalidated = true
+                    break
+                }
+                if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    Log.w(TAG, "AudioRecord not recording - stopping")
+                    audioRecordInvalidated = true
+                    break
+                }
+
+                val readCount = try {
+                    record.read(buffer, 0, buffer.size)
+                } catch (e: IllegalStateException) {
+                    Log.e(TAG, "AudioRecord read failed - native resources likely reclaimed: ${e.message}")
+                    audioRecordInvalidated = true
+                    break
+                }
 
                 if (readCount > 0) {
                     // Apply gain amplification
                     applyGain(buffer, amplifiedBuffer, readCount)
 
+                    // Store in rolling buffer for speaker verification
+                    synchronized(bufferLock) {
+                        for (i in 0 until readCount) {
+                            verificationBuffer[bufferWriteIndex] = amplifiedBuffer[i]
+                            bufferWriteIndex = (bufferWriteIndex + 1) % verificationBufferSize
+                        }
+                    }
+
                     // Convert to byte array for Vosk
                     val byteBuffer = shortsToBytes(amplifiedBuffer, readCount)
 
                     // Feed to recognizer
-                    if (recognizer.acceptWaveForm(byteBuffer, byteBuffer.size)) {
-                        val result = recognizer.result
-                        listener?.onResult(result)
-                    } else {
-                        val partial = recognizer.partialResult
-                        listener?.onPartialResult(partial)
+                    // CRASH FIX #3: Wrap recognizer calls in try-catch to handle closed recognizer
+                    // VoskWakeWordManager can close the recognizer while processAudio is still running
+                    if (!isRunning) break
+                    try {
+                        if (recognizer.acceptWaveForm(byteBuffer, byteBuffer.size)) {
+                            val result = recognizer.result
+                            listener?.onResult(result)
+                        } else {
+                            val partial = recognizer.partialResult
+                            listener?.onPartialResult(partial)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Recognizer access failed - likely closed: ${e.message}")
+                        break
                     }
                 } else if (readCount < 0) {
                     Log.e(TAG, "Audio read error: $readCount")
@@ -141,8 +188,19 @@ class HighSensitivitySpeechService(
             }
 
             // Get final result
-            val finalResult = recognizer.finalResult
-            listener?.onFinalResult(finalResult)
+            // CRASH FIX #3: Wrap finalResult call in try-catch to handle closed recognizer
+            try {
+                val finalResult = recognizer.finalResult
+                listener?.onFinalResult(finalResult)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get final result - recognizer likely closed: ${e.message}")
+            }
+
+            // ISSUE #3 FIX: Notify listener if AudioRecord became invalid
+            // This allows VoskWakeWordManager to trigger recovery/re-initialization
+            if (audioRecordInvalidated) {
+                listener?.onError(IllegalStateException("AudioRecord invalidated - system took microphone"))
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Processing error: ${e.message}", e)
@@ -181,15 +239,57 @@ class HighSensitivitySpeechService(
     }
 
     /**
+     * Get recent audio samples for speaker verification.
+     * Returns the last ~2 seconds of audio (32000 samples at 16kHz).
+     */
+    fun getRecentAudioSamples(): ShortArray {
+        val sampleCount = (sampleRate * 2).toInt()  // 2 seconds of audio
+        val samples = ShortArray(sampleCount)
+
+        synchronized(bufferLock) {
+            // Copy from rolling buffer, starting from 2 seconds before write position
+            var readIndex = (bufferWriteIndex - sampleCount + verificationBufferSize) % verificationBufferSize
+            for (i in 0 until sampleCount) {
+                samples[i] = verificationBuffer[readIndex]
+                readIndex = (readIndex + 1) % verificationBufferSize
+            }
+        }
+
+        return samples
+    }
+
+    /**
+     * Clear the verification buffer.
+     */
+    fun clearVerificationBuffer() {
+        synchronized(bufferLock) {
+            verificationBuffer.fill(0)
+            bufferWriteIndex = 0
+        }
+    }
+
+    /**
      * Stop listening.
      */
     fun stop() {
         isRunning = false
 
+        // ISSUE #6 FIX: Increased timeout from 500ms to 1000ms for safer recognizer access
+        // This ensures the processing thread completes before the recognizer is closed
         try {
-            recognitionThread?.join(500)
-        } catch (_: InterruptedException) {
-            // Ignore
+            val thread = recognitionThread
+            if (thread != null && thread.isAlive) {
+                thread.join(1000)
+                // Warn if thread didn't stop in time - potential race condition
+                if (thread.isAlive) {
+                    Log.w(TAG, "Recognition thread didn't stop within 1000ms - forcing interrupt")
+                    thread.interrupt()
+                    thread.join(200)  // Brief wait after interrupt
+                }
+            }
+        } catch (e: InterruptedException) {
+            Log.w(TAG, "Interrupted while waiting for recognition thread")
+            Thread.currentThread().interrupt()
         }
         recognitionThread = null
 

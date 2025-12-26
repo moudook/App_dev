@@ -24,6 +24,8 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -326,6 +328,7 @@ fun ChatMessageItem(
                     if (!isUser) {
                         val clipboardManager = LocalClipboardManager.current
                         var showCopied by remember { mutableStateOf(false) }
+                        val scope = rememberCoroutineScope()
 
                         LaunchedEffect(showCopied) {
                             if (showCopied) {
@@ -344,6 +347,11 @@ fun ChatMessageItem(
                                 .clickable {
                                     clipboardManager.setText(AnnotatedString(message.content))
                                     showCopied = true
+                                    // CLIPBOARD-001: Auto-clear clipboard after 30 seconds for security
+                                    scope.launch {
+                                        delay(30000)
+                                        clipboardManager.setText(AnnotatedString(""))
+                                    }
                                 },
                             tint = if (showCopied) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )

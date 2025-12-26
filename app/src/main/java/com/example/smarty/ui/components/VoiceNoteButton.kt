@@ -7,6 +7,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -137,6 +139,9 @@ private fun MicButton(
     }
 }
 
+/**
+ * OPTIMIZED: Recording interface with lifecycle-aware animation
+ */
 @Composable
 private fun RecordingInterface(
     durationMs: Long,
@@ -146,17 +151,26 @@ private fun RecordingInterface(
     formatDuration: (Long) -> String,
     modifier: Modifier = Modifier
 ) {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
     // Pulsing animation for recording indicator
-    val infiniteTransition = rememberInfiniteTransition(label = "recording")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
+    val pulseScale = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "recording")
+        val animatedScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.2f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(500, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse"
+        )
+        animatedScale
+    } else {
+        1.1f // Mid-scale when backgrounded
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -422,23 +436,35 @@ fun VoiceRecordingOverlay(
     }
 }
 
+/**
+ * OPTIMIZED: Large amplitude visualizer with lifecycle-aware animation
+ */
 @Composable
 private fun LargeAmplitudeVisualizer(
     amplitude: Float,
     isRecording: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
     // Pulsing animation based on amplitude
-    val infiniteTransition = rememberInfiniteTransition(label = "amplitude")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1f + (amplitude * 0.3f),
-        animationSpec = infiniteRepeatable(
-            animation = tween(150, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse"
-    )
+    val pulseScale = if (shouldAnimate) {
+        val infiniteTransition = rememberInfiniteTransition(label = "amplitude")
+        val animatedScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1f + (amplitude * 0.3f),
+            animationSpec = infiniteRepeatable(
+                animation = tween(150, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse"
+        )
+        animatedScale
+    } else {
+        1f + (amplitude * 0.15f) // Static mid-scale when backgrounded
+    }
 
     Box(
         modifier = modifier

@@ -1,19 +1,39 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Data extraction rules for Android 12+.
+   SECURITY: Excludes sensitive data from cloud backup and device transfer
    See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- EXCLUDE ALL SENSITIVE DATA FROM CLOUD BACKUP -->
+
+        <!-- Encrypted SharedPreferences containing API keys -->
+        <exclude domain="sharedpref" path="cogni_secure_prefs.xml"/>
+        <exclude domain="sharedpref" path="cogni_secure_prefs.xml.bak"/>
+
+        <!-- Database containing user notes (privacy-sensitive) -->
+        <exclude domain="database" path="cogni_database"/>
+        <exclude domain="database" path="cogni_database-shm"/>
+        <exclude domain="database" path="cogni_database-wal"/>
+
+        <!-- Attachments directory (user files) -->
+        <exclude domain="file" path="attachments/"/>
+        <exclude domain="file" path="voice_notes/"/>
+        <exclude domain="file" path="compressed/"/>
+
+        <!-- Cache directories -->
+        <exclude domain="cache" path="."/>
+
+        <!-- Vosk speech model (large, re-downloadable) -->
+        <exclude domain="file" path="vosk-model-small-hi-0.22/"/>
     </cloud-backup>
-    <!--
+
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <!-- Allow device-to-device transfer for user convenience -->
+        <!-- But STILL exclude API keys (they should be re-entered) -->
+        <exclude domain="sharedpref" path="cogni_secure_prefs.xml"/>
+        <exclude domain="sharedpref" path="cogni_secure_prefs.xml.bak"/>
+        <exclude domain="cache" path="."/>
     </device-transfer>
-    -->
 </data-extraction-rules>

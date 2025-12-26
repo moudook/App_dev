@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.smarty.util.PrivacyAware
+import java.util.Calendar
 import java.util.UUID
 
 /**
@@ -17,7 +18,9 @@ import java.util.UUID
         Index(value = ["endTime"]),
         Index(value = ["isEventPrivate"]),
         Index(value = ["linkedNoteId"]),
-        Index(value = ["startTime", "endTime"])
+        Index(value = ["startTime", "endTime"]),
+        // DB-004: Composite index for efficient privacy-filtered time queries
+        Index(value = ["isEventPrivate", "startTime"])
     ]
 )
 data class CalendarEvent(
@@ -61,11 +64,24 @@ data class CalendarEvent(
 
     /**
      * Check if event is today
+     *
+     * BUG FIX (NEW-014): Use Calendar for proper local timezone handling.
+     * The previous implementation used modulo arithmetic which gives UTC midnight,
+     * not local midnight, causing events to appear on wrong days in different timezones.
      */
     fun isToday(): Boolean {
-        val now = System.currentTimeMillis()
-        val dayStart = now - (now % (24 * 60 * 60 * 1000))
-        val dayEnd = dayStart + (24 * 60 * 60 * 1000)
+        val calendar = Calendar.getInstance()
+        // Get today's start in local timezone
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        val dayStart = calendar.timeInMillis
+
+        // Get tomorrow's start
+        calendar.add(Calendar.DAY_OF_YEAR, 1)
+        val dayEnd = calendar.timeInMillis
+
         return startTime in dayStart until dayEnd
     }
 

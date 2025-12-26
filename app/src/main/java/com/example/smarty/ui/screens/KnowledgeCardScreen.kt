@@ -3,6 +3,7 @@ package com.example.smarty.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -258,7 +259,7 @@ fun KnowledgeCardScreen(
 
             // 1. Render Non-Audio Attachments
             if (otherAttachments.isNotEmpty()) {
-                MultipleAttachmentsSection(
+                AttachmentMosaic(
                     attachments = otherAttachments,
                     onOpenAttachment = { attachment ->
                         val mimeType = attachment.mimeType.ifEmpty { "*/*" }
@@ -643,42 +644,175 @@ private fun formatFileSize(bytes: Long): String = com.example.smarty.util.Conten
 
 
 
-/**
- * Section displaying multiple attachments as a list of clickable items
- * Each attachment shows: icon, file name, size (no header, just items)
- */
 @Composable
-private fun MultipleAttachmentsSection(
+fun AttachmentMosaic(
     attachments: List<NoteAttachment>,
     onOpenAttachment: (NoteAttachment) -> Unit
 ) {
-    // Just show the items directly without a section header
-    Column(
+    if (attachments.isEmpty()) return
+
+    val count = attachments.size
+    val spacing = 2.dp
+    // Height constraint for the mosaic
+    val height = 280.dp 
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .height(height)
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
     ) {
-        attachments.forEachIndexed { index, attachment ->
-            AttachmentItem(
-                attachment = attachment,
-                index = index + 1,
-                onOpen = { onOpenAttachment(attachment) }
-            )
+        // LEFT COLUMN (Main Item)
+        // If count == 1, take full width. Else take 66% (or weight 1.8f).
+        Box(
+            modifier = Modifier
+                .weight(if (count > 1) 1.8f else 1f)
+                .fillMaxHeight()
+        ) {
+           MosaicTile(attachments[0], onOpen = { onOpenAttachment(attachments[0]) })
+        }
 
-            // Add divider between items (but not after the last)
-            if (index < attachments.lastIndex) {
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                )
+        if (count > 1) {
+            Spacer(modifier = Modifier.width(spacing))
+            
+            // RIGHT COLUMN
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                // Top Right Item
+                // If count == 2, take full height. Else take 50% (weight 1f).
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    MosaicTile(attachments[1], onOpen = { onOpenAttachment(attachments[1]) })
+                }
+                
+                if (count > 2) {
+                    Spacer(modifier = Modifier.height(spacing))
+                    
+                    // Bottom Right Item (Counter or 3rd Image)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    ) {
+                        // Display 3rd item as background
+                        MosaicTile(
+                            attachment = attachments[2],
+                            onOpen = { onOpenAttachment(attachments[2]) },
+                            isDimmed = count > 3
+                        )
+                         
+                         // Dedicated Overlay for overflow (Count > 3)
+                         // e.g. If 4 items, we show 1, 2, 3(dimmed) with "+1" meaning "3 and 1 more" -> Total 4.
+                         // Or usually "+N" on the last tile means "N more items hidden".
+                         // So if Total=4, Valid Indices: 0,1,2,3.
+                         // We show 0,1,2. Hidden=3. Count=1.
+                         // Display "+1".
+                         // Text should be "+${count - 3}" if we consider 3 shown.
+                         // Wait, user sketch says "+4" and "img 2".
+                         // Implying "img 2" is one item, "+4" is the rest.
+                         // Total = 1(Main) + 1(Img2) + 4(Rest) = 6.
+                         // My layout: Main, TopRight(Img2), BottomRight(Rest).
+                         // BottomRight acts as the container for the rest.
+                         // So BottomRight should display "+4".
+                         // Does it show Img3? Probably as background.
+                         // So Count - 2 is the number represented in that box?
+                         // If Total=6. Main(1) + TR(1) = 2 shown fully.
+                         // Remaining = 4.
+                         // So "+4".
+                         // Yes, `count - 2` logic works for the text.
+                         
+                         if (count > 3) {
+                             Box(
+                                 modifier = Modifier
+                                    .matchParentSize()
+                                    .background(Color.Black.copy(alpha = 0.5f)),
+                                 contentAlignment = Alignment.Center
+                             ) {
+                                  Text(
+                                      text = "+${count - 2}", 
+                                      style = MaterialTheme.typography.displaySmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
+                                      color = Color.White
+                                  )
+                             }
+                         }
+                    }
+                }
             }
         }
     }
 }
 
+@Composable
+private fun MosaicTile(
+    attachment: NoteAttachment,
+    onOpen: () -> Unit,
+    isDimmed: Boolean = false
+) {
+    val mimeType = attachment.mimeType
+    val isImage = mimeType.startsWith("image/")
+    val isVideo = mimeType.startsWith("video/")
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onOpen() }
+    ) {
+        if (isImage) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(attachment.uri)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = attachment.fileName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            // Fallback for non-images
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                // Icon Logic
+                val icon = when {
+                    isVideo -> Icons.Default.Videocam
+                    mimeType.startsWith("audio/") -> Icons.Default.MusicNote
+                    else -> Icons.AutoMirrored.Filled.Article
+                }
+                Icon(
+                    imageVector = icon, 
+                    contentDescription = null, 
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(32.dp)
+                )
+                if (isVideo) {
+                     Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Play",
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(48.dp)
+                     )
+                }
+            }
+        }
+        
+        // Gradient scrim for text legibility if needed, or simple dim
+        if (isDimmed) {
+             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.1f)))
+        }
+    }
+}
+
 /**
- * Individual attachment item showing icon, name, size, and open button
+ * Legacy Components (Kept for Audio or Fallback)
  */
 @Composable
 private fun AttachmentItem(

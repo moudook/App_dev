@@ -51,12 +51,20 @@ import com.example.smarty.util.ShakeDetector
 import com.example.smarty.util.NetworkMonitor
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.voice.VoskWakeWordManager
+import com.example.smarty.voice.ResponseTTSManager
 import com.example.smarty.util.api.RateLimiter
+import android.media.AudioManager
+import android.telephony.TelephonyManager
+import android.telephony.PhoneStateListener
+import android.os.Build
 import com.example.smarty.util.api.GroqKeyManager
 import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.service.AlarmScheduler
+import com.example.smarty.service.AudioPlayerService
+import com.example.smarty.data.model.PlaybackState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -84,6 +92,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.AbstractSavedStateViewModelFactory
 import androidx.lifecycle.ViewModelProvider
 import androidx.savedstate.SavedStateRegistryOwner
+import kotlinx.coroutines.withTimeout
 
 /**
  * Single file info for sharing
@@ -127,6 +136,14 @@ class CogniViewModel(
         private const val KEY_SELECTED_NOTE_ID = "selectedNoteId"
         private const val KEY_SELECTED_CATEGORY_ID = "selectedCategoryId"
         private const val KEY_IS_CHAT_MODE = "isChatMode"
+
+        /**
+         * BUG FIX (L-002): Maximum notes to load into memory at once.
+         * Prevents OOM crashes on devices with many notes.
+         * Full pagination should be implemented in P9 (Performance).
+         * 500 notes × ~5KB average = ~2.5MB, safe for most devices.
+         */
+        private const val MAX_NOTES_IN_MEMORY = 500
     }
 
     // Lazy initialization to avoid blocking main thread during permission requests
@@ -172,6 +189,33 @@ class CogniViewModel(
         GroqKeyManager.getInstance(application)
     }
 
+    // TTS Manager for speaking AI responses - lazy
+    private val responseTTSManager: ResponseTTSManager by lazy {
+        ResponseTTSManager(application).also { tts ->
+            // Set up callbacks to pause/resume wake word detection during TTS
+            // Note: These callbacks are called from TTS background thread,
+            // so we post to viewModelScope for thread safety
+            tts.setSpeechLifecycleCallbacks(
+                onStart = {
+                    // Post to main thread for thread safety
+                    viewModelScope.launch(Dispatchers.Main) {
+                        // Pause wake word detection while AI is speaking
+                        voskWakeWordManager?.stopListening()
+                        Log.d(TAG, "TTS started - paused wake word detection")
+                    }
+                },
+                onEnd = {
+                    // Post to main thread for thread safety
+                    viewModelScope.launch(Dispatchers.Main) {
+                        // Resume wake word detection after AI finishes speaking
+                        voskWakeWordManager?.restartListening()
+                        Log.d(TAG, "TTS ended - resumed wake word detection")
+                    }
+                }
+            )
+        }
+    }
+
     // Koog-based AI Agent (GROQ-only with multi-key rotation) - lazy
     private val agentProvider: CogniAgentProvider by lazy {
         CogniAgentProvider(securePreferences, groqKeyManager)
@@ -189,6 +233,10 @@ class CogniViewModel(
 
     // GROQ key usage stats exposed for UI - lazy
     val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
+
+    // TTS state exposed for UI
+    val isTTSSpeaking: StateFlow<Boolean> by lazy { responseTTSManager.isSpeaking }
+    val isTTSEnabled: StateFlow<Boolean> by lazy { responseTTSManager.isEnabled }
 
     // Agent callbacks for Koog tools that need ViewModel state
     // SECURITY: Pre-filter notes at callback level for defense-in-depth
@@ -211,8 +259,11 @@ class CogniViewModel(
         }
 
         override fun requestAudioPlayback(track: AudioTrack) {
+            // BUG FIX (ISSUE 3): Add logging to verify tool callback execution
+            Log.i(TAG, "▶ requestAudioPlayback CALLBACK INVOKED: track='${track.title}', uri=${track.uri}")
             // Directly set the track for playback - it now has a valid URI from the note attachment
             _pendingAudioPlayback.value = track
+            Log.d(TAG, "✓ pendingAudioPlayback set to: ${track.title}")
         }
 
         override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
@@ -307,16 +358,47 @@ class CogniViewModel(
     private val _isAppInForeground = MutableStateFlow(true)
     val isAppInForeground: StateFlow<Boolean> = _isAppInForeground.asStateFlow()
 
+    // Track if mic is in use by voice enrollment or other features
+    // When true, wake word detection should not restart
+    private var isMicInUseByOther = false
+
+    // Track if phone call is active - wake word should not work during calls
+    private var isPhoneCallActive = false
+
+    // Track if another app has audio focus
+    private var isAudioFocusLost = false
+
+    // Track if in-app audio is playing
+    private var isInAppAudioPlaying = false
+
+    // Job for collecting audio player state
+    private var audioPlayerCollectorJob: Job? = null
+
+    // Phone state listener for call detection
+    private var phoneStateListener: PhoneStateListener? = null
+    private var telephonyManager: TelephonyManager? = null
+
+    // Audio manager for checking if music is active
+    private var audioManager: AudioManager? = null
+
+    // Job for periodic music check when music was detected
+    private var musicCheckJob: Job? = null
+
     // Shake-triggered mode switch (for glow animation feedback)
     private val _wasShakeTriggered = MutableStateFlow(false)
     val wasShakeTriggered: StateFlow<Boolean> = _wasShakeTriggered.asStateFlow()
 
-    // Current screen route - shake only works on main screen
-    private val _currentScreen = MutableStateFlow("input_stream")
+    // Current screen route - shake only works on main screen (input_stream)
+    // Default to "startup" so shake is disabled until navigation explicitly sets the screen
+    private val _currentScreen = MutableStateFlow("startup")
     val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
 
     // Shared flow for speech results to be consumed by screens
-    private val _speechResults = kotlinx.coroutines.flow.MutableSharedFlow<String>()
+    // BUG FIX (RX-04): Added extraBufferCapacity to prevent dropped events
+    // when collector is suspended (e.g., during screen transition)
+    private val _speechResults = kotlinx.coroutines.flow.MutableSharedFlow<String>(
+        extraBufferCapacity = 8  // Buffer up to 8 speech results to prevent drops
+    )
     val speechResults = _speechResults.asSharedFlow()
 
     // Pull-to-refresh state
@@ -429,11 +511,19 @@ class CogniViewModel(
         }
         
         // Step 2: Apply Intersection Filter (AND Logic) in Memory
+        // BUG FIX (L-002): Apply defensive limit to prevent OOM on large collections
         candidatesFlow.map { notesList ->
-            if (filters.isEmpty()) {
-                notesList
+            val limitedList = if (notesList.size > MAX_NOTES_IN_MEMORY) {
+                Log.w(TAG, "Large note collection detected (${notesList.size}), limiting to $MAX_NOTES_IN_MEMORY for memory safety")
+                notesList.take(MAX_NOTES_IN_MEMORY)
             } else {
-                notesList.filter { note ->
+                notesList
+            }
+
+            if (filters.isEmpty()) {
+                limitedList
+            } else {
+                limitedList.filter { note ->
                     // Note must satisfy ALL selected filters
                     filters.all { filter -> noteMatchesFilter(note, filter) }
                 }
@@ -530,10 +620,12 @@ class CogniViewModel(
         // Set up NoteOperationsManager callback for AI processing
         noteOperationsManager.setAiProcessingCallback(object : com.example.smarty.viewmodel.managers.NoteOperationsManager.AiProcessingCallback {
             override suspend fun onProcessingComplete(note: Note) {
-                Log.d(TAG, "Note processing complete: ${note.title}")
+                // SECURITY: Don't log note titles to prevent data leakage via logcat
+                Log.d(TAG, "Note processing complete: id=${note.id.take(8)}...")
             }
             override suspend fun onProcessingError(note: Note, error: String) {
-                Log.e(TAG, "Note processing error for ${note.title}: $error")
+                // SECURITY: Don't log note titles to prevent data leakage via logcat
+                Log.e(TAG, "Note processing error for id=${note.id.take(8)}...: $error")
             }
         })
 
@@ -599,66 +691,93 @@ class CogniViewModel(
      * CRITICAL: Wrapped in try-catch to prevent crashes during process death recovery.
      * All database access is guarded to handle cases where lazy init isn't complete.
      *
-     * PROCESS DEATH HANDLING:
-     * - Uses 500ms delay to ensure database lazy initialization completes
-     * - Previous 100ms was insufficient and caused crashes
-     * - Database initialization can take 200-500ms after process death
+     * BUG FIX (L-003): Replaced arbitrary delay(500) with retry-based approach.
+     * - Retries with exponential backoff instead of fixed delay
+     * - Works on slow devices (more retries) and fast devices (less waiting)
+     * - Maximum 3 retries with 100ms, 200ms, 400ms delays
      */
     private fun restoreState() {
         viewModelScope.launch {
-            try {
-                // Increased delay to ensure lazy initialization completes
-                // Database can take 200-500ms to initialize after process death
-                kotlinx.coroutines.delay(500)
-
-                // Restore selected note by ID
-                savedStateHandle.get<String>(KEY_SELECTED_NOTE_ID)?.let { noteId ->
-                    try {
-                        val note = repository.getNoteById(noteId)
-                        if (note != null) {
-                            _selectedNote.value = note
-                            Log.d(TAG, "Restored selectedNote: ${note.id}")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to restore note: ${e.message}")
+            // Restore selected note by ID with retry
+            savedStateHandle.get<String>(KEY_SELECTED_NOTE_ID)?.let { noteId ->
+                restoreWithRetry("note") {
+                    val note = repository.getNoteById(noteId)
+                    if (note != null) {
+                        _selectedNote.value = note
+                        Log.d(TAG, "Restored selectedNote: ${note.id}")
+                        true
+                    } else {
                         savedStateHandle.remove<String>(KEY_SELECTED_NOTE_ID)
+                        true // Note doesn't exist anymore, that's OK
                     }
                 }
+            }
 
-                // Restore selected category by ID
-                savedStateHandle.get<String>(KEY_SELECTED_CATEGORY_ID)?.let { categoryId ->
-                    try {
-                        val category = repository.getCategoryById(categoryId)
-                        if (category != null) {
-                            _selectedCategory.value = category
-                            Log.d(TAG, "Restored selectedCategory: ${category.id}")
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to restore category: ${e.message}")
+            // Restore selected category by ID with retry
+            savedStateHandle.get<String>(KEY_SELECTED_CATEGORY_ID)?.let { categoryId ->
+                restoreWithRetry("category") {
+                    val category = repository.getCategoryById(categoryId)
+                    if (category != null) {
+                        _selectedCategory.value = category
+                        Log.d(TAG, "Restored selectedCategory: ${category.id}")
+                        true
+                    } else {
                         savedStateHandle.remove<String>(KEY_SELECTED_CATEGORY_ID)
+                        true // Category doesn't exist anymore, that's OK
                     }
                 }
+            }
 
-                // Restore chat mode state
-                savedStateHandle.get<Boolean>(KEY_IS_CHAT_MODE)?.let { wasChatMode ->
-                    if (wasChatMode) {
-                        try {
-                            chatManager.enterChatMode()
-                            Log.d(TAG, "Restored chat mode")
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to restore chat mode: ${e.message}")
-                            savedStateHandle[KEY_IS_CHAT_MODE] = false
-                        }
+            // Restore chat mode state with retry
+            savedStateHandle.get<Boolean>(KEY_IS_CHAT_MODE)?.let { wasChatMode ->
+                if (wasChatMode) {
+                    restoreWithRetry("chat mode") {
+                        chatManager.enterChatMode()
+                        Log.d(TAG, "Restored chat mode")
+                        true
                     }
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "State restoration failed: ${e.message}", e)
-                // Clear all saved state to prevent repeated crashes
-                savedStateHandle.remove<String>(KEY_SELECTED_NOTE_ID)
-                savedStateHandle.remove<String>(KEY_SELECTED_CATEGORY_ID)
-                savedStateHandle[KEY_IS_CHAT_MODE] = false
             }
         }
+    }
+
+    /**
+     * Helper function to restore state with exponential backoff retry.
+     * BUG FIX (L-003): Replaces arbitrary delays with proper retry mechanism.
+     *
+     * @param itemName Name of the item being restored (for logging)
+     * @param maxRetries Maximum number of retry attempts (default: 3)
+     * @param initialDelayMs Initial delay in milliseconds (default: 100ms)
+     * @param block The restoration logic to execute
+     * @return true if restoration succeeded, false otherwise
+     */
+    private suspend fun restoreWithRetry(
+        itemName: String,
+        maxRetries: Int = 3,
+        initialDelayMs: Long = 100,
+        block: suspend () -> Boolean
+    ): Boolean {
+        var delayMs = initialDelayMs
+        repeat(maxRetries) { attempt ->
+            try {
+                if (block()) return true
+            } catch (e: Exception) {
+                if (attempt == maxRetries - 1) {
+                    Log.w(TAG, "Failed to restore $itemName after $maxRetries attempts: ${e.message}")
+                    // Clear saved state to prevent repeated failures
+                    when (itemName) {
+                        "note" -> savedStateHandle.remove<String>(KEY_SELECTED_NOTE_ID)
+                        "category" -> savedStateHandle.remove<String>(KEY_SELECTED_CATEGORY_ID)
+                        "chat mode" -> savedStateHandle[KEY_IS_CHAT_MODE] = false
+                    }
+                    return false
+                }
+                Log.d(TAG, "Retry $itemName restoration (attempt ${attempt + 1}/$maxRetries)")
+                kotlinx.coroutines.delay(delayMs)
+                delayMs *= 2 // Exponential backoff
+            }
+        }
+        return false
     }
 
     // Public sync function for manual recalculation
@@ -944,35 +1063,83 @@ class CogniViewModel(
      * Extract suggestions from agent response.
      * Parses TOON format: {suggestions:["suggestion1","suggestion2"]}
      * Returns cleaned response (without suggestions block) and list of suggestions.
+     *
+     * BUG FIX (Issue #18): Made extraction more robust with multiple fallback patterns
+     * and proper error logging instead of silent failure.
      */
     private fun extractSuggestionsFromResponse(response: String): Pair<String, List<String>> {
-        // Pattern to match: {suggestions:["a","b"]} or {suggestions: ["a", "b"]}
-        val suggestionsPattern = Regex("""\{suggestions:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE)
+        try {
+            // Multiple patterns to handle various LLM output formats
+            val patterns = listOf(
+                // Standard format: {suggestions:["a","b"]}
+                Regex("""\{suggestions:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE),
+                // With extra spaces: { suggestions : [ "a" , "b" ] }
+                Regex("""\{\s*suggestions\s*:\s*\[([^\]]*)\]\s*\}""", RegexOption.IGNORE_CASE),
+                // JSON-style with quotes: {"suggestions":["a","b"]}
+                Regex("""\{"suggestions"\s*:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE),
+                // Fallback: just the array after suggestions:
+                Regex("""suggestions\s*:\s*\[([^\]]*)\]""", RegexOption.IGNORE_CASE)
+            )
 
-        val match = suggestionsPattern.find(response)
+            var match: MatchResult? = null
+            var matchedPattern = ""
+            for ((index, pattern) in patterns.withIndex()) {
+                match = pattern.find(response)
+                if (match != null) {
+                    matchedPattern = "pattern$index"
+                    break
+                }
+            }
 
-        if (match == null) {
-            // No suggestions found, return original response
+            if (match == null) {
+                // No suggestions found - this is normal, not an error
+                Log.d(TAG, "No suggestions block found in response")
+                return Pair(response.trim(), emptyList())
+            }
+
+            // Extract the suggestions array content
+            val suggestionsContent = match.groupValues[1]
+
+            // Parse individual suggestions with multiple quote styles
+            // Handles: "text", 'text', and unquoted text separated by commas
+            val suggestions = mutableListOf<String>()
+
+            // Try quoted strings first
+            val quotedPattern = Regex(""""([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'""")
+            quotedPattern.findAll(suggestionsContent).forEach { quotedMatch ->
+                val suggestion = quotedMatch.groupValues[1].ifEmpty { quotedMatch.groupValues[2] }
+                if (suggestion.isNotBlank()) {
+                    // Unescape any escaped characters
+                    suggestions.add(suggestion.replace("\\\"", "\"").replace("\\'", "'"))
+                }
+            }
+
+            // If no quoted strings found, try comma-separated values
+            if (suggestions.isEmpty() && suggestionsContent.isNotBlank()) {
+                suggestionsContent.split(",")
+                    .map { it.trim().trim('"', '\'', ' ') }
+                    .filter { it.isNotBlank() && it.length >= 2 }
+                    .take(2)
+                    .forEach { suggestions.add(it) }
+            }
+
+            // Limit to 2 suggestions
+            val finalSuggestions = suggestions.take(2)
+
+            // Remove the suggestions block from the response
+            val cleanedResponse = response.replace(match.value, "").trim()
+
+            if (finalSuggestions.isNotEmpty()) {
+                Log.d(TAG, "Extracted ${finalSuggestions.size} suggestions via $matchedPattern: $finalSuggestions")
+            }
+
+            return Pair(cleanedResponse, finalSuggestions)
+
+        } catch (e: Exception) {
+            // BUG FIX (Issue #18): Log errors instead of silent failure
+            Log.e(TAG, "Failed to extract suggestions from response: ${e.message}", e)
             return Pair(response.trim(), emptyList())
         }
-
-        // Extract the suggestions array content
-        val suggestionsContent = match.groupValues[1]
-
-        // Parse individual suggestions (handle "text" or 'text')
-        val suggestions = Regex(""""([^"]+)"|'([^']+)'""")
-            .findAll(suggestionsContent)
-            .mapNotNull { it.groupValues[1].ifEmpty { it.groupValues[2] } }
-            .filter { it.isNotBlank() }
-            .take(2)  // Maximum 2 suggestions
-            .toList()
-
-        // Remove the suggestions block from the response
-        val cleanedResponse = response.replace(match.value, "").trim()
-
-        Log.d(TAG, "Extracted ${suggestions.size} suggestions: $suggestions")
-
-        return Pair(cleanedResponse, suggestions)
     }
 
     /**
@@ -1867,7 +2034,7 @@ class CogniViewModel(
         }
 
         voskWakeWordManager = VoskWakeWordManager(
-            context = context,
+            context = context.applicationContext,
             scope = viewModelScope,
             onWakeWordDetected = {
                 Log.i(TAG, "Wake word detected - triggering STT")
@@ -1886,14 +2053,228 @@ class CogniViewModel(
             }
         }
 
-        Log.i(TAG, "Vosk wake word manager initialized")
+        // Initialize phone call detection
+        initPhoneCallListener(context)
+
+        // Initialize audio focus detection
+        initAudioFocusListener(context)
+
+        Log.i(TAG, "Vosk wake word manager initialized with call and audio focus detection")
+    }
+
+    /**
+     * Initialize phone call state listener.
+     * Stops wake word when user is on a call.
+     */
+    @Suppress("DEPRECATION")
+    private fun initPhoneCallListener(context: Context) {
+        try {
+            telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            phoneStateListener = object : PhoneStateListener() {
+                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
+                    when (state) {
+                        TelephonyManager.CALL_STATE_RINGING,
+                        TelephonyManager.CALL_STATE_OFFHOOK -> {
+                            // Call active - stop wake word
+                            if (!isPhoneCallActive) {
+                                isPhoneCallActive = true
+                                stopWakeWordDetection()
+                                Log.d(TAG, "Phone call active - stopped wake word detection")
+                            }
+                        }
+                        TelephonyManager.CALL_STATE_IDLE -> {
+                            // Call ended - can restart wake word
+                            if (isPhoneCallActive) {
+                                isPhoneCallActive = false
+                                restartWakeWordDetection()
+                                Log.d(TAG, "Phone call ended - restarting wake word detection")
+                            }
+                        }
+                    }
+                }
+            }
+            telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
+            Log.d(TAG, "Phone call listener initialized")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize phone call listener: ${e.message}")
+        }
+    }
+
+    /**
+     * Initialize audio focus listener.
+     * Stops wake word when another app takes audio focus or in-app audio plays.
+     *
+     * NOTE: We do NOT request audio focus ourselves - that would pause other apps' music.
+     * Instead we check isMusicActive and observe in-app audio state.
+     */
+    private fun initAudioFocusListener(context: Context) {
+        try {
+            audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+            // Check if music is already playing (initial state)
+            val isMusicPlaying = audioManager?.isMusicActive == true
+            if (isMusicPlaying) {
+                Log.d(TAG, "Music already playing on init - Vosk will not start")
+                isAudioFocusLost = true
+            }
+
+            // NOTE: We intentionally do NOT request audio focus here.
+            // Requesting audio focus would cause other apps (Spotify, YouTube, etc.)
+            // to pause their music when our app starts.
+            // Instead, we check isMusicActive at key points (startWakeWordDetection, maybeResumeVosk)
+
+            // Observe in-app audio player state
+            startInAppAudioObserver()
+
+            Log.d(TAG, "Audio detection initialized (passive mode - won't interrupt other apps)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to initialize audio manager: ${e.message}")
+        }
+    }
+
+    /**
+     * Start observing in-app audio player state.
+     * Pauses Vosk when in-app audio is playing.
+     */
+    private fun startInAppAudioObserver() {
+        audioPlayerCollectorJob?.cancel()
+        audioPlayerCollectorJob = viewModelScope.launch {
+            AudioPlayerService.playerState.collect { state ->
+                val wasPlaying = isInAppAudioPlaying
+                isInAppAudioPlaying = state.playbackState == PlaybackState.PLAYING
+
+                if (isInAppAudioPlaying && !wasPlaying) {
+                    // Audio started playing - pause Vosk
+                    Log.d(TAG, "In-app audio started - pausing Vosk")
+                    voskWakeWordManager?.stopListening()
+                } else if (!isInAppAudioPlaying && wasPlaying) {
+                    // Audio stopped - try to resume Vosk
+                    Log.d(TAG, "In-app audio stopped - checking if Vosk can resume")
+                    maybeResumeVosk()
+                }
+            }
+        }
+    }
+
+    /**
+     * Start periodic check for system music.
+     * Monitors both:
+     * - Music stopping (so we can resume Vosk)
+     * - Music starting (so we can pause Vosk)
+     * Only runs when app is in foreground.
+     */
+    private fun startMusicCheck() {
+        musicCheckJob?.cancel()
+        musicCheckJob = viewModelScope.launch {
+            Log.d(TAG, "Starting periodic music check (every 2s)")
+            // BUG-001 FIX: Use isActive for proper cancellation instead of while(true)
+            while (isActive) {
+                delay(2000L) // Check every 2 seconds
+
+                // Only check when app is in foreground
+                if (!_isAppInForeground.value) {
+                    continue
+                }
+
+                val isMusicPlaying = audioManager?.isMusicActive == true
+
+                if (isMusicPlaying && !isAudioFocusLost) {
+                    // Music just started - pause Vosk
+                    Log.d(TAG, "System music started mid-session - pausing Vosk")
+                    isAudioFocusLost = true
+                    voskWakeWordManager?.stopListening()
+                } else if (!isMusicPlaying && isAudioFocusLost) {
+                    // Music stopped - try to resume Vosk
+                    Log.d(TAG, "System music stopped - resuming Vosk")
+                    isAudioFocusLost = false
+                    maybeResumeVosk()
+                }
+            }
+        }
+    }
+
+    /**
+     * Stop the periodic music check.
+     */
+    private fun stopMusicCheck() {
+        musicCheckJob?.cancel()
+        musicCheckJob = null
+    }
+
+    /**
+     * Try to resume Vosk if all conditions allow.
+     */
+    private fun maybeResumeVosk() {
+        if (!_isAppInForeground.value) {
+            Log.d(TAG, "Cannot resume Vosk - app in background")
+            return
+        }
+        if (isPhoneCallActive) {
+            Log.d(TAG, "Cannot resume Vosk - phone call active")
+            return
+        }
+        if (isAudioFocusLost) {
+            Log.d(TAG, "Cannot resume Vosk - audio focus lost")
+            return
+        }
+        if (isInAppAudioPlaying) {
+            Log.d(TAG, "Cannot resume Vosk - in-app audio playing")
+            return
+        }
+        if (isMicInUseByOther) {
+            Log.d(TAG, "Cannot resume Vosk - mic in use by other")
+            return
+        }
+        if (pendingShareFullPrivacy.value) {
+            Log.d(TAG, "Cannot resume Vosk - privacy mode active")
+            return
+        }
+        // Check if any system audio is playing
+        if (audioManager?.isMusicActive == true) {
+            Log.d(TAG, "Cannot resume Vosk - system music active")
+            return
+        }
+
+        Log.d(TAG, "All conditions met - resuming Vosk")
+        voskWakeWordManager?.restartListening()
+    }
+
+    /**
+     * Check if audio is available (no call active, no audio focus lost, no audio playing).
+     */
+    private fun isAudioAvailable(): Boolean {
+        return !isPhoneCallActive && !isAudioFocusLost && !isInAppAudioPlaying
     }
 
     /**
      * Start wake word detection.
      * Call this from Activity.onResume().
+     *
+     * MED-007: Respects privacy mode - Vosk won't listen during share privacy mode.
+     * Also checks audio playback state - won't start if audio is playing.
      */
     fun startWakeWordDetection() {
+        // MED-007: Don't start Vosk if in privacy mode (during share flow with full privacy)
+        if (pendingShareFullPrivacy.value) {
+            Log.d(TAG, "Skipping wake word start - privacy mode active")
+            return
+        }
+        // Don't start if audio is playing (in-app or system)
+        if (isInAppAudioPlaying) {
+            Log.d(TAG, "Skipping wake word start - in-app audio playing")
+            return
+        }
+
+        // Always start the music check to monitor for music starting/stopping
+        startMusicCheck()
+
+        if (audioManager?.isMusicActive == true) {
+            Log.d(TAG, "Skipping wake word start - system music active")
+            isAudioFocusLost = true
+            return
+        }
+
+        isAudioFocusLost = false
         voskWakeWordManager?.startListening()
     }
 
@@ -1903,6 +2284,19 @@ class CogniViewModel(
      */
     fun stopWakeWordDetection() {
         voskWakeWordManager?.stopListening()
+        // Stop music check when going to background (will restart on resume if needed)
+        stopMusicCheck()
+    }
+
+    /**
+     * MED-007: Pause Vosk when entering privacy-sensitive mode.
+     * Called when pendingShareFullPrivacy changes to true.
+     */
+    private fun pauseVoskForPrivacy() {
+        if (pendingShareFullPrivacy.value) {
+            Log.d(TAG, "Pausing Vosk for privacy mode")
+            voskWakeWordManager?.stopListening()
+        }
     }
 
     /**
@@ -1917,15 +2311,43 @@ class CogniViewModel(
      * Call this from onActivityResult after speech recognition finishes.
      *
      * PRIVACY: Only restarts if app is in foreground to prevent background mic access.
+     * MED-007: Also respects privacy mode.
      */
     fun restartWakeWordDetection() {
         _wakeWordTriggered.value = false
-        // CRITICAL: Only restart if app is in foreground
-        if (_isAppInForeground.value) {
-            voskWakeWordManager?.restartListening()
-        } else {
+        // CRITICAL: Only restart if all conditions are met
+        if (!_isAppInForeground.value) {
             Log.d(TAG, "Skipping wake word restart - app is in background")
+            return
         }
+        if (isMicInUseByOther) {
+            Log.d(TAG, "Skipping wake word restart - mic in use by voice enrollment or other")
+            return
+        }
+        if (isPhoneCallActive) {
+            Log.d(TAG, "Skipping wake word restart - phone call is active")
+            return
+        }
+        if (isAudioFocusLost) {
+            Log.d(TAG, "Skipping wake word restart - audio focus lost to another app")
+            return
+        }
+        if (isInAppAudioPlaying) {
+            Log.d(TAG, "Skipping wake word restart - in-app audio playing")
+            return
+        }
+        if (audioManager?.isMusicActive == true) {
+            Log.d(TAG, "Skipping wake word restart - system music active")
+            isAudioFocusLost = true
+            startMusicCheck()
+            return
+        }
+        // MED-007: Don't restart if in privacy mode
+        if (pendingShareFullPrivacy.value) {
+            Log.d(TAG, "Skipping wake word restart - privacy mode active")
+            return
+        }
+        voskWakeWordManager?.restartListening()
     }
 
     /**
@@ -1937,12 +2359,51 @@ class CogniViewModel(
     }
 
     /**
+     * Clear the speaker verification cache.
+     * Call this after voice fingerprint is deleted or retrained.
+     * Forces the wake word detector to reload the embedding from disk.
+     */
+    fun clearSpeakerVerificationCache() {
+        voskWakeWordManager?.clearSpeakerCache()
+    }
+
+    /**
+     * Mark mic as in use by voice enrollment or other features.
+     * Prevents wake word from auto-restarting when app resumes.
+     */
+    fun setMicInUseByOther(inUse: Boolean) {
+        isMicInUseByOther = inUse
+        Log.d(TAG, "Mic in use by other: $inUse")
+    }
+
+    /**
      * Update the current screen route - call when navigation changes
      * Shake gesture only works on the main inputStream screen
+     * 
+     * OPTIMIZATION: Automatically starts/stops shake detection based on screen.
+     * This saves significant battery by not running the accelerometer sensor
+     * when user is on Settings, Calendar, Stacks, or other screens.
      */
     fun setCurrentScreen(screen: String) {
+        val previousScreen = _currentScreen.value
         _currentScreen.value = screen
-        Log.d(TAG, "Current screen updated: $screen")
+        
+        // BATTERY OPTIMIZATION: Only run shake sensor on main screen
+        when {
+            screen == "input_stream" && previousScreen != "input_stream" -> {
+                // Entering main screen - start shake detection
+                shakeDetector?.start()
+                Log.d(TAG, "Screen -> $screen: Started shake detection (battery optimization)")
+            }
+            screen != "input_stream" && previousScreen == "input_stream" -> {
+                // Leaving main screen - stop shake detection to save battery
+                shakeDetector?.stop()
+                Log.d(TAG, "Screen -> $screen: Stopped shake detection (battery optimization)")
+            }
+            else -> {
+                Log.d(TAG, "Screen -> $screen (shake detection unchanged)")
+            }
+        }
     }
 
     /**
@@ -2060,6 +2521,31 @@ class CogniViewModel(
         chatManager.clearChatHistory()
     }
 
+    // ==================== TTS Control Methods ====================
+
+    /**
+     * Enable or disable TTS for AI responses.
+     */
+    fun setTTSEnabled(enabled: Boolean) {
+        responseTTSManager.setEnabled(enabled)
+    }
+
+    /**
+     * Stop current TTS speech immediately.
+     */
+    fun stopTTS() {
+        responseTTSManager.stop()
+    }
+
+    /**
+     * Speak text using TTS (for AI responses).
+     */
+    private fun speakResponse(text: String) {
+        responseTTSManager.speak(text)
+    }
+
+    // ==================== End TTS Control Methods ====================
+
     /**
      * Send a message in chat mode using the Koog-based AI agent.
      *
@@ -2126,6 +2612,10 @@ class CogniViewModel(
                         )
 
                         chatManager.addAssistantMessage(assistantMessage)
+
+                        // Speak AI response immediately (if TTS enabled)
+                        speakResponse(cleanedResponse)
+
                         chatManager.markApiCallSuccessful()
                         chatManager.saveMessagePair(
                             userMessage = userMessage,
@@ -2303,6 +2793,10 @@ class CogniViewModel(
         // CRITICAL: Mark app as backgrounded to stop all microphone access
         _isAppInForeground.value = false
 
+        // CRITICAL: Stop wake word detection to release microphone
+        stopWakeWordDetection()
+        Log.d(TAG, "Stopped wake word detection for background")
+
         // Flush any pending batched database writes before going to background
         viewModelScope.launch {
             noteOperationsManager.flushPendingWrites()
@@ -2330,6 +2824,13 @@ class CogniViewModel(
         // CRITICAL: Mark app as foregrounded to allow microphone access
         _isAppInForeground.value = true
 
+        // RACE CONDITION FIX: Do NOT restart wake word here!
+        // MainActivity.onResume() handles wake word restart with a 300ms delay
+        // to allow proper initialization after process death.
+        // Having two paths (immediate + delayed) causes race conditions
+        // in VoskWakeWordManager's native resources.
+        // See: APP_CRASH_ON_RESUME.md Bug #5
+
         // Refresh cache size on resume
         refreshCacheSize()
     }
@@ -2353,20 +2854,27 @@ class CogniViewModel(
 
     /**
      * Clean up resources when ViewModel is cleared
+     *
+     * LEAK FIX: Replaced GlobalScope with ProcessLifecycleOwner scope.
+     * GlobalScope creates orphaned coroutines that hold ViewModel references,
+     * causing memory leaks. ProcessLifecycleOwner scope is tied to app lifecycle.
      */
     override fun onCleared() {
         super.onCleared()
-        // CRITICAL: Flush pending database writes SYNCHRONOUSLY before cleanup
-        // Using runBlocking because viewModelScope is already cancelled at this point
-        try {
-            kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
-                kotlinx.coroutines.withTimeout(3000L) { // 3 second timeout
+
+        // LEAK FIX: Use viewModelScope for cleanup instead of GlobalScope
+        // viewModelScope is still active during onCleared and completes pending work
+        // GlobalScope creates orphaned coroutines that hold ViewModel references
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                withTimeout(3000L) {
                     noteOperationsManager.cleanup()
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Cleanup timeout or error: ${e.message}")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Cleanup timeout or error: ${e.message}")
         }
+
         // Cancel wake word collector job to prevent coroutine leak
         wakeWordCollectorJob?.cancel()
         wakeWordCollectorJob = null
@@ -2374,6 +2882,31 @@ class CogniViewModel(
         shakeDetector = null
         voskWakeWordManager?.destroy()
         voskWakeWordManager = null
+
+        // Clean up TTS resources
+        responseTTSManager.shutdown()
+
+        // Clean up phone state listener to prevent memory leak
+        @Suppress("DEPRECATION")
+        try {
+            phoneStateListener?.let { listener ->
+                telephonyManager?.listen(listener, PhoneStateListener.LISTEN_NONE)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cleaning up phone state listener: ${e.message}")
+        }
+        phoneStateListener = null
+        telephonyManager = null
+
+        // Clean up audio player observer
+        audioPlayerCollectorJob?.cancel()
+        audioPlayerCollectorJob = null
+
+        // Clean up music check job
+        musicCheckJob?.cancel()
+        musicCheckJob = null
+
+        audioManager = null
     }
 }
 

@@ -4,13 +4,18 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import com.example.smarty.data.model.CogniTimer
 
 /**
  * Schedules and manages timers/alarms using AlarmManager.
  * Supports both one-time timers and recurring alarms.
+ *
+ * BUG FIX (RX-02): Added permission request flow for SCHEDULE_EXACT_ALARM
+ * on Android 12+ (API 31+). Without this permission, alarms may fire late.
  */
 class AlarmScheduler(private val context: Context) {
 
@@ -119,6 +124,43 @@ class AlarmScheduler(private val context: Context) {
             alarmManager.canScheduleExactAlarms()
         } else {
             true
+        }
+    }
+
+    /**
+     * BUG FIX (RX-02): Create intent to request SCHEDULE_EXACT_ALARM permission.
+     * On Android 12+ (API 31+), this permission is required for exact alarms.
+     * Returns null on older Android versions where permission is not needed.
+     *
+     * Usage: Launch this intent from an Activity to open system settings.
+     */
+    fun createExactAlarmPermissionIntent(): Intent? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                data = Uri.parse("package:${context.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        } else {
+            null // Not needed on older Android versions
+        }
+    }
+
+    /**
+     * BUG FIX (RX-02): Check if exact alarm permission should be requested.
+     * Returns true if on Android 12+ and permission is not granted.
+     */
+    fun shouldRequestExactAlarmPermission(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !canScheduleExactAlarms()
+    }
+
+    /**
+     * BUG FIX (RX-02): Get user-friendly message about exact alarm permission.
+     */
+    fun getExactAlarmPermissionMessage(): String {
+        return if (shouldRequestExactAlarmPermission()) {
+            "For precise timer functionality, please allow exact alarms in Settings."
+        } else {
+            ""
         }
     }
 }

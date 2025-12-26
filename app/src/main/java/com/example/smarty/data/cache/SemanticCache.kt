@@ -20,15 +20,19 @@ import java.util.concurrent.ConcurrentHashMap
  * Expected impact: 40-60% reduction in API calls
  *
  * @property embeddingService Service for generating text embeddings
- * @property similarityThreshold Minimum similarity for cache hit (default: 0.95)
+ * @property similarityThreshold Minimum similarity for cache hit (default: 0.90)
  * @property maxEntries Maximum cache size before eviction (default: 100)
- * @property ttlMs Time-to-live in milliseconds (default: 30 min)
+ * @property ttlMs Time-to-live in milliseconds (default: 2 hours)
+ *
+ * L9 FIX: Adjusted thresholds for better cache hit rate:
+ * - Reduced similarity from 0.95 to 0.90 (more permissive)
+ * - Increased TTL from 30min to 2 hours for longer-lived cache entries
  */
 class SemanticCache(
     private val embeddingService: EmbeddingService,
-    private val similarityThreshold: Float = 0.95f,
+    private val similarityThreshold: Float = 0.90f,  // Reduced from 0.95 for more cache hits
     private val maxEntries: Int = 100,
-    private val ttlMs: Long = 30 * 60 * 1000 // 30 minutes
+    private val ttlMs: Long = 2 * 60 * 60 * 1000 // 2 hours (increased from 30 min)
 ) {
     companion object {
         private const val TAG = "SemanticCache"
@@ -36,13 +40,16 @@ class SemanticCache(
 
     /**
      * Cache entry storing query embedding, response, and metadata.
+     * PRIVACY FIX (CRIT-007): Added containsNoteData flag to track entries
+     * that may need invalidation when note privacy changes.
      */
     data class CacheEntry(
         val query: String,
         val embedding: FloatArray,
         val response: String,
         val timestamp: Long = System.currentTimeMillis(),
-        var accessCount: Int = 0
+        var accessCount: Int = 0,
+        val containsNoteData: Boolean = false  // True if response references user notes
     ) {
         fun isExpired(ttlMs: Long): Boolean =
             System.currentTimeMillis() - timestamp > ttlMs
@@ -117,7 +124,11 @@ class SemanticCache(
      * @param query The original query
      * @param response The AI response to cache
      */
-    suspend fun put(query: String, response: String) = mutex.withLock {
+    /**
+     * @param containsNoteData PRIVACY FIX (CRIT-007): Set to true if response references user notes.
+     *                         These entries will be invalidated when note privacy changes.
+     */
+    suspend fun put(query: String, response: String, containsNoteData: Boolean = false) = mutex.withLock {
         if (query.isBlank() || response.isBlank()) return@withLock
 
         // Generate embedding for query
@@ -135,11 +146,12 @@ class SemanticCache(
         val entry = CacheEntry(
             query = query,
             embedding = embedding,
-            response = response
+            response = response,
+            containsNoteData = containsNoteData
         )
         cache[query] = entry
 
-        Log.d(TAG, "Cached response for query='${query.take(50)}'")
+        Log.d(TAG, "Cached response for query='${query.take(50)}' (noteData=$containsNoteData)")
     }
 
     /**
@@ -150,6 +162,19 @@ class SemanticCache(
         hits = 0
         misses = 0
         Log.d(TAG, "Cache cleared")
+    }
+
+    /**
+     * PRIVACY FIX (CRIT-007): Invalidate all cache entries that contain note data.
+     * Call this when note privacy changes to prevent stale private data from being returned.
+     */
+    suspend fun invalidateNoteDataEntries() = mutex.withLock {
+        val sizeBefore = cache.size
+        cache.entries.removeIf { it.value.containsNoteData }
+        val removed = sizeBefore - cache.size
+        if (removed > 0) {
+            Log.d(TAG, "Privacy change: invalidated $removed cache entries containing note data")
+        }
     }
 
     /**

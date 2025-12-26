@@ -93,6 +93,8 @@ fun NoteCard(
     val swipeActivationThreshold = remember { with(density) { 30.dp.toPx() } }  // Minimum drag to start showing swipe UI
     var swipeActivated by remember { mutableStateOf(false) }  // Has the swipe been activated this gesture?
     var accumulatedDrag by remember { mutableFloatStateOf(0f) }  // Track total drag distance
+    // MEDIUM-007: Prevent rapid swipe modal overlap
+    var actionInProgress by remember { mutableStateOf(false) }
     val snapBackSpec = spring<Float>(dampingRatio = 0.8f, stiffness = 800f)
 
     // Apple-style Card Transform (Scale + Rotation)
@@ -114,7 +116,8 @@ fun NoteCard(
             note.processingStatus == ProcessingStatus.PROCESSING -> LocalAccentColor.current.copy(alpha = 0.5f)
             swipeOffset.value > swipeThreshold * 0.5f -> {
                 if (isArchiveView) MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                else SystemGray.copy(alpha = 0.5f)
+                // MEDIUM-019: Improved contrast for accessibility (0.5f -> 0.7f)
+                else SystemGray.copy(alpha = 0.7f)
             }
             swipeOffset.value < -swipeThreshold * 0.5f -> SystemBlue.copy(alpha = 0.5f)
             else -> Color.Transparent // Clean look by default
@@ -199,16 +202,32 @@ fun NoteCard(
                     if (!isSelectionMode) {
                         detectHorizontalDragGestures(
                             onDragEnd = {
+                                // MEDIUM-007: Prevent action if one is already in progress
+                                if (actionInProgress) {
+                                    coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
+                                    swipeActivated = false
+                                    accumulatedDrag = 0f
+                                    return@detectHorizontalDragGestures
+                                }
+
                                 if (swipeActivated && swipeOffset.value > swipeThreshold) {
                                     // INSTANT: Call action FIRST, then animate
+                                    actionInProgress = true
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     if (isArchiveView) onDelete() else onArchive?.invoke()
-                                    coroutineScope.launch { swipeOffset.snapTo(0f) }
+                                    coroutineScope.launch {
+                                        swipeOffset.snapTo(0f)
+                                        actionInProgress = false
+                                    }
                                 } else if (swipeActivated && swipeOffset.value < -swipeThreshold) {
                                     // INSTANT: Call action FIRST, then animate
+                                    actionInProgress = true
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     if (isArchiveView) onUnarchive?.invoke() else onOpenTodo()
-                                    coroutineScope.launch { swipeOffset.snapTo(0f) }
+                                    coroutineScope.launch {
+                                        swipeOffset.snapTo(0f)
+                                        actionInProgress = false
+                                    }
                                 } else {
                                     coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
                                 }
@@ -266,7 +285,11 @@ fun NoteCard(
                 if (note.processingStatus == ProcessingStatus.PROCESSING || note.processingStatus == ProcessingStatus.PENDING) {
                     // Enhanced Shimmering Skeleton Loader with staggered wave effect
                     val shimmerBaseColor = LocalAccentColor.current.copy(alpha = 0.4f)
-                    
+
+                    // MEDIUM-003: Use key() to force recomposition when theme changes
+                    // This prevents shimmer glitches during theme switch
+                    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
+                    key(isDarkTheme, shimmerBaseColor) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -318,6 +341,7 @@ fun NoteCard(
                                 )
                         )
                     }
+                    } // End key() block for theme-safe shimmer
                 } else {
                     // Standard Content
                     // Header: Title + Category + Indicators + New Note Dot
@@ -422,6 +446,72 @@ fun NoteCard(
                                         name = category,
                                         isNew = note.processingStatus == ProcessingStatus.COMPLETED
                                     )
+                                }
+
+                                // MEDIUM-018: Accessible dropdown menu for swipe action alternatives
+                                var showA11yMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    IconButton(
+                                        onClick = { showA11yMenu = true },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "More options",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = showA11yMenu,
+                                        onDismissRequest = { showA11yMenu = false }
+                                    ) {
+                                        if (isArchiveView) {
+                                            // Archive view: Unarchive and Delete options
+                                            DropdownMenuItem(
+                                                text = { Text("Unarchive") },
+                                                onClick = {
+                                                    showA11yMenu = false
+                                                    onUnarchive?.invoke()
+                                                },
+                                                leadingIcon = {
+                                                    Icon(Icons.Default.Unarchive, null)
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete") },
+                                                onClick = {
+                                                    showA11yMenu = false
+                                                    onDelete()
+                                                },
+                                                leadingIcon = {
+                                                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error)
+                                                }
+                                            )
+                                        } else {
+                                            // Main view: Archive and Todos options
+                                            DropdownMenuItem(
+                                                text = { Text("Archive") },
+                                                onClick = {
+                                                    showA11yMenu = false
+                                                    onArchive?.invoke()
+                                                },
+                                                leadingIcon = {
+                                                    Icon(Icons.Default.Archive, null)
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Open Todos") },
+                                                onClick = {
+                                                    showA11yMenu = false
+                                                    onOpenTodo()
+                                                },
+                                                leadingIcon = {
+                                                    Icon(Icons.Default.Checklist, null)
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

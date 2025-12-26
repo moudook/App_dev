@@ -60,6 +60,21 @@ class ChatManager(
     private val chatMutex = Mutex()
 
     /**
+     * BUG FIX (TECH-004): Error state for UI to observe.
+     * Previously, errors were silently logged without UI notification.
+     */
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    /**
+     * BUG FIX (TECH-004): Clear the last error.
+     * Call this after displaying the error to the user.
+     */
+    fun clearError() {
+        _lastError.value = null
+    }
+
+    /**
      * Initialize by loading sessions and cleaning up empty ones
      */
     fun initialize() {
@@ -136,6 +151,9 @@ class ChatManager(
 
     /**
      * Create a new chat session (starts fresh conversation)
+     *
+     * BUG FIX (Issue #38): Clear PIIMasker session to prevent memory leak
+     * from accumulated placeholder mappings across sessions.
      */
     fun createNewChatSession() {
         scope.launch {
@@ -149,6 +167,10 @@ class ChatManager(
                 _chatMessages.value = emptyList()
             }
             lastApiCallSuccessful = false
+
+            // BUG FIX (Issue #38): Clear PII masker session to prevent memory leak
+            com.example.smarty.util.PIIMasker.clearSession()
+
             Log.d(TAG, "Created new chat session: ${newSession.id}")
         }
     }
@@ -286,13 +308,16 @@ class ChatManager(
 
     /**
      * Save a message pair to persistent storage (thread-safe)
+     *
+     * BUG FIX (TECH-004): Now returns Result to indicate success/failure
+     * and sets lastError state for UI observation.
      */
     suspend fun saveMessagePair(
         userMessage: ChatMessage,
         assistantMessage: ChatMessage,
         hasApiKeys: Boolean
-    ) {
-        chatMutex.withLock {
+    ): Result<Unit> {
+        return chatMutex.withLock {
             try {
                 _currentSessionId.value?.let { sessionId ->
                     chatRepository.saveMessagePair(
@@ -302,8 +327,12 @@ class ChatManager(
                         shouldSave = shouldSaveChat(hasApiKeys)
                     )
                 }
+                Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving message pair: ${e.message}", e)
+                // BUG FIX (TECH-004): Set error state for UI to observe
+                _lastError.value = "Failed to save message: ${e.message}"
+                Result.failure(e)
             }
         }
     }

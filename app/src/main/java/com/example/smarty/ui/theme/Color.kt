@@ -24,17 +24,17 @@ val InputBackground = Color(0xFFE3E0D9)      // Input field - blends with second
 val SecondaryButtonBg = Color(0xFFD6D2CA)    // Secondary button background
 
 // =============================================================================
-// MODERN SOFT MINIMALIST - DARK THEME
+// MODERN SOFT MINIMALIST - DARK THEME (Claude-inspired)
 // =============================================================================
-val DarkBackground = Color(0xFF111111)       // Background - near black
-val DarkCard = Color(0xFF1C1C1E)             // Card Background - elevated dark
+val DarkBackground = Color(0xFF0D0C11)       // Background - deep charcoal (Claude-style)
+val DarkCard = Color(0xFF181822)             // Card Background - slightly elevated
 val DarkElectricBlue = Color(0xFF2979FF)     // Primary Accent - brighter for dark
 val DarkPaleBlue = Color(0xFF1E3A5F)         // Secondary Accent - dark variant
 val DarkTextPrimary = Color(0xFFFFFFFF)      // Text Primary - white
-val DarkTextSecondary = Color(0xFF8E94A3)    // Text Secondary - cool grey
-val DarkBorder = Color(0xFF2C2C2E)           // Borders - subtle dark
-val DarkInputBackground = Color(0xFF1C1C1E)  // Input field background
-val DarkSurfaceElevated = Color(0xFF2C2C2E)  // Higher elevation surface
+val DarkTextSecondary = Color(0xFF9A9BA1)    // Text Secondary - slightly brighter grey
+val DarkBorder = Color(0xFF252530)           // Borders - subtle purple-tinted dark
+val DarkInputBackground = Color(0xFF181822)  // Input field background
+val DarkSurfaceElevated = Color(0xFF1F1F2A)  // Higher elevation surface
 
 // =============================================================================
 // LEGACY COLORS (kept for compatibility)

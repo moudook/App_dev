@@ -12,6 +12,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.animation.Crossfade
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,17 +47,39 @@ import com.example.smarty.service.AudioPlayerService
 import com.example.smarty.viewmodel.AudioPlayerViewModel
 import com.example.smarty.viewmodel.CogniViewModel
 import com.example.smarty.viewmodel.CogniViewModelFactory
+import com.example.smarty.viewmodel.AuthViewModel
+import com.example.smarty.viewmodel.AuthViewModelFactory
 import com.example.smarty.viewmodel.SharedContent
 import com.example.smarty.viewmodel.SharedFileInfo
-import com.example.smarty.ui.screens.StartupScreen
+import com.example.smarty.ui.screens.VoiceEnrollmentScreen
 import com.example.smarty.ui.components.AttachmentOption
+import com.example.smarty.voice.speaker.SpeakerEmbeddingManager
+import com.example.smarty.voice.speaker.VoiceEnrollmentManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class MainActivity : ComponentActivity() {
     // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
     private val viewModel: CogniViewModel by viewModels {
         CogniViewModelFactory(application, this)
     }
+    private val authViewModel: AuthViewModel by viewModels {
+        AuthViewModelFactory(application)
+    }
     private val audioPlayerViewModel: AudioPlayerViewModel by viewModels()
+
+    // Voice enrollment manager for first-time setup
+    private val enrollmentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val speakerEmbeddingManager by lazy {
+        SpeakerEmbeddingManager(applicationContext)
+    }
+    private val voiceEnrollmentManager by lazy {
+        VoiceEnrollmentManager(applicationContext, enrollmentScope)
+    }
+
+    // Track mic permission state for enrollment check
+    private val _micPermissionGranted = mutableStateOf(false)
 
     // Permission launcher for multiple permissions
     private val permissionLauncher = registerForActivityResult(
@@ -69,14 +93,21 @@ class MainActivity : ComponentActivity() {
         if (permissions[Manifest.permission.RECORD_AUDIO] == true) {
             viewModel.initVoskWakeWord(this)
         }
+        // Update state to complete splash - whether granted or denied
+        // This allows the splash to complete even if user denies permission
+        _micPermissionGranted.value = true
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        
 
+        // Check if mic permission is already granted (for subsequent launches)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED) {
+            _micPermissionGranted.value = true
+        }
 
         // Request all necessary permissions
         requestRequiredPermissions()
@@ -107,8 +138,81 @@ class MainActivity : ComponentActivity() {
             val isDarkThemeTop by viewModel.isDarkTheme.collectAsState()
 
             CogniTheme(darkTheme = isDarkThemeTop) {
-                // Splash Screen State - Skip for share/widget intents
-                var showSplash by remember { mutableStateOf(!shouldSkipSplash) }
+                // NOTE: Splash animation is now integrated into LoginScreen
+                // No separate splash state needed
+
+                // Auth state - CRITICAL: Check synchronously first to avoid login flash
+                // FirebaseAuth.currentUser is available immediately if user was logged in before
+                val firebaseCurrentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                val currentUser by authViewModel.currentUser.collectAsState()
+                
+                // Track if auth state has been loaded
+                // OPTIMIZATION: If Firebase already has a cached user, mark as loaded immediately
+                // This prevents the login screen from flashing when sharing from other apps
+                var authStateLoaded by remember { mutableStateOf(firebaseCurrentUser != null) }
+                
+                // Voice enrollment state - show AFTER login, on first launch if not enrolled
+                var showVoiceEnrollment by remember { mutableStateOf(false) }
+
+                // Track voice enrollment status reactively (for settings UI)
+                var isVoiceEnrolled by remember { mutableStateOf(speakerEmbeddingManager.isEnrolled()) }
+
+                // Track mic permission state
+                val micPermissionGranted by _micPermissionGranted
+
+                // Wait for Firebase to load auth state (for cases where user wasn't logged in)
+                LaunchedEffect(currentUser) {
+                    // After first emission from Firebase, auth state is loaded
+                    authStateLoaded = true
+                }
+
+                // Check enrollment status AFTER user is logged in
+                // Voice enrollment should only show if:
+                // - User IS logged in
+                // - Not already enrolled
+                // - Hasn't skipped before
+                // - Has mic permission
+                LaunchedEffect(micPermissionGranted, currentUser, authStateLoaded) {
+                    // Only check when user is logged in
+                    if (authStateLoaded && currentUser != null) {
+                        val hasMicPermission = ContextCompat.checkSelfPermission(
+                            this@MainActivity,
+                            Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        val shouldShowEnrollment = !speakerEmbeddingManager.isEnrolled() &&
+                                !speakerEmbeddingManager.hasSkippedEnrollment() &&
+                                hasMicPermission &&
+                                !showVoiceEnrollment
+
+                        if (shouldShowEnrollment) {
+                            showVoiceEnrollment = true
+                        }
+                    }
+                }
+
+                // Pause wake word detection and shake gesture during voice enrollment
+                if (showVoiceEnrollment) {
+                    DisposableEffect(Unit) {
+                        // Mark mic as in use to prevent auto-restart on resume
+                        viewModel.setMicInUseByOther(true)
+                        // Stop wake word immediately when enrollment screen shows
+                        viewModel.stopWakeWordDetection()
+                        // Set screen to voice_enrollment so shake gesture is ignored
+                        viewModel.setCurrentScreen("voice_enrollment")
+                        android.util.Log.d("VoiceEnrollment", "Stopped wake word and shake for enrollment")
+
+                        onDispose {
+                            // Clear mic in use flag
+                            viewModel.setMicInUseByOther(false)
+                            // Resume when enrollment screen closes
+                            viewModel.restartWakeWordDetection()
+                            // Restore screen to input_stream
+                            viewModel.setCurrentScreen("input_stream")
+                            android.util.Log.d("VoiceEnrollment", "Resumed wake word and shake after enrollment")
+                        }
+                    }
+                }
 
                 val navController = rememberNavController()
                 val notes by viewModel.notes.collectAsState()
@@ -173,6 +277,9 @@ class MainActivity : ComponentActivity() {
 
                 // GROQ key usage stats for UI display
                 val groqKeyUsageStats by viewModel.groqKeyUsageStats.collectAsState()
+
+                // TTS for AI responses state
+                val isTTSEnabled by viewModel.isTTSEnabled.collectAsState()
 
                 // Shake mode switch animation trigger
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
@@ -255,19 +362,84 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
+                    // NEW FLOW:
+                    // 1. If not logged in → LoginScreen (no splash)
+                    // 2. After login → StartupScreen (splash animation)
+                    // 3. After splash → VoiceEnrollment (if needed)
+                    // 4. After enrollment → Main App
+                    
+                    // Determine current screen state
+                    // Use EITHER the synchronous Firebase user OR the async flow user
+                    // This ensures no login flash when user was already logged in
+                    val isLoggedIn = authStateLoaded && (currentUser != null || firebaseCurrentUser != null)
+                    
+                    // Screen state machine (SIMPLIFIED - no separate splash)
+                    // State: LOADING_AUTH → LOGIN → VOICE_ENROLLMENT → MAIN_APP
+                    // Note: Particle animation is now integrated into LoginScreen
+                    val screenState = when {
+                        !authStateLoaded -> "loading"
+                        !isLoggedIn -> "login"
+                        showVoiceEnrollment -> "voice_enrollment"
+                        else -> "main_app"
+                    }
+                    
                     Crossfade(
-                        targetState = showSplash,
+                        targetState = screenState,
                         animationSpec = tween(600),
-                        label = "SplashScreenTransition"
-                    ) { isSplash ->
-                        if (isSplash) {
-                            StartupScreen(
-                                onComplete = { showSplash = false }
-                            )
-                        } else {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                CogniNavHost(
-                                    navController = navController,
+                        label = "ScreenTransition"
+                    ) { state ->
+                        when (state) {
+                            "loading" -> {
+                                // Brief loading state while Firebase checks auth
+                                // Just show empty background - this is usually < 100ms
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    // Minimal loading indicator
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                                        strokeWidth = 3.dp
+                                    )
+                                }
+                            }
+                            
+                            "login" -> {
+                                // LOGIN FIRST - No splash before this
+                                com.example.smarty.ui.screens.LoginScreen(
+                                    onLoginSuccess = {
+                                        // Login successful - state will recompose to voice_enrollment or main_app
+                                    }
+                                )
+                            }
+                            
+                            "voice_enrollment" -> {
+                                // VOICE ENROLLMENT AFTER SPLASH
+                                VoiceEnrollmentScreen(
+                                    enrollmentManager = voiceEnrollmentManager,
+                                    onEnrollmentComplete = {
+                                        showVoiceEnrollment = false
+                                        isVoiceEnrolled = true
+                                        // Clear cache so wake word uses new voice fingerprint
+                                        viewModel.clearSpeakerVerificationCache()
+                                    },
+                                    onSkip = {
+                                        // Remember that user skipped - don't show again on next launch
+                                        speakerEmbeddingManager.setEnrollmentSkipped(true)
+                                        showVoiceEnrollment = false
+                                    }
+                                )
+                            }
+                            
+                            "main_app" -> {
+                                // MAIN APP - User is logged in, splash done, enrollment done/skipped
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    CogniNavHost(
+                                        navController = navController,
+                                        // Auth Guard - user is definitely logged in at this point
+                                        isLoggedIn = true,
+                                        onSignOut = { authViewModel.signOut() },
+                                    
                                     notes = notes,
                                     archivedNotes = archivedNotes,
                                     categories = categories,
@@ -516,6 +688,29 @@ class MainActivity : ComponentActivity() {
                                     onScreenChange = { route ->
                                         viewModel.setCurrentScreen(route)
                                     },
+                                    // Voice fingerprint management
+                                    isVoiceEnrolled = isVoiceEnrolled,
+                                    onDeleteVoiceFingerprint = {
+                                        enrollmentScope.launch {
+                                            speakerEmbeddingManager.deleteEnrollment()
+                                            // Clear skip flag so user can enroll again from first launch
+                                            speakerEmbeddingManager.setEnrollmentSkipped(false)
+                                            isVoiceEnrolled = false
+                                            // Clear wake word's cache so it stops verifying
+                                            viewModel.clearSpeakerVerificationCache()
+                                        }
+                                    },
+                                    onRetrainVoice = {
+                                        // Clear skip flag since user explicitly wants to enroll
+                                        speakerEmbeddingManager.setEnrollmentSkipped(false)
+                                        voiceEnrollmentManager.resetEnrollment()
+                                        showVoiceEnrollment = true
+                                    },
+                                    // TTS for AI responses
+                                    isTTSEnabled = isTTSEnabled,
+                                    onTTSEnabledChange = { enabled ->
+                                        viewModel.setTTSEnabled(enabled)
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 )
 
@@ -543,14 +738,15 @@ class MainActivity : ComponentActivity() {
                                         onSeek = { progress -> audioPlayerViewModel.seekTo(progress) },
                                         onDismiss = { audioPlayerViewModel.collapseToMiniPlayer() }
                                     )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+                                }  // End if (isFullPlayerVisible)
+                            }  // End inner Box (CogniNavHost container)
+                        }  // End main_app case
+                    }  // End when
+                }  // End Crossfade
+            }  // End outer Box
+        }  // End CogniTheme
+    }  // End setContent
+}  // End onCreate
 
     override fun onResume() {
         super.onResume()
@@ -601,6 +797,12 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         // Minimize background resources when app goes to background
         viewModel.minimizeBackgroundResources()
+    }
+
+    override fun onDestroy() {
+        // Cancel enrollment scope to prevent Activity context leak
+        enrollmentScope.cancel()
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {

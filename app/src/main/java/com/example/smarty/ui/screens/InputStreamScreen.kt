@@ -907,16 +907,7 @@ fun InputStreamScreen(
                             }
                         }
 
-                        // Note Type Filter Chips (category selection for filtering notes by type)
-                        // Only show in main mode when NOT in search mode
-                        // (when search mode is active, the bottom pill becomes the filter)
-                        SearchFilterTypeSelector(
-                            visible = !isChatMode && !isSearchMode,
-                            selectedFilters = selectedFilters,
-                            onFilterToggle = onFilterToggle,
-                            onClearFilters = onClearFilters,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp).padding(horizontal = 16.dp)
-                        )
+
                     } // End Column
                 }
             }

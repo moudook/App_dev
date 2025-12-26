@@ -2,6 +2,7 @@ package com.example.smarty.agent.tools.calendar
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
+import android.util.Log
 import com.example.smarty.service.AlarmScheduler
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -16,10 +17,16 @@ data class CancelTimerArgs(
 
 /**
  * Tool for cancelling scheduled timers and alarms.
+ *
+ * BUG FIX (AI-002): Added comprehensive logging for debugging.
  */
 class CancelTimerTool(
     private val alarmScheduler: AlarmScheduler
 ) : Tool<CancelTimerArgs, TimerOperationResult>() {
+
+    companion object {
+        private const val TAG = "CancelTimerTool"
+    }
 
     override val argsSerializer: KSerializer<CancelTimerArgs> = CancelTimerArgs.serializer()
     override val resultSerializer: KSerializer<TimerOperationResult> = TimerOperationResult.serializer()
@@ -33,8 +40,11 @@ class CancelTimerTool(
     """.trimIndent()
 
     override suspend fun execute(args: CancelTimerArgs): TimerOperationResult {
+        Log.d(TAG, "Cancelling timer: timerId='${args.timerId}', name='${args.name}'")
+
         return try {
             if (args.timerId == null && args.name == null) {
+                Log.w(TAG, "Cancel failed: no identifier provided")
                 return TimerOperationResult(
                     success = false,
                     message = "Please provide either a timer ID or name",
@@ -44,8 +54,10 @@ class CancelTimerTool(
 
             // Cancel by ID if provided
             val cancelId = args.timerId ?: args.name?.hashCode().toString()
+            Log.d(TAG, "Attempting to cancel timer with ID: $cancelId")
 
             alarmScheduler.cancelTimer(cancelId)
+            Log.i(TAG, "Timer cancelled successfully: $cancelId")
 
             TimerOperationResult(
                 success = true,
@@ -54,9 +66,10 @@ class CancelTimerTool(
                 message = "Timer${args.name?.let { " '$it'" } ?: ""} has been cancelled"
             )
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to cancel timer: ${e.message}", e)
             TimerOperationResult(
                 success = false,
-                message = "Failed to cancel timer",
+                message = "Failed to cancel timer: ${e.message}",
                 error = e.message
             )
         }

@@ -91,11 +91,20 @@ fun SettingsScreen(
     onShakeSensitivityChange: (Float) -> Unit = {},
     // GROQ key usage stats
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
+    // Voice fingerprint management
+    isVoiceEnrolled: Boolean = false,
+    onDeleteVoiceFingerprint: () -> Unit = {},
+    onRetrainVoice: () -> Unit = {},
+    // TTS for AI responses
+    isTTSEnabled: Boolean = true,
+    onTTSEnabledChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     onRefreshModels: (AIProvider) -> Unit = {},
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { AIModels.getModelsForProvider(it) }
+    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { AIModels.getModelsForProvider(it) },
+    onSignOut: () -> Unit = {}
 ) {
     var showRemovePinDialog by remember { mutableStateOf(false) }
+    var showDeleteVoiceFingerprintDialog by remember { mutableStateOf(false) }
     var showAIConfigSheet by remember { mutableStateOf(false) }
     val aiConfigSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
@@ -106,6 +115,7 @@ fun SettingsScreen(
     var showPinChangeSheet by remember { mutableStateOf(false) }
     var showAboutSheet by remember { mutableStateOf(false) }  // Newly added state
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
+    var showVoiceFingerprintSheet by remember { mutableStateOf(false) }
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val isSystemDark = isSystemInDarkTheme()
@@ -225,6 +235,34 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Voice Fingerprint Section - Consolidated
+            SettingsItem(
+                icon = Icons.Default.RecordVoiceOver,
+                title = if (isVoiceEnrolled) "Voice ID" else "Set Up Voice ID",
+                subtitle = if (isVoiceEnrolled) "Active • Tap to manage" else "Enable voice-only wake word",
+                onClick = {
+                    if (isVoiceEnrolled) {
+                        showVoiceFingerprintSheet = true
+                    } else {
+                        onRetrainVoice()
+                    }
+                },
+                showArrow = true
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // TTS for AI Responses Toggle
+            SettingsToggleItem(
+                icon = Icons.Filled.VolumeUp,
+                title = "Speak AI Responses",
+                subtitle = if (isTTSEnabled) "AI replies are spoken aloud" else "Text-only responses",
+                isChecked = isTTSEnabled,
+                onCheckedChange = onTTSEnabledChange
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             SettingsItem(
                 icon = Icons.Default.CleaningServices,
                 title = "Clear Cache",
@@ -233,6 +271,18 @@ fun SettingsScreen(
                 isLoading = isClearingCache,
                 enabled = !isClearingCache && cacheSizeBytes > 0,
                 iconColor = MaterialTheme.colorScheme.outline
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Account & Sign Out
+            SettingsItem(
+                icon = Icons.Default.Logout,
+                title = "Sign Out",
+                subtitle = "Log out of your account",
+                onClick = onSignOut,
+                isDestructive = true,
+                iconColor = SafetyOrange
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -607,6 +657,199 @@ fun SettingsScreen(
         )
     }
 
+    // Delete Voice Fingerprint Dialog
+    if (showDeleteVoiceFingerprintDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteVoiceFingerprintDialog = false },
+            title = { Text("Delete Voice Fingerprint?") },
+            text = { Text("Your voice ID will be removed. Anyone's voice will be able to trigger the wake word.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteVoiceFingerprint()
+                    showDeleteVoiceFingerprintDialog = false
+                    showVoiceFingerprintSheet = false
+                }) {
+                    Text("Delete", color = SafetyOrange)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteVoiceFingerprintDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            shape = LocalShapes.current.cardMedium
+        )
+    }
+
+    // Voice Fingerprint Management Bottom Sheet
+    if (showVoiceFingerprintSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showVoiceFingerprintSheet = false },
+            sheetState = subSettingSheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = LocalShapes.current.bottomSheet,
+            dragHandle = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    )
+                }
+            }
+        ) {
+            HideSystemBars()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                // Header
+                Text(
+                    text = "Voice ID",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Your voice fingerprint is active. Only your voice will trigger the wake word.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Status indicator
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(LocalAccentColor.current.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = LocalAccentColor.current,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        Column {
+                            Text(
+                                text = "Voice ID Active",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Your unique voice pattern is stored",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Retrain Button
+                Button(
+                    onClick = {
+                        showVoiceFingerprintSheet = false
+                        onRetrainVoice()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = LocalAccentColor.current
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Retrain Voice ID",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                        )
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Delete Button
+                OutlinedButton(
+                    onClick = { showDeleteVoiceFingerprintDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    border = BorderStroke(1.dp, SafetyOrange.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteForever,
+                        contentDescription = null,
+                        tint = SafetyOrange,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Delete Voice ID",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                        ),
+                        color = SafetyOrange
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Info text
+                Text(
+                    text = "Retraining will replace your current voice fingerprint with a new one.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+        }
+    }
+
     // About Bottom Sheet
     if (showAboutSheet) {
         ModalBottomSheet(
@@ -687,7 +930,7 @@ fun SettingsScreen(
                                 "I added shake-to-private mode. You can shake the device to toggle privacy. Sensitivity can be adjusted. There is visual feedback so you know when the mode changes.\n\n" +
                                 "The app supports PIN protection. You can use a 4-digit PIN or biometrics. You can change or remove it anytime.\n\n" +
                                 "I also added prompt injection protection. Content is sanitized across multiple languages. This runs on device. It prevents malicious note content from affecting the AI.\n\n" +
-                                "All data is stored locally on the device. I use a Room database with encryption support. Only API calls go out of the device.\n\n" +
+                                "All data is stored locally on the device. I use a Room database for persistence. API keys are stored using Android's EncryptedSharedPreferences. Only API calls go out of the device.\n\n" +
                                 "For user experience, I added widgets. You can capture notes directly from the home screen. One tap and you are inside a new note.\n\n" +
                                 "App shortcuts are also there. Long press the app icon for quick actions like new note, search, or voice note. Recent notes also show up dynamically.\n\n" +
                                 "Sharing is deeply integrated. You can share content from any app into Loum. Content type is detected automatically. URL metadata is extracted. You can also bulk select and share multiple notes.\n\n" +
@@ -876,7 +1119,81 @@ private fun SettingsItem(
     }
 }
 
+/**
+ * Settings item with a toggle switch instead of arrow
+ */
+@Composable
+private fun SettingsToggleItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    iconColor: Color = LocalAccentColor.current,
+    enabled: Boolean = true
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(26.dp))
+            .clickable(enabled = enabled) { onCheckedChange(!isChecked) },
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Text
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+
+            // Toggle Switch
+            Switch(
+                checked = isChecked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = iconColor,
+                    checkedTrackColor = iconColor.copy(alpha = 0.3f)
+                )
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

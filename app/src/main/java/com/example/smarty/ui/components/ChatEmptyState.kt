@@ -1,5 +1,6 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
@@ -56,6 +57,9 @@ private fun EmptyStateContainer(
     modifier: Modifier = Modifier,
     graphic: @Composable BoxScope.() -> Unit
 ) {
+    val density = LocalDensity.current
+    val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
+
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -64,6 +68,11 @@ private fun EmptyStateContainer(
         graphic()
 
         // Text Layer
+        AnimatedVisibility(
+            visible = !isKeyboardVisible,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
@@ -77,14 +86,15 @@ private fun EmptyStateContainer(
                 color = LocalAccentColor.current
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+            if (subtitle.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
 
             if (hint != null) {
                 Spacer(modifier = Modifier.height(16.dp))
@@ -95,6 +105,7 @@ private fun EmptyStateContainer(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.widthIn(max = 280.dp)
                 )
+            }
             }
         }
     }
@@ -128,8 +139,8 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
 
     EmptyStateContainer(
         title = "Focus",
-        subtitle = "Personal AI companion",
-        hint = "Ideas are everywhere. The graveyard's full of dead ones. Execution revives them.",
+        subtitle = "",
+        hint = null,
         modifier = modifier
     ) {
         // LIFECYCLE AWARENESS: Check if animation should run
@@ -305,8 +316,8 @@ fun NotesEmptyState(modifier: Modifier = Modifier) {
 
     EmptyStateContainer(
         title = "Hello, Moudook!",
-        subtitle = "Everything starts with an idea.",
-        hint = "Stop looking for the perfect 'app' and start providing the perfect effort",
+        subtitle = "",
+        hint = null,
     ) {
         // ORIGINAL ANIMATION: Cognitive Alignment (Restored)
         // LIFECYCLE AWARENESS: Check if animation should run

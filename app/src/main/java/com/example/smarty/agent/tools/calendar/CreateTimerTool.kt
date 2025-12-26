@@ -2,6 +2,7 @@ package com.example.smarty.agent.tools.calendar
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
+import android.util.Log
 import com.example.smarty.data.model.CogniTimer
 import com.example.smarty.service.AlarmScheduler
 import com.google.gson.Gson
@@ -27,10 +28,16 @@ data class CreateTimerArgs(
 /**
  * Tool for creating timers and alarms.
  * Timers play audio for 5 seconds when triggered.
+ *
+ * BUG FIX (AI-002): Added comprehensive logging for debugging.
  */
 class CreateTimerTool(
     private val alarmScheduler: AlarmScheduler
 ) : Tool<CreateTimerArgs, TimerOperationResult>() {
+
+    companion object {
+        private const val TAG = "CreateTimerTool"
+    }
 
     private val gson = Gson()
 
@@ -46,8 +53,11 @@ class CreateTimerTool(
     """.trimIndent()
 
     override suspend fun execute(args: CreateTimerArgs): TimerOperationResult {
+        Log.d(TAG, "Creating timer: name='${args.name}', triggerTime='${args.triggerTime}', isAlarm=${args.isAlarm}")
+
         return try {
             if (args.name.isBlank()) {
+                Log.w(TAG, "Timer creation failed: empty name")
                 return TimerOperationResult(
                     success = false,
                     message = "Timer name cannot be empty",
@@ -57,15 +67,18 @@ class CreateTimerTool(
 
             val triggerMillis = parseTimeExpression(args.triggerTime)
             if (triggerMillis == null) {
+                Log.w(TAG, "Timer creation failed: could not parse '${args.triggerTime}'")
                 return TimerOperationResult(
                     success = false,
-                    message = "Could not parse time: ${args.triggerTime}",
+                    message = "Could not parse time: ${args.triggerTime}. Try formats like 'in 5 minutes', 'at 3 PM', or 'tomorrow 7:00 AM'",
                     error = "Invalid time expression"
                 )
             }
+            Log.d(TAG, "Parsed trigger time: $triggerMillis (${Date(triggerMillis)})")
 
             // Validate trigger time is in the future
             if (triggerMillis <= System.currentTimeMillis()) {
+                Log.w(TAG, "Timer creation failed: time is in the past")
                 return TimerOperationResult(
                     success = false,
                     message = "Timer must be set for a future time",
@@ -86,6 +99,7 @@ class CreateTimerTool(
             )
 
             alarmScheduler.scheduleTimer(timer)
+            Log.i(TAG, "Timer scheduled successfully: id=${timer.id}, name='${timer.name}'")
 
             val dateFormat = SimpleDateFormat("MMM d 'at' h:mm a", Locale.getDefault())
             val formattedTime = dateFormat.format(Date(triggerMillis))
@@ -103,9 +117,10 @@ class CreateTimerTool(
                 message = "$typeLabel '${args.name}' set for $formattedTime$recurringInfo"
             )
         } catch (e: Exception) {
+            Log.e(TAG, "Timer creation failed with exception: ${e.message}", e)
             TimerOperationResult(
                 success = false,
-                message = "Failed to create timer",
+                message = "Failed to create timer: ${e.message}",
                 error = e.message
             )
         }
@@ -162,12 +177,18 @@ class CreateTimerTool(
             }
 
             // "tomorrow HH:mm"
+            // BUG FIX (L-005): Use current time if no time specified instead of silent 9 AM default
             inputLower.startsWith("tomorrow") -> {
                 val remaining = inputLower.removePrefix("tomorrow").trim()
                 calendar.add(Calendar.DAY_OF_YEAR, 1)
-                val time = parseTimeOfDay(remaining) ?: Pair(9, 0) // Default 9 AM
-                calendar.set(Calendar.HOUR_OF_DAY, time.first)
-                calendar.set(Calendar.MINUTE, time.second)
+                val parsedTime = parseTimeOfDay(remaining)
+                if (parsedTime != null) {
+                    calendar.set(Calendar.HOUR_OF_DAY, parsedTime.first)
+                    calendar.set(Calendar.MINUTE, parsedTime.second)
+                } else {
+                    // If no time specified, keep current time of day (same time tomorrow)
+                    // This is more intuitive than defaulting to 9 AM
+                }
                 calendar.set(Calendar.SECOND, 0)
                 calendar.set(Calendar.MILLISECOND, 0)
                 return calendar.timeInMillis

@@ -81,6 +81,9 @@ class BackupManager(
         private const val NIO_BUFFER_SIZE = 262144        // 256KB NIO direct buffer
         private const val LARGE_FILE_THRESHOLD = 5 * 1024 * 1024L  // 5MB
         private const val MAX_PARALLEL_COPIES = 4          // Limit concurrent file ops
+
+        // INPUT-001: Maximum backup file size (500MB)
+        private const val MAX_BACKUP_SIZE = 500L * 1024 * 1024  // 500MB
     }
 
     // Semaphore for controlling parallel attachment copies
@@ -298,6 +301,12 @@ class BackupManager(
                 extractZipFile(downloadFile, extractDir)
 
                 _restoreState.value = BackupOperationState.InProgress(0.4f, "Verifying backup...")
+
+                // INPUT-001: Validate backup size before processing
+                val totalSize = extractDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                if (totalSize > MAX_BACKUP_SIZE) {
+                    throw Exception("Backup too large: ${totalSize / (1024 * 1024)}MB exceeds ${MAX_BACKUP_SIZE / (1024 * 1024)}MB limit")
+                }
 
                 // Read and verify manifest
                 val manifestFile = File(extractDir, BackupManifest.MANIFEST_FILENAME)

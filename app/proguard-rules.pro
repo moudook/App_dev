@@ -5,7 +5,28 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# Keep line numbers for debugging
+# ============================================================================
+# SECURITY: Strip debug/verbose logs in release builds
+# This prevents sensitive data from leaking via logcat
+# ============================================================================
+
+# Remove all Log.d() (debug) calls - these may contain user queries, note titles
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+}
+
+# Remove all logging that might contain sensitive data
+-assumenosideeffects class android.util.Log {
+    public static int d(java.lang.String, java.lang.String);
+    public static int v(java.lang.String, java.lang.String);
+    public static int d(java.lang.String, java.lang.String, java.lang.Throwable);
+    public static int v(java.lang.String, java.lang.String, java.lang.Throwable);
+}
+
+# ============================================================================
+# Keep line numbers for debugging (crash reports)
+# ============================================================================
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 

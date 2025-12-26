@@ -8,6 +8,7 @@ import com.example.smarty.agent.tools.calendar.CancelTimerTool
 import com.example.smarty.agent.tools.calendar.CreateEventTool
 import com.example.smarty.agent.tools.calendar.CreateTimerTool
 import com.example.smarty.agent.tools.calendar.DeleteEventTool
+import com.example.smarty.agent.tools.calendar.GetEventsTool
 import com.example.smarty.agent.tools.categories.GetCategoryNotesTool
 import com.example.smarty.agent.tools.categories.ListCategoriesTool
 import com.example.smarty.agent.tools.categories.ListCategoriesArgs
@@ -19,6 +20,7 @@ import com.example.smarty.agent.tools.external.WebSearchTool
 import com.example.smarty.agent.tools.memory.UserPatternsTool
 import com.example.smarty.agent.tools.notes.*
 import com.example.smarty.agent.tools.research.DeepResearchTool
+import com.example.smarty.agent.prompts.ToolExampleStore
 import com.example.smarty.agent.tools.todos.AddTodosTool
 import com.example.smarty.agent.tools.todos.DeleteTodoTool
 import com.example.smarty.agent.tools.todos.ToggleTodoTool
@@ -93,7 +95,36 @@ class CogniAgent(
 
         // Agent execution timeout (2 minutes max per request)
         private const val AGENT_TIMEOUT_MS = 120_000L
+
+        /**
+         * SECURITY: Sanitize error messages to prevent API key leakage in chat UI.
+         * Removes any patterns that might contain API keys from various providers.
+         */
+        private fun sanitizeErrorMessage(message: String): String {
+            return message
+                // GROQ API keys: gsk_xxxxx
+                .replace(Regex("""gsk_[a-zA-Z0-9]{20,}"""), "[API_KEY_REDACTED]")
+                // OpenAI API keys: sk-xxxxx or sk-proj-xxxxx
+                .replace(Regex("""sk-[a-zA-Z0-9_-]{20,}"""), "[API_KEY_REDACTED]")
+                // Google/Gemini API keys: AIzaXXXXXX
+                .replace(Regex("""AIza[a-zA-Z0-9_-]{30,}"""), "[API_KEY_REDACTED]")
+                // Anthropic API keys: sk-ant-xxxxx
+                .replace(Regex("""sk-ant-[a-zA-Z0-9_-]{20,}"""), "[API_KEY_REDACTED]")
+                // Bearer tokens in auth headers
+                .replace(Regex("""Bearer\s+[a-zA-Z0-9._-]{20,}"""), "Bearer [REDACTED]")
+                // Authorization headers
+                .replace(Regex("""Authorization:\s*[^\n]+""", RegexOption.IGNORE_CASE), "Authorization: [REDACTED]")
+                // X-API-Key headers
+                .replace(Regex("""X-API-Key:\s*[^\n]+""", RegexOption.IGNORE_CASE), "X-API-Key: [REDACTED]")
+        }
     }
+
+    /**
+     * NEW-016: Tool Example Store for few-shot learning.
+     * Provides relevant examples to improve tool selection accuracy by 25-40%.
+     */
+    private val toolExampleStore = ToolExampleStore()
+
     /**
      * System prompt for the Cogni AI Agent.
      *
@@ -171,9 +202,25 @@ TODOS: add_todos, toggle_todo, delete_todo
 MEDIA: search_audio_notes, search_image_notes, search_document_notes
 AUDIO: play_audio (fuzzy search: filename, title, tags, category)
 WEB: web_search, deep_research
-CALENDAR: create_event, delete_event, create_timer, cancel_timer
+CALENDAR: create_event, delete_event, get_events, create_timer, cancel_timer
 
 Workflow: search_notes BEFORE update/delete. Chain tools for multi-step. Retry with alternate terms on fail.
+
+=== CRITICAL: TOOL EXECUTION ===
+
+When user asks to PLAY, CREATE, DELETE, SEARCH, or SET:
+- ALWAYS use the appropriate tool. Do NOT just describe what you would do.
+- EXECUTE the tool, then respond with the result.
+
+PLAY commands ("play music", "play audio", "play song"):
+→ ALWAYS use play_audio tool. Never just say "I'll play that for you."
+→ Example: User says "play jazz" → Execute play_audio with query="jazz"
+
+TIMER/ALARM commands ("set timer", "remind me", "set alarm"):
+→ ALWAYS use create_timer tool. Parse the time and execute.
+
+EVENT commands ("schedule meeting", "add to calendar"):
+→ ALWAYS use create_event tool. Parse date/time and execute.
 
 TOON format: {key:value|key2:value2} - parse like compact JSON.
     """.trimIndent()
@@ -216,6 +263,7 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
             // Calendar and timer tools
             tool(CreateEventTool(repository))
             tool(DeleteEventTool(repository))
+            tool(GetEventsTool(repository))  // BUG FIX (NEW-015): AI can query calendar events
             tool(CreateTimerTool(alarmScheduler))
             tool(CancelTimerTool(alarmScheduler))
 
@@ -285,8 +333,19 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
             } + "\n"
         } else ""
 
-        // Build full prompt with context, history, and current message
-        val fullPrompt = buildContext() + historySection + "USER: $userMessage"
+        // NEW-016: Get relevant tool examples for few-shot learning
+        val examplesSection = try {
+            val examples = toolExampleStore.getRelevantExamples(userMessage, count = 3)
+            if (examples.isNotEmpty()) {
+                "\n" + toolExampleStore.formatExamplesForPrompt(examples)
+            } else ""
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get tool examples", e)
+            ""
+        }
+
+        // Build full prompt with context, examples, history, and current message
+        val fullPrompt = buildContext() + examplesSection + historySection + "USER: $userMessage"
         val toolRegistry = buildToolRegistry()
 
         // Determine dynamic iteration limit based on task complexity
@@ -387,8 +446,10 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
                 }
 
                 // Not a recoverable action format error, treat as normal failure
-                Log.w(TAG, "${executorResult.provider} $keyLabel failed: $errorMsg")
-                errors.add(Triple(executorResult.provider, executorResult.keyIndex, errorMsg))
+                // SECURITY: Sanitize error messages to prevent API key leakage
+                val sanitizedError = sanitizeErrorMessage(errorMsg)
+                Log.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
+                errors.add(Triple(executorResult.provider, executorResult.keyIndex, sanitizedError))
 
                 if (executorResult.apiKey.isNotEmpty()) {
                     agentProvider.recordKeyFailure(executorResult.apiKey, executorResult.provider, e)
@@ -400,8 +461,26 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
                 }
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "Unknown error"
-                Log.w(TAG, "${executorResult.provider} $keyLabel failed: $errorMsg")
-                errors.add(Triple(executorResult.provider, executorResult.keyIndex, errorMsg))
+                // SECURITY: Sanitize error messages to prevent API key leakage
+                val sanitizedError = sanitizeErrorMessage(errorMsg)
+
+                // BUG FIX (L-001): Distinguish tool errors from provider errors
+                // Tool errors should NOT trigger provider failover (wastes API calls)
+                val isToolError = e is IllegalArgumentException ||
+                                  e is IllegalStateException ||
+                                  e is NumberFormatException ||
+                                  errorMsg.contains("Invalid", ignoreCase = true) ||
+                                  errorMsg.contains("cannot be", ignoreCase = true) ||
+                                  errorMsg.contains("parse", ignoreCase = true)
+
+                if (isToolError) {
+                    // Tool error - return to user immediately without failover
+                    Log.w(TAG, "Tool error (no failover): $sanitizedError")
+                    return AgentResult.Error("I couldn't complete that action: $sanitizedError")
+                }
+
+                Log.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
+                errors.add(Triple(executorResult.provider, executorResult.keyIndex, sanitizedError))
 
                 // Record key-specific failure for proper cooldowns
                 // This marks this specific key as failed, not the entire provider

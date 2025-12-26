@@ -66,8 +66,12 @@ class PlayAudioTool(
     """.trimIndent()
 
     override suspend fun execute(args: PlayAudioArgs): AudioPlaybackResult {
+        // BUG FIX (ISSUE 3): Add explicit entry point logging
+        Log.i(TAG, "▶ PlayAudioTool.execute() CALLED - query='${args.query}', noteId=${args.noteId}")
+
         return try {
             if (args.query.isBlank()) {
+                Log.w(TAG, "✗ Query is blank, returning error")
                 return AudioPlaybackResult(
                     success = false,
                     action = "play",
@@ -122,7 +126,8 @@ class PlayAudioTool(
                         sourceAttachmentId = null
                     )
                     trackTitle = legacyFileName
-                    Log.d(TAG, "Using legacy audio from note: ${note.title}")
+                    // SECURITY: Don't log note titles to prevent data leakage
+                    Log.d(TAG, "Using legacy audio from note: id=${note.id.take(8)}...")
                 }
                 else {
                     return AudioPlaybackResult(
@@ -135,6 +140,7 @@ class PlayAudioTool(
 
                 val startPositionMs = parseTimeToMs(args.startTime)
                 Log.d(TAG, "Playing from note: ${track.title}, startPosition=${startPositionMs}ms")
+                Log.i(TAG, "✓ INVOKING onPlayAudio callback for: ${track.title}")
                 onPlayAudio(track)
 
                 return AudioPlaybackResult(
@@ -169,6 +175,7 @@ class PlayAudioTool(
 
             if (matchingAudio != null) {
                 Log.d(TAG, "Found matching audio: ${matchingAudio.title}")
+                Log.i(TAG, "✓ INVOKING onPlayAudio callback for: ${matchingAudio.title}")
                 onPlayAudio(matchingAudio)
 
                 return AudioPlaybackResult(
@@ -207,6 +214,7 @@ class PlayAudioTool(
                 if (wantsAnyAudio && allAudioFiles.isNotEmpty()) {
                     val firstTrack = allAudioFiles.first()
                     Log.d(TAG, "Playing first available audio: ${firstTrack.title}")
+                    Log.i(TAG, "✓ INVOKING onPlayAudio callback (fallback) for: ${firstTrack.title}")
                     onPlayAudio(firstTrack)
 
                     AudioPlaybackResult(
@@ -316,7 +324,8 @@ class PlayAudioTool(
                     noteCategory = category,
                     fileName = legacyFileName
                 ))
-                Log.d(TAG, "Found legacy audio attachment in note: ${note.title}, file: $legacyFileName")
+                // SECURITY: Don't log note titles to prevent data leakage
+                Log.d(TAG, "Found legacy audio attachment in note: id=${note.id.take(8)}..., file: $legacyFileName")
             }
         }
 

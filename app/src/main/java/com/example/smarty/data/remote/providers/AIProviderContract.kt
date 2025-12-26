@@ -37,13 +37,15 @@ interface AIProviderContract {
      * - A summary of the content
      * - A "why saved" explanation
      *
+     * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
+     *
      * @param content The text content to analyze
      * @param apiKey The API key for authentication
      * @param model The model identifier to use
      * @param systemPrompt The system prompt with instructions
      * @return AIResponse with categorization, or null if failed
      */
-    fun analyzeContent(
+    suspend fun analyzeContent(
         content: String,
         apiKey: String,
         model: String,
@@ -56,13 +58,15 @@ interface AIProviderContract {
      * Used for PDF and long-form document analysis.
      * Returns more detailed information including key points and action items.
      *
+     * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
+     *
      * @param content The document text to analyze
      * @param apiKey The API key for authentication
      * @param model The model identifier to use
      * @param systemPrompt The system prompt with document analysis instructions
      * @return DocumentAnalysisResponse with detailed analysis, or null if failed
      */
-    fun analyzeDocument(
+    suspend fun analyzeDocument(
         content: String,
         apiKey: String,
         model: String,
@@ -75,13 +79,15 @@ interface AIProviderContract {
      * Used by the agent service for user conversations.
      * Returns raw text response for further processing.
      *
+     * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
+     *
      * @param systemPrompt The system instructions for the conversation
      * @param userPrompt The user's message with context
      * @param apiKey The API key for authentication
      * @param model The model identifier to use
      * @return Raw text response from the AI, or null if failed
      */
-    fun chat(
+    suspend fun chat(
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,
@@ -91,11 +97,13 @@ interface AIProviderContract {
     /**
      * Test if an API key is valid by making a simple request.
      *
+     * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
+     *
      * @param apiKey The API key to test
      * @param model The model to use for testing
      * @return true if the key is valid and the request succeeds
      */
-    fun testApiKey(apiKey: String, model: String): Boolean {
+    suspend fun testApiKey(apiKey: String, model: String): Boolean {
         return try {
             val result = analyzeContent(
                 content = "Test: Remember to buy groceries tomorrow",

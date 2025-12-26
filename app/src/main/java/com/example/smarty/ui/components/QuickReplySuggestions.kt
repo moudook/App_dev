@@ -147,38 +147,88 @@ enum class SuggestionCategory {
 }
 
 /**
- * Default suggestions for empty chat state
+ * Default suggestions for empty chat state.
+ *
+ * BUG FIX (Issue #20): Added time-of-day awareness for more contextual suggestions.
+ * BUG FIX (Issue #21): Added isPrivateMode parameter to suppress note-revealing suggestions.
+ *
+ * @param isPrivateMode When true, suggestions that could reveal note content are suppressed
  */
-fun getDefaultSuggestions(): List<QuickReplySuggestion> = listOf(
-    QuickReplySuggestion("What's on my calendar today?", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR),
-    QuickReplySuggestion("Summarize my recent notes", Icons.Default.Summarize, SuggestionCategory.NOTES),
-    QuickReplySuggestion("Create a new note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS),
-    QuickReplySuggestion("Find notes about...", Icons.Default.Search, SuggestionCategory.SEARCH)
-)
+fun getDefaultSuggestions(isPrivateMode: Boolean = false): List<QuickReplySuggestion> {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+
+    // Time-of-day aware greeting/task suggestions
+    val timeAwareSuggestion = when {
+        hour in 5..11 -> QuickReplySuggestion("What's on my calendar today?", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR)
+        hour in 12..17 -> QuickReplySuggestion("What's left today?", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR)
+        hour in 18..21 -> QuickReplySuggestion("Plan for tomorrow", Icons.Default.DateRange, SuggestionCategory.CALENDAR)
+        else -> QuickReplySuggestion("Quick note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS)
+    }
+
+    return if (isPrivateMode) {
+        // In private mode, don't suggest actions that could reveal note content
+        listOf(
+            timeAwareSuggestion,
+            QuickReplySuggestion("Create a new note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS)
+            // Intentionally omit "Summarize my notes" and "Find notes about..." in private mode
+        )
+    } else {
+        listOf(
+            timeAwareSuggestion,
+            QuickReplySuggestion("Summarize my recent notes", Icons.Default.Summarize, SuggestionCategory.NOTES),
+            QuickReplySuggestion("Create a new note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS),
+            QuickReplySuggestion("Find notes about...", Icons.Default.Search, SuggestionCategory.SEARCH)
+        )
+    }
+}
 
 /**
- * Get contextual suggestions based on the last AI message
+ * Get contextual suggestions based on the last AI message.
+ *
+ * BUG FIX (Issue #21): Added isPrivateMode parameter to suppress note-revealing suggestions.
+ *
+ * @param lastMessage The last AI response to generate contextual suggestions from
+ * @param isPrivateMode When true, suggestions that could reveal note content are suppressed
  */
-fun getContextualSuggestions(lastMessage: String?): List<QuickReplySuggestion> {
-    if (lastMessage.isNullOrBlank()) return getDefaultSuggestions()
-    
+fun getContextualSuggestions(lastMessage: String?, isPrivateMode: Boolean = false): List<QuickReplySuggestion> {
+    if (lastMessage.isNullOrBlank()) return getDefaultSuggestions(isPrivateMode)
+
     val lowercaseMessage = lastMessage.lowercase()
-    
+
     return when {
-        lowercaseMessage.contains("note") || lowercaseMessage.contains("created") -> listOf(
-            QuickReplySuggestion("Show me that note", Icons.Default.Visibility, SuggestionCategory.NOTES),
-            QuickReplySuggestion("Edit the note", Icons.Default.Edit, SuggestionCategory.ACTIONS),
-            QuickReplySuggestion("Create another note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS)
-        )
+        lowercaseMessage.contains("note") || lowercaseMessage.contains("created") -> {
+            if (isPrivateMode) {
+                // In private mode, don't suggest viewing/editing potentially private notes
+                listOf(
+                    QuickReplySuggestion("Create another note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS),
+                    QuickReplySuggestion("Thanks!", category = SuggestionCategory.GENERAL)
+                )
+            } else {
+                listOf(
+                    QuickReplySuggestion("Show me that note", Icons.Default.Visibility, SuggestionCategory.NOTES),
+                    QuickReplySuggestion("Edit the note", Icons.Default.Edit, SuggestionCategory.ACTIONS),
+                    QuickReplySuggestion("Create another note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS)
+                )
+            }
+        }
         lowercaseMessage.contains("calendar") || lowercaseMessage.contains("event") -> listOf(
             QuickReplySuggestion("Show tomorrow", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR),
             QuickReplySuggestion("Add a new event", Icons.Default.Add, SuggestionCategory.ACTIONS),
             QuickReplySuggestion("This week's schedule", Icons.Default.DateRange, SuggestionCategory.CALENDAR)
         )
-        lowercaseMessage.contains("search") || lowercaseMessage.contains("found") -> listOf(
-            QuickReplySuggestion("Search for more", Icons.Default.Search, SuggestionCategory.SEARCH),
-            QuickReplySuggestion("Save as note", Icons.Default.Save, SuggestionCategory.ACTIONS)
-        )
+        lowercaseMessage.contains("search") || lowercaseMessage.contains("found") -> {
+            if (isPrivateMode) {
+                listOf(
+                    QuickReplySuggestion("Thanks!", category = SuggestionCategory.GENERAL),
+                    QuickReplySuggestion("New topic", Icons.Default.Refresh, SuggestionCategory.GENERAL)
+                )
+            } else {
+                listOf(
+                    QuickReplySuggestion("Search for more", Icons.Default.Search, SuggestionCategory.SEARCH),
+                    QuickReplySuggestion("Save as note", Icons.Default.Save, SuggestionCategory.ACTIONS)
+                )
+            }
+        }
         else -> listOf(
             QuickReplySuggestion("Tell me more", category = SuggestionCategory.GENERAL),
             QuickReplySuggestion("Thanks!", category = SuggestionCategory.GENERAL),

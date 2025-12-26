@@ -9,4 +9,17 @@
     <string name="widget_voice_note">Voice note</string>
     <string name="widget_camera_note">Camera note</string>
     <string name="widget_capture_hint">Capture thought</string>
+
+    <!-- Google Sign-In OAuth 2.0 Web Client ID -->
+    <!-- 
+        SECURITY: This value should NOT be hardcoded here for public repos.
+        The Client ID is automatically provided by google-services.json.
+        If you need to set it manually:
+        1. Go to Google Cloud Console → APIs & Services → Credentials
+        2. Create OAuth 2.0 Client ID (Web application type)
+        3. Add the Client ID below (for development only)
+        
+        For production: Ensure google-services.json is properly configured.
+    -->
+    <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID_HERE</string>
 </resources>

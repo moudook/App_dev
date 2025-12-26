@@ -1,5 +1,9 @@
 package com.example.smarty.util
 
+import android.content.ComponentCallbacks2
+import android.content.Context
+import android.content.res.Configuration
+import android.util.Log
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -25,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * - Physical addresses
  * - Dates of birth patterns
  */
-object PIIMasker {
+object PIIMasker : ComponentCallbacks2 {
 
     // Pre-compiled regex patterns for performance (compiled once at class load)
     // Ordered by specificity: more specific patterns first to avoid false positives
@@ -45,23 +49,90 @@ object PIIMasker {
     )
 
     // Common first names to improve PERSON detection accuracy
+    // L9 FIX: Expanded name dictionary to reduce false positives
     private val COMMON_FIRST_NAMES = setOf(
+        // English names
         "james", "john", "robert", "michael", "william", "david", "richard", "joseph",
         "mary", "patricia", "jennifer", "linda", "elizabeth", "barbara", "susan", "jessica",
         "sarah", "karen", "nancy", "lisa", "betty", "helen", "sandra", "donna",
+        "thomas", "charles", "christopher", "daniel", "matthew", "anthony", "mark", "donald",
+        "steven", "paul", "andrew", "joshua", "kenneth", "kevin", "brian", "george",
+        "ashley", "emily", "amanda", "melissa", "michelle", "kimberly", "angela", "stephanie",
+        "emma", "olivia", "sophia", "isabella", "mia", "charlotte", "amelia", "harper",
+        "liam", "noah", "oliver", "elijah", "lucas", "mason", "logan", "alexander",
+        // Indian names
         "raj", "amit", "priya", "rahul", "anita", "vijay", "sunita", "arun",
-        "mohammed", "ali", "ahmed", "fatima", "omar", "hassan", "aisha"
+        "sanjay", "ravi", "deepak", "suresh", "neha", "pooja", "swati", "anjali",
+        "arjun", "vikram", "rohit", "kiran", "meera", "lakshmi", "gita", "rekha",
+        // Arabic names
+        "mohammed", "ali", "ahmed", "fatima", "omar", "hassan", "aisha", "yusuf",
+        "ibrahim", "mustafa", "layla", "noor", "zahra", "maryam", "sara", "hana",
+        // Hispanic names
+        "jose", "carlos", "miguel", "luis", "maria", "ana", "rosa", "carmen",
+        "juan", "pedro", "diego", "sofia", "valentina", "camila", "lucia", "elena"
     )
 
     // Thread-safe counter for generating unique placeholder IDs
     private val counter = AtomicInteger(0)
 
     /**
+     * SECURITY FIX: Maximum size for placeholder map to prevent memory leaks.
+     * When exceeded, the map is cleared to prevent unbounded growth.
+     * This addresses TECH-038 (PIIMasker session never cleared).
+     * Reduced from 1000 to 200 for edge devices.
+     */
+    private const val MAX_PLACEHOLDER_MAP_SIZE = 200
+
+    /**
      * Session-based placeholder mapping.
      * Maps placeholder strings to their original values.
      * Thread-safe access via synchronized methods.
+     *
+     * NOTE: Automatically cleared when size exceeds MAX_PLACEHOLDER_MAP_SIZE
+     * to prevent memory leaks from long-running sessions.
      */
     private val placeholderMap = mutableMapOf<String, String>()
+
+    /**
+     * Track registration status to prevent duplicate registrations.
+     */
+    private var isRegistered = false
+
+    /**
+     * Register PIIMasker to respond to system memory pressure events.
+     * Should be called once during application initialization.
+     *
+     * @param context Application context
+     */
+    fun register(context: Context) {
+        if (!isRegistered) {
+            context.applicationContext.registerComponentCallbacks(this)
+            isRegistered = true
+            Log.d("PIIMasker", "Registered for memory pressure callbacks")
+        }
+    }
+
+    /**
+     * Handle memory pressure events by clearing the placeholder map.
+     */
+    override fun onTrimMemory(level: Int) {
+        when (level) {
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+            ComponentCallbacks2.TRIM_MEMORY_BACKGROUND,
+            ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
+                Log.d("PIIMasker", "Memory pressure detected (level=$level) - clearing placeholder map")
+                clearSession()
+            }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {}
+
+    override fun onLowMemory() {
+        Log.d("PIIMasker", "Low memory warning - clearing placeholder map")
+        clearSession()
+    }
 
     /**
      * Mask all PII in the given text.
@@ -72,6 +143,13 @@ object PIIMasker {
     @Synchronized
     fun mask(text: String): String {
         if (text.isBlank()) return text
+
+        // SECURITY FIX (TECH-038): Auto-cleanup to prevent memory leak
+        // If placeholder map grows too large, clear it to prevent OOM
+        if (placeholderMap.size >= MAX_PLACEHOLDER_MAP_SIZE) {
+            placeholderMap.clear()
+            counter.set(0)
+        }
 
         var maskedText = text
 

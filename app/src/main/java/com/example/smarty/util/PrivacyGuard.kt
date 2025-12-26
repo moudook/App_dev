@@ -119,7 +119,8 @@ object PrivacyGuard {
     fun findByIdForAi(notes: List<Note>, noteId: String): Note? {
         val note = notes.find { it.id == noteId }
         if (note != null && isPrivate(note)) {
-            Log.w(TAG, "SECURITY: AI attempted to access private note by ID: ${noteId.take(8)}...")
+            // PRIVACY FIX (CRIT-002): Don't log note IDs to prevent data leakage via logcat
+            Log.w(TAG, "SECURITY: AI attempted to access private note by ID")
             return null // Note is invisible to AI
         }
         return note?.takeIf { isAiAccessible(it) }
@@ -131,7 +132,8 @@ object PrivacyGuard {
      */
     fun canAiProcess(note: Note): Boolean {
         if (isPrivate(note)) {
-            Log.w(TAG, "SECURITY: AI processing blocked for private note: ${note.id.take(8)}...")
+            // PRIVACY FIX (CRIT-002): Don't log note IDs to prevent data leakage via logcat
+            Log.w(TAG, "SECURITY: AI processing blocked for private note")
             return false
         }
         return true
@@ -143,7 +145,8 @@ object PrivacyGuard {
      */
     fun requireAiAccess(note: Note, operation: String) {
         if (isPrivate(note)) {
-            val message = "SECURITY VIOLATION: AI attempted $operation on private note ${note.id.take(8)}"
+            // PRIVACY FIX (CRIT-002): Don't include note IDs in exception messages
+            val message = "SECURITY VIOLATION: AI attempted $operation on private note"
             Log.e(TAG, message)
             throw SecurityException(message)
         }
@@ -151,9 +154,11 @@ object PrivacyGuard {
 
     /**
      * Log a security event when AI tries to access private content
+     * PRIVACY FIX (CRIT-002): Don't log note IDs to prevent data leakage
      */
+    @Suppress("UNUSED_PARAMETER")
     fun logSecurityEvent(noteId: String, operation: String) {
-        Log.w(TAG, "SECURITY EVENT: Blocked AI $operation for note ${noteId.take(8)}...")
+        Log.w(TAG, "SECURITY EVENT: Blocked AI $operation for private note")
     }
 
     /**

@@ -94,8 +94,8 @@ object FileCompressor {
     private val maxParallelOps: Int
         get() = try { ResourceManager.getMaxParallelOperations() } catch (e: Exception) { 4 }
 
-    private val compressionSemaphore: Semaphore
-        get() = Semaphore(maxParallelOps)
+    // BUG-016 FIX: Use lazy to create Semaphore ONCE, not on every access
+    private val compressionSemaphore: Semaphore by lazy { Semaphore(maxParallelOps) }
 
     // File extensions for compressed files
     const val COMPRESSED_IMAGE_EXT = ".webp"
@@ -305,44 +305,51 @@ object FileCompressor {
                 BitmapFactory.decodeStream(BufferedInputStream(stream, FAST_BUFFER_SIZE), null, decodeOptions)
             } ?: throw IOException("Cannot decode image")
 
-            // Generate output filename
-            val baseName = originalFileName?.substringBeforeLast(".") ?: "image_${System.currentTimeMillis()}"
-            val compressedFileName = "${baseName}$COMPRESSED_IMAGE_EXT"
-            val compressedFile = File(destDir, compressedFileName)
+            // LEAK FIX (LEAK-015): Use try-finally to ALWAYS recycle bitmap
+            // Without this, any exception between decode and recycle leaks 4-16MB native memory
+            try {
+                // Generate output filename
+                val baseName = originalFileName?.substringBeforeLast(".") ?: "image_${System.currentTimeMillis()}"
+                val compressedFileName = "${baseName}$COMPRESSED_IMAGE_EXT"
+                val compressedFile = File(destDir, compressedFileName)
 
-            // Compress to WebP with buffered output
-            val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                Bitmap.CompressFormat.WEBP_LOSSY
-            } else {
-                @Suppress("DEPRECATION")
-                Bitmap.CompressFormat.WEBP
+                // Compress to WebP with buffered output
+                val format = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    Bitmap.CompressFormat.WEBP_LOSSY
+                } else {
+                    @Suppress("DEPRECATION")
+                    Bitmap.CompressFormat.WEBP
+                }
+
+                    BufferedOutputStream(FileOutputStream(compressedFile), FAST_BUFFER_SIZE).use { out ->
+                    originalBitmap.compress(format, IMAGE_QUALITY, out)
+                }
+
+                val originalSize = getFileSize(context, sourceUri) ?: compressedFile.length()
+                val compressedSize = compressedFile.length()
+                val compressionRatio = if (originalSize > 0) {
+                    ((originalSize - compressedSize) * 100.0 / originalSize)
+                } else 0.0
+
+                Log.d(TAG, "Image compressed: $originalFileName -> $compressedFileName " +
+                        "(${formatSize(originalSize)} -> ${formatSize(compressedSize)}, " +
+                        "${String.format("%.1f", compressionRatio)}% reduction, sample=$sampleSize)")
+
+                CompressedFileResult(
+                    compressedFile = compressedFile,
+                    originalFileName = originalFileName ?: compressedFileName,
+                    compressedFileName = compressedFileName,
+                    originalSize = originalSize,
+                    compressedSize = compressedSize,
+                    compressionType = CompressionType.WEBP,
+                    mimeType = "image/webp"
+                )
+            } finally {
+                // ALWAYS recycle bitmap to prevent native memory leak (4-16MB per image)
+                if (!originalBitmap.isRecycled) {
+                    originalBitmap.recycle()
+                }
             }
-
-            BufferedOutputStream(FileOutputStream(compressedFile), FAST_BUFFER_SIZE).use { out ->
-                originalBitmap.compress(format, IMAGE_QUALITY, out)
-            }
-
-            originalBitmap.recycle()
-
-            val originalSize = getFileSize(context, sourceUri) ?: compressedFile.length()
-            val compressedSize = compressedFile.length()
-            val compressionRatio = if (originalSize > 0) {
-                ((originalSize - compressedSize) * 100.0 / originalSize)
-            } else 0.0
-
-            Log.d(TAG, "Image compressed: $originalFileName -> $compressedFileName " +
-                    "(${formatSize(originalSize)} -> ${formatSize(compressedSize)}, " +
-                    "${String.format("%.1f", compressionRatio)}% reduction, sample=$sampleSize)")
-
-            CompressedFileResult(
-                compressedFile = compressedFile,
-                originalFileName = originalFileName ?: compressedFileName,
-                compressedFileName = compressedFileName,
-                originalSize = originalSize,
-                compressedSize = compressedSize,
-                compressionType = CompressionType.WEBP,
-                mimeType = "image/webp"
-            )
         }
     }
 

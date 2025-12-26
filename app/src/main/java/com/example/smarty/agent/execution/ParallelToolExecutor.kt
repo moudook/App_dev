@@ -34,6 +34,7 @@ class ParallelToolExecutor(
         private const val TAG = "ParallelToolExecutor"
 
         // Read-only tools that can be executed in parallel
+        // BUG FIX (Issue #35): Added missing tools to classification
         private val READ_ONLY_TOOLS = setOf(
             // Search operations
             "search_notes",
@@ -44,14 +45,17 @@ class ParallelToolExecutor(
             // List operations
             "list_categories",
             "get_category_notes",
+            "list_todos",  // BUG FIX: Was missing
             // Get operations
             "get_note",
             "summarize_note",
             "get_user_patterns",
             // Calendar queries
             "search_calendar",
+            "get_events",  // BUG FIX: Newly added tool
             // External queries
-            "web_search"
+            "web_search",
+            "deep_research"  // BUG FIX: Was missing - it's a read-only research tool
         )
 
         // Write tools that must execute sequentially

@@ -120,6 +120,7 @@ class VoiceNoteRecorder(
 
             // Only assign to field after successful start (prevents leak)
             mediaRecorder = recorder
+            recorder = null  // Transfer ownership
 
             startTimeMs = System.currentTimeMillis()
             _state.value = RecordingState.Recording
@@ -136,13 +137,20 @@ class VoiceNoteRecorder(
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start recording: ${e.message}", e)
-            // Release local recorder if setup failed (fixes memory leak)
-            try {
-                recorder?.release()
-            } catch (_: Exception) {}
             _state.value = RecordingState.Error("Failed to start recording: ${e.message}")
-            cleanup()
             return false
+        } finally {
+            // Release if setup failed (recorder wasn't transferred)
+            if (recorder != null) {
+                try {
+                    recorder.stop()
+                } catch (_: Exception) {}
+                try {
+                    recorder.release()
+                } catch (_: Exception) {}
+                // Delete partial output file
+                outputFile?.delete()
+            }
         }
     }
 
@@ -240,7 +248,16 @@ class VoiceNoteRecorder(
     private fun startDurationTimer() {
         timerJob = scope.launch(Dispatchers.Default) {
             while (isActive && _state.value == RecordingState.Recording) {
-                _durationMs.value = System.currentTimeMillis() - startTimeMs
+                val elapsed = System.currentTimeMillis() - startTimeMs
+                _durationMs.value = elapsed
+
+                // L7 FIX: Enforce hard timeout to prevent infinite recording
+                if (elapsed >= MAX_RECORDING_DURATION_MS) {
+                    Log.w(TAG, "Max recording duration reached (${MAX_RECORDING_DURATION_MS}ms), auto-stopping")
+                    scope.launch(Dispatchers.Main) { stopRecording() }
+                    break
+                }
+
                 delay(100)
             }
         }

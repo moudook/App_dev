@@ -1,13 +1,29 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Backup rules for Android 11 and below.
+   SECURITY: Excludes sensitive data from Android Auto-Backup
    See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- EXCLUDE ALL SENSITIVE DATA FROM CLOUD BACKUP -->
+
+    <!-- Encrypted SharedPreferences containing API keys -->
+    <exclude domain="sharedpref" path="cogni_secure_prefs.xml"/>
+    <exclude domain="sharedpref" path="cogni_secure_prefs.xml.bak"/>
+
+    <!-- Database containing user notes (privacy-sensitive) -->
+    <exclude domain="database" path="cogni_database"/>
+    <exclude domain="database" path="cogni_database-shm"/>
+    <exclude domain="database" path="cogni_database-wal"/>
+
+    <!-- Attachments directory (user files) -->
+    <exclude domain="file" path="attachments/"/>
+    <exclude domain="file" path="voice_notes/"/>
+    <exclude domain="file" path="compressed/"/>
+
+    <!-- Cache directories -->
+    <exclude domain="cache" path="."/>
+
+    <!-- Vosk speech model (large, re-downloadable) -->
+    <exclude domain="file" path="vosk-model-small-hi-0.22/"/>
 </full-backup-content>

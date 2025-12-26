@@ -8,10 +8,15 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
- * Duolingo-style shimmer effect modifier
+ * OPTIMIZED: Duolingo-style shimmer effect modifier
  * Creates a sweeping highlight animation across the surface
+ *
+ * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded (zero CPU in background)
  */
 fun Modifier.shimmerEffect(
     enabled: Boolean = true,
@@ -20,6 +25,18 @@ fun Modifier.shimmerEffect(
     durationMillis: Int = 1500
 ): Modifier = composed {
     if (!enabled) return@composed this
+
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) {
+        // Return static shimmer at mid-point when backgrounded - zero animation overhead
+        val staticGradient = Brush.linearGradient(
+            colors = listOf(baseColor, highlightColor.copy(alpha = highlightColor.alpha * 0.5f), baseColor)
+        )
+        return@composed this.background(staticGradient)
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
     val shimmerTranslate by infiniteTransition.animateFloat(
@@ -49,13 +66,27 @@ fun Modifier.shimmerEffect(
 }
 
 /**
- * Creates a subtle shimmer brush for use in custom draws
+ * OPTIMIZED: Creates a subtle shimmer brush for use in custom draws
+ *
+ * Performance improvements:
+ * - LIFECYCLE-AWARE: Returns static brush when app is backgrounded
  */
 @Composable
 fun rememberShimmerBrush(
     highlightColor: Color = Color.White.copy(alpha = 0.15f),
     durationMillis: Int = 2000
 ): Brush {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) {
+        // Static brush when backgrounded
+        return Brush.linearGradient(
+            colors = listOf(Color.Transparent, highlightColor.copy(alpha = highlightColor.alpha * 0.5f), Color.Transparent)
+        )
+    }
+
     val infiniteTransition = rememberInfiniteTransition(label = "shimmerBrush")
     val shimmerTranslate by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -82,13 +113,28 @@ fun rememberShimmerBrush(
 }
 
 /**
- * Loading skeleton shimmer effect
+ * OPTIMIZED: Loading skeleton shimmer effect
  * Use on placeholder elements while content is loading
+ *
+ * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded
  */
 fun Modifier.skeletonShimmer(): Modifier = composed {
     // Hardcoded neutral colors for consistency across Light/Dark themes
     val baseColor = Color(0xFFE0E0E0)
     val highlightColor = Color(0xFFF5F5F5)
+
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) {
+        // Static skeleton when backgrounded
+        val staticGradient = Brush.linearGradient(
+            colors = listOf(baseColor, Color(0xFFEAEAEA), baseColor)
+        )
+        return@composed this.background(staticGradient)
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "skeleton")
     val shimmerTranslate by infiniteTransition.animateFloat(

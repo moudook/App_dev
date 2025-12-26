@@ -248,7 +248,8 @@ class ShareFlowManager(
         if (isFullPrivacy) {
             // Full privacy mode - no AI processing at all
             saveNoteWithoutAiProcessing(note)
-            Log.i(TAG, "Note saved in full privacy mode: ${note.title}")
+            // SECURITY: Don't log private note titles to prevent data leakage via logcat
+            Log.d(TAG, "Note saved in full privacy mode: id=${note.id.take(8)}...")
         } else if (selectedCategory != null) {
             // Category selected - just assign category
             val category = repository.getOrCreateCategory(selectedCategory)

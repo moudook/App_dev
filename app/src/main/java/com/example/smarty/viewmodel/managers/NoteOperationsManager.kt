@@ -69,6 +69,39 @@ class NoteOperationsManager(
     private val maxNotesPerMinute = 30 // Generous limit
     private val noteCreationMutex = Mutex()
 
+    /**
+     * BUG FIX (RX-05): Track files currently being accessed to prevent deletion
+     * while AI is reading them. Files are added before processing starts and
+     * removed after processing completes.
+     */
+    private val filesInUse = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val fileInUseMutex = Mutex()
+
+    /**
+     * BUG FIX (RX-05): Mark a file as in-use to prevent concurrent deletion.
+     * Call this before starting any file read operation.
+     */
+    fun markFileInUse(uriString: String) {
+        filesInUse.add(uriString)
+        Log.d(TAG, "File marked in-use: ${uriString.takeLast(30)}")
+    }
+
+    /**
+     * BUG FIX (RX-05): Release a file from in-use tracking.
+     * Call this after file read operation completes.
+     */
+    fun releaseFile(uriString: String) {
+        filesInUse.remove(uriString)
+        Log.d(TAG, "File released: ${uriString.takeLast(30)}")
+    }
+
+    /**
+     * BUG FIX (RX-05): Check if a file is currently being used.
+     */
+    fun isFileInUse(uriString: String): Boolean {
+        return filesInUse.contains(uriString)
+    }
+
     private suspend fun checkNoteCreationRateLimit(): Boolean {
         return noteCreationMutex.withLock {
             val now = System.currentTimeMillis()
@@ -332,6 +365,9 @@ class NoteOperationsManager(
     /**
      * Fast path for single IMAGE + TEXT - the user's most common use case.
      * Streamlined processing with minimal overhead.
+     *
+     * BUG FIX (L-004): Added cleanup logic to prevent orphaned files
+     * if DB insert fails after file is copied to storage.
      */
     private suspend fun processSingleImageWithText(
         attachment: Attachment,
@@ -340,33 +376,60 @@ class NoteOperationsManager(
     ) {
         // 1. Copy/compress image in background
         val processed = copyAttachmentToStorage(attachment)
+        val copiedFileUri = processed.uri.toString()
 
-        val noteAttachment = NoteAttachment(
-            uri = processed.uri.toString(),
-            fileName = processed.fileName,
-            mimeType = processed.mimeType,
-            fileSize = processed.fileSize
-        )
+        try {
+            val noteAttachment = NoteAttachment(
+                uri = copiedFileUri,
+                fileName = processed.fileName,
+                mimeType = processed.mimeType,
+                fileSize = processed.fileSize
+            )
 
-        // 2. Create note directly in PROCESSING state (skip PENDING)
-        val note = Note(
-            title = ContentTypeDetector.extractTitle(content, NoteType.IMAGE),
-            content = content,
-            fileUri = processed.uri.toString(),
-            fileName = processed.fileName,
-            fileMimeType = processed.mimeType,
-            fileSize = processed.fileSize,
-            imageUri = processed.uri.toString(),
-            type = NoteType.IMAGE,
-            processingStatus = ProcessingStatus.PROCESSING,
-            excludeFromAiChat = excludeFromAiChat
-        ).withAttachments(listOf(noteAttachment))
+            // 2. Create note directly in PROCESSING state (skip PENDING)
+            val note = Note(
+                title = ContentTypeDetector.extractTitle(content, NoteType.IMAGE),
+                content = content,
+                fileUri = copiedFileUri,
+                fileName = processed.fileName,
+                fileMimeType = processed.mimeType,
+                fileSize = processed.fileSize,
+                imageUri = copiedFileUri,
+                type = NoteType.IMAGE,
+                processingStatus = ProcessingStatus.PROCESSING,
+                excludeFromAiChat = excludeFromAiChat
+            ).withAttachments(listOf(noteAttachment))
 
-        // 3. Single insert (no separate update needed)
-        repository.insertNote(note)
+            // 3. Single insert (no separate update needed)
+            repository.insertNote(note)
 
-        // 4. Process with AI
-        processNoteWithAi(note)
+            // 4. Process with AI
+            processNoteWithAi(note)
+        } catch (e: Exception) {
+            // BUG FIX (L-004): Clean up copied file if DB insert fails
+            Log.e(TAG, "Failed to insert note, cleaning up orphaned file: ${e.message}", e)
+            cleanupOrphanedFile(copiedFileUri)
+            throw e // Re-throw so caller knows operation failed
+        }
+    }
+
+    /**
+     * BUG FIX (L-004): Clean up orphaned files when DB operations fail.
+     * Prevents storage leaks from failed note creation.
+     */
+    private fun cleanupOrphanedFile(uriString: String) {
+        try {
+            val uri = Uri.parse(uriString)
+            // Only delete files in internal storage (our app's files)
+            if (uriString.contains(context.filesDir.absolutePath)) {
+                val file = java.io.File(uri.path ?: return)
+                if (file.exists() && file.delete()) {
+                    Log.d(TAG, "Cleaned up orphaned file: ${file.name}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cleanup orphaned file: ${e.message}")
+        }
     }
 
     /**
@@ -401,13 +464,35 @@ class NoteOperationsManager(
 
     /**
      * Delete a note and its attachments.
+     *
+     * BUG FIX (RX-05): Checks if files are in use before deletion.
+     * If a file is being read by AI, deletion is skipped for that file
+     * to prevent IOException and data corruption.
      */
     fun deleteNote(note: Note) {
         scope.launch {
             try {
                 noteOperationMutex.withLock {
                     note.getAllAttachmentUris().forEach { uri ->
-                        FileStorageHelper.deleteFile(context, uri)
+                        // BUG FIX (RX-05): Skip deletion if file is being used
+                        if (isFileInUse(uri)) {
+                            Log.w(TAG, "Skipping deletion of in-use file: ${uri.takeLast(30)}")
+                            // Schedule deferred deletion when file is released
+                            scope.launch {
+                                // Wait for file to be released (with timeout)
+                                var attempts = 0
+                                while (isFileInUse(uri) && attempts < 30) {
+                                    kotlinx.coroutines.delay(100)
+                                    attempts++
+                                }
+                                if (!isFileInUse(uri)) {
+                                    FileStorageHelper.deleteFile(context, uri)
+                                    Log.d(TAG, "Deferred deletion completed: ${uri.takeLast(30)}")
+                                }
+                            }
+                        } else {
+                            FileStorageHelper.deleteFile(context, uri)
+                        }
                     }
                     repository.deleteNote(note)
                 }

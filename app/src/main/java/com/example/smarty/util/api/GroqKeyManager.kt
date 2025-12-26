@@ -3,6 +3,8 @@ package com.example.smarty.util.api
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import dev.spght.encryptedprefs.EncryptedSharedPreferences
+import dev.spght.encryptedprefs.MasterKey
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,12 +78,15 @@ enum class KeyHealthStatus {
  * - Real-time usage statistics
  * - Automatic key rotation on rate limit
  * - Persistent usage tracking across app restarts
+ *
+ * BUG FIX (TECH-003): Now uses EncryptedSharedPreferences to store API keys
+ * securely at rest. Previously stored in plaintext SharedPreferences.
  */
 class GroqKeyManager private constructor(context: Context) {
 
     companion object {
         private const val TAG = "GroqKeyManager"
-        private const val PREFS_NAME = "groq_key_manager"
+        private const val PREFS_NAME = "groq_key_manager_secure"  // New name for encrypted prefs
         private const val KEY_CONFIGS = "key_configs"
         private const val KEY_DAILY_COUNTS = "daily_counts"
         private const val KEY_LAST_RESET_DATE = "last_reset_date"
@@ -102,7 +107,25 @@ class GroqKeyManager private constructor(context: Context) {
         }
     }
 
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    /**
+     * BUG FIX (TECH-003): Use EncryptedSharedPreferences for API key storage.
+     * Falls back to regular SharedPreferences if encryption fails.
+     */
+    private val prefs: SharedPreferences = try {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to create encrypted prefs, using standard (INSECURE): ${e.message}")
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
 

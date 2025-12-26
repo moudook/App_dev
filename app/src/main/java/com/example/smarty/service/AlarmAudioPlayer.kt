@@ -21,6 +21,7 @@ object AlarmAudioPlayer {
     private var mediaPlayer: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
     private var stopRunnable: Runnable? = null
+    private var failsafeRunnable: Runnable? = null
 
     // Maximum allowed duration to prevent indefinite playback (failsafe)
     private const val MAX_DURATION_MS = 60_000L  // 60 seconds max
@@ -38,6 +39,10 @@ object AlarmAudioPlayer {
 
         // Stop any existing playback
         stop()
+
+        // Cancel any existing runnables first
+        stopRunnable?.let { handler.removeCallbacks(it) }
+        failsafeRunnable?.let { handler.removeCallbacks(it) }
 
         try {
             // TODO: User will provide audio file in ~2 days
@@ -102,13 +107,14 @@ object AlarmAudioPlayer {
             stopRunnable = Runnable { stop() }
             handler.postDelayed(stopRunnable!!, safeDuration)
 
-            // Failsafe timeout at 2x duration to prevent indefinite playback
-            handler.postDelayed({
+            // Failsafe timeout at 2x duration to prevent indefinite playback - now tracked so it can be removed
+            failsafeRunnable = Runnable {
                 if (isPlaying()) {
                     Log.w(TAG, "Failsafe timeout triggered - stopping alarm")
                     stop()
                 }
-            }, safeDuration * 2)
+            }
+            handler.postDelayed(failsafeRunnable!!, safeDuration * 2)
 
         } catch (e: Exception) {
             Log.e(TAG, "Failed to play alarm audio: ${e.message}", e)
@@ -122,9 +128,11 @@ object AlarmAudioPlayer {
     fun stop() {
         Log.d(TAG, "Stopping alarm audio")
 
-        // Cancel pending stop
+        // Remove ALL pending runnables
         stopRunnable?.let { handler.removeCallbacks(it) }
+        failsafeRunnable?.let { handler.removeCallbacks(it) }
         stopRunnable = null
+        failsafeRunnable = null
 
         // Release media player
         try {

@@ -1,22 +1,11 @@
 package com.example.smarty.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.Article
@@ -25,41 +14,33 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.CogniEasing
-import com.example.smarty.ui.animation.CogniMotion
-import com.example.smarty.ui.animation.StaggerCalculator
-import com.example.smarty.ui.theme.ComponentSpacing
-import kotlinx.coroutines.delay
 
 /**
- * Attachment type options for the selector
+ * Attachment type options
  */
 enum class AttachmentOption(
-    val label: String
+    val label: String,
+    val icon: ImageVector
 ) {
-    IMAGE("Photo"),
-    VIDEO("Video"),
-    DOCUMENT("Doc"),
-    AUDIO("Audio"),
-    FILE("File"),
-    LINK("Link")
+    IMAGE("Photo", Icons.Default.Image),
+    VIDEO("Video", Icons.Default.Videocam),
+    DOCUMENT("Doc", Icons.AutoMirrored.Filled.Article),
+    AUDIO("Audio", Icons.Default.Mic),
+    FILE("File", Icons.Default.Folder),
+    LINK("Link", Icons.Default.Link)
 }
 
 /**
- * Animated attachment type selector panel
- *
- * Shows a row of attachment type buttons with staggered entry animation
- * Apple-style spring physics for natural feel
+ * Attachment Type Selector - Horizontal Pill Design.
+ * Matches the SearchFilterTypeSelector exactly.
+ * Minimal, flat, no external shadows.
  */
 @Composable
 fun AttachmentTypeSelector(
@@ -72,78 +53,63 @@ fun AttachmentTypeSelector(
     onSelectLink: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
+    val accentColor = LocalAccentColor.current
+    
     AnimatedVisibility(
         visible = visible,
-        enter = expandVertically(
-            animationSpec = spring(
-                dampingRatio = 0.7f,
-                stiffness = 300f
-            ),
-            expandFrom = Alignment.Bottom
-        ) + fadeIn(
-            animationSpec = tween(200, easing = CogniEasing.appleEaseOut)
-        ),
-        exit = shrinkVertically(
-            animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
-            shrinkTowards = Alignment.Bottom
-        ) + fadeOut(
-            animationSpec = tween(150)
-        ),
+        enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
+        exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
         modifier = modifier
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 12.dp), // Match Chat Mode bottom padding
+                .padding(bottom = 12.dp),
             contentAlignment = Alignment.Center
         ) {
-            // EXACT COPY of Chat Mode pill styling (from CogniInputField.kt lines 260-309)
             Surface(
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = LocalAccentColor.current.copy(alpha = 0.8f), // EXACT: 0.8f alpha like Chat Mode
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = LocalAccentColor.current.copy(alpha = 0.25f) // EXACT: 0.25f border
-                )
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), // EXACT: same padding as Chat Mode
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     AttachmentOption.entries.forEachIndexed { index, option ->
-                        // Text Item - PURE WHITE (same as Chat Mode)
-                        Text(
-                            text = option.label,
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Medium // EXACT: same fontWeight as Chat Mode
-                            ),
-                            color = androidx.compose.ui.graphics.Color.White, // Pure white like Chat Mode
-                            modifier = Modifier.clickable {
-                                when (option) {
-                                    AttachmentOption.IMAGE -> onSelectImage()
-                                    AttachmentOption.VIDEO -> onSelectVideo()
-                                    AttachmentOption.DOCUMENT -> onSelectDocument()
-                                    AttachmentOption.AUDIO -> onSelectAudio()
-                                    AttachmentOption.FILE -> onSelectFile()
-                                    AttachmentOption.LINK -> onSelectLink()
-                                }
-                            }
-                        )
                         
-                        // Spacer before divider
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Separator (if not last) - EXACT: height(10.dp), alpha 0.3f like Chat Mode
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { 
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    when (option) {
+                                         AttachmentOption.IMAGE -> onSelectImage()
+                                         AttachmentOption.VIDEO -> onSelectVideo()
+                                         AttachmentOption.DOCUMENT -> onSelectDocument()
+                                         AttachmentOption.AUDIO -> onSelectAudio()
+                                         AttachmentOption.FILE -> onSelectFile()
+                                         AttachmentOption.LINK -> onSelectLink()
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = option.label,
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
                         if (index < AttachmentOption.entries.lastIndex) {
+                            // Separator
                             Box(
                                 modifier = Modifier
                                     .width(1.dp)
-                                    .height(10.dp) // EXACT: same as Chat Mode divider
-                                    .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.3f)) // EXACT: 0.3f alpha
+                                    .height(12.dp)
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
                             )
-                            
-                            Spacer(modifier = Modifier.width(8.dp))
                         }
                     }
                 }
@@ -152,11 +118,9 @@ fun AttachmentTypeSelector(
     }
 }
 
-// Removed AnimatedAttachmentButton as it's replaced by inline text items
-
 /**
- * Filter type selector for search mode.
- * Supports multiple selection with tap-to-toggle behavior.
+ * Filter type selector for search mode
+ * Reused UI pattern.
  */
 @Composable
 fun SearchFilterTypeSelector(
@@ -169,117 +133,48 @@ fun SearchFilterTypeSelector(
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
     
-    AnimatedVisibility(
-        visible = visible,
-        enter = expandVertically(
-            animationSpec = spring(dampingRatio = 0.7f, stiffness = 300f),
-            expandFrom = Alignment.Bottom
-        ) + fadeIn(animationSpec = tween(200, easing = CogniEasing.appleEaseOut)),
-        exit = shrinkVertically(
-            animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
-            shrinkTowards = Alignment.Bottom
-        ) + fadeOut(animationSpec = tween(150)),
-        modifier = modifier
-    ) {
+    // Only visible if passed true
+    if (visible) {
         Box(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            modifier = modifier // Use passed modifier (padding etc)
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Surface(
-                shape = androidx.compose.foundation.shape.CircleShape,
-                // Higher contrast background
+                shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                ),
-                shadowElevation = 0.dp
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), // Compact padding
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Filter Options
                     AttachmentOption.entries.forEachIndexed { index, option ->
                         val isSelected = option in selectedFilters
-                        
-                        // Animate selection state
-                        val backgroundColor by animateColorAsState(
-                            targetValue = if (isSelected) accentColor else androidx.compose.ui.graphics.Color.Transparent,
-                            animationSpec = tween(200), label = "filterBg"
-                        )
-                        // FIX: Use theme-aware color for unselected state (was hardcoded black)
-                        val contentColor by animateColorAsState(
-                            targetValue = if (isSelected) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            animationSpec = tween(200), label = "filterText"
-                        )
+                        val backgroundColor by animateColorAsState(if (isSelected) accentColor else Color.Transparent, label = "bg")
+                        val contentColor by animateColorAsState(if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant, label = "txt")
                         
                         Box(
                             modifier = Modifier
-                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .clip(CircleShape)
                                 .background(backgroundColor)
-                                .clickable {
+                                .clickable { 
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onFilterToggle(option)
+                                    onFilterToggle(option) 
                                 }
-                                .padding(horizontal = 8.dp, vertical = 6.dp) // Reduced horizontal padding to prevent wrapping
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Text(
                                 text = option.label,
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                                ),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                                 color = contentColor
                             )
                         }
-                        
-                        if (index < AttachmentOption.entries.lastIndex) {
-                            Spacer(modifier = Modifier.width(2.dp))
-                        }
-                    }
-                    
-                    // Clear Button (Only appears when selection exists)
-                    AnimatedVisibility(
-                        visible = selectedFilters.isNotEmpty(),
-                        enter = fadeIn() + expandHorizontally(),
-                        exit = fadeOut() + shrinkHorizontally()
-                    ) {
-                        Row {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            // Vertical Divider
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .height(14.dp)
-                                    .align(Alignment.CenterVertically)
-                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            
-                            Box(
-                                modifier = Modifier
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onClearFilters()
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Clear filters",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
+                        if (index < AttachmentOption.entries.lastIndex) Spacer(Modifier.width(2.dp))
                     }
                 }
             }
         }
     }
 }
-
-
-

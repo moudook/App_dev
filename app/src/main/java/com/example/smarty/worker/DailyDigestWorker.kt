@@ -126,8 +126,12 @@ class DailyDigestWorker(
         val noteDao = database.noteDao()
 
         // Get notes from the last 24 hours
+        // INPUT-002: Cap notes fetched to prevent memory issues
+        // WORKER-002/MED-001: Exclude private notes from digest to protect user privacy
         val oneDayAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
         val recentNotes = noteDao.getNotesCreatedAfter(oneDayAgo)
+            .filter { !it.isFullPrivacy }  // Exclude private notes
+            .take(100)
 
         // Get total note count
         val totalNotes = noteDao.getNoteCount()

@@ -19,8 +19,9 @@ import androidx.core.view.WindowCompat
 import com.example.smarty.ui.LocalAccentColor
 
 /**
- * Dark Color Scheme - Modern Soft Minimalist (Dark Mode)
- * Background: #111111, Card: #1C1C1E, Primary: #2979FF
+ * Dark Color Scheme - Claude-Inspired Dark Mode
+ * Background: #0D0C11 (deep charcoal), Surface: #181822 (elevated)
+ * Primary: #2979FF (electric blue)
  */
 private val DarkColorScheme = darkColorScheme(
     // Primary - Electric Blue (brighter for dark mode)

@@ -1,5 +1,9 @@
 #info
-FEATURES.md
+# Ignore all markdown files globally
+*.md
+**/*.md
+# Keep README.md tracked
+!README.md
 
 *.iml
 .gradle
@@ -107,7 +111,7 @@ gen/
 out/
 release/
 
-# Login & Credentials
+# Login & Credentials - COMPREHENSIVE PROTECTION
 *.keystore
 *.jks
 keystore.properties
@@ -121,6 +125,32 @@ credentials.json
 *.pem
 *.p12
 *.key
+*.crt
+*.cer
+
+# Service accounts & tokens
+**/service_account*.json
+**/*-service-account.json
+**/*token*.json
+**/*tokens*.json
+
+# Environment files (all variations)
+.env
+.env.*
+*.env
+.envrc
+
+# API keys in any format
+**/api_key*
+**/apikey*
+**/*_secret*
+**/*_credentials*
+
+# Debug/Development database files
+*.db
+*.sqlite
+*.sqlite3
+
 
 #errors
 KOOG_AGENT_ISSUES.md
@@ -133,6 +163,9 @@ build_log.txt
 IMPORTS_CHECK.md
 
 #issues
+issues_with_the_app/
+*_meltdown.md
+*_bloodbath.md
 issue_with_ai_agent_audio_player_case_2.png
 issue_with_ai_agent_audio_player.png
 agent_issue_during_chat.png
@@ -143,7 +176,7 @@ NOTECARD_PROCESSING_FLOW.md
 DATABASE_VS_API_EXPLANATION.md
 AI_AGENT_PROCESSING_FLOW.md
 SIMPLE_COST_EXPLANATION.md
-issues_with_the_app/
+
 
 
 #solutions
@@ -156,6 +189,7 @@ AI_AGENT_SOLUTION_3.txt
 BUG_FIX.md
 update_settings.py
 .env
+for_my_reference/
 
 #research
 # on the wake words
@@ -164,3 +198,21 @@ input_block_issue.png
 
 #memory_leaks
 memory_leaks.jpeg
+
+#experiment
+AUDIO_effects/
+
+#done
+
+# Speech Recognition Models (see README for download instructions)
+vosk-model-*/
+app/src/main/assets/vosk-model-*/
+
+
+#img
+refrence_.png
+refrence.jpg
+
+
+#logs
+build_log_2.txt

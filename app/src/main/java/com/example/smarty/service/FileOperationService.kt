@@ -188,72 +188,77 @@ class FileOperationService : Service() {
 
     /**
      * Process operations in the queue
+     *
+     * C-004: Wrapped in try-finally to guarantee stopForeground is called,
+     * preventing zombie notifications if an unhandled exception occurs.
      */
     private fun processQueue() {
         serviceScope.launch {
-            operationMutex.withLock {
-                if (isProcessing) return@launch
-                isProcessing = true
-            }
+            try {
+                operationMutex.withLock {
+                    if (isProcessing) return@launch
+                    isProcessing = true
+                }
 
-            while (operationQueue.isNotEmpty()) {
-                val operation = operationQueue.poll() ?: break
+                while (operationQueue.isNotEmpty()) {
+                    val operation = operationQueue.poll() ?: break
 
-                _operationState.value = OperationState.Processing(
-                    operationId = operation.id,
-                    progress = 0f,
-                    message = "Processing ${operation.id}..."
-                )
-
-                updateNotification("Processing: ${operation.id}")
-
-                try {
-                    val result = when (operation) {
-                        is FileOperation.Compress -> processCompress(operation)
-                        is FileOperation.Copy -> processCopy(operation)
-                    }
-
-                    operationMutex.withLock {
-                        completedOperations[operation.id] = result
-                    }
-
-                    _operationState.value = OperationState.Completed(
+                    _operationState.value = OperationState.Processing(
                         operationId = operation.id,
-                        success = result.success,
-                        message = result.message
+                        progress = 0f,
+                        message = "Processing ${operation.id}..."
                     )
 
-                } catch (e: Exception) {
-                    Log.e(TAG, "Operation failed: ${operation.id}", e)
+                    updateNotification("Processing: ${operation.id}")
 
-                    operationMutex.withLock {
-                        completedOperations[operation.id] = OperationResult(
+                    try {
+                        val result = when (operation) {
+                            is FileOperation.Compress -> processCompress(operation)
+                            is FileOperation.Copy -> processCopy(operation)
+                        }
+
+                        operationMutex.withLock {
+                            completedOperations[operation.id] = result
+                        }
+
+                        _operationState.value = OperationState.Completed(
                             operationId = operation.id,
-                            success = false,
-                            message = e.message ?: "Unknown error"
+                            success = result.success,
+                            message = result.message
+                        )
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Operation failed: ${operation.id}", e)
+
+                        operationMutex.withLock {
+                            completedOperations[operation.id] = OperationResult(
+                                operationId = operation.id,
+                                success = false,
+                                message = e.message ?: "Unknown error"
+                            )
+                        }
+
+                        _operationState.value = OperationState.Error(
+                            operationId = operation.id,
+                            error = e.message ?: "Unknown error"
                         )
                     }
 
-                    _operationState.value = OperationState.Error(
-                        operationId = operation.id,
-                        error = e.message ?: "Unknown error"
-                    )
+                    // Brief pause between operations to prevent resource exhaustion
+                    if (operationQueue.isNotEmpty()) {
+                        delay(100)
+                    }
                 }
 
-                // Brief pause between operations to prevent resource exhaustion
-                if (operationQueue.isNotEmpty()) {
-                    delay(100)
+                operationMutex.withLock {
+                    isProcessing = false
                 }
+                _operationState.value = OperationState.Idle
+            } finally {
+                // C-004: Always stop foreground to prevent zombie notifications
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
             }
-
-            operationMutex.withLock {
-                isProcessing = false
-            }
-            _operationState.value = OperationState.Idle
-
-            // Stop foreground when queue is empty
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
     }
 

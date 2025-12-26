@@ -2,6 +2,7 @@ package com.example.smarty.voice
 
 import android.content.Context
 import android.util.Log
+import com.example.smarty.voice.speaker.SpeakerEmbeddingManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,12 +41,16 @@ import org.vosk.android.StorageService
  * - No API key required
  * - All processing on-device
  * - Model included in app
+ * - Speaker verification ensures only enrolled user can trigger
  */
 class VoskWakeWordManager(
     private val context: Context,
     private val scope: CoroutineScope,
     private val onWakeWordDetected: () -> Unit
 ) : RecognitionListener {
+
+    // Speaker verification manager
+    private val speakerEmbeddingManager = SpeakerEmbeddingManager(context)
 
     companion object {
         private const val TAG = "VoskWakeWord"
@@ -79,6 +84,9 @@ class VoskWakeWordManager(
             "जादुगर",
             "जादू गर"
         )
+
+        // Model validity cache duration - must be in companion object for const
+        private const val VALIDITY_CACHE_MS = 5000L
     }
 
     // Thread-safe mutex for state operations
@@ -116,29 +124,43 @@ class VoskWakeWordManager(
     private val _initError = MutableStateFlow<String?>(null)
     val initError: StateFlow<String?> = _initError.asStateFlow()
 
+    // Model validity cache to avoid creating/destroying test recognizers repeatedly
+    @Volatile
+    private var lastModelValidityCheck = 0L
+    private var lastModelValidity = false
+
     /**
      * Check if the native model is still valid.
      * After process death, native objects become invalid even though references exist.
      * This safely tests model validity without crashing.
+     * OPTIMIZED: Caches result for 5 seconds to avoid creating/destroying test recognizers.
      */
     private fun isModelValid(): Boolean {
+        val now = System.currentTimeMillis()
+        if (now - lastModelValidityCheck < VALIDITY_CACHE_MS && lastModelValidity) {
+            return lastModelValidity
+        }
         val m = model ?: return false
         return try {
             // Try to create a recognizer - if model is invalid, this will throw
             val testRecognizer = Recognizer(m, SAMPLE_RATE)
             testRecognizer.close()
+            lastModelValidityCheck = now
+            lastModelValidity = true
             true
         } catch (e: Exception) {
             Log.w(TAG, "Model validity check failed: ${e.message}")
+            lastModelValidity = false
             false
         }
     }
 
     /**
-     * Force invalidate all state - used after detecting invalid model.
+     * Internal implementation of invalidateState without mutex.
+     * CALLER MUST ALREADY HOLD stateMutex.
      * This resets everything so re-initialization can occur.
      */
-    private fun invalidateState() {
+    private fun invalidateStateInternal() {
         Log.w(TAG, "Invalidating all Vosk state for re-initialization")
 
         // Stop any active listening
@@ -168,6 +190,18 @@ class VoskWakeWordManager(
     }
 
     /**
+     * Force invalidate all state - used after detecting invalid model.
+     * This resets everything so re-initialization can occur.
+     * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
+     * SYNCHRONOUS: Completes within the mutex before returning to prevent race conditions.
+     */
+    private suspend fun invalidateState() {
+        stateMutex.withLock {
+            invalidateStateInternal()
+        }
+    }
+
+    /**
      * Initialize Vosk model asynchronously.
      * Call this once during app startup.
      *
@@ -192,7 +226,13 @@ class VoskWakeWordManager(
             } else {
                 // Model became invalid (process death) - need to reinitialize
                 Log.w(TAG, "Model invalid after process death - reinitializing")
-                invalidateState()
+                // Launch invalidation and re-call initialize() after it completes
+                scope.launch {
+                    invalidateState()
+                    // Re-call initialize() after invalidation completes
+                    initialize()
+                }
+                return
             }
         }
 
@@ -306,13 +346,11 @@ class VoskWakeWordManager(
     }
 
     /**
-     * Start listening for the wake word.
-     * Call this when app comes to foreground.
-     * If model is still loading, will auto-start when ready.
-     *
-     * PROCESS DEATH SAFE: Validates model before starting.
+     * Internal implementation of startListening without mutex.
+     * CALLER MUST ALREADY HOLD stateMutex.
+     * This is used by both the public startListening() and restartListening().
      */
-    fun startListening() {
+    private suspend fun startListeningInternal() {
         // CRITICAL: Check if destroyed
         if (isDestroyed) {
             Log.d(TAG, "Manager destroyed - not starting listener")
@@ -322,7 +360,7 @@ class VoskWakeWordManager(
         // Check if model needs re-initialization after process death
         if (_isInitialized.value && !isModelValid()) {
             Log.w(TAG, "Model invalid - triggering re-initialization before listening")
-            invalidateState()
+            invalidateStateInternal()
             shouldStartAfterInit = true
             initialize()
             return
@@ -346,7 +384,7 @@ class VoskWakeWordManager(
         val rec = recognizer
         if (rec == null) {
             Log.e(TAG, "Cannot start - recognizer is null, triggering re-init")
-            invalidateState()
+            invalidateStateInternal()
             shouldStartAfterInit = true
             initialize()
             return
@@ -359,7 +397,7 @@ class VoskWakeWordManager(
             // Use high-sensitivity speech service with audio gain amplification
             // This allows wake word detection from further away
             speechService = HighSensitivitySpeechService(rec, SAMPLE_RATE, AUDIO_GAIN)
-            speechService?.startListening(this)
+            speechService?.startListening(this@VoskWakeWordManager)
             _isListening.value = true
             Log.i(TAG, "Started listening for Hindi wake word '$WAKE_WORD' with ${AUDIO_GAIN}x gain")
         } catch (e: Exception) {
@@ -369,7 +407,7 @@ class VoskWakeWordManager(
             // Might be invalid AudioRecord - try re-init
             if (e is IllegalStateException) {
                 Log.w(TAG, "IllegalStateException - attempting recovery")
-                invalidateState()
+                invalidateStateInternal()
                 shouldStartAfterInit = true
                 initialize()
             }
@@ -377,24 +415,45 @@ class VoskWakeWordManager(
     }
 
     /**
+     * Start listening for the wake word.
+     * Call this when app comes to foreground.
+     * If model is still loading, will auto-start when ready.
+     *
+     * PROCESS DEATH SAFE: Validates model before starting.
+     * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
+     */
+    fun startListening() {
+        scope.launch {
+            stateMutex.withLock {
+                startListeningInternal()
+            }
+        }
+    }
+
+    /**
      * Stop listening for the wake word.
      * Call this when app goes to background or when wake word detected.
+     * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
      */
     fun stopListening() {
-        shouldStartAfterInit = false  // Cancel pending start
-        try {
-            speechService?.let { service ->
-                service.stop()
-                service.shutdown()  // Properly release resources
+        scope.launch {
+            stateMutex.withLock {
+                shouldStartAfterInit = false  // Cancel pending start
+                try {
+                    speechService?.let { service ->
+                        service.stop()
+                        service.shutdown()  // Properly release resources
+                    }
+                    speechService = null
+                    _isListening.value = false
+                    Log.d(TAG, "Stopped listening")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error stopping: ${e.message}", e)
+                    // Force cleanup even on error
+                    speechService = null
+                    _isListening.value = false
+                }
             }
-            speechService = null
-            _isListening.value = false
-            Log.d(TAG, "Stopped listening")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error stopping: ${e.message}", e)
-            // Force cleanup even on error
-            speechService = null
-            _isListening.value = false
         }
     }
 
@@ -403,66 +462,81 @@ class VoskWakeWordManager(
      * This re-enables wake word detection.
      *
      * PROCESS DEATH SAFE: Validates model and re-initializes if needed.
+     * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
+     * TOCTOU-SAFE: Wraps recognizer creation in try-catch to handle race conditions.
      */
     fun restartListening() {
-        // CRITICAL: Check if destroyed
-        if (isDestroyed) {
-            Log.d(TAG, "Manager destroyed - not restarting")
-            return
-        }
-
-        Log.d(TAG, "Restarting wake word detection")
-
-        // Reset wake word triggered flag for new detection cycle
-        wakeWordTriggered = false
-
-        // If model is still loading, queue restart for after init
-        if (isInitializing) {
-            Log.d(TAG, "Model still loading - will start after init completes")
-            shouldStartAfterInit = true
-            return
-        }
-
-        // Check model validity - might be invalid after process death
-        if (!isModelValid()) {
-            Log.w(TAG, "Model invalid - triggering full re-initialization")
-            invalidateState()
-            shouldStartAfterInit = true
-            initialize()
-            return
-        }
-
-        // Need to recreate recognizer after it's been used
-        try {
-            // Close old recognizer to prevent resource leak
-            try {
-                recognizer?.close()
-            } catch (_: Exception) {
-                // Ignore close errors
-            }
-            recognizer = null
-
-            val m = model
-            if (m != null) {
-                recognizer = if (GRAMMAR != null) {
-                    Recognizer(m, SAMPLE_RATE, GRAMMAR)
-                } else {
-                    Recognizer(m, SAMPLE_RATE)
+        scope.launch {
+            stateMutex.withLock {
+                // CRITICAL: Check if destroyed
+                if (isDestroyed) {
+                    Log.d(TAG, "Manager destroyed - not restarting")
+                    return@withLock
                 }
-                startListening()
-            } else {
-                // Model is null - need to reinitialize
-                Log.w(TAG, "Model is null - triggering re-initialization")
-                invalidateState()
-                shouldStartAfterInit = true
-                initialize()
+
+                Log.d(TAG, "Restarting wake word detection")
+
+                // Reset wake word triggered flag for new detection cycle
+                wakeWordTriggered = false
+
+                // If model is still loading, queue restart for after init
+                if (isInitializing) {
+                    Log.d(TAG, "Model still loading - will start after init completes")
+                    shouldStartAfterInit = true
+                    return@withLock
+                }
+
+                // Check model validity - might be invalid after process death
+                if (!isModelValid()) {
+                    Log.w(TAG, "Model invalid - triggering full re-initialization")
+                    invalidateStateInternal()
+                    shouldStartAfterInit = true
+                    initialize()
+                    return@withLock
+                }
+
+                // Need to recreate recognizer after it's been used
+                try {
+                    // Close old recognizer to prevent resource leak
+                    try {
+                        recognizer?.close()
+                    } catch (_: Exception) {
+                        // Ignore close errors
+                    }
+                    recognizer = null
+
+                    val m = model
+                    if (m != null) {
+                        recognizer = try {
+                            if (GRAMMAR != null) {
+                                Recognizer(m, SAMPLE_RATE, GRAMMAR)
+                            } else {
+                                Recognizer(m, SAMPLE_RATE)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Recognizer creation failed after validity check - full reinit needed: ${e.message}")
+                            invalidateStateInternal()
+                            shouldStartAfterInit = true
+                            initialize()
+                            return@withLock
+                        }
+                        // Call internal version directly since we already hold the mutex
+                        startListeningInternal()
+                    } else {
+                        // Model is null - need to reinitialize
+                        Log.w(TAG, "Model is null - triggering re-initialization")
+                        invalidateStateInternal()
+                        shouldStartAfterInit = true
+                        initialize()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to restart: ${e.message}", e)
+                    // Attempt recovery through full re-init
+                    invalidateStateInternal()
+                    shouldStartAfterInit = true
+                    initialize()
+                }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to restart: ${e.message}", e)
-            // Attempt recovery through full re-init
-            invalidateState()
-            shouldStartAfterInit = true
-            initialize()
         }
     }
 
@@ -472,6 +546,28 @@ class VoskWakeWordManager(
      */
     fun isReady(): Boolean {
         return !isDestroyed && _isInitialized.value && isModelValid()
+    }
+
+    /**
+     * Check if speaker is enrolled for voice verification.
+     */
+    fun isSpeakerEnrolled(): Boolean {
+        return speakerEmbeddingManager.isEnrolled()
+    }
+
+    /**
+     * Get the SpeakerEmbeddingManager for enrollment UI.
+     */
+    fun getSpeakerEmbeddingManager(): SpeakerEmbeddingManager {
+        return speakerEmbeddingManager
+    }
+
+    /**
+     * Clear the speaker verification cache.
+     * Call this after voice fingerprint is deleted or retrained from another component.
+     */
+    fun clearSpeakerCache() {
+        speakerEmbeddingManager.clearCache()
     }
 
     /**
@@ -539,9 +635,22 @@ class VoskWakeWordManager(
         Log.e(TAG, "Recognition error: ${exception?.message}", exception)
         _initError.value = "Recognition error: ${exception?.message}"
 
-        // Check if error indicates invalid state - might need re-init
+        // ISSUE #3 FIX: Automatically recover from AudioRecord invalidation
+        // When system takes the mic (phone call, etc.), we need to reinitialize
+        // Recovery is only attempted if manager is still active (not destroyed)
         if (exception is IllegalStateException) {
-            Log.w(TAG, "IllegalStateException in recognition - may need re-init")
+            val message = exception.message ?: ""
+            if (message.contains("AudioRecord invalidated") || message.contains("native resources")) {
+                Log.w(TAG, "AudioRecord invalidated - scheduling automatic recovery")
+                scope.launch {
+                    // Brief delay to ensure system has released the mic
+                    kotlinx.coroutines.delay(500)
+                    if (!isDestroyed) {
+                        Log.d(TAG, "Attempting automatic recovery after AudioRecord invalidation")
+                        restartListening()
+                    }
+                }
+            }
         }
     }
 
@@ -607,15 +716,90 @@ class VoskWakeWordManager(
                 Log.w(TAG, ">>> WAKE WORD DETECTED: '$text' <<<")
                 Log.w(TAG, "============================================")
 
-                // Stop listening to free the mic for Google STT
-                stopListening()
+                // Verify speaker if enrolled
+                if (speakerEmbeddingManager.isEnrolled()) {
+                    Log.d(TAG, "Verifying speaker...")
 
-                // Notify callback on main thread (only if not destroyed)
-                if (!isDestroyed) {
-                    scope.launch(Dispatchers.Main) {
-                        // Double-check destroyed flag inside coroutine
+                    // Get recent audio samples from speech service
+                    val audioSamples = speechService?.getRecentAudioSamples()
+
+                    if (audioSamples != null && audioSamples.size > 16000) {  // Need at least 1 second
+                        scope.launch {
+                            try {
+                                val isVerified = speakerEmbeddingManager.quickVerify(audioSamples)
+
+                                if (isVerified) {
+                                    Log.i(TAG, "Speaker VERIFIED - triggering wake word")
+                                    // Stop listening and trigger callback
+                                    stopListening()
+                                    if (!isDestroyed) {
+                                        try {
+                                            scope.launch(Dispatchers.Main) {
+                                                if (!isDestroyed) {
+                                                    onWakeWordDetected()
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
+                                        }
+                                    }
+                                } else {
+                                    Log.w(TAG, "Speaker NOT verified - ignoring wake word")
+                                    Log.d(TAG, "VOSK_SPEECH [REJECTED]: Speaker mismatch for \"$text\"")
+                                    // Reset flag to allow future detections
+                                    wakeWordTriggered = false
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Speaker verification error: ${e.message}")
+                                // On error, allow the wake word through
+                                stopListening()
+                                if (!isDestroyed) {
+                                    try {
+                                        scope.launch(Dispatchers.Main) {
+                                            if (!isDestroyed) {
+                                                onWakeWordDetected()
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Not enough audio samples, trigger anyway
+                        Log.w(TAG, "Not enough audio for verification, triggering anyway")
+                        stopListening()
                         if (!isDestroyed) {
-                            onWakeWordDetected()
+                            try {
+                                scope.launch(Dispatchers.Main) {
+                                    if (!isDestroyed) {
+                                        onWakeWordDetected()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
+                            }
+                        }
+                    }
+                } else {
+                    // Not enrolled, trigger without verification
+                    Log.d(TAG, "No speaker enrolled - triggering without verification")
+
+                    // Stop listening to free the mic for Google STT
+                    stopListening()
+
+                    // Notify callback on main thread (only if not destroyed)
+                    if (!isDestroyed) {
+                        try {
+                            scope.launch(Dispatchers.Main) {
+                                // Double-check destroyed flag inside coroutine
+                                if (!isDestroyed) {
+                                    onWakeWordDetected()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
                         }
                     }
                 }

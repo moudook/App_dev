@@ -30,6 +30,21 @@ object SemanticSearchEngine {
     private const val MAX_RESULTS_LIMIT = 50
     private const val EARLY_TERMINATION_EXACT_MATCHES = 10
 
+    // GLUT-044 FIX: Pre-compile Regex patterns to avoid creation on every call
+    private val SEPARATOR_REGEX = Regex("[_\\-.]")
+    private val SPECIAL_CHAR_REGEX = Regex("[^a-z0-9\\s]")
+    private val MULTI_SPACE_REGEX = Regex("\\s+")
+
+    // GLUT-047 FIX: Pre-compile soundex map to avoid creation on every call
+    private val SOUNDEX_MAP = mapOf(
+        'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
+        'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
+        'D' to '3', 'T' to '3',
+        'L' to '4',
+        'M' to '5', 'N' to '5',
+        'R' to '6'
+    )
+
     /**
      * Search result with relevance score and match details.
      */
@@ -405,22 +420,14 @@ object SemanticSearchEngine {
         val cleaned = word.uppercase().filter { it.isLetter() }
         if (cleaned.isEmpty()) return ""
 
-        val soundexMap = mapOf(
-            'B' to '1', 'F' to '1', 'P' to '1', 'V' to '1',
-            'C' to '2', 'G' to '2', 'J' to '2', 'K' to '2', 'Q' to '2', 'S' to '2', 'X' to '2', 'Z' to '2',
-            'D' to '3', 'T' to '3',
-            'L' to '4',
-            'M' to '5', 'N' to '5',
-            'R' to '6'
-        )
-
+        // Uses pre-compiled SOUNDEX_MAP for better performance
         val result = StringBuilder()
         result.append(cleaned[0])
 
-        var lastCode: Char? = soundexMap[cleaned[0]]
+        var lastCode: Char? = SOUNDEX_MAP[cleaned[0]]
 
         for (i in 1 until cleaned.length) {
-            val code = soundexMap[cleaned[i]]
+            val code = SOUNDEX_MAP[cleaned[i]]
             if (code != null && code != lastCode) {
                 result.append(code)
                 if (result.length == 4) break
@@ -440,12 +447,13 @@ object SemanticSearchEngine {
 
     /**
      * Normalize text for comparison - lowercase, remove special chars.
+     * Uses pre-compiled Regex patterns for better performance.
      */
     fun normalizeText(text: String): String {
         return text.lowercase()
-            .replace(Regex("[_\\-.]"), " ")  // Replace separators with spaces
-            .replace(Regex("[^a-z0-9\\s]"), "")  // Remove special chars
-            .replace(Regex("\\s+"), " ")  // Collapse multiple spaces
+            .replace(SEPARATOR_REGEX, " ")  // Replace separators with spaces
+            .replace(SPECIAL_CHAR_REGEX, "")  // Remove special chars
+            .replace(MULTI_SPACE_REGEX, " ")  // Collapse multiple spaces
             .trim()
     }
 

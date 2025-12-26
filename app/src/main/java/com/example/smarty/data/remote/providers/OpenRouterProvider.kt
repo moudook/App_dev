@@ -9,7 +9,7 @@ import com.example.smarty.data.remote.OpenAIRequest
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -53,7 +53,7 @@ class OpenRouterProvider(
      *
      * Uses OpenAI-compatible format with additional attribution headers.
      */
-    override fun analyzeContent(
+    override suspend fun analyzeContent(
         content: String,
         apiKey: String,
         model: String,
@@ -83,8 +83,8 @@ class OpenRouterProvider(
             .build()
 
         return try {
-            // Execute blocking HTTP call on IO dispatcher
-            val response = runBlocking(Dispatchers.IO) {
+            // BUG-005 FIX: Use withContext instead of runBlocking to avoid ANR
+            val response = withContext(Dispatchers.IO) {
                 client.newCall(request).execute()
             }
             val responseBody = response.body?.string()
@@ -106,7 +106,7 @@ class OpenRouterProvider(
     /**
      * Analyze document using OpenRouter API with extended limits.
      */
-    override fun analyzeDocument(
+    override suspend fun analyzeDocument(
         content: String,
         apiKey: String,
         model: String,
@@ -134,8 +134,8 @@ class OpenRouterProvider(
             .build()
 
         return try {
-            // Execute blocking HTTP call on IO dispatcher
-            val response = runBlocking(Dispatchers.IO) {
+            // BUG-005 FIX: Use withContext instead of runBlocking to avoid ANR
+            val response = withContext(Dispatchers.IO) {
                 client.newCall(request).execute()
             }
             val responseBody = response.body?.string()
@@ -156,7 +156,7 @@ class OpenRouterProvider(
     /**
      * Chat using OpenRouter API with conversational settings.
      */
-    override fun chat(
+    override suspend fun chat(
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,
@@ -186,8 +186,8 @@ class OpenRouterProvider(
             .build()
 
         return try {
-            // Execute blocking HTTP call on IO dispatcher
-            val response = runBlocking(Dispatchers.IO) {
+            // BUG-005 FIX: Use withContext instead of runBlocking to avoid ANR
+            val response = withContext(Dispatchers.IO) {
                 client.newCall(request).execute()
             }
             val responseBody = response.body?.string()

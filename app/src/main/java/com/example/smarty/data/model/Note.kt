@@ -231,12 +231,15 @@ fun Note.withTags(tags: List<String>): Note {
 
 /**
  * Get all attachment URIs (combines legacy single + multiple attachments)
+ * SECURITY FIX (E-004/GDPR): Returns ALL file URIs to ensure complete deletion
  */
 fun Note.getAllAttachmentUris(): List<String> {
     val attachments = getAttachments()
     if (attachments.isNotEmpty()) {
+        // Return all attachment URIs from the JSON array
         return attachments.map { it.uri }
     }
-    // Fall back to legacy single attachment
-    return listOfNotNull(imageUri ?: fileUri)
+    // Fall back to legacy single attachments - return BOTH if set (not just one)
+    // This ensures audio files stored as fileUri are properly deleted
+    return listOfNotNull(imageUri, fileUri).distinct()
 }

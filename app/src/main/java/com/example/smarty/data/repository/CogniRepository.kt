@@ -90,17 +90,30 @@ class CogniRepository(
     }
 
     /**
-     * Sanitize query for FTS5 to prevent syntax errors.
-     * FTS5 has special characters that need escaping or removal.
+     * Sanitize query for FTS5 to prevent syntax errors and INJECTION ATTACKS.
+     * SECURITY: FTS5 has special syntax that can be exploited to bypass filters.
+     *
+     * Attack vectors prevented:
+     * - Boolean injection: 'OR 1=1' -> matches everything
+     * - Column filter bypass: 'title:*' -> wildcard all titles
+     * - Phrase manipulation: '"secret" OR "password"'
+     *
      * OPTIMIZED: Uses pre-compiled regex from companion object.
      */
     private fun sanitizeFtsQuery(query: String): String {
-        // Remove FTS5 special characters that could cause syntax errors
-        // Keep alphanumeric, spaces, and basic punctuation
-        val cleaned = query
-            .replace(FTS_OPERATORS_REGEX, " ")  // Remove FTS operators (pre-compiled)
-            .replace(WHITESPACE_REGEX, " ")     // Normalize whitespace (pre-compiled)
+        // SECURITY: First remove FTS5 boolean operators (AND, OR, NOT, NEAR)
+        var cleaned = query.replace(FTS_BOOLEAN_OPERATORS_REGEX, " ")
+
+        // SECURITY: Remove FTS5 special characters that could cause syntax errors or injection
+        cleaned = cleaned
+            .replace(FTS_SPECIAL_CHARS_REGEX, " ")  // Remove special chars (pre-compiled)
+            .replace(WHITESPACE_REGEX, " ")          // Normalize whitespace (pre-compiled)
             .trim()
+
+        // Additional safety: limit query length to prevent DoS
+        if (cleaned.length > 200) {
+            cleaned = cleaned.take(200)
+        }
 
         // Add wildcards for prefix matching (e.g., "test" becomes "test*")
         return if (cleaned.isNotBlank() && !cleaned.endsWith("*")) {
@@ -124,8 +137,27 @@ class CogniRepository(
         )
 
         // OPTIMIZED: Pre-compiled regex patterns (avoid recompilation per call)
-        private val FTS_OPERATORS_REGEX = Regex("[\"'*^():]")
+        // SECURITY: Enhanced FTS5 injection prevention patterns
+        /**
+         * FTS5 Special Characters to remove:
+         * - Quotes: " '
+         * - Wildcards: * ^
+         * - Grouping: ( ) [ ]
+         * - Column filter: :
+         * - Phrase modifiers: { } + -
+         */
+        private val FTS_SPECIAL_CHARS_REGEX = Regex("""["'*^():{}\[\]+\-]""")
+
+        /**
+         * FTS5 Boolean operators that can be exploited for injection.
+         * Using word boundaries to match whole words only.
+         */
+        private val FTS_BOOLEAN_OPERATORS_REGEX = Regex("""\b(AND|OR|NOT|NEAR)\b""", RegexOption.IGNORE_CASE)
+
         private val WHITESPACE_REGEX = Regex("\\s+")
+
+        // Legacy alias for backwards compatibility
+        private val FTS_OPERATORS_REGEX = FTS_SPECIAL_CHARS_REGEX
     }
 
     /**
@@ -418,10 +450,23 @@ class CogniRepository(
         categoryDao.deleteCategory(category)
     }
 
+    /**
+     * Get or create a category by name.
+     *
+     * DB-003/TOCTOU-002: Fixed race condition where concurrent calls could create
+     * duplicate categories. Now re-checks after insert to return the winning category.
+     */
     suspend fun getOrCreateCategory(name: String): Category {
-        return categoryDao.getCategoryByName(name) ?: Category(name = name).also {
-            categoryDao.insertCategory(it)
-        }
+        // First check if category exists
+        categoryDao.getCategoryByName(name)?.let { return it }
+
+        // Create new category
+        val newCategory = Category(name = name)
+        categoryDao.insertCategory(newCategory)
+
+        // Re-check to handle race condition: if another thread inserted first,
+        // return that one instead (prevents duplicates with same name)
+        return categoryDao.getCategoryByName(name) ?: newCategory
     }
 
     // Sync/Recalculation - fixes any count mismatches
@@ -481,5 +526,15 @@ class CogniRepository(
      */
     suspend fun getUpcomingCalendarEvents(limit: Int = 10): List<CalendarEvent> {
         return calendarDao.getAiVisibleUpcomingEvents(limit = limit)
+    }
+
+    /**
+     * Get AI-visible events within a time range.
+     * BUG FIX (NEW-015): Needed for GetEventsTool to query events by date range.
+     * SECURITY: Filters out private events - AI cannot access private calendar entries.
+     */
+    suspend fun getAiVisibleEventsInRange(startMillis: Long, endMillis: Long): List<CalendarEvent> {
+        return calendarDao.getEventsForDay(startMillis, endMillis)
+            .filter { !it.isEventPrivate }
     }
 }

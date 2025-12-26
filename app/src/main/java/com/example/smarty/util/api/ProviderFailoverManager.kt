@@ -41,17 +41,21 @@ enum class ProviderHealthStatus {
 
 /**
  * Tracks the health state of a single provider.
+ *
+ * BUG FIX (TECH-002): Made mutable fields @Volatile to ensure
+ * visibility across threads. Without @Volatile, threads may see
+ * stale cached values due to CPU caching/hoisting.
  */
 data class ProviderHealthState(
     val provider: AIProvider,
-    var status: ProviderHealthStatus = ProviderHealthStatus.HEALTHY,
-    var consecutiveFailures: Int = 0,
-    var lastFailureTime: Long = 0,
-    var lastSuccessTime: Long = 0,
-    var lastErrorCategory: ApiErrorCategory? = null,
-    var totalFailures: Int = 0,
-    var totalSuccesses: Int = 0,
-    var circuitOpenUntil: Long = 0
+    @Volatile var status: ProviderHealthStatus = ProviderHealthStatus.HEALTHY,
+    @Volatile var consecutiveFailures: Int = 0,
+    @Volatile var lastFailureTime: Long = 0,
+    @Volatile var lastSuccessTime: Long = 0,
+    @Volatile var lastErrorCategory: ApiErrorCategory? = null,
+    @Volatile var totalFailures: Int = 0,
+    @Volatile var totalSuccesses: Int = 0,
+    @Volatile var circuitOpenUntil: Long = 0
 )
 
 /**

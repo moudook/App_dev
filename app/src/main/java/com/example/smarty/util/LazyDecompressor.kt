@@ -94,7 +94,8 @@ object LazyDecompressor {
 
     // Worker job
     private var workerJob: Job? = null
-    private val workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     // Context reference (weak to avoid memory leaks)
     private var contextRef: WeakReference<Context>? = null
@@ -161,11 +162,29 @@ object LazyDecompressor {
     fun shutdown() {
         workerJob?.cancel()
         workerJob = null
-        requestChannel.close()
+        try {
+            requestChannel.close()
+        } catch (_: Exception) {}
         clearCache()
         _workerState.value = WorkerState.SLEEPING
         contextRef = null
-        Log.d(TAG, "Shutdown complete")
+        // LEAK FIX: Cancel the worker and cleanup scopes
+        workerScope.cancel()
+        cleanupScope.cancel()
+        Log.d(TAG, "Shutdown complete - scopes cancelled")
+    }
+
+    /**
+     * Ensure scopes are active, recreating them if they were cancelled.
+     * This allows the decompressor to be reused after shutdown.
+     */
+    private fun ensureScopesActive() {
+        if (!workerScope.isActive) {
+            workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        }
+        if (!cleanupScope.isActive) {
+            cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        }
     }
 
     // =========================================================================
@@ -190,6 +209,7 @@ object LazyDecompressor {
         onComplete: ((DecompressionResult) -> Unit)? = null
     ) {
         // Check cache first using async instead of runBlocking to avoid ANR
+        ensureScopesActive()
         workerScope.launch {
             var cacheHit = false
             cacheMutex.withLock {
@@ -318,7 +338,8 @@ object LazyDecompressor {
      * Uses async to avoid blocking main thread.
      */
     fun clearCache() {
-        workerScope.launch {
+        ensureScopesActive()
+        cleanupScope.launch {
             cacheMutex.withLock {
                 decompressedCache?.evictAll()
                 currentCacheSize = 0
@@ -365,6 +386,7 @@ object LazyDecompressor {
     private fun startWorker() {
         if (workerJob?.isActive == true) return
 
+        ensureScopesActive()
         workerJob = workerScope.launch {
             Log.d(TAG, "Worker starting...")
 

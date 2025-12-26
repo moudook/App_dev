@@ -592,7 +592,7 @@ class SecurePreferences(private val context: Context) {
 
     // Theme Management
     fun getDarkThemePreference(): Boolean {
-        return encryptedPrefs.getBoolean(KEY_DARK_THEME, true) // Default to dark theme
+        return encryptedPrefs.getBoolean(KEY_DARK_THEME, false) // Default to light theme
     }
 
     fun setDarkTheme(isDark: Boolean) {

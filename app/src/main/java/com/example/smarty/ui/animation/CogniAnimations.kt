@@ -300,13 +300,22 @@ fun rememberStaggeredAnimationState(
 }
 
 /**
- * Infinite rotation animation with smooth easing
+ * OPTIMIZED: Infinite rotation animation with smooth easing
+ *
+ * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded
  */
 @Composable
 fun rememberInfiniteRotation(
     durationMs: Int = 800,
     easing: Easing = LinearEasing
 ): Float {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by com.example.smarty.ui.utils.rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == com.example.smarty.ui.utils.AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) return 0f // Static when backgrounded
+
     val infiniteTransition = rememberInfiniteTransition(label = "rotation")
     val rotation by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -321,7 +330,10 @@ fun rememberInfiniteRotation(
 }
 
 /**
- * Pulsing scale animation for loading states
+ * OPTIMIZED: Pulsing scale animation for loading states
+ *
+ * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded
  */
 @Composable
 fun rememberPulsingScale(
@@ -329,6 +341,12 @@ fun rememberPulsingScale(
     maxScale: Float = 1.05f,
     durationMs: Int = 640
 ): Float {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by com.example.smarty.ui.utils.rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == com.example.smarty.ui.utils.AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) return (minScale + maxScale) / 2f // Mid-scale when backgrounded
+
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = minScale,
@@ -343,13 +361,22 @@ fun rememberPulsingScale(
 }
 
 /**
- * Shimmer offset for loading placeholders
+ * OPTIMIZED: Shimmer offset for loading placeholders
  * Uses linear interpolation with wrap-around
+ *
+ * Performance improvements:
+ * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded
  */
 @Composable
 fun rememberShimmerOffset(
     durationMs: Int = 960
 ): Float {
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by com.example.smarty.ui.utils.rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == com.example.smarty.ui.utils.AnimationLifecycleState.RUNNING
+
+    if (!shouldAnimate) return 0.5f // Mid-offset when backgrounded
+
     val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
     val offset by infiniteTransition.animateFloat(
         initialValue = -1f,

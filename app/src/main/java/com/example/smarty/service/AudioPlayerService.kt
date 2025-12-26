@@ -170,7 +170,8 @@ class AudioPlayerService : MediaSessionService() {
     private var player: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
     private var visualizer: Visualizer? = null
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(serviceJob + Dispatchers.Main)
     private var positionUpdateJob: Job? = null
 
     override fun onCreate() {
@@ -190,7 +191,7 @@ class AudioPlayerService : MediaSessionService() {
             setShowBadge(false)
         }
 
-        val notificationManager = getSystemService(NotificationManager::class.java)
+        val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
         notificationManager.createNotificationChannel(channel)
     }
 
@@ -201,7 +202,8 @@ class AudioPlayerService : MediaSessionService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        player = ExoPlayer.Builder(this)
+        // Use applicationContext to prevent service from being cached in static fields
+        player = ExoPlayer.Builder(applicationContext)
             .setAudioAttributes(audioAttributes, true)  // Handle audio focus automatically
             .setHandleAudioBecomingNoisy(true)  // Pause when headphones disconnected
             .build()
@@ -210,7 +212,8 @@ class AudioPlayerService : MediaSessionService() {
                 addListener(playerListener)
             }
 
-        mediaSession = MediaSession.Builder(this, player!!)
+        // Use applicationContext to prevent service from being cached
+        mediaSession = MediaSession.Builder(applicationContext, player!!)
             .build()
 
         Log.d(TAG, "Player initialized")
@@ -334,6 +337,7 @@ class AudioPlayerService : MediaSessionService() {
     }
 
     private fun setupVisualizer() {
+        var newVisualizer: Visualizer? = null
         try {
             val audioSessionId = player?.audioSessionId ?: return
             if (audioSessionId == C.AUDIO_SESSION_ID_UNSET) {
@@ -344,7 +348,8 @@ class AudioPlayerService : MediaSessionService() {
             // Release existing visualizer
             releaseVisualizer()
 
-            visualizer = Visualizer(audioSessionId).apply {
+            newVisualizer = Visualizer(audioSessionId)
+            newVisualizer.apply {
                 // Use larger capture size for better frequency resolution
                 // 512 samples at 44100 Hz = ~86 Hz per bin (good for bass separation)
                 val sizes = Visualizer.getCaptureSizeRange()
@@ -462,9 +467,16 @@ class AudioPlayerService : MediaSessionService() {
                 // Small delay before enabling to ensure audio is stable
                 enabled = true
             }
-            Log.d(TAG, "Visualizer setup complete for session: $audioSessionId, captureSize: ${visualizer?.captureSize}")
+            visualizer = newVisualizer
+            newVisualizer = null // Transfer ownership
+            Log.d(TAG, "Visualizer setup complete")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to setup visualizer", e)
+        } finally {
+            // Release if setup failed (newVisualizer wasn't transferred)
+            try {
+                newVisualizer?.release()
+            } catch (_: Exception) {}
         }
     }
 
@@ -567,8 +579,13 @@ class AudioPlayerService : MediaSessionService() {
         // Note: Visualizer is setup in onIsPlayingChanged() AFTER playback starts
         // to prevent audio pops/artifacts during buffering phase
 
-        // Start foreground service with notification
-        startForeground(NOTIFICATION_ID, createNotification())
+        // SERVICE-003: Start foreground service with notification (wrapped in try-catch)
+        try {
+            startForeground(NOTIFICATION_ID, createNotification())
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground service", e)
+            // Service will continue but without foreground notification
+        }
     }
 
     private fun pause() {
@@ -584,7 +601,7 @@ class AudioPlayerService : MediaSessionService() {
 
         // 1. Remove notification IMMEDIATELY for responsive UI
         stopForeground(STOP_FOREGROUND_REMOVE)
-        val notificationManager = getSystemService(NotificationManager::class.java)
+        val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
         notificationManager.cancel(NOTIFICATION_ID)
 
         // 2. Then proceed with resource cleanup (which might take time)
@@ -631,6 +648,16 @@ class AudioPlayerService : MediaSessionService() {
             .build()
     }
 
+    /**
+     * SERVICE-002: Called when the app's task is removed from recents.
+     * Ensures graceful cleanup even when user swipes app away.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d(TAG, "Task removed from recents - cleaning up")
+        stop()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         Log.d(TAG, "Service destroyed")
         releaseVisualizer()
@@ -641,17 +668,16 @@ class AudioPlayerService : MediaSessionService() {
         mediaSession?.release()
         mediaSession = null
 
-        // Clear static companion object state to prevent memory leaks
-        serviceScope.launch {
-            stateMutex.withLock {
-                currentTrack = null
-                _playerState.value = AudioPlayerState()
-                _currentAmplitude.value = 0f
-                _bassAmplitude.value = 0f
-                _midAmplitude.value = 0f
-                _trebleAmplitude.value = 0f
-            }
-        }
+        // Cancel the service scope's job to prevent leak
+        serviceJob.cancel()
+
+        // Reset state synchronously since serviceScope is cancelled
+        currentTrack = null
+        _playerState.value = AudioPlayerState()
+        _currentAmplitude.value = 0f
+        _bassAmplitude.value = 0f
+        _midAmplitude.value = 0f
+        _trebleAmplitude.value = 0f
 
         super.onDestroy()
     }

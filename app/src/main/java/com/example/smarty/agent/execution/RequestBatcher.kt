@@ -26,12 +26,17 @@ import java.util.concurrent.atomic.AtomicLong
  * Request 2 ─┼─> [Batch Window: 50ms] ─> Single Batch Execution ─> Individual Results
  * Request 3 ─┘
  * ```
+ *
+ * BUG FIX (TECH-001): Now requires an external scope to be passed in.
+ * The scope should be tied to the lifecycle of the component using this batcher
+ * (e.g., viewModelScope, lifecycleScope). This prevents memory leaks from
+ * holding references to Repositories/ViewModels indefinitely.
  */
 class RequestBatcher<K, V>(
     private val batchWindowMs: Long = 50,
     private val maxBatchSize: Int = 10,
     private val batchLoader: suspend (List<K>) -> Map<K, V>,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope: CoroutineScope  // BUG FIX (TECH-001): No default scope - must be lifecycle-aware
 ) {
     companion object {
         private const val TAG = "RequestBatcher"
@@ -200,10 +205,13 @@ class RequestBatcher<K, V>(
 
     /**
      * Stop the batch processor.
+     * BUG FIX (TECH-001): Only cancels the batch job, not the external scope.
+     * The scope is owned by the caller and will be cancelled when appropriate.
      */
     fun stop() {
         batchJob?.cancel()
-        scope.cancel()
+        batchJob = null
+        // Note: We don't cancel the scope here - it's owned by the caller
     }
 
     /**
@@ -232,17 +240,22 @@ class RequestBatcher<K, V>(
 
 /**
  * Pre-configured batcher for note operations.
+ *
+ * BUG FIX (TECH-001): Now requires a lifecycle-aware scope to prevent memory leaks.
+ * Pass viewModelScope or lifecycleScope to tie the batcher to component lifecycle.
  */
 object NoteBatcher {
     private var instance: RequestBatcher<String, Any?>? = null
 
     fun getInstance(
+        scope: CoroutineScope,  // BUG FIX (TECH-001): Required lifecycle-aware scope
         noteLoader: suspend (List<String>) -> Map<String, Any?>
     ): RequestBatcher<String, Any?> {
         return instance ?: RequestBatcher(
             batchWindowMs = 30,
             maxBatchSize = 20,
-            batchLoader = noteLoader
+            batchLoader = noteLoader,
+            scope = scope
         ).also { instance = it }
     }
 
@@ -255,17 +268,21 @@ object NoteBatcher {
 /**
  * Pre-configured batcher for embedding operations.
  * Useful for batching multiple embedding requests to OpenAI.
+ *
+ * BUG FIX (TECH-001): Now requires a lifecycle-aware scope to prevent memory leaks.
  */
 object EmbeddingBatcher {
     private var instance: RequestBatcher<String, FloatArray?>? = null
 
     fun getInstance(
+        scope: CoroutineScope,  // BUG FIX (TECH-001): Required lifecycle-aware scope
         embedder: suspend (List<String>) -> Map<String, FloatArray?>
     ): RequestBatcher<String, FloatArray?> {
         return instance ?: RequestBatcher(
             batchWindowMs = 100,  // Longer window for API calls
             maxBatchSize = 50,    // OpenAI supports up to 2048 inputs
-            batchLoader = embedder
+            batchLoader = embedder,
+            scope = scope
         ).also { instance = it }
     }
 
