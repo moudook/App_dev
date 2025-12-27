@@ -49,11 +49,17 @@ data class NoteSearchResult(
 
 /**
  * Simplified note info for search results (privacy-safe).
+ * Includes content so AI can read and understand note details.
+ * Private notes are already filtered out before this is created.
+ *
+ * IMPORTANT: The 'id' is for INTERNAL tool use only (update/delete operations).
+ * AI should NEVER expose IDs to users - present notes by title/content instead.
  */
 @Serializable
 data class NoteInfo(
-    val id: String,
+    val id: String,  // Internal use only - never show to user
     val title: String,
+    val content: String,  // Full note content for AI access
     val summary: String?,
     val category: String?,
     val type: String,

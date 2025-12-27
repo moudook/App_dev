@@ -153,8 +153,10 @@ class CreateEventTool(
      * Supports:
      * - ISO format: "2024-12-25 14:00"
      * - Natural language: "tomorrow 2pm", "next Monday 10:00", "in 2 hours"
+     * - Month names: "January 4th at 12:00 am", "March 15 3pm", "Dec 25 noon"
      *
      * BUG FIX (AI-003): Added logging and additional format support for better debugging.
+     * BUG FIX (DATE-001): Added support for month names and ordinal dates.
      */
     private fun parseDateTime(input: String): Long? {
         val calendar = Calendar.getInstance()
@@ -274,6 +276,13 @@ class CreateEventTool(
             }
         }
 
+        // Try month name formats: "January 4th at 12:00 am", "March 15 3pm", "Dec 25"
+        val monthDateResult = parseMonthDateFormat(inputLower)
+        if (monthDateResult != null) {
+            Log.d(TAG, "Parsed month-date format: ${Date(monthDateResult)}")
+            return monthDateResult
+        }
+
         // Try ISO format: "2024-12-25 14:00" or "2024-12-25T14:00"
         val formats = listOf(
             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()),
@@ -298,6 +307,100 @@ class CreateEventTool(
 
         Log.w(TAG, "Failed to parse datetime: '$input'")
         return null
+    }
+
+    /**
+     * Parse date formats with month names like:
+     * - "January 4th at 12:00 am"
+     * - "March 15 3pm"
+     * - "Dec 25 noon"
+     * - "February 14th"
+     * - "Jan 1st midnight"
+     */
+    private fun parseMonthDateFormat(input: String): Long? {
+        val months = mapOf(
+            "january" to Calendar.JANUARY, "jan" to Calendar.JANUARY,
+            "february" to Calendar.FEBRUARY, "feb" to Calendar.FEBRUARY,
+            "march" to Calendar.MARCH, "mar" to Calendar.MARCH,
+            "april" to Calendar.APRIL, "apr" to Calendar.APRIL,
+            "may" to Calendar.MAY,
+            "june" to Calendar.JUNE, "jun" to Calendar.JUNE,
+            "july" to Calendar.JULY, "jul" to Calendar.JULY,
+            "august" to Calendar.AUGUST, "aug" to Calendar.AUGUST,
+            "september" to Calendar.SEPTEMBER, "sep" to Calendar.SEPTEMBER, "sept" to Calendar.SEPTEMBER,
+            "october" to Calendar.OCTOBER, "oct" to Calendar.OCTOBER,
+            "november" to Calendar.NOVEMBER, "nov" to Calendar.NOVEMBER,
+            "december" to Calendar.DECEMBER, "dec" to Calendar.DECEMBER
+        )
+
+        // Find month in input
+        var foundMonth: Int? = null
+        var remainingAfterMonth = input
+        for ((monthName, monthValue) in months) {
+            if (input.startsWith(monthName)) {
+                foundMonth = monthValue
+                remainingAfterMonth = input.removePrefix(monthName).trim()
+                break
+            }
+        }
+
+        if (foundMonth == null) return null
+
+        // Extract day number (with optional ordinal suffix)
+        val dayMatch = Regex("^(\\d{1,2})(st|nd|rd|th)?").find(remainingAfterMonth)
+        if (dayMatch == null) return null
+
+        val day = dayMatch.groupValues[1].toIntOrNull() ?: return null
+        if (day < 1 || day > 31) return null
+
+        val remainingAfterDay = remainingAfterMonth.substring(dayMatch.range.last + 1).trim()
+
+        // Parse time portion
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.MONTH, foundMonth)
+        calendar.set(Calendar.DAY_OF_MONTH, day)
+
+        // Handle special time words
+        val cleanTimeStr = remainingAfterDay
+            .removePrefix("at").trim()
+            .removePrefix(",").trim()
+
+        when {
+            cleanTimeStr.startsWith("midnight") || cleanTimeStr == "12:00 a.m." || cleanTimeStr == "12 a.m." -> {
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+            }
+            cleanTimeStr.startsWith("noon") || cleanTimeStr == "12:00 p.m." || cleanTimeStr == "12 p.m." -> {
+                calendar.set(Calendar.HOUR_OF_DAY, 12)
+                calendar.set(Calendar.MINUTE, 0)
+            }
+            cleanTimeStr.isNotEmpty() -> {
+                val timeParsed = parseTimeFromString(cleanTimeStr)
+                if (timeParsed != null) {
+                    calendar.set(Calendar.HOUR_OF_DAY, timeParsed.first)
+                    calendar.set(Calendar.MINUTE, timeParsed.second)
+                } else {
+                    // Default to 9 AM if no time specified
+                    calendar.set(Calendar.HOUR_OF_DAY, 9)
+                    calendar.set(Calendar.MINUTE, 0)
+                }
+            }
+            else -> {
+                // Default to 9 AM if no time specified
+                calendar.set(Calendar.HOUR_OF_DAY, 9)
+                calendar.set(Calendar.MINUTE, 0)
+            }
+        }
+
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+
+        // If date is in the past, assume next year
+        if (calendar.timeInMillis < System.currentTimeMillis()) {
+            calendar.add(Calendar.YEAR, 1)
+        }
+
+        return calendar.timeInMillis
     }
 
     /**

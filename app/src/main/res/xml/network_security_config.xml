@@ -28,6 +28,11 @@
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>
+        <!-- USB Tethering - Local PC LLM Server (REMOVE BEFORE PUBLISHING!) -->
+        <!-- Note: IP can change with each USB tethering session -->
+        <!-- The PC's IP is shown when you run start_local_llm.bat -->
+        <domain includeSubdomains="true">10.224.189.60</domain>
+        <!-- Add more IPs here if your PC's USB IP changes -->
     </domain-config>
 
     <!-- AI Provider domains - explicitly allow (already HTTPS) -->

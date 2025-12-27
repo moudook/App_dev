@@ -136,6 +136,10 @@ dependencies {
     // Vosk - Offline speech recognition for wake word detection
     implementation("com.alphacephei:vosk-android:0.3.75")
 
+    // Sherpa-ONNX - Neural TTS with Piper VITS models (natural-sounding offline TTS)
+    // Using official AAR from k2-fsa GitHub releases
+    implementation(files("libs/sherpa-onnx.aar"))
+
     // Koog AI Agent Framework
     implementation(libs.koog.agents)
     implementation(libs.koog.executor.google)

@@ -95,7 +95,8 @@ class HuggingFaceProvider(
             Log.d(TAG, "HuggingFace HTTP ${response.code}")
 
             if (!response.isSuccessful) {
-                Log.e(TAG, "HuggingFace error: $responseBody")
+                val errorMsg = parseHuggingFaceError(response.code, responseBody)
+                Log.e(TAG, "HuggingFace error: $errorMsg")
                 return null
             }
 
@@ -230,6 +231,38 @@ $userContent [/INST]"""
         return """<s>[INST] $systemPrompt
 
 $userPrompt [/INST]"""
+    }
+
+    /**
+     * Parse HuggingFace error response.
+     *
+     * Common error codes:
+     * - 401: Invalid API key
+     * - 403: Model requires Pro subscription or license acceptance
+     * - 404: Model not found
+     * - 503: Model is loading
+     */
+    private fun parseHuggingFaceError(code: Int, responseBody: String?): String {
+        val baseMessage = when (code) {
+            401 -> "Invalid API key. Please check your HuggingFace token."
+            403 -> "Access denied. This model may require a Pro subscription or license acceptance on huggingface.co"
+            404 -> "Model not found. Please verify the model ID."
+            503 -> "Model is loading. Please wait a moment and try again."
+            else -> "HTTP error $code"
+        }
+
+        // Try to extract more details from response body
+        if (!responseBody.isNullOrBlank()) {
+            try {
+                val json = JsonParser.parseString(responseBody).asJsonObject
+                val error = json.get("error")?.asString
+                if (!error.isNullOrBlank()) {
+                    return "$baseMessage - $error"
+                }
+            } catch (_: Exception) { }
+        }
+
+        return baseMessage
     }
 
     /**

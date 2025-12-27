@@ -297,6 +297,8 @@ class MainActivity : ComponentActivity() {
                 // Trigger audio playback when AI agent requests it
                 LaunchedEffect(pendingAudioPlayback) {
                     pendingAudioPlayback?.let { track ->
+                        // Stop TTS before playing audio - user wants to hear music, not TTS
+                        viewModel.stopTTS()
                         audioPlayerViewModel.playAudio(track)
                         viewModel.clearPendingAudioPlayback()
                     }

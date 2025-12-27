@@ -64,6 +64,7 @@ class SearchNotesTool(
                 categoryFilteredNotes.take(10)
             } else {
                 // Use SemanticSearchEngine for fuzzy matching
+                // Search full content - no limit, so AI can find info anywhere in notes
                 val searchResults = SemanticSearchEngine.search(
                     query = args.query,
                     items = categoryFilteredNotes,
@@ -71,10 +72,10 @@ class SearchNotesTool(
                         listOfNotNull(
                             note.title,
                             note.summary,
-                            note.content.take(500)  // Limit content for performance
+                            note.content  // Full content search - find info anywhere in note
                         )
                     },
-                    minScore = 0.20  // Lower threshold for inclusive matching
+                    minScore = 0.15  // Lower threshold for more inclusive matching
                 )
 
                 if (searchResults.isNotEmpty()) {
@@ -92,10 +93,13 @@ class SearchNotesTool(
                 }
             }
 
+            // Map notes to NoteInfo - ID is for internal operations only
+            // AI should present notes by title/content, never expose IDs to user
             val noteInfos = matchingNotes.map { note ->
                 NoteInfo(
-                    id = note.id,
+                    id = note.id,  // Internal use only for update/delete
                     title = note.title,
+                    content = note.content.take(500),  // Truncate for token efficiency
                     summary = note.summary,
                     category = note.categoryName,
                     type = note.type.name,

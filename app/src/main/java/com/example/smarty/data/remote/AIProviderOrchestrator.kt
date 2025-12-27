@@ -62,6 +62,11 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
     private val openRouterProvider: AIProviderContract = OpenRouterProvider(client, gson)
     private val anthropicProvider: AIProviderContract = AnthropicProvider(client, gson)
     private val huggingFaceProvider: AIProviderContract = HuggingFaceProvider(client, gson)
+    private val githubProvider: AIProviderContract = OpenAICompatibleProvider.github(client, gson)
+    // FOR TESTING ONLY - Remove before publishing!
+    // Dynamic provider that reads current IP from SecurePreferences each time
+    private val localPCProvider: AIProviderContract
+        get() = OpenAICompatibleProvider.localPC(client, gson, securePreferences.getLocalPCUrl())
 
     /**
      * Get the provider instance for an AIProvider enum value.
@@ -77,6 +82,8 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             AIProvider.ANTHROPIC -> anthropicProvider
             AIProvider.OPENROUTER -> openRouterProvider
             AIProvider.HUGGINGFACE -> huggingFaceProvider
+            AIProvider.GITHUB -> githubProvider
+            AIProvider.LOCAL_PC -> localPCProvider
         }
     }
 
@@ -174,9 +181,14 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             return null
         }
 
-        val keysToTry = ApiKeyRotator.getRotatedKeysWithBusyAwareness(
-            ApiKeyRotator.getRotatedKeysWithAgentFallback(config.apiKeys)
-        ).filter { !failoverManager.isKeyFailed(it) } // Skip known bad keys
+        // LOCAL_PC doesn't need API keys - use dummy key
+        val keysToTry = if (provider == AIProvider.LOCAL_PC) {
+            listOf("local_pc_no_key_needed")
+        } else {
+            ApiKeyRotator.getRotatedKeysWithBusyAwareness(
+                ApiKeyRotator.getRotatedKeysWithAgentFallback(config.apiKeys)
+            ).filter { !failoverManager.isKeyFailed(it) } // Skip known bad keys
+        }
 
         if (keysToTry.isEmpty()) {
             Log.w(TAG, "$provider has no healthy keys available")
@@ -277,8 +289,13 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             return null
         }
 
-        val keysToTry = ApiKeyRotator.getRotatedKeysWithAgentFallback(config.apiKeys)
-            .filter { !failoverManager.isKeyFailed(it) }
+        // LOCAL_PC doesn't need API keys - use dummy key
+        val keysToTry = if (provider == AIProvider.LOCAL_PC) {
+            listOf("local_pc_no_key_needed")
+        } else {
+            ApiKeyRotator.getRotatedKeysWithAgentFallback(config.apiKeys)
+                .filter { !failoverManager.isKeyFailed(it) }
+        }
 
         if (keysToTry.isEmpty()) {
             Log.w(TAG, "$provider has no healthy keys for document analysis")
@@ -352,15 +369,20 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             return null
         }
 
-        val normalKeys = ApiKeyRotator.getNormalKeysOnly(config.apiKeys)
-            .filter { !failoverManager.isKeyFailed(it) }
+        // LOCAL_PC doesn't need API keys - use dummy key
+        val normalKeys = if (provider == AIProvider.LOCAL_PC) {
+            listOf("local_pc_no_key_needed")
+        } else {
+            ApiKeyRotator.getNormalKeysOnly(config.apiKeys)
+                .filter { !failoverManager.isKeyFailed(it) }
+        }
 
         if (normalKeys.isEmpty()) {
             Log.w(TAG, "$provider has no healthy normal keys available")
             return null
         }
 
-        if (ApiKeyRotator.isSharedKeyMode(config.apiKeys)) {
+        if (provider != AIProvider.LOCAL_PC && ApiKeyRotator.isSharedKeyMode(config.apiKeys)) {
             Log.w(TAG, "$provider has only 1 key - must share with agent")
         }
 
@@ -425,15 +447,20 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             return null
         }
 
-        val agentKey = ApiKeyRotator.getAgentKey(config.apiKeys) ?: return null
+        // LOCAL_PC doesn't need API keys - use dummy key
+        val agentKey = if (provider == AIProvider.LOCAL_PC) {
+            "local_pc_no_key_needed"
+        } else {
+            ApiKeyRotator.getAgentKey(config.apiKeys) ?: return null
+        }
 
-        // Skip if this specific key is marked failed
-        if (failoverManager.isKeyFailed(agentKey)) {
+        // Skip if this specific key is marked failed (not applicable for LOCAL_PC)
+        if (provider != AIProvider.LOCAL_PC && failoverManager.isKeyFailed(agentKey)) {
             Log.d(TAG, "$provider agent key is temporarily failed")
             return null
         }
 
-        Log.i(TAG, "$provider: Using KEY-1 (dedicated agent key)")
+        Log.i(TAG, "$provider: Using ${if (provider == AIProvider.LOCAL_PC) "local server" else "KEY-1 (dedicated agent key)"}")
 
         try {
             val result = RetryExecutor.withStringRetry(
@@ -464,8 +491,12 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
 
     /**
      * Check if a provider is available (enabled with keys).
+     * LOCAL_PC doesn't require API keys (uses local server).
      */
     fun isProviderAvailable(config: AIProviderConfig?): Boolean {
-        return config != null && config.isEnabled && config.apiKeys.isNotEmpty()
+        if (config == null || !config.isEnabled) return false
+        // LOCAL_PC doesn't need API keys - it uses local server
+        if (config.provider == AIProvider.LOCAL_PC) return true
+        return config.apiKeys.isNotEmpty()
     }
 }

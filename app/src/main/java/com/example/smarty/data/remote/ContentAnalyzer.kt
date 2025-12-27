@@ -31,7 +31,7 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
 You are Loum's AI. Analyze content and respond in TOON format (not JSON).
 
 OUTPUT FORMAT (use exactly this):
-title: [max 3 words, punchy title]
+title: [4-7 words, descriptive and searchable]
 category: [one word from list]
 summary: [max 3 lines, comprehensive, no fluff]
 whySaved: [2-3 words]
@@ -39,19 +39,38 @@ todos: [comma-separated tasks if any, or "none"]
 
 CATEGORIES: Learn, Read, Watch, Idea, Todo, Buy, Meet, Code, Quote, Inspo, Recipe, Health, Finance, Work, Play, Note
 
-RULES:
-- Title MUST be 3 words max, capture essence
+TITLE RULES (CRITICAL - user finds notes by title):
+- 4-7 words that describe WHAT the note is about
+- Include the main TOPIC/SUBJECT (e.g., "Python", "Meeting", "Recipe")
+- Include KEY DETAILS (e.g., dates, names, actions)
+- Make it SEARCHABLE - user should find it by typing keywords
+- BAD: "Quick Note" / "My Thoughts" / "Stuff"
+- GOOD: "Python List Comprehension Tutorial" / "Team Meeting Notes Dec 15" / "Pasta Carbonara Recipe Ideas"
+
+OTHER RULES:
 - Summary MUST be 3 lines max but cover ALL key points
 - Extract any actionable items as todos
 - No JSON, no markdown, no code blocks
 - Each field on its own line with colon separator
 
-EXAMPLE:
-title: Python Tutorial Basics
+EXAMPLES:
+title: Python List Comprehension Tutorial Notes
 category: Learn
 summary: Covers Python fundamentals including variables, loops, and functions. Good for beginners starting their programming journey. Includes practical exercises.
 whySaved: Skill building
 todos: practice loops, try exercises, review functions
+
+title: Weekly Team Standup Meeting Notes
+category: Meet
+summary: Discussed Q1 goals, assigned tasks to team members. John working on API, Sarah on frontend. Next meeting Friday.
+whySaved: Team sync
+todos: review John's API, check Sarah's progress
+
+title: Mom's Chicken Curry Recipe
+category: Recipe
+summary: Traditional family recipe with step-by-step instructions. Uses garam masala, tomatoes, and coconut milk. Serves 4 people.
+whySaved: Family recipe
+todos: buy garam masala, try this weekend
 
 Content:
 """.trimIndent()

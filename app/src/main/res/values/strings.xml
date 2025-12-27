@@ -12,14 +12,14 @@
 
     <!-- Google Sign-In OAuth 2.0 Web Client ID -->
     <!-- 
-        SECURITY: This value should NOT be hardcoded here for public repos.
-        The Client ID is automatically provided by google-services.json.
-        If you need to set it manually:
-        1. Go to Google Cloud Console → APIs & Services → Credentials
-        2. Create OAuth 2.0 Client ID (Web application type)
-        3. Add the Client ID below (for development only)
+        This is automatically provided by google-services.json when properly configured.
         
-        For production: Ensure google-services.json is properly configured.
+        To configure:
+        1. Go to Firebase Console → Project Settings
+        2. Add SHA-1 fingerprint for your app
+        3. Enable Google Sign-In in Authentication
+        4. Download new google-services.json with OAuth client configured
+        
+        The Firebase plugin will automatically generate the default_web_client_id resource.
     -->
-    <string name="default_web_client_id" translatable="false">YOUR_WEB_CLIENT_ID_HERE</string>
 </resources>

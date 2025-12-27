@@ -95,6 +95,17 @@ class CogniAgentProvider(
                 continue
             }
 
+            // LOCAL_PC doesn't need API keys - handle specially
+            if (provider == AIProvider.LOCAL_PC) {
+                val selectedModel = securePreferences.getSelectedModel(provider)
+                val result = createExecutorForProvider(provider, "local_pc_no_key", selectedModel, 1)
+                if (result is ExecutorResult.Success) {
+                    executors.add(result)
+                    Log.d(TAG, "${provider.name}: Using local server, model: $selectedModel")
+                }
+                continue
+            }
+
             val allKeys = securePreferences.getProviderKeys(provider)
             if (allKeys.isEmpty()) {
                 continue
@@ -156,6 +167,8 @@ class CogniAgentProvider(
             AIProvider.COHERE -> createCohereExecutor(apiKey, modelId, keyIndex)
             AIProvider.OPENROUTER -> createOpenRouterExecutor(apiKey, modelId, keyIndex)
             AIProvider.HUGGINGFACE -> createHuggingFaceExecutor(apiKey, modelId, keyIndex)
+            AIProvider.GITHUB -> createGitHubExecutor(apiKey, modelId, keyIndex)
+            AIProvider.LOCAL_PC -> createLocalPCExecutor(apiKey, modelId, keyIndex)
         }
     }
 
@@ -171,6 +184,42 @@ class CogniAgentProvider(
             ),
             model = model,
             provider = AIProvider.HUGGINGFACE,
+            apiKey = apiKey,
+            keyIndex = keyIndex
+        )
+    }
+
+    /**
+     * Create GitHub Models executor (OpenAI-compatible inference API).
+     * Free with GitHub account (requires PAT with models scope).
+     */
+    private fun createGitHubExecutor(apiKey: String, modelId: String, keyIndex: Int): ExecutorResult {
+        val model = createOpenAICompatibleModel(modelId)
+        return ExecutorResult.Success(
+            executor = createCustomOpenAIExecutor(
+                apiKey = apiKey,
+                baseUrl = "https://models.github.ai/inference"
+            ),
+            model = model,
+            provider = AIProvider.GITHUB,
+            apiKey = apiKey,
+            keyIndex = keyIndex
+        )
+    }
+
+    /**
+     * Create Local PC executor (OpenAI-compatible inference API via USB tethering).
+     * FOR TESTING ONLY - Remove before publishing!
+     */
+    private fun createLocalPCExecutor(apiKey: String, modelId: String, keyIndex: Int): ExecutorResult {
+        val model = createOpenAICompatibleModel(modelId)
+        return ExecutorResult.Success(
+            executor = createCustomOpenAIExecutor(
+                apiKey = "",  // No API key needed for local server
+                baseUrl = "http://10.224.189.60:8000"
+            ),
+            model = model,
+            provider = AIProvider.LOCAL_PC,
             apiKey = apiKey,
             keyIndex = keyIndex
         )

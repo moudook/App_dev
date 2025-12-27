@@ -1,37 +1,45 @@
 package com.example.smarty.voice
 
 import android.content.Context
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.example.smarty.voice.tts.NeuralTTSManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.Locale
-import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
- * Manages Text-to-Speech for AI responses.
+ * Manages Text-to-Speech for AI responses using Neural TTS only.
+ *
+ * Uses Sherpa-ONNX with Piper VITS models for natural-sounding,
+ * high-quality speech synthesis that runs entirely offline.
  *
  * Features:
- * - Fast initialization with lazy engine setup
+ * - Neural TTS with near-human quality (MOS 4.2-4.5)
+ * - Fast initialization with bundled model
  * - Immediate speech trigger when AI responds
- * - Configurable speech rate (default: slightly faster for natural feel)
+ * - Configurable speech rate
  * - Clean lifecycle management
  */
 class ResponseTTSManager(
     private val context: Context
-) : TextToSpeech.OnInitListener {
+) {
 
     companion object {
         private const val TAG = "ResponseTTSManager"
-        private const val DEFAULT_SPEECH_RATE = 1.1f  // Slightly faster than normal
-        private const val FAST_SPEECH_RATE = 1.3f
+        private const val DEFAULT_SPEECH_RATE = 1.0f
     }
 
-    private var tts: TextToSpeech? = null
-    private var isInitialized = false
-    private val utteranceId = AtomicInteger(0)
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // Neural TTS engine
+    private var neuralTts: NeuralTTSManager? = null
 
     // Observable speaking state
     private val _isSpeaking = MutableStateFlow(false)
@@ -41,75 +49,98 @@ class ResponseTTSManager(
     private val _isEnabled = MutableStateFlow(true)
     val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
 
-    // Pending text to speak (if TTS not yet initialized)
-    private var pendingText: String? = null
+    // Currently selected voice
+    private val _currentVoice = MutableStateFlow(NeuralTTSManager.VOICE_EN_LESSAC)
+    val currentVoice: StateFlow<String> = _currentVoice.asStateFlow()
+
+    // Initialization state
+    private val _isInitialized = MutableStateFlow(false)
+    val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
 
     // Callbacks for speech lifecycle (for pausing wake word detection)
     private var onSpeechStart: (() -> Unit)? = null
     private var onSpeechEnd: (() -> Unit)? = null
 
+    // Mutex to prevent concurrent initialization attempts
+    private val initMutex = Mutex()
+    private var initializationAttempted = false
+
     init {
-        initializeTTS()
+        // Delay TTS initialization to avoid conflicts with Vosk native library
+        // Vosk initializes first, TTS can safely init after a brief delay
+        scheduleDelayedInitialization()
     }
 
-    private fun initializeTTS() {
-        tts = TextToSpeech(context, this)
-    }
-
-    override fun onInit(status: Int) {
-        if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale.US)
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                // Fallback to device default
-                tts?.setLanguage(Locale.getDefault())
-                Log.w(TAG, "US English not available, using device default")
-            }
-
-            // Set faster speech rate for snappy responses
-            tts?.setSpeechRate(DEFAULT_SPEECH_RATE)
-
-            // Set up progress listener
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {
-                    _isSpeaking.value = true
-                    onSpeechStart?.invoke()  // Pause wake word detection
-                }
-
-                override fun onDone(utteranceId: String?) {
-                    _isSpeaking.value = false
-                    onSpeechEnd?.invoke()  // Resume wake word detection
-                }
-
-                @Deprecated("Deprecated in API 21", replaceWith = ReplaceWith("onError(utteranceId, errorCode)"))
-                override fun onError(utteranceId: String?) {
-                    _isSpeaking.value = false
-                    onSpeechEnd?.invoke()  // Resume on error too
-                    Log.e(TAG, "TTS error for utterance: $utteranceId")
-                }
-
-                override fun onError(utteranceId: String?, errorCode: Int) {
-                    _isSpeaking.value = false
-                    onSpeechEnd?.invoke()  // Resume on error too
-                    Log.e(TAG, "TTS error code $errorCode for utterance: $utteranceId")
-                }
-            })
-
-            isInitialized = true
-            Log.d(TAG, "TTS initialized successfully")
-
-            // Speak any pending text
-            pendingText?.let { text ->
-                speakInternal(text)
-                pendingText = null
-            }
-        } else {
-            Log.e(TAG, "TTS initialization failed with status: $status")
+    /**
+     * Schedule TTS initialization with delay to avoid native library conflicts.
+     */
+    private fun scheduleDelayedInitialization() {
+        scope.launch(Dispatchers.IO) {
+            // Wait for Vosk and other native libraries to initialize
+            delay(3000)
+            initializeNeuralTTSInternal()
         }
     }
 
     /**
-     * Speak AI response immediately.
-     * If TTS not yet initialized, queues the text for when ready.
+     * Initialize Neural TTS with bundled model.
+     * Can be called manually if delayed init hasn't happened yet.
+     */
+    fun initializeIfNeeded() {
+        if (!initializationAttempted && !_isInitialized.value) {
+            scope.launch(Dispatchers.IO) {
+                initializeNeuralTTSInternal()
+            }
+        }
+    }
+
+    /**
+     * Internal TTS initialization with mutex protection.
+     */
+    private suspend fun initializeNeuralTTSInternal() {
+        initMutex.withLock {
+            if (initializationAttempted) {
+                Log.d(TAG, "TTS initialization already attempted, skipping")
+                return
+            }
+            initializationAttempted = true
+
+            try {
+                Log.d(TAG, "Starting Neural TTS initialization...")
+
+                neuralTts = NeuralTTSManager(context)
+                val initialized = neuralTts?.initialize(NeuralTTSManager.VOICE_EN_LESSAC) ?: false
+
+                if (initialized) {
+                    _currentVoice.value = NeuralTTSManager.VOICE_EN_LESSAC
+                    _isInitialized.value = true
+
+                    // Setup callbacks for neural TTS
+                    neuralTts?.setSpeechLifecycleCallbacks(
+                        onStart = {
+                            _isSpeaking.value = true
+                            onSpeechStart?.invoke()
+                        },
+                        onEnd = {
+                            _isSpeaking.value = false
+                            onSpeechEnd?.invoke()
+                        }
+                    )
+
+                    Log.d(TAG, "Neural TTS initialized successfully")
+                } else {
+                    Log.e(TAG, "Failed to initialize Neural TTS - init returned false")
+                    neuralTts = null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize Neural TTS: ${e.message}", e)
+                neuralTts = null
+            }
+        }
+    }
+
+    /**
+     * Speak AI response immediately using neural TTS.
      */
     fun speak(text: String) {
         if (!_isEnabled.value) {
@@ -119,49 +150,30 @@ class ResponseTTSManager(
 
         if (text.isBlank()) return
 
-        if (isInitialized) {
-            speakInternal(text)
-        } else {
-            // Queue for when TTS is ready
-            pendingText = text
-            Log.d(TAG, "TTS not ready, queued text for later")
+        if (!_isInitialized.value || neuralTts == null) {
+            Log.w(TAG, "Neural TTS not initialized")
+            return
         }
-    }
 
-    private fun speakInternal(text: String) {
-        // Clean text for TTS (remove markdown, code blocks, etc.)
-        val cleanedText = cleanTextForSpeech(text)
-
-        if (cleanedText.isBlank()) return
-
-        val id = "tts_${utteranceId.incrementAndGet()}"
-        tts?.speak(cleanedText, TextToSpeech.QUEUE_FLUSH, null, id)
-        Log.d(TAG, "Speaking: ${cleanedText.take(50)}...")
+        Log.d(TAG, "Speaking: ${text.take(50)}...")
+        neuralTts?.speak(text)
     }
 
     /**
-     * Clean text for natural speech output.
-     * Removes markdown formatting, code blocks, URLs, etc.
+     * Speak with specific language hint (useful for bilingual content).
+     * @param text Text to speak
+     * @param language Language code ("en" or "hi")
      */
-    private fun cleanTextForSpeech(text: String): String {
-        return text
-            // Remove code blocks
-            .replace(Regex("```[\\s\\S]*?```"), " code block ")
-            // Remove inline code
-            .replace(Regex("`[^`]+`"), "")
-            // Remove markdown headers
-            .replace(Regex("^#{1,6}\\s*", RegexOption.MULTILINE), "")
-            // Remove markdown bold/italic
-            .replace(Regex("[*_]{1,3}"), "")
-            // Remove markdown links, keep text
-            .replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")
-            // Remove URLs
-            .replace(Regex("https?://\\S+"), "")
-            // Remove bullet points
-            .replace(Regex("^[\\-*•]\\s*", RegexOption.MULTILINE), "")
-            // Clean up multiple spaces
-            .replace(Regex("\\s+"), " ")
-            .trim()
+    fun speak(text: String, language: String) {
+        if (!_isEnabled.value) return
+        if (text.isBlank()) return
+
+        if (!_isInitialized.value || neuralTts == null) {
+            Log.w(TAG, "Neural TTS not initialized")
+            return
+        }
+
+        neuralTts?.speak(text, language)
     }
 
     /**
@@ -170,7 +182,8 @@ class ResponseTTSManager(
      */
     fun stop() {
         val wasSpeaking = _isSpeaking.value
-        tts?.stop()
+
+        neuralTts?.stop()
         _isSpeaking.value = false
 
         // Resume wake word detection if we were speaking
@@ -192,42 +205,45 @@ class ResponseTTSManager(
         if (!enabled) {
             stop()
         }
-        Log.d(TAG, "TTS enabled: $enabled")
-    }
-
-    /**
-     * Set callbacks for speech lifecycle.
-     * Use this to pause/resume wake word detection during TTS.
-     *
-     * @param onStart Called when TTS starts speaking (pause wake word)
-     * @param onEnd Called when TTS finishes or errors (resume wake word)
-     */
-    fun setSpeechLifecycleCallbacks(onStart: () -> Unit, onEnd: () -> Unit) {
-        this.onSpeechStart = onStart
-        this.onSpeechEnd = onEnd
+        Log.d(TAG, "TTS ${if (enabled) "enabled" else "disabled"}")
     }
 
     /**
      * Set speech rate.
-     * @param rate Speech rate multiplier (0.5 = half speed, 2.0 = double speed)
+     * @param rate Rate multiplier (0.5 = slower, 2.0 = faster)
      */
     fun setSpeechRate(rate: Float) {
-        tts?.setSpeechRate(rate.coerceIn(0.5f, 2.0f))
+        neuralTts?.setSpeechRate(rate)
     }
 
     /**
-     * Use fast speech mode for quick responses.
+     * Set callbacks for speech lifecycle events.
+     * Used to pause wake word detection during speech.
      */
-    fun useFastMode() {
-        tts?.setSpeechRate(FAST_SPEECH_RATE)
+    fun setSpeechLifecycleCallbacks(
+        onStart: () -> Unit,
+        onEnd: () -> Unit
+    ) {
+        this.onSpeechStart = onStart
+        this.onSpeechEnd = onEnd
+
+        // Also set on neural TTS
+        neuralTts?.setSpeechLifecycleCallbacks(
+            onStart = {
+                _isSpeaking.value = true
+                onStart()
+            },
+            onEnd = {
+                _isSpeaking.value = false
+                onEnd()
+            }
+        )
     }
 
     /**
-     * Use normal speech mode.
+     * Check if neural TTS is ready.
      */
-    fun useNormalMode() {
-        tts?.setSpeechRate(DEFAULT_SPEECH_RATE)
-    }
+    fun isNeuralTtsReady(): Boolean = _isInitialized.value
 
     /**
      * Clean up TTS resources.
@@ -235,12 +251,17 @@ class ResponseTTSManager(
      */
     fun shutdown() {
         stop()
-        // Clear callbacks to prevent memory leaks and stale references
+
+        // Clear callbacks to prevent memory leaks
         onSpeechStart = null
         onSpeechEnd = null
-        tts?.shutdown()
-        tts = null
-        isInitialized = false
+
+        // Shutdown neural TTS
+        neuralTts?.shutdown()
+        neuralTts = null
+
+        _isInitialized.value = false
+
         Log.d(TAG, "TTS shutdown complete")
     }
 }

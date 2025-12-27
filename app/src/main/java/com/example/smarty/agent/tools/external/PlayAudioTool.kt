@@ -147,7 +147,7 @@ class PlayAudioTool(
                     success = true,
                     action = "play",
                     trackTitle = trackTitle,
-                    message = "Now playing '$trackTitle' from note '${note.title}'"
+                    message = "Playing"  // Keep brief - AI will respond naturally
                 )
             }
 
@@ -182,7 +182,7 @@ class PlayAudioTool(
                     success = true,
                     action = "play",
                     trackTitle = matchingAudio.title,
-                    message = "Now playing '${matchingAudio.title}'"
+                    message = "Playing"  // Keep brief
                 )
             }
 
@@ -221,15 +221,15 @@ class PlayAudioTool(
                         success = true,
                         action = "play",
                         trackTitle = firstTrack.title,
-                        message = "Playing '${firstTrack.title}'"
+                        message = "Playing"  // Keep brief
                     )
                 } else {
                     AudioPlaybackResult(
                         success = false,
                         action = "play",
-                        message = "Couldn't find '${args.query}'. Available audio: $availableNames",
+                        message = "Audio not found",  // Keep brief, don't list alternatives
                         error = "Audio not found",
-                        availableAudio = allAudioFiles.take(5).map { it.title }
+                        availableAudio = null  // Don't expose internal data
                     )
                 }
             }

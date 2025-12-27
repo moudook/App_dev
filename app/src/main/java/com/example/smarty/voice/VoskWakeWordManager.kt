@@ -129,6 +129,15 @@ class VoskWakeWordManager(
     private var lastModelValidityCheck = 0L
     private var lastModelValidity = false
 
+    // Debounce for restartListening to prevent rapid consecutive calls
+    @Volatile
+    private var lastRestartTime = 0L
+    private val restartDebounceMs = 500L  // Minimum 500ms between restarts
+
+    // Flag to track if a restart is currently in progress
+    @Volatile
+    private var isRestarting = false
+
     /**
      * Check if the native model is still valid.
      * After process death, native objects become invalid even though references exist.
@@ -187,6 +196,7 @@ class VoskWakeWordManager(
         _isListening.value = false
         isInitializing = false
         wakeWordTriggered = false
+        isRestarting = false
     }
 
     /**
@@ -464,46 +474,87 @@ class VoskWakeWordManager(
      * PROCESS DEATH SAFE: Validates model and re-initializes if needed.
      * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
      * TOCTOU-SAFE: Wraps recognizer creation in try-catch to handle race conditions.
+     * DEBOUNCED: Prevents rapid consecutive calls from crashing the recognizer.
      */
     fun restartListening() {
+        // DEBOUNCE: Ignore rapid consecutive restart calls
+        val now = System.currentTimeMillis()
+        if (now - lastRestartTime < restartDebounceMs) {
+            Log.d(TAG, "Restart debounced - too soon after last restart")
+            return
+        }
+
+        // Check if already restarting
+        if (isRestarting) {
+            Log.d(TAG, "Already restarting - ignoring duplicate call")
+            return
+        }
+
         scope.launch {
             stateMutex.withLock {
+                // Double-check inside mutex
+                if (isRestarting) {
+                    Log.d(TAG, "Already restarting (mutex check) - ignoring")
+                    return@withLock
+                }
+
                 // CRITICAL: Check if destroyed
                 if (isDestroyed) {
                     Log.d(TAG, "Manager destroyed - not restarting")
                     return@withLock
                 }
 
-                Log.d(TAG, "Restarting wake word detection")
+                isRestarting = true
+                lastRestartTime = System.currentTimeMillis()
 
-                // Reset wake word triggered flag for new detection cycle
-                wakeWordTriggered = false
-
-                // If model is still loading, queue restart for after init
-                if (isInitializing) {
-                    Log.d(TAG, "Model still loading - will start after init completes")
-                    shouldStartAfterInit = true
-                    return@withLock
-                }
-
-                // Check model validity - might be invalid after process death
-                if (!isModelValid()) {
-                    Log.w(TAG, "Model invalid - triggering full re-initialization")
-                    invalidateStateInternal()
-                    shouldStartAfterInit = true
-                    initialize()
-                    return@withLock
-                }
-
-                // Need to recreate recognizer after it's been used
                 try {
-                    // Close old recognizer to prevent resource leak
-                    try {
-                        recognizer?.close()
-                    } catch (_: Exception) {
-                        // Ignore close errors
+                    Log.d(TAG, "Restarting wake word detection")
+
+                    // Reset wake word triggered flag for new detection cycle
+                    wakeWordTriggered = false
+
+                    // If model is still loading, queue restart for after init
+                    if (isInitializing) {
+                        Log.d(TAG, "Model still loading - will start after init completes")
+                        shouldStartAfterInit = true
+                        return@withLock
                     }
+
+                    // Check model validity - might be invalid after process death
+                    if (!isModelValid()) {
+                        Log.w(TAG, "Model invalid - triggering full re-initialization")
+                        invalidateStateInternal()
+                        shouldStartAfterInit = true
+                        initialize()
+                        return@withLock
+                    }
+
+                    // Stop any existing speech service first
+                    try {
+                        speechService?.stop()
+                        speechService?.shutdown()
+                    } catch (_: Exception) {}
+                    speechService = null
+                    _isListening.value = false
+
+                    // Small delay to let native resources settle
+                    kotlinx.coroutines.delay(100)
+
+                    // Need to recreate recognizer after it's been used
+                    // Close old recognizer CAREFULLY - wait for it to be idle
+                    val oldRecognizer = recognizer
                     recognizer = null
+
+                    if (oldRecognizer != null) {
+                        try {
+                            // Small delay before closing to let any pending operations complete
+                            kotlinx.coroutines.delay(50)
+                            oldRecognizer.close()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error closing old recognizer: ${e.message}")
+                            // Continue anyway - we'll create a new one
+                        }
+                    }
 
                     val m = model
                     if (m != null) {
@@ -535,6 +586,8 @@ class VoskWakeWordManager(
                     invalidateStateInternal()
                     shouldStartAfterInit = true
                     initialize()
+                } finally {
+                    isRestarting = false
                 }
             }
         }
@@ -608,6 +661,7 @@ class VoskWakeWordManager(
         _initError.value = null
         wakeWordTriggered = false
         isInitializing = false
+        isRestarting = false
 
         Log.d(TAG, "Vosk resources destroyed - graceful shutdown complete")
     }

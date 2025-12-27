@@ -49,6 +49,11 @@ class OpenAICompatibleProvider(
         const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
         const val CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions"
         const val COHERE_URL = "https://api.cohere.ai/compatibility/v1/chat/completions"
+        const val GITHUB_URL = "https://models.github.ai/inference/chat/completions"
+        // FOR TESTING ONLY - Remove before publishing!
+        // Note: USB tethering IP can change - run ipconfig on PC to find it
+        // The PC's IP (not the phone's gateway IP) should be used
+        const val LOCAL_PC_URL = "http://10.224.189.60:8000/v1/chat/completions"
 
         /**
          * Create an OpenAI provider instance.
@@ -81,6 +86,22 @@ class OpenAICompatibleProvider(
          */
         fun cohere(client: OkHttpClient, gson: Gson) =
             OpenAICompatibleProvider(client, gson, COHERE_URL, "Cohere")
+
+        /**
+         * Create a GitHub Models provider instance.
+         * Free with GitHub account (requires PAT with models scope).
+         * Access to GPT-4o, Llama, DeepSeek, Phi, Mistral models.
+         */
+        fun github(client: OkHttpClient, gson: Gson) =
+            OpenAICompatibleProvider(client, gson, GITHUB_URL, "GitHub")
+
+        /**
+         * Create a Local PC provider instance (USB tethering).
+         * FOR TESTING ONLY - Remove before publishing!
+         * @param url Dynamic URL from SecurePreferences (IP can change)
+         */
+        fun localPC(client: OkHttpClient, gson: Gson, url: String = LOCAL_PC_URL) =
+            OpenAICompatibleProvider(client, gson, url, "Local PC")
     }
 
     /**

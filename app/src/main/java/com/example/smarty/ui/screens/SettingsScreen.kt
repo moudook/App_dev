@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +36,11 @@ import androidx.compose.ui.zIndex
 import com.example.smarty.data.local.AIModels
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.ProviderSection
 import com.example.smarty.ui.screens.settings.maskApiKey
@@ -117,6 +123,11 @@ fun SettingsScreen(
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
     var showVoiceFingerprintSheet by remember { mutableStateOf(false) }
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Local PC Testing state (FOR TESTING ONLY - Remove before publishing!)
+    var localPCTestStatus by remember { mutableStateOf<String?>(null) }
+    var isTestingLocalPC by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val isSystemDark = isSystemInDarkTheme()
 
@@ -436,6 +447,128 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Reset Statistics")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Local PC Testing Section (FOR TESTING ONLY - Remove before publishing!)
+            val localPCEnabled = providerConfigs[AIProvider.LOCAL_PC]?.isEnabled ?: true
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (localPCEnabled)
+                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Computer,
+                            contentDescription = null,
+                            tint = if (localPCEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Local PC (USB Tethering)",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (localPCEnabled) "Enabled - Uses local AI server" else "Disabled",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        // Enable/Disable Switch
+                        Switch(
+                            checked = localPCEnabled,
+                            onCheckedChange = { onSetProviderEnabled(AIProvider.LOCAL_PC, it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.tertiary,
+                                checkedTrackColor = MaterialTheme.colorScheme.tertiaryContainer
+                            )
+                        )
+                    }
+
+                    if (localPCEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Connection status
+                        localPCTestStatus?.let { status ->
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (status.contains("Success") || status.contains("online"))
+                                    Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+
+                        // Test button
+                        Button(
+                            onClick = {
+                                isTestingLocalPC = true
+                                localPCTestStatus = "Testing connection..."
+                                coroutineScope.launch {
+                                    try {
+                                        val status = withContext(Dispatchers.IO) {
+                                            val client = OkHttpClient.Builder()
+                                                .connectTimeout(10, TimeUnit.SECONDS)
+                                                .readTimeout(10, TimeUnit.SECONDS)
+                                                .build()
+                                            val request = Request.Builder()
+                                                .url("http://10.224.189.60:8000/v1/models")
+                                                .get()
+                                                .build()
+                                            val response = client.newCall(request).execute()
+                                            if (response.isSuccessful) {
+                                                "Server online - Ready"
+                                            } else {
+                                                "Server responded: ${response.code}"
+                                            }
+                                        }
+                                        localPCTestStatus = status
+                                    } catch (e: Exception) {
+                                        localPCTestStatus = "Connection failed: ${e.message}"
+                                    } finally {
+                                        isTestingLocalPC = false
+                                    }
+                                }
+                            },
+                            enabled = !isTestingLocalPC,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiary
+                            )
+                        ) {
+                            if (isTestingLocalPC) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onTertiary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            Text(if (isTestingLocalPC) "Testing..." else "Test Connection")
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Server: http://10.224.189.60:8000",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
                     }
                 }
             }
@@ -1218,13 +1351,16 @@ private fun AIConfigBottomSheet(
     val shapes = LocalShapes.current
 
     // Local state for drag-and-drop reordering
-    var localProviderOrder by remember { mutableStateOf(providerPriorityOrder) }
+    // Filter out LOCAL_PC - it has its own section and doesn't need API keys
+    var localProviderOrder by remember {
+        mutableStateOf(providerPriorityOrder.filter { it != AIProvider.LOCAL_PC })
+    }
     var draggedItemIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
 
     // Sync with external state when it changes
     LaunchedEffect(providerPriorityOrder) {
-        localProviderOrder = providerPriorityOrder
+        localProviderOrder = providerPriorityOrder.filter { it != AIProvider.LOCAL_PC }
     }
 
     ModalBottomSheet(
@@ -1265,7 +1401,9 @@ private fun AIConfigBottomSheet(
                 AIProvider.OPENAI to Triple("OpenAI", "GPT-4o", "https://platform.openai.com/api-keys"),
                 AIProvider.ANTHROPIC to Triple("Anthropic", "Claude models", "https://console.anthropic.com/settings/keys"),
                 AIProvider.OPENROUTER to Triple("OpenRouter", "Multi-model", "https://openrouter.ai/keys"),
-                AIProvider.HUGGINGFACE to Triple("HuggingFace", "Open source", "https://huggingface.co/settings/tokens")
+                AIProvider.HUGGINGFACE to Triple("HuggingFace", "Open source", "https://huggingface.co/settings/tokens"),
+                AIProvider.GITHUB to Triple("GitHub Models", "Free with GitHub", "https://github.com/settings/tokens"),
+                AIProvider.LOCAL_PC to Triple("Local PC (USB)", "Offline testing", "")  // FOR TESTING ONLY
             )
 
             // Iterate through providers with drag-and-drop reordering

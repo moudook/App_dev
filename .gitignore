@@ -104,6 +104,8 @@ build_output.txt
 *.war
 *.ear
 *.aar
+# Keep sherpa-onnx AAR for TTS
+!app/libs/sherpa-onnx.aar
 *.so
 *.log
 bin/
@@ -208,11 +210,17 @@ AUDIO_effects/
 vosk-model-*/
 app/src/main/assets/vosk-model-*/
 
+# Text-to-Speech Models (downloadable)
+app/src/main/assets/tts_models/
+
 
 #img
 refrence_.png
 refrence.jpg
+tracked_files.txt
 
 
 #logs
 build_log_2.txt
+
+LLM_THROUGH_USB_THEARING/

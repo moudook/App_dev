@@ -66,12 +66,23 @@ object AIResponseParser {
      * summary: multiline value
      * whySaved: value
      * todos: comma,separated,items or "none"
+     *
+     * Also handles variations from local LLMs:
+     * - "Title:" vs "title:"
+     * - "**title:**" (markdown bold)
+     * - Extra spaces and newlines
      */
     fun parseToonResponse(text: String): AIResponse? {
         if (text.isBlank()) return null
 
         try {
-            val lines = text.trim().lines()
+            // Clean up markdown formatting that local LLMs might add
+            val cleanedText = text
+                .replace(Regex("""\*\*([^*]+)\*\*"""), "$1")  // Remove **bold**
+                .replace(Regex("""__([^_]+)__"""), "$1")      // Remove __bold__
+                .replace(Regex("""^#+\s*""", RegexOption.MULTILINE), "")  // Remove # headers
+
+            val lines = cleanedText.trim().lines()
             var title: String? = null
             var category: String? = null
             var summary = StringBuilder()
@@ -85,31 +96,38 @@ object AIResponseParser {
                 val trimmed = line.trim()
                 if (trimmed.isEmpty()) continue
 
+                // More flexible matching for local LLMs
+                val lowerTrimmed = trimmed.lowercase()
+
                 when {
-                    trimmed.startsWith("title:", ignoreCase = true) -> {
-                        title = trimmed.substringAfter(":").trim()
+                    lowerTrimmed.startsWith("title:") || lowerTrimmed.startsWith("title :") -> {
+                        title = trimmed.substringAfter(":").trim().trimStart('-', ' ')
                         currentField = "title"
                         inSummary = false
                     }
-                    trimmed.startsWith("category:", ignoreCase = true) -> {
-                        category = trimmed.substringAfter(":").trim()
+                    lowerTrimmed.startsWith("category:") || lowerTrimmed.startsWith("category :") -> {
+                        category = trimmed.substringAfter(":").trim().trimStart('-', ' ')
                         currentField = "category"
                         inSummary = false
                     }
-                    trimmed.startsWith("summary:", ignoreCase = true) -> {
-                        summary.append(trimmed.substringAfter(":").trim())
+                    lowerTrimmed.startsWith("summary:") || lowerTrimmed.startsWith("summary :") -> {
+                        summary.append(trimmed.substringAfter(":").trim().trimStart('-', ' '))
                         currentField = "summary"
                         inSummary = true
                     }
-                    trimmed.startsWith("whySaved:", ignoreCase = true) ||
-                    trimmed.startsWith("whysaved:", ignoreCase = true) -> {
-                        whySaved = trimmed.substringAfter(":").trim()
+                    lowerTrimmed.startsWith("whysaved:") || lowerTrimmed.startsWith("why saved:") ||
+                    lowerTrimmed.startsWith("why_saved:") || lowerTrimmed.startsWith("whysaved :") -> {
+                        whySaved = trimmed.substringAfter(":").trim().trimStart('-', ' ')
                         currentField = "whySaved"
                         inSummary = false
                     }
-                    trimmed.startsWith("todos:", ignoreCase = true) -> {
-                        val todoStr = trimmed.substringAfter(":").trim()
-                        todos = if (todoStr.equals("none", ignoreCase = true) || todoStr.isEmpty()) {
+                    lowerTrimmed.startsWith("todos:") || lowerTrimmed.startsWith("todo:") ||
+                    lowerTrimmed.startsWith("todos :") -> {
+                        val todoStr = trimmed.substringAfter(":").trim().trimStart('-', ' ')
+                        todos = if (todoStr.equals("none", ignoreCase = true) ||
+                                   todoStr.equals("n/a", ignoreCase = true) ||
+                                   todoStr.equals("na", ignoreCase = true) ||
+                                   todoStr.isEmpty()) {
                             emptyList()
                         } else {
                             todoStr.split(",").map { it.trim() }.filter { it.isNotEmpty() }
@@ -125,14 +143,32 @@ object AIResponseParser {
                 }
             }
 
+            // Try to extract category from text if not found (local LLM might format differently)
+            if (category.isNullOrBlank() && title != null) {
+                // Try to find category mentioned anywhere in response
+                val categoryMatch = VALID_CATEGORIES.find { cat ->
+                    text.contains(cat, ignoreCase = true)
+                }
+                if (categoryMatch != null) {
+                    category = categoryMatch
+                    Log.d(TAG, "Extracted category from text: $category")
+                }
+            }
+
             // Validate required fields
-            if (title.isNullOrBlank() || category.isNullOrBlank()) {
-                Log.w(TAG, "TOON parse missing required fields: title=$title, category=$category")
+            if (title.isNullOrBlank()) {
+                Log.w(TAG, "TOON parse missing title")
                 return null
             }
 
+            // Default category if still missing
+            if (category.isNullOrBlank()) {
+                category = "Note"
+                Log.d(TAG, "Using default category: Note")
+            }
+
             return AIResponse(
-                title = title.take(50), // Enforce max length
+                title = title.take(60), // Enforce max length (increased for better titles)
                 category = validateCategory(category),
                 summary = if (summary.isEmpty()) "Content saved." else cleanSummary(summary.toString(), 300),
                 whySaved = whySaved?.take(20) ?: "Saved",

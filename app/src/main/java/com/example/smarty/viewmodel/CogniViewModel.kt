@@ -261,6 +261,11 @@ class CogniViewModel(
         override fun requestAudioPlayback(track: AudioTrack) {
             // BUG FIX (ISSUE 3): Add logging to verify tool callback execution
             Log.i(TAG, "▶ requestAudioPlayback CALLBACK INVOKED: track='${track.title}', uri=${track.uri}")
+
+            // Stop TTS before playing audio - user wants to hear the audio, not TTS
+            responseTTSManager.stop()
+            Log.d(TAG, "TTS stopped for audio playback")
+
             // Directly set the track for playback - it now has a valid URI from the note attachment
             _pendingAudioPlayback.value = track
             Log.d(TAG, "✓ pendingAudioPlayback set to: ${track.title}")
@@ -632,6 +637,9 @@ class CogniViewModel(
         // Restore state from SavedStateHandle after process death (BUG-053)
         // Made non-blocking - failures won't affect startup
         restoreState()
+
+        // Initialize Neural TTS (uses bundled model, no download needed)
+        initializeNeuralTTS()
     }
 
     // Track if deferred initialization has been done
@@ -1069,7 +1077,7 @@ class CogniViewModel(
      */
     private fun extractSuggestionsFromResponse(response: String): Pair<String, List<String>> {
         try {
-            // Multiple patterns to handle various LLM output formats
+            // Multiple patterns to handle various LLM output formats (including local LLMs)
             val patterns = listOf(
                 // Standard format: {suggestions:["a","b"]}
                 Regex("""\{suggestions:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE),
@@ -1077,6 +1085,12 @@ class CogniViewModel(
                 Regex("""\{\s*suggestions\s*:\s*\[([^\]]*)\]\s*\}""", RegexOption.IGNORE_CASE),
                 // JSON-style with quotes: {"suggestions":["a","b"]}
                 Regex("""\{"suggestions"\s*:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE),
+                // Markdown code block: ```{suggestions:...}```
+                Regex("""```\s*\{suggestions:\s*\[([^\]]*)\]\}\s*```""", RegexOption.IGNORE_CASE),
+                // Suggestions on new line: \nsuggestions: [...]
+                Regex("""\n\s*suggestions\s*:\s*\[([^\]]*)\]""", RegexOption.IGNORE_CASE),
+                // With "Suggestions:" label (capital S)
+                Regex("""Suggestions\s*:\s*\[([^\]]*)\]"""),
                 // Fallback: just the array after suggestions:
                 Regex("""suggestions\s*:\s*\[([^\]]*)\]""", RegexOption.IGNORE_CASE)
             )
@@ -2544,6 +2558,20 @@ class CogniViewModel(
         responseTTSManager.speak(text)
     }
 
+    // Neural TTS Voice Management (bundled model - no download needed)
+    val currentTtsVoice: StateFlow<String> by lazy { responseTTSManager.currentVoice }
+    val isTtsReady: StateFlow<Boolean> by lazy { responseTTSManager.isInitialized }
+
+    /**
+     * Initialize neural TTS - uses bundled model (no download needed).
+     * Called during ViewModel initialization.
+     */
+    fun initializeNeuralTTS() {
+        // Neural TTS is auto-initialized in ResponseTTSManager
+        // with bundled voice model (en_US-lessac-medium)
+        Log.d(TAG, "Neural TTS initialization triggered (auto-initialized in ResponseTTSManager)")
+    }
+
     // ==================== End TTS Control Methods ====================
 
     /**
@@ -2613,8 +2641,13 @@ class CogniViewModel(
 
                         chatManager.addAssistantMessage(assistantMessage)
 
-                        // Speak AI response immediately (if TTS enabled)
-                        speakResponse(cleanedResponse)
+                        // Speak AI response - but NOT if audio playback was just triggered
+                        // (user wants to hear the music, not TTS talking over it)
+                        if (_pendingAudioPlayback.value == null) {
+                            speakResponse(cleanedResponse)
+                        } else {
+                            Log.d(TAG, "Skipping TTS - audio playback pending")
+                        }
 
                         chatManager.markApiCallSuccessful()
                         chatManager.saveMessagePair(

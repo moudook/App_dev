@@ -18,7 +18,9 @@ enum class AIProvider {
     OPENAI,
     OPENROUTER,
     ANTHROPIC,
-    HUGGINGFACE
+    HUGGINGFACE,
+    GITHUB,
+    LOCAL_PC  // FOR TESTING ONLY - Remove before publishing!
 }
 
 /**
@@ -186,13 +188,50 @@ object AIModels {
     )
     const val OPENROUTER_DEFAULT = "allenai/olmo-3.1-32b-think:free"
 
-    // HuggingFace models
+    // HuggingFace models - Using freely available models that work with Inference API
+    // Note: Many popular models are gated and require license acceptance + PRO subscription
     val HUGGINGFACE_MODELS = listOf(
-        "mistralai/Mistral-7B-Instruct-v0.2" to "Mistral 7B Instruct v0.2",
-        "meta-llama/Llama-2-7b-chat-hf" to "Llama 2 7B Chat",
-        "HuggingFaceH4/zephyr-7b-beta" to "Zephyr 7B Beta"
+        "microsoft/Phi-3-mini-4k-instruct" to "Phi-3 Mini 4K (Recommended)",
+        "google/flan-t5-large" to "Flan-T5 Large (Fast)",
+        "google/flan-t5-xl" to "Flan-T5 XL (Better Quality)",
+        "Qwen/Qwen2.5-1.5B-Instruct" to "Qwen 2.5 1.5B Instruct",
+        "tiiuae/falcon-7b-instruct" to "Falcon 7B Instruct",
+        "bigscience/bloom-560m" to "BLOOM 560M (Lightweight)"
     )
-    const val HUGGINGFACE_DEFAULT = "mistralai/Mistral-7B-Instruct-v0.2"
+    const val HUGGINGFACE_DEFAULT = "microsoft/Phi-3-mini-4k-instruct"
+
+    // GitHub Models - Free with GitHub account (requires PAT with models scope)
+    // API: https://models.github.ai/inference/chat/completions
+    // Rate limits vary by model (Low/High tier)
+    val GITHUB_MODELS = listOf(
+        "openai/gpt-4o-mini" to "GPT-4o Mini (Free Default)",
+        "openai/gpt-4o" to "GPT-4o (Best Quality)",
+        "openai/gpt-4.1" to "GPT-4.1 (Latest)",
+        "DeepSeek-R1" to "DeepSeek R1 (Reasoning)",
+        "DeepSeek-V3-0324" to "DeepSeek V3",
+        "meta-llama/Llama-3.3-70B-Instruct" to "Llama 3.3 70B Instruct",
+        "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8" to "Llama 4 Maverick 17B",
+        "microsoft/Phi-4" to "Phi-4 (Microsoft)",
+        "microsoft/Phi-3.5-MoE-instruct" to "Phi-3.5 MoE Instruct",
+        "mistralai/Mistral-Large-2411" to "Mistral Large",
+        "mistralai/Mistral-Small-3.1-24B-Instruct-2503" to "Mistral Small 3.1",
+        "Cohere-command-r-plus-08-2024" to "Command R+ (Cohere)",
+        "AI21-Jamba-1.5-Large" to "Jamba 1.5 Large (AI21)"
+    )
+    const val GITHUB_DEFAULT = "openai/gpt-4o-mini"
+
+    // Local PC models - FOR TESTING ONLY (Remove before publishing!)
+    // These are models you can run locally via USB tethering
+    val LOCAL_PC_MODELS = listOf(
+        "qwen2.5-3b-instruct" to "Qwen 2.5 3B Instruct (Default)",
+        "qwen2.5-7b-instruct" to "Qwen 2.5 7B Instruct",
+        "qwen2.5-14b-instruct" to "Qwen 2.5 14B Instruct",
+        "llama-3.2-3b-instruct" to "Llama 3.2 3B Instruct",
+        "phi-3-mini-4k-instruct" to "Phi-3 Mini 4K Instruct",
+        "gemma-2-2b-it" to "Gemma 2 2B IT",
+        "mistral-7b-instruct-v0.3" to "Mistral 7B Instruct v0.3"
+    )
+    const val LOCAL_PC_DEFAULT = "qwen2.5-3b-instruct"
 
     fun getModelsForProvider(provider: AIProvider): List<Pair<String, String>> {
         return when (provider) {
@@ -205,6 +244,8 @@ object AIModels {
             AIProvider.ANTHROPIC -> ANTHROPIC_MODELS
             AIProvider.OPENROUTER -> OPENROUTER_MODELS
             AIProvider.HUGGINGFACE -> HUGGINGFACE_MODELS
+            AIProvider.GITHUB -> GITHUB_MODELS
+            AIProvider.LOCAL_PC -> LOCAL_PC_MODELS
         }
     }
 
@@ -219,6 +260,8 @@ object AIModels {
             AIProvider.ANTHROPIC -> ANTHROPIC_DEFAULT
             AIProvider.OPENROUTER -> OPENROUTER_DEFAULT
             AIProvider.HUGGINGFACE -> HUGGINGFACE_DEFAULT
+            AIProvider.GITHUB -> GITHUB_DEFAULT
+            AIProvider.LOCAL_PC -> LOCAL_PC_DEFAULT
         }
     }
 }
@@ -284,7 +327,8 @@ class SecurePreferences(private val context: Context) {
     // Provider Priority Management
     // Default order: GROQ first, then others
     private val defaultProviderPriority = listOf(
-        AIProvider.GROQ,      // Top priority
+        AIProvider.LOCAL_PC,  // Local PC first for testing (REMOVE BEFORE PUBLISHING!)
+        AIProvider.GROQ,      // Top priority for cloud
         AIProvider.GEMINI,
         AIProvider.DEEPSEEK,
         AIProvider.CEREBRAS,
@@ -292,7 +336,8 @@ class SecurePreferences(private val context: Context) {
         AIProvider.OPENAI,
         AIProvider.OPENROUTER,
         AIProvider.ANTHROPIC,
-        AIProvider.HUGGINGFACE
+        AIProvider.HUGGINGFACE,
+        AIProvider.GITHUB     // Free with GitHub account
     )
 
     fun getProviderPriority(): List<AIProvider> {
@@ -333,6 +378,8 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_OPENROUTER_KEYS = "openrouter_api_keys"
         private const val KEY_ANTHROPIC_KEYS = "anthropic_api_keys"
         private const val KEY_HUGGINGFACE_KEYS = "huggingface_api_keys"
+        private const val KEY_GITHUB_KEYS = "github_api_keys"
+        private const val KEY_LOCAL_PC_KEYS = "local_pc_api_keys"  // Not really needed but for consistency
         private const val KEY_PROVIDER_ENABLED_PREFIX = "provider_enabled_"
         private const val KEY_PROVIDER_MODEL_PREFIX = "provider_model_"
         private const val KEY_PROVIDER_PRIORITY = "provider_priority"
@@ -346,6 +393,10 @@ class SecurePreferences(private val context: Context) {
         private const val DEFAULT_BACKUP_INTERVAL_DAYS = 100
         // Tavily Web Search API
         private const val KEY_TAVILY_API_KEY = "tavily_api_key"
+        // Local PC USB Tethering IP (TESTING ONLY - Remove before publishing!)
+        private const val KEY_LOCAL_PC_IP = "local_pc_ip"
+        private const val DEFAULT_LOCAL_PC_IP = "10.224.189.60"
+        private const val DEFAULT_LOCAL_PC_PORT = "8000"
 
         @Volatile
         private var INSTANCE: SecurePreferences? = null
@@ -445,6 +496,8 @@ class SecurePreferences(private val context: Context) {
             AIProvider.OPENROUTER -> KEY_OPENROUTER_KEYS
             AIProvider.ANTHROPIC -> KEY_ANTHROPIC_KEYS
             AIProvider.HUGGINGFACE -> KEY_HUGGINGFACE_KEYS
+            AIProvider.GITHUB -> KEY_GITHUB_KEYS
+            AIProvider.LOCAL_PC -> KEY_LOCAL_PC_KEYS
         }
         val json = encryptedPrefs.getString(key, null) ?: return emptyList()
         return try {
@@ -466,6 +519,8 @@ class SecurePreferences(private val context: Context) {
             AIProvider.OPENROUTER -> KEY_OPENROUTER_KEYS
             AIProvider.ANTHROPIC -> KEY_ANTHROPIC_KEYS
             AIProvider.HUGGINGFACE -> KEY_HUGGINGFACE_KEYS
+            AIProvider.GITHUB -> KEY_GITHUB_KEYS
+            AIProvider.LOCAL_PC -> KEY_LOCAL_PC_KEYS
         }
         val filteredKeys = keys.filter { it.isNotBlank() }
         if (filteredKeys.isEmpty()) {
@@ -680,6 +735,32 @@ class SecurePreferences(private val context: Context) {
      */
     fun hasTavilyApiKey(): Boolean {
         return !getTavilyApiKey().isNullOrBlank()
+    }
+
+    // ==================== Local PC USB Tethering (TESTING ONLY) ====================
+
+    /**
+     * Get Local PC IP address for USB tethering.
+     * FOR TESTING ONLY - Remove before publishing!
+     */
+    fun getLocalPCIP(): String {
+        return encryptedPrefs.getString(KEY_LOCAL_PC_IP, DEFAULT_LOCAL_PC_IP) ?: DEFAULT_LOCAL_PC_IP
+    }
+
+    /**
+     * Set Local PC IP address for USB tethering.
+     * FOR TESTING ONLY - Remove before publishing!
+     */
+    fun setLocalPCIP(ip: String) {
+        encryptedPrefs.edit().putString(KEY_LOCAL_PC_IP, ip.trim()).apply()
+    }
+
+    /**
+     * Get full Local PC URL for API calls.
+     * FOR TESTING ONLY - Remove before publishing!
+     */
+    fun getLocalPCUrl(): String {
+        return "http://${getLocalPCIP()}:$DEFAULT_LOCAL_PC_PORT/v1/chat/completions"
     }
 
     // ==================== Dynamic Model Management ====================

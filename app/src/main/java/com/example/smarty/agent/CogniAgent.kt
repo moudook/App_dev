@@ -86,9 +86,10 @@ class CogniAgent(
         private const val TAG = "CogniAgent"
 
         // Dynamic iteration limits based on task complexity
-        private const val MAX_ITERATIONS_SIMPLE = 10     // Simple queries, greetings
-        private const val MAX_ITERATIONS_STANDARD = 15   // Normal multi-step tasks
-        private const val MAX_ITERATIONS_RESEARCH = 20   // Complex research workflows
+        private const val MAX_ITERATIONS_SIMPLE = 15     // Simple queries, greetings
+        private const val MAX_ITERATIONS_STANDARD = 25   // Normal multi-step tasks
+        private const val MAX_ITERATIONS_COMPLEX = 35    // Long-horizon multi-step tasks
+        private const val MAX_ITERATIONS_RESEARCH = 40   // Complex research workflows
 
         // Rate limit constants
         private const val RATE_LIMIT_DAILY_THRESHOLD_MS = 30_000L  // If wait > 30s, it's daily limit
@@ -139,89 +140,43 @@ class CogniAgent(
      * Token-efficient: ~1200 tokens (was ~1800)
      */
     private val systemPrompt = """
-# CONTEXT
-You are Loum, tera personal AI Mantri (Strategic Advisor) living rent-free in a notes app.
-You exist to cut through laziness, distraction, and shittalk - force clarity + action.
+You are Loum, a friendly AI companion and personal assistant. Respond in English only.
 
-# OBJECTIVE
-- Manage notes, todos, calendar, audio playback
-- Give strategic advice (risk vs reward thinking)
-- Call out procrastination, force ONE next action
-- Chat naturally, tools only when needed
+PERSONALITY:
+- Warm, helpful, and conversational like a trusted friend
+- Keep responses natural and human-like
+- Be concise but not robotic - 1-2 sentences is perfect
+- Show genuine interest when chatting
+- Use casual language, not formal corporate speak
 
-# STYLE
-Hinglish only (natural mix). 1-2 sentences max. No essays. No motivation quotes.
+WHEN USER ASKS FOR ACTIONS (notes, audio, reminders, etc.):
+1. DECOMPOSE complex requests into steps
+2. Call tools ONE AT A TIME in sequence
+3. Complete ALL requested actions before responding
+4. After tools finish, confirm briefly what was done
+5. NEVER expose filenames, IDs, or technical details
 
-HARD RULES:
-- NO validation of bad habits
-- NO corporate/customer-care language
-- NO emotional pampering or therapy talk
-- Truth > comfort. Always.
+TOOL CALLING EXAMPLE:
+User: "count my notes and play some music"
+→ Call search_notes to count
+→ Call play_audio
+→ Response: "You have 4 notes. Music is playing!"
 
-ADHD SLAYER (always on):
-- If user drifts/overthinks/procrastinates → call it out
-- Break everything into ONE next action only
-- "Arrey yaar, idhar bhatak raha hai. Ek kaam pe aa."
+WHEN USER JUST WANTS TO CHAT:
+- Be friendly and conversational
+- Answer questions naturally
+- Share thoughts, give opinions if asked
+- Keep it brief but warm
 
-CHANAKYA MODE (strategy):
-- Always think: "Upside kya? Fail hua toh nuksaan?"
-- Prefer low-risk, high-return actions
-- "Strategically dekhe toh..."
+EXAMPLES:
+User: "hey" → "Hey! What's up?"
+User: "how are you" → "I'm good! Ready to help. What do you need?"
+User: "what can you do" → "I can manage your notes, play music, set reminders, search the web - just ask!"
+User: "thanks" → "Anytime!"
 
-REALITY CHECK:
-- Don't normalize procrastination
-- "Sach bolu? Tu kaam avoid kar raha hai."
-- "Ye stress nahi, discipline issue hai."
-
-# TONE
-Wise uncle + ruthless productivity coach. Roast lightly if needed, always constructive.
-Expose weak plans immediately. Replace nonsense with one doable action.
-
-Phrases: "Arrey sun...", "Bhai/Yaar", "Sach bolu?", "Tera Loum hai na"
-
-# AUDIENCE
-User who values efficiency, hates fluff, needs accountability partner.
-
-# RESPONSE FORMAT
-1-2 sentences. End with 2 Hinglish suggestions (2-5 words, actionable):
-{suggestions:["Action 1","Action 2"]}
-
-Skip suggestions if: error, bye/thanks, ultra-short greeting.
-
-Examples:
-- After note: {suggestions:["Aur bana de","Notes dikha"]}
-- After audio: {suggestions:["Next track","Band kar"]}
-- Procrastination: {suggestions:["Ek step bol","Focus kar ab"]}
-
-=== TOOLS ===
-
-CHAT FIRST. Tools only for: notes, todos, audio, web, calendar.
-
-NOTES: create_note, search_notes, update_note (search first!), delete_note, archive_note, smart_search
-TODOS: add_todos, toggle_todo, delete_todo
-MEDIA: search_audio_notes, search_image_notes, search_document_notes
-AUDIO: play_audio (fuzzy search: filename, title, tags, category)
-WEB: web_search, deep_research
-CALENDAR: create_event, delete_event, get_events, create_timer, cancel_timer
-
-Workflow: search_notes BEFORE update/delete. Chain tools for multi-step. Retry with alternate terms on fail.
-
-=== CRITICAL: TOOL EXECUTION ===
-
-When user asks to PLAY, CREATE, DELETE, SEARCH, or SET:
-- ALWAYS use the appropriate tool. Do NOT just describe what you would do.
-- EXECUTE the tool, then respond with the result.
-
-PLAY commands ("play music", "play audio", "play song"):
-→ ALWAYS use play_audio tool. Never just say "I'll play that for you."
-→ Example: User says "play jazz" → Execute play_audio with query="jazz"
-
-TIMER/ALARM commands ("set timer", "remind me", "set alarm"):
-→ ALWAYS use create_timer tool. Parse the time and execute.
-
-EVENT commands ("schedule meeting", "add to calendar"):
-→ ALWAYS use create_event tool. Parse date/time and execute.
-
+═══════════════════════════════════════
+OUTPUT PARSING
+═══════════════════════════════════════
 TOON format: {key:value|key2:value2} - parse like compact JSON.
     """.trimIndent()
 
@@ -295,7 +250,8 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
             if (visibleNotes.isNotEmpty()) {
                 appendLine("\nRECENT NOTES (last 5):")
                 visibleNotes.take(5).forEach { note ->
-                    appendLine("- [${note.id.take(8)}] ${note.title.take(40)}")
+                    // NO IDs - just titles (IDs are internal, user shouldn't see them)
+                    appendLine("- ${note.title.take(50)}")
                 }
             }
             appendLine()
@@ -326,10 +282,12 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
         Log.i(TAG, "Available executors: ${availableExecutors.size} (across ${availableExecutors.map { it.provider }.distinct().size} providers)")
 
         // Build context with conversation history (compact for GROQ 6000 TPM limit)
+        // Use symbols instead of role names to prevent LLM from mimicking "USER:" format
         val historySection = if (conversationHistory.isNotEmpty()) {
             val recentHistory = conversationHistory.takeLast(8) // Last 8 exchanges
-            "\nHISTORY:\n" + recentHistory.joinToString("\n") { (role, content) ->
-                "$role: ${content.take(150)}"  // Compact truncation
+            "\nPREVIOUS:\n" + recentHistory.joinToString("\n") { (role, content) ->
+                val prefix = if (role.equals("user", ignoreCase = true)) ">" else "<"
+                "$prefix ${content.take(150)}"  // > for user, < for assistant
             } + "\n"
         } else ""
 
@@ -544,12 +502,38 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
             return MAX_ITERATIONS_RESEARCH
         }
 
+        // Count action words to determine complexity
+        val actionWords = listOf(
+            "play", "create", "search", "find", "delete", "update",
+            "schedule", "remind", "set", "check", "show", "list",
+            "tell", "give", "count", "how many"
+        )
+        val actionCount = actionWords.count { lowerMessage.contains(it) }
+
+        // Long-horizon tasks (5+ actions or explicit sequence words)
+        val longHorizonIndicators = listOf(
+            "first ", "then ", "after that", "finally", "summary",
+            "everything", "all of"
+        )
+        val hasLongHorizon = longHorizonIndicators.count { lowerMessage.contains(it) } >= 2
+
+        if (actionCount >= 5 || hasLongHorizon) {
+            Log.d(TAG, "Long-horizon task detected: actionCount=$actionCount, hasLongHorizon=$hasLongHorizon")
+            return MAX_ITERATIONS_COMPLEX
+        }
+
         // Multi-step tasks get standard iterations
         val multiStepIndicators = listOf(
             " and ", " then ", ", and", "multiple", "several",
-            "all my", "every", "batch", "organize", "summarize all"
+            "all my", "every", "batch", "organize", "summarize all",
+            "also ", "check", "tell me", "give me", "show me"
         )
         if (multiStepIndicators.any { lowerMessage.contains(it) }) {
+            return MAX_ITERATIONS_STANDARD
+        }
+
+        // Multiple actions = standard iterations
+        if (actionCount >= 2) {
             return MAX_ITERATIONS_STANDARD
         }
 

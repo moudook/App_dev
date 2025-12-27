@@ -43,10 +43,12 @@ class GetCategoryNotesTool(
                 note.categoryName?.equals(args.categoryName, ignoreCase = true) == true
             }.take(10) // Limit to save context
 
+            // ID is for internal operations only - AI should never expose to user
             val noteInfos = categoryNotes.map { note ->
                 NoteInfo(
-                    id = note.id,
+                    id = note.id,  // Internal use only
                     title = note.title,
+                    content = note.content.take(500),  // Truncate for token efficiency
                     summary = note.summary,
                     category = note.categoryName,
                     type = note.type.name,
