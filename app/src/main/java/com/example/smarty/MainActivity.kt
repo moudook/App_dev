@@ -736,6 +736,7 @@ class MainActivity : ComponentActivity() {
                                     onTTSEnabledChange = { enabled ->
                                         viewModel.setTTSEnabled(enabled)
                                     },
+                                    onStopTTS = { viewModel.stopTTS() },
                                     // Local LLM Server
                                     localServerIP = localServerIP,
                                     onSetLocalServerIP = { ip ->

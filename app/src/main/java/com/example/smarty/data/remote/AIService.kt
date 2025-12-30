@@ -192,12 +192,17 @@ class AIService(private val securePreferences: SecurePreferences) {
 
     /**
      * Check if any AI provider is available for processing.
-     * Returns true if at least one provider has API keys configured.
+     * Returns true if at least one provider is enabled and available.
+     * LOCAL_PC doesn't need API keys - it uses local server.
      */
     fun isAiAvailable(): Boolean {
         val providers = orchestrator.getOrderedProviders()
+        val configs = orchestrator.getAllProviderConfigs()
+
         return providers.any { provider ->
-            securePreferences.getProviderKeys(provider).isNotEmpty()
+            val config = configs[provider]
+            // Use orchestrator's availability check which handles LOCAL_PC correctly
+            orchestrator.isProviderAvailable(config)
         }
     }
 

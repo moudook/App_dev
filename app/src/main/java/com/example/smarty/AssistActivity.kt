@@ -29,6 +29,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -38,6 +39,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -754,8 +756,9 @@ class AssistActivity : ComponentActivity() {
                     val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
                     Log.d(TAG, "Speech result: $text")
                     if (!text.isNullOrBlank()) {
-                        runOnUiThread { inputField.setText(text) }
                         processInput(text)
+                        // Clear input field after processing (don't show speech text in input)
+                        runOnUiThread { inputField.text.clear() }
                     } else {
                         startWakeWordDetection()
                     }
@@ -1268,9 +1271,9 @@ fun MinimalResponseList(
 
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         items(messages, key = { it.id }) { msg ->
             BubbleMessage(msg)
@@ -1293,17 +1296,24 @@ fun MinimalResponseList(
 fun BubbleMessage(msg: ChatMessage) {
     val isUser = msg.role == ChatRole.USER
     val uriHandler = LocalUriHandler.current
+    val isDarkTheme = isSystemInDarkTheme()
 
-    // Blue color scheme for assistant messages (like main chat)
-    val accentColor = GeminiColors.Blue
-    val normalColor = if (isUser) ComposeColor.White else ComposeColor(
-        red = (accentColor.red * 0.75f).coerceIn(0f, 1f),
-        green = (accentColor.green * 0.75f).coerceIn(0f, 1f),
-        blue = (accentColor.blue * 0.85f).coerceIn(0f, 1f),
-        alpha = 1f
-    )
-    val boldColor = if (isUser) ComposeColor.White else accentColor
-    val linkColor = ComposeColor(0xFF9C27B0) // Purple for links
+    // Theme-aware colors
+    // User: Blue bubble with white text
+    // AI: Theme surface with theme text color
+    val userBubbleColor = GeminiColors.Blue
+    val aiBubbleColor = if (isDarkTheme) {
+        ComposeColor(0xFF1E1E1E) // Dark gray for dark theme
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+    }
+
+    val userTextColor = ComposeColor.White
+    val aiTextColor = MaterialTheme.colorScheme.onSurface
+
+    val normalColor = if (isUser) userTextColor else aiTextColor
+    val boldColor = if (isUser) userTextColor else GeminiColors.Blue
+    val linkColor = if (isDarkTheme) ComposeColor(0xFF82B1FF) else ComposeColor(0xFF1976D2)
     val codeColor = normalColor
 
     val annotatedText = parseMarkdownToAnnotatedString(
@@ -1321,13 +1331,13 @@ fun BubbleMessage(msg: ChatMessage) {
     ) {
         ClickableText(
             text = annotatedText,
-            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp),
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
             modifier = Modifier
                 .background(
-                    color = if (isUser) GeminiColors.Blue else MaterialTheme.colorScheme.surfaceVariant,
-                    shape = MaterialTheme.shapes.medium
+                    color = if (isUser) userBubbleColor else aiBubbleColor,
+                    shape = RoundedCornerShape(16.dp)
                 )
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             onClick = { offset ->
                 annotatedText.getStringAnnotations(tag = "URL", start = offset, end = offset)
                     .firstOrNull()?.let { annotation ->

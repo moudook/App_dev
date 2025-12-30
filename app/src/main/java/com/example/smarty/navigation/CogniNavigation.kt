@@ -200,6 +200,7 @@ fun CogniNavHost(
     // TTS for AI responses
     isTTSEnabled: Boolean = true,
     onTTSEnabledChange: (Boolean) -> Unit = {},
+    onStopTTS: () -> Unit = {},  // Stop TTS when user taps screen in chat mode
     // Local LLM Server
     localServerIP: String = "",
     onSetLocalServerIP: (String) -> Unit = {},
@@ -387,6 +388,7 @@ fun CogniNavHost(
                 onRetrainVoice = onRetrainVoice,
                 isTTSEnabled = isTTSEnabled,
                 onTTSEnabledChange = onTTSEnabledChange,
+                onStopTTS = onStopTTS,
                 onRefreshModels = onRefreshModels,
                 getAvailableModels = getAvailableModels,
                 onSignOut = onSignOut,

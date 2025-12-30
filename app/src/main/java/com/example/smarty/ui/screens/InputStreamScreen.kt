@@ -203,6 +203,7 @@ fun InputStreamScreen(
     onRetrainVoice: () -> Unit = {},
     isTTSEnabled: Boolean = true,
     onTTSEnabledChange: (Boolean) -> Unit = {},
+    onStopTTS: () -> Unit = {},  // Stop TTS when user taps screen in chat mode
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { emptyList() },
     onSignOut: () -> Unit = {},
@@ -928,7 +929,7 @@ fun InputStreamScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = topPadding) // Only respect top padding
-                .pointerInput(speechState.isListening) {
+                .pointerInput(speechState.isListening, isChatMode) {
                     detectTapGestures(
                         onTap = {
                             // Clear focus and stop voice input on tap
@@ -936,6 +937,10 @@ fun InputStreamScreen(
                             focusManager.clearFocus()
                             if (speechState.isListening) {
                                 speechState.stopListening()
+                            }
+                            // Stop TTS gently when user taps screen in chat mode
+                            if (isChatMode) {
+                                onStopTTS()
                             }
                         }
                     )

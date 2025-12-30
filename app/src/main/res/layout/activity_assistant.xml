@@ -30,16 +30,16 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- The floating "AI Pill" anchored to bottom -->
+    <!-- The floating "AI Pill" anchored to bottom - ULTRA THIN design -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/assistant_pill"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="24dp"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="20dp"
         android:background="@drawable/bg_gemini_pill"
-        android:elevation="8dp"
-        android:padding="4dp"
+        android:elevation="6dp"
+        android:padding="2dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -57,35 +57,25 @@
                 android:layout_height="wrap_content"
                 android:minHeight="0dp" />
 
-            <!-- Input Area -->
+            <!-- Input Area - Ultra thin -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="12dp">
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="6dp">
 
                 <!-- Microphone Button (LEFT) -->
                 <ImageView
                     android:id="@+id/mic_button"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:padding="8dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:padding="6dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_mic"
                     android:contentDescription="Voice input"
                     app:tint="?attr/colorOnSurface" />
-
-                <!-- Sparkle/AI Icon -->
-                <ImageView
-                    android:id="@+id/ai_icon"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_marginStart="4dp"
-                    android:src="@drawable/ic_sparkle"
-                    android:contentDescription="AI Assistant"
-                    app:tint="@color/gemini_blue"/>
 
                 <!-- Text Input -->
                 <EditText
@@ -96,10 +86,10 @@
                     android:layout_marginHorizontal="8dp"
                     android:background="@android:color/transparent"
                     android:hint="Ask anything..."
-                    android:textSize="18sp"
+                    android:textSize="16sp"
                     android:textColor="?attr/colorOnSurface"
                     android:textColorHint="?attr/colorOnSurfaceVariant"
-                    android:maxLines="4"
+                    android:maxLines="3"
                     android:inputType="textCapSentences|textMultiLine"
                     android:imeOptions="actionSend"
                     app:boxStrokeWidth="0dp"
@@ -109,9 +99,9 @@
                 <!-- Send Button (RIGHT) -->
                 <ImageView
                     android:id="@+id/send_button"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:padding="8dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:padding="6dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_send"
                     android:contentDescription="Send message"
