@@ -138,10 +138,29 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             pendingCitations.addAll(citations)
             Log.d(TAG, "Citations found: ${citations.size} sources")
         }
+
+        override fun launchApp(packageName: String) {
+            // Launch app via package manager
+            try {
+                val intent = application.packageManager.getLaunchIntentForPackage(packageName)
+                intent?.let {
+                    it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    application.startActivity(it)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch app: $packageName", e)
+            }
+        }
+
+        override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
+            // Return cached screen context if available
+            return null  // AssistViewModel doesn't track screen context
+        }
     }
 
     private val cogniAgent: CogniAgent by lazy {
         CogniAgent(
+            context = application,
             agentProvider = agentProvider,
             repository = repository,
             tavilySearchProvider = tavilySearchProvider,
@@ -333,6 +352,32 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving session: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Add a single message to the conversation (UI-005 fix)
+     * Used by AssistActivity when processing input directly
+     */
+    fun addMessage(message: ChatMessage) {
+        viewModelScope.launch {
+            messageMutex.withLock {
+                _messages.value = _messages.value + message
+            }
+            // Persist to database if we have a session
+            if (message.role == ChatRole.ASSISTANT) {
+                val userMsg = _messages.value.lastOrNull { it.role == ChatRole.USER }
+                if (userMsg != null) {
+                    sessionId?.let { id ->
+                        chatRepository.saveMessagePair(
+                            sessionId = id,
+                            userMessage = userMsg,
+                            assistantMessage = message,
+                            shouldSave = true
+                        )
+                    }
+                }
             }
         }
     }

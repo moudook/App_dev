@@ -84,8 +84,23 @@ class ToolExampleStore {
 
     /**
      * Add a new example to the store (e.g., from successful interactions).
+     * AGENT-011: Added validation to prevent invalid examples from degrading accuracy.
      */
     suspend fun addExample(example: ToolExample) = mutex.withLock {
+        // AGENT-011: Validate inputs to prevent garbage data
+        if (example.toolName.isBlank()) {
+            Log.w(TAG, "Rejecting example with blank toolName")
+            return@withLock
+        }
+        if (example.userQuery.isBlank()) {
+            Log.w(TAG, "Rejecting example with blank userQuery for tool: ${example.toolName}")
+            return@withLock
+        }
+        if (example.userQuery.length < 3) {
+            Log.w(TAG, "Rejecting example with too short userQuery: ${example.userQuery}")
+            return@withLock
+        }
+
         val toolExamples = examples.getOrPut(example.toolName) { mutableListOf() }
 
         // Check for duplicates

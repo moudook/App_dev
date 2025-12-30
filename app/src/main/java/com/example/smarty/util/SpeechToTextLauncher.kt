@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,18 +20,24 @@ import java.util.Locale
 
 /**
  * Advanced Speech-to-Text using Android's native SpeechRecognizer.
- * 
+ *
  * Features:
  * - Silent background recognition (no Google pop-up)
  * - Real-time RMS (loudness) feedback for UI animations
  * - Direct control over listening state
  * - Handles runtime permissions
+ * - Automatic timeout if speech service doesn't respond
  */
 class SpeechToTextState(
     private val context: Context,
     private val speechRecognizer: SpeechRecognizer?,
     private val permissionLauncher: androidx.activity.result.ActivityResultLauncher<String>
 ) {
+    companion object {
+        private const val TAG = "SpeechToText"
+        private const val STARTUP_TIMEOUT_MS = 5000L // 5 seconds to wait for onReadyForSpeech
+    }
+
     var isListening by mutableStateOf(false)
         internal set
 
@@ -40,10 +48,17 @@ class SpeechToTextState(
     var speechInitiatedInChatMode by mutableStateOf<Boolean?>(null)
         internal set
 
+    // Track if we've received any callback from the speech recognizer
+    internal var hasReceivedCallback by mutableStateOf(false)
+
     // External callbacks
     var onResult: ((String) -> Unit)? = null
     var onError: ((String) -> Unit)? = null
     var onPartialResult: ((String) -> Unit)? = null
+
+    // Timeout handler
+    private val handler = Handler(Looper.getMainLooper())
+    private var timeoutRunnable: Runnable? = null
 
     /**
      * Start listening with mode context.
@@ -72,42 +87,128 @@ class SpeechToTextState(
     }
 
     fun stopListening() {
+        cancelTimeout()
         try {
-            speechRecognizer?.stopListening()
+            speechRecognizer?.cancel() // Use cancel instead of stopListening for cleaner shutdown
             isListening = false
             rmsDb = 0f
             speechInitiatedInChatMode = null // Reset mode tracking
+            hasReceivedCallback = false
         } catch (e: Exception) {
-            Log.e("SpeechToText", "Error stopping: ${e.message}")
+            Log.e(TAG, "Error stopping: ${e.message}")
         }
+    }
+
+    /**
+     * Called when a callback is received from the speech recognizer.
+     * Cancels the timeout since we know the service is responding.
+     */
+    internal fun onCallbackReceived() {
+        hasReceivedCallback = true
+        cancelTimeout()
+    }
+
+    private fun cancelTimeout() {
+        timeoutRunnable?.let { handler.removeCallbacks(it) }
+        timeoutRunnable = null
     }
 
     private fun startRecognition(languageCode: String?) {
         if (speechRecognizer == null) {
+            Log.e(TAG, "Speech recognizer is null")
             onError?.invoke("Speech recognition not available")
             return
         }
 
-        if (isListening) return
+        if (isListening) {
+            Log.d(TAG, "Already listening, ignoring start request")
+            return
+        }
 
         try {
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                
+
                 val locale = languageCode ?: Locale.getDefault().toLanguageTag()
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
             }
-            
+
+            hasReceivedCallback = false
             speechRecognizer.startListening(intent)
             isListening = true
+            Log.d(TAG, "Started speech recognition")
+
+            // Set up timeout to detect if speech service doesn't respond
+            cancelTimeout()
+            timeoutRunnable = Runnable {
+                if (isListening && !hasReceivedCallback) {
+                    Log.w(TAG, "Speech recognition timeout - no callback received in ${STARTUP_TIMEOUT_MS}ms")
+                    // Reset state
+                    try {
+                        speechRecognizer.cancel()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error canceling on timeout: ${e.message}")
+                    }
+                    isListening = false
+                    rmsDb = 0f
+                    speechInitiatedInChatMode = null
+                    onError?.invoke("Voice service not responding. Tap to retry.")
+                }
+            }
+            handler.postDelayed(timeoutRunnable!!, STARTUP_TIMEOUT_MS)
         } catch (e: Exception) {
-            Log.e("SpeechToText", "Start error: ${e.message}")
+            Log.e(TAG, "Start error: ${e.message}")
             isListening = false
             onError?.invoke("Failed to start: ${e.message}")
         }
     }
+}
+
+/**
+ * Find an external speech recognition service (NOT our own package).
+ * This is critical when Smarty is set as the default assistant, because
+ * the system's "default" recognizer would be Smarty itself, creating a loop.
+ */
+private fun findExternalSpeechService(context: Context): android.content.ComponentName? {
+    val pm = context.packageManager
+    val myPackage = context.packageName
+
+    // Query all services that can handle speech recognition
+    val recognizerIntent = Intent("android.speech.RecognitionService")
+    val services = pm.queryIntentServices(recognizerIntent, PackageManager.GET_META_DATA)
+
+    Log.d("SpeechToText", "Found ${services.size} speech recognition services")
+
+    var bestExternalService: android.content.ComponentName? = null
+
+    for (resolveInfo in services) {
+        val serviceInfo = resolveInfo.serviceInfo
+        val servicePackage = serviceInfo.packageName
+        val serviceName = serviceInfo.name
+
+        // CRITICAL: Skip our own package to avoid the loop
+        if (servicePackage == myPackage) {
+            Log.d("SpeechToText", "Skipping our own service: $servicePackage/$serviceName")
+            continue
+        }
+
+        Log.d("SpeechToText", "Found external service: $servicePackage/$serviceName")
+
+        // Prefer Google's service if available
+        if (servicePackage == "com.google.android.googlequicksearchbox") {
+            Log.d("SpeechToText", "Using Google's speech service")
+            return android.content.ComponentName(servicePackage, serviceName)
+        }
+
+        // Store first external service as fallback
+        if (bestExternalService == null) {
+            bestExternalService = android.content.ComponentName(servicePackage, serviceName)
+        }
+    }
+
+    return bestExternalService
 }
 
 @Composable
@@ -118,12 +219,19 @@ fun rememberSpeechToText(
 ): SpeechToTextState {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    
-    // Create SpeechRecognizer
-    // We use a key to recreate if context changes, but wrap in remember to keep instance
+
+    // Create SpeechRecognizer with EXTERNAL service to avoid loop
+    // When Smarty is the default assistant, the "default" recognizer is Smarty itself!
     val speechRecognizer = remember {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            SpeechRecognizer.createSpeechRecognizer(context)
+            val externalService = findExternalSpeechService(context)
+            if (externalService != null) {
+                Log.d("SpeechToText", "Using external speech service: ${externalService.packageName}")
+                SpeechRecognizer.createSpeechRecognizer(context, externalService)
+            } else {
+                Log.w("SpeechToText", "No external speech service found, using default (may cause issues)")
+                SpeechRecognizer.createSpeechRecognizer(context)
+            }
         } else {
             null
         }
@@ -182,10 +290,14 @@ fun rememberSpeechToText(
     DisposableEffect(speechRecognizer) {
         val listener = object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                state.isListening = true // Redundant but safe
+                Log.d("SpeechToText", "onReadyForSpeech - speech service is ready")
+                state.onCallbackReceived() // Cancel timeout - service is responding
+                state.isListening = true
             }
 
             override fun onBeginningOfSpeech() {
+                Log.d("SpeechToText", "onBeginningOfSpeech - user started speaking")
+                state.onCallbackReceived()
                 state.isListening = true
             }
 
@@ -197,12 +309,15 @@ fun rememberSpeechToText(
             override fun onBufferReceived(buffer: ByteArray?) {}
 
             override fun onEndOfSpeech() {
-                 // Recognition continues until final results. 
-                 // We keep isListening = true so the UI continues to shimmer/show active state
-                 // until onResults or onError is called.
+                Log.d("SpeechToText", "onEndOfSpeech - user stopped speaking")
+                // Recognition continues until final results.
+                // We keep isListening = true so the UI continues to shimmer/show active state
+                // until onResults or onError is called.
             }
 
             override fun onError(error: Int) {
+                Log.e("SpeechToText", "onError - code: $error")
+                state.onCallbackReceived() // Cancel timeout - we got a response (even if error)
                 state.isListening = false
                 state.rmsDb = 0f
                 val message = when(error) {
@@ -216,13 +331,15 @@ fun rememberSpeechToText(
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission denied"
                     else -> "Error $error"
                 }
-                // Filter out "No match" if it happens too often during silence, but standard is to report
+                // Filter out "No match" and "No speech detected" - these are normal
                 if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
                     state.onError?.invoke(message)
                 }
             }
 
             override fun onResults(results: Bundle?) {
+                Log.d("SpeechToText", "onResults received")
+                state.onCallbackReceived() // Cancel timeout
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = matches?.firstOrNull()
                 if (!text.isNullOrBlank()) {
@@ -233,6 +350,7 @@ fun rememberSpeechToText(
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
+                state.onCallbackReceived() // Cancel timeout - service is responding
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val partialText = matches?.firstOrNull()
                 if (!partialText.isNullOrBlank()) {
@@ -246,6 +364,7 @@ fun rememberSpeechToText(
         speechRecognizer?.setRecognitionListener(listener)
 
         onDispose {
+            state.stopListening() // Ensure timeout is cancelled
             try {
                 speechRecognizer?.destroy()
             } catch (e: Exception) {

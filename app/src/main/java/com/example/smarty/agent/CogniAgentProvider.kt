@@ -148,21 +148,31 @@ class CogniAgentProvider(
         }
 
         // FALLBACK: If NO executors from enabled providers, automatically try LOCAL_PC
+        // Skip validation - let the actual request fail with a better error message
         if (executors.isEmpty()) {
-            Log.w(TAG, "No enabled providers available - attempting LOCAL_PC fallback")
-            val localPcUrl = securePreferences.getLocalPCUrl()
-            if (localPcUrl.isNotBlank()) {
-                Log.d(TAG, "LOCAL_PC URL configured: $localPcUrl - attempting fallback")
+            Log.w(TAG, "No enabled providers available - attempting LOCAL_PC fallback (no validation)")
+            val localPcIp = securePreferences.getLocalPCIP()
+            if (localPcIp.isNotBlank()) {
+                val baseUrl = extractBaseUrl(securePreferences.getLocalPCUrl())
+                Log.d(TAG, "LOCAL_PC fallback: Using server at $baseUrl (skipping validation)")
                 val selectedModel = securePreferences.getSelectedModel(AIProvider.LOCAL_PC)
-                val result = createExecutorForProvider(AIProvider.LOCAL_PC, "local_pc_fallback", selectedModel, 1)
-                if (result is ExecutorResult.Success) {
-                    executors.add(result)
-                    Log.i(TAG, "LOCAL_PC fallback activated - using local server at $localPcUrl")
-                } else {
-                    Log.e(TAG, "LOCAL_PC fallback failed: $result")
-                }
+                val model = createOpenAICompatibleModel(selectedModel)
+
+                // Create executor WITHOUT validation - we're the last resort
+                val executor = ExecutorResult.Success(
+                    executor = createCustomOpenAIExecutor(
+                        apiKey = "",  // No API key needed for local server
+                        baseUrl = baseUrl
+                    ),
+                    model = model,
+                    provider = AIProvider.LOCAL_PC,
+                    apiKey = "local_pc_fallback",
+                    keyIndex = 1
+                )
+                executors.add(executor)
+                Log.i(TAG, "LOCAL_PC fallback activated - using local server at $baseUrl")
             } else {
-                Log.w(TAG, "LOCAL_PC fallback not available - no URL configured")
+                Log.w(TAG, "LOCAL_PC fallback not available - no IP configured")
             }
         }
 

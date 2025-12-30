@@ -63,14 +63,26 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="16dp"
+                android:paddingHorizontal="12dp"
                 android:paddingVertical="12dp">
+
+                <!-- Microphone Button (LEFT) -->
+                <ImageView
+                    android:id="@+id/mic_button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_mic"
+                    android:contentDescription="Voice input"
+                    app:tint="?attr/colorOnSurface" />
 
                 <!-- Sparkle/AI Icon -->
                 <ImageView
                     android:id="@+id/ai_icon"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
+                    android:layout_marginStart="4dp"
                     android:src="@drawable/ic_sparkle"
                     android:contentDescription="AI Assistant"
                     app:tint="@color/gemini_blue"/>
@@ -81,7 +93,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginHorizontal="12dp"
+                    android:layout_marginHorizontal="8dp"
                     android:background="@android:color/transparent"
                     android:hint="Ask anything..."
                     android:textSize="18sp"
@@ -94,16 +106,17 @@
                     app:boxStrokeWidthFocused="0dp"
                     tools:ignore="Autofill,LabelFor" />
 
-                <!-- Microphone Button -->
+                <!-- Send Button (RIGHT) -->
                 <ImageView
-                    android:id="@+id/mic_button"
+                    android:id="@+id/send_button"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
                     android:padding="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
-                    android:src="@drawable/ic_mic"
-                    android:contentDescription="Voice input"
-                    app:tint="?attr/colorOnSurface" />
+                    android:src="@drawable/ic_send"
+                    android:contentDescription="Send message"
+                    android:visibility="gone"
+                    app:tint="@color/gemini_blue" />
 
             </LinearLayout>
         </LinearLayout>

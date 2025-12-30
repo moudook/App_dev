@@ -408,7 +408,7 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
         // Local PC USB Tethering IP (TESTING ONLY - Remove before publishing!)
         private const val KEY_LOCAL_PC_IP = "local_pc_ip"
-        private const val DEFAULT_LOCAL_PC_IP = "10.166.18.196"  // Hardcoded for testing
+        private const val DEFAULT_LOCAL_PC_IP = "10.166.18.158"  // Hardcoded for testing
         private const val DEFAULT_LOCAL_PC_PORT = "8000"
 
         @Volatile

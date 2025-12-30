@@ -227,6 +227,7 @@ class CogniViewModel(
     }
     private val cogniAgent: CogniAgent by lazy {
         CogniAgent(
+            context = application,
             agentProvider = agentProvider,
             repository = repository,
             tavilySearchProvider = tavilySearchProvider,
@@ -302,6 +303,24 @@ class CogniViewModel(
             // Store citations for the current chat response
             pendingCitations.addAll(citations)
             Log.d(TAG, "Citations found: ${citations.size} sources")
+        }
+
+        override fun launchApp(packageName: String) {
+            // Launch app via package manager
+            try {
+                val intent = application.packageManager.getLaunchIntentForPackage(packageName)
+                intent?.let {
+                    it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    application.startActivity(it)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch app: $packageName", e)
+            }
+        }
+
+        override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
+            // CogniViewModel (main app) doesn't track screen context like AssistActivity
+            return null
         }
     }
 

@@ -1,12 +1,18 @@
 package com.example.smarty
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -52,7 +58,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import com.example.smarty.viewmodel.AssistViewModel
+import com.example.smarty.viewmodel.AssistViewModelFactory
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
 import com.example.smarty.agent.CogniAgent
@@ -111,6 +120,7 @@ class AssistActivity : ComponentActivity() {
     private lateinit var assistantPill: android.view.ViewGroup
     private lateinit var inputField: EditText
     private lateinit var micButton: ImageView
+    private lateinit var sendButton: ImageView
     private lateinit var composeView: ComposeView
 
     // Speech recognition
@@ -118,12 +128,24 @@ class AssistActivity : ComponentActivity() {
     private var isListening = mutableStateOf(false)
     private var partialText = mutableStateOf("")
 
+    // Audio focus management - critical for getting microphone access
+    private lateinit var audioManager: AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var hasAudioFocus = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     // Wake word detection
     private var wakeWordManager: VoskWakeWordManager? = null
     private var isWakeWordActive = mutableStateOf(false)
 
-    // Chat state
-    private val messages = mutableStateListOf<ChatMessage>()
+    // ViewModel for message persistence (UI-005 fix)
+    private val viewModel: AssistViewModel by lazy {
+        ViewModelProvider(this, AssistViewModelFactory(application))[AssistViewModel::class.java]
+    }
+
+    // Chat state - now backed by ViewModel for persistence
+    private val messages: List<ChatMessage>
+        get() = viewModel.messages.value
     private var isProcessing = mutableStateOf(false)
 
     // Lazy dependencies
@@ -193,10 +215,21 @@ class AssistActivity : ComponentActivity() {
                 Log.d(TAG, "Citations found: ${citations.size} sources")
             }
         }
+
+        override fun launchApp(packageName: String) {
+            this@AssistActivity.launchApp(packageName)
+        }
+
+        override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
+            return capturedScreenContext
+        }
     }
 
+    // Screen context captured when assistant is triggered
+    private var capturedScreenContext: com.example.smarty.agent.tools.external.ScreenContext? = null
+
     private val cogniAgent: CogniAgent by lazy {
-        CogniAgent(agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks)
+        CogniAgent(this, agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks)
     }
 
     private val localCommandProcessor: LocalCommandProcessor by lazy {
@@ -222,6 +255,9 @@ class AssistActivity : ComponentActivity() {
         // Layout Inflation
         setContentView(R.layout.activity_assistant)
 
+        // Initialize audio manager for audio focus handling
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
         // Extract assist context from intent
         extractAssistContext()
 
@@ -230,10 +266,12 @@ class AssistActivity : ComponentActivity() {
 
         // Logic Initialization
         initSpeechRecognizer()
-        initWakeWordManager()
+        // NOTE: Wake word manager initialization is DELAYED until after initial speech recognition
+        // This prevents Vosk from grabbing the microphone before Google speech can start
+        // initWakeWordManager() will be called after first speech recognition completes
 
-        // Session
-        lifecycleScope.launch {
+        // Session - defer to background to not block main thread during speech startup
+        lifecycleScope.launch(Dispatchers.IO) {
             loadNotesForContext()
             val session = chatRepository.createNewSession()
             sessionId = session.id
@@ -250,12 +288,15 @@ class AssistActivity : ComponentActivity() {
         // Speech auto-start is handled in onWindowFocusChanged for better reliability
         if (!assistContext?.selectedText.isNullOrBlank()) {
             Log.d(TAG, "Selected text found: ${assistContext?.selectedText?.take(50)}...")
+            // OPTIMIZED: Reduced delay from 300ms to 50ms
             window.decorView.postDelayed({
                 inputField.setText(assistContext?.selectedText)
                 inputField.setSelection(inputField.text.length)
-            }, 300)
+            }, 50)
         } else {
-            Log.d(TAG, "No selected text - voice will auto-start when window gains focus")
+            Log.d(TAG, "No selected text - voice will auto-start in onResume")
+            // Speech recognition is now started immediately in onResume
+            // No fallback timer needed since we start immediately without delay
         }
     }
 
@@ -264,6 +305,10 @@ class AssistActivity : ComponentActivity() {
      */
     private fun extractAssistContext() {
         try {
+            // Check if launched from VoiceInteractionSession (affects focus timing)
+            isFromVoiceInteraction = intent.getBooleanExtra("from_voice_interaction", false)
+            Log.d(TAG, "Launched from VoiceInteraction: $isFromVoiceInteraction")
+
             // Extract assist bundle for selected text
             // Note: EXTRA_ASSIST_BUNDLE is "android.intent.extra.ASSIST_BUNDLE"
             val assistBundle = intent.getBundleExtra("android.intent.extra.ASSIST_BUNDLE")
@@ -277,6 +322,30 @@ class AssistActivity : ComponentActivity() {
             assistContext = AssistContext(
                 selectedText = selectedText,
                 referringPackage = referringPackage
+            )
+
+            // Capture screen context for SaveScreenTool
+            capturedScreenContext = com.example.smarty.agent.tools.external.ScreenContext(
+                selectedText = selectedText,
+                referringApp = if (referringPackage.isNotBlank()) {
+                    try {
+                        packageManager.getApplicationLabel(
+                            packageManager.getApplicationInfo(referringPackage, 0)
+                        ).toString()
+                    } catch (e: Exception) {
+                        referringPackage
+                    }
+                } else null,
+                capturedAt = System.currentTimeMillis(),
+                contextData = buildMap {
+                    assistBundle?.keySet()?.forEach { key ->
+                        assistBundle.getString(key)?.let { value ->
+                            if (value.isNotBlank() && value.length < 500) {
+                                put(key, value)
+                            }
+                        }
+                    }
+                }
             )
 
             if (!selectedText.isNullOrBlank()) {
@@ -338,26 +407,62 @@ class AssistActivity : ComponentActivity() {
 
     // Track if we've already started listening
     private var hasStartedListeningOnFocus = false
+    // Track if launched from VoiceInteractionSession (needs different focus handling)
+    private var isFromVoiceInteraction = false
+    // Track if fallback timer has started listening
+    private var hasFallbackStartedListening = false
 
     /**
      * Called when window focus changes - best time to start speech recognition
      */
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        Log.d(TAG, "onWindowFocusChanged: hasFocus=$hasFocus, hasStartedListeningOnFocus=$hasStartedListeningOnFocus")
+        Log.d(TAG, "onWindowFocusChanged: hasFocus=$hasFocus, hasStartedListeningOnFocus=$hasStartedListeningOnFocus, isFromVoiceInteraction=$isFromVoiceInteraction, hasFallbackStarted=$hasFallbackStartedListening")
 
-        if (hasFocus && !hasStartedListeningOnFocus && assistContext?.selectedText.isNullOrBlank()) {
+        if (hasFocus && !hasStartedListeningOnFocus && !hasFallbackStartedListening && assistContext?.selectedText.isNullOrBlank()) {
             hasStartedListeningOnFocus = true
             Log.d(TAG, "Window has focus - starting speech recognition")
-            // Small delay to ensure everything is fully ready
+
+            // When launched from VoiceInteractionSession, the session's hide() causes a brief
+            // focus transition. Use a short delay for focus stabilization.
+            // OPTIMIZED: Reduced from 500/300ms to 150/50ms for faster startup
+            val focusDelay = if (isFromVoiceInteraction) 150L else 50L
+
             window.decorView.postDelayed({
+                // Double-check we still have focus before starting
+                if (!window.decorView.hasWindowFocus()) {
+                    Log.w(TAG, "Lost focus during delay, will retry when focus returns")
+                    hasStartedListeningOnFocus = false  // Reset to retry later
+                    return@postDelayed
+                }
+
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                     startListening()
                 } else {
                     Log.e(TAG, "No RECORD_AUDIO permission when trying to auto-start")
                     inputField.hint = "Tap mic to speak..."
                 }
-            }, 300)
+            }, focusDelay)
+        }
+    }
+
+    /**
+     * Fallback mechanism to start speech recognition if onWindowFocusChanged doesn't fire
+     * This handles edge cases where the focus callback is missed or delayed
+     */
+    private fun startSpeechRecognitionFallback() {
+        if (hasFallbackStartedListening || hasStartedListeningOnFocus || !assistContext?.selectedText.isNullOrBlank()) {
+            return
+        }
+
+        hasFallbackStartedListening = true
+        Log.d(TAG, "Fallback: Starting speech recognition (focus callback may have been missed)")
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startListening()
+        } else {
+            Log.e(TAG, "Fallback: No RECORD_AUDIO permission")
+            inputField.hint = "Tap mic to speak..."
         }
     }
     
@@ -369,20 +474,40 @@ class AssistActivity : ComponentActivity() {
         assistantPill = findViewById(R.id.assistant_pill)
         inputField = findViewById(R.id.input_field)
         micButton = findViewById(R.id.mic_button)
+        sendButton = findViewById(R.id.send_button)
         composeView = findViewById(R.id.response_content)
-        
+
         // Tap outside the pill = dismiss
-        touchOutsideInterceptor.setOnClickListener { 
+        touchOutsideInterceptor.setOnClickListener {
             finishWithAnimation()
         }
-        
+
         // Prevent clicks on pill from propagating to the interceptor
         assistantPill.setOnClickListener { /* consume click */ }
-        
+
         micButton.setOnClickListener { toggleListening() }
-        
+
+        // Send button click handler
+        sendButton.setOnClickListener {
+            val text = inputField.text.toString()
+            if (text.isNotBlank()) {
+                processInput(text)
+                inputField.text.clear()
+            }
+        }
+
+        // Text watcher to show/hide send button based on input
+        inputField.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val hasText = !s.isNullOrBlank()
+                sendButton.visibility = if (hasText) View.VISIBLE else View.GONE
+            }
+        })
+
         inputField.setOnEditorActionListener { v, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_SEND || 
+            if (actionId == EditorInfo.IME_ACTION_SEND ||
                (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
                 val text = v.text.toString()
                 if (text.isNotBlank()) {
@@ -397,10 +522,12 @@ class AssistActivity : ComponentActivity() {
         composeView.setContent {
             val isDarkTheme by securePreferences.isDarkTheme.collectAsState()
             val toolStatus by currentToolStatus
+            // UI-005: Collect messages from ViewModel for reactive updates
+            val messageList by viewModel.messages.collectAsState()
             CogniTheme(darkTheme = isDarkTheme, isTransparent = true) {
-                 if (messages.isNotEmpty() || isProcessing.value) {
+                 if (messageList.isNotEmpty() || isProcessing.value) {
                      MinimalResponseList(
-                         messages = messages,
+                         messages = messageList,
                          isProcessing = isProcessing.value,
                          toolStatus = toolStatus
                      )
@@ -410,7 +537,7 @@ class AssistActivity : ComponentActivity() {
     }
 
     private fun initSpeechRecognizer() {
-        Log.d(TAG, "Initializing speech recognizer...")
+        Log.d(TAG, "Checking speech recognition availability...")
 
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
             Log.e(TAG, "Speech recognition NOT available on this device!")
@@ -420,96 +547,323 @@ class AssistActivity : ComponentActivity() {
             return
         }
 
-        Log.d(TAG, "Speech recognition is available, creating recognizer...")
+        Log.d(TAG, "Speech recognition is available on this device")
+        // Note: Actual SpeechRecognizer creation is deferred to startListeningInternal()
+        // This ensures a fresh instance is created when we actually need it,
+        // after audio focus is acquired and other audio components have released.
+    }
+
+    /**
+     * Check if a specific speech recognition service is available.
+     */
+    private fun isRecognitionServiceAvailable(component: android.content.ComponentName): Boolean {
+        return try {
+            val pm = packageManager
+            val services = pm.queryIntentServices(
+                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH),
+                PackageManager.GET_META_DATA
+            )
+            services.any { it.serviceInfo.packageName == component.packageName }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking recognition service: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Find an external speech recognition service (NOT our own package).
+     * This is critical when Smarty is set as the default assistant, because
+     * the system's "default" recognizer would be Smarty itself, creating a loop.
+     */
+    private fun findExternalSpeechService(): android.content.ComponentName? {
+        val pm = packageManager
+        val myPackage = packageName
+
+        // Query all services that can handle speech recognition
+        // Use RecognitionService.SERVICE_INTERFACE ("android.speech.RecognitionService")
+        val recognizerIntent = Intent("android.speech.RecognitionService")
+        val services = pm.queryIntentServices(recognizerIntent, PackageManager.GET_META_DATA)
+
+        Log.d(TAG, "Found ${services.size} speech recognition services")
+
+        var bestExternalService: android.content.ComponentName? = null
+
+        for (resolveInfo in services) {
+            val serviceInfo = resolveInfo.serviceInfo
+            val servicePackage = serviceInfo.packageName
+            val serviceName = serviceInfo.name
+
+            // CRITICAL: Skip our own package to avoid the loop
+            if (servicePackage == myPackage) {
+                Log.d(TAG, "Skipping our own service: $servicePackage/$serviceName")
+                continue
+            }
+
+            Log.d(TAG, "Found external service: $servicePackage/$serviceName")
+
+            // Prefer Google's service if available
+            if (servicePackage == "com.google.android.googlequicksearchbox") {
+                Log.d(TAG, "Using Google's speech service")
+                return android.content.ComponentName(servicePackage, serviceName)
+            }
+
+            // Store first external service as fallback
+            if (bestExternalService == null) {
+                bestExternalService = android.content.ComponentName(servicePackage, serviceName)
+            }
+        }
+
+        return bestExternalService
+    }
+
+    /**
+     * Create and configure a new SpeechRecognizer instance.
+     * Creates a fresh instance each time to ensure clean state.
+     *
+     * CRITICAL: We must explicitly use an EXTERNAL speech recognition service.
+     * When Smarty is set as the default assistant, the system's "default" recognizer
+     * is Smarty itself (AssistInteractionService), which causes a recursive loop.
+     *
+     * Solution: Query all available services and pick one that is NOT our package.
+     */
+    private fun createSpeechRecognizer(): SpeechRecognizer? {
+        Log.d(TAG, "Creating fresh SpeechRecognizer instance...")
+
+        // Destroy old recognizer if exists
+        try {
+            speechRecognizer?.cancel()
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+        } catch (e: Exception) {
+            Log.w(TAG, "Error cleaning up old recognizer: ${e.message}")
+        }
 
         try {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
-                setRecognitionListener(object : RecognitionListener {
-                    override fun onReadyForSpeech(params: Bundle?) {
-                        Log.d(TAG, "onReadyForSpeech - recognizer is ready")
-                        isListening.value = true
-                        runOnUiThread {
-                            micButton.setColorFilter(Color.parseColor("#4285F4")) // Google Blue
-                            inputField.hint = "Listening..."
-                        }
-                    }
-                    override fun onBeginningOfSpeech() {
-                        Log.d(TAG, "onBeginningOfSpeech - user started speaking")
-                    }
-                    override fun onRmsChanged(rmsdB: Float) {}
-                    override fun onBufferReceived(buffer: ByteArray?) {}
-                    override fun onEndOfSpeech() {
-                        Log.d(TAG, "onEndOfSpeech - user stopped speaking")
-                        isListening.value = false
-                        runOnUiThread {
-                            micButton.clearColorFilter()
-                            inputField.hint = "Ask anything..."
-                        }
-                    }
-                    override fun onError(error: Int) {
-                        val errorMessage = when (error) {
-                            SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-                            SpeechRecognizer.ERROR_CLIENT -> "Client side error"
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
-                            SpeechRecognizer.ERROR_NETWORK -> "Network error"
-                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-                            SpeechRecognizer.ERROR_NO_MATCH -> "No speech match"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
-                            SpeechRecognizer.ERROR_SERVER -> "Server error"
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
-                            else -> "Unknown error ($error)"
-                        }
-                        Log.e(TAG, "Speech recognition error: $errorMessage")
-                        isListening.value = false
+            // CRITICAL: Find an external speech recognition service (NOT our package)
+            val externalService = findExternalSpeechService()
 
-                        // Don't show error for no speech - that's normal
-                        if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                            runOnUiThread {
-                                inputField.hint = errorMessage
-                            }
-                        }
+            var recognizer: SpeechRecognizer? = null
 
-                        startWakeWordDetection()
-                        runOnUiThread {
-                            micButton.clearColorFilter()
-                            // Reset hint after brief display
-                            window.decorView.postDelayed({ inputField.hint = "Ask anything..." }, 2000)
-                        }
+            if (externalService != null) {
+                Log.d(TAG, "Using external speech service: ${externalService.packageName}/${externalService.className}")
+                recognizer = SpeechRecognizer.createSpeechRecognizer(this, externalService)
+            } else {
+                // No external service found - this is a problem
+                // Try hardcoded Google services as last resort (for older Android versions)
+                Log.w(TAG, "No external speech service found, trying hardcoded Google services...")
+
+                val googleComponents = listOf(
+                    android.content.ComponentName(
+                        "com.google.android.googlequicksearchbox",
+                        "com.google.android.voicesearch.serviceapi.GoogleRecognitionService"
+                    ),
+                    android.content.ComponentName(
+                        "com.google.android.googlequicksearchbox",
+                        "com.google.android.apps.gsa.speechrecognition.service.GsaSpeechRecognitionService"
+                    )
+                )
+
+                for (component in googleComponents) {
+                    try {
+                        Log.d(TAG, "Trying hardcoded: ${component.className}")
+                        recognizer = SpeechRecognizer.createSpeechRecognizer(this, component)
+                        Log.d(TAG, "Created recognizer with: ${component.className}")
+                        break
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed: ${e.message}")
                     }
-                    override fun onResults(results: Bundle?) {
-                        Log.d(TAG, "onResults received")
-                        isListening.value = false
-                        val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                        Log.d(TAG, "Speech result: $text")
-                        if (!text.isNullOrBlank()) {
-                            runOnUiThread { inputField.setText(text) }
-                            processInput(text)
-                        } else {
-                            startWakeWordDetection()
-                        }
-                    }
-                    override fun onPartialResults(partialResults: Bundle?) {
-                        val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                        if (!text.isNullOrBlank()) {
-                            partialText.value = text
-                            runOnUiThread {
-                                inputField.setText(text)
-                                inputField.setSelection(text.length)
-                            }
-                        }
-                    }
-                    override fun onEvent(eventType: Int, params: Bundle?) {}
-                })
+                }
             }
-            Log.d(TAG, "Speech recognizer created successfully")
+
+            // IMPORTANT: Do NOT fall back to default recognizer!
+            // When Smarty is the default assistant, "default" = Smarty = loop
+            if (recognizer == null) {
+                Log.e(TAG, "NO external speech recognition service available!")
+                Log.e(TAG, "Cannot use 'default' because that would be Smarty itself (loop)")
+                return null
+            }
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    Log.d(TAG, "onReadyForSpeech - recognizer is ready, audio focus acquired!")
+                    // Cancel the timeout - speech recognition started successfully
+                    speechTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+                    isListening.value = true
+                    runOnUiThread {
+                        micButton.setColorFilter(Color.parseColor("#4285F4")) // Google Blue
+                        inputField.hint = "Listening..."
+                    }
+                }
+                override fun onBeginningOfSpeech() {
+                    Log.d(TAG, "onBeginningOfSpeech - user started speaking")
+                }
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {
+                    Log.d(TAG, "onEndOfSpeech - user stopped speaking")
+                    isListening.value = false
+                    runOnUiThread {
+                        micButton.clearColorFilter()
+                        inputField.hint = "Ask anything..."
+                    }
+                }
+                override fun onError(error: Int) {
+                    // Cancel the timeout - we got a response (even if error)
+                    speechTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+
+                    val errorMessage = when (error) {
+                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                        SpeechRecognizer.ERROR_CLIENT -> "Client side error"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
+                        SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech match"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
+                        SpeechRecognizer.ERROR_SERVER -> "Server error"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input"
+                        else -> "Unknown error ($error)"
+                    }
+                    Log.e(TAG, "Speech recognition error: $errorMessage (code: $error)")
+                    isListening.value = false
+
+                    // Release audio focus on error
+                    releaseAudioFocus()
+
+                    // Don't show error for no speech - that's normal
+                    if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                        runOnUiThread {
+                            inputField.hint = errorMessage
+                        }
+                    }
+
+                    startWakeWordDetection()
+                    runOnUiThread {
+                        micButton.clearColorFilter()
+                        // Reset hint after brief display
+                        mainHandler.postDelayed({ inputField.hint = "Ask anything..." }, 2000)
+                    }
+                }
+                override fun onResults(results: Bundle?) {
+                    Log.d(TAG, "onResults received")
+                    // Cancel the timeout
+                    speechTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+                    isListening.value = false
+
+                    // Release audio focus on success
+                    releaseAudioFocus()
+
+                    val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    Log.d(TAG, "Speech result: $text")
+                    if (!text.isNullOrBlank()) {
+                        runOnUiThread { inputField.setText(text) }
+                        processInput(text)
+                    } else {
+                        startWakeWordDetection()
+                    }
+                }
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    if (!text.isNullOrBlank()) {
+                        partialText.value = text
+                        runOnUiThread {
+                            inputField.setText(text)
+                            inputField.setSelection(text.length)
+                        }
+                    }
+                }
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+            Log.d(TAG, "Fresh SpeechRecognizer created successfully")
+            return recognizer
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create speech recognizer: ${e.message}", e)
-            runOnUiThread {
-                inputField.hint = "Voice unavailable - type here"
-            }
+            return null
         }
     }
     
+    // Timeout handler for speech recognition
+    private var speechTimeoutRunnable: Runnable? = null
+    private val speechTimeoutMs = 4000L // 4 seconds to wait for onReadyForSpeech
+
+    /**
+     * Request audio focus to ensure we get exclusive access to the microphone.
+     * This is critical for transparent overlay activities where the background app
+     * might still be holding audio resources.
+     */
+    private fun requestAudioFocus(): Boolean {
+        Log.d(TAG, "Requesting audio focus...")
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener { focusChange ->
+                    when (focusChange) {
+                        AudioManager.AUDIOFOCUS_GAIN -> {
+                            Log.d(TAG, "Audio focus GAINED")
+                            hasAudioFocus = true
+                        }
+                        AudioManager.AUDIOFOCUS_LOSS -> {
+                            // Permanent loss - another app took focus completely
+                            Log.d(TAG, "Audio focus LOST permanently")
+                            hasAudioFocus = false
+                            if (isListening.value) {
+                                stopListening()
+                            }
+                        }
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                            // Transient loss is EXPECTED when SpeechRecognizer service starts
+                            // DO NOT stop listening - the speech service is using our audio request
+                            Log.d(TAG, "Audio focus TRANSIENT loss: $focusChange (expected, continuing)")
+                            // Keep hasAudioFocus true - we still have logical ownership
+                        }
+                    }
+                }
+                .build()
+
+            val result = audioManager.requestAudioFocus(audioFocusRequest!!)
+            hasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            Log.d(TAG, "Audio focus request result: $result (granted: $hasAudioFocus)")
+            return hasAudioFocus
+        } else {
+            @Suppress("DEPRECATION")
+            val result = audioManager.requestAudioFocus(
+                { focusChange ->
+                    // Only stop on permanent loss, not transient
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                        hasAudioFocus = false
+                        if (isListening.value) stopListening()
+                    }
+                },
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+            )
+            hasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            Log.d(TAG, "Audio focus request result (legacy): $result (granted: $hasAudioFocus)")
+            return hasAudioFocus
+        }
+    }
+
+    /**
+     * Release audio focus when done with speech recognition.
+     */
+    private fun releaseAudioFocus() {
+        Log.d(TAG, "Releasing audio focus...")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let {
+                audioManager.abandonAudioFocusRequest(it)
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+        hasAudioFocus = false
+    }
+
     private fun startListening() {
         Log.d(TAG, "startListening() called")
 
@@ -523,21 +877,69 @@ class AssistActivity : ComponentActivity() {
         }
         Log.d(TAG, "RECORD_AUDIO permission granted")
 
-        // Stop wake word to free up audio
-        stopWakeWordDetection()
-
-        // Check recognizer state
-        if (speechRecognizer == null) {
-            Log.e(TAG, "Speech recognizer is NULL - recreating...")
-            initSpeechRecognizer()
-            if (speechRecognizer == null) {
-                Log.e(TAG, "Failed to recreate speech recognizer")
-                return
-            }
-        }
-
         if (isListening.value) {
             Log.d(TAG, "Already listening, ignoring startListening call")
+            return
+        }
+
+        // Stop wake word to free up audio - this is critical
+        Log.d(TAG, "Stopping wake word detection...")
+        stopWakeWordDetection()
+        wakeWordManager?.stopListening()
+
+        // CRITICAL: Request audio focus FIRST to force other audio components to release
+        Log.d(TAG, "Requesting audio focus...")
+        if (!requestAudioFocus()) {
+            Log.e(TAG, "Failed to get audio focus - another app may be using the microphone")
+            runOnUiThread {
+                inputField.hint = "Mic in use - tap to retry"
+                micButton.clearColorFilter()
+            }
+            return
+        }
+        Log.d(TAG, "Audio focus granted!")
+
+        // Show starting indicator
+        runOnUiThread {
+            inputField.hint = "Starting voice..."
+            micButton.setColorFilter(Color.parseColor("#FFA500")) // Orange during startup
+        }
+
+        // Add a brief delay after audio focus to ensure:
+        // 1. Other audio components (Vosk) have released the mic
+        // 2. Audio focus change has propagated through the system
+        // OPTIMIZED: Reduced from 800/150ms to 100/30ms for faster startup
+        // The audio focus request itself forces other apps to release the mic
+        val delay = if (isFromVoiceInteraction) 100L else 30L
+        Log.d(TAG, "Brief delay for audio release (delay=${delay}ms)...")
+        mainHandler.postDelayed({
+            if (!isActivityResumed) {
+                Log.w(TAG, "Activity not resumed, skipping speech start")
+                releaseAudioFocus()
+                return@postDelayed
+            }
+
+            startListeningInternal()
+        }, delay)
+    }
+
+    /**
+     * Internal method to actually start the speech recognizer.
+     * Called after audio focus is acquired and a brief delay.
+     */
+    private fun startListeningInternal() {
+        Log.d(TAG, "startListeningInternal() - creating fresh recognizer...")
+
+        // CRITICAL: Create a fresh SpeechRecognizer instance
+        // This ensures we get a clean state after audio focus is acquired
+        speechRecognizer = createSpeechRecognizer()
+        if (speechRecognizer == null) {
+            Log.e(TAG, "Failed to create speech recognizer")
+            releaseAudioFocus()
+            runOnUiThread {
+                inputField.hint = "Voice unavailable - tap to retry"
+                micButton.clearColorFilter()
+            }
             return
         }
 
@@ -548,21 +950,45 @@ class AssistActivity : ComponentActivity() {
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-                // Add prefer offline if available (faster)
+                // Use online recognition (more reliable for assistant overlay)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
             }
 
             Log.d(TAG, "Calling speechRecognizer.startListening()...")
-            runOnUiThread {
-                inputField.hint = "Starting voice..."
-                micButton.setColorFilter(Color.parseColor("#FFA500")) // Orange during startup
+
+            // Cancel any existing timeout
+            speechTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+
+            // Set up timeout to detect if speech recognition fails to start
+            speechTimeoutRunnable = Runnable {
+                if (!isListening.value && !isProcessing.value) {
+                    Log.w(TAG, "Speech recognition timeout - no callback received in ${speechTimeoutMs}ms")
+                    runOnUiThread {
+                        inputField.hint = "Tap mic to speak"
+                        micButton.clearColorFilter()
+                    }
+                    // Release audio focus on timeout
+                    releaseAudioFocus()
+                    // Clean up recognizer
+                    try {
+                        speechRecognizer?.cancel()
+                        speechRecognizer?.destroy()
+                        speechRecognizer = null
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error cleaning up speech recognizer", e)
+                    }
+                }
             }
+            mainHandler.postDelayed(speechTimeoutRunnable!!, speechTimeoutMs)
+
             speechRecognizer?.startListening(intent)
-            Log.d(TAG, "startListening() call completed successfully")
+            Log.d(TAG, "startListening() call completed - waiting for callback...")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start listening: ${e.message}", e)
+            releaseAudioFocus()
             runOnUiThread {
-                inputField.hint = "Voice error - type instead"
+                // UI-004: Encourage retry instead of just showing error
+                inputField.hint = "Voice unavailable - tap mic to retry"
                 micButton.clearColorFilter()
             }
         }
@@ -570,8 +996,12 @@ class AssistActivity : ComponentActivity() {
 
     private fun stopListening() {
         try {
+            // Cancel any pending timeout
+            speechTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
             speechRecognizer?.stopListening()
             isListening.value = false
+            // Release audio focus when we stop listening
+            releaseAudioFocus()
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping speech: ${e.message}")
         }
@@ -588,7 +1018,7 @@ class AssistActivity : ComponentActivity() {
             pendingCitations.clear()
 
             val userMessage = ChatMessage(role = ChatRole.USER, content = text)
-            messages.add(userMessage)
+            viewModel.addMessage(userMessage)  // UI-005: Use ViewModel for persistence
             isProcessing.value = true
 
             try {
@@ -596,27 +1026,37 @@ class AssistActivity : ComponentActivity() {
                 when (commandResult) {
                     is CommandResult.Handled -> {
                         val assistantMessage = ChatMessage(role = ChatRole.ASSISTANT, content = commandResult.response)
-                        messages.add(assistantMessage)
+                        viewModel.addMessage(assistantMessage)  // UI-005: Use ViewModel for persistence
                     }
                     is CommandResult.PassToLLM -> {
-                         val cleanHistory = messages.filter { it.role != ChatRole.SYSTEM }.map { 
-                             (if(it.role==ChatRole.USER) "USER" else "ASSISTANT") to it.content 
+                         val cleanHistory = messages.filter { it.role != ChatRole.SYSTEM }.map {
+                             (if(it.role==ChatRole.USER) "USER" else "ASSISTANT") to it.content
                          }.takeLast(10)
-                         
+
                          val result = withContext(Dispatchers.IO) {
                              cogniAgent.run(text, cleanHistory)
                          }
-                         
+
                          val response = when (result) {
                              is AgentResult.Success -> result.response
                              is AgentResult.Error -> result.message
                              is AgentResult.NoProvider -> "Please set up an AI provider in settings."
                          }
-                         messages.add(ChatMessage(role = ChatRole.ASSISTANT, content = response, isError = result is AgentResult.Error))
+                         viewModel.addMessage(ChatMessage(role = ChatRole.ASSISTANT, content = response, isError = result is AgentResult.Error))  // UI-005
                     }
                 }
             } catch (e: Exception) {
-                messages.add(ChatMessage(role = ChatRole.ASSISTANT, content = "Error: ${e.message}", isError = true))
+                // UI-002: Classify exceptions and provide user-friendly error messages
+                val userMessage = when (e) {
+                    is java.net.UnknownHostException -> "No internet connection. Please check your network."
+                    is java.net.SocketTimeoutException -> "Request timed out. Please try again."
+                    is kotlinx.coroutines.TimeoutCancellationException -> "The AI took too long to respond. Try a simpler question."
+                    is java.net.ConnectException -> "Couldn't connect to the server. Please check your connection."
+                    is javax.net.ssl.SSLException -> "Secure connection failed. Please try again."
+                    else -> "Something went wrong: ${e.localizedMessage ?: "Unknown error"}"
+                }
+                Log.e(TAG, "Error in processInput: ${e.javaClass.simpleName}", e)
+                viewModel.addMessage(ChatMessage(role = ChatRole.ASSISTANT, content = userMessage, isError = true))
             } finally {
                 isProcessing.value = false
                 startWakeWordDetection()
@@ -655,7 +1095,27 @@ class AssistActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    // Track if wake word manager has been initialized
+    private var wakeWordInitialized = false
+
+    /**
+     * Initialize wake word manager - called AFTER initial speech recognition completes
+     * We delay this to prevent Vosk from grabbing the microphone before Google speech recognizer
+     */
     private fun initWakeWordManager() {
+        if (wakeWordInitialized) {
+            Log.d(TAG, "Wake word manager already initialized")
+            return
+        }
+
+        if (isListening.value || isProcessing.value) {
+            Log.d(TAG, "Skipping wake word init - speech/processing active")
+            return
+        }
+
+        wakeWordInitialized = true
+        Log.d(TAG, "Initializing wake word manager")
+
         wakeWordManager = VoskWakeWordManager(this, lifecycleScope) {
             isWakeWordActive.value = false
             window.decorView.postDelayed({ startListening() }, 200)
@@ -664,7 +1124,18 @@ class AssistActivity : ComponentActivity() {
     }
     
     private fun startWakeWordDetection() {
-        if (isProcessing.value) return
+        // Don't start wake word if Google speech is active or processing
+        if (isProcessing.value || isListening.value) {
+            Log.d(TAG, "Skipping wake word - speech/processing active")
+            return
+        }
+
+        // Initialize wake word manager if not done yet
+        // This happens after first speech recognition completes
+        if (!wakeWordInitialized) {
+            initWakeWordManager()
+        }
+
         isWakeWordActive.value = true
         wakeWordManager?.restartListening()
     }
@@ -704,17 +1175,78 @@ class AssistActivity : ComponentActivity() {
         }
     }
     
+    // Track if activity is in resumed state
+    private var isActivityResumed = false
+    // Track if we've actually tried to start speech (not just scheduled it)
+    private var hasAttemptedSpeechStart = false
+
+    override fun onResume() {
+        super.onResume()
+        isActivityResumed = true
+        Log.d(TAG, "onResume - activity is visible")
+
+        // CRITICAL: Pause all Vosk instances across the app to free up microphone
+        com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = true
+        Log.d(TAG, "Vosk globally paused for Google speech recognition")
+
+        // Start speech recognition IMMEDIATELY in onResume for assistant overlay
+        // No delay - we need to grab the mic before anything else can
+        if (!hasStartedListeningOnFocus && !hasFallbackStartedListening &&
+            assistContext?.selectedText.isNullOrBlank() && !isListening.value && !isProcessing.value) {
+            Log.d(TAG, "onResume: Starting speech recognition immediately")
+            hasFallbackStartedListening = true
+            hasAttemptedSpeechStart = true
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                startListening()
+            } else {
+                Log.e(TAG, "onResume: No RECORD_AUDIO permission")
+                inputField.hint = "Tap mic to speak..."
+            }
+        }
+    }
+
     override fun onPause() {
         super.onPause()
-        stopListening()
+        isActivityResumed = false
+        Log.d(TAG, "onPause - activity going to background")
+
+        // Only stop listening if we've actually started and are listening
+        // Don't cancel if we haven't had a chance to start yet
+        if (hasAttemptedSpeechStart && (isListening.value || hasStartedListeningOnFocus)) {
+            Log.d(TAG, "onPause: Stopping active speech recognition")
+            stopListening()
+        } else {
+            Log.d(TAG, "onPause: Speech not active, not stopping")
+        }
+
+        // Resume Vosk when AssistActivity goes to background
+        com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = false
+        Log.d(TAG, "Vosk global pause released")
     }
     
     override fun onDestroy() {
-        super.onDestroy()
+        Log.d(TAG, "onDestroy called")
+
+        // Cancel any pending callbacks
+        speechTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        mainHandler.removeCallbacksAndMessages(null)
+
+        // Release audio focus
+        releaseAudioFocus()
+
+        // UI-003: Cancel any pending recognition before destroying
+        speechRecognizer?.cancel()
         speechRecognizer?.destroy()
         speechRecognizer = null
         wakeWordManager?.destroy()
         wakeWordManager = null
+
+        // Ensure Vosk global pause is released on destroy
+        com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = false
+        Log.d(TAG, "onDestroy: Vosk global pause released")
+
+        // UI-003: Call super.onDestroy() after cleanup
+        super.onDestroy()
     }
 }
 

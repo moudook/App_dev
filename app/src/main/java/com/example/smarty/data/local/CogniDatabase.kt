@@ -1,10 +1,12 @@
 package com.example.smarty.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.smarty.data.model.AgentExecution
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.data.model.CalendarEvent
@@ -44,8 +46,95 @@ abstract class CogniDatabase : RoomDatabase() {
     abstract fun noteVersionDao(): NoteVersionDao
 
     companion object {
+        private const val TAG = "CogniDatabase"
+
         @Volatile
         private var INSTANCE: CogniDatabase? = null
+
+        /**
+         * Callback to ensure FTS5 table exists.
+         * FTS tables are defined in migrations but NOT as Room entities,
+         * so they don't get created on fresh database creation (only on migration).
+         * This callback ensures the FTS table exists whenever the database is opened.
+         */
+        private val databaseCallback = object : RoomDatabase.Callback() {
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                ensureFtsTableExists(db)
+            }
+
+            override fun onCreate(db: SupportSQLiteDatabase) {
+                super.onCreate(db)
+                // For fresh installs, create the FTS table immediately
+                createFtsTable(db)
+            }
+
+            private fun ensureFtsTableExists(db: SupportSQLiteDatabase) {
+                try {
+                    // Check if notes_fts table exists
+                    val cursor = db.query(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='notes_fts'"
+                    )
+                    val exists = cursor.use { it.count > 0 }
+
+                    if (!exists) {
+                        Log.w(TAG, "FTS table missing - creating it now")
+                        createFtsTable(db)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error checking/creating FTS table", e)
+                }
+            }
+
+            private fun createFtsTable(db: SupportSQLiteDatabase) {
+                try {
+                    // Create FTS5 virtual table for fast text search
+                    db.execSQL("""
+                        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+                            title,
+                            content,
+                            summary,
+                            content='notes',
+                            content_rowid='rowid'
+                        )
+                    """)
+
+                    // Populate FTS table with existing data
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO notes_fts(rowid, title, content, summary)
+                        SELECT rowid, COALESCE(title, ''), COALESCE(content, ''), COALESCE(summary, '') FROM notes
+                    """)
+
+                    // Create triggers to keep FTS table in sync
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN
+                            INSERT INTO notes_fts(rowid, title, content, summary)
+                            VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.content, ''), COALESCE(new.summary, ''));
+                        END
+                    """)
+
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN
+                            INSERT INTO notes_fts(notes_fts, rowid, title, content, summary)
+                            VALUES('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.content, ''), COALESCE(old.summary, ''));
+                        END
+                    """)
+
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN
+                            INSERT INTO notes_fts(notes_fts, rowid, title, content, summary)
+                            VALUES('delete', old.rowid, COALESCE(old.title, ''), COALESCE(old.content, ''), COALESCE(old.summary, ''));
+                            INSERT INTO notes_fts(rowid, title, content, summary)
+                            VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.content, ''), COALESCE(new.summary, ''));
+                        END
+                    """)
+
+                    Log.i(TAG, "FTS table created/verified successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to create FTS table", e)
+                }
+            }
+        }
 
         fun getDatabase(context: Context): CogniDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -54,6 +143,7 @@ abstract class CogniDatabase : RoomDatabase() {
                     CogniDatabase::class.java,
                     "cogni_database"
                 )
+                    .addCallback(databaseCallback)
                     .addMigrations(
                         Migrations.MIGRATION_1_2,
                         Migrations.MIGRATION_2_3,

@@ -2,6 +2,7 @@
 # Ignore all markdown files globally
 *.md
 **/*.md
+
 # Keep README.md tracked
 !README.md
 
@@ -36,33 +37,13 @@ PRN
 bad ai response.txt
 The features that I want to add I a.txt
 Cogni_Icon.svg
-docs/UI_ARCHITECTURE.md
-docs/UI_QUICK_REFERENCE.md
-GIT_CONFIGURATION_SUMMARY.md
 nul
 NUL
 *.pdf
 
 # Reference/Notes
-REFERENCE.md
-NOTES.md
-TODO.md
-USE_CASE.md
 *.notes
 *.reference
-BUG_REPORT.md
-AGENT_DOCUMENTATION.md
-
-
-# Markdown documentation files (except README.md)
-DEVELOPMENT_LOG.md
-GIT_CONFIGURATION_SUMMARY.md
-SECURITY.md
-USE_CASES.md
-ai_companion_app_feature_additions_specification.md
-docs/UI_ARCHITECTURE.md
-docs/UI_QUICK_REFERENCE.md
-
 
 # AI Agent Documentation (local reference only)
 .agent/
@@ -153,42 +134,27 @@ credentials.json
 *.sqlite
 *.sqlite3
 
-
 #errors
-KOOG_AGENT_ISSUES.md
 koog_migration_errors.log
 compile_log.txt
 compile_log_2.txt
 compile_log_3.txt
 compile_log_4.txt
 build_log.txt
-IMPORTS_CHECK.md
 
 #issues
-issues_with_the_app/
-*_meltdown.md
-*_bloodbath.md
+#issues_with_the_app/
 issue_with_ai_agent_audio_player_case_2.png
 issue_with_ai_agent_audio_player.png
 agent_issue_during_chat.png
 new_app_icon_for_cogni_11zon.png
 new_app_icon_for_cogni.png
-VISUALIZER_IMPROVEMENT_TASK.md
-NOTECARD_PROCESSING_FLOW.md
-DATABASE_VS_API_EXPLANATION.md
-AI_AGENT_PROCESSING_FLOW.md
-SIMPLE_COST_EXPLANATION.md
-
-
 
 #solutions
 error_and_warning_solution.txt
-SHAKE_FIX_INSTRUCTIONS.md
-Android AI Agent with Tool Calling.md
 AI_AGENT_SOLUTION_1.txt
 AI_AGENT_SOLUTION_2.txt
 AI_AGENT_SOLUTION_3.txt
-BUG_FIX.md
 update_settings.py
 .env
 for_my_reference/
@@ -213,15 +179,12 @@ w
 # Text-to-Speech Models (downloadable)
 app/src/main/assets/tts_models/
 
-
 #img
 refrence_.png
 refrence.jpg
 tracked_files.txt
 I'm for I'm going for this style for the notecard UI, Something like this So that it don't overlap with other things A small title.png
 something_like_this_for_the_citation.png
-
-
 
 #logs
 build_log_2.txt

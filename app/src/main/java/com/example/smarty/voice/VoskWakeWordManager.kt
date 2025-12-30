@@ -88,6 +88,41 @@ class VoskWakeWordManager(
 
         // Model validity cache duration - must be in companion object for const
         private const val VALIDITY_CACHE_MS = 5000L
+
+        /**
+         * Global flag to pause Vosk across all instances.
+         * Set to true when AssistActivity is using Google Speech.
+         * This allows AssistActivity to prevent Vosk from grabbing the microphone.
+         */
+        @Volatile
+        var isGloballyPaused: Boolean = false
+            set(value) {
+                val oldValue = field
+                field = value
+                Log.d(TAG, "Global pause state changed: $oldValue -> $value")
+                // When paused, notify all registered instances to stop immediately
+                if (value && !oldValue) {
+                    activeInstances.forEach { instance ->
+                        Log.d(TAG, "Stopping active Vosk instance due to global pause")
+                        try {
+                            instance.forceStopImmediate()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error stopping instance: ${e.message}")
+                        }
+                    }
+                }
+            }
+
+        // Track active instances for global pause functionality
+        private val activeInstances = mutableSetOf<VoskWakeWordManager>()
+
+        fun registerInstance(instance: VoskWakeWordManager) {
+            activeInstances.add(instance)
+        }
+
+        fun unregisterInstance(instance: VoskWakeWordManager) {
+            activeInstances.remove(instance)
+        }
     }
 
     // Thread-safe mutex for state operations
@@ -100,6 +135,11 @@ class VoskWakeWordManager(
     // Flag to auto-start listening after initialization
     @Volatile
     private var shouldStartAfterInit = false
+
+    init {
+        // Register this instance for global pause functionality
+        registerInstance(this)
+    }
 
     // Flag to prevent multiple wake word callbacks from same detection
     @Volatile
@@ -434,8 +474,19 @@ class VoskWakeWordManager(
      * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
      */
     fun startListening() {
+        // Check global pause flag first
+        if (isGloballyPaused) {
+            Log.d(TAG, "Vosk globally paused (AssistActivity active) - not starting")
+            return
+        }
+
         scope.launch {
             stateMutex.withLock {
+                // Double-check inside mutex
+                if (isGloballyPaused) {
+                    Log.d(TAG, "Vosk globally paused (mutex check) - not starting")
+                    return@withLock
+                }
                 startListeningInternal()
             }
         }
@@ -469,6 +520,28 @@ class VoskWakeWordManager(
     }
 
     /**
+     * Force stop immediately (synchronous).
+     * Called from global pause mechanism to immediately release microphone.
+     * Does NOT use coroutine/mutex to ensure instant release.
+     */
+    internal fun forceStopImmediate() {
+        Log.d(TAG, "Force stop immediate called")
+        shouldStartAfterInit = false
+        try {
+            speechService?.stop()
+            speechService?.shutdown()
+            speechService = null
+            _isListening.value = false
+            Log.d(TAG, "Force stopped - mic released")
+        } catch (e: Exception) {
+            Log.w(TAG, "Error during force stop: ${e.message}")
+            // Force cleanup anyway
+            speechService = null
+            _isListening.value = false
+        }
+    }
+
+    /**
      * Restart listening after Google STT completes.
      * This re-enables wake word detection.
      *
@@ -478,6 +551,12 @@ class VoskWakeWordManager(
      * DEBOUNCED: Prevents rapid consecutive calls from crashing the recognizer.
      */
     fun restartListening() {
+        // Check global pause flag first
+        if (isGloballyPaused) {
+            Log.d(TAG, "Vosk globally paused (AssistActivity active) - not restarting")
+            return
+        }
+
         // DEBOUNCE: Ignore rapid consecutive restart calls
         val now = System.currentTimeMillis()
         if (now - lastRestartTime < restartDebounceMs) {
@@ -634,6 +713,9 @@ class VoskWakeWordManager(
     fun destroy() {
         Log.d(TAG, "Destroying Vosk resources")
 
+        // Unregister from global pause tracking
+        unregisterInstance(this)
+
         // CRITICAL: Set destroyed flag FIRST - this signals all callbacks to abort
         // This is essential for graceful shutdown when app closes during init
         isDestroyed = true
@@ -642,7 +724,7 @@ class VoskWakeWordManager(
         shouldStartAfterInit = false
 
         // Stop listening and release audio resources
-        stopListening()
+        forceStopImmediate()  // Use immediate stop for faster cleanup
 
         // Clean up Vosk resources
         try {

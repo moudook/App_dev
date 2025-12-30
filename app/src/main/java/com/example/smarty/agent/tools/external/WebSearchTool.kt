@@ -47,6 +47,11 @@ class WebSearchTool(
         private const val TAG = "WebSearchTool"
         private const val TAVILY_RATE_KEY = "tavily_search"
         private const val TAVILY_DAILY_LIMIT = 1000  // Free tier limit
+
+        // AGENT-010: Rate limit tracking (resets on app restart)
+        // NOTE: Persistence requires Context injection which WebSearchTool doesn't support.
+        // To add persistence, modify CogniAgent.buildToolRegistry() to inject SharedPreferences
+        // or create a singleton RateLimitTracker that can be initialized with Application context.
         private var dailyCallCount = 0
         private var lastResetDay = 0L
     }

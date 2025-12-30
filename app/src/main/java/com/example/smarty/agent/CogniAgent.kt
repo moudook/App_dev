@@ -1,5 +1,6 @@
 package com.example.smarty.agent
 
+import android.content.Context
 import android.util.Log
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
@@ -15,7 +16,10 @@ import com.example.smarty.agent.tools.categories.ListCategoriesArgs
 import com.example.smarty.agent.tools.categories.SearchAudioNotesTool
 import com.example.smarty.agent.tools.categories.SearchImageNotesTool
 import com.example.smarty.agent.tools.categories.SearchDocumentNotesTool
+import com.example.smarty.agent.tools.external.OpenAppTool
 import com.example.smarty.agent.tools.external.PlayAudioTool
+import com.example.smarty.agent.tools.external.SaveScreenTool
+import com.example.smarty.agent.tools.external.ScreenContext
 import com.example.smarty.agent.tools.external.SearchCitation
 import com.example.smarty.agent.tools.external.WebSearchTool
 import com.example.smarty.agent.tools.memory.UserPatternsTool
@@ -35,6 +39,7 @@ import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.HistoryCompressor
+import com.example.smarty.util.PIIMasker
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.api.ApiErrorCategory
 import com.example.smarty.util.api.RateLimiter
@@ -251,6 +256,10 @@ interface AgentCallbacks {
     fun onToolExecutionStarted(toolName: String, toolDisplayName: String)
     fun onToolExecutionCompleted(toolName: String)
     fun onCitationsFound(citations: List<WebCitation>)
+
+    // New callbacks for OpenApp and SaveScreen tools
+    fun launchApp(packageName: String)
+    fun getScreenContext(): ScreenContext?
 }
 
 /**
@@ -266,6 +275,7 @@ interface AgentCallbacks {
  * All operations respect PrivacyGuard - private notes are invisible to AI.
  */
 class CogniAgent(
+    private val context: Context,  // For OpenAppTool
     private val agentProvider: CogniAgentProvider,
     private val repository: CogniRepository,
     private val tavilySearchProvider: TavilySearchProvider,
@@ -319,6 +329,7 @@ class CogniAgent(
         /**
          * SECURITY: Sanitize error messages to prevent API key leakage in chat UI.
          * Removes any patterns that might contain API keys from various providers.
+         * AGENT-005: Extended with additional provider patterns.
          */
         private fun sanitizeErrorMessage(message: String): String {
             return message
@@ -330,6 +341,16 @@ class CogniAgent(
                 .replace(Regex("""AIza[a-zA-Z0-9_-]{30,}"""), "[API_KEY_REDACTED]")
                 // Anthropic API keys: sk-ant-xxxxx
                 .replace(Regex("""sk-ant-[a-zA-Z0-9_-]{20,}"""), "[API_KEY_REDACTED]")
+                // AGENT-005: DeepSeek API keys
+                .replace(Regex("""dsk_[a-zA-Z0-9]{20,}"""), "[API_KEY_REDACTED]")
+                // AGENT-005: HuggingFace tokens
+                .replace(Regex("""hf_[a-zA-Z0-9]{20,}"""), "[API_KEY_REDACTED]")
+                // AGENT-005: Cohere API keys
+                .replace(Regex("""[a-zA-Z0-9]{40}"""), "[POSSIBLE_KEY_REDACTED]")  // Cohere uses 40-char alphanumeric
+                // AGENT-005: Tavily API keys (tvly-xxxxx)
+                .replace(Regex("""tvly-[a-zA-Z0-9]{20,}"""), "[API_KEY_REDACTED]")
+                // AGENT-005: Cerebras API keys (csk-xxxxx)
+                .replace(Regex("""csk-[a-zA-Z0-9_-]{20,}"""), "[API_KEY_REDACTED]")
                 // Bearer tokens in auth headers
                 .replace(Regex("""Bearer\s+[a-zA-Z0-9._-]{20,}"""), "Bearer [REDACTED]")
                 // Authorization headers
@@ -485,6 +506,14 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
                 getActiveNotes = callbacks::getActiveNotes,
                 onPlayAudio = callbacks::requestAudioPlayback
             ))
+            tool(OpenAppTool(
+                context = context,
+                onLaunchApp = callbacks::launchApp
+            ))
+            tool(SaveScreenTool(
+                repository = repository,
+                getScreenContext = callbacks::getScreenContext
+            ))
 
             // Calendar and timer tools
             tool(CreateEventTool(repository))
@@ -564,11 +593,13 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
         val processed = try {
             agentOptimizer.preProcess(userMessage, historyMessages)
         } catch (e: Exception) {
-            Log.w(TAG, "AgentOptimizer preProcess failed, continuing without optimization", e)
-            Log.d(TAG, "Optimization skipped: PII masking, history compression, and semantic cache bypassed for this query")
+            // CRITICAL FIX (AGENT-004): Use backup PII masking to prevent unmasked PII from reaching LLM
+            Log.e(TAG, "AgentOptimizer preProcess failed - using backup PII masking", e)
+            val backupMasked = PIIMasker.mask(userMessage)
+            Log.d(TAG, "Backup PII masking applied. Original length: ${userMessage.length}, Masked length: ${backupMasked.length}")
             AgentOptimizer.ProcessedQuery(
-                maskedQuery = userMessage,
-                compressedHistory = historyMessages,
+                maskedQuery = backupMasked,
+                compressedHistory = historyMessages.takeLast(4), // Basic compression fallback
                 cacheHit = null
             )
         }
@@ -591,11 +622,12 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
             Log.d(TAG, "History tokens before compression: ~$estimatedTokens")
 
             // Force aggressive compression if tokens exceed threshold
+            // AGENT-009: Increased from 2 to 3 to preserve more context
             if (estimatedTokens > 3000) {
                 Log.d(TAG, "Forcing aggressive history compression (>3000 tokens)")
                 HistoryCompressor.compress(
                     messages = processed.compressedHistory,
-                    recentExchanges = 2,  // Keep only last 2 exchanges verbatim
+                    recentExchanges = 3,  // AGENT-009: Keep 3 exchanges minimum (was 2)
                     forceCompress = true
                 )
             } else if (HistoryCompressor.shouldCompress(processed.compressedHistory)) {
@@ -722,6 +754,13 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
 
                 // Execute with provider-specific timeout to prevent hanging indefinitely
                 // LOCAL_PC gets shorter timeout (45s), cloud providers get longer (90-120s)
+                //
+                // AGENT-003 KNOWN LIMITATION: This timeout applies to the entire agent.run() call,
+                // not individual tool executions. If a single tool (e.g., WebSearch, DeepResearch)
+                // is slow, it can consume most of the timeout budget, leaving insufficient time
+                // for subsequent tools. Per-tool timeouts would require changes to the Koog
+                // agent framework or a custom tool wrapper layer.
+                //
                 val providerTimeout = getTimeoutForProvider(executorResult.provider)
                 val response = withTimeout(providerTimeout) {
                     agent.run(fullPrompt)
@@ -826,7 +865,8 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
                 if (!errorType.shouldFailover()) {
                     // Tool error - return to user immediately without failover
                     val userMessage = errorType.toUserMessage()
-                    Log.w(TAG, "Tool error (no failover): $userMessage")
+                    // AGENT-007: Include error type in log for easier debugging
+                    Log.w(TAG, "Tool error [${errorType::class.simpleName}] (no failover): $userMessage")
                     return AgentResult.Error("I couldn't complete that action: $userMessage")
                 }
 

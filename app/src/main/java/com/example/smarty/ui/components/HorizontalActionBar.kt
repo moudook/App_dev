@@ -139,7 +139,7 @@ private fun ActionPill(
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.1f else 1f,
+        targetValue = if (isSelected) 1.05f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
@@ -150,7 +150,7 @@ private fun ActionPill(
     Box(
         modifier = modifier
             .scale(scale)
-            .size(40.dp) // Fixed square/circle size
+            .size(34.dp) // Significantly reduced size
             .clip(RoundedCornerShape(50)) // Circle
             .background(backgroundColor)
             .clickable(
@@ -164,7 +164,7 @@ private fun ActionPill(
             imageVector = icon,
             contentDescription = label,
             tint = contentColor,
-            modifier = Modifier.size(24.dp) 
+            modifier = Modifier.size(20.dp) // Slightly smaller icon for balance
         )
         
         // Badge logic

@@ -40,6 +40,9 @@ class SemanticCache(
 ) {
     companion object {
         private const val TAG = "SemanticCache"
+        // AGENT-008: Shorter TTL for entries containing user data (notes, events, etc.)
+        // This reduces stale data issues when user modifies their data
+        private const val NOTE_DATA_TTL_MS = 10 * 60 * 1000L  // 10 minutes for note-containing entries
     }
 
     /**
@@ -55,8 +58,11 @@ class SemanticCache(
         var accessCount: Int = 0,
         val containsNoteData: Boolean = false  // True if response references user notes
     ) {
-        fun isExpired(ttlMs: Long): Boolean =
-            System.currentTimeMillis() - timestamp > ttlMs
+        // AGENT-008: Use shorter TTL for note-containing entries to reduce stale data
+        fun isExpired(ttlMs: Long): Boolean {
+            val effectiveTtl = if (containsNoteData) NOTE_DATA_TTL_MS else ttlMs
+            return System.currentTimeMillis() - timestamp > effectiveTtl
+        }
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true

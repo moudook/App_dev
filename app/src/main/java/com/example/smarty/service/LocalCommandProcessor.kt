@@ -149,37 +149,51 @@ class LocalCommandProcessor(
     /**
      * Handle "play [music]" command.
      * Searches notes with audio attachments and plays the best match.
+     * UI-001: Added try-catch for robust error handling.
      */
     private fun handlePlayCommand(musicQuery: String): CommandResult {
         Log.d(TAG, "Processing play command: $musicQuery")
 
-        val notes = getNotes()
-        val audioMatch = findBestAudioMatch(musicQuery, notes)
+        return try {
+            val notes = getNotes()
+            val audioMatch = findBestAudioMatch(musicQuery, notes)
 
-        return if (audioMatch != null) {
-            val (track, noteName) = audioMatch
-            Log.d(TAG, "Found audio match: ${track.title} from note: $noteName")
+            if (audioMatch != null) {
+                val (track, noteName) = audioMatch
+                Log.d(TAG, "Found audio match: ${track.title} from note: $noteName")
 
-            onPlayAudio(track)
+                onPlayAudio(track)
+                CommandResult.Handled(
+                    response = "Playing ${track.title}",
+                    action = CommandAction.PlayAudio(track)
+                )
+            } else {
+                // No local audio found
+                CommandResult.Handled(
+                    response = "I couldn't find any music matching \"$musicQuery\" in your notes."
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in handlePlayCommand: ${e.message}", e)
             CommandResult.Handled(
-                response = "Playing ${track.title}",
-                action = CommandAction.PlayAudio(track)
-            )
-        } else {
-            // No local audio found
-            CommandResult.Handled(
-                response = "I couldn't find any music matching \"$musicQuery\" in your notes."
+                response = "Sorry, I couldn't play the audio: ${e.localizedMessage ?: "Unknown error"}"
             )
         }
     }
 
     /**
      * Handle "stop/pause" command.
+     * UI-001: Added try-catch for robust error handling.
      */
     private fun handleStopCommand(): CommandResult {
         Log.d(TAG, "Processing stop command")
-        AudioPlayerService.pause(context)
-        return CommandResult.Handled(response = "Paused playback")
+        return try {
+            AudioPlayerService.pause(context)
+            CommandResult.Handled(response = "Paused playback")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in handleStopCommand: ${e.message}", e)
+            CommandResult.Handled(response = "Couldn't pause playback")
+        }
     }
 
     /**

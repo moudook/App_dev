@@ -1,7 +1,6 @@
 package com.example.smarty.agent
 
 import android.util.Log
-import com.example.smarty.agent.execution.ParallelToolExecutor
 import com.example.smarty.agent.prompts.ToolExampleStore
 import com.example.smarty.data.cache.HashBasedCache
 import com.example.smarty.data.cache.SemanticCache
@@ -10,6 +9,10 @@ import com.example.smarty.data.remote.EmbeddingService
 import com.example.smarty.data.remote.GeminiEmbeddingService
 import com.example.smarty.util.HistoryCompressor
 import com.example.smarty.util.PIIMasker
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Agent Optimizer - integrates all optimization components.
@@ -56,6 +59,10 @@ class AgentOptimizer(
 ) {
     companion object {
         private const val TAG = "AgentOptimizer"
+
+        // Timeout constants (AGENT-001, AGENT-002 fixes)
+        private const val CACHE_LOOKUP_TIMEOUT_MS = 2000L      // 2 seconds max for cache lookup
+        private const val EMBEDDING_INIT_TIMEOUT_MS = 5000L   // 5 seconds max for embedding service init
     }
 
     // Feature flags
@@ -88,6 +95,13 @@ class AgentOptimizer(
         }
     }
 
+    /**
+     * Initialize the semantic cache with embedding service.
+     *
+     * AGENT-001 NOTE: Embedding service constructors are lightweight and don't make network calls.
+     * Network calls happen during get()/put() operations, which are protected by CACHE_LOOKUP_TIMEOUT_MS.
+     * The embedding services have built-in timeouts (10s connect, 30s read) as additional protection.
+     */
     private fun initializeCache(
         openAiApiKey: String?,
         geminiApiKey: String?,
@@ -100,7 +114,9 @@ class AgentOptimizer(
         // Try OpenAI first (best quality embeddings)
         if (!openAiApiKey.isNullOrBlank()) {
             try {
+                Log.d(TAG, "Initializing OpenAI embedding service...")
                 val embeddingService = EmbeddingService(openAiApiKey)
+                Log.d(TAG, "OpenAI embedding service initialized successfully")
                 return SemanticCache(embeddingService) to CacheMode.OPENAI_SEMANTIC
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to initialize OpenAI embedding service: ${e.message}")
@@ -110,7 +126,9 @@ class AgentOptimizer(
         // Try Gemini as alternative
         if (!geminiApiKey.isNullOrBlank()) {
             try {
+                Log.d(TAG, "Initializing Gemini embedding service...")
                 val embeddingService = GeminiEmbeddingService(geminiApiKey)
+                Log.d(TAG, "Gemini embedding service initialized successfully")
                 return SemanticCache(embeddingService) to CacheMode.GEMINI_SEMANTIC
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to initialize Gemini embedding service: ${e.message}")
@@ -144,15 +162,14 @@ class AgentOptimizer(
         null
     }
 
-    // Parallel tool executor
-    val parallelToolExecutor = ParallelToolExecutor()
+    // AGENT-012: ParallelToolExecutor removed - was unused (Koog handles tool execution internally)
 
-    // Statistics
-    private var totalQueries = 0
-    private var cacheHits = 0
-    private var tokensSaved = 0L
-    private var piiMasked = 0
-    private var fewShotUsed = 0
+    // Statistics - AGENT-013: Using atomic types for thread safety
+    private val totalQueries = AtomicInteger(0)
+    private val cacheHits = AtomicInteger(0)
+    private val tokensSaved = AtomicLong(0L)
+    private val piiMasked = AtomicInteger(0)
+    private val fewShotUsed = AtomicInteger(0)
 
     /**
      * Pre-process user query before sending to LLM.
@@ -165,24 +182,31 @@ class AgentOptimizer(
         query: String,
         history: List<ChatMessage> = emptyList()
     ): ProcessedQuery {
-        totalQueries++
+        totalQueries.incrementAndGet()
 
         // 1. Check cache first (semantic or hash-based fallback)
+        // CRITICAL FIX (AGENT-002): Wrap semantic cache lookup in timeout to prevent blocking
         when (cacheMode) {
             CacheMode.OPENAI_SEMANTIC, CacheMode.GEMINI_SEMANTIC -> {
-                semanticCache?.get(query)?.let { cachedResponse ->
-                    cacheHits++
-                    Log.d(TAG, "Semantic cache HIT - skipping API call")
-                    return ProcessedQuery(
-                        maskedQuery = query,
-                        compressedHistory = history,
-                        cacheHit = cachedResponse
-                    )
+                try {
+                    withTimeout(CACHE_LOOKUP_TIMEOUT_MS) {
+                        semanticCache?.get(query)
+                    }?.let { cachedResponse ->
+                        cacheHits.incrementAndGet()
+                        Log.d(TAG, "Semantic cache HIT - skipping API call")
+                        return ProcessedQuery(
+                            maskedQuery = query,
+                            compressedHistory = history,
+                            cacheHit = cachedResponse
+                        )
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    Log.w(TAG, "Semantic cache lookup timed out after ${CACHE_LOOKUP_TIMEOUT_MS}ms, treating as cache miss")
                 }
             }
             CacheMode.HASH_BASED -> {
                 hashBasedCache?.get(query)?.let { cachedResponse ->
-                    cacheHits++
+                    cacheHits.incrementAndGet()
                     Log.d(TAG, "Hash-based cache HIT - skipping API call")
                     return ProcessedQuery(
                         maskedQuery = query,
@@ -198,7 +222,7 @@ class AgentOptimizer(
         val maskedQuery = if (piiEnabled) {
             val masked = PIIMasker.mask(query)
             if (masked != query) {
-                piiMasked++
+                piiMasked.incrementAndGet()
                 Log.d(TAG, "PII masked in query")
             }
             masked
@@ -213,7 +237,7 @@ class AgentOptimizer(
             val compressedTokens = HistoryCompressor.estimateTokens(compressed)
             val saved = originalTokens - compressedTokens
             if (saved > 0) {
-                tokensSaved += saved
+                tokensSaved.addAndGet(saved.toLong())
                 Log.d(TAG, "History compressed: saved ~$saved tokens")
             }
             compressed
@@ -279,7 +303,7 @@ class AgentOptimizer(
 
         val examples = toolExampleStore.getRelevantExamples(query, toolNames, count)
         if (examples.isNotEmpty()) {
-            fewShotUsed++
+            fewShotUsed.incrementAndGet()
         }
         return toolExampleStore.formatExamplesForPrompt(examples)
     }
@@ -362,30 +386,33 @@ class AgentOptimizer(
     /**
      * Get optimization statistics.
      */
-    fun getStats(): OptimizerStats = OptimizerStats(
-        totalQueries = totalQueries,
-        cacheHits = cacheHits,
-        cacheHitRate = if (totalQueries > 0) cacheHits.toFloat() / totalQueries else 0f,
-        tokensSaved = tokensSaved,
-        piiMaskedCount = piiMasked,
-        fewShotUsedCount = fewShotUsed,
-        cacheMode = cacheMode,
-        semanticCacheStats = semanticCache?.getStats(),
-        hashBasedCacheStats = hashBasedCache?.getStats(),
-        parallelExecutorStats = parallelToolExecutor.getStats(),
-        toolExampleStoreStats = toolExampleStore?.getStats()
-    )
+    fun getStats(): OptimizerStats {
+        val total = totalQueries.get()
+        val hits = cacheHits.get()
+        return OptimizerStats(
+            totalQueries = total,
+            cacheHits = hits,
+            cacheHitRate = if (total > 0) hits.toFloat() / total else 0f,
+            tokensSaved = tokensSaved.get(),
+            piiMaskedCount = piiMasked.get(),
+            fewShotUsedCount = fewShotUsed.get(),
+            cacheMode = cacheMode,
+            semanticCacheStats = semanticCache?.getStats(),
+            hashBasedCacheStats = hashBasedCache?.getStats(),
+            toolExampleStoreStats = toolExampleStore?.getStats()
+        )
+    }
 
     /**
      * Reset statistics.
      */
     fun resetStats() {
-        totalQueries = 0
-        cacheHits = 0
-        tokensSaved = 0
-        piiMasked = 0
-        fewShotUsed = 0
-        parallelToolExecutor.resetStats()
+        totalQueries.set(0)
+        cacheHits.set(0)
+        tokensSaved.set(0L)
+        piiMasked.set(0)
+        fewShotUsed.set(0)
+        // AGENT-012: parallelToolExecutor.resetStats() removed
     }
 
     /**
@@ -425,8 +452,8 @@ class AgentOptimizer(
         val cacheMode: CacheMode,
         val semanticCacheStats: SemanticCache.CacheStats?,
         val hashBasedCacheStats: HashBasedCache.CacheStats?,
-        val parallelExecutorStats: ParallelToolExecutor.ExecutionStats?,
         val toolExampleStoreStats: ToolExampleStore.StoreStats?
+        // AGENT-012: parallelExecutorStats removed - ParallelToolExecutor was unused
     ) {
         /**
          * Get a human-readable summary of optimization impact.
@@ -444,9 +471,7 @@ class AgentOptimizer(
             hashBasedCacheStats?.let {
                 appendLine("Hash-based cache: ${it.size} entries, ${it.hits} hits, ${it.misses} misses")
             }
-            parallelExecutorStats?.let {
-                appendLine("Parallel executions: ${it.parallelBatches} batches, ~${it.totalTimeSavedMs}ms saved")
-            }
+            // AGENT-012: parallelExecutorStats removed
             toolExampleStoreStats?.let {
                 appendLine("Tool examples: ${it.totalExamples} covering ${it.toolsCovered} tools")
             }
