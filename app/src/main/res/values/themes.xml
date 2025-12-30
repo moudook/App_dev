@@ -24,6 +24,9 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         
+        <!-- CRITICAL: Enables edge-to-edge drawing behind system bars -->
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        
         <item name="android:windowAnimationStyle">@null</item>
     </style>
 

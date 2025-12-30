@@ -207,6 +207,7 @@ enum class ThemeMode {
 @Composable
 fun CogniTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    isTransparent: Boolean = false, // Set to true for transparent overlays (e.g., AssistActivity)
     content: @Composable () -> Unit
 ) {
     val targetColorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
@@ -215,8 +216,9 @@ fun CogniTheme(
     val animatedColorScheme = animateColorScheme(targetColorScheme)
 
     val view = LocalView.current
-    if (!view.isInEditMode) {
+    if (!view.isInEditMode && !isTransparent) {
         // BUG-057 fix: Use animated background to prevent flash during theme switch
+        // SKIP for transparent activities (AssistActivity) to preserve transparency
         val animatedBackground = animatedColorScheme.background
         val animatedSurface = animatedColorScheme.surface
 

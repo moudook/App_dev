@@ -881,42 +881,19 @@ fun InputStreamScreen(
                                 modifier = Modifier.align(Alignment.Center)
                             )
 
-                            // Right side actions: AI Button + Theme Toggle
-                            Row(
-                                modifier = Modifier.align(Alignment.CenterEnd),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            // Theme Toggle - Always Visible (AI is in the action bar below)
+                            IconButton(
+                                onClick = { onToggleTheme(!isDarkTheme) },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .size(40.dp)
                             ) {
-                                // AI/Chat Button - Enter chat mode
-                                IconButton(
-                                    onClick = { 
-                                        if (!isChatMode) {
-                                            onEnterChatMode()
-                                            selectedTab = NavigationTab.CHAT
-                                        }
-                                    },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = "Open AI Chat",
-                                        tint = if (isChatMode) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                                
-                                // Theme Toggle - Always Visible
-                                IconButton(
-                                    onClick = { onToggleTheme(!isDarkTheme) },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                        contentDescription = if (isDarkTheme) "Switch to Light Mode" else "Switch to Dark Mode",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                    contentDescription = if (isDarkTheme) "Switch to Light Mode" else "Switch to Dark Mode",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
                             }
                         }
 

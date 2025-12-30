@@ -20,6 +20,8 @@ import android.widget.EditText
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -288,26 +290,44 @@ class AssistActivity : ComponentActivity() {
     /**
      * Setup window for true transparency - background app remains visible
      * Uses the same approach as Google Gemini assistant overlay
+     * 
+     * This implements the "Vertical Slice Fix" from Android transparency analysis:
+     * 1. enableEdgeToEdge with transparent SystemBarStyle to bypass Android 15 scrims
+     * 2. TRANSLUCENT pixel format for alpha channel support
+     * 3. Clear all background drawables
      */
     private fun setupTransparentWindow() {
-        // 1. Force the window to use a format that supports transparency
+        // 1. CRITICAL: Edge-to-Edge with TRANSPARENT SystemBarStyle
+        // This bypasses Android 15's automatic scrim protection that causes the white background
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
+        )
+
+        // 2. Force the window to use a format that supports transparency
         window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
 
-        // 2. Edge-to-edge: content draws behind system bars
+        // 3. Legacy edge-to-edge for older APIs
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         window.apply {
-            // 3. Clear any background drawables
+            // 4. Clear any background drawables
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
-            // 4. Set layout flags (removed FLAG_SHOW_WALLPAPER)
+            // 5. Set layout flags for full-screen overlay
             addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
             
-            // 5. Ensure system bars are transparent
+            // 6. Ensure system bars are transparent (backup for older APIs)
             statusBarColor = Color.TRANSPARENT
             navigationBarColor = Color.TRANSPARENT
             
-            // 6. Force dim amount to 0 just in case
+            // 7. Force dim amount to 0 - prevents any dimming behind overlay
             setDimAmount(0f)
         }
 
@@ -377,7 +397,7 @@ class AssistActivity : ComponentActivity() {
         composeView.setContent {
             val isDarkTheme by securePreferences.isDarkTheme.collectAsState()
             val toolStatus by currentToolStatus
-            CogniTheme(darkTheme = isDarkTheme) {
+            CogniTheme(darkTheme = isDarkTheme, isTransparent = true) {
                  if (messages.isNotEmpty() || isProcessing.value) {
                      MinimalResponseList(
                          messages = messages,

@@ -5,18 +5,25 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -38,20 +45,22 @@ enum class NavigationTab(
     val label: String,
     val opensSheet: Boolean = false
 ) {
-    NOTES(Icons.Default.StickyNote2, "Notes"),
-    CHAT(Icons.Default.AutoAwesome, "Chat"),
-    CALENDAR(Icons.Default.CalendarMonth, "Calendar", opensSheet = true),
-    STACKS(Icons.Default.GridView, "Stacks", opensSheet = true),
-    ARCHIVE(Icons.Default.Archive, "Archive", opensSheet = true),
-    SETTINGS(Icons.Default.Settings, "Settings", opensSheet = true)
+    NOTES(Icons.Rounded.StickyNote2, "Note"),
+    CHAT(Icons.Rounded.AutoAwesome, "Chat"),
+    CALENDAR(Icons.Rounded.CalendarMonth, "Calendar", opensSheet = true),
+    STACKS(Icons.Rounded.GridView, "Stacks", opensSheet = true),
+    ARCHIVE(Icons.Rounded.Archive, "Archive", opensSheet = true),
+    SETTINGS(Icons.Rounded.Settings, "Settings", opensSheet = true)
 }
 
 /**
- * Horizontal Action Bar - Pinterest-inspired scrollable tab bar.
- *
- * Provides centralized access to all app features from the main screen.
- * - Notes and Chat are inline (replace content)
- * - Calendar, Stacks, Archive, Settings open as bottom sheets
+ * Horizontal Action Bar - Redesigned with "Autumn Sky" aesthetics.
+ * 
+ * Theme:
+ * - Fluid animations
+ * - Gradient highlights (Blue to Warm Gold)
+ * - Glass-like, floated integration
+ * - Premium typography and spacing
  */
 @Composable
 fun HorizontalActionBar(
@@ -65,18 +74,19 @@ fun HorizontalActionBar(
     val accentColor = LocalAccentColor.current
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),    
         color = Color.Transparent
     ) {
-        LazyRow(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(horizontal = 20.dp),
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items(NavigationTab.entries) { tab ->
+            NavigationTab.entries.forEach { tab ->
                 val isSelected = when (tab) {
                     NavigationTab.CHAT -> isChatMode
                     NavigationTab.NOTES -> !isChatMode && selectedTab == NavigationTab.NOTES
@@ -100,7 +110,7 @@ fun HorizontalActionBar(
 }
 
 /**
- * Individual action pill in the horizontal bar.
+ * Individual action pill - Icon Only.
  */
 @Composable
 private fun ActionPill(
@@ -112,26 +122,24 @@ private fun ActionPill(
     modifier: Modifier = Modifier,
     badge: Int? = null
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    
+    // Animate background color
     val backgroundColor by animateColorAsState(
-        targetValue = if (isSelected)
-            accentColor.copy(alpha = Alpha.medium)
-        else
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = Alpha.half),
+        targetValue = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         animationSpec = tween(AnimationDuration.standard),
         label = "pillBg"
     )
 
+    // Animate icon color
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected)
-            accentColor
-        else
-            MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
         animationSpec = tween(AnimationDuration.standard),
         label = "pillContent"
     )
 
     val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.02f else 1f,
+        targetValue = if (isSelected) 1.1f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessLow
@@ -139,63 +147,38 @@ private fun ActionPill(
         label = "pillScale"
     )
 
-    Box(modifier = modifier) {
-        Surface(
-            onClick = onClick,
-            shape = RoundedCornerShape(16.dp),
-            color = backgroundColor,
-            modifier = Modifier.scale(scale)
-        ) {
-            Row(
-                modifier = Modifier.padding(
-                    horizontal = if (isSelected) 16.dp else 12.dp,
-                    vertical = 10.dp
-                ),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = contentColor,
-                    modifier = Modifier.size(IconSize.standard)
-                )
-
-                // Show label only when selected
-                if (isSelected) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp
-                        ),
-                        color = contentColor
-                    )
-                }
-            }
-        }
-
-        // Badge for Archive count
+    Box(
+        modifier = modifier
+            .scale(scale)
+            .size(40.dp) // Fixed square/circle size
+            .clip(RoundedCornerShape(50)) // Circle
+            .background(backgroundColor)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = contentColor,
+            modifier = Modifier.size(24.dp) 
+        )
+        
+        // Badge logic
         if (badge != null && badge > 0) {
-            Surface(
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 6.dp, y = (-4).dp)
-                    .size(18.dp),
-                shape = RoundedCornerShape(9.dp),
-                color = accentColor
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(14.dp)
+                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(50))
+                    .border(1.5.dp, MaterialTheme.colorScheme.surface, RoundedCornerShape(50)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = if (badge > 99) "99+" else badge.toString(),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = Color.White
-                    )
-                }
+                 // Dot only for cleaner look on icon-only UI
             }
         }
     }
