@@ -1,6 +1,5 @@
 package com.example.smarty.util
 
-import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -14,59 +13,46 @@ import java.util.concurrent.TimeUnit
  *
  * Always use these shared instances instead of creating new clients.
  *
- * SECURITY-003: SSL Certificate Pinning
- * Pins certificates for major AI API providers to prevent MITM attacks.
- * If a pin fails, connections will be rejected for security.
+ * TODO: For production, consider implementing SSL certificate pinning for API providers
+ *       (Anthropic, OpenAI, Google, Groq, OpenRouter, Tavily) to prevent MITM attacks.
+ *       Use OkHttp's CertificatePinner with real SHA-256 pins from the certificate chain.
  */
 object HttpClientProvider {
 
-    /**
-     * Certificate pinner for API security.
-     * Uses backup pins (multiple per domain) for certificate rotation resilience.
-     *
-     * Note: These are wildcard pins that allow subdomains.
-     * Pins should be updated when providers rotate certificates.
-     * Using sha256 of SubjectPublicKeyInfo for each certificate in the chain.
-     */
-    private val certificatePinner: CertificatePinner by lazy {
-        CertificatePinner.Builder()
-            // Anthropic API
-            .add("api.anthropic.com", "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=") // Placeholder - update with real pin
-            .add("api.anthropic.com", "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=") // Backup pin
+    // ==================== Standardized Timeout Constants ====================
 
-            // OpenAI API
-            .add("api.openai.com", "sha256/CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC=") // Placeholder
-            .add("api.openai.com", "sha256/DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD=") // Backup pin
+    /** Connection timeout - time to establish TCP connection */
+    const val CONNECT_TIMEOUT_SECONDS = 30L
 
-            // Google Gemini API
-            .add("generativelanguage.googleapis.com", "sha256/EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=") // Placeholder
-            .add("generativelanguage.googleapis.com", "sha256/FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF=") // Backup pin
+    /** Read timeout - time to wait for AI response (AI can be slow) */
+    const val READ_TIMEOUT_SECONDS = 90L
 
-            // Groq API
-            .add("api.groq.com", "sha256/GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG=") // Placeholder
+    /** Write timeout - time to send request data */
+    const val WRITE_TIMEOUT_SECONDS = 60L
 
-            // OpenRouter API
-            .add("openrouter.ai", "sha256/HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH=") // Placeholder
+    /** Quick operation timeouts for metadata fetches */
+    const val QUICK_CONNECT_TIMEOUT_SECONDS = 3L
+    const val QUICK_READ_TIMEOUT_SECONDS = 5L
+    const val QUICK_WRITE_TIMEOUT_SECONDS = 5L
 
-            // Tavily Search API
-            .add("api.tavily.com", "sha256/IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII=") // Placeholder
-            .build()
-    }
+    /** Long-running operation timeouts for file downloads */
+    const val LONG_CONNECT_TIMEOUT_SECONDS = 60L
+    const val LONG_READ_TIMEOUT_SECONDS = 120L
+    const val LONG_WRITE_TIMEOUT_SECONDS = 120L
 
     /**
-     * Default client for general API calls.
-     * 30 second timeouts suitable for most operations.
-     * Includes SSL certificate pinning for security.
+     * Default client for general API calls including AI providers.
+     * Uses standardized timeouts:
+     * - connectTimeout: 30s (TCP connection establishment)
+     * - readTimeout: 90s (AI responses can be slow)
+     * - writeTimeout: 60s (sending request data)
      */
     val default: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
-            // SECURITY-003: Enable certificate pinning
-            // Uncomment when real pins are configured:
-            // .certificatePinner(certificatePinner)
             .build()
     }
 
@@ -76,9 +62,9 @@ object HttpClientProvider {
      */
     val quick: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(3, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(5, TimeUnit.SECONDS)
+            .connectTimeout(QUICK_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(QUICK_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(QUICK_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .build()
@@ -90,9 +76,9 @@ object HttpClientProvider {
      */
     val longRunning: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
+            .connectTimeout(LONG_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(LONG_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(LONG_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()
     }

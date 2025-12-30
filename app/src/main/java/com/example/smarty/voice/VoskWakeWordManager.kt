@@ -65,8 +65,9 @@ class VoskWakeWordManager(
 
         // Audio gain multiplier for increased microphone sensitivity
         // 1.0 = normal, 2.0 = 2x louder, 3.0 = 3x louder
-        // Higher values = detect from further away, but more background noise
-        private const val AUDIO_GAIN = 8.0f  // 8x amplification for maximum range
+        // Higher values = detect from further away, but more CPU/battery usage
+        // Reduced from 8.0 to 3.0 for better battery life while maintaining detection
+        private const val AUDIO_GAIN = 3.0f  // Balanced: good detection, reasonable battery
 
         // NOTE: Grammar-restricted mode requires dynamic graph models.
         // Static graph models (like vosk-model-small-*) may not support grammar.

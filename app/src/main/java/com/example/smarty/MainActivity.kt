@@ -268,6 +268,9 @@ class MainActivity : ComponentActivity() {
                 val searchQuery by viewModel.searchQuery.collectAsState()
                 val selectedFilters by viewModel.selectedFilters.collectAsState()
 
+                // Search History (BATCH 5C)
+                val recentSearches by viewModel.recentSearches.collectAsState()
+
 
                 // Tavily Web Search API state
                 val tavilyApiKey by viewModel.tavilyApiKey.collectAsState()
@@ -281,12 +284,18 @@ class MainActivity : ComponentActivity() {
                 // TTS for AI responses state
                 val isTTSEnabled by viewModel.isTTSEnabled.collectAsState()
 
+                // Local LLM Server IP state
+                val localServerIP by viewModel.localServerIP.collectAsState()
+
                 // Shake mode switch animation trigger
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
                 val connectionStatus by viewModel.connectionStatus.collectAsState()
 
                 // Wake word detection state
                 val wakeWordTriggered by viewModel.wakeWordTriggered.collectAsState()
+
+                // Camera trigger state (from widget)
+                val cameraTriggered by viewModel.cameraTriggered.collectAsState()
 
                 // App foreground state - CRITICAL for microphone privacy
                 val isAppInForeground by viewModel.isAppInForeground.collectAsState()
@@ -587,6 +596,9 @@ class MainActivity : ComponentActivity() {
                                     onExitChatMode = {
                                         viewModel.exitChatMode()
                                     },
+                                    onEnterChatMode = {
+                                        viewModel.enterChatMode()
+                                    },
                                     // Chat history management
                                     chatSessions = chatSessions,
                                     currentSessionId = currentSessionId,
@@ -619,6 +631,14 @@ class MainActivity : ComponentActivity() {
                                     onClearFilters = {
                                         viewModel.clearFilters()
                                     },
+                                    // Search History (BATCH 5C)
+                                    recentSearches = recentSearches,
+                                    onRecordSearch = { query ->
+                                        viewModel.recordSearch(query)
+                                    },
+                                    onClearSearchHistory = {
+                                        viewModel.clearSearchHistory()
+                                    },
                                     // Audio player
                                     onPlayAudio = { track ->
                                         audioPlayerViewModel.playAudio(track)
@@ -649,6 +669,9 @@ class MainActivity : ComponentActivity() {
                                     // Shake mode switch animation
                                     wasShakeTriggered = wasShakeTriggered,
                                     connectionStatus = connectionStatus,
+                                    // Camera trigger from widget
+                                    cameraTriggered = cameraTriggered,
+                                    onClearCameraTrigger = { viewModel.clearCameraTrigger() },
                                     // Calendar management
                                     calendarEvents = calendarEvents,
                                     onAddCalendarEvent = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->
@@ -712,6 +735,11 @@ class MainActivity : ComponentActivity() {
                                     isTTSEnabled = isTTSEnabled,
                                     onTTSEnabledChange = { enabled ->
                                         viewModel.setTTSEnabled(enabled)
+                                    },
+                                    // Local LLM Server
+                                    localServerIP = localServerIP,
+                                    onSetLocalServerIP = { ip ->
+                                        viewModel.setLocalServerIP(ip)
                                     },
                                     modifier = Modifier.fillMaxSize()
                                 )
@@ -888,8 +916,8 @@ class MainActivity : ComponentActivity() {
                     viewModel.triggerVoiceInput()
                 }
                 "com.example.smarty.action.CAMERA_NOTE" -> {
-                    // Open purely for now (Camera intent to come later)
-                    // Could potentially trigger attachment picker if exposed
+                    // Trigger camera/image picker mode directly
+                    viewModel.triggerCameraInput()
                 }
             }
         } catch (e: Exception) {

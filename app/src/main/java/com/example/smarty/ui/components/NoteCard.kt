@@ -46,6 +46,9 @@ import com.example.smarty.ui.animation.animatedCardTransform
 import com.example.smarty.ui.animation.cardTilt3D
 import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.IconSize
+import com.example.smarty.ui.theme.AnimationDuration
+import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.ui.animation.shimmerEffect
 import kotlinx.coroutines.launch
@@ -122,7 +125,7 @@ fun NoteCard(
             swipeOffset.value < -swipeThreshold * 0.5f -> SystemBlue.copy(alpha = 0.5f)
             else -> Color.Transparent // Clean look by default
         },
-        animationSpec = tween(160),
+        animationSpec = tween(AnimationDuration.fast),
         label = "border"
     )
 
@@ -277,10 +280,9 @@ fun NoteCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .wrapContentHeight() // Adaptive height: Matches content size
-                    .heightIn(max = 140.dp) // COMPACT NOTEBOOK STYLE: drastically reduced max height
-                    .padding(12.dp), // Reduced padding
-                verticalArrangement = Arrangement.spacedBy(4.dp) // Reduced spacing
+                    .height(ComponentSpacing.noteCardHeight) // Fixed height: Horizontal expands, Vertical fixed
+                    .padding(horizontal = ComponentSpacing.noteCardPaddingHorizontal, vertical = ComponentSpacing.noteCardPaddingVertical), // Adjusted padding for fixed height
+                verticalArrangement = Arrangement.SpaceBetween // Distribute content evenly
             ) {
                 if (note.processingStatus == ProcessingStatus.PROCESSING || note.processingStatus == ProcessingStatus.PENDING) {
                     // Enhanced Shimmering Skeleton Loader with staggered wave effect
@@ -300,10 +302,10 @@ fun NoteCard(
                                 .fillMaxWidth(0.6f)
                                 .height(20.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Alpha.subtle))
                                 .shimmerEffect(
                                     shimmerColor = shimmerBaseColor,
-                                    durationMs = 1400,
+                                    durationMs = AnimationDuration.shimmerCycle,
                                     delayMs = 0,
                                     shimmerWidth = 350f
                                 )
@@ -317,10 +319,10 @@ fun NoteCard(
                                 .fillMaxWidth(0.9f)
                                 .height(14.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Alpha.faint))
                                 .shimmerEffect(
                                     shimmerColor = shimmerBaseColor,
-                                    durationMs = 1400,
+                                    durationMs = AnimationDuration.shimmerCycle,
                                     delayMs = 100,
                                     shimmerWidth = 350f
                                 )
@@ -332,10 +334,10 @@ fun NoteCard(
                                 .fillMaxWidth(0.75f)
                                 .height(14.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Alpha.faint))
                                 .shimmerEffect(
                                     shimmerColor = shimmerBaseColor,
-                                    durationMs = 1400,
+                                    durationMs = AnimationDuration.shimmerCycle,
                                     delayMs = 200,
                                     shimmerWidth = 350f
                                 )
@@ -345,269 +347,116 @@ fun NoteCard(
                 } else {
                     // Standard Content
                     // Header: Title + Category + Indicators + New Note Dot
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Left: Title and Icon
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                            // Type Icon (Enhanced Container)
-                            // If AI created, use AI icon and accent color. Otherwise, use type-specific icon/color.
-                            // Memoized to avoid recomputation on every recomposition
-                            val iconVector = remember(note.isAiCreated, note.type) {
-                                if (note.isAiCreated) Icons.Default.AutoAwesome else getNoteTypeIcon(note.type)
-                            }
-                            val typeColor = remember(note.type) { getNoteTypeColor(note.type) }
-                            val iconTint = if (note.isAiCreated) LocalAccentColor.current else typeColor
-                            
-                                                // Icon Container with Overlays
-                            Box {
-                                Surface(
-                                    shape = CircleShape,
-                                    // Darker container for better Icon contrast
-                                    color = iconTint.copy(alpha = 0.15f),
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = iconVector,
-                                            contentDescription = null,
-                                            tint = iconTint,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-
-                                // Privacy Indicator Overlay (Bottom Right of Icon)
-                                if (note.isFullPrivacy || note.excludeFromAiChat) {
-                                    PrivacyIndicatorChip(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .offset(x = 2.dp, y = 2.dp) // Adjusted position
-                                    )
-                                }
-                            }
-
-                            Column {
-                                // Title with search highlighting
-                                if (searchQuery.isNullOrBlank()) {
-                                    Text(
-                                        text = note.title.ifBlank { "Untitled Note" }, 
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.ExtraBold,
-                                            letterSpacing = (-0.5).sp,
-                                            fontSize = 17.sp 
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1, 
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                } else {
-                                    HighlightedText(
-                                        text = note.title.ifBlank { "Untitled Note" },
-                                        query = searchQuery,
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.ExtraBold,
-                                            letterSpacing = (-0.5).sp,
-                                            fontSize = 17.sp 
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
+                    // Standard Content
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp) // Nice gap between Title and Metadata
+                    ) {
+                        // 1. Title Row (Top)
+                        if (searchQuery.isNullOrBlank()) {
+                            Text(
+                                text = note.title.ifBlank { "Untitled Note" },
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp,
+                                    letterSpacing = 0.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            HighlightedText(
+                                text = note.title.ifBlank { "Untitled Note" },
+                                query = searchQuery,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp,
+                                    letterSpacing = 0.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
 
-                            // Right side: Pin icon + Category
+                        // 2. Metadata/Info Row (Bottom)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // 1. Tags (Left-most as requested)
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Pin indicator
-                                if (note.isPinned) {
-                                    Icon(
-                                        imageVector = Icons.Default.PushPin,
-                                        contentDescription = "Pinned",
-                                        tint = LocalAccentColor.current,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                // AI Tag
+                                if (note.isAiCreated) {
+                                    Surface(
+                                        color = LocalAccentColor.current.copy(alpha = Alpha.soft),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "AI",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp
+                                            ),
+                                            color = LocalAccentColor.current,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
 
-                                // Category chip
+                                // Category Chip
                                 note.categoryName?.let { category ->
                                     CategoryChip(
                                         name = category,
                                         isNew = note.processingStatus == ProcessingStatus.COMPLETED
                                     )
                                 }
+                            }
 
-                                // MEDIUM-018: Accessible dropdown menu for swipe action alternatives
-                                var showA11yMenu by remember { mutableStateOf(false) }
-                                Box {
-                                    IconButton(
-                                        onClick = { showA11yMenu = true },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
+                            // Divider
+                            Box(
+                                modifier = Modifier
+                                    .height(14.dp)
+                                    .width(1.dp)
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            )
+
+                            // 2. Icon (Now after tags, always Blue)
+                            val iconVector = remember(note.isAiCreated, note.type) {
+                                if (note.isAiCreated) Icons.Default.AutoAwesome else getNoteTypeIcon(note.type)
+                            }
+                            // Always use SystemBlue for consistency
+                            val iconTint = com.example.smarty.ui.theme.SystemBlue
+                            
+                            Box {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = iconTint.copy(alpha = Alpha.soft),
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
                                         Icon(
-                                            imageVector = Icons.Default.MoreVert,
-                                            contentDescription = "More options",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            modifier = Modifier.size(18.dp)
+                                            imageVector = iconVector,
+                                            contentDescription = null,
+                                            tint = iconTint,
+                                            modifier = Modifier.size(IconSize.default)
                                         )
                                     }
-                                    DropdownMenu(
-                                        expanded = showA11yMenu,
-                                        onDismissRequest = { showA11yMenu = false }
-                                    ) {
-                                        if (isArchiveView) {
-                                            // Archive view: Unarchive and Delete options
-                                            DropdownMenuItem(
-                                                text = { Text("Unarchive") },
-                                                onClick = {
-                                                    showA11yMenu = false
-                                                    onUnarchive?.invoke()
-                                                },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Unarchive, null)
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Delete") },
-                                                onClick = {
-                                                    showA11yMenu = false
-                                                    onDelete()
-                                                },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error)
-                                                }
-                                            )
-                                        } else {
-                                            // Main view: Archive and Todos options
-                                            DropdownMenuItem(
-                                                text = { Text("Archive") },
-                                                onClick = {
-                                                    showA11yMenu = false
-                                                    onArchive?.invoke()
-                                                },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Archive, null)
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Open Todos") },
-                                                onClick = {
-                                                    showA11yMenu = false
-                                                    onOpenTodo()
-                                                },
-                                                leadingIcon = {
-                                                    Icon(Icons.Default.Checklist, null)
-                                                }
-                                            )
-                                        }
-                                    }
+                                }
+
+                                if (note.isFullPrivacy || note.excludeFromAiChat) {
+                                    PrivacyIndicatorChip(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .offset(x = 2.dp, y = 2.dp)
+                                    )
                                 }
                             }
-                        }
-                    }
-
-                    // Body Content - memoized to avoid recomputation
-                    val displayText = remember(note.summary, note.content) {
-                        note.summary ?: note.content
-                    }
-
-                    // Smart Reminder: Check if reminder is active
-                    val hasActiveReminder = remember(note.reminderText, note.reminderExpiresAt) {
-                        note.reminderText != null &&
-                            (note.reminderExpiresAt == null || note.reminderExpiresAt > System.currentTimeMillis())
-                    }
-
-                    // Reminder display state: show shimmer for 2.5 seconds, then fade to normal
-                    var showReminderShimmer by remember(note.id, note.reminderText) { mutableStateOf(hasActiveReminder) }
-
-                    // Auto-dismiss shimmer after 2.5 seconds
-                    LaunchedEffect(note.id, note.reminderText, hasActiveReminder) {
-                        if (hasActiveReminder && showReminderShimmer) {
-                            kotlinx.coroutines.delay(2500L)
-                            showReminderShimmer = false
-                        }
-                    }
-
-                    // Animated crossfade between reminder and normal text
-                    val reminderAlpha by animateFloatAsState(
-                        targetValue = if (showReminderShimmer) 1f else 0f,
-                        animationSpec = tween(300),
-                        label = "reminderAlpha"
-                    )
-                    val bodyAlpha by animateFloatAsState(
-                        targetValue = if (showReminderShimmer) 0f else 1f,
-                        animationSpec = tween(300),
-                        label = "bodyAlpha"
-                    )
-
-                    // Show reminder shimmer OR regular content using crossfade
-                    Box(modifier = Modifier.padding(start = 48.dp)) {
-                        // Reminder shimmer overlay (shows for 2.5 seconds)
-                        if (hasActiveReminder && reminderAlpha > 0f) {
-                            Text(
-                                text = note.reminderText ?: "",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    lineHeight = 20.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = LocalAccentColor.current
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .graphicsLayer { alpha = reminderAlpha }
-                                    .shimmerEffect(
-                                        shimmerColor = LocalAccentColor.current.copy(alpha = 0.7f),
-                                        durationMs = 1200,
-                                        delayMs = 0,
-                                        shimmerWidth = 300f
-                                    )
-                            )
-                        }
-
-                        // Regular body content (fades in after shimmer)
-                        if (displayText.isNotBlank() && bodyAlpha > 0f) {
-                            Text(
-                                text = displayText,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    lineHeight = 20.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.graphicsLayer { alpha = bodyAlpha }
-                            )
-                        }
-                    }
-
-                    // YouTube Button
-                    val youtubeId = remember(note) {
-                        note.sourceUrl?.let { ContentTypeDetector.extractYouTubeId(it) }
-                            ?: ContentTypeDetector.extractYouTubeId(note.content)
-                            ?: note.summary?.let { ContentTypeDetector.extractYouTubeId(it) }
-                    }
-
-                    if (youtubeId != null) {
-                         Box(modifier = Modifier.padding(start = 48.dp)) {
-                            YouTubePlayButton(
-                                onClick = {
-                                    val youtubeUrl = "https://www.youtube.com/watch?v=$youtubeId"
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(youtubeUrl))
-                                    context.startActivity(intent)
-                                },
-                                isCompact = true
-                            )
                         }
                     }
                 }
@@ -631,10 +480,10 @@ fun CategoryChip(
         modifier = modifier,
         shape = LocalShapes.current.pill,
         color = if (isNew) {
-            LocalAccentColor.current.copy(alpha = 0.15f)
+            LocalAccentColor.current.copy(alpha = Alpha.medium)
         } else {
              // More vivid default state
-             LocalAccentColor.current.copy(alpha = 0.1f)
+             LocalAccentColor.current.copy(alpha = Alpha.soft)
         },
     ) {
         Text(
@@ -673,7 +522,7 @@ fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
             initialValue = 0.6f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = CogniEasing.appleEaseInOut),
+                animation = tween(AnimationDuration.breathCycle, easing = CogniEasing.appleEaseInOut),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "privacyShimmerAlpha"
@@ -687,7 +536,7 @@ fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
         contentDescription = "Private - AI cannot access",
         tint = privacyColor,
         modifier = modifier
-            .size(14.dp)
+            .size(IconSize.small)
             .graphicsLayer { alpha = shimmerAlpha }
     )
 }
@@ -714,7 +563,7 @@ private fun ProcessingIndicator(modifier: Modifier = Modifier) {
             initialValue = 0.3f,
             targetValue = 1f,
             animationSpec = infiniteRepeatable(
-                animation = tween(640, easing = LinearEasing),
+                animation = tween(AnimationDuration.breath, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "processingAlpha"
@@ -797,7 +646,7 @@ private fun NoteAttachmentIndicator(
         Surface(
             modifier = Modifier.size(36.dp),
             shape = RoundedCornerShape(10.dp),
-            color = iconColor.copy(alpha = 0.12f)
+            color = iconColor.copy(alpha = Alpha.light)
         ) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -807,7 +656,7 @@ private fun NoteAttachmentIndicator(
                     imageVector = icon,
                     contentDescription = if (attachmentCount > 1) "$attachmentCount files" else "File",
                     tint = iconColor,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(IconSize.standard)
                 )
             }
         }
@@ -816,7 +665,7 @@ private fun NoteAttachmentIndicator(
         if (attachmentCount > 1) {
             Surface(
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(IconSize.standard)
                     .align(Alignment.TopEnd)
                     .offset(x = 6.dp, y = (-6).dp),
                 shape = CircleShape,

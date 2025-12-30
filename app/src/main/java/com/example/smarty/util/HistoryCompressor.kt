@@ -1,5 +1,6 @@
 package com.example.smarty.util
 
+import android.util.Log
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 
@@ -116,6 +117,9 @@ object HistoryCompressor {
         return enforceSizeLimit(result)
     }
 
+    private const val MAX_COMPRESSION_ITERATIONS = 50  // Safety limit to prevent infinite loops
+    private const val TAG = "HistoryCompressor"
+
     /**
      * Enforce hard size limit by trimming older messages.
      * Keeps most recent messages, drops older ones until under limit.
@@ -123,13 +127,25 @@ object HistoryCompressor {
     private fun enforceSizeLimit(messages: List<ChatMessage>): List<ChatMessage> {
         var result = messages
         var totalChars = result.sumOf { it.content.length }
+        var iterations = 0
 
         // Keep dropping oldest messages until under limit
         while (totalChars > MAX_TOTAL_CHARS && result.size > 2) {
+            iterations++
+
+            // Safety: prevent infinite loop with iteration limit
+            if (iterations > MAX_COMPRESSION_ITERATIONS) {
+                Log.w(TAG, "enforceSizeLimit: Hit max iterations ($MAX_COMPRESSION_ITERATIONS), " +
+                    "forcing truncation. Remaining messages: ${result.size}, totalChars: $totalChars")
+                break
+            }
+
             // Find oldest non-system message to drop
             val indexToDrop = result.indexOfFirst { it.role != ChatRole.SYSTEM }
             if (indexToDrop == -1) {
-                // Only system messages left, truncate the first one
+                // Only system messages left - cannot drop any more non-system messages
+                Log.d(TAG, "enforceSizeLimit: All remaining ${result.size} messages are system messages, " +
+                    "truncating first message")
                 val first = result.first()
                 val truncated = first.copy(content = first.content.take(MAX_TOTAL_CHARS / 2) + "...[truncated]")
                 result = listOf(truncated) + result.drop(1)

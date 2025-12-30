@@ -141,6 +141,7 @@ class ResponseTTSManager(
 
     /**
      * Speak AI response immediately using neural TTS.
+     * Stops any currently playing TTS before starting new speech.
      */
     fun speak(text: String) {
         if (!_isEnabled.value) {
@@ -155,8 +156,62 @@ class ResponseTTSManager(
             return
         }
 
-        Log.d(TAG, "Speaking: ${text.take(50)}...")
-        neuralTts?.speak(text)
+        // CRITICAL: Stop any current speech to prevent overlapping TTS
+        if (_isSpeaking.value) {
+            Log.d(TAG, "Stopping previous TTS before speaking new content")
+            neuralTts?.stop()
+            _isSpeaking.value = false
+        }
+
+        // Extract important text (bold text gets priority)
+        val textToSpeak = extractSpeakableText(text)
+
+        if (textToSpeak.isBlank()) {
+            Log.d(TAG, "No speakable text found after extraction")
+            return
+        }
+
+        Log.d(TAG, "Speaking: ${textToSpeak.take(50)}...")
+        neuralTts?.speak(textToSpeak)
+    }
+
+    /**
+     * Extract speakable text from markdown content.
+     * If bold text exists, speak only bold text.
+     * Otherwise, speak the full cleaned text.
+     */
+    private fun extractSpeakableText(text: String): String {
+        // Find all bold text patterns: **text** or __text__
+        val boldPattern = Regex("\\*\\*(.+?)\\*\\*|__(.+?)__")
+        val boldMatches = boldPattern.findAll(text)
+        val boldTexts = boldMatches.mapNotNull { match ->
+            match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() }
+                ?: match.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }
+        }.toList()
+
+        return if (boldTexts.isNotEmpty()) {
+            // If there's bold text, speak only the bold parts
+            Log.d(TAG, "Found ${boldTexts.size} bold sections, speaking only bold text")
+            boldTexts.joinToString(". ")
+        } else {
+            // No bold text - clean markdown and speak all
+            cleanMarkdown(text)
+        }
+    }
+
+    /**
+     * Remove markdown formatting for cleaner TTS output.
+     */
+    private fun cleanMarkdown(text: String): String {
+        return text
+            .replace(Regex("\\*\\*(.+?)\\*\\*"), "$1") // Remove bold
+            .replace(Regex("\\*(.+?)\\*"), "$1")       // Remove italic
+            .replace(Regex("__(.+?)__"), "$1")         // Remove underline
+            .replace(Regex("`([^`]+)`"), "$1")         // Remove inline code
+            .replace(Regex("\\[([^\\]]+)\\]\\([^)]+\\)"), "$1") // Remove links, keep text
+            .replace(Regex("#+\\s*"), "")              // Remove headers
+            .replace(Regex("```[\\s\\S]*?```"), "")    // Remove code blocks
+            .trim()
     }
 
     /**
@@ -194,6 +249,29 @@ class ResponseTTSManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Error invoking onSpeechEnd callback: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * Stop TTS when user starts new input.
+     * Call this when user begins typing or sends a new message.
+     * This prevents the AI from talking over the user.
+     */
+    fun stopForUserInput() {
+        if (_isSpeaking.value) {
+            Log.d(TAG, "User started new input - stopping TTS to listen")
+            stop()
+        }
+    }
+
+    /**
+     * Called when app goes to background.
+     * Stops any ongoing TTS to save resources.
+     */
+    fun onAppBackground() {
+        if (_isSpeaking.value) {
+            Log.d(TAG, "App went to background - stopping TTS")
+            stop()
         }
     }
 

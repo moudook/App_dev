@@ -55,14 +55,33 @@ import java.util.*
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
-// Design System Colors for Calendar (Always Dark Theme)
-// Using app's Electric Blue accent instead of violet for consistency
-private val CalendarDarkBg = Color(0xFF0D0D12)
-private val CalendarSurfaceDark = Color(0xFF1A1A24)
-private val CalendarAccent = Color(0xFF2979FF)        // DarkElectricBlue - matches app accent
+// Design System Colors for Calendar
+// Now supports both light and dark themes
+private val CalendarAccent = Color(0xFF2979FF)        // ElectricBlue - matches app accent
 private val CalendarAccentLight = Color(0xFF5C9AFF)   // Lighter variant for gradients
-private val CalendarMutedText = Color(0xFF6B6B80)
-private val CalendarWhite = Color(0xFFF5F5F7)
+
+// Theme-aware colors - will be accessed via composable functions
+@Composable
+private fun calendarBackground() = MaterialTheme.colorScheme.background
+
+@Composable
+private fun calendarSurface() = MaterialTheme.colorScheme.surfaceVariant
+
+@Composable
+private fun calendarTextPrimary() = MaterialTheme.colorScheme.onBackground
+
+@Composable
+private fun calendarTextMuted() = MaterialTheme.colorScheme.onSurfaceVariant
+
+/**
+ * Sync status for calendar synchronization indicator
+ */
+enum class SyncStatus {
+    Idle,      // No sync in progress
+    Syncing,   // Sync in progress
+    Success,   // Last sync succeeded
+    Error      // Last sync failed
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +91,8 @@ fun CalendarScreen(
     onAddEvent: () -> Unit,
     onEventClick: (CalendarEvent) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
+    syncStatus: SyncStatus = SyncStatus.Idle,
+    onSyncClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
@@ -97,7 +118,7 @@ fun CalendarScreen(
         }.sortedBy { it.startTime }
     }
 
-    // Events for month (for indicators)
+    // Events for month (for indicators) - tracks both event days and recurring event days
     val monthEventDays = remember(events, currentMonth) {
         val start = currentMonth.clone() as Calendar
         start.set(Calendar.DAY_OF_MONTH, 1)
@@ -114,15 +135,41 @@ fun CalendarScreen(
             }.toSet()
     }
 
+    // Recurring event days (for special indicator on day cells)
+    val recurringEventDays = remember(events, currentMonth) {
+        val start = currentMonth.clone() as Calendar
+        start.set(Calendar.DAY_OF_MONTH, 1)
+        start.set(Calendar.HOUR_OF_DAY, 0)
+        start.set(Calendar.MINUTE, 0)
+
+        val end = start.clone() as Calendar
+        end.add(Calendar.MONTH, 1)
+
+        events.filter {
+            it.startTime >= start.timeInMillis &&
+            it.startTime < end.timeInMillis &&
+            it.isRecurring
+        }.map { event ->
+            val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
+            cal.get(Calendar.DAY_OF_MONTH)
+        }.toSet()
+    }
+
     // Generate month days
     val daysInMonth = remember(currentMonth) {
         generateMonthDays(currentMonth)
     }
 
+    // Theme-aware colors
+    val bgColor = calendarBackground()
+    val surfaceColor = calendarSurface()
+    val textPrimary = calendarTextPrimary()
+    val textMuted = calendarTextMuted()
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(CalendarDarkBg)
+            .background(bgColor)
     ) {
         Column(
             modifier = Modifier
@@ -139,12 +186,12 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Back Button (Dark Pill)
+                // Back Button
                 FilledIconButton(
                     onClick = onBackClick,
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = CalendarSurfaceDark,
-                        contentColor = CalendarWhite
+                        containerColor = surfaceColor,
+                        contentColor = textPrimary
                     ),
                     modifier = Modifier.size(44.dp)
                 ) {
@@ -155,23 +202,78 @@ fun CalendarScreen(
                     )
                 }
 
-                // Add Event Button (Dark Pill)
-                FilledIconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onAddEvent()
-                    },
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = CalendarSurfaceDark,
-                        contentColor = CalendarWhite
-                    ),
-                    modifier = Modifier.size(44.dp)
+                // Right side buttons - Sync + Add
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = "Add Event",
-                        modifier = Modifier.size(20.dp)
-                    )
+                    // Sync Button with status indicator
+                    FilledIconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSyncClick()
+                        },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = surfaceColor,
+                            contentColor = when (syncStatus) {
+                                SyncStatus.Success -> CalendarAccent
+                                SyncStatus.Error -> Color(0xFFFF5252)
+                                else -> textPrimary
+                            }
+                        ),
+                        modifier = Modifier.size(44.dp),
+                        enabled = syncStatus != SyncStatus.Syncing
+                    ) {
+                        when (syncStatus) {
+                            SyncStatus.Syncing -> {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = CalendarAccent
+                                )
+                            }
+                            SyncStatus.Success -> {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDone,
+                                    contentDescription = "Sync completed",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            SyncStatus.Error -> {
+                                Icon(
+                                    imageVector = Icons.Default.CloudOff,
+                                    contentDescription = "Sync failed",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            SyncStatus.Idle -> {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = "Sync calendar",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Add Event Button
+                    FilledIconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onAddEvent()
+                        },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = surfaceColor,
+                            contentColor = textPrimary
+                        ),
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Add Event",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
@@ -187,14 +289,14 @@ fun CalendarScreen(
                         fontWeight = FontWeight.Light,
                         letterSpacing = 1.sp
                     ),
-                    color = CalendarWhite
+                    color = textPrimary
                 )
                 Text(
                     text = "Schedule",
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontWeight = FontWeight.Bold
                     ),
-                    color = CalendarWhite
+                    color = textPrimary
                 )
             }
 
@@ -217,7 +319,7 @@ fun CalendarScreen(
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.SemiBold
                     ),
-                    color = CalendarWhite
+                    color = textPrimary
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -230,14 +332,14 @@ fun CalendarScreen(
                             }
                         },
                         shape = CircleShape,
-                        color = CalendarSurfaceDark,
+                        color = surfaceColor,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.ChevronLeft,
                                 contentDescription = "Previous",
-                                tint = CalendarWhite,
+                                tint = textPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -252,14 +354,14 @@ fun CalendarScreen(
                             }
                         },
                         shape = CircleShape,
-                        color = CalendarSurfaceDark,
+                        color = surfaceColor,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.ChevronRight,
                                 contentDescription = "Next",
-                                tint = CalendarWhite,
+                                tint = textPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -284,7 +386,7 @@ fun CalendarScreen(
                         style = MaterialTheme.typography.labelSmall.copy(
                             letterSpacing = 1.sp
                         ),
-                        color = CalendarMutedText,
+                        color = textMuted,
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center
                     )
@@ -324,6 +426,7 @@ fun CalendarScreen(
                                 val isWeekend = day.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
                                                day.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
                                 val hasEvents = monthEventDays.contains(day.get(Calendar.DAY_OF_MONTH))
+                                val hasRecurringEvents = recurringEventDays.contains(day.get(Calendar.DAY_OF_MONTH))
                                 val isCurrentMonth = day.get(Calendar.MONTH) == currentMonth.get(Calendar.MONTH)
 
                                 PremiumDayCell(
@@ -332,6 +435,7 @@ fun CalendarScreen(
                                     isToday = isToday,
                                     isWeekend = isWeekend,
                                     hasEvents = hasEvents,
+                                    hasRecurringEvents = hasRecurringEvents,
                                     isCurrentMonth = isCurrentMonth,
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -394,16 +498,20 @@ private fun PremiumDayCell(
     isToday: Boolean,
     isWeekend: Boolean,
     hasEvents: Boolean,
+    hasRecurringEvents: Boolean = false,
     isCurrentMonth: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val primaryText = MaterialTheme.colorScheme.onBackground
+    val mutedText = MaterialTheme.colorScheme.onSurfaceVariant
+
     val textColor = when {
-        isSelected -> CalendarWhite
-        !isCurrentMonth -> CalendarMutedText.copy(alpha = 0.3f)
+        isSelected -> MaterialTheme.colorScheme.onPrimary
+        !isCurrentMonth -> mutedText.copy(alpha = 0.3f)
         isToday -> CalendarAccent
-        isWeekend -> CalendarMutedText
-        else -> CalendarWhite.copy(alpha = 0.9f)
+        isWeekend -> mutedText
+        else -> primaryText.copy(alpha = 0.9f)
     }
 
     Box(
@@ -414,7 +522,7 @@ private fun PremiumDayCell(
                     isSelected -> Modifier.background(CalendarAccent)
                     isToday || (isWeekend && isCurrentMonth) -> Modifier.drawBehind {
                         drawCircle(
-                            color = CalendarMutedText.copy(alpha = 0.5f),
+                            color = mutedText.copy(alpha = 0.5f),
                             style = Stroke(
                                 width = 2f,
                                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
@@ -435,16 +543,30 @@ private fun PremiumDayCell(
                 ),
                 color = textColor
             )
-            
-            // Event indicator dot
+
+            // Event indicator - different style for recurring vs regular events
             if (hasEvents && !isSelected) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(CalendarAccent)
-                )
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    // Primary event dot
+                    Box(
+                        modifier = Modifier
+                            .size(4.dp)
+                            .clip(CircleShape)
+                            .background(CalendarAccent)
+                    )
+                    // Recurring indicator (second dot for recurring events)
+                    if (hasRecurringEvents) {
+                        Box(
+                            modifier = Modifier
+                                .size(4.dp)
+                                .clip(CircleShape)
+                                .background(CalendarAccentLight)
+                        )
+                    }
+                }
             }
         }
     }
@@ -461,6 +583,10 @@ private fun PremiumEventCard(
 ) {
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     val isHappening = event.isHappeningNow()
+    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+    val bgColor = MaterialTheme.colorScheme.background
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
         onClick = onClick,
@@ -474,7 +600,7 @@ private fun PremiumEventCard(
                 .background(
                     brush = Brush.horizontalGradient(
                         colors = listOf(
-                            CalendarSurfaceDark,
+                            surfaceColor,
                             CalendarAccent.copy(alpha = 0.3f)
                         )
                     ),
@@ -491,7 +617,7 @@ private fun PremiumEventCard(
                     // Time Pill
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = CalendarDarkBg.copy(alpha = 0.6f)
+                        color = bgColor.copy(alpha = 0.6f)
                     ) {
                         val timeText = if (event.isAllDay) "All Day" else {
                             "${timeFormat.format(Date(event.startTime))} - ${timeFormat.format(Date(event.endTime))}"
@@ -499,23 +625,39 @@ private fun PremiumEventCard(
                         Text(
                             text = timeText,
                             style = MaterialTheme.typography.labelSmall,
-                            color = CalendarWhite.copy(alpha = 0.8f),
+                            color = textPrimary.copy(alpha = 0.8f),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Title
-                    Text(
-                        text = event.title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.SemiBold
-                        ),
-                        color = CalendarWhite,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    // Title with recurring indicator
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = event.title,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+
+                        // Recurring indicator
+                        if (event.isRecurring) {
+                            Icon(
+                                imageVector = Icons.Default.Repeat,
+                                contentDescription = "Recurring event",
+                                modifier = Modifier.size(14.dp),
+                                tint = CalendarAccent
+                            )
+                        }
+                    }
 
                     // Location or Description
                     event.location?.let { location ->
@@ -523,7 +665,7 @@ private fun PremiumEventCard(
                             Text(
                                 text = location,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = CalendarMutedText,
+                                color = textMuted,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -547,9 +689,9 @@ private fun PremiumEventCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isHappening) Icons.Default.PlayArrow else Icons.Default.Event,
+                        imageVector = if (isHappening) Icons.Default.PlayArrow else if (event.isRecurring) Icons.Default.Repeat else Icons.Default.Event,
                         contentDescription = null,
-                        tint = CalendarWhite,
+                        tint = Color.White,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -572,6 +714,7 @@ private fun PremiumEmptyState(
         selectedDate.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
         selectedDate.get(Calendar.YEAR) == today.get(Calendar.YEAR)
     }
+    val mutedText = MaterialTheme.colorScheme.onSurfaceVariant
 
     Column(
         modifier = modifier,
@@ -582,7 +725,7 @@ private fun PremiumEmptyState(
             imageVector = Icons.Default.EventBusy,
             contentDescription = null,
             modifier = Modifier.size(56.dp),
-            tint = CalendarMutedText.copy(alpha = 0.4f)
+            tint = mutedText.copy(alpha = 0.4f)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -590,7 +733,7 @@ private fun PremiumEmptyState(
         Text(
             text = if (isToday) "No events today" else "No events",
             style = MaterialTheme.typography.titleMedium,
-            color = CalendarMutedText
+            color = mutedText
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -598,7 +741,7 @@ private fun PremiumEmptyState(
         Text(
             text = dateFormat.format(selectedDate.time),
             style = MaterialTheme.typography.bodyMedium,
-            color = CalendarMutedText.copy(alpha = 0.6f)
+            color = mutedText.copy(alpha = 0.6f)
         )
 
         Spacer(modifier = Modifier.height(20.dp))

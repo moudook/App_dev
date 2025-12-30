@@ -13,9 +13,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.composed
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,16 +52,13 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
@@ -108,6 +102,18 @@ private val AttachmentGrayColor = Color(0xFF607D8B)
 
 // Agent shimmer color (purple/blue gradient feel)
 private val AgentShimmerColor = Color(0xFF7C4DFF)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENHANCED GLASSMORPHISM COLORS
+// More transparent backgrounds with stronger blur effect for premium glass look
+// ═══════════════════════════════════════════════════════════════════════════════
+private val GlassBackgroundLight = Color(0xBBFFFFFF)  // White with 73% opacity (more transparent)
+private val GlassBackgroundDark = Color(0xB0181822)   // Dark with 69% opacity (more transparent)
+private val GlassBlueTintLight = Color(0x220066FF)    // Blue tint 13% for light (stronger)
+private val GlassBlueTintDark = Color(0x332979FF)     // Blue tint 20% for dark (stronger)
+private val GlassBorderLight = Color(0x550066FF)      // Blue border 33% for light (more visible)
+private val GlassBorderDark = Color(0x662979FF)       // Blue border 40% for dark (more visible)
+private val GlassInnerGlow = Color(0x1AFFFFFF)        // Stronger white inner glow (10%)
 
 // Design constants for the redesigned input block
 private val CIRCLE_SIZE = 44.dp
@@ -534,7 +540,11 @@ private fun ActionCircle(
     activeColor: Color = LocalAccentColor.current,
     badge: Int? = null
 ) {
-    val backgroundColor = MaterialTheme.colorScheme.surface
+    // Glassmorphism: Determine colors based on theme
+    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val glassBackground = if (isDark) GlassBackgroundDark else GlassBackgroundLight
+    val glassTint = if (isDark) GlassBlueTintDark else GlassBlueTintLight
+    val glassBorder = if (isDark) GlassBorderDark else GlassBorderLight
 
     val iconColor by animateColorAsState(
         targetValue = if (isActive) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -542,8 +552,9 @@ private fun ActionCircle(
         label = "circleIcon"
     )
 
+    // Glassmorphism border: blue tint that intensifies when active
     val borderColor by animateColorAsState(
-        targetValue = if (isActive) activeColor else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+        targetValue = if (isActive) activeColor.copy(alpha = 0.6f) else glassBorder,
         animationSpec = tween(200),
         label = "circleBorder"
     )
@@ -554,37 +565,34 @@ private fun ActionCircle(
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
         label = "circleScale"
     )
-    
-    // Custom Glow Configuration - LARGE GRADIENT
-    val pAccent = LocalAccentColor.current
-    val shadowColor = remember(pAccent) { pAccent.copy(alpha = 0.5f) } 
-    val glowRadius = if (isActive) 45.dp else 4.dp // Very large range
-    val glowDy = 0.dp // Uniform spread
 
     Box(modifier = modifier) {
-        Surface(
+        // Glassmorphism container with layered backgrounds
+        Box(
             modifier = Modifier
                 .requiredSize(CIRCLE_SIZE)
                 .scale(scale)
-                .drawBehind {
-                    drawIntoCanvas {
-                        val paint = Paint()
-                        val frameworkPaint = paint.asFrameworkPaint()
-                        frameworkPaint.color = Color.Transparent.toArgb()
-                        frameworkPaint.setShadowLayer(
-                            glowRadius.toPx(),
-                            0f,
-                            glowDy.toPx(),
-                            shadowColor.toArgb()
+                .shadow(
+                    elevation = if (isActive) 8.dp else 4.dp,
+                    shape = CircleShape,
+                    spotColor = activeColor.copy(alpha = if (isActive) 0.25f else 0.1f),
+                    ambientColor = activeColor.copy(alpha = if (isActive) 0.15f else 0.05f)
+                )
+                // Base glass background
+                .clip(CircleShape)
+                .background(glassBackground)
+                // Blue tint overlay
+                .background(glassTint)
+                // Inner glow for depth
+                .background(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            GlassInnerGlow,
+                            Color.Transparent
                         )
-                        // Draw shadow shape only
-                        it.drawCircle(
-                            center = center,
-                            radius = size.minDimension / 2,
-                            paint = paint
-                        )
-                    }
-                }
+                    )
+                )
+                // Glass border
                 .border(
                     width = if (isActive) 1.5.dp else 1.dp,
                     color = borderColor,
@@ -600,18 +608,14 @@ private fun ActionCircle(
                         onTap = { onClick() }
                     )
                 },
-            shape = CircleShape,
-            color = backgroundColor,
-            shadowElevation = 0.dp
+            contentAlignment = Alignment.Center
         ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = contentDescription,
-                    tint = iconColor,
-                    modifier = Modifier.requiredSize(CIRCLE_ICON_SIZE)
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = iconColor,
+                modifier = Modifier.requiredSize(CIRCLE_ICON_SIZE)
+            )
         }
 
         // Badge
@@ -656,59 +660,51 @@ private fun InputPill(
     autoSendActive: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // Glassmorphism: Determine colors based on theme
+    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val glassBackground = if (isDark) GlassBackgroundDark else GlassBackgroundLight
+    val glassTint = if (isDark) GlassBlueTintDark else GlassBlueTintLight
+    val glassBorder = if (isDark) GlassBorderDark else GlassBorderLight
+    val accentColor = LocalAccentColor.current
+
+    // Glassmorphism border: blue tint that intensifies when focused
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) LocalAccentColor.current else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+        targetValue = if (isFocused) accentColor.copy(alpha = 0.6f) else glassBorder,
         animationSpec = tween(200),
         label = "pillBorder"
     )
 
-    val backgroundColor = MaterialTheme.colorScheme.surface
-
-    // Vibrant Glow Shadow - LARGE GRADIENT
-    val pAccent = LocalAccentColor.current
-    val shadowColor = remember(pAccent) { pAccent.copy(alpha = 0.4f) }
-    
-    val glowRadius by animateDpAsState(
-        targetValue = if (isFocused) 70.dp else 4.dp, // Massive range for gradient effect
-        animationSpec = tween(200),
-        label = "pillGlow"
-    )
-    // glowDy is 0 for uniform spread
-    val glowDy = 0.dp 
-
-    Surface(
+    // Glassmorphism container with layered backgrounds
+    Box(
         modifier = modifier
             .requiredHeight(PILL_HEIGHT)
-            .drawBehind {
-                drawIntoCanvas {
-                    val paint = Paint()
-                    val frameworkPaint = paint.asFrameworkPaint()
-                    frameworkPaint.color = Color.Transparent.toArgb()
-                    frameworkPaint.setShadowLayer(
-                        glowRadius.toPx(),
-                        0f,
-                        glowDy.toPx(),
-                        shadowColor.toArgb()
+            .shadow(
+                elevation = if (isFocused) 12.dp else 6.dp,
+                shape = RoundedCornerShape(PILL_CORNER_RADIUS),
+                spotColor = accentColor.copy(alpha = if (isFocused) 0.2f else 0.1f),
+                ambientColor = accentColor.copy(alpha = if (isFocused) 0.1f else 0.05f)
+            )
+            // Base glass background
+            .clip(RoundedCornerShape(PILL_CORNER_RADIUS))
+            .background(glassBackground)
+            // Blue tint overlay for glass effect
+            .background(glassTint)
+            // Subtle gradient for depth (top-to-bottom light gradient)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        GlassInnerGlow,
+                        Color.Transparent,
+                        Color.Transparent
                     )
-                    it.drawRoundRect(
-                        left = 0f,
-                        top = 0f,
-                        right = size.width,
-                        bottom = size.height,
-                        radiusX = PILL_CORNER_RADIUS.toPx(),
-                        radiusY = PILL_CORNER_RADIUS.toPx(),
-                        paint = paint
-                    )
-                }
-            }
+                )
+            )
+            // Glass border with blue tint
             .border(
                 width = if (isFocused) 1.5.dp else 1.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(PILL_CORNER_RADIUS)
-            ),
-        shape = RoundedCornerShape(PILL_CORNER_RADIUS),
-        color = backgroundColor,
-        shadowElevation = 0.dp 
+            )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Shimmer overlay for voice/agent states
@@ -791,7 +787,7 @@ private fun InputPill(
                     
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.width(8.dp))
-                        
+
                         val easedProgress = FastOutSlowInEasing.transform(flyProgress)
                         // Flight path: Fly primarily RIGHT, slightly Up
                         val flyX = easedProgress * 120f  // Fly further right
@@ -799,6 +795,9 @@ private fun InputPill(
                         val flyRotation = easedProgress * 10f  // Tilt slightly up/right
                         val flyScale = 1f - (easedProgress * 0.2f)
                         val flyAlpha = (1f - easedProgress * 1.5f).coerceIn(0f, 1f)
+
+                        // Get density for graphicsLayer transformations
+                        val density = androidx.compose.ui.platform.LocalDensity.current.density
 
                         var isPressed by remember { mutableStateOf(false) }
                         val buttonScale by animateFloatAsState(

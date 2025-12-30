@@ -72,12 +72,24 @@ data class ChatMessageEntity(
     val timestamp: Long = System.currentTimeMillis(),
     val attachmentsJson: String = "[]",  // JSON serialized attachments
     val executedActionsJson: String = "[]",  // JSON serialized actions
-    val referencedNoteIds: String = ""  // Comma-separated note IDs
+    val referencedNoteIds: String = "",  // Comma-separated note IDs
+    val citationsJson: String = "[]"  // JSON serialized citations from web search
 ) {
     /**
      * Convert to domain model ChatMessage
      */
     fun toChatMessage(attachments: List<Attachment> = emptyList(), actions: List<AgentActionResult> = emptyList()): ChatMessage {
+        // Parse citations from JSON
+        val citations = try {
+            if (citationsJson.isNotBlank() && citationsJson != "[]") {
+                parseCitationsJson(citationsJson)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+
         return ChatMessage(
             id = id,
             role = ChatRole.valueOf(role),
@@ -85,7 +97,8 @@ data class ChatMessageEntity(
             attachments = attachments,
             timestamp = timestamp,
             executedActions = actions,
-            referencedNoteIds = referencedNoteIds.split(",").filter { it.isNotBlank() }
+            referencedNoteIds = referencedNoteIds.split(",").filter { it.isNotBlank() },
+            citations = citations
         )
     }
 
@@ -94,14 +107,93 @@ data class ChatMessageEntity(
          * Create entity from domain model
          */
         fun fromChatMessage(message: ChatMessage, sessionId: String): ChatMessageEntity {
+            // Serialize citations to JSON
+            val citationsJson = if (message.citations.isNotEmpty()) {
+                serializeCitationsToJson(message.citations)
+            } else {
+                "[]"
+            }
+
             return ChatMessageEntity(
                 id = message.id,
                 sessionId = sessionId,
                 role = message.role.name,
                 content = message.content,
                 timestamp = message.timestamp,
-                referencedNoteIds = message.referencedNoteIds.joinToString(",")
+                referencedNoteIds = message.referencedNoteIds.joinToString(","),
+                citationsJson = citationsJson
             )
+        }
+
+        /**
+         * Parse citations from JSON string
+         */
+        private fun parseCitationsJson(json: String): List<Citation> {
+            // Simple JSON parsing without external library
+            val citations = mutableListOf<Citation>()
+            try {
+                // Remove outer brackets and split by "},{"
+                val trimmed = json.trim().removePrefix("[").removeSuffix("]")
+                if (trimmed.isBlank()) return emptyList()
+
+                // Split by },{ but keep track of nested braces
+                val items = mutableListOf<String>()
+                var depth = 0
+                var start = 0
+                for (i in trimmed.indices) {
+                    when (trimmed[i]) {
+                        '{' -> depth++
+                        '}' -> {
+                            depth--
+                            if (depth == 0) {
+                                items.add(trimmed.substring(start, i + 1).trim().removePrefix(",").trim())
+                                start = i + 1
+                            }
+                        }
+                    }
+                }
+
+                for (item in items) {
+                    val obj = item.removePrefix("{").removeSuffix("}")
+                    var title = ""
+                    var url = ""
+                    var snippet = ""
+
+                    // Parse each field
+                    val regex = """"(\w+)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""".toRegex()
+                    regex.findAll(obj).forEach { match ->
+                        val (key, value) = match.destructured
+                        val unescaped = value.replace("\\\"", "\"").replace("\\\\", "\\")
+                        when (key) {
+                            "title" -> title = unescaped
+                            "url" -> url = unescaped
+                            "snippet" -> snippet = unescaped
+                        }
+                    }
+
+                    if (title.isNotBlank() || url.isNotBlank()) {
+                        citations.add(Citation(title = title, url = url, snippet = snippet))
+                    }
+                }
+            } catch (e: Exception) {
+                // Return empty on parse error
+            }
+            return citations
+        }
+
+        /**
+         * Serialize citations to JSON string
+         */
+        private fun serializeCitationsToJson(citations: List<Citation>): String {
+            if (citations.isEmpty()) return "[]"
+
+            val items = citations.map { citation ->
+                val title = citation.title.replace("\\", "\\\\").replace("\"", "\\\"")
+                val url = citation.url.replace("\\", "\\\\").replace("\"", "\\\"")
+                val snippet = citation.snippet.replace("\\", "\\\\").replace("\"", "\\\"")
+                """{"title":"$title","url":"$url","snippet":"$snippet"}"""
+            }
+            return "[${items.joinToString(",")}]"
         }
     }
 }

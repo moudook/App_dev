@@ -4,8 +4,12 @@ import android.util.Log
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SecurePreferences
 import com.google.gson.annotations.SerializedName
+import com.example.smarty.util.HttpClientProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import java.io.IOException
 
 // ==================== Response Models ====================
 
@@ -152,29 +156,49 @@ class AIService(private val securePreferences: SecurePreferences) {
      * @return The AI response text, or throws if no provider available
      */
     suspend fun simpleChat(systemPrompt: String, userPrompt: String): String = withContext(Dispatchers.IO) {
-        val providers = orchestrator.getOrderedProviders()
+        // Use standardized read timeout from HttpClientProvider (AI responses can be slow)
+        val timeoutMs = HttpClientProvider.READ_TIMEOUT_SECONDS * 1000
+        try {
+            withTimeout(timeoutMs) {
+                val providers = orchestrator.getOrderedProviders()
 
-        for (provider in providers) {
-            val keys = securePreferences.getProviderKeys(provider)
-            if (keys.isEmpty()) continue
+                for (provider in providers) {
+                    val keys = securePreferences.getProviderKeys(provider)
+                    if (keys.isEmpty()) continue
 
-            val providerInstance = orchestrator.getProvider(provider)
-            val model = orchestrator.getModelForProvider(provider)
+                    val providerInstance = orchestrator.getProvider(provider)
+                    val model = orchestrator.getModelForProvider(provider)
 
-            val result = providerInstance.chat(
-                systemPrompt = systemPrompt,
-                userPrompt = userPrompt,
-                apiKey = keys.first(),
-                model = model
-            )
+                    val result = providerInstance.chat(
+                        systemPrompt = systemPrompt,
+                        userPrompt = userPrompt,
+                        apiKey = keys.first(),
+                        model = model
+                    )
 
-            if (result != null) {
-                Log.d(TAG, "simpleChat succeeded with $provider")
-                return@withContext result
+                    if (result != null) {
+                        Log.d(TAG, "simpleChat succeeded with $provider")
+                        return@withTimeout result
+                    }
+                }
+
+                throw IllegalStateException("No AI provider available for chat")
             }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "simpleChat timed out after ${HttpClientProvider.READ_TIMEOUT_SECONDS} seconds")
+            throw IOException("Request timed out. Please try again.")
         }
+    }
 
-        throw IllegalStateException("No AI provider available for chat")
+    /**
+     * Check if any AI provider is available for processing.
+     * Returns true if at least one provider has API keys configured.
+     */
+    fun isAiAvailable(): Boolean {
+        val providers = orchestrator.getOrderedProviders()
+        return providers.any { provider ->
+            securePreferences.getProviderKeys(provider).isNotEmpty()
+        }
     }
 
     /**

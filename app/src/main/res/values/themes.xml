@@ -5,4 +5,34 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
+
+    <!-- Gemini-Style Transparent Overlay - Crystal Clear Background -->
+    <style name="Theme.Smarty.Assistant" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        
+        <!-- CRITICAL: Override Material3's default colorBackground (white/black) -->
+        <item name="android:colorBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        
+        <!-- CRITICAL: Prevents OS from adding shadow/dim behind the activity -->
+        <item name="android:backgroundDimEnabled">false</item>
+        
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
+    <!-- Legacy transparent theme (kept for backwards compat) -->
+    <style name="Theme.Smarty.Transparent" parent="Theme.Smarty.Assistant" />
+
+    <!-- Slide-up animation for assistant overlay -->
+    <style name="AssistSlideAnimation">
+        <item name="android:windowEnterAnimation">@anim/assist_slide_up</item>
+        <item name="android:windowExitAnimation">@anim/assist_slide_down</item>
+    </style>
 </resources>

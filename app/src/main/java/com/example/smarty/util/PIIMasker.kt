@@ -76,22 +76,31 @@ object PIIMasker : ComponentCallbacks2 {
     private val counter = AtomicInteger(0)
 
     /**
-     * SECURITY FIX: Maximum size for placeholder map to prevent memory leaks.
-     * When exceeded, the map is cleared to prevent unbounded growth.
+     * Maximum size for placeholder map to prevent memory leaks.
+     * Uses LRU eviction to remove least recently accessed entries.
      * This addresses TECH-038 (PIIMasker session never cleared).
-     * Reduced from 1000 to 200 for edge devices.
      */
     private const val MAX_PLACEHOLDER_MAP_SIZE = 200
 
     /**
-     * Session-based placeholder mapping.
+     * Session-based placeholder mapping with LRU eviction.
      * Maps placeholder strings to their original values.
      * Thread-safe access via synchronized methods.
      *
-     * NOTE: Automatically cleared when size exceeds MAX_PLACEHOLDER_MAP_SIZE
-     * to prevent memory leaks from long-running sessions.
+     * Uses LinkedHashMap with accessOrder=true for LRU behavior:
+     * - Entries are ordered by access time (get/put moves entry to end)
+     * - removeEldestEntry() automatically evicts oldest entry when size exceeds limit
+     * - This prevents unbounded memory growth while preserving recent mappings
      */
-    private val placeholderMap = mutableMapOf<String, String>()
+    private val placeholderMap: MutableMap<String, String> = object : LinkedHashMap<String, String>(
+        MAX_PLACEHOLDER_MAP_SIZE + 1,  // Initial capacity
+        0.75f,                          // Load factor
+        true                            // accessOrder=true for LRU behavior
+    ) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean {
+            return size > MAX_PLACEHOLDER_MAP_SIZE
+        }
+    }
 
     /**
      * Track registration status to prevent duplicate registrations.
@@ -144,12 +153,8 @@ object PIIMasker : ComponentCallbacks2 {
     fun mask(text: String): String {
         if (text.isBlank()) return text
 
-        // SECURITY FIX (TECH-038): Auto-cleanup to prevent memory leak
-        // If placeholder map grows too large, clear it to prevent OOM
-        if (placeholderMap.size >= MAX_PLACEHOLDER_MAP_SIZE) {
-            placeholderMap.clear()
-            counter.set(0)
-        }
+        // LRU eviction is handled automatically by LinkedHashMap.removeEldestEntry()
+        // No need for manual clearing - oldest entries are evicted as new ones are added
 
         var maskedText = text
 

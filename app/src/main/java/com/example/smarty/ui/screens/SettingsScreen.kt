@@ -1,7 +1,13 @@
 package com.example.smarty.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -44,6 +50,9 @@ import java.util.concurrent.TimeUnit
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.ProviderSection
 import com.example.smarty.ui.screens.settings.maskApiKey
+import com.example.smarty.ui.screens.settings.VoiceFingerprintSheetContent
+import com.example.smarty.ui.screens.settings.DataManagementSection
+import com.example.smarty.ui.screens.settings.formatCacheSize
 import com.example.smarty.util.api.ApiMetrics
 import com.example.smarty.util.api.KeyUsageStats
 import java.text.SimpleDateFormat
@@ -53,6 +62,8 @@ import com.example.smarty.ui.components.ShakeSensitivityControl
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
+import com.example.smarty.ui.theme.SystemGreen
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
@@ -92,6 +103,9 @@ fun SettingsScreen(
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
+    // Google Calendar Sync
+    lastCalendarSyncTime: Long = 0L,
+    onCalendarSync: () -> Unit = {},
     // Shake sensitivity
     shakeSensitivity: Float = 0.5f,
     onShakeSensitivityChange: (Float) -> Unit = {},
@@ -104,13 +118,15 @@ fun SettingsScreen(
     // TTS for AI responses
     isTTSEnabled: Boolean = true,
     onTTSEnabledChange: (Boolean) -> Unit = {},
+    // Local LLM Server
+    localServerIP: String = "",
+    onSetLocalServerIP: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { AIModels.getModelsForProvider(it) },
     onSignOut: () -> Unit = {}
 ) {
     var showRemovePinDialog by remember { mutableStateOf(false) }
-    var showDeleteVoiceFingerprintDialog by remember { mutableStateOf(false) }
     var showAIConfigSheet by remember { mutableStateOf(false) }
     val aiConfigSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     
@@ -158,441 +174,206 @@ fun SettingsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
+        // Grouped section expand states
+        var expandedSection by remember { mutableStateOf<String?>("ai") } // AI section open by default
+
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Spacer(modifier = Modifier.height(8.dp))
 
-
-            // Main Settings List
-            // Main Settings List
-            SettingsItem(
+            // ═══════════════════════════════════════════════════════════════════
+            // SECTION 1: AI & VOICE
+            // ═══════════════════════════════════════════════════════════════════
+            SettingsSection(
+                title = "AI & Voice",
                 icon = Icons.Default.Psychology,
-                title = "AI Providers",
-                subtitle = "Configure models & keys",
-                onClick = { showAIConfigSheet = true }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsItem(
-                icon = Icons.Default.CloudSync,
-                title = "Backup & Sync",
-                subtitle = if (lastBackupTime > 0) {
-                    val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
-                    "Last: ${sdf.format(java.util.Date(lastBackupTime))}"
-                } else "Not backed up",
-                onClick = { showBackupSheet = true }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsItem(
-                icon = Icons.Default.Archive,
-                title = "Archive",
-                subtitle = "View archived notes",
-                onClick = { showArchiveSheet = true }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Security & Storage
-            if (isPinConfigured) {
-                SettingsItem(
-                    icon = Icons.Default.Password,
-                    title = "Change PIN",
-                    subtitle = "Update your security PIN",
-                    onClick = { showPinChangeSheet = true }
+                isExpanded = expandedSection == "ai",
+                onToggle = { expandedSection = if (expandedSection == "ai") null else "ai" }
+            ) {
+                SettingsRow(
+                    title = "AI Providers",
+                    subtitle = "Models & API keys",
+                    onClick = { showAIConfigSheet = true }
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                SettingsItem(
-                    icon = Icons.Default.LockOpen,
-                    title = "Remove PIN",
-                    subtitle = "Disable PIN protection",
-                    onClick = { showRemovePinDialog = true },
-                    isDestructive = true,
-                    iconColor = SafetyOrange
+                SettingsRow(
+                    title = if (isVoiceEnrolled) "Voice ID" else "Set Up Voice ID",
+                    subtitle = if (isVoiceEnrolled) "Active" else "Not configured",
+                    onClick = {
+                        if (isVoiceEnrolled) showVoiceFingerprintSheet = true
+                        else onRetrainVoice()
+                    }
                 )
-            } else {
-                SettingsItem(
-                    icon = Icons.Default.Lock,
-                    title = "Set Up PIN",
-                    subtitle = "Protect your notes",
-                    onClick = { showPinSetupSheet = true }
+                SettingsToggleRow(
+                    title = "Speak Responses",
+                    isChecked = isTTSEnabled,
+                    onCheckedChange = onTTSEnabledChange
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            // ═══════════════════════════════════════════════════════════════════
+            // SECTION 2: SECURITY
+            // ═══════════════════════════════════════════════════════════════════
+            SettingsSection(
+                title = "Security",
+                icon = Icons.Default.Shield,
+                isExpanded = expandedSection == "security",
+                onToggle = { expandedSection = if (expandedSection == "security") null else "security" }
+            ) {
+                if (isPinConfigured) {
+                    SettingsRow(
+                        title = "Change PIN",
+                        subtitle = "Update security code",
+                        onClick = { showPinChangeSheet = true }
+                    )
+                    SettingsRow(
+                        title = "Remove PIN",
+                        subtitle = "Disable protection",
+                        onClick = { showRemovePinDialog = true },
+                        isDestructive = true
+                    )
+                } else {
+                    SettingsRow(
+                        title = "Set Up PIN",
+                        subtitle = "Protect your notes",
+                        onClick = { showPinSetupSheet = true }
+                    )
+                }
+            }
 
-            // Shake Sensitivity
-            SettingsItem(
-                icon = Icons.Default.Vibration,
-                title = "Shake Sensitivity",
-                subtitle = "${(shakeSensitivity * 100).toInt()}% - ${
-                    when {
+            // ═══════════════════════════════════════════════════════════════════
+            // SECTION 3: DATA
+            // ═══════════════════════════════════════════════════════════════════
+            SettingsSection(
+                title = "Data",
+                icon = Icons.Default.Storage,
+                isExpanded = expandedSection == "data",
+                onToggle = { expandedSection = if (expandedSection == "data") null else "data" }
+            ) {
+                SettingsRow(
+                    title = "Backup & Sync",
+                    subtitle = if (lastBackupTime > 0) {
+                        val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
+                        "Last: ${sdf.format(java.util.Date(lastBackupTime))}"
+                    } else "Not backed up",
+                    onClick = { showBackupSheet = true }
+                )
+                SettingsRow(
+                    title = "Google Calendar Sync",
+                    subtitle = if (lastCalendarSyncTime > 0) {
+                        val sdf = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
+                        "Last sync: ${sdf.format(java.util.Date(lastCalendarSyncTime))}"
+                    } else "Not synced",
+                    onClick = onCalendarSync
+                )
+                SettingsRow(
+                    title = "Archive",
+                    subtitle = "View archived notes",
+                    onClick = { showArchiveSheet = true }
+                )
+                SettingsRow(
+                    title = "Clear Cache",
+                    subtitle = formatCacheSize(cacheSizeBytes),
+                    onClick = onClearCache,
+                    enabled = !isClearingCache && cacheSizeBytes > 0
+                )
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // SECTION 4: PREFERENCES
+            // ═══════════════════════════════════════════════════════════════════
+            SettingsSection(
+                title = "Preferences",
+                icon = Icons.Default.Tune,
+                isExpanded = expandedSection == "prefs",
+                onToggle = { expandedSection = if (expandedSection == "prefs") null else "prefs" }
+            ) {
+                SettingsRow(
+                    title = "Shake Sensitivity",
+                    subtitle = when {
                         shakeSensitivity < 0.3f -> "Low"
                         shakeSensitivity < 0.7f -> "Medium"
                         else -> "High"
-                    }
-                }",
-                onClick = { showShakeSensitivitySheet = true },
-                showArrow = true
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Voice Fingerprint Section - Consolidated
-            SettingsItem(
-                icon = Icons.Default.RecordVoiceOver,
-                title = if (isVoiceEnrolled) "Voice ID" else "Set Up Voice ID",
-                subtitle = if (isVoiceEnrolled) "Active • Tap to manage" else "Enable voice-only wake word",
-                onClick = {
-                    if (isVoiceEnrolled) {
-                        showVoiceFingerprintSheet = true
-                    } else {
-                        onRetrainVoice()
-                    }
-                },
-                showArrow = true
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // TTS for AI Responses Toggle
-            SettingsToggleItem(
-                icon = Icons.Filled.VolumeUp,
-                title = "Speak AI Responses",
-                subtitle = if (isTTSEnabled) "AI replies are spoken aloud" else "Text-only responses",
-                isChecked = isTTSEnabled,
-                onCheckedChange = onTTSEnabledChange
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            SettingsItem(
-                icon = Icons.Default.CleaningServices,
-                title = "Clear Cache",
-                subtitle = formatCacheSize(cacheSizeBytes),
-                onClick = onClearCache,
-                isLoading = isClearingCache,
-                enabled = !isClearingCache && cacheSizeBytes > 0,
-                iconColor = MaterialTheme.colorScheme.outline
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Account & Sign Out
-            SettingsItem(
-                icon = Icons.Default.Logout,
-                title = "Sign Out",
-                subtitle = "Log out of your account",
-                onClick = onSignOut,
-                isDestructive = true,
-                iconColor = SafetyOrange
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // API Info & Metrics Section
-            val metrics by ApiMetrics.metricsFlow.collectAsState()
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(26.dp)),
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
-                elevation = CardDefaults.cardElevation(0.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(LocalAccentColor.current.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.QueryStats,
-                                contentDescription = null,
-                                tint = LocalAccentColor.current,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        Text(
-                            text = "API Info & Metrics",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Success Rate
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Total API Calls", style = MaterialTheme.typography.bodyMedium)
-                        Text("${metrics.totalCalls}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Successful", style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4CAF50))
-                        Text("${metrics.successfulCalls}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Failed", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFF44336))
-                        Text("${metrics.failedCalls}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Success Rate Bar
-                    val successRate = metrics.successRate
-                    Text(
-                        "Success Rate: ${(successRate * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    LinearProgressIndicator(
-                        progress = { successRate },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = Color(0xFF4CAF50),
-                        trackColor = Color(0xFFF44336).copy(alpha = 0.3f)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Cache Stats
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Cache Hits", style = MaterialTheme.typography.bodyMedium)
-                        Text("${metrics.cacheHits}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Cache Misses", style = MaterialTheme.typography.bodyMedium)
-                        Text("${metrics.cacheMisses}", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Cache Hit Rate Bar
-                    val cacheHitRate = metrics.cacheHitRate
-                    Text(
-                        "Cache Hit Rate: ${(cacheHitRate * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    LinearProgressIndicator(
-                        progress = { cacheHitRate },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Last Reset Time
-                    val dateFormat = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
-                    Text(
-                        "Stats since: ${dateFormat.format(Date(metrics.lastResetTime))}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Reset Button
-                    OutlinedButton(
-                        onClick = { ApiMetrics.reset() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Reset Statistics")
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Local PC Testing Section (FOR TESTING ONLY - Remove before publishing!)
-            val localPCEnabled = providerConfigs[AIProvider.LOCAL_PC]?.isEnabled ?: true
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (localPCEnabled)
-                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Computer,
-                            contentDescription = null,
-                            tint = if (localPCEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Local PC (USB Tethering)",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (localPCEnabled) "Enabled - Uses local AI server" else "Disabled",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // Enable/Disable Switch
-                        Switch(
-                            checked = localPCEnabled,
-                            onCheckedChange = { onSetProviderEnabled(AIProvider.LOCAL_PC, it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = MaterialTheme.colorScheme.tertiary,
-                                checkedTrackColor = MaterialTheme.colorScheme.tertiaryContainer
-                            )
-                        )
-                    }
-
-                    if (localPCEnabled) {
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Connection status
-                        localPCTestStatus?.let { status ->
-                            Text(
-                                text = status,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (status.contains("Success") || status.contains("online"))
-                                    Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-
-                        // Test button
-                        Button(
-                            onClick = {
-                                isTestingLocalPC = true
-                                localPCTestStatus = "Testing connection..."
-                                coroutineScope.launch {
-                                    try {
-                                        val status = withContext(Dispatchers.IO) {
-                                            val client = OkHttpClient.Builder()
-                                                .connectTimeout(10, TimeUnit.SECONDS)
-                                                .readTimeout(10, TimeUnit.SECONDS)
-                                                .build()
-                                            val request = Request.Builder()
-                                                .url("http://10.224.189.60:8000/v1/models")
-                                                .get()
-                                                .build()
-                                            val response = client.newCall(request).execute()
-                                            if (response.isSuccessful) {
-                                                "Server online - Ready"
-                                            } else {
-                                                "Server responded: ${response.code}"
-                                            }
-                                        }
-                                        localPCTestStatus = status
-                                    } catch (e: Exception) {
-                                        localPCTestStatus = "Connection failed: ${e.message}"
-                                    } finally {
-                                        isTestingLocalPC = false
-                                    }
-                                }
-                            },
-                            enabled = !isTestingLocalPC,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.tertiary
-                            )
-                        ) {
-                            if (isTestingLocalPC) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onTertiary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                    },
+                    onClick = { showShakeSensitivitySheet = true }
+                )
+                // Assistant Settings
+                val context = LocalContext.current
+                SettingsRow(
+                    title = "Default Assistant",
+                    subtitle = "Set as device assistant",
+                    onClick = {
+                        try {
+                            // Open Android's assistant settings
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            // Fallback to general settings if voice input settings not available
+                            try {
+                                val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                                context.startActivity(intent)
+                            } catch (e2: Exception) {
+                                android.util.Log.e("Settings", "Could not open settings: ${e2.message}")
                             }
-                            Text(if (isTestingLocalPC) "Testing..." else "Test Connection")
                         }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = "Server: http://10.224.189.60:8000",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
                     }
+                )
+            }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // SECTION 5: ACCOUNT (No expand - direct actions)
+            // ═══════════════════════════════════════════════════════════════════
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                onClick = onSignOut
+            ) {
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Logout,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = "Sign Out",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // About Section
-            SettingsItem(
-                icon = Icons.Default.Info,
-                title = "About Loum",
-                subtitle = "Version 1.1.0",
-                onClick = { showAboutSheet = true },
-                showArrow = true
-            )
-
+            // ═══════════════════════════════════════════════════════════════════
+            // FOOTER
+            // ═══════════════════════════════════════════════════════════════════
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Footer
-            Text(
-                text = "Made with intelligence",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Loum v1.1.0",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Made with intelligence",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                )
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -616,7 +397,9 @@ fun SettingsScreen(
             onSetTavilyApiKey = onSetTavilyApiKey,
             groqKeyUsageStats = groqKeyUsageStats,
             onRefreshModels = onRefreshModels,
-            getAvailableModels = getAvailableModels
+            getAvailableModels = getAvailableModels,
+            localServerIP = localServerIP,
+            onSetLocalServerIP = onSetLocalServerIP
         )
     }
 
@@ -790,29 +573,7 @@ fun SettingsScreen(
         )
     }
 
-    // Delete Voice Fingerprint Dialog
-    if (showDeleteVoiceFingerprintDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteVoiceFingerprintDialog = false },
-            title = { Text("Delete Voice Fingerprint?") },
-            text = { Text("Your voice ID will be removed. Anyone's voice will be able to trigger the wake word.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteVoiceFingerprint()
-                    showDeleteVoiceFingerprintDialog = false
-                    showVoiceFingerprintSheet = false
-                }) {
-                    Text("Delete", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteVoiceFingerprintDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            shape = LocalShapes.current.cardMedium
-        )
-    }
+    // Note: Delete Voice Fingerprint Dialog is now handled inside VoiceFingerprintSheetContent
 
     // Voice Fingerprint Management Bottom Sheet
     if (showVoiceFingerprintSheet) {
@@ -840,146 +601,12 @@ fun SettingsScreen(
             }
         ) {
             HideSystemBars()
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
-            ) {
-                // Header
-                Text(
-                    text = "Voice ID",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "Your voice fingerprint is active. Only your voice will trigger the wake word.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Status indicator
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(LocalAccentColor.current.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = LocalAccentColor.current,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.width(16.dp))
-                        
-                        Column {
-                            Text(
-                                text = "Voice ID Active",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Your unique voice pattern is stored",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Retrain Button
-                Button(
-                    onClick = {
-                        showVoiceFingerprintSheet = false
-                        onRetrainVoice()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LocalAccentColor.current
-                    ),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Retrain Voice ID",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                        )
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Delete Button
-                OutlinedButton(
-                    onClick = { showDeleteVoiceFingerprintDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    border = BorderStroke(1.dp, SafetyOrange.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteForever,
-                        contentDescription = null,
-                        tint = SafetyOrange,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Delete Voice ID",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                        ),
-                        color = SafetyOrange
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Info text
-                Text(
-                    text = "Retraining will replace your current voice fingerprint with a new one.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
+            VoiceFingerprintSheetContent(
+                isVoiceEnrolled = isVoiceEnrolled,
+                onRetrainVoice = onRetrainVoice,
+                onDeleteVoice = onDeleteVoiceFingerprint,
+                onDismiss = { showVoiceFingerprintSheet = false }
+            )
         }
     }
 
@@ -1346,7 +973,9 @@ private fun AIConfigBottomSheet(
     onSetTavilyApiKey: (String?) -> Unit = {},
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     onRefreshModels: (AIProvider) -> Unit,
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>>
+    getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
+    localServerIP: String = "",
+    onSetLocalServerIP: (String) -> Unit = {}
 ) {
     val shapes = LocalShapes.current
 
@@ -1541,6 +1170,17 @@ private fun AIConfigBottomSheet(
             TavilyApiSection(
                 apiKey = tavilyApiKey,
                 onSetApiKey = onSetTavilyApiKey
+            )
+
+            // Local LLM Server Section
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            )
+
+            LocalServerSection(
+                serverIP = localServerIP,
+                onSetServerIP = onSetLocalServerIP
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1809,14 +1449,495 @@ private fun TavilyApiSection(
     }
 }
 
-private fun formatCacheSize(bytes: Long): String {
-    return when {
-        bytes < 1024 -> "$bytes B"
-        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
-        bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
-        else -> "%.1f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
+/**
+ * Result of testing connection to local LLM server
+ */
+private sealed class TestResult {
+    data object Success : TestResult()
+    data class Failure(val message: String) : TestResult()
+}
+
+/**
+ * Test connection to local LLM server by pinging the models endpoint
+ */
+private suspend fun testLocalServer(ip: String): TestResult {
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        try {
+            val url = java.net.URL("http://$ip:8000/v1/models")
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            connection.setRequestProperty("Accept", "application/json")
+
+            val responseCode = connection.responseCode
+            connection.disconnect()
+
+            if (responseCode in 200..299) {
+                TestResult.Success
+            } else {
+                TestResult.Failure("Server returned code: $responseCode")
+            }
+        } catch (e: java.net.ConnectException) {
+            TestResult.Failure("Connection refused - server not running?")
+        } catch (e: java.net.SocketTimeoutException) {
+            TestResult.Failure("Connection timeout - check IP address")
+        } catch (e: java.net.UnknownHostException) {
+            TestResult.Failure("Invalid IP address")
+        } catch (e: Exception) {
+            TestResult.Failure("Error: ${e.message ?: "Unknown error"}")
+        }
     }
 }
+
+/**
+ * Local LLM Server configuration section.
+ * Allows users to input a local server IP for running LLMs via USB tethering.
+ */
+@Composable
+private fun LocalServerSection(
+    serverIP: String,
+    onSetServerIP: (String) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var ipInput by remember { mutableStateOf(serverIP) }
+    var isEditing by remember { mutableStateOf(false) }
+    var isTesting by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<TestResult?>(null) }
+    val scope = rememberCoroutineScope()
+
+    // Sync with external state
+    LaunchedEffect(serverIP) {
+        if (!isEditing) ipInput = serverIP
+    }
+
+    // Clear test result after 5 seconds
+    LaunchedEffect(testResult) {
+        if (testResult != null) {
+            kotlinx.coroutines.delay(5000)
+            testResult = null
+        }
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp).padding(end = 8.dp)
+                )
+
+                Column {
+                    Text(
+                        text = "Local LLM Server",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = if (serverIP.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Connect to a local AI server via USB",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Status indicator
+            if (serverIP.isNotBlank()) {
+                Icon(
+                    imageVector = Icons.Default.Dns,
+                    contentDescription = "Configured",
+                    tint = LocalAccentColor.current,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // Expanded content
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = expandVertically() + androidx.compose.animation.fadeIn(),
+            exit = shrinkVertically() + androidx.compose.animation.fadeOut()
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Info text
+                Text(
+                    text = "Enter the IP address of your local LLM server (e.g., 192.168.1.100). The server should be running on port 8000 with OpenAI-compatible API.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+
+                // IP Input
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            1.dp,
+                            if (ipInput.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
+                            RoundedCornerShape(ComponentSpacing.inputCornerRadius)
+                        ),
+                    shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = ipInput,
+                                    onValueChange = {
+                                        ipInput = it
+                                        isEditing = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = com.example.smarty.ui.theme.MonoFont,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(LocalAccentColor.current),
+                                    singleLine = true
+                                )
+                                if (ipInput.isEmpty()) {
+                                    Text(
+                                        text = "192.168.1.100",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = com.example.smarty.ui.theme.MonoFont
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Test result message
+                        AnimatedVisibility(
+                            visible = testResult != null || isTesting,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                when {
+                                    isTesting -> {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp,
+                                            color = LocalAccentColor.current
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Testing connection...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    testResult is TestResult.Success -> {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Success",
+                                            tint = SystemGreen,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Connection successful! Server saved.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = SystemGreen
+                                        )
+                                    }
+                                    testResult is TestResult.Failure -> {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = "Failed",
+                                            tint = SafetyOrange,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = (testResult as TestResult.Failure).message,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = SafetyOrange
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            if (serverIP.isNotBlank()) {
+                                TextButton(
+                                    onClick = {
+                                        onSetServerIP("")
+                                        ipInput = ""
+                                        isEditing = false
+                                        testResult = null
+                                    },
+                                    enabled = !isTesting
+                                ) {
+                                    Text("Clear", color = SafetyOrange)
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (ipInput.isNotBlank()) {
+                                        scope.launch {
+                                            isTesting = true
+                                            testResult = null
+                                            val result = testLocalServer(ipInput.trim())
+                                            isTesting = false
+                                            testResult = result
+
+                                            if (result is TestResult.Success) {
+                                                onSetServerIP(ipInput.trim())
+                                                isEditing = false
+                                            }
+                                        }
+                                    }
+                                },
+                                enabled = ipInput.isNotBlank() && !isTesting,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = LocalAccentColor.current,
+                                    contentColor = MaterialTheme.colorScheme.surface
+                                )
+                            ) {
+                                if (isTesting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.surface
+                                    )
+                                } else {
+                                    Text("Test & Save")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Current URL display if configured
+                if (serverIP.isNotBlank()) {
+                    Text(
+                        text = "Server URL: http://$serverIP:8000/v1/chat/completions",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFamily = com.example.smarty.ui.theme.MonoFont
+                        ),
+                        color = SystemGreen.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CENTRALIZED SETTINGS COMPONENTS - Minimal, Grouped, Expandable
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Collapsible settings section with header and expandable content.
+ * Only shows items when expanded - reduces visual clutter.
+ */
+@Composable
+private fun SettingsSection(
+    title: String,
+    icon: ImageVector,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val accentColor = LocalAccentColor.current
+    val rotationAngle by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(200),
+        label = "rotation"
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = if (isExpanded)
+            accentColor.copy(alpha = 0.08f)
+        else
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        onClick = onToggle
+    ) {
+        Column {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = if (isExpanded) androidx.compose.ui.text.font.FontWeight.SemiBold
+                        else androidx.compose.ui.text.font.FontWeight.Medium
+                    ),
+                    color = if (isExpanded) accentColor else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .graphicsLayer { rotationZ = rotationAngle }
+                )
+            }
+
+            // Expandable content
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isExpanded,
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    content()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Simple settings row inside a section - minimal, tappable.
+ */
+@Composable
+private fun SettingsRow(
+    title: String,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    isDestructive: Boolean = false
+) {
+    val contentColor = when {
+        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+        isDestructive -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.Transparent,
+        onClick = onClick,
+        enabled = enabled
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = contentColor
+                )
+                subtitle?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            alpha = if (enabled) 0.7f else 0.4f
+                        )
+                    )
+                }
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Settings row with toggle switch - inline control.
+ */
+@Composable
+private fun SettingsToggleRow(
+    title: String,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.Transparent
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Switch(
+                checked = isChecked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = LocalAccentColor.current,
+                    checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.3f)
+                )
+            )
+        }
+    }
+}
+
+// formatCacheSize is now imported from DataManagementSection
 
 @Composable
 private fun HideSystemBars() {

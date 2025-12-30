@@ -22,12 +22,22 @@ data class WebSearchArgs(
 )
 
 /**
+ * Citation data from web search
+ */
+data class SearchCitation(
+    val title: String,
+    val url: String,
+    val snippet: String
+)
+
+/**
  * Tool for searching the web via Tavily API.
  * Provides real-time information to the agent.
  */
 class WebSearchTool(
     private val tavilySearchProvider: TavilySearchProvider,
-    private val getApiKey: () -> String?
+    private val getApiKey: () -> String?,
+    private val onCitationsFound: ((List<SearchCitation>) -> Unit)? = null
 ) : Tool<WebSearchArgs, WebSearchResult>() {
 
     override val argsSerializer: KSerializer<WebSearchArgs> = WebSearchArgs.serializer()
@@ -35,6 +45,10 @@ class WebSearchTool(
 
     companion object {
         private const val TAG = "WebSearchTool"
+        private const val TAVILY_RATE_KEY = "tavily_search"
+        private const val TAVILY_DAILY_LIMIT = 1000  // Free tier limit
+        private var dailyCallCount = 0
+        private var lastResetDay = 0L
     }
 
     override val name = "web_search"
@@ -46,6 +60,22 @@ class WebSearchTool(
         Provide a reason explaining why search is needed.
     """.trimIndent()
 
+    private fun checkRateLimit(): Boolean {
+        val today = System.currentTimeMillis() / (24 * 60 * 60 * 1000)
+        if (today != lastResetDay) {
+            dailyCallCount = 0
+            lastResetDay = today
+        }
+
+        if (dailyCallCount >= TAVILY_DAILY_LIMIT) {
+            Log.w(TAG, "Tavily daily rate limit reached")
+            return false
+        }
+
+        dailyCallCount++
+        return true
+    }
+
     override suspend fun execute(args: WebSearchArgs): WebSearchResult {
         val apiKey = getApiKey()
         if (apiKey.isNullOrBlank()) {
@@ -55,6 +85,15 @@ class WebSearchTool(
                 query = args.query,
                 reason = args.reason,
                 error = "Web search not configured"
+            )
+        }
+
+        if (!checkRateLimit()) {
+            return WebSearchResult(
+                success = false,
+                query = args.query,
+                reason = args.reason,
+                error = "Search rate limit reached. Please try again tomorrow."
             )
         }
 
@@ -75,6 +114,12 @@ class WebSearchTool(
                         url = result.url,
                         snippet = result.snippet
                     )
+                }
+
+                // Report citations to the callback
+                if (results.isNotEmpty()) {
+                    val citations = results.map { SearchCitation(it.title, it.url, it.snippet) }
+                    onCitationsFound?.invoke(citations)
                 }
 
                 WebSearchResult(

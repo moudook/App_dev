@@ -15,10 +15,9 @@ import com.example.smarty.util.api.ApiKeyRotator
 import com.example.smarty.util.api.ApiMetrics
 import com.example.smarty.util.api.ProviderFailoverManager
 import com.example.smarty.util.api.ProviderPriorityResolver
+import com.example.smarty.util.HttpClientProvider
 import com.example.smarty.util.retry.RetryExecutor
 import com.google.gson.Gson
-import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
 
 /**
  * Orchestrates AI provider selection, configuration, and fallback logic.
@@ -41,12 +40,9 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
 
     val gson = Gson()
 
-    val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(90, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .build()
+    // Use shared singleton to prevent resource leaks (connection pool exhaustion, thread leaks)
+    // Uses standardized timeouts: connect=30s, read=90s, write=60s
+    val client = HttpClientProvider.default
 
     // Failover manager for circuit breaker and health tracking
     private val failoverManager = ProviderFailoverManager.getInstance()
@@ -64,9 +60,18 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
     private val huggingFaceProvider: AIProviderContract = HuggingFaceProvider(client, gson)
     private val githubProvider: AIProviderContract = OpenAICompatibleProvider.github(client, gson)
     // FOR TESTING ONLY - Remove before publishing!
-    // Dynamic provider that reads current IP from SecurePreferences each time
+    // Cached local PC provider instance - recreated only when URL changes
+    private var _localPCProvider: OpenAICompatibleProvider? = null
+    private var _localPCUrl: String? = null
     private val localPCProvider: AIProviderContract
-        get() = OpenAICompatibleProvider.localPC(client, gson, securePreferences.getLocalPCUrl())
+        get() {
+            val currentUrl = securePreferences.getLocalPCUrl()
+            if (_localPCProvider == null || _localPCUrl != currentUrl) {
+                _localPCUrl = currentUrl
+                _localPCProvider = OpenAICompatibleProvider.localPC(client, gson, currentUrl)
+            }
+            return _localPCProvider!!
+        }
 
     /**
      * Get the provider instance for an AIProvider enum value.

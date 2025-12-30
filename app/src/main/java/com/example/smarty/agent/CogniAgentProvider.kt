@@ -21,6 +21,10 @@ import ai.koog.prompt.executor.llms.SingleLLMPromptExecutor
 import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLMProvider
+import java.net.HttpURLConnection
+import java.net.URI
+import java.net.URL
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Provides configured prompt executor based on user's API key settings.
@@ -33,14 +37,14 @@ class CogniAgentProvider(
 ) {
     companion object {
         private const val TAG = "CogniAgentProvider"
+        private const val LOCAL_PC_CONNECTION_TIMEOUT_MS = 3000 // 3 seconds timeout for connectivity check
     }
 
     // Failover manager for circuit breaker and health tracking
     private val failoverManager = ProviderFailoverManager.getInstance()
 
-    // 2-key rotation: alternate between 2 keys per message
-    @Volatile
-    private var keyRotationIndex = 0
+    // 2-key rotation: alternate between 2 keys per message (thread-safe)
+    private val keyRotationIndex = AtomicInteger(0)
 
     /**
      * Result of attempting to get an executor.
@@ -117,9 +121,8 @@ class CogniAgentProvider(
             val agentKeys = ApiKeyRotator.getAgentKeys(allKeys)
 
             if (agentKeys.size > 1) {
-                // Rotate between agent keys (1 and 2)
-                val tryFirstFirst = (keyRotationIndex % 2) == 0
-                keyRotationIndex++
+                // Rotate between agent keys (1 and 2) - thread-safe increment
+                val tryFirstFirst = (keyRotationIndex.getAndIncrement() % 2) == 0
 
                 val keysToUse = if (tryFirstFirst) agentKeys else agentKeys.reversed()
 
@@ -141,6 +144,25 @@ class CogniAgentProvider(
                 }
 
                 Log.d(TAG, "${provider.name}: Using single key (shared mode), model: $selectedModel")
+            }
+        }
+
+        // FALLBACK: If NO executors from enabled providers, automatically try LOCAL_PC
+        if (executors.isEmpty()) {
+            Log.w(TAG, "No enabled providers available - attempting LOCAL_PC fallback")
+            val localPcUrl = securePreferences.getLocalPCUrl()
+            if (localPcUrl.isNotBlank()) {
+                Log.d(TAG, "LOCAL_PC URL configured: $localPcUrl - attempting fallback")
+                val selectedModel = securePreferences.getSelectedModel(AIProvider.LOCAL_PC)
+                val result = createExecutorForProvider(AIProvider.LOCAL_PC, "local_pc_fallback", selectedModel, 1)
+                if (result is ExecutorResult.Success) {
+                    executors.add(result)
+                    Log.i(TAG, "LOCAL_PC fallback activated - using local server at $localPcUrl")
+                } else {
+                    Log.e(TAG, "LOCAL_PC fallback failed: $result")
+                }
+            } else {
+                Log.w(TAG, "LOCAL_PC fallback not available - no URL configured")
             }
         }
 
@@ -210,19 +232,182 @@ class CogniAgentProvider(
     /**
      * Create Local PC executor (OpenAI-compatible inference API via USB tethering).
      * FOR TESTING ONLY - Remove before publishing!
+     * Uses dynamic IP from SecurePreferences - IP can change with each USB tethering session.
+     * Validates connectivity before creating executor to provide meaningful error messages.
      */
     private fun createLocalPCExecutor(apiKey: String, modelId: String, keyIndex: Int): ExecutorResult {
+        // Get dynamic URL from SecurePreferences (IP may change with each USB tethering session)
+        val baseUrl = extractBaseUrl(securePreferences.getLocalPCUrl())
+
+        // Validate connection before creating executor
+        val connectionResult = validateLocalPCConnection(baseUrl)
+        if (!connectionResult.isConnected) {
+            Log.e(TAG, "LOCAL_PC connection failed: ${connectionResult.errorMessage}")
+            return ExecutorResult.NoApiKey(
+                "Local PC server unreachable at $baseUrl: ${connectionResult.errorMessage}. " +
+                "Please ensure the server is running and USB tethering is active."
+            )
+        }
+
+        Log.i(TAG, "LOCAL_PC connection validated successfully to $baseUrl")
+
         val model = createOpenAICompatibleModel(modelId)
         return ExecutorResult.Success(
             executor = createCustomOpenAIExecutor(
                 apiKey = "",  // No API key needed for local server
-                baseUrl = "http://10.224.189.60:8000"
+                baseUrl = baseUrl
             ),
             model = model,
             provider = AIProvider.LOCAL_PC,
             apiKey = apiKey,
             keyIndex = keyIndex
         )
+    }
+
+    /**
+     * Result of validating LOCAL_PC server connectivity.
+     */
+    private data class LocalPCConnectionResult(
+        val isConnected: Boolean,
+        val errorMessage: String = ""
+    )
+
+    /**
+     * Validates connectivity to LOCAL_PC server with a short timeout.
+     * Performs a simple HTTP GET request to check if the server is reachable.
+     *
+     * @param baseUrl The base URL of the local server (e.g., "http://192.168.x.x:8080")
+     * @return LocalPCConnectionResult indicating success or failure with error details
+     */
+    private fun validateLocalPCConnection(baseUrl: String): LocalPCConnectionResult {
+        return try {
+            // Try to connect to the models endpoint or base URL
+            val testUrl = if (baseUrl.endsWith("/v1")) {
+                "$baseUrl/models"
+            } else {
+                "$baseUrl/v1/models"
+            }
+
+            Log.d(TAG, "Validating LOCAL_PC connection to: $testUrl")
+
+            val url = URL(testUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = LOCAL_PC_CONNECTION_TIMEOUT_MS
+            connection.readTimeout = LOCAL_PC_CONNECTION_TIMEOUT_MS
+            connection.setRequestProperty("Accept", "application/json")
+
+            try {
+                connection.connect()
+                val responseCode = connection.responseCode
+
+                // Accept any successful response (2xx) or even some error codes that indicate server is running
+                // 200 = OK, 401 = Unauthorized (server running but auth needed), 404 = endpoint not found (server running)
+                when {
+                    responseCode in 200..299 -> {
+                        Log.d(TAG, "LOCAL_PC server responded with HTTP $responseCode")
+                        LocalPCConnectionResult(isConnected = true)
+                    }
+                    responseCode == 401 || responseCode == 403 -> {
+                        // Server is running but requires auth - still consider it connected
+                        Log.d(TAG, "LOCAL_PC server requires authentication (HTTP $responseCode) - server is reachable")
+                        LocalPCConnectionResult(isConnected = true)
+                    }
+                    responseCode == 404 -> {
+                        // /models endpoint not found, but server is running - try base health check
+                        Log.d(TAG, "LOCAL_PC /models endpoint not found (HTTP 404) - server is reachable")
+                        LocalPCConnectionResult(isConnected = true)
+                    }
+                    else -> {
+                        Log.w(TAG, "LOCAL_PC server returned unexpected HTTP $responseCode")
+                        LocalPCConnectionResult(
+                            isConnected = false,
+                            errorMessage = "Server returned HTTP $responseCode"
+                        )
+                    }
+                }
+            } finally {
+                connection.disconnect()
+            }
+        } catch (e: java.net.ConnectException) {
+            Log.w(TAG, "LOCAL_PC connection refused: ${e.message}")
+            LocalPCConnectionResult(
+                isConnected = false,
+                errorMessage = "Connection refused - is the server running?"
+            )
+        } catch (e: java.net.SocketTimeoutException) {
+            Log.w(TAG, "LOCAL_PC connection timed out: ${e.message}")
+            LocalPCConnectionResult(
+                isConnected = false,
+                errorMessage = "Connection timed out after ${LOCAL_PC_CONNECTION_TIMEOUT_MS}ms"
+            )
+        } catch (e: java.net.UnknownHostException) {
+            Log.w(TAG, "LOCAL_PC host not found: ${e.message}")
+            LocalPCConnectionResult(
+                isConnected = false,
+                errorMessage = "Host not found - check IP address"
+            )
+        } catch (e: java.io.IOException) {
+            Log.w(TAG, "LOCAL_PC I/O error: ${e.message}")
+            LocalPCConnectionResult(
+                isConnected = false,
+                errorMessage = "Network error: ${e.message ?: "Unknown I/O error"}"
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "LOCAL_PC unexpected error: ${e.message}", e)
+            LocalPCConnectionResult(
+                isConnected = false,
+                errorMessage = "Unexpected error: ${e.message ?: "Unknown error"}"
+            )
+        }
+    }
+
+    /**
+     * Extract base URL from a full endpoint URL using proper URI parsing.
+     * Removes specific path segments like "/chat/completions" to get the base API URL.
+     * Handles edge cases like trailing slashes, empty paths, and various URL formats.
+     *
+     * @param fullUrl The full URL (e.g., "http://192.168.1.1:1234/v1/chat/completions")
+     * @return The base URL (e.g., "http://192.168.1.1:1234/v1")
+     */
+    private fun extractBaseUrl(fullUrl: String): String {
+        return try {
+            val uri = URI(fullUrl.trim())
+            val path = uri.path ?: ""
+
+            // Define path segments to remove (endpoint-specific paths)
+            val segmentsToRemove = listOf("/chat/completions", "/completions", "/embeddings")
+
+            // Find and remove the endpoint-specific path segment
+            var basePath = path
+            for (segment in segmentsToRemove) {
+                if (basePath.endsWith(segment)) {
+                    basePath = basePath.dropLast(segment.length)
+                    break
+                }
+            }
+
+            // Remove trailing slash if present (but keep path structure intact)
+            basePath = basePath.trimEnd('/')
+
+            // Rebuild the URL with scheme, authority (host:port), and cleaned path
+            val scheme = uri.scheme ?: "http"
+            val authority = uri.authority ?: uri.host ?: ""
+
+            if (authority.isEmpty()) {
+                // Fallback: return original URL if parsing fails
+                Log.w(TAG, "Could not parse authority from URL: $fullUrl")
+                fullUrl
+            } else {
+                "$scheme://$authority$basePath"
+            }
+        } catch (e: Exception) {
+            // Fallback to simple string manipulation if URI parsing fails
+            Log.w(TAG, "URI parsing failed for: $fullUrl, error: ${e.message}")
+            fullUrl.replace("/chat/completions", "")
+                .replace("/completions", "")
+                .trimEnd('/')
+        }
     }
 
     /**
@@ -291,22 +476,24 @@ class CogniAgentProvider(
         if (keys.isEmpty()) return
 
         // Create configs for each key with default settings
-        // Keys are assigned purposes based on their index:
-        // - First 3 keys: ORCHESTRATOR (main agent)
-        // - Next 2 keys: NOTE_PROCESSING (background)
-        // - Remaining: GENERAL (fallback)
+        // Key assignment follows ApiKeyRotator's documented architecture:
+        // - Key 1: AI Agent (Chat, Tool Execution) -> ORCHESTRATOR
+        // - Key 2: Note Card Analysis (Background) -> NOTE_PROCESSING
+        // - Keys 3+: Other Operations (Research, Web Search) -> RESEARCH/GENERAL
         val configs = keys.mapIndexed { index, key ->
-            val purpose = when {
-                index < 3 -> KeyPurpose.ORCHESTRATOR
-                index < 5 -> KeyPurpose.NOTE_PROCESSING
-                index < 7 -> KeyPurpose.RESEARCH
-                else -> KeyPurpose.GENERAL
+            val keyNumber = index + 1  // 1-based key number for display
+            val purpose = when (index) {
+                0 -> KeyPurpose.ORCHESTRATOR      // Key 1: AI Agent
+                1 -> KeyPurpose.NOTE_PROCESSING   // Key 2: Note Analysis
+                in 2..4 -> KeyPurpose.RESEARCH    // Keys 3-5: Research/Web Search
+                else -> KeyPurpose.GENERAL        // Keys 6+: General fallback
             }
-            val label = when (purpose) {
-                KeyPurpose.ORCHESTRATOR -> "Agent #${index + 1}"
-                KeyPurpose.NOTE_PROCESSING -> "Notes #${index - 2}"
-                KeyPurpose.RESEARCH -> "Research #${index - 4}"
-                KeyPurpose.GENERAL -> "Backup #${index - 6}"
+            // Labels align with ApiKeyRotator documentation:
+            // "Key N (purpose)" format for clarity
+            val label = when (index) {
+                0 -> "Key 1 (Agent)"       // Primary agent key
+                1 -> "Key 2 (Notes)"       // Dedicated note analysis
+                else -> "Key $keyNumber (${purpose.name.lowercase().replaceFirstChar { it.uppercase() }})"
             }
             GroqKeyConfig(
                 key = key,
@@ -545,12 +732,32 @@ class CogniAgentProvider(
 
     /**
      * Check if any AI provider is configured with API keys.
+     * LOCAL_PC is considered configured if a URL is set (no API key needed).
+     * LOCAL_PC URL serves as automatic fallback when all other providers are disabled.
      */
     fun hasConfiguredProvider(): Boolean {
-        return AIProvider.entries.any { provider ->
-            securePreferences.isProviderEnabled(provider) &&
-                    securePreferences.getProviderKeys(provider).isNotEmpty()
+        // First check enabled providers
+        val hasEnabledProvider = AIProvider.entries.any { provider ->
+            if (!securePreferences.isProviderEnabled(provider)) {
+                false
+            } else if (provider == AIProvider.LOCAL_PC) {
+                // LOCAL_PC doesn't need API keys - just a URL
+                securePreferences.getLocalPCUrl().isNotBlank()
+            } else {
+                securePreferences.getProviderKeys(provider).isNotEmpty()
+            }
         }
+
+        // If no enabled providers, check if LOCAL_PC URL is configured (automatic fallback)
+        if (!hasEnabledProvider) {
+            val localPcUrl = securePreferences.getLocalPCUrl()
+            if (localPcUrl.isNotBlank()) {
+                Log.d(TAG, "No enabled providers but LOCAL_PC URL configured - fallback available")
+                return true
+            }
+        }
+
+        return hasEnabledProvider
     }
 
     /**
@@ -564,14 +771,21 @@ class CogniAgentProvider(
 
     /**
      * Get the first configured provider name for display (based on priority).
+     * LOCAL_PC is considered configured if a URL is set (no API key needed).
      */
     fun getCurrentProviderName(): String? {
         val priorityOrder = securePreferences.getProviderPriority()
         val allProviders = (priorityOrder + AIProvider.entries).distinct()
 
         return allProviders.firstOrNull { provider ->
-            securePreferences.isProviderEnabled(provider) &&
-                    securePreferences.getProviderKeys(provider).isNotEmpty()
+            if (!securePreferences.isProviderEnabled(provider)) {
+                false
+            } else if (provider == AIProvider.LOCAL_PC) {
+                // LOCAL_PC doesn't need API keys - just a URL
+                securePreferences.getLocalPCUrl().isNotBlank()
+            } else {
+                securePreferences.getProviderKeys(provider).isNotEmpty()
+            }
         }?.name
     }
 

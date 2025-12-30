@@ -3,6 +3,7 @@ package com.example.smarty.util.api
 import android.util.Log
 import com.example.smarty.data.local.AIProvider
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
 /**
@@ -49,7 +50,7 @@ enum class ProviderHealthStatus {
 data class ProviderHealthState(
     val provider: AIProvider,
     @Volatile var status: ProviderHealthStatus = ProviderHealthStatus.HEALTHY,
-    @Volatile var consecutiveFailures: Int = 0,
+    val consecutiveFailures: AtomicInteger = AtomicInteger(0),
     @Volatile var lastFailureTime: Long = 0,
     @Volatile var lastSuccessTime: Long = 0,
     @Volatile var lastErrorCategory: ApiErrorCategory? = null,
@@ -113,7 +114,9 @@ class ProviderFailoverManager private constructor() {
             AIProvider.COHERE to 60_000L,       // Cohere standard
             AIProvider.DEEPSEEK to 60_000L,     // DeepSeek standard
             AIProvider.OPENROUTER to 60_000L,   // OpenRouter standard
-            AIProvider.HUGGINGFACE to 120_000L  // HuggingFace free tier is slower
+            AIProvider.HUGGINGFACE to 120_000L, // HuggingFace free tier is slower
+            AIProvider.GITHUB to 60_000L,       // GitHub Models standard rate limit
+            AIProvider.LOCAL_PC to 5_000L       // Local PC - short cooldown for local testing
         )
 
         /**
@@ -263,21 +266,23 @@ class ProviderFailoverManager private constructor() {
             when (state.status) {
                 ProviderHealthStatus.RECOVERING -> {
                     // Need multiple successes to fully recover
-                    state.consecutiveFailures = maxOf(0, state.consecutiveFailures - 1)
-                    if (state.consecutiveFailures == 0) {
+                    val newValue = state.consecutiveFailures.decrementAndGet()
+                    if (newValue <= 0) {
+                        state.consecutiveFailures.set(0)
                         state.status = ProviderHealthStatus.HEALTHY
                         Log.i(TAG, "✓ $provider fully recovered, circuit CLOSED")
                     }
                 }
                 ProviderHealthStatus.DEGRADED -> {
-                    state.consecutiveFailures = maxOf(0, state.consecutiveFailures - 1)
-                    if (state.consecutiveFailures == 0) {
+                    val newValue = state.consecutiveFailures.decrementAndGet()
+                    if (newValue <= 0) {
+                        state.consecutiveFailures.set(0)
                         state.status = ProviderHealthStatus.HEALTHY
                         Log.d(TAG, "✓ $provider back to HEALTHY")
                     }
                 }
                 else -> {
-                    state.consecutiveFailures = 0
+                    state.consecutiveFailures.set(0)
                     state.status = ProviderHealthStatus.HEALTHY
                 }
             }
@@ -301,23 +306,23 @@ class ProviderFailoverManager private constructor() {
         val now = System.currentTimeMillis()
 
         synchronized(state) {
-            state.consecutiveFailures++
+            val failureCount = state.consecutiveFailures.incrementAndGet()
             state.totalFailures++
             state.lastFailureTime = now
             state.lastErrorCategory = category
 
             // Calculate cooldown based on error type
-            val cooldown = calculateCooldown(category, state.consecutiveFailures)
+            val cooldown = calculateCooldown(category, failureCount)
 
             // Update status based on failure count
             state.status = when {
-                state.consecutiveFailures >= FAILURE_THRESHOLD_OPEN -> {
+                failureCount >= FAILURE_THRESHOLD_OPEN -> {
                     state.circuitOpenUntil = now + cooldown
                     Log.w(TAG, "⚠ $provider circuit OPEN until ${cooldown/1000}s (${category.name})")
                     ProviderHealthStatus.CIRCUIT_OPEN
                 }
-                state.consecutiveFailures >= FAILURE_THRESHOLD_DEGRADED -> {
-                    Log.w(TAG, "⚠ $provider DEGRADED (${state.consecutiveFailures} failures)")
+                failureCount >= FAILURE_THRESHOLD_DEGRADED -> {
+                    Log.w(TAG, "⚠ $provider DEGRADED ($failureCount failures)")
                     ProviderHealthStatus.DEGRADED
                 }
                 else -> state.status

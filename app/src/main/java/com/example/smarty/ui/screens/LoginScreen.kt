@@ -5,11 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,10 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PointMode
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -41,180 +34,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.viewmodel.AuthViewModel
 import com.example.smarty.viewmodel.AuthViewModelFactory
 import kotlinx.coroutines.delay
 
-/**
- * ═══════════════════════════════════════════════════════════════════════════════
- * ROCKET-SCIENTIST LEVEL OPTIMIZATION: GOLDEN SPIRAL PARTICLE SYSTEM
- * ═══════════════════════════════════════════════════════════════════════════════
- * 
- * Mathematical Foundations Applied:
- * 
- * 1. LOOKUP TABLE (LUT) OPTIMIZATION
- *    - Pre-computed 256-entry sine table (O(1) lookup vs O(n) Taylor series)
- *    - Cosine derived via phase shift: cos(θ) = sin(θ + π/2)
- *    - Memory: 256 floats = 1KB, accessed via bitwise AND (& 0xFF)
- * 
- * 2. GOLDEN ANGLE DISTRIBUTION (Vogel's Model)
- *    - θₙ = n × φ where φ = π(3 - √5) ≈ 137.508°
- *    - Produces perfectly distributed spiral without clustering
- *    - Used in sunflower seed patterns, phyllotaxis in nature
- *    - Reference: H. Vogel, "A Better Way to Construct the Sunflower Head" (1979)
- * 
- * 3. FERMAT SPIRAL RADIUS
- *    - rₙ = c × √n (Fermat's spiral equation)
- *    - Ensures uniform density: particles/area is constant
- *    - No clustering at center, no gaps at edges
- * 
- * 4. TEMPORAL COHERENCE
- *    - Single animation phase drives entire system
- *    - Breathing offset uses LUT with phase modulation
- *    - Zero per-particle random state required
- * 
- * 5. BATCH RENDERING
- *    - All particles rendered in single drawPoints() call
- *    - GPU batching: 1 draw call vs N draw calls
- *    - Reduces CPU-GPU synchronization overhead
- * 
- * 6. MEMORY LAYOUT
- *    - All static data in primitive arrays (cache-friendly)
- *    - Zero object allocation during animation
- *    - FloatArray for positions: [x₀,y₀,x₁,y₁,...xₙ,yₙ]
- * 
- * ═══════════════════════════════════════════════════════════════════════════════
- */
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// COMPILE-TIME CONSTANTS (inlined by compiler)
-// ═══════════════════════════════════════════════════════════════════════════════
-private const val LUT_SIZE = 256
-private const val LUT_MASK = 255  // Binary: 11111111 for fast modulo
-private const val TWO_PI = 6.283185307f
-private const val LUT_SCALE = LUT_SIZE / TWO_PI  // Convert radians → LUT index
-
-// Golden Angle in radians: π(3 - √5) ≈ 2.39996323 rad ≈ 137.508°
-private const val GOLDEN_ANGLE = 2.39996323f
-
-// Particle configuration
-private const val PARTICLE_COUNT = 28  // Optimal for visual density
-private const val SQRT_NORMALIZATION = 0.189f  // 1/√28 for radius normalization
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SINE LOOKUP TABLE - Pre-computed at class load time
-// Using Chebyshev polynomial approximation for initial generation
-// ═══════════════════════════════════════════════════════════════════════════════
-private val SIN_LUT: FloatArray = FloatArray(LUT_SIZE) { i ->
-    val angle = (i.toFloat() / LUT_SIZE) * TWO_PI
-    kotlin.math.sin(angle).toFloat()
-}
-
-/**
- * Fast sine using lookup table with linear interpolation
- * Accuracy: ~0.001 error (sufficient for animation)
- * Performance: ~3x faster than kotlin.math.sin()
- */
-@Suppress("NOTHING_TO_INLINE")
-private inline fun fastSin(radians: Float): Float {
-    val index = ((radians * LUT_SCALE).toInt() and LUT_MASK)
-    return SIN_LUT[index]
-}
-
-/**
- * Fast cosine: cos(θ) = sin(θ + π/2)
- * Uses same LUT with 64-entry phase offset (256/4 = 64)
- */
-@Suppress("NOTHING_TO_INLINE")
-private inline fun fastCos(radians: Float): Float {
-    val index = ((radians * LUT_SCALE).toInt() + 64) and LUT_MASK
-    return SIN_LUT[index]
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STATIC PARTICLE GEOMETRY - Computed once, reused forever
-// Using Vogel's spiral (golden angle) for optimal distribution
-// ═══════════════════════════════════════════════════════════════════════════════
-private object ParticleGeometry {
-    // Angular positions: θₙ = n × golden_angle
-    val angles = FloatArray(PARTICLE_COUNT) { n -> n * GOLDEN_ANGLE }
-    
-    // Radial positions: rₙ = √n / √N (Fermat spiral, normalized to [0,1])
-    val radii = FloatArray(PARTICLE_COUNT) { n ->
-        kotlin.math.sqrt((n + 1).toFloat()) * SQRT_NORMALIZATION
-    }
-    
-    // Particle sizes: larger at edges for visual balance
-    val sizes = FloatArray(PARTICLE_COUNT) { n ->
-        0.7f + radii[n] * 0.5f  // Range: 0.7 to 1.2
-    }
-    
-    // Breathing phase offsets: alternating for wave effect
-    val breathOffsets = FloatArray(PARTICLE_COUNT) { n ->
-        (n and 3) * 1.5708f  // 0, π/2, π, 3π/2 pattern
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// RENDER BUFFER - Reused every frame (zero allocation)
-// ═══════════════════════════════════════════════════════════════════════════════
-private val positionBuffer = FloatArray(PARTICLE_COUNT * 2)  // [x0,y0,x1,y1,...]
-private val offsetBuffer: ArrayList<Offset> = ArrayList<Offset>(PARTICLE_COUNT).apply {
-    repeat(PARTICLE_COUNT) { add(Offset.Zero) }
-}
-
-/**
- * High-performance particle position calculation
- * 
- * Algorithm Complexity: O(n) with minimal constant factor
- * Memory Allocation: Zero (uses pre-allocated buffers)
- * Trig Calls: 3 per particle (using fast LUT approximation)
- */
-private fun calculateParticlePositions(
-    phase: Float,
-    centerX: Float,
-    centerY: Float,
-    baseRadius: Float
-) {
-    val breathPhase = phase * 0.7f  // Slower breathing than rotation
-    
-    for (i in 0 until PARTICLE_COUNT) {
-        // Rotation: current angle = static angle + rotation phase
-        val angle = ParticleGeometry.angles[i] + phase
-        
-        // Breathing: radius modulation using phase-shifted sine
-        val breathAmount = fastSin(breathPhase + ParticleGeometry.breathOffsets[i])
-        val radiusModulation = 1f + breathAmount * 0.08f
-        
-        // Final radius: base × fermat_position × breathing
-        val radius = baseRadius * ParticleGeometry.radii[i] * radiusModulation
-        
-        // Cartesian conversion using fast trig
-        val x = centerX + fastCos(angle) * radius
-        val y = centerY + fastSin(angle) * radius
-        
-        // Store in buffer
-        val idx = i * 2
-        positionBuffer[idx] = x
-        positionBuffer[idx + 1] = y
-    }
-}
-
-/**
- * Convert buffer to Offset list for drawPoints
- * Uses pre-allocated list, just updates values
- */
-private fun bufferToOffsets(): List<Offset> {
-    for (i in 0 until PARTICLE_COUNT) {
-        val idx = i * 2
-        offsetBuffer[i] = Offset(positionBuffer[idx], positionBuffer[idx + 1])
-    }
-    return offsetBuffer
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// LOGIN SCREEN COMPOSABLE
+// LOGIN SCREEN COMPOSABLE - No startup animation for faster launch
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -257,56 +82,14 @@ fun LoginScreen(
     }
 
     // Design System Colors for Glassy Look
-    val accentColor = Color(0xFF4FACFE) // Electric Blue for accents
     val whiteText = Color.White
     val mutedText = Color.White.copy(alpha = 0.7f)
     val glassBorder = Color.White.copy(alpha = 0.3f)
-    
-    // Single animation driver
-    val infiniteTransition = rememberInfiniteTransition(label = "φ")
-    val animationPhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = TWO_PI,
-        animationSpec = infiniteRepeatable(
-            animation = tween(15000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
 
-    // 1. WRAP IN GEOMETRIC GRADIENT
+    // Simple gradient background - no animation
     com.example.smarty.ui.components.GeometricGradientBackground(
         modifier = modifier.fillMaxSize()
     ) {
-        // ═══════════════════════════════════════════════════════════════════
-        // PARTICLE SYSTEM (as "Digital Dust")
-        // Rendered on top of gradient, white particles
-        // ═══════════════════════════════════════════════════════════════════
-        if (isVisible) {
-            Canvas(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp)
-                    .align(Alignment.TopCenter)
-                    .offset(y = 60.dp)
-            ) {
-                val centerX = size.width * 0.5f
-                val centerY = size.height * 0.5f
-                val baseRadius = size.minDimension * 0.42f
-                val strokeWidth = size.minDimension * 0.02f
-
-                calculateParticlePositions(animationPhase, centerX, centerY, baseRadius)
-
-                drawPoints(
-                    points = bufferToOffsets(),
-                    pointMode = PointMode.Points,
-                    color = Color.White.copy(alpha = 0.6f), // White dust
-                    strokeWidth = strokeWidth,
-                    cap = StrokeCap.Round
-                )
-            }
-        }
-
         // Content Column
         Column(
             modifier = Modifier
@@ -317,7 +100,7 @@ fun LoginScreen(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(280.dp))
+            Spacer(modifier = Modifier.height(100.dp))
 
             // Welcome Text
             AnimatedVisibility(

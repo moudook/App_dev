@@ -43,9 +43,38 @@ class OpenAICompatibleProvider(
         private const val TAG = "OpenAIProvider"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
+        /**
+         * Mask sensitive API key for safe logging.
+         * Shows first 4 and last 4 characters with **** in between.
+         */
+        private fun maskApiKey(key: String?): String {
+            if (key == null || key.length < 8) return "****"
+            return key.take(4) + "****" + key.takeLast(4)
+        }
+
+        /**
+         * Sanitize response body for logging by removing potential sensitive data.
+         * Masks any API keys, tokens, or authorization headers that might be echoed in error responses.
+         */
+        private fun sanitizeForLogging(responseBody: String?): String {
+            if (responseBody.isNullOrBlank()) return "[empty response]"
+            // Mask common patterns for API keys/tokens in responses
+            // Patterns: "api_key": "...", "token": "...", "authorization": "...", "Bearer ..."
+            return responseBody
+                .replace(Regex(""""(api[_-]?key|token|authorization|secret|password|bearer)"\\s*:\\s*"[^"]+"""", RegexOption.IGNORE_CASE)) { match ->
+                    val keyName = match.groupValues.getOrNull(1) ?: "key"
+                    """"$keyName": "****""""
+                }
+                .replace(Regex("""Bearer\s+[A-Za-z0-9\-_.]+""", RegexOption.IGNORE_CASE), "Bearer ****")
+                .replace(Regex("""sk-[A-Za-z0-9]{20,}"""), "sk-****")
+                .replace(Regex("""gsk_[A-Za-z0-9]{20,}"""), "gsk_****")
+                .replace(Regex("""xai-[A-Za-z0-9]{20,}"""), "xai-****")
+                .take(500) // Limit log length to prevent large dumps
+        }
+
         // API Base URLs for different providers
         const val OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-        const val DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+        const val DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
         const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
         const val CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions"
         const val COHERE_URL = "https://api.cohere.ai/compatibility/v1/chat/completions"
@@ -53,7 +82,7 @@ class OpenAICompatibleProvider(
         // FOR TESTING ONLY - Remove before publishing!
         // Note: USB tethering IP can change - run ipconfig on PC to find it
         // The PC's IP (not the phone's gateway IP) should be used
-        const val LOCAL_PC_URL = "http://10.224.189.60:8000/v1/chat/completions"
+        // LOCAL_PC_URL is now dynamically read from SecurePreferences.getLocalPCUrl()
 
         /**
          * Create an OpenAI provider instance.
@@ -98,9 +127,9 @@ class OpenAICompatibleProvider(
         /**
          * Create a Local PC provider instance (USB tethering).
          * FOR TESTING ONLY - Remove before publishing!
-         * @param url Dynamic URL from SecurePreferences (IP can change)
+         * @param url Dynamic URL from SecurePreferences.getLocalPCUrl() - IP can change with each USB tethering session
          */
-        fun localPC(client: OkHttpClient, gson: Gson, url: String = LOCAL_PC_URL) =
+        fun localPC(client: OkHttpClient, gson: Gson, url: String) =
             OpenAICompatibleProvider(client, gson, url, "Local PC")
     }
 
@@ -157,7 +186,7 @@ class OpenAICompatibleProvider(
             Log.d(TAG, "$name HTTP ${response.code}")
 
             if (!response.isSuccessful) {
-                Log.e(TAG, "$name error: $responseBody")
+                Log.e(TAG, "$name error: ${sanitizeForLogging(responseBody)}")
                 return AIResponse(
                     title = "Error",
                     category = "Note",
@@ -264,7 +293,7 @@ class OpenAICompatibleProvider(
             Log.d(TAG, "$name chat HTTP ${response.code}")
 
             if (!response.isSuccessful) {
-                Log.e(TAG, "$name chat error: $responseBody")
+                Log.e(TAG, "$name chat error: ${sanitizeForLogging(responseBody)}")
                 return null
             }
 
@@ -294,16 +323,30 @@ class OpenAICompatibleProvider(
             val json = JsonParser.parseString(responseBody).asJsonObject
 
             if (json.has("error")) {
-                Log.e(TAG, "$name API error: ${json.getAsJsonObject("error")}")
+                val errorObj = json.getAsJsonObject("error")
+                Log.e(TAG, "$name API error: ${sanitizeForLogging(errorObj.toString())}")
                 return null
             }
 
             val choices = json.getAsJsonArray("choices")
-            if (choices == null || choices.size() == 0) return null
+            if (choices == null || choices.size() == 0) {
+                Log.w(TAG, "$name: Empty or null choices array")
+                return null
+            }
 
-            choices[0].asJsonObject
-                .getAsJsonObject("message")
-                ?.get("content")?.asString
+            val firstChoice = choices.firstOrNull()?.asJsonObject
+            if (firstChoice == null) {
+                Log.w(TAG, "$name: First choice is null")
+                return null
+            }
+
+            val message = firstChoice.getAsJsonObject("message")
+            if (message == null) {
+                Log.w(TAG, "$name: Message object is null")
+                return null
+            }
+
+            message.get("content")?.asString
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract $name text: ${e.message}")
             null

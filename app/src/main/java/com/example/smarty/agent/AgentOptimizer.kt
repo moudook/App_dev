@@ -3,9 +3,11 @@ package com.example.smarty.agent
 import android.util.Log
 import com.example.smarty.agent.execution.ParallelToolExecutor
 import com.example.smarty.agent.prompts.ToolExampleStore
+import com.example.smarty.data.cache.HashBasedCache
 import com.example.smarty.data.cache.SemanticCache
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.remote.EmbeddingService
+import com.example.smarty.data.remote.GeminiEmbeddingService
 import com.example.smarty.util.HistoryCompressor
 import com.example.smarty.util.PIIMasker
 
@@ -15,13 +17,21 @@ import com.example.smarty.util.PIIMasker
  * Provides a unified interface for:
  * - PII masking/unmasking (privacy)
  * - History compression (token reduction)
- * - Semantic caching (API call reduction)
+ * - Semantic caching (API call reduction) - Multi-provider support
  * - Dynamic few-shot examples (tool selection accuracy)
  * - Parallel tool execution (2-3x speedup)
  *
+ * Cache Provider Priority:
+ * 1. OpenAI embeddings (text-embedding-3-small) - Best quality
+ * 2. Gemini embeddings (text-embedding-004) - Good alternative
+ * 3. Hash-based fallback - Exact match only, but still functional
+ *
  * Usage:
  * ```kotlin
- * val optimizer = AgentOptimizer(openAiApiKey)
+ * val optimizer = AgentOptimizer(
+ *     openAiApiKey = openAiKey,
+ *     geminiApiKey = geminiKey  // Falls back to Gemini if OpenAI unavailable
+ * )
  *
  * // Before sending to LLM
  * val processed = optimizer.preProcess(userQuery, history)
@@ -33,9 +43,12 @@ import com.example.smarty.util.PIIMasker
  * // After receiving response
  * val finalResponse = optimizer.postProcess(query, maskedQuery, llmResponse)
  * ```
+ *
+ * @see CacheMode for available caching strategies
  */
 class AgentOptimizer(
     openAiApiKey: String? = null,
+    geminiApiKey: String? = null,
     enableSemanticCache: Boolean = true,
     enablePiiMasking: Boolean = true,
     enableHistoryCompression: Boolean = true,
@@ -48,20 +61,75 @@ class AgentOptimizer(
     // Feature flags
     private val piiEnabled = enablePiiMasking
     private val compressionEnabled = enableHistoryCompression
-    private val cacheEnabled = enableSemanticCache && !openAiApiKey.isNullOrBlank()
     private val fewShotEnabled = enableFewShotExamples
 
-    // Semantic cache (optional - requires OpenAI API key for embeddings)
-    private val semanticCache: SemanticCache? = if (cacheEnabled && !openAiApiKey.isNullOrBlank()) {
-        try {
-            val embeddingService = EmbeddingService(openAiApiKey)
-            SemanticCache(embeddingService)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to initialize semantic cache: ${e.message}")
-            null
+    // Cache mode tracking
+    private val cacheMode: CacheMode
+
+    // Semantic cache (optional - requires OpenAI or Gemini API key for embeddings)
+    private val semanticCache: SemanticCache?
+
+    // Hash-based fallback cache (used when no embedding service is available)
+    private val hashBasedCache: HashBasedCache?
+
+    init {
+        // Try to initialize semantic cache with available embedding providers
+        // Priority: OpenAI > Gemini > Hash-based fallback
+        val (cache, mode) = initializeCache(openAiApiKey, geminiApiKey, enableSemanticCache)
+        semanticCache = cache
+        cacheMode = mode
+        hashBasedCache = if (mode == CacheMode.HASH_BASED) HashBasedCache() else null
+
+        when (mode) {
+            CacheMode.OPENAI_SEMANTIC -> Log.i(TAG, "Semantic cache initialized with OpenAI embeddings")
+            CacheMode.GEMINI_SEMANTIC -> Log.i(TAG, "Semantic cache initialized with Gemini embeddings")
+            CacheMode.HASH_BASED -> Log.i(TAG, "Using hash-based fallback cache (no embedding API keys available)")
+            CacheMode.DISABLED -> Log.i(TAG, "Caching disabled")
         }
-    } else {
-        null
+    }
+
+    private fun initializeCache(
+        openAiApiKey: String?,
+        geminiApiKey: String?,
+        enableCache: Boolean
+    ): Pair<SemanticCache?, CacheMode> {
+        if (!enableCache) {
+            return null to CacheMode.DISABLED
+        }
+
+        // Try OpenAI first (best quality embeddings)
+        if (!openAiApiKey.isNullOrBlank()) {
+            try {
+                val embeddingService = EmbeddingService(openAiApiKey)
+                return SemanticCache(embeddingService) to CacheMode.OPENAI_SEMANTIC
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to initialize OpenAI embedding service: ${e.message}")
+            }
+        }
+
+        // Try Gemini as alternative
+        if (!geminiApiKey.isNullOrBlank()) {
+            try {
+                val embeddingService = GeminiEmbeddingService(geminiApiKey)
+                return SemanticCache(embeddingService) to CacheMode.GEMINI_SEMANTIC
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to initialize Gemini embedding service: ${e.message}")
+            }
+        }
+
+        // Fall back to hash-based caching
+        Log.i(TAG, "No embedding API keys available, using hash-based fallback cache")
+        return null to CacheMode.HASH_BASED
+    }
+
+    /**
+     * Cache operating mode.
+     */
+    enum class CacheMode {
+        OPENAI_SEMANTIC,   // Full semantic cache with OpenAI embeddings
+        GEMINI_SEMANTIC,   // Full semantic cache with Gemini embeddings
+        HASH_BASED,        // Fallback hash-based exact-match cache
+        DISABLED           // No caching
     }
 
     // Dynamic few-shot example store
@@ -99,17 +167,31 @@ class AgentOptimizer(
     ): ProcessedQuery {
         totalQueries++
 
-        // 1. Check semantic cache first
-        if (cacheEnabled) {
-            semanticCache?.get(query)?.let { cachedResponse ->
-                cacheHits++
-                Log.d(TAG, "Semantic cache HIT - skipping API call")
-                return ProcessedQuery(
-                    maskedQuery = query,
-                    compressedHistory = history,
-                    cacheHit = cachedResponse
-                )
+        // 1. Check cache first (semantic or hash-based fallback)
+        when (cacheMode) {
+            CacheMode.OPENAI_SEMANTIC, CacheMode.GEMINI_SEMANTIC -> {
+                semanticCache?.get(query)?.let { cachedResponse ->
+                    cacheHits++
+                    Log.d(TAG, "Semantic cache HIT - skipping API call")
+                    return ProcessedQuery(
+                        maskedQuery = query,
+                        compressedHistory = history,
+                        cacheHit = cachedResponse
+                    )
+                }
             }
+            CacheMode.HASH_BASED -> {
+                hashBasedCache?.get(query)?.let { cachedResponse ->
+                    cacheHits++
+                    Log.d(TAG, "Hash-based cache HIT - skipping API call")
+                    return ProcessedQuery(
+                        maskedQuery = query,
+                        compressedHistory = history,
+                        cacheHit = cachedResponse
+                    )
+                }
+            }
+            CacheMode.DISABLED -> { /* No caching */ }
         }
 
         // 2. Mask PII in query
@@ -167,8 +249,14 @@ class AgentOptimizer(
         }
 
         // 2. Cache the response for future similar queries
-        if (cacheEnabled) {
-            semanticCache?.put(originalQuery, unmaskedResponse)
+        when (cacheMode) {
+            CacheMode.OPENAI_SEMANTIC, CacheMode.GEMINI_SEMANTIC -> {
+                semanticCache?.put(originalQuery, unmaskedResponse)
+            }
+            CacheMode.HASH_BASED -> {
+                hashBasedCache?.put(originalQuery, unmaskedResponse)
+            }
+            CacheMode.DISABLED -> { /* No caching */ }
         }
 
         return unmaskedResponse
@@ -264,10 +352,11 @@ class AgentOptimizer(
     }
 
     /**
-     * Clear semantic cache.
+     * Clear all caches (semantic and hash-based).
      */
     suspend fun clearCache() {
         semanticCache?.clear()
+        hashBasedCache?.clear()
     }
 
     /**
@@ -280,7 +369,9 @@ class AgentOptimizer(
         tokensSaved = tokensSaved,
         piiMaskedCount = piiMasked,
         fewShotUsedCount = fewShotUsed,
+        cacheMode = cacheMode,
         semanticCacheStats = semanticCache?.getStats(),
+        hashBasedCacheStats = hashBasedCache?.getStats(),
         parallelExecutorStats = parallelToolExecutor.getStats(),
         toolExampleStoreStats = toolExampleStore?.getStats()
     )
@@ -303,6 +394,16 @@ class AgentOptimizer(
     fun isSemanticCacheEnabled(): Boolean = semanticCache != null
 
     /**
+     * Check if any caching (semantic or hash-based) is enabled.
+     */
+    fun isCacheEnabled(): Boolean = cacheMode != CacheMode.DISABLED
+
+    /**
+     * Get the current cache mode.
+     */
+    fun getCacheMode(): CacheMode = cacheMode
+
+    /**
      * Result of query pre-processing.
      */
     data class ProcessedQuery(
@@ -321,7 +422,9 @@ class AgentOptimizer(
         val tokensSaved: Long,
         val piiMaskedCount: Int,
         val fewShotUsedCount: Int,
+        val cacheMode: CacheMode,
         val semanticCacheStats: SemanticCache.CacheStats?,
+        val hashBasedCacheStats: HashBasedCache.CacheStats?,
         val parallelExecutorStats: ParallelToolExecutor.ExecutionStats?,
         val toolExampleStoreStats: ToolExampleStore.StoreStats?
     ) {
@@ -330,10 +433,17 @@ class AgentOptimizer(
          */
         fun getSummary(): String = buildString {
             appendLine("=== Agent Optimization Stats ===")
+            appendLine("Cache mode: ${cacheMode.name}")
             appendLine("Queries: $totalQueries (cache hit rate: ${(cacheHitRate * 100).toInt()}%)")
             appendLine("Tokens saved: ~$tokensSaved")
             appendLine("PII masked: $piiMaskedCount queries")
             appendLine("Few-shot examples used: $fewShotUsedCount times")
+            semanticCacheStats?.let {
+                appendLine("Semantic cache: ${it.size} entries, ${it.hits} hits, ${it.misses} misses")
+            }
+            hashBasedCacheStats?.let {
+                appendLine("Hash-based cache: ${it.size} entries, ${it.hits} hits, ${it.misses} misses")
+            }
             parallelExecutorStats?.let {
                 appendLine("Parallel executions: ${it.parallelBatches} batches, ~${it.totalTimeSavedMs}ms saved")
             }

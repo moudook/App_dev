@@ -91,36 +91,18 @@ class CogniRepository(
 
     /**
      * Sanitize query for FTS5 to prevent syntax errors and INJECTION ATTACKS.
+     * Delegates to NoteDao.sanitizeFtsQuery for consistent sanitization across the codebase.
+     *
      * SECURITY: FTS5 has special syntax that can be exploited to bypass filters.
      *
      * Attack vectors prevented:
      * - Boolean injection: 'OR 1=1' -> matches everything
      * - Column filter bypass: 'title:*' -> wildcard all titles
      * - Phrase manipulation: '"secret" OR "password"'
-     *
-     * OPTIMIZED: Uses pre-compiled regex from companion object.
+     * - Quote injection: Escapes quotes and wraps each term
      */
     private fun sanitizeFtsQuery(query: String): String {
-        // SECURITY: First remove FTS5 boolean operators (AND, OR, NOT, NEAR)
-        var cleaned = query.replace(FTS_BOOLEAN_OPERATORS_REGEX, " ")
-
-        // SECURITY: Remove FTS5 special characters that could cause syntax errors or injection
-        cleaned = cleaned
-            .replace(FTS_SPECIAL_CHARS_REGEX, " ")  // Remove special chars (pre-compiled)
-            .replace(WHITESPACE_REGEX, " ")          // Normalize whitespace (pre-compiled)
-            .trim()
-
-        // Additional safety: limit query length to prevent DoS
-        if (cleaned.length > 200) {
-            cleaned = cleaned.take(200)
-        }
-
-        // Add wildcards for prefix matching (e.g., "test" becomes "test*")
-        return if (cleaned.isNotBlank() && !cleaned.endsWith("*")) {
-            "$cleaned*"
-        } else {
-            cleaned
-        }
+        return NoteDao.sanitizeFtsQuery(query)
     }
 
     // =========================================================================

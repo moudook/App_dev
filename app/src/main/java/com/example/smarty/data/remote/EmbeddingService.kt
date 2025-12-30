@@ -22,11 +22,14 @@ import kotlin.math.sqrt
  * - High quality for semantic similarity
  *
  * Used by SemanticCache to enable similarity-based cache lookups.
+ *
+ * @see EmbeddingServiceContract
+ * @see GeminiEmbeddingService for alternative implementation
  */
 class EmbeddingService(
     private val apiKey: String,
     private val client: OkHttpClient = defaultClient()
-) {
+) : EmbeddingServiceContract {
     companion object {
         private const val TAG = "EmbeddingService"
         private const val EMBEDDING_URL = "https://api.openai.com/v1/embeddings"
@@ -47,7 +50,7 @@ class EmbeddingService(
      * @param text The text to embed (max ~8000 tokens)
      * @return FloatArray of 1536 dimensions, or null on error
      */
-    suspend fun embed(text: String): FloatArray? = withContext(Dispatchers.IO) {
+    override suspend fun embed(text: String): FloatArray? = withContext(Dispatchers.IO) {
         if (text.isBlank()) return@withContext null
         if (apiKey.isBlank()) {
             Log.w(TAG, "No API key configured for embeddings")
@@ -95,7 +98,7 @@ class EmbeddingService(
      * @param b Second embedding vector
      * @return Similarity score between 0 and 1 (1 = identical)
      */
-    fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
+    override fun cosineSimilarity(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size) return 0f
 
         var dotProduct = 0f
@@ -118,7 +121,7 @@ class EmbeddingService(
      * @param texts List of texts to embed
      * @return Map of text to embedding (only successful embeddings included)
      */
-    suspend fun embedBatch(texts: List<String>): Map<String, FloatArray> = withContext(Dispatchers.IO) {
+    override suspend fun embedBatch(texts: List<String>): Map<String, FloatArray> = withContext(Dispatchers.IO) {
         if (texts.isEmpty()) return@withContext emptyMap()
         if (apiKey.isBlank()) return@withContext emptyMap()
 

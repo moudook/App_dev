@@ -3,10 +3,33 @@ package com.example.smarty.data.local
 import androidx.paging.PagingSource
 import androidx.room.*
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.ProcessingStatus
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface NoteDao {
+
+    companion object {
+        /**
+         * Sanitizes user input for safe use in FTS5 MATCH queries.
+         * Escapes/removes special characters that could cause crashes or unexpected behavior.
+         * FTS5 special characters: " * - OR AND NOT ( )
+         */
+        fun sanitizeFtsQuery(query: String): String {
+            if (query.isBlank()) return ""
+
+            return query
+                .replace("\"", "\"\"")  // Escape double quotes
+                .replace("*", "")       // Remove wildcards
+                .replace("-", " ")      // Replace minus (NOT operator) with space
+                .replace("(", "")       // Remove parentheses
+                .replace(")", "")
+                .trim()
+                .split("\\s+".toRegex())
+                .filter { it.isNotBlank() && it !in listOf("OR", "AND", "NOT") }  // Filter out boolean operators
+                .joinToString(" ") { "\"$it\"*" }  // Wrap each word in quotes and add prefix search
+        }
+    }
     /**
      * Get all active notes, sorted with pinned notes first, then by creation date
      */
@@ -165,6 +188,12 @@ interface NoteDao {
      * Searches title, content, and summary fields.
      * Returns notes ordered by relevance (BM25 ranking).
      * @SkipQueryVerification is needed because FTS table is created via migration
+     *
+     * SECURITY NOTE: The query parameter MUST be sanitized before calling this method.
+     * Use NoteDao.sanitizeFtsQuery(userInput) to sanitize user input before passing it here.
+     * Raw user input can cause crashes or unexpected behavior with FTS5 special characters.
+     *
+     * @param query Sanitized FTS5 query string. Use [sanitizeFtsQuery] to sanitize user input.
      */
     @SkipQueryVerification
     @Query("""
@@ -179,6 +208,13 @@ interface NoteDao {
     /**
      * Full-text search with type filter.
      * Combines FTS5 search with note type filtering.
+     *
+     * SECURITY NOTE: The query parameter MUST be sanitized before calling this method.
+     * Use NoteDao.sanitizeFtsQuery(userInput) to sanitize user input before passing it here.
+     * Raw user input can cause crashes or unexpected behavior with FTS5 special characters.
+     *
+     * @param query Sanitized FTS5 query string. Use [sanitizeFtsQuery] to sanitize user input.
+     * @param types List of note types to filter by.
      */
     @SkipQueryVerification
     @Query("""
@@ -193,6 +229,12 @@ interface NoteDao {
 
     /**
      * FTS5 search as Flow for reactive updates.
+     *
+     * SECURITY NOTE: The query parameter MUST be sanitized before calling this method.
+     * Use NoteDao.sanitizeFtsQuery(userInput) to sanitize user input before passing it here.
+     * Raw user input can cause crashes or unexpected behavior with FTS5 special characters.
+     *
+     * @param query Sanitized FTS5 query string. Use [sanitizeFtsQuery] to sanitize user input.
      */
     @SkipQueryVerification
     @Query("""
@@ -239,4 +281,81 @@ interface NoteDao {
         ORDER BY isPinned DESC, createdAt DESC
     """)
     fun searchNotesPaged(query: String?, types: List<com.example.smarty.data.model.NoteType>, hasTypeFilter: Boolean): PagingSource<Int, Note>
+
+    // =========================================================================
+    // PROCESSING QUEUE QUERIES
+    // =========================================================================
+
+    /**
+     * Get notes by processing status for queue management.
+     * Used by NoteProcessingQueueManager to find pending/stuck notes.
+     */
+    @Query("SELECT * FROM notes WHERE processingStatus = :status ORDER BY createdAt ASC")
+    suspend fun getNotesByProcessingStatus(status: ProcessingStatus): List<Note>
+
+    /**
+     * Get notes that are stuck in PROCESSING state (timeout detection).
+     * Notes older than the timeout threshold that are still PROCESSING.
+     */
+    @Query("SELECT * FROM notes WHERE processingStatus = 'PROCESSING' AND updatedAt < :timeoutThreshold ORDER BY createdAt ASC")
+    suspend fun getStuckProcessingNotes(timeoutThreshold: Long): List<Note>
+
+    /**
+     * Get count of notes pending processing.
+     */
+    @Query("SELECT COUNT(*) FROM notes WHERE processingStatus IN ('PENDING', 'PROCESSING')")
+    suspend fun getPendingProcessingCount(): Int
+
+    /**
+     * Bulk update processing status for multiple notes.
+     */
+    @Query("UPDATE notes SET processingStatus = :status, updatedAt = :timestamp WHERE id IN (:noteIds)")
+    suspend fun updateProcessingStatusBatch(noteIds: List<String>, status: ProcessingStatus, timestamp: Long = System.currentTimeMillis())
+
+    /**
+     * Update single note processing status.
+     */
+    @Query("UPDATE notes SET processingStatus = :status, updatedAt = :timestamp WHERE id = :noteId")
+    suspend fun updateProcessingStatus(noteId: String, status: ProcessingStatus, timestamp: Long = System.currentTimeMillis())
+
+    /**
+     * Get next note in queue for processing (oldest PENDING note).
+     */
+    @Query("SELECT * FROM notes WHERE processingStatus = 'PENDING' ORDER BY createdAt ASC LIMIT 1")
+    suspend fun getNextPendingNote(): Note?
+
+    /**
+     * Mark stuck PROCESSING notes as PENDING for retry.
+     * Used on app startup to recover from crashes.
+     */
+    @Query("UPDATE notes SET processingStatus = 'PENDING', updatedAt = :timestamp WHERE processingStatus = 'PROCESSING' AND updatedAt < :timeoutThreshold")
+    suspend fun resetStuckNotes(timeoutThreshold: Long, timestamp: Long = System.currentTimeMillis()): Int
+
+    // =========================================================================
+    // FTS5 MAINTENANCE QUERIES
+    // =========================================================================
+
+    /**
+     * Rebuild FTS5 index if corrupted.
+     * Call periodically (e.g., on app startup once per week).
+     */
+    @SkipQueryVerification
+    @Query("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')")
+    suspend fun rebuildFtsIndex()
+
+    /**
+     * Optimize FTS5 index for better query performance.
+     * Call after bulk operations.
+     */
+    @SkipQueryVerification
+    @Query("INSERT INTO notes_fts(notes_fts) VALUES('optimize')")
+    suspend fun optimizeFtsIndex()
+
+    /**
+     * Check FTS5 index integrity.
+     * Throws exception if corrupted.
+     */
+    @SkipQueryVerification
+    @Query("INSERT INTO notes_fts(notes_fts, rank) VALUES('integrity-check', 1)")
+    suspend fun checkFtsIntegrity()
 }

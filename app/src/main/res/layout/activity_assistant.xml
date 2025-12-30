@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Assistant Overlay Layout - Floating Bottom Pill (Gemini Style)
+    
+    Structure:
+    - Root: ConstraintLayout with transparent background
+    - Touch interceptor: Full-screen invisible View for "tap outside to dismiss"
+    - Bottom Pill: ConstraintLayout with subtle gradient border & dark background
+-->
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/root_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent"
+    android:fitsSystemWindows="false">
+
+    <!-- Invisible touch interceptor - tap outside to dismiss (NO background color) -->
+    <View
+        android:id="@+id/touch_outside_interceptor"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- The floating "AI Pill" anchored to bottom -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/assistant_pill"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/bg_gemini_pill"
+        android:elevation="8dp"
+        android:padding="4dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintWidth_max="600dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            
+            <!-- Chat responses area (Compose content) -->
+            <androidx.compose.ui.platform.ComposeView
+                android:id="@+id/response_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="0dp" />
+
+            <!-- Input Area -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="12dp">
+
+                <!-- Sparkle/AI Icon -->
+                <ImageView
+                    android:id="@+id/ai_icon"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_sparkle"
+                    android:contentDescription="AI Assistant"
+                    app:tint="@color/gemini_blue"/>
+
+                <!-- Text Input -->
+                <EditText
+                    android:id="@+id/input_field"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginHorizontal="12dp"
+                    android:background="@android:color/transparent"
+                    android:hint="Ask anything..."
+                    android:textSize="18sp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="?attr/colorOnSurfaceVariant"
+                    android:maxLines="4"
+                    android:inputType="textCapSentences|textMultiLine"
+                    android:imeOptions="actionSend"
+                    app:boxStrokeWidth="0dp"
+                    app:boxStrokeWidthFocused="0dp"
+                    tools:ignore="Autofill,LabelFor" />
+
+                <!-- Microphone Button -->
+                <ImageView
+                    android:id="@+id/mic_button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:padding="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_mic"
+                    android:contentDescription="Voice input"
+                    app:tint="?attr/colorOnSurface" />
+
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

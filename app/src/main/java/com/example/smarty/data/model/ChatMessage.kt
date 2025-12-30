@@ -22,6 +22,15 @@ data class AgentActionResult(
 )
 
 /**
+ * Citation/source from web research
+ */
+data class Citation(
+    val title: String,
+    val url: String,
+    val snippet: String
+)
+
+/**
  * A single message in the chat conversation
  */
 data class ChatMessage(
@@ -34,7 +43,8 @@ data class ChatMessage(
     val referencedNoteIds: List<String> = emptyList(),
     val isAudioRelated: Boolean = false,  // True when user asked about audio/music playback
     val suggestions: List<String> = emptyList(),  // AI-provided suggestions (max 2, from TOON response)
-    val isError: Boolean = false  // True when this message represents an API error
+    val isError: Boolean = false,  // True when this message represents an API error
+    val citations: List<Citation> = emptyList()  // Sources from web research
 ) {
     /**
      * Check if this is a user message
@@ -65,4 +75,9 @@ data class ChatMessage(
      * Check if suggestions should be shown (not an error and has suggestions)
      */
     val hasSuggestions: Boolean get() = !isError && suggestions.isNotEmpty()
+
+    /**
+     * Check if citations/sources are available
+     */
+    val hasCitations: Boolean get() = citations.isNotEmpty()
 }

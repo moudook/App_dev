@@ -9,29 +9,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.FlingBehavior
-import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import kotlin.math.abs
-import kotlin.math.sign
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,11 +45,8 @@ import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.ui.components.ChatHistorySheet
-import com.example.smarty.ui.components.ChatMessageItem
 import com.example.smarty.ui.components.CogniInputField
-import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.NoteTodoSheet
-import com.example.smarty.ui.components.ChatEmptyState
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.ui.components.SearchFilterTypeSelector
@@ -73,19 +58,33 @@ import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.SafetyOrange
-import com.example.smarty.ui.components.SearchEmptyState
 import com.example.smarty.ui.components.ShakeCloudEffect
-import com.example.smarty.ui.components.NotesLoadingState
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.ConnectionStatusIndicator
+import com.example.smarty.ui.components.HorizontalActionBar
+import com.example.smarty.ui.components.NavigationTab
+import com.example.smarty.ui.components.sheets.CalendarSheet
+import com.example.smarty.ui.components.sheets.StacksSheet
+import com.example.smarty.ui.components.sheets.ArchiveSheet
+import com.example.smarty.ui.components.sheets.SettingsSheet
+import com.example.smarty.ui.components.AnimatedCategoryFilterChip
+import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.data.local.AIProvider
+import com.example.smarty.ui.screens.inputstream.ChatModeContent
+import com.example.smarty.ui.screens.inputstream.NormalModeContent
+import com.example.smarty.ui.screens.inputstream.SelectionModeToolbar
+import com.example.smarty.data.local.AIProviderConfig
+import com.example.smarty.util.api.KeyUsageStats
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.History
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,6 +115,7 @@ fun InputStreamScreen(
     isChatMode: Boolean = false,
     chatMessages: List<ChatMessage> = emptyList(),
     isChatProcessing: Boolean = false,
+    onEnterChatMode: () -> Unit = {},  // Enter chat mode when clicking AI tab
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     // Chat history parameters
@@ -140,12 +140,78 @@ fun InputStreamScreen(
     onFilterToggle: (AttachmentOption) -> Unit = {},
     onClearFilters: () -> Unit = {},
 
+    // Search History (BATCH 5C)
+    recentSearches: List<String> = emptyList(),
+    onRecordSearch: (String) -> Unit = {},
+    onClearSearchHistory: () -> Unit = {},
+
     wasShakeTriggered: Boolean = false,  // For border glow animation on mode switch
     connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,  // Phase 7
+    // Camera trigger from widget
+    cameraTriggered: Boolean = false,
+    onClearCameraTrigger: () -> Unit = {},
     // Pin and Share callbacks
     onPinNote: (String) -> Unit = {},
     onUnpinNote: (String) -> Unit = {},
     onShareNotes: (List<Note>) -> Unit = {},
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CENTRALIZED UI: All features accessible from main screen via bottom sheets
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Theme toggle (always visible in header)
+    isDarkTheme: Boolean = false,
+    onToggleTheme: (Boolean) -> Unit = {},
+
+    // Archived notes for Archive sheet
+    archivedNotes: List<Note> = emptyList(),
+
+    // Calendar events for Calendar sheet
+    calendarEvents: List<CalendarEvent> = emptyList(),
+    onAddCalendarEvent: () -> Unit = {},
+    onCreateCalendarEvent: ((title: String, description: String?, startTime: Long, endTime: Long, isAllDay: Boolean) -> Unit)? = null,
+    onEventClick: (CalendarEvent) -> Unit = {},
+    onDeleteCalendarEvent: (CalendarEvent) -> Unit = {},
+
+    // Category management for Stacks sheet
+    onCreateCategory: (String) -> Unit = {},
+    onDeleteCategory: (Category) -> Unit = {},
+    onCategoryClick: (Category) -> Unit = {},
+
+    // Settings props for Settings sheet
+    providerConfigs: Map<AIProvider, AIProviderConfig> = emptyMap(),
+    providerPriorityOrder: List<AIProvider> = emptyList(),
+    isPinConfigured: Boolean = false,
+    onAddApiKey: (AIProvider, String) -> Unit = { _, _ -> },
+    onRemoveApiKey: (AIProvider, String) -> Unit = { _, _ -> },
+    onUpdateApiKey: (AIProvider, String, String) -> Unit = { _, _, _ -> },
+    onSetProviderEnabled: (AIProvider, Boolean) -> Unit = { _, _ -> },
+    onSetSelectedModel: (AIProvider, String) -> Unit = { _, _ -> },
+    onSetProviderPriority: (List<AIProvider>) -> Unit = {},
+    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit = { _, _, _ -> },
+    onRemovePin: () -> Unit = {},
+    tavilyApiKey: String? = null,
+    onSetTavilyApiKey: (String?) -> Unit = {},
+    cacheSizeBytes: Long = 0L,
+    onClearCache: () -> Unit = {},
+    isClearingCache: Boolean = false,
+    shakeSensitivity: Float = 0.63f,
+    onShakeSensitivityChange: (Float) -> Unit = {},
+    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
+    isVoiceEnrolled: Boolean = false,
+    onDeleteVoiceFingerprint: () -> Unit = {},
+    onRetrainVoice: () -> Unit = {},
+    isTTSEnabled: Boolean = true,
+    onTTSEnabledChange: (Boolean) -> Unit = {},
+    onRefreshModels: (AIProvider) -> Unit = {},
+    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { emptyList() },
+    onSignOut: () -> Unit = {},
+    // Settings sub-sheet content
+    archiveContentForSettings: @Composable (onDismiss: () -> Unit) -> Unit = {},
+    backupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
+    pinSetupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
+    pinChangeContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
+
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -190,7 +256,7 @@ fun InputStreamScreen(
         onInputAttachmentsChange(attachments)
     }
 
-    val listState = rememberLazyListState()
+    val gridState = rememberLazyStaggeredGridState()
     val chatListState = rememberLazyListState()
 
     // Snackbar state for undo archive
@@ -199,6 +265,45 @@ fun InputStreamScreen(
 
     // Accent color for theming (used by ShakeCloudEffect)
     val accentColor = LocalAccentColor.current
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CENTRALIZED UI: Bottom Sheet States
+    // ═══════════════════════════════════════════════════════════════════════════
+    var selectedTab by remember { mutableStateOf(NavigationTab.NOTES) }
+
+    var showCalendarSheet by remember { mutableStateOf(false) }
+    val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var showStacksSheet by remember { mutableStateOf(false) }
+    val stacksSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var showArchiveSheet by remember { mutableStateOf(false) }
+    val archiveSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var showSettingsSheet by remember { mutableStateOf(false) }
+    val settingsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Category filter state
+    var activeCategoryFilter by remember { mutableStateOf<Category?>(null) }
+
+    // Handle tab selection - open sheets or switch modes
+    fun handleTabSelection(tab: NavigationTab) {
+        selectedTab = tab
+        when (tab) {
+            NavigationTab.NOTES -> {
+                if (isChatMode) onExitChatMode()
+            }
+            NavigationTab.CHAT -> {
+                if (!isChatMode) {
+                    onEnterChatMode()
+                }
+            }
+            NavigationTab.CALENDAR -> showCalendarSheet = true
+            NavigationTab.STACKS -> showStacksSheet = true
+            NavigationTab.ARCHIVE -> showArchiveSheet = true
+            NavigationTab.SETTINGS -> showSettingsSheet = true
+        }
+    }
 
     // Voice Input State (Speech-to-Text) - Use external from MainActivity
     val speechState = externalSpeechState ?: com.example.smarty.util.rememberSpeechToText(
@@ -364,11 +469,18 @@ fun InputStreamScreen(
 
     // Search Mode State
     var isSearchMode by remember { mutableStateOf(false) }
-    
+
     // Filtered Notes Logic (Backend Driven for Phase 2)
     // We now use the 'notes' list directly as it is already filtered by the ViewModel
     // based on searchQuery and selectedFilters.
-    val displayedNotes = notes
+    // Filter by category if active, then by search/filters
+    val displayedNotes = remember(notes, activeCategoryFilter) {
+        if (activeCategoryFilter != null) {
+            notes.filter { it.categoryId == activeCategoryFilter?.id }
+        } else {
+            notes
+        }
+    }
 
     // Selection handlers
     fun toggleSelection(noteId: String) {
@@ -628,10 +740,22 @@ fun InputStreamScreen(
         }
     }
 
+    // Handle camera trigger from widget - auto-open image picker
+    LaunchedEffect(cameraTriggered) {
+        if (cameraTriggered) {
+            // Launch the image picker when widget camera button is tapped
+            imagePickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+            // Clear the trigger so it doesn't fire again
+            onClearCameraTrigger()
+        }
+    }
+
     // Scroll to top when new note is added
     LaunchedEffect(notes.size) {
         if (notes.isNotEmpty() && !isChatMode) {
-            listState.animateScrollToItem(0)
+            gridState.animateScrollToItem(0)
         }
     }
 
@@ -712,202 +836,105 @@ fun InputStreamScreen(
                 label = "topBarTransition"
             ) { inSelectionMode ->
                 if (inSelectionMode) {
-                    // Selection mode top bar - minimal design with only cross icon on left
-                    TopAppBar(
-                        title = { /* Empty - no text displayed */ },
-                        navigationIcon = {
-                            IconButton(onClick = { clearSelection() }) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Cancel selection",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        },
-                        actions = {
-                            // Select All button
-                            IconButton(
-                                onClick = { selectAllNotes() }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DoneAll,
-                                    contentDescription = "Select all",
-                                    tint = LocalAccentColor.current
-                                )
-                            }
-
-                            // Pin button
-                            IconButton(
-                                onClick = { pinSelected() },
-                                enabled = selectedNoteIds.isNotEmpty()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PushPin,
-                                    contentDescription = "Pin selected",
-                                    tint = if (selectedNoteIds.isNotEmpty())
-                                        LocalAccentColor.current
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            // Share button
-                            IconButton(
-                                onClick = { shareSelected() },
-                                enabled = selectedNoteIds.isNotEmpty()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = "Share selected",
-                                    tint = if (selectedNoteIds.isNotEmpty())
-                                        LocalAccentColor.current
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            // Archive button
-                            IconButton(
-                                onClick = { archiveSelected() },
-                                enabled = selectedNoteIds.isNotEmpty()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Archive,
-                                    contentDescription = "Archive selected",
-                                    tint = if (selectedNoteIds.isNotEmpty())
-                                        LocalAccentColor.current
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            // Delete button
-                            IconButton(
-                                onClick = { deleteSelected() },
-                                enabled = selectedNoteIds.isNotEmpty()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete selected",
-                                    tint = if (selectedNoteIds.isNotEmpty())
-                                        MaterialTheme.colorScheme.error
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.background
-                        )
+                    // Selection mode top bar - extracted to separate component
+                    SelectionModeToolbar(
+                        selectedCount = selectedNoteIds.size,
+                        onClearSelection = { clearSelection() },
+                        onSelectAll = { selectAllNotes() },
+                        onPinSelected = { pinSelected() },
+                        onShareSelected = { shareSelected() },
+                        onArchiveSelected = { archiveSelected() },
+                        onDeleteSelected = { deleteSelected() }
                     )
                 } else {
-                    // Custom Premium Header with Categories
+                    // ═══════════════════════════════════════════════════════════════════
+                    // CENTRALIZED UI: Minimal Header + Horizontal Action Bar
+                    // ═══════════════════════════════════════════════════════════════════
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.background)
                     ) {
-                        // Top Navigation Row
+                        // Minimal Header Row: Logo | Status | Theme Toggle
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
-                                .padding(top = 12.dp)
-                                .height(64.dp)
-                                .padding(horizontal = 24.dp)
+                                .padding(top = 8.dp)
+                                .height(48.dp)
+                                .padding(horizontal = 20.dp)
                         ) {
-                            // Calendar Button (Left)
-                            val isDarkLeft = isSystemInDarkTheme()
-                            Surface(
-                                modifier = Modifier.align(Alignment.CenterStart),
-                                shape = androidx.compose.foundation.shape.CircleShape,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isDarkLeft) {
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                                    }
-                                )
-                            ) {
-                                IconButton(
-                                    onClick = onNavigateToCalendar,
-                                    modifier = Modifier.size(44.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarMonth,
-                                        contentDescription = "Calendar",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                }
-                            }
+                            // Logo/Brand (Left)
+                            Text(
+                                text = "Loum",
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.5).sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.align(Alignment.CenterStart)
+                            )
 
-                            // Connection Status Indicator (Center) - Phase 7
+                            // Connection Status (Center)
                             ConnectionStatusIndicator(
                                 status = connectionStatus,
                                 modifier = Modifier.align(Alignment.Center)
                             )
 
-                            // Actions Pill (Right)
-                            val isDark = isSystemInDarkTheme()
-                            Surface(
+                            // Right side actions: AI Button + Theme Toggle
+                            Row(
                                 modifier = Modifier.align(Alignment.CenterEnd),
-                                shape = androidx.compose.foundation.shape.CircleShape,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isDark) {
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                                    }
-                                )
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                // AI/Chat Button - Enter chat mode
+                                IconButton(
+                                    onClick = { 
+                                        if (!isChatMode) {
+                                            onEnterChatMode()
+                                            selectedTab = NavigationTab.CHAT
+                                        }
+                                    },
+                                    modifier = Modifier.size(40.dp)
                                 ) {
-                                    // Stacks Button
-                                    IconButton(
-                                        onClick = onNavigateToStacks,
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.GridView,
-                                            contentDescription = "View Stacks",
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-
-                                    // Vertical Divider
-                                    Box(
-                                        modifier = Modifier
-                                            .width(1.dp)
-                                            .height(16.dp)
-                                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "Open AI Chat",
+                                        tint = if (isChatMode) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(22.dp)
                                     )
-
-                                    // Settings Button
-                                    IconButton(
-                                        onClick = onNavigateToSettings,
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Settings,
-                                            contentDescription = "Settings",
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
+                                }
+                                
+                                // Theme Toggle - Always Visible
+                                IconButton(
+                                    onClick = { onToggleTheme(!isDarkTheme) },
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                        contentDescription = if (isDarkTheme) "Switch to Light Mode" else "Switch to Dark Mode",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(22.dp)
+                                    )
                                 }
                             }
                         }
 
+                        // Horizontal Action Bar - All features accessible here
+                        HorizontalActionBar(
+                            selectedTab = if (isChatMode) NavigationTab.CHAT else selectedTab,
+                            onTabSelected = { tab -> handleTabSelection(tab) },
+                            isChatMode = isChatMode,
+                            archiveCount = archivedNotes.size
+                        )
 
+                        // Category filter chip
+                        AnimatedCategoryFilterChip(
+                            categoryName = activeCategoryFilter?.name,
+                            noteCount = displayedNotes.size,
+                            onClear = { activeCategoryFilter = null },
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                        )
                     } // End Column
                 }
             }
@@ -952,151 +979,46 @@ fun InputStreamScreen(
                 )
 
                 if (showChat) {
-                    // Chat messages view
-                    if (chatMessages.isEmpty()) {
-                        ChatEmptyState(modifier = Modifier.fillMaxSize())
-                    } else {
-                        LazyColumn(
-                            state = chatListState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = contentBottomPadding,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            items(
-                                items = chatMessages,
-                                key = { it.id },
-                                contentType = { it.role }
-                            ) { message ->
-                                // Stabilize getNote lambda - only recreate when notes change
-                                val stableGetNote = remember(notes) {
-                                    { id: String -> notes.find { it.id == id } }
-                                }
-                                ChatMessageItem(
-                                    message = message,
-                                    getNote = stableGetNote,
-                                    onNoteClick = onNoteClick,
-                                    onSuggestionClick = { suggestion ->
-                                        // Send the clicked suggestion as a new message
-                                        onSendChatMessage(suggestion, emptyList())
-                                    }
-                                )
-                            }
-                        }
-                    }
+                    // Chat mode content - extracted to ChatModeContent component
+                    ChatModeContent(
+                        chatMessages = chatMessages,
+                        chatListState = chatListState,
+                        notes = notes,
+                        onNoteClick = onNoteClick,
+                        onSendChatMessage = onSendChatMessage,
+                        contentPadding = contentBottomPadding,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 } else {
-                    // Notes list view
-                    if (isNotesLoading) {
-                        // Show skeleton loaders while notes are loading (Phase 8)
-                        NotesLoadingState(
-                            count = 5,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp, vertical = ComponentSpacing.listContentPadding)
-                        )
-                    } else if (displayedNotes.isEmpty()) {
-                        if (isSearchMode) {
-                             // Animated search empty state with query display
-                             SearchEmptyState(
-                                 searchQuery = textValue.text,
-                                 modifier = Modifier.fillMaxSize()
-                             )
-                        } else {
-                            com.example.smarty.ui.components.NotesEmptyState(modifier = Modifier.fillMaxSize())
-                        }
-                    } else {
-                        // Custom fling behavior - caps max scroll speed, natural momentum continues
-                        // Calculation: Card height ~120dp ≈ 360px (at 3x density)
-                        // For card to be "visible" it needs ~150ms on screen
-                        // Max velocity = screen_height / time = ~2400px / 0.15s ≈ 4000-5000 px/s
-                        // Using 4500f ensures at least one card is always readable during scroll
-                        val cappedFling = rememberCappedFlingBehavior(
-                            maxVelocity = 50000f   // Ensures cards are visible even at max speed
-                        )
-
-                        // Pull-to-refresh wrapper
-                        PullToRefreshBox(
-                            isRefreshing = isRefreshing,
-                            onRefresh = onRefreshNotes,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                flingBehavior = cappedFling,  // Apply velocity cap
-                                contentPadding = PaddingValues(
-                                    top = ComponentSpacing.listContentPadding,
-                                    bottom = 140.dp + bottomContentPadding,
-                                    start = 16.dp,
-                                    end = 16.dp
-                                ),
-                                verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
-                            ) {
-                            itemsIndexed(
-                                items = displayedNotes,
-                                key = { _, note -> note.id },
-                                contentType = { _, note -> note.processingStatus }
-                            ) { index, note ->
-                                // Stabilize lambdas to prevent recomposition
-                                val stableOnClick = remember(note.id, isSelectionMode) {
-                                    {
-                                        if (isSelectionMode) toggleSelection(note.id)
-                                        else onNoteClick(note)
-                                    }
-                                }
-                                val stableOnDelete = remember(note.id) {
-                                    {
-                                        noteToDeleteId = note.id
-                                        showDeleteDialog = true
-                                    }
-                                }
-                                val stableOnOpenTodo = remember(note.id) {
-                                    { selectedNoteIdForTodo = note.id }
-                                }
-                                val stableOnArchive: () -> Unit = remember(note.id) {
-                                    {
-                                        lastArchivedNoteId = note.id
-                                        onArchiveNote(note.id)
-                                        scope.launch {
-                                            val result = snackbarHostState.showSnackbar(
-                                                message = "Note archived",
-                                                duration = SnackbarDuration.Short
-                                            )
-                                            if (result == SnackbarResult.Dismissed && lastArchivedNoteId == note.id) {
-                                                lastArchivedNoteId = null
-                                            }
-                                        }
-                                    }
-                                }
-                                val stableOnLongPress = remember(note.id) {
-                                    {
-                                        isSelectionMode = true
-                                        selectedNoteIds = setOf(note.id)
-                                    }
-                                }
-                                // OPTIMIZED: Use derivedStateOf to avoid recomposition on every selectedNoteIds change
-                                val isNoteSelected by remember(note.id) {
-                                    derivedStateOf { note.id in selectedNoteIds }
-                                }
-
-                                Box(modifier = Modifier.animateItem()) {
-                                    AnimatedNoteItem(
-                                        note = note,
-                                        index = index,
-                                        onClick = stableOnClick,
-                                        onDelete = stableOnDelete,
-                                        onOpenTodo = stableOnOpenTodo,
-                                        onArchive = stableOnArchive,
-                                        isSelected = isNoteSelected,
-                                        isSelectionMode = isSelectionMode,
-                                        onLongPress = stableOnLongPress,
-                                        onPlayYouTube = onPlayYouTube,
-                                        searchQuery = if (isSearchMode) textValue.text else null
-                                    )
-                                }
-                            }
-                        }
-                        } // End PullToRefreshBox
-                    }
+                    // Notes mode content - extracted to NormalModeContent component
+                    NormalModeContent(
+                        displayedNotes = displayedNotes,
+                        isNotesLoading = isNotesLoading,
+                        isSearchMode = isSearchMode,
+                        searchQuery = textValue.text,
+                        gridState = gridState,
+                        isRefreshing = isRefreshing,
+                        onRefreshNotes = onRefreshNotes,
+                        bottomContentPadding = bottomContentPadding,
+                        isSelectionMode = isSelectionMode,
+                        selectedNoteIds = selectedNoteIds,
+                        onToggleSelection = { noteId -> toggleSelection(noteId) },
+                        onEnterSelectionMode = { noteId ->
+                            isSelectionMode = true
+                            selectedNoteIds = setOf(noteId)
+                        },
+                        onNoteClick = onNoteClick,
+                        onArchiveNote = onArchiveNote,
+                        onDeleteNoteRequest = { noteId ->
+                            noteToDeleteId = noteId
+                            showDeleteDialog = true
+                        },
+                        onOpenTodo = { noteId -> selectedNoteIdForTodo = noteId },
+                        onPlayYouTube = onPlayYouTube,
+                        snackbarHostState = snackbarHostState,
+                        onSetLastArchivedNoteId = { lastArchivedNoteId = it },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
 
@@ -1118,6 +1040,28 @@ fun InputStreamScreen(
                         top = 0.dp
                     )
                 ) {
+                    // Search suggestions dropdown (BATCH 5C)
+                    // Shows when in search mode with empty query and recent searches available
+                    AnimatedVisibility(
+                        visible = isSearchMode && textValue.text.isEmpty() && recentSearches.isNotEmpty(),
+                        enter = fadeIn(tween(160)) + expandVertically(),
+                        exit = fadeOut(tween(120)) + shrinkVertically()
+                    ) {
+                        SearchSuggestionsDropdown(
+                            suggestions = recentSearches.take(5),
+                            onSuggestionClick = { suggestion ->
+                                // Update the text field with the selected suggestion
+                                normalModeTextValue = TextFieldValue(suggestion, TextRange(suggestion.length))
+                                onSearchQueryChange(suggestion)
+                                onInputTextChange(suggestion)
+                                // Record the search (moves to top of history)
+                                onRecordSearch(suggestion)
+                            },
+                            onClearHistory = onClearSearchHistory,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
                     // Processing indicator
                     AnimatedVisibility(
                         visible = isProcessing || isChatProcessing,
@@ -1255,6 +1199,10 @@ fun InputStreamScreen(
                             isAiExcluded = isAiExcluded,
                             isSearchMode = isSearchMode,
                             onToggleSearch = {
+                                // Record search when exiting search mode with a query
+                                if (isSearchMode && normalModeTextValue.text.isNotBlank()) {
+                                    onRecordSearch(normalModeTextValue.text)
+                                }
                                 isSearchMode = !isSearchMode
                                 normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
                                 onInputTextChange("")
@@ -1384,190 +1332,144 @@ fun InputStreamScreen(
             onDeleteSession = onDeleteChatSession
         )
     }
-}
-}
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CENTRALIZED UI: Bottom Sheets for all features
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Calendar Sheet
+    if (showCalendarSheet) {
+        CalendarSheet(
+            events = calendarEvents,
+            sheetState = calendarSheetState,
+            onDismiss = { showCalendarSheet = false },
+            onAddEvent = onAddCalendarEvent,
+            onEventClick = onEventClick,
+            onDeleteEvent = onDeleteCalendarEvent,
+            onCreateEvent = onCreateCalendarEvent
+        )
+    }
+
+    // Stacks Sheet
+    if (showStacksSheet) {
+        StacksSheet(
+            categories = categories,
+            sheetState = stacksSheetState,
+            onDismiss = { showStacksSheet = false },
+            onCategoryClick = { category ->
+                activeCategoryFilter = category
+                showStacksSheet = false
+            },
+            onCreateCategory = onCreateCategory,
+            onDeleteCategory = onDeleteCategory
+        )
+    }
+
+    // Archive Sheet
+    if (showArchiveSheet) {
+        ArchiveSheet(
+            archivedNotes = archivedNotes,
+            sheetState = archiveSheetState,
+            onDismiss = { showArchiveSheet = false },
+            onDeleteNote = onDeleteNote,
+            onUnarchiveNote = onUnarchiveNote
+        )
+    }
+
+    // Settings Sheet
+    if (showSettingsSheet) {
+        SettingsSheet(
+            sheetState = settingsSheetState,
+            onDismiss = { showSettingsSheet = false },
+            providerConfigs = providerConfigs,
+            providerPriorityOrder = providerPriorityOrder,
+            isPinConfigured = isPinConfigured,
+            isDarkTheme = isDarkTheme,
+            onAddApiKey = onAddApiKey,
+            onRemoveApiKey = onRemoveApiKey,
+            onUpdateApiKey = onUpdateApiKey,
+            onSetProviderEnabled = onSetProviderEnabled,
+            onSetSelectedModel = onSetSelectedModel,
+            onSetProviderPriority = onSetProviderPriority,
+            onTestApiKey = onTestApiKey,
+            onRemovePin = onRemovePin,
+            onToggleTheme = onToggleTheme,
+            tavilyApiKey = tavilyApiKey,
+            onSetTavilyApiKey = onSetTavilyApiKey,
+            cacheSizeBytes = cacheSizeBytes,
+            onClearCache = onClearCache,
+            isClearingCache = isClearingCache,
+            shakeSensitivity = shakeSensitivity,
+            onShakeSensitivityChange = onShakeSensitivityChange,
+            groqKeyUsageStats = groqKeyUsageStats,
+            isVoiceEnrolled = isVoiceEnrolled,
+            onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
+            onRetrainVoice = onRetrainVoice,
+            isTTSEnabled = isTTSEnabled,
+            onTTSEnabledChange = onTTSEnabledChange,
+            onRefreshModels = onRefreshModels,
+            getAvailableModels = getAvailableModels,
+            onSignOut = onSignOut,
+            archiveContent = archiveContentForSettings,
+            backupContent = backupContent,
+            pinSetupContent = pinSetupContent,
+            pinChangeContent = pinChangeContent
+        )
+    }
+}
+}
 
 /**
- * OPTIMIZED: Animated note item with staggered entry animation.
- *
- * Performance improvements:
- * - Single Animatable drives all 3 transforms (was 3 separate animateFloatAsState)
- * - 66% reduction in animation overhead (1 animator instead of 3)
- * - graphicsLayer lambda defers all state reads to draw phase
- * - Scale, alpha, and translation derived mathematically from single progress
- * - Items beyond index 5 skip animation entirely (instant appear)
- *
- * Mathematical derivation from progress p ∈ [0, 1]:
- * - scale = 0.4 + 0.6p (linear: 0.4 → 1.0)
- * - alpha = p (linear: 0 → 1)
- * - offsetY = 100(1-p) (linear: 100 → 0)
+ * Displays a dropdown of recent search suggestions.
+ * Shows when search field is focused and has suggestions available.
  */
 @Composable
-private fun AnimatedNoteItem(
-    note: Note,
-    index: Int,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
-    onOpenTodo: () -> Unit,
-    onArchive: () -> Unit,
-    isSelected: Boolean = false,
-    isSelectionMode: Boolean = false,
-    onLongPress: () -> Unit = {},
-    onPlayYouTube: (String) -> Unit = {},
-    searchQuery: String? = null
+private fun SearchSuggestionsDropdown(
+    suggestions: List<String>,
+    onSuggestionClick: (String) -> Unit,
+    onClearHistory: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    // OPTIMIZED: Single animatable drives all transforms
-    // Skip animation for items beyond index 5 (instant appear)
-    val shouldAnimate = index < 5
-    val animationProgress = remember { Animatable(if (shouldAnimate) 0f else 1f) }
-
-    // Staggered delay using logarithmic spacing for natural cascade
-    LaunchedEffect(Unit) {
-        if (shouldAnimate) {
-            val staggerDelay = StaggerCalculator.logarithmic(index, 40)
-            delay(staggerDelay.toLong())
-            // Spring animation for bouncy "orb pop" effect
-            animationProgress.animateTo(
-                targetValue = 1f,
-                animationSpec = spring(
-                    dampingRatio = 0.65f, // Slightly bouncy
-                    stiffness = 350f
-                )
-            )
-        }
-    }
-
-    // OPTIMIZED: Pre-compute density for offset calculation
-    val density = LocalDensity.current
-
-    NoteCard(
-        note = note,
-        onClick = onClick,
-        onDelete = onDelete,
-        onOpenTodo = onOpenTodo,
-        modifier = Modifier
-            // OPTIMIZED: Single graphicsLayer with lambda defers ALL reads to draw phase
-            // This prevents recomposition on every animation frame
-            .graphicsLayer {
-                val p = animationProgress.value
-                // Derive all transforms from single progress value
-                val scale = 0.4f + 0.6f * p
-                scaleX = scale
-                scaleY = scale
-                alpha = p
-                translationY = (1f - p) * 100f * density.density
-            },
-        index = index,
-        onArchive = onArchive,
-        isSelected = isSelected,
-        isSelectionMode = isSelectionMode,
-        onLongPress = onLongPress,
-        onPlayYouTube = onPlayYouTube,
-        searchQuery = searchQuery
-    )
-}
-
-
-@Composable
-private fun NoteTypeChip(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    icon: androidx.compose.ui.graphics.vector.ImageVector? = null
-) {
-    // Premium "Pill" Aesthetic
-    // Selected: Solid Black (Light Mode) / White (Dark Mode)
-    // Unselected: Transparent with subtle outline
-    val backgroundColor = if (isSelected) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        // Stronger contrast for unselected state: visible light background
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-    }
-    
-    val contentColor = if (isSelected) {
-        MaterialTheme.colorScheme.surface
-    } else {
-        // Darker icon for better readability
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-    }
-    
-    Surface(
-        onClick = onClick,
-        shape = if (label.isEmpty()) androidx.compose.foundation.shape.CircleShape else androidx.compose.foundation.shape.RoundedCornerShape(20.dp), // Circle for icon-only
-        color = backgroundColor,
-        contentColor = contentColor,
-        modifier = Modifier.height(32.dp).widthIn(min = 32.dp) // Slightly bigger for touch target
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = if (label.isEmpty()) 8.dp else 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (icon != null) {
+            Text(
+                text = "Recent searches",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(onClick = onClearHistory) {
+                Text("Clear")
+            }
+        }
+
+        suggestions.forEach { suggestion ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSuggestionClick(suggestion) }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
-                    imageVector = icon,
-                    contentDescription = label.ifEmpty { null },
-                    modifier = Modifier.size(16.dp)
+                    imageVector = Icons.Default.History,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-            if (label.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.2.sp
-                    )
+                    text = suggestion,
+                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
-    }
-}
-
-/**
- * Custom FlingBehavior that caps maximum scroll velocity while preserving natural momentum.
- *
- * The scroll continues naturally with standard physics, but the initial velocity
- * is capped so users can't fling faster than a certain speed.
- *
- * @param maxVelocity Maximum allowed velocity in pixels per second
- * @param defaultFlingBehavior The underlying fling behavior to delegate to
- */
-private class CappedVelocityFlingBehavior(
-    private val maxVelocity: Float,
-    private val defaultFlingBehavior: FlingBehavior
-) : FlingBehavior {
-
-    override suspend fun ScrollScope.performFling(initialVelocity: Float): Float {
-        // Cap the velocity but preserve direction and natural momentum
-        val cappedVelocity = if (abs(initialVelocity) > maxVelocity) {
-            maxVelocity * sign(initialVelocity)
-        } else {
-            initialVelocity
-        }
-
-        // Delegate to default fling behavior with capped velocity
-        // This preserves natural Android scroll physics (deceleration curve)
-        return with(defaultFlingBehavior) {
-            performFling(cappedVelocity)
-        }
-    }
-}
-
-/**
- * Remember a capped velocity fling behavior for LazyColumn/LazyRow.
- * Caps max scroll speed while keeping natural momentum and deceleration.
- */
-@Composable
-private fun rememberCappedFlingBehavior(
-    maxVelocity: Float = 50000f  // Max pixels/second - scrolling continues, just slower
-): FlingBehavior {
-    // Get the default scroll behavior from the platform
-    val defaultFling = androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
-
-    return remember(maxVelocity, defaultFling) {
-        CappedVelocityFlingBehavior(maxVelocity, defaultFling)
     }
 }

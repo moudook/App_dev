@@ -29,7 +29,7 @@ import com.example.smarty.data.model.NoteVersion
         ProviderUsage::class,       // Provider usage for rate limiting
         NoteVersion::class          // Note version history for git-like versioning
     ],
-    version = 19,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices
+    version = 21,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -55,6 +55,8 @@ abstract class CogniDatabase : RoomDatabase() {
                     "cogni_database"
                 )
                     .addMigrations(
+                        Migrations.MIGRATION_1_2,
+                        Migrations.MIGRATION_2_3,
                         Migrations.MIGRATION_3_4,
                         Migrations.MIGRATION_4_5,
                         Migrations.MIGRATION_5_6,
@@ -70,7 +72,9 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_15_16,
                         Migrations.MIGRATION_16_17,
                         Migrations.MIGRATION_17_18,
-                        Migrations.MIGRATION_18_19  // Performance: isPinned indices
+                        Migrations.MIGRATION_18_19,  // Performance: isPinned indices
+                        Migrations.MIGRATION_19_20,  // Citations storage
+                        Migrations.MIGRATION_20_21   // Performance: composite indices
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

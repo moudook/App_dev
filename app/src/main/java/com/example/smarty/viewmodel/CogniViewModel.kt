@@ -11,6 +11,7 @@ import com.example.smarty.data.cache.CacheManager
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.SearchHistoryManager
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.AudioTrack
@@ -23,6 +24,7 @@ import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.TodoItem
+import com.example.smarty.data.model.Citation
 import com.example.smarty.data.model.getAllAttachmentUris
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.data.model.getTodos
@@ -43,6 +45,7 @@ import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.util.ContentTypeDetector
+import com.example.smarty.viewmodel.managers.NoteProcessingQueueManager
 import com.example.smarty.util.FileStorageHelper
 import com.example.smarty.util.PDFTextExtractor
 import com.example.smarty.util.PDFExtractionResult
@@ -93,6 +96,8 @@ import androidx.lifecycle.AbstractSavedStateViewModelFactory
 import androidx.lifecycle.ViewModelProvider
 import androidx.savedstate.SavedStateRegistryOwner
 import kotlinx.coroutines.withTimeout
+import com.example.smarty.widget.QuickNoteWidgetProvider
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Single file info for sharing
@@ -238,6 +243,16 @@ class CogniViewModel(
     val isTTSSpeaking: StateFlow<Boolean> by lazy { responseTTSManager.isSpeaking }
     val isTTSEnabled: StateFlow<Boolean> by lazy { responseTTSManager.isEnabled }
 
+    // Local LLM Server IP state
+    private val _localServerIP = MutableStateFlow(securePreferences.getLocalPCIP())
+    val localServerIP: StateFlow<String> = _localServerIP.asStateFlow()
+
+    fun setLocalServerIP(ip: String) {
+        securePreferences.setLocalPCIP(ip)
+        _localServerIP.value = ip
+        Log.d(TAG, "Local server IP set to: $ip")
+    }
+
     // Agent callbacks for Koog tools that need ViewModel state
     // SECURITY: Pre-filter notes at callback level for defense-in-depth
     private val agentCallbacks = object : AgentCallbacks {
@@ -245,6 +260,10 @@ class CogniViewModel(
         override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value)
         override fun getCategories(): List<Category> = categories.value
         override fun getTavilyApiKey(): String? = securePreferences.getTavilyApiKey()
+        // BATCH-3C: OpenAI API key for AgentOptimizer semantic cache (embeddings)
+        override fun getOpenAiApiKey(): String? = securePreferences.getProviderKeys(AIProvider.OPENAI).firstOrNull()
+        // Gemini API key for AgentOptimizer semantic cache fallback
+        override fun getGeminiApiKey(): String? = securePreferences.getProviderKeys(AIProvider.GEMINI).firstOrNull()
 
         override suspend fun processNoteWithAi(note: Note) {
             simulateAiProcessing(note)
@@ -266,8 +285,8 @@ class CogniViewModel(
             responseTTSManager.stop()
             Log.d(TAG, "TTS stopped for audio playback")
 
-            // Directly set the track for playback - it now has a valid URI from the note attachment
-            _pendingAudioPlayback.value = track
+            // Delegate to AudioPlaybackManager - single source of truth for pending audio state
+            audioPlaybackManager.requestPlayback(track)
             Log.d(TAG, "✓ pendingAudioPlayback set to: ${track.title}")
         }
 
@@ -278,7 +297,16 @@ class CogniViewModel(
         override fun onToolExecutionCompleted(toolName: String) {
             // No-op: Dynamic Island removed
         }
+
+        override fun onCitationsFound(citations: List<com.example.smarty.agent.WebCitation>) {
+            // Store citations for the current chat response
+            pendingCitations.addAll(citations)
+            Log.d(TAG, "Citations found: ${citations.size} sources")
+        }
     }
+
+    // Temporary storage for citations during agent execution
+    private val pendingCitations = CopyOnWriteArrayList<com.example.smarty.agent.WebCitation>()
 
     // Chat repository for persistence - lazy to avoid blocking
     private val chatRepository: ChatRepository by lazy {
@@ -300,6 +328,10 @@ class CogniViewModel(
 
     private val _wakeWordTriggered = MutableStateFlow(false)
     val wakeWordTriggered: StateFlow<Boolean> = _wakeWordTriggered.asStateFlow()
+
+    // Camera trigger state (for widget camera button)
+    private val _cameraTriggered = MutableStateFlow(false)
+    val cameraTriggered: StateFlow<Boolean> = _cameraTriggered.asStateFlow()
 
     // Mutex for thread-safe note operations (BUG-016 fix)
     private val noteOperationMutex = Mutex()
@@ -328,6 +360,36 @@ class CogniViewModel(
         scope = viewModelScope,
         noteDao = database.noteDao()
     )
+
+    // Note Processing Queue Manager - handles background processing with timeout and recovery
+    private val noteProcessingQueueManager by lazy {
+        NoteProcessingQueueManager(
+            noteDao = database.noteDao(),
+            repository = repository,
+            aiService = aiService,
+            scope = viewModelScope
+        )
+    }
+
+    // Queue state exposed for UI (optional - shows pending count)
+    val pendingNoteProcessingCount: StateFlow<Int> by lazy { noteProcessingQueueManager.pendingCount }
+
+    // Calendar Manager - handles calendar event CRUD operations and reminders
+    private val calendarManager by lazy {
+        com.example.smarty.viewmodel.managers.CalendarManager(
+            calendarDao = calendarDao,
+            alarmScheduler = alarmScheduler,
+            scope = viewModelScope
+        )
+    }
+
+    // Audio Playback Manager - handles audio playback coordination with AudioPlayerService
+    private val audioPlaybackManager by lazy {
+        com.example.smarty.viewmodel.managers.AudioPlaybackManager(
+            context = getApplication(),
+            scope = viewModelScope
+        )
+    }
 
 
     // ==================== Chat State (delegated to ChatManager) ====================
@@ -455,12 +517,43 @@ class CogniViewModel(
     val isClearingCache: StateFlow<Boolean> = _isClearingCache.asStateFlow()
 
     // Audio playback request from AI agent (observed by MainActivity to trigger playback)
-    private val _pendingAudioPlayback = MutableStateFlow<AudioTrack?>(null)
-    val pendingAudioPlayback: StateFlow<AudioTrack?> = _pendingAudioPlayback.asStateFlow()
+    // Delegated to AudioPlaybackManager for centralized control - single source of truth
+    val pendingAudioPlayback: StateFlow<AudioTrack?>
+        get() = audioPlaybackManager.pendingAudioPlayback
 
     fun clearPendingAudioPlayback() {
-        _pendingAudioPlayback.value = null
+        audioPlaybackManager.clearPendingAudioPlayback()
     }
+
+    // ==================== Audio Playback Control (delegated to AudioPlaybackManager) ====================
+
+    /** Start playing an audio track directly */
+    fun playAudioTrack(track: AudioTrack) = audioPlaybackManager.play(track)
+
+    /** Pause the current playback */
+    fun pauseAudioPlayback() = audioPlaybackManager.pause()
+
+    /** Resume the paused playback */
+    fun resumeAudioPlayback() = audioPlaybackManager.resume()
+
+    /** Stop playback completely */
+    fun stopAudioPlayback() = audioPlaybackManager.stop()
+
+    /** Seek to a specific position */
+    fun seekAudioTo(position: Long) = audioPlaybackManager.seekTo(position)
+
+    /** Toggle play/pause state */
+    fun toggleAudioPlayPause() = audioPlaybackManager.togglePlayPause()
+
+    /** Audio player state for UI */
+    val audioPlayerState: StateFlow<com.example.smarty.data.model.AudioPlayerState>
+        get() = audioPlaybackManager.playerState
+
+    /** Notify audio service of foreground state */
+    fun onAudioAppEnterForeground() = audioPlaybackManager.onAppEnterForeground()
+
+    /** Notify audio service of background state */
+    fun onAudioAppEnterBackground() = audioPlaybackManager.onAppEnterBackground()
 
 
 
@@ -475,8 +568,41 @@ class CogniViewModel(
     private val _selectedFilters = MutableStateFlow<Set<AttachmentOption>>(emptySet())
     val selectedFilters: StateFlow<Set<AttachmentOption>> = _selectedFilters.asStateFlow()
 
+    // Search History Manager for recent search suggestions
+    private val searchHistoryManager by lazy {
+        SearchHistoryManager(getApplication())
+    }
+
+    // Expose recent searches state for UI
+    val recentSearches: StateFlow<List<String>> by lazy { searchHistoryManager.recentSearches }
+
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+    }
+
+    /**
+     * Record a search query in history when search is executed.
+     * Only records queries with at least 2 characters.
+     */
+    fun recordSearch(query: String) {
+        if (query.length >= 2) {
+            searchHistoryManager.addSearch(query)
+        }
+    }
+
+    /**
+     * Clear all search history.
+     */
+    fun clearSearchHistory() {
+        searchHistoryManager.clearHistory()
+    }
+
+    /**
+     * Get filtered search suggestions based on current query.
+     * Returns recent searches that contain the query string.
+     */
+    fun getSearchSuggestions(query: String): List<String> {
+        return searchHistoryManager.getFilteredSuggestions(query)
     }
 
     fun onFilterToggle(option: AttachmentOption) {
@@ -581,10 +707,9 @@ class CogniViewModel(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Calendar events
-    val calendarEvents = calendarDao.getAllEvents()
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Calendar events (delegated to CalendarManager)
+    val calendarEvents: StateFlow<List<CalendarEvent>>
+        get() = calendarManager.calendarEvents
 
     private val _selectedNote = MutableStateFlow<Note?>(null)
     val selectedNote: StateFlow<Note?> = _selectedNote.asStateFlow()
@@ -634,12 +759,26 @@ class CogniViewModel(
             }
         })
 
+        // Initialize Note Processing Queue Manager
+        // Recovers stuck notes and starts background queue processor
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                noteProcessingQueueManager.initialize()
+                Log.d(TAG, "Note processing queue initialized")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize note processing queue: ${e.message}", e)
+            }
+        }
+
         // Restore state from SavedStateHandle after process death (BUG-053)
         // Made non-blocking - failures won't affect startup
         restoreState()
 
         // Initialize Neural TTS (uses bundled model, no download needed)
         initializeNeuralTTS()
+
+        // Schedule FTS maintenance (weekly optimization)
+        scheduleFtsMaintenance()
     }
 
     // Track if deferred initialization has been done
@@ -688,6 +827,29 @@ class CogniViewModel(
                 Log.d(TAG, "Deferred GROQ key sync complete")
             } catch (e: Exception) {
                 Log.w(TAG, "GROQ key sync failed: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Schedule FTS5 index maintenance.
+     * Runs optimization once per week to maintain search performance.
+     * Non-blocking - runs in background IO thread.
+     */
+    private fun scheduleFtsMaintenance() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val lastMaintenance = securePreferences.getLastFtsMaintenance()
+                val oneWeekAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
+
+                if (lastMaintenance < oneWeekAgo) {
+                    Log.d(TAG, "Running FTS maintenance...")
+                    database.noteDao().optimizeFtsIndex()
+                    securePreferences.setLastFtsMaintenance(System.currentTimeMillis())
+                    Log.i(TAG, "FTS index optimized")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "FTS maintenance failed", e)
             }
         }
     }
@@ -835,6 +997,9 @@ class CogniViewModel(
                 repository.insertNote(note)
                 Log.d(TAG, "Text note inserted: ${note.id}")
 
+                // Refresh home screen widget
+                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
+
                 try {
                     if (shouldProcess) {
                         simulateAiProcessing(note)
@@ -888,6 +1053,9 @@ class CogniViewModel(
             }
 
             repository.insertNote(note)
+
+            // Refresh home screen widget
+            QuickNoteWidgetProvider.updateAllWidgets(getApplication())
 
             if (shouldAnalyze(note.type)) {
                 simulateAiProcessing(note)
@@ -962,6 +1130,9 @@ class CogniViewModel(
                         // Insert immediately to update UI
                         repository.insertNote(initialNote)
                         Log.d(TAG, "Note inserted with PENDING status: ${initialNote.id}")
+
+                        // Refresh home screen widget
+                        QuickNoteWidgetProvider.updateAllWidgets(getApplication())
 
                         // 2. BACKGROUND WORK: Copy and compress all attachments
                         // Wrapped in try-catch to ensure note is completed even if attachment processing fails
@@ -1250,6 +1421,8 @@ class CogniViewModel(
                 noteOperationMutex.withLock {
                     repository.archiveNote(noteId)
                 }
+                // Refresh home screen widget
+                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
             } catch (e: Exception) {
                 Log.e(TAG, "Error archiving note: ${e.message}", e)
             }
@@ -1262,6 +1435,8 @@ class CogniViewModel(
                 noteOperationMutex.withLock {
                     repository.unarchiveNote(noteId)
                 }
+                // Refresh home screen widget
+                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
             } catch (e: Exception) {
                 Log.e(TAG, "Error unarchiving note: ${e.message}", e)
             }
@@ -1278,6 +1453,8 @@ class CogniViewModel(
                 }
                 // Store for undo
                 _lastArchivedNoteIds.value = noteIds
+                // Refresh home screen widget
+                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
             } catch (e: Exception) {
                 Log.e(TAG, "Error bulk archiving notes: ${e.message}", e)
             }
@@ -1294,6 +1471,8 @@ class CogniViewModel(
                 }
                 // Clear undo state
                 _lastArchivedNoteIds.value = emptyList()
+                // Refresh home screen widget
+                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
             } catch (e: Exception) {
                 Log.e(TAG, "Error undoing archive: ${e.message}", e)
             }
@@ -1321,6 +1500,8 @@ class CogniViewModel(
                     // Then delete database record
                     repository.deleteNote(note)
                 }
+                // Refresh home screen widget
+                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
             } catch (e: Exception) {
                 Log.e(TAG, "Error deleting note: ${e.message}", e)
             }
@@ -1643,6 +1824,20 @@ class CogniViewModel(
         }
         // ============================================================================
 
+        // Check if AI is available - if not, enqueue for background processing
+        if (!aiService.isAiAvailable()) {
+            Log.d(TAG, "AI not available, enqueueing note ${note.id.take(8)}... for background processing")
+            // Save note with PENDING status
+            val pendingNote = note.copy(
+                processingStatus = ProcessingStatus.PENDING,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.updateNote(pendingNote)
+            // Add to queue for processing when AI becomes available
+            noteProcessingQueueManager.enqueue(pendingNote)
+            return
+        }
+
         _isProcessing.value = true
 
         try {
@@ -1686,8 +1881,13 @@ class CogniViewModel(
             repository.updateNote(updatedNote)
         } catch (e: Exception) {
             Log.e(TAG, "AI processing error for note ${note.id}: ${e.message}", e)
-            // Fallback: complete note without AI processing
-            storeWithoutAnalysis(note)
+            // On error, enqueue for retry instead of giving up immediately
+            val pendingNote = note.copy(
+                processingStatus = ProcessingStatus.PENDING,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.updateNote(pendingNote)
+            noteProcessingQueueManager.enqueue(pendingNote)
         } finally {
             _isProcessing.value = false
         }
@@ -2321,6 +2521,21 @@ class CogniViewModel(
     }
 
     /**
+     * Manually trigger camera input (e.g. from widget)
+     * Opens the image picker when the app launches
+     */
+    fun triggerCameraInput() {
+        _cameraTriggered.value = true
+    }
+
+    /**
+     * Clear the camera trigger flag after it has been handled
+     */
+    fun clearCameraTrigger() {
+        _cameraTriggered.value = false
+    }
+
+    /**
      * Restart wake word detection after Google STT completes.
      * Call this from onActivityResult after speech recognition finishes.
      *
@@ -2499,6 +2714,19 @@ class CogniViewModel(
     }
 
     /**
+     * Enter chat mode (delegated to ChatManager)
+     * Called when user taps the AI/Chat tab
+     */
+    fun enterChatMode() {
+        ensureChatManagerInitialized()
+        viewModelScope.launch {
+            chatManager.enterChatMode()
+            // Persist chat mode state for process death recovery (BUG-053)
+            savedStateHandle[KEY_IS_CHAT_MODE] = true
+        }
+    }
+
+    /**
      * Exit chat mode and return to note input mode (delegated to ChatManager)
      */
     fun exitChatMode() {
@@ -2614,6 +2842,9 @@ class CogniViewModel(
                         Pair(role, msg.content)
                     }
 
+                // Clear pending citations before running agent
+                pendingCitations.clear()
+
                 // Run the Koog agent with conversation history
                 val result = cogniAgent.run(content, conversationHistory)
 
@@ -2630,20 +2861,27 @@ class CogniViewModel(
                         // Extract suggestions from TOON format: {suggestions:["a","b"]}
                         val (cleanedResponse, suggestions) = extractSuggestionsFromResponse(result.response)
 
+                        // Convert WebCitation to Citation for the message
+                        val citations = pendingCitations.map { wc ->
+                            Citation(title = wc.title, url = wc.url, snippet = wc.snippet)
+                        }
+                        pendingCitations.clear()
+
                         // Create assistant message from agent response
                         val assistantMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
                             content = cleanedResponse,
                             isAudioRelated = isAudioQuery,
                             suggestions = suggestions,
-                            isError = false
+                            isError = false,
+                            citations = citations
                         )
 
                         chatManager.addAssistantMessage(assistantMessage)
 
                         // Speak AI response - but NOT if audio playback was just triggered
                         // (user wants to hear the music, not TTS talking over it)
-                        if (_pendingAudioPlayback.value == null) {
+                        if (pendingAudioPlayback.value == null) {
                             speakResponse(cleanedResponse)
                         } else {
                             Log.d(TAG, "Skipping TTS - audio playback pending")
@@ -2696,7 +2934,7 @@ class CogniViewModel(
         }
     }
 
-    // ==================== Calendar Operations ====================
+    // ==================== Calendar Operations (delegated to CalendarManager) ====================
 
     /**
      * Add a new calendar event
@@ -2711,46 +2949,44 @@ class CogniViewModel(
         color: Int? = null,
         reminderMinutes: Int? = null,
         isPrivate: Boolean = false
-    ) {
-        viewModelScope.launch {
-            val event = CalendarEvent(
-                title = title,
-                description = description,
-                startTime = startTime,
-                endTime = endTime,
-                isAllDay = isAllDay,
-                location = location,
-                color = color,
-                reminderMinutes = reminderMinutes,
-                isEventPrivate = isPrivate
-            )
-            calendarDao.insertEvent(event)
-            Log.d(TAG, "Added calendar event: $title")
-        }
-    }
+    ) = calendarManager.addCalendarEvent(
+        title = title,
+        description = description,
+        startTime = startTime,
+        endTime = endTime,
+        isAllDay = isAllDay,
+        location = location,
+        color = color,
+        reminderMinutes = reminderMinutes,
+        isPrivate = isPrivate
+    )
 
     /**
      * Update an existing calendar event
      */
-    fun updateCalendarEvent(event: CalendarEvent) {
-        viewModelScope.launch {
-            try {
-                calendarDao.updateEvent(event)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error updating calendar event", e)
-            }
-        }
-    }
+    fun updateCalendarEvent(event: CalendarEvent) = calendarManager.updateCalendarEvent(event)
 
-    fun deleteCalendarEvent(eventId: String) {
-        viewModelScope.launch {
-            try {
-                calendarDao.deleteEventById(eventId)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error deleting calendar event", e)
-            }
-        }
-    }
+    /**
+     * Delete a calendar event by ID
+     */
+    fun deleteCalendarEvent(eventId: String) = calendarManager.deleteCalendarEvent(eventId)
+
+    /**
+     * Get events for a specific day
+     */
+    suspend fun getEventsForDay(dayMillis: Long): List<CalendarEvent> =
+        calendarManager.getEventsForDay(dayMillis)
+
+    /**
+     * Get today's events
+     */
+    suspend fun getTodayEvents(): List<CalendarEvent> = calendarManager.getTodayEvents()
+
+    /**
+     * Get AI-visible upcoming events (for agent context)
+     */
+    suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> =
+        calendarManager.getAiVisibleUpcomingEvents(limit)
 
     // ==================== Dynamic Model Management ====================
 

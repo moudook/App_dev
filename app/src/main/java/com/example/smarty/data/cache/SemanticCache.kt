@@ -1,7 +1,7 @@
 package com.example.smarty.data.cache
 
 import android.util.Log
-import com.example.smarty.data.remote.EmbeddingService
+import com.example.smarty.data.remote.EmbeddingServiceContract
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Expected impact: 40-60% reduction in API calls
  *
- * @property embeddingService Service for generating text embeddings
+ * @property embeddingService Service for generating text embeddings (OpenAI, Gemini, etc.)
  * @property similarityThreshold Minimum similarity for cache hit (default: 0.90)
  * @property maxEntries Maximum cache size before eviction (default: 100)
  * @property ttlMs Time-to-live in milliseconds (default: 2 hours)
@@ -27,9 +27,13 @@ import java.util.concurrent.ConcurrentHashMap
  * L9 FIX: Adjusted thresholds for better cache hit rate:
  * - Reduced similarity from 0.95 to 0.90 (more permissive)
  * - Increased TTL from 30min to 2 hours for longer-lived cache entries
+ *
+ * Multi-provider support: Now works with any EmbeddingServiceContract implementation.
+ * @see com.example.smarty.data.remote.EmbeddingService (OpenAI)
+ * @see com.example.smarty.data.remote.GeminiEmbeddingService (Gemini)
  */
 class SemanticCache(
-    private val embeddingService: EmbeddingService,
+    private val embeddingService: EmbeddingServiceContract,
     private val similarityThreshold: Float = 0.90f,  // Reduced from 0.95 for more cache hits
     private val maxEntries: Int = 100,
     private val ttlMs: Long = 2 * 60 * 60 * 1000 // 2 hours (increased from 30 min)

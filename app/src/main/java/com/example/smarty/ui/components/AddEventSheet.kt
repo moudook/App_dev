@@ -64,15 +64,37 @@ import java.util.*
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 
-// Design System Colors (Matching Calendar)
-private val SheetDarkBg = Color(0xFF0D0D12)
-private val SheetSurfaceDark = Color(0xFF1A1A24)
+// Design System Colors - Now uses theme colors
 private val SheetAccent = Color(0xFF2979FF)
 private val SheetAccentLight = Color(0xFF5C9AFF)
+
+// Legacy color compatibility - maps to theme colors
+// These are kept as vals for non-composable contexts
+private val SheetDarkBg = Color(0xFF0D0D12)
+private val SheetSurfaceDark = Color(0xFF1A1A24)
 private val SheetMutedText = Color(0xFF6B6B80)
 private val SheetWhite = Color(0xFFF5F5F7)
 private val SheetInputBg = Color(0xFF1E1E28)
 private val SheetBorder = Color(0xFF2A2A35)
+
+// Theme-aware color functions for composable contexts
+@Composable
+private fun sheetBackground() = MaterialTheme.colorScheme.background
+
+@Composable
+private fun sheetSurface() = MaterialTheme.colorScheme.surfaceVariant
+
+@Composable
+private fun sheetTextPrimary() = MaterialTheme.colorScheme.onBackground
+
+@Composable
+private fun sheetTextMuted() = MaterialTheme.colorScheme.onSurfaceVariant
+
+@Composable
+private fun sheetInputBgThemed() = MaterialTheme.colorScheme.surface
+
+@Composable
+private fun sheetBorderThemed() = MaterialTheme.colorScheme.outline
 
 
 
@@ -172,7 +194,7 @@ fun AddEventSheet(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        color = SheetDarkBg
+        color = sheetBackground()
     ) {
         Column(
             modifier = Modifier
@@ -217,7 +239,7 @@ fun AddEventSheet(
                     text = "New Event",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = SheetWhite
+                    color = sheetTextPrimary()
                 )
 
                 TextButton(
@@ -596,7 +618,7 @@ private fun DarkFormRow(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = SheetWhite
+                    color = sheetTextPrimary()
                 )
                 subtitle?.let {
                     Text(

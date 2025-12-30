@@ -1,0 +1,40 @@
+package com.example.smarty.data.cache
+
+import android.util.LruCache
+
+/**
+ * LRU cache for tool execution results to avoid duplicate DB/API calls.
+ * Short TTL (30 seconds) since tool results can change quickly.
+ */
+object ToolResultCache {
+    private const val MAX_CACHE_SIZE = 50
+    private const val TTL_MS = 30_000L  // 30 seconds
+
+    private data class CacheEntry(
+        val result: String,
+        val timestamp: Long = System.currentTimeMillis()
+    )
+
+    private val cache = LruCache<String, CacheEntry>(MAX_CACHE_SIZE)
+
+    fun generateKey(toolName: String, args: String): String {
+        return "$toolName:${args.hashCode()}"
+    }
+
+    fun get(key: String): String? {
+        val entry = cache.get(key) ?: return null
+        if (System.currentTimeMillis() - entry.timestamp > TTL_MS) {
+            cache.remove(key)
+            return null
+        }
+        return entry.result
+    }
+
+    fun put(key: String, result: String) {
+        cache.put(key, CacheEntry(result))
+    }
+
+    fun clear() {
+        cache.evictAll()
+    }
+}

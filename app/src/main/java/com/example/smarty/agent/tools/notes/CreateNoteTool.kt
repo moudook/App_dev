@@ -14,7 +14,7 @@ import kotlinx.serialization.Serializable
 data class CreateNoteArgs(
     @property:LLMDescription("The main text content of the note to be saved")
     val content: String,
-    @property:LLMDescription("Optional custom title. If not provided, will be auto-generated from content")
+    @property:LLMDescription("A short, descriptive title for the note (2-5 words). ALWAYS provide a meaningful title that summarizes the note content. Examples: 'Meeting Notes', 'Shopping List', 'Project Ideas', 'Birthday Reminder'")
     val title: String? = null,
     @property:LLMDescription("Optional category name to organize the note (e.g., 'Work', 'Personal', 'Ideas')")
     val category: String? = null
@@ -37,6 +37,7 @@ class CreateNoteTool(
     override val description = """
         Creates a new note in the user's note collection.
         Use this when the user asks to save, remember, or note down information.
+        IMPORTANT: Always provide a clear, descriptive title (2-5 words) that summarizes the note.
         The AI will analyze and categorize the note unless a category is specified.
     """.trimIndent()
 

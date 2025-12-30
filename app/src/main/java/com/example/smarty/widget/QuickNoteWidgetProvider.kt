@@ -71,6 +71,17 @@ class QuickNoteWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widget_voice_button, voicePendingIntent)
 
+            // Camera Note Button
+            val cameraIntent = Intent(context, MainActivity::class.java).apply {
+                action = ACTION_CAMERA_NOTE
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            val cameraPendingIntent = PendingIntent.getActivity(
+                context, appWidgetId + 2000, cameraIntent, // Unique RequestCode
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_camera_button, cameraPendingIntent)
+
             // Update the widget
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }

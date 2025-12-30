@@ -2,19 +2,28 @@ package com.example.smarty.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +44,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,9 +55,12 @@ import com.example.smarty.data.model.ChatRole
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.IconSize
+import com.example.smarty.ui.theme.AnimationDuration
+import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.getAttachments
-import kotlinx.coroutines.delay
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.RichText
 import com.halilibo.richtext.ui.RichTextStyle
@@ -54,10 +68,13 @@ import com.halilibo.richtext.ui.string.RichTextStringStyle
 import androidx.compose.animation.core.FastOutSlowInEasing
 
 /**
- * Premium Chat Message Bubble Component
- * - Includes Avatars for User and AI
- * - Modern, rounded aesthetics
- * - Improved typography and spacing
+ * Unified Chat Message Bubble Component
+ *
+ * Design Philosophy:
+ * - Centralized, cohesive look matching the rest of the app
+ * - User messages: Accent-tinted pill with clean typography
+ * - AI messages: Elevated card with subtle border, professional appearance
+ * - Consistent spacing, padding, and visual hierarchy
  */
 @Composable
 fun ChatMessageItem(
@@ -68,251 +85,230 @@ fun ChatMessageItem(
     onSuggestionClick: (String) -> Unit = {}
 ) {
     val isUser = message.role == ChatRole.USER
-    
-    // Use rememberSaveable to persist animation state across scroll recycling
-    var isVisible by rememberSaveable(message.id) { mutableStateOf(false) }
+    val accentColor = LocalAccentColor.current
 
-    // Animate entrance only once
-    LaunchedEffect(message.id) {
-        if (!isVisible) {
-            delay(50) // Brief delay for stagger effect
-            isVisible = true
-        }
-    }
-
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = fadeIn(tween(200)) + 
-                slideInHorizontally(
-                    initialOffsetX = { if (isUser) it / 2 else -it / 2 },
-                    animationSpec = tween(300, easing = FastOutSlowInEasing)
-                ) + 
-                scaleIn(
-                    initialScale = 0.9f, 
-                    animationSpec = tween(300)
-                )
+    // No animations - direct rendering for performance
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp), // Reduced padding
-            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
-            verticalAlignment = Alignment.Bottom // Align avatars to bottom of message
+        // Message Bubble
+        Surface(
+            shape = RoundedCornerShape(
+                topStart = ComponentSpacing.bubbleCornerLarge,
+                topEnd = ComponentSpacing.bubbleCornerLarge,
+                bottomStart = if (isUser) ComponentSpacing.bubbleCornerLarge else ComponentSpacing.bubbleCornerSmall,
+                bottomEnd = if (isUser) ComponentSpacing.bubbleCornerSmall else ComponentSpacing.bubbleCornerLarge
+            ),
+            color = if (isUser) {
+                // User bubble: Accent tint with subtle presence
+                accentColor.copy(alpha = Alpha.soft)
+            } else {
+                // AI bubble: Clean surface with elevation
+                MaterialTheme.colorScheme.surface
+            },
+            border = if (!isUser) {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = Alpha.hint))
+            } else null,
+            shadowElevation = if (!isUser) 2.dp else 0.dp,
+            modifier = Modifier
+                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
         ) {
-            // AI Avatar REMOVED per user request
-            // if (!isUser) { ... }
-
-            // Message Bubble Column
             Column(
-                horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
-                modifier = Modifier.widthIn(max = 300.dp) // Slightly increased max width since avatars are gone
+                modifier = Modifier.padding(horizontal = ComponentSpacing.bubblePadding, vertical = ComponentSpacing.bubblePaddingVertical)
             ) {
-                // Name Label REMOVED per user request
-                // Text(...)
+                // Message content
+                if (isUser) {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            lineHeight = 22.sp,
+                            letterSpacing = 0.15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = accentColor
+                    )
+                } else {
+                    // Assistant messages - ALL text is BLUE in both light and dark mode
+                    // Custom markdown parser - bypasses buggy RichText library
 
-                // The Bubble
-                Surface(
-                    shape = RoundedCornerShape(
-                        topStart = 32.dp,
-                        topEnd = 32.dp,
-                        bottomStart = if (isUser) 32.dp else 4.dp,
-                        bottomEnd = if (isUser) 4.dp else 32.dp
-                    ),
-                    color = if (isUser) {
-                        // "Private Note" Tag Aesthetic: Pale Blue tint
-                        LocalAccentColor.current.copy(alpha = 0.12f)
-                    } else {
-                        // AI Bubble: Use 'Surface' (CardWhite) to pop against 'Background' (SoftBackground)
-                        // This ensures high contrast and a premium, elevated look.
-                        MaterialTheme.colorScheme.surface
-                    },
-                    shadowElevation = 0.dp, // Flat like the tag
-                    modifier = Modifier.padding(bottom = 2.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp) // More padding for pill look
-                    ) {
-                        // Message content
-                        if (isUser) {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    lineHeight = 22.sp,
-                                    letterSpacing = 0.2.sp,
-                                    fontWeight = FontWeight.Bold // Bolder text like the tag
-                                ),
-                                // "Private Note" Tag Aesthetic: Vivid Blue Text
-                                color = LocalAccentColor.current
-                            )
-                        } else {
-                            // Assistant messages - DARK MODE FIX
-                            // Check if background is dark by examining the actual bubble color
-                            val bubbleColor = MaterialTheme.colorScheme.surface
-                            val isDarkBackground = bubbleColor.luminance() < 0.5f
+                    val boldColor = accentColor // Bright blue for bold text
+                    // Slightly darker shade for regular text/numbers
+                    val normalColor = Color(
+                        red = (accentColor.red * 0.75f).coerceIn(0f, 1f),
+                        green = (accentColor.green * 0.75f).coerceIn(0f, 1f),
+                        blue = (accentColor.blue * 0.85f).coerceIn(0f, 1f),
+                        alpha = 1f
+                    )
+                    // Links use purple/violet - distinct from blue
+                    val linkColor = Color(0xFF9C27B0) // Material Purple 500
+                    val codeColor = normalColor // Code uses darker blue
 
-                            // EXPLICIT text color - WHITE on dark, BLACK on light
-                            val textColor = if (isDarkBackground) Color.White else Color.Black
+                    // Custom markdown parser with full control over colors
+                    val annotatedText = parseMarkdownToAnnotatedString(
+                        content = message.content,
+                        normalColor = normalColor,
+                        boldColor = boldColor,
+                        italicColor = normalColor,
+                        linkColor = linkColor,
+                        codeColor = codeColor
+                    )
 
-                            val accentColor = LocalAccentColor.current
-
-                            // Check if content has markdown (contains **, `, #, -, etc.)
-                            val hasMarkdown = message.content.contains("**") ||
-                                    message.content.contains("```") ||
-                                    message.content.contains("`") ||
-                                    message.content.startsWith("#") ||
-                                    message.content.contains("\n- ") ||
-                                    message.content.contains("\n* ")
-
-                            if (hasMarkdown) {
-                                // Use RichText for markdown content
-                                val codeBackground = if (isDarkBackground) {
-                                    Color.White.copy(alpha = 0.15f)
-                                } else {
-                                    Color.Black.copy(alpha = 0.08f)
+                    // Use ClickableText to make links work
+                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                    androidx.compose.foundation.text.ClickableText(
+                        text = annotatedText,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            lineHeight = 22.sp,
+                            letterSpacing = 0.15.sp
+                        ),
+                        onClick = { offset ->
+                        annotatedText.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                            .firstOrNull()?.let { annotation ->
+                                try {
+                                    uriHandler.openUri(annotation.item)
+                                } catch (e: Exception) {
+                                    // Handle invalid URLs gracefully
                                 }
+                            }
+                        }
+                    )
+                }
 
-                                val richTextStyle = RichTextStyle(
-                                    stringStyle = RichTextStringStyle(
-                                        codeStyle = SpanStyle(
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 13.sp,
-                                            background = codeBackground,
-                                            color = textColor
-                                        ),
-                                        boldStyle = SpanStyle(fontWeight = FontWeight.Bold, color = textColor),
-                                        italicStyle = SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, color = textColor),
-                                        linkStyle = SpanStyle(color = accentColor, fontWeight = FontWeight.Bold)
-                                    )
+                // Attachments Count
+                if (message.attachments.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        color = if (isUser) accentColor.copy(alpha = Alpha.medium) else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "+ ${message.attachments.size} Attachment${if(message.attachments.size > 1) "s" else ""}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Action Results (Inside bubble for cleaner look)
+                if (!isUser && message.hasActions) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    message.executedActions.forEach { actionResult ->
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = Alpha.half),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = Alpha.soft))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                ActionResultChip(
+                                    actionName = actionResult.action,
+                                    success = actionResult.success,
+                                    summary = actionResult.resultSummary
                                 )
 
-                                CompositionLocalProvider(
-                                    LocalContentColor provides textColor,
-                                    LocalTextStyle provides MaterialTheme.typography.bodyMedium.copy(
-                                        color = textColor,
-                                        lineHeight = 22.sp
-                                    )
-                                ) {
-                                    RichText(style = richTextStyle) {
-                                        Markdown(content = message.content)
+                                // Affected Notes
+                                if (actionResult.affectedNoteIds.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    actionResult.affectedNoteIds.forEach { noteId ->
+                                        val note = getNote(noteId)
+                                        if (note != null) {
+                                            NoteCard(
+                                                note = note,
+                                                onClick = { onNoteClick(note) },
+                                                onDelete = {},
+                                                onOpenTodo = {},
+                                                modifier = Modifier.fillMaxWidth(),
+                                                isSelectionMode = true
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                        }
                                     }
                                 }
-                            } else {
-                                // Plain text - use Text directly for guaranteed color
-                                Text(
-                                    text = message.content,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        lineHeight = 22.sp,
-                                        letterSpacing = 0.2.sp
-                                    ),
-                                    color = textColor  // EXPLICIT color - guaranteed to work
-                                )
                             }
                         }
-
-                        // Attachments Count
-                        if (message.attachments.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Surface(
-                                color = if (isUser) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.secondaryContainer,
-                                shape = CircleShape
-                            ) {
-                                Text(
-                                    text = "+ ${message.attachments.size} Attachment${if(message.attachments.size > 1) "s" else ""}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    color = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
-                        }
-
-                        // Action Results (Inside bubble for cleaner look)
-                        if (!isUser && message.hasActions) {
-                             Spacer(modifier = Modifier.height(12.dp))
-                             
-                             message.executedActions.forEach { actionResult ->
-                                  Column(
-                                      modifier = Modifier
-                                          .fillMaxWidth()
-                                          .background(
-                                              MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), 
-                                              RoundedCornerShape(12.dp)
-                                          )
-                                          .border(
-                                              1.dp, 
-                                              MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), 
-                                              RoundedCornerShape(12.dp)
-                                          )
-                                          .padding(8.dp)
-                                  ) {
-                                       ActionResultChip(
-                                            actionName = actionResult.action,
-                                            success = actionResult.success,
-                                            summary = actionResult.resultSummary
-                                       )
-                                       
-                                       // Affected Notes
-                                       if (actionResult.affectedNoteIds.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.height(8.dp))
-                                            actionResult.affectedNoteIds.forEach { noteId ->
-                                                val note = getNote(noteId)
-                                                if (note != null) {
-                                                     NoteCard(
-                                                          note = note,
-                                                          onClick = { onNoteClick(note) },
-                                                          onDelete = {}, 
-                                                          onOpenTodo = {},
-                                                          modifier = Modifier.fillMaxWidth(),
-                                                          isSelectionMode = true
-                                                     )
-                                                     Spacer(modifier = Modifier.height(8.dp))
-                                                }
-                                            }
-                                       }
-                                  }
-                                  Spacer(modifier = Modifier.height(8.dp))
-                             }
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
-                
-                // AI Suggestions (between bubble and timestamp)
-                if (!isUser && message.hasSuggestions) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = 8.dp, start = 4.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            }
+        }
+
+        // AI Suggestions (below bubble)
+        if (!isUser && message.hasSuggestions) {
+            Row(
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .widthIn(max = ComponentSpacing.bubbleMaxWidth),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                message.suggestions.take(2).forEach { suggestion ->
+                    Surface(
+                        onClick = { onSuggestionClick(suggestion) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = accentColor.copy(alpha = Alpha.hint),
+                        border = BorderStroke(1.dp, accentColor.copy(alpha = Alpha.moderate))
                     ) {
-                        message.suggestions.take(2).forEach { suggestion ->
-                            Surface(
-                                onClick = { onSuggestionClick(suggestion) },
-                                shape = RoundedCornerShape(16.dp),
-                                color = LocalAccentColor.current.copy(alpha = 0.1f),
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    LocalAccentColor.current.copy(alpha = 0.3f)
-                                )
-                            ) {
-                                Text(
-                                    text = suggestion,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Medium
-                                    ),
-                                    color = LocalAccentColor.current,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    maxLines = 1
-                                )
-                            }
-                        }
+                        Text(
+                            text = suggestion,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = accentColor,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            maxLines = 1
+                        )
                     }
                 }
+            }
+        }
 
-                // Timestamp Row (below suggestions/bubble)
+        // Timestamp Row with Citations inline (below suggestions/bubble)
+        // AI: [Timestamp] [Citations] ............. [Copy]
+        // User: ........................ [Timestamp]
+        if (isUser) {
+            // User message: just timestamp on the right
+            Row(
+                modifier = Modifier.padding(top = 6.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formatTimestamp(message.timestamp),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.prominent),
+                    fontSize = 11.sp
+                )
+            }
+        } else {
+            // AI message: [Timestamp + Citations] on left, [Copy] on right
+            val clipboardManager = LocalClipboardManager.current
+            var showCopied by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+
+            LaunchedEffect(showCopied) {
+                if (showCopied) {
+                    delay(1500)
+                    showCopied = false
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left side: Timestamp + Citations
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp, start = 4.dp, end = 4.dp),
-                    horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+                    horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -320,80 +316,320 @@ fun ChatMessageItem(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Medium
                         ),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), // Significantly darker than before
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.prominent),
                         fontSize = 11.sp
                     )
 
-                    // Copy button (AI Only)
-                    if (!isUser) {
-                        val clipboardManager = LocalClipboardManager.current
-                        var showCopied by remember { mutableStateOf(false) }
-                        val scope = rememberCoroutineScope()
-
-                        LaunchedEffect(showCopied) {
-                            if (showCopied) {
-                                delay(1500)
-                                showCopied = false
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Icon(
-                            imageVector = if (showCopied) Icons.Default.Check else Icons.Outlined.ContentCopy,
-                            contentDescription = "Copy",
-                            modifier = Modifier
-                                .size(12.dp)
-                                .clickable {
-                                    clipboardManager.setText(AnnotatedString(message.content))
-                                    showCopied = true
-                                    // CLIPBOARD-001: Auto-clear clipboard after 30 seconds for security
-                                    scope.launch {
-                                        delay(30000)
-                                        clipboardManager.setText(AnnotatedString(""))
-                                    }
-                                },
-                            tint = if (showCopied) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    // Citations inline - next to timestamp
+                    if (message.hasCitations) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        CitationsInline(
+                            citations = message.citations,
+                            accentColor = accentColor
                         )
                     }
                 }
 
-                // Relevant Notes (Outside Bubble for flow)
-                if (!isUser && message.referencedNoteIds.isNotEmpty()) {
-                    val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
-                    val relevantNotes = message.referencedNoteIds
-                        .filter { it !in actionNoteIds }
-                        .mapNotNull { getNote(it) }
-                        .take(3)
+                // Right side: Copy button (always on right edge)
+                Icon(
+                    imageVector = if (showCopied) Icons.Default.Check else Icons.Outlined.ContentCopy,
+                    contentDescription = "Copy",
+                    modifier = Modifier
+                        .size(IconSize.small)
+                        .clickable {
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            showCopied = true
+                            scope.launch {
+                                delay(30000)
+                                clipboardManager.setText(AnnotatedString(""))
+                            }
+                        },
+                    tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
+                )
+            }
+        }
 
-                    if (relevantNotes.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
+        // Relevant Notes (below timestamp row)
+        if (!isUser && message.referencedNoteIds.isNotEmpty()) {
+            val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
+            val relevantNotes = message.referencedNoteIds
+                .filter { it !in actionNoteIds }
+                .mapNotNull { getNote(it) }
+                .take(3)
+
+            if (relevantNotes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Referenced",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                    color = accentColor,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                relevantNotes.forEach { note ->
+                    NoteCard(
+                        note = note,
+                        onClick = { onNoteClick(note) },
+                        onDelete = {},
+                        onOpenTodo = {},
+                        modifier = Modifier
+                            .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                            .shadow(2.dp, RoundedCornerShape(16.dp)),
+                        isSelectionMode = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Inline citations with overlapping circles that open a selection popup
+ * Shows max 3 circles in overlapping style, last shows "3+" if more citations
+ */
+@Composable
+private fun CitationsInline(
+    citations: List<com.example.smarty.data.model.Citation>,
+    accentColor: Color
+) {
+    var showSelectionPopup by remember { mutableStateOf(false) }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
+    // Always show max 3 circles
+    val circleCount = minOf(citations.size, 3)
+    val hasMore = citations.size > 3
+    val circleSize = 18.dp
+    val overlap = 5.dp // How much circles overlap
+
+    Box(
+        modifier = Modifier
+            .clickable { showSelectionPopup = true }
+            .height(circleSize)
+            .width(circleSize * circleCount - overlap * (circleCount - 1).coerceAtLeast(0))
+    ) {
+        // Show up to 3 overlapping circles
+        repeat(circleCount) { index ->
+            val isLastCircle = index == circleCount - 1
+            val circleText = when {
+                // Last circle shows "3+" if more than 3 citations
+                isLastCircle && hasMore -> "3+"
+                else -> ""
+            }
+
+            Surface(
+                shape = CircleShape,
+                color = accentColor,
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .size(circleSize)
+                    .offset(x = (circleSize - overlap) * index)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (circleText.isNotEmpty()) {
                         Text(
-                            text = "Reference Content",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                            text = circleText,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 8.sp
+                            ),
+                            color = Color.White
                         )
-                        
-                        relevantNotes.forEach { note ->
-                            NoteCard(
-                                  note = note,
-                                  onClick = { onNoteClick(note) },
-                                  onDelete = {}, 
-                                  onOpenTodo = {},
-                                  modifier = Modifier
-                                      .fillMaxWidth()
-                                      .shadow(2.dp, RoundedCornerShape(12.dp)),
-                                  isSelectionMode = true
-                             )
-                             Spacer(modifier = Modifier.height(8.dp))
-                        }
                     }
                 }
             }
-            
-            // User Avatar REMOVED per user request
-            // if (isUser) { ... }
+        }
+    }
+
+    // Pinterest-inspired citation viewer - centered, clean, systematic
+    if (showSelectionPopup) {
+        androidx.compose.ui.window.Popup(
+            alignment = Alignment.Center,
+            onDismissRequest = { showSelectionPopup = false },
+            properties = androidx.compose.ui.window.PopupProperties(
+                focusable = true,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .widthIn(min = 300.dp, max = 360.dp)
+                    .heightIn(max = 480.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Header with centered title
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Icon badge
+                        Surface(
+                            shape = CircleShape,
+                            color = accentColor.copy(alpha = Alpha.soft),
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(IconSize.xl)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text = "Sources",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = "${citations.size} reference${if (citations.size > 1) "s" else ""} found",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.heavy)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Subtle divider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.3f)
+                            .height(2.dp)
+                            .background(
+                                accentColor.copy(alpha = Alpha.moderate),
+                                RoundedCornerShape(1.dp)
+                            )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Scrollable citation list
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        citations.forEachIndexed { index, citation ->
+                            // Pinterest-style card
+                            Surface(
+                                onClick = {
+                                    try {
+                                        uriHandler.openUri(citation.url)
+                                        showSelectionPopup = false
+                                    } catch (e: Exception) {
+                                        // Handle invalid URL
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = Alpha.hint)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Number badge - prominent
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = accentColor,
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = "${index + 1}",
+                                                style = MaterialTheme.typography.titleSmall.copy(
+                                                    fontWeight = FontWeight.Bold
+                                                ),
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        // Title
+                                        Text(
+                                            text = citation.title.ifBlank { "Untitled Source" },
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = FontWeight.SemiBold,
+                                                lineHeight = 20.sp
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        // Domain with link indicator
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(4.dp)
+                                                    .background(accentColor, CircleShape)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = try {
+                                                    java.net.URI(citation.url).host?.removePrefix("www.") ?: citation.url
+                                                } catch (e: Exception) {
+                                                    citation.url
+                                                },
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = accentColor.copy(alpha = Alpha.mostlyOpaque),
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    // Arrow indicator
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowUp,
+                                        contentDescription = "Open",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                        modifier = Modifier
+                                            .size(IconSize.standard)
+                                            .rotate(90f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Close hint
+                    Text(
+                        text = "Tap outside to close",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
+                    )
+                }
+            }
         }
     }
 }
@@ -413,13 +649,13 @@ private fun ActionResultChip(
         Surface(
             shape = CircleShape,
             color = if (success) Color(0xFFE8F5E9) else Color(0xFFFFEBEE), // Light Green / Light Red
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(IconSize.standard)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = if (success) Icons.Default.Check else Icons.Default.Error,
                     contentDescription = null,
-                    modifier = Modifier.size(12.dp),
+                    modifier = Modifier.size(IconSize.micro),
                     tint = if (success) Color(0xFF2E7D32) else Color(0xFFC62828)
                 )
             }
@@ -467,6 +703,144 @@ private fun formatTimestamp(timestamp: Long): String {
         else -> {
             val date = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
             date.format(java.util.Date(timestamp))
+        }
+    }
+}
+
+/**
+ * Custom markdown parser that gives full control over text colors.
+ * Supports: **bold**, *italic*, `code`, [links](url), __underline__
+ * This bypasses the buggy compose-richtext library.
+ */
+private fun parseMarkdownToAnnotatedString(
+    content: String,
+    normalColor: Color,
+    boldColor: Color,
+    italicColor: Color,
+    linkColor: Color,
+    codeColor: Color
+): AnnotatedString {
+    return buildAnnotatedString {
+        var text = content
+        var currentIndex = 0
+
+        // Define markdown patterns with their styles
+        // Order matters: check longer patterns first (** before *)
+        data class MarkdownMatch(
+            val range: IntRange,
+            val displayText: String,
+            val style: SpanStyle,
+            val isLink: Boolean = false,
+            val url: String? = null
+        )
+
+        // Find all markdown elements
+        val matches = mutableListOf<MarkdownMatch>()
+
+        // Bold: **text**
+        Regex("\\*\\*(.+?)\\*\\*").findAll(text).forEach { match ->
+            matches.add(MarkdownMatch(
+                range = match.range,
+                displayText = match.groupValues[1],
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold)
+            ))
+        }
+
+        // Italic: *text* (but not **)
+        Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)").findAll(text).forEach { match ->
+            // Check if this overlaps with any bold match
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(color = italicColor, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                ))
+            }
+        }
+
+        // Inline code: `code`
+        Regex("`([^`]+)`").findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(
+                        color = codeColor,
+                        fontFamily = FontFamily.Monospace,
+                        background = codeColor.copy(alpha = Alpha.soft)
+                    )
+                ))
+            }
+        }
+
+        // Links: [text](url)
+        Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)").findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(
+                        color = linkColor,
+                        fontWeight = FontWeight.SemiBold,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                    ),
+                    isLink = true,
+                    url = match.groupValues[2]
+                ))
+            }
+        }
+
+        // Underline: __text__
+        Regex("__(.+?)__").findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(
+                        color = normalColor,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                    )
+                ))
+            }
+        }
+
+        // Sort matches by position
+        val sortedMatches = matches.sortedBy { it.range.first }
+
+        // Build the annotated string
+        for (match in sortedMatches) {
+            // Add normal text before this match
+            if (match.range.first > currentIndex) {
+                withStyle(SpanStyle(color = normalColor)) {
+                    append(text.substring(currentIndex, match.range.first))
+                }
+            }
+
+            // Add the styled text
+            if (match.isLink && match.url != null) {
+                pushStringAnnotation(tag = "URL", annotation = match.url)
+                withStyle(match.style) {
+                    append(match.displayText)
+                }
+                pop()
+            } else {
+                withStyle(match.style) {
+                    append(match.displayText)
+                }
+            }
+
+            currentIndex = match.range.last + 1
+        }
+
+        // Add remaining text
+        if (currentIndex < text.length) {
+            withStyle(SpanStyle(color = normalColor)) {
+                append(text.substring(currentIndex))
+            }
         }
     }
 }

@@ -75,6 +75,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.material) // XML Material Components for BottomSheetBehavior
     implementation(libs.google.fonts)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)

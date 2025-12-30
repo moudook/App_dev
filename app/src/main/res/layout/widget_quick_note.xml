@@ -62,11 +62,24 @@
         android:id="@+id/widget_voice_button"
         android:layout_width="36dp"
         android:layout_height="36dp"
+        android:layout_marginEnd="8dp"
         android:background="@drawable/widget_secondary_button"
         android:contentDescription="@string/widget_voice_note"
         android:padding="8dp"
         android:scaleType="fitCenter"
         android:src="@drawable/ic_mic_white"
+        android:tint="#2979FF" />
+
+    <!-- Camera Button -->
+    <ImageButton
+        android:id="@+id/widget_camera_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/widget_secondary_button"
+        android:contentDescription="@string/widget_camera_note"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_camera_white"
         android:tint="#2979FF" />
 
 </LinearLayout>

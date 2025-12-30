@@ -39,6 +39,7 @@ import com.example.smarty.data.model.NoteVersion
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.ui.components.CategoryChip
 import com.example.smarty.ui.components.DecompressionPlaceholder
+import com.example.smarty.ui.components.FloatingActionBar
 import com.example.smarty.ui.components.ShimmerBox
 import com.example.smarty.ui.components.getNoteTypeColor
 import com.example.smarty.ui.components.getNoteTypeIcon
@@ -120,18 +121,6 @@ fun KnowledgeCardScreen(
                             contentDescription = "Edit"
                         )
                     }
-                    IconButton(onClick = onArchiveClick) {
-                        Icon(
-                            imageVector = Icons.Default.Archive,
-                            contentDescription = "Archive"
-                        )
-                    }
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete"
-                        )
-                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
@@ -140,14 +129,17 @@ fun KnowledgeCardScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp + bottomContentPadding),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+        Box(
+            modifier = Modifier.fillMaxSize()
         ) {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 100.dp + bottomContentPadding),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
             // Type and Category Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -437,6 +429,17 @@ fun KnowledgeCardScreen(
                     style = MaterialTheme.typography.labelLarge
                 )
             }
+            }
+
+            // Floating Action Bar at bottom
+            FloatingActionBar(
+                onEdit = { showEditSheet = true },
+                onArchive = onArchiveClick,
+                onDelete = { showDeleteDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp)
+            )
         }
     }
 

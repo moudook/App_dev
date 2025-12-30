@@ -18,8 +18,8 @@ val CardWhite = Color(0xFFF7F5F0)            // Antique White - paper-like, zero
 val ElectricBlue = Color(0xFF0066FF)         // Primary Accent (Brand) - vibrant
 val PaleBlueGrey = Color(0xFFE3E0D9)         // Secondary Accent - blended with background
 val TextNearBlack = Color(0xFF383530)        // Text Primary - deep warm earthy grey
-val TextCoolGrey = Color(0xFF858079)         // Text Secondary - warm taupe
-val SubtleBorder = Color(0xFFDCD8D0)         // Borders - refined stone grey
+val TextCoolGrey = Color(0xFF4A4640)         // Text Secondary - warm taupe
+val SubtleBorder = Color(0xFFC4BFAC)         // Borders - refined stone grey
 val InputBackground = Color(0xFFE3E0D9)      // Input field - blends with secondary
 val SecondaryButtonBg = Color(0xFFD6D2CA)    // Secondary button background
 
@@ -103,3 +103,30 @@ val CodeCyan = Color(0xFF5AC8FA)
 val ArchiveYellow = Color(0xFFFFCC00)
 val ApkGreen = Color(0xFF3DDC84)
 val FileGray = SystemGray
+
+// =============================================================================
+// GEMINI-STYLE COLORS - For Assistant Overlay
+// =============================================================================
+
+/**
+ * Google Brand Colors for Gemini-style four-color glow animation.
+ * Used in the assistant overlay for input bar border and mic button ring.
+ */
+object GeminiColors {
+    val Red = Color(0xFFEA4335)
+    val Yellow = Color(0xFFFBBC05)
+    val Green = Color(0xFF34A853)
+    val Blue = Color(0xFF4285F4)
+
+    /** Four-color gradient for glow animation */
+    val glowColors = listOf(Red, Yellow, Green, Blue)
+
+    /** Dominant color after initial glow animation */
+    val dominantBlue = Blue
+
+    // Surface colors (Material 3 from Gemini)
+    val SurfaceLight = Color(0xFFFEFBFF)
+    val SurfaceDark = Color(0xFF121212)  // True black for dark mode
+    val SurfaceContainer = Color(0xFFF3EDF7)
+    val SurfaceContainerDark = Color(0xFF1D1B20)
+}

@@ -89,6 +89,35 @@ object ComponentSpacing {
 
     // Large spacing
     val huge = 48.dp
+
+    // Bottom sheet constants
+    val sheetPadding = 24.dp
+    val sheetHeaderGap = 16.dp
+    val sheetDragHandleWidth = 36.dp
+    val sheetDragHandleHeight = 4.dp
+    val sheetCornerRadius = 28.dp
+
+    // Message bubble constants
+    val bubblePadding = 18.dp
+    val bubblePaddingVertical = 14.dp
+    val bubbleMaxWidth = 320.dp
+    val bubbleCornerLarge = 24.dp
+    val bubbleCornerSmall = 6.dp
+
+    // Note card constants
+    val noteCardHeight = 100.dp
+    val noteCardPaddingHorizontal = 20.dp
+    val noteCardPaddingVertical = 12.dp
+
+    // Action bar constants
+    val actionBarPadding = 16.dp
+    val actionBarItemSpacing = 8.dp
+    val actionBarHeight = 72.dp
+
+    // Audio player constants
+    val miniPlayerHeight = 72.dp
+    val waveformHeight = 36.dp
+    val albumArtSize = 56.dp
 }
 
 /**

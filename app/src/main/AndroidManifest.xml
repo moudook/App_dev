@@ -133,6 +133,34 @@
             </intent-filter>
         </activity>
 
+        <!-- Assistant Overlay Activity - Gemini-style transparent overlay -->
+        <activity
+            android:name=".AssistActivity"
+            android:theme="@style/Theme.Smarty.Assistant"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+
+            <!-- Standard assist trigger (edge swipe, home button hold) -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!-- Voice assist trigger -->
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
+            <!-- Search long press trigger -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH_LONG_PRESS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Audio Player Service -->
         <service
             android:name=".service.AudioPlayerService"
@@ -168,6 +196,25 @@
                 <action android:name="com.example.smarty.DISMISS_ALARM" />
             </intent-filter>
         </receiver>
+
+        <!-- Voice Interaction Service - Creates transparent overlay like Gemini -->
+        <service
+            android:name=".service.AssistInteractionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/assist_service" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <!-- Voice Interaction Session Service - Creates UI sessions -->
+        <service
+            android:name=".service.AssistInteractionSessionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true" />
 
         <!-- Home Screen Widget for Quick Note Capture -->
         <receiver

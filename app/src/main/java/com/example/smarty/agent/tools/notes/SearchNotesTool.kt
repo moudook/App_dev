@@ -6,10 +6,12 @@ import android.util.Log
 import com.example.smarty.agent.tools.base.CogniToolUtils
 import com.example.smarty.agent.tools.base.NoteInfo
 import com.example.smarty.agent.tools.base.NoteSearchResult
+import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.model.Note
 import com.example.smarty.util.search.SemanticSearchEngine
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 private const val TAG = "SearchNotesTool"
 
@@ -44,6 +46,14 @@ class SearchNotesTool(
     """.trimIndent()
 
     override suspend fun execute(args: SearchNotesArgs): NoteSearchResult {
+        // Check cache first to avoid duplicate searches
+        val cacheKey = ToolResultCache.generateKey(name, "${args.query}|${args.category}")
+        val cached = ToolResultCache.get(cacheKey)
+        if (cached != null) {
+            Log.d(TAG, "Returning cached result for query: '${args.query}'")
+            return Json.decodeFromString(NoteSearchResult.serializer(), cached)
+        }
+
         return try {
             val allNotes = getActiveNotes()
             val visibleNotes = CogniToolUtils.filterNotesForAi(allNotes)
@@ -109,13 +119,18 @@ class SearchNotesTool(
 
             Log.d(TAG, "Returning ${noteInfos.size} results")
 
-            NoteSearchResult(
+            val result = NoteSearchResult(
                 success = true,
                 notes = noteInfos,
                 totalCount = matchingNotes.size,
                 message = if (noteInfos.isEmpty()) "No notes found matching '${args.query}'"
                          else "Found ${noteInfos.size} matching notes"
             )
+
+            // Cache the successful result
+            ToolResultCache.put(cacheKey, Json.encodeToString(NoteSearchResult.serializer(), result))
+
+            result
         } catch (e: Exception) {
             Log.e(TAG, "Search failed: ${e.message}", e)
             NoteSearchResult(

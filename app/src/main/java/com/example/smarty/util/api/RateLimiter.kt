@@ -64,6 +64,7 @@ class RateLimiter private constructor(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val mutex = Mutex()
+    private val lock = Any()  // For synchronizing non-suspend functions
 
     // Sliding window queue for per-minute tracking (timestamps of recent calls)
     private val callTimestamps = ConcurrentLinkedQueue<Long>()
@@ -131,26 +132,26 @@ class RateLimiter private constructor(context: Context) {
     /**
      * Get remaining calls available today.
      */
-    fun getRemainingDailyBudget(): Int {
+    fun getRemainingDailyBudget(): Int = synchronized(lock) {
         checkDayReset()
-        return maxOf(0, dailyBudget - dailyCallCount)
+        maxOf(0, dailyBudget - dailyCallCount)
     }
 
     /**
      * Get remaining calls available this minute.
      */
-    fun getRemainingMinuteBudget(): Int {
+    fun getRemainingMinuteBudget(): Int = synchronized(lock) {
         cleanupOldTimestamps()
-        return maxOf(0, callsPerMinute - callTimestamps.size)
+        maxOf(0, callsPerMinute - callTimestamps.size)
     }
 
     /**
      * Get comprehensive usage statistics.
      */
-    fun getUsageStats(): RateLimitStats {
+    fun getUsageStats(): RateLimitStats = synchronized(lock) {
         checkDayReset()
         cleanupOldTimestamps()
-        return RateLimitStats(
+        RateLimitStats(
             dailyUsed = dailyCallCount,
             dailyLimit = dailyBudget,
             minuteUsed = callTimestamps.size,
@@ -163,7 +164,7 @@ class RateLimiter private constructor(context: Context) {
     /**
      * Update rate limits (for dynamic configuration).
      */
-    fun updateLimits(callsPerMinute: Int? = null, dailyBudget: Int? = null) {
+    fun updateLimits(callsPerMinute: Int? = null, dailyBudget: Int? = null) = synchronized(lock) {
         callsPerMinute?.let {
             this.callsPerMinute = it.coerceIn(1, 100)
             Log.i(TAG, "Per-minute limit updated to ${this.callsPerMinute}")

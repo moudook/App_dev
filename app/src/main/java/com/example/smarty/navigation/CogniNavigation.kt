@@ -124,6 +124,7 @@ fun CogniNavHost(
     isChatProcessing: Boolean = false,
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
+    onEnterChatMode: () -> Unit = {},  // Enter chat mode when AI tab is clicked
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
@@ -140,6 +141,10 @@ fun CogniNavHost(
     selectedFilters: Set<AttachmentOption> = emptySet(),
     onFilterToggle: (AttachmentOption) -> Unit = {},
     onClearFilters: () -> Unit = {},
+    // Search History (BATCH 5C)
+    recentSearches: List<String> = emptyList(),
+    onRecordSearch: (String) -> Unit = {},
+    onClearSearchHistory: () -> Unit = {},
     // Audio player for attachments
     onPlayAudio: (AudioTrack) -> Unit = {},
     // Theme management
@@ -161,6 +166,9 @@ fun CogniNavHost(
     wasShakeTriggered: Boolean = false,
     // Network status (Phase 7)
     connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,
+    // Camera trigger from widget
+    cameraTriggered: Boolean = false,
+    onClearCameraTrigger: () -> Unit = {},
     // Calendar management
     calendarEvents: List<CalendarEvent> = emptyList(),
     onAddCalendarEvent: (
@@ -192,6 +200,9 @@ fun CogniNavHost(
     // TTS for AI responses
     isTTSEnabled: Boolean = true,
     onTTSEnabledChange: (Boolean) -> Unit = {},
+    // Local LLM Server
+    localServerIP: String = "",
+    onSetLocalServerIP: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     // Auth State
     isLoggedIn: Boolean = false,
@@ -290,6 +301,7 @@ fun CogniNavHost(
                 isChatProcessing = isChatProcessing,
                 onSendChatMessage = onSendChatMessage,
                 onExitChatMode = onExitChatMode,
+                onEnterChatMode = onEnterChatMode,
                 // Chat history
                 chatSessions = chatSessions,
                 currentSessionId = currentSessionId,
@@ -300,21 +312,117 @@ fun CogniNavHost(
                 isAiExcluded = isAiExcluded,
                 onInputTextChange = onInputTextChange,
                 onInputAttachmentsChange = onInputAttachmentsChange,
+                onPlayYouTube = {},
                 // Search and Filter
                 searchQuery = searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
                 selectedFilters = selectedFilters,
                 onFilterToggle = onFilterToggle,
                 onClearFilters = onClearFilters,
+                // Search History (BATCH 5C)
+                recentSearches = recentSearches,
+                onRecordSearch = onRecordSearch,
+                onClearSearchHistory = onClearSearchHistory,
                 bottomContentPadding = bottomContentPadding,
                 externalSpeechState = externalSpeechState,
                 speechResults = speechResults,
                 wasShakeTriggered = wasShakeTriggered,
                 connectionStatus = connectionStatus,
+                // Camera trigger from widget
+                cameraTriggered = cameraTriggered,
+                onClearCameraTrigger = onClearCameraTrigger,
                 // Pin and Share
                 onPinNote = onPinNote,
                 onUnpinNote = onUnpinNote,
-                onShareNotes = onShareNotes
+                onShareNotes = onShareNotes,
+                // ═══════════════════════════════════════════════════════════════════
+                // CENTRALIZED UI: All features accessible from main screen
+                // ═══════════════════════════════════════════════════════════════════
+
+                // Theme toggle
+                isDarkTheme = isDarkTheme,
+                onToggleTheme = onToggleTheme,
+
+                // Archive
+                archivedNotes = archivedNotes,
+
+                // Calendar
+                calendarEvents = calendarEvents,
+                onAddCalendarEvent = { onAddCalendarEvent("", null, System.currentTimeMillis(), System.currentTimeMillis() + 3600000, false, null, null, null, false) },
+                onEventClick = { event ->
+                    // Event click handling - could open edit sheet
+                },
+                onDeleteCalendarEvent = { event -> onDeleteCalendarEvent(event.id) },
+
+                // Categories/Stacks
+                onCreateCategory = onCreateCategory,
+                onDeleteCategory = onDeleteCategory,
+                onCategoryClick = { category ->
+                    onSelectCategory(category)
+                    navController.navigate(Screen.CategoryNotes.route)
+                },
+
+                // Settings props
+                providerConfigs = providerConfigs,
+                providerPriorityOrder = providerPriorityOrder,
+                isPinConfigured = isPinConfigured,
+                onAddApiKey = onAddApiKey,
+                onRemoveApiKey = onRemoveApiKey,
+                onUpdateApiKey = onUpdateApiKey,
+                onSetProviderEnabled = onSetProviderEnabled,
+                onSetSelectedModel = onSetSelectedModel,
+                onSetProviderPriority = onSetProviderPriority,
+                onTestApiKey = onTestApiKey,
+                onRemovePin = onClearPin,
+                tavilyApiKey = tavilyApiKey,
+                onSetTavilyApiKey = onSetTavilyApiKey,
+                cacheSizeBytes = cacheSizeBytes,
+                onClearCache = onClearCache,
+                isClearingCache = isClearingCache,
+                shakeSensitivity = shakeSensitivity,
+                onShakeSensitivityChange = onShakeSensitivityChange,
+                groqKeyUsageStats = groqKeyUsageStats,
+                isVoiceEnrolled = isVoiceEnrolled,
+                onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
+                onRetrainVoice = onRetrainVoice,
+                isTTSEnabled = isTTSEnabled,
+                onTTSEnabledChange = onTTSEnabledChange,
+                onRefreshModels = onRefreshModels,
+                getAvailableModels = getAvailableModels,
+                onSignOut = onSignOut,
+                // Settings sub-sheet content
+                archiveContentForSettings = { onDismiss ->
+                    ArchiveScreen(
+                        archivedNotes = archivedNotes,
+                        onBackClick = onDismiss,
+                        onDeleteNote = onDeleteNoteById,
+                        onUnarchiveNote = onUnarchiveNote,
+                        isEmbedded = true
+                    )
+                },
+                backupContent = { onDismiss ->
+                    BackupSettingsRoute(
+                        onBackClick = onDismiss,
+                        isEmbedded = true
+                    )
+                },
+                pinSetupContent = { onDismiss ->
+                    PinSetupRoute(
+                        onSetupComplete = { pin ->
+                            onSetPin(pin)
+                            onDismiss()
+                        },
+                        isEmbedded = true
+                    )
+                },
+                pinChangeContent = { onDismiss ->
+                    PinChangeRoute(
+                        onVerifyPin = onVerifyPin,
+                        onSetPin = onSetPin,
+                        onComplete = onDismiss,
+                        isEmbedded = true
+                    )
+                }
             )
         }
 
@@ -416,6 +524,9 @@ fun CogniNavHost(
                 // TTS for AI responses
                 isTTSEnabled = isTTSEnabled,
                 onTTSEnabledChange = onTTSEnabledChange,
+                // Local LLM Server
+                localServerIP = localServerIP,
+                onSetLocalServerIP = onSetLocalServerIP,
                 // Dynamic Models
                 onRefreshModels = onRefreshModels,
                 getAvailableModels = getAvailableModels,

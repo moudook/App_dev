@@ -24,15 +24,113 @@
     </debug-overrides>
 
     <!-- Allow cleartext for local development only -->
+    <!-- Localhost and emulator addresses -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">10.0.2.2</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>
-        <!-- USB Tethering - Local PC LLM Server (REMOVE BEFORE PUBLISHING!) -->
-        <!-- Note: IP can change with each USB tethering session -->
-        <!-- The PC's IP is shown when you run start_local_llm.bat -->
-        <domain includeSubdomains="true">10.224.189.60</domain>
-        <!-- Add more IPs here if your PC's USB IP changes -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+
+    <!--
+        USB Tethering / Local PC LLM Server - Private Network Ranges
+        REMOVE OR DISABLE BEFORE PUBLISHING TO PRODUCTION!
+
+        Note: Android network-security-config does NOT support CIDR notation or IP wildcards.
+        The only way to allow all IPs in private ranges is to list representative patterns
+        or enable cleartext globally for debug builds.
+
+        These domain-configs cover common private network IPs used in USB tethering:
+        - 10.x.x.x (Class A private)
+        - 192.168.x.x (Class C private)
+        - 172.16.x.x to 172.31.x.x (Class B private)
+    -->
+
+    <!-- Class A Private Network: 10.0.0.0/8 -->
+    <!-- Common USB tethering IPs in the 10.x.x.x range -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain>10.0.0.1</domain>
+        <domain>10.0.0.2</domain>
+        <domain>10.0.0.10</domain>
+        <domain>10.0.0.100</domain>
+        <domain>10.0.0.254</domain>
+        <domain>10.0.1.1</domain>
+        <domain>10.0.1.2</domain>
+        <domain>10.0.2.1</domain>
+        <domain>10.0.2.15</domain>
+        <domain>10.1.0.1</domain>
+        <domain>10.1.1.1</domain>
+        <domain>10.10.0.1</domain>
+        <domain>10.10.10.1</domain>
+        <domain>10.42.0.1</domain>
+        <domain>10.42.0.2</domain>
+        <domain>10.42.0.10</domain>
+        <domain>10.42.0.100</domain>
+        <domain>10.42.0.254</domain>
+        <domain>10.137.0.1</domain>
+        <domain>10.137.1.1</domain>
+    </domain-config>
+
+    <!-- Class C Private Network: 192.168.0.0/16 -->
+    <!-- Common router/tethering IPs in the 192.168.x.x range -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain>192.168.0.1</domain>
+        <domain>192.168.0.2</domain>
+        <domain>192.168.0.10</domain>
+        <domain>192.168.0.100</domain>
+        <domain>192.168.0.254</domain>
+        <domain>192.168.1.1</domain>
+        <domain>192.168.1.2</domain>
+        <domain>192.168.1.10</domain>
+        <domain>192.168.1.100</domain>
+        <domain>192.168.1.254</domain>
+        <domain>192.168.2.1</domain>
+        <domain>192.168.2.2</domain>
+        <domain>192.168.10.1</domain>
+        <domain>192.168.10.2</domain>
+        <domain>192.168.42.1</domain>
+        <domain>192.168.42.2</domain>
+        <domain>192.168.42.10</domain>
+        <domain>192.168.42.100</domain>
+        <domain>192.168.42.129</domain>
+        <domain>192.168.43.1</domain>
+        <domain>192.168.43.2</domain>
+        <domain>192.168.43.10</domain>
+        <domain>192.168.43.100</domain>
+        <domain>192.168.49.1</domain>
+        <domain>192.168.100.1</domain>
+        <domain>192.168.137.1</domain>
+        <domain>192.168.137.2</domain>
+        <domain>192.168.137.10</domain>
+        <domain>192.168.137.100</domain>
+        <domain>192.168.254.1</domain>
+    </domain-config>
+
+    <!-- Class B Private Network: 172.16.0.0/12 (172.16.x.x - 172.31.x.x) -->
+    <!-- Common IPs in the 172.16-31.x.x range -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain>172.16.0.1</domain>
+        <domain>172.16.0.2</domain>
+        <domain>172.16.1.1</domain>
+        <domain>172.17.0.1</domain>
+        <domain>172.17.0.2</domain>
+        <domain>172.18.0.1</domain>
+        <domain>172.19.0.1</domain>
+        <domain>172.20.0.1</domain>
+        <domain>172.20.10.1</domain>
+        <domain>172.20.10.2</domain>
+        <domain>172.20.10.10</domain>
+        <domain>172.21.0.1</domain>
+        <domain>172.22.0.1</domain>
+        <domain>172.23.0.1</domain>
+        <domain>172.24.0.1</domain>
+        <domain>172.25.0.1</domain>
+        <domain>172.26.0.1</domain>
+        <domain>172.27.0.1</domain>
+        <domain>172.28.0.1</domain>
+        <domain>172.29.0.1</domain>
+        <domain>172.30.0.1</domain>
+        <domain>172.31.0.1</domain>
+        <domain>172.31.255.1</domain>
     </domain-config>
 
     <!-- AI Provider domains - explicitly allow (already HTTPS) -->

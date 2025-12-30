@@ -209,7 +209,7 @@ AUDIO_effects/
 # Speech Recognition Models (see README for download instructions)
 vosk-model-*/
 app/src/main/assets/vosk-model-*/
-
+w
 # Text-to-Speech Models (downloadable)
 app/src/main/assets/tts_models/
 
@@ -218,9 +218,16 @@ app/src/main/assets/tts_models/
 refrence_.png
 refrence.jpg
 tracked_files.txt
+I'm for I'm going for this style for the notecard UI, Something like this So that it don't overlap with other things A small title.png
+something_like_this_for_the_citation.png
+
 
 
 #logs
 build_log_2.txt
+build_log_error.txt
+build_log_full.txt
+build_log_retry.txt
+document_viewer_issues_meltdown.txt
 
 LLM_THROUGH_USB_THEARING/

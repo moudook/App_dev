@@ -112,26 +112,12 @@ private fun EmptyStateContainer(
 }
 
 /**
- * Chat Empty State: "Cognitive Alignment"
- * Targets the "Focused" brain state.
- * Represents clarity, precision, and order.
- * Concentric arcs rotate at different synchronized speeds.
- * Periodically, they align perfectly, simulating scattered thoughts
- * coming into sharp focus (The "Aha!" moment).
- */
-/**
- * Chat Page Animation: "Cognitive Alignment" (Focus Mode)
+ * Chat Empty State: Uses same cloud breathing animation as Notes page
+ * for consistency and reduced resource usage.
  *
- * Design Concept:
- * - "Solar System": Central core with rotating orbits.
- * - "Cloud Style": Uses sweep gradients and soft strokes for a gaseous, nebula-like trail.
- * - Represents the AI aligning with the user's thoughts.
- *
- * OPTIMIZATION v2.0:
- * - LIFECYCLE AWARE: Pauses when app backgrounded, stops when not visible
- * - Uses Bhaskara I approximation for trig functions
- * - Pre-computed brushes and cached pixel values
- * - Eliminates per-frame allocations
+ * OPTIMIZATION: Shares same animation style as NotesEmptyState
+ * - Single animation type across app = less code, less memory
+ * - LIFECYCLE AWARE: Pauses when app backgrounded
  */
 @Composable
 fun ChatEmptyState(modifier: Modifier = Modifier) {
@@ -146,151 +132,129 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
         // LIFECYCLE AWARENESS: Check if animation should run
         val shouldAnimate = shouldAnimationRun()
 
-        // OPTIMIZATION: Lifecycle-aware transition (null when paused/stopped)
+        // Lifecycle-aware transition
         val infiniteTransition = if (shouldAnimate) {
-            rememberInfiniteTransition(label = "cognitive_orbit")
+            rememberInfiniteTransition(label = "cloud_breath")
         } else null
 
-        // Master phase [0, 2π] - all other animations derive from this
-        // Returns static value when paused to prevent GPU work
-        val masterPhase by if (infiniteTransition != null) {
+        val breathPhase by if (infiniteTransition != null) {
             infiniteTransition.animateFloat(
                 initialValue = 0f,
                 targetValue = TWO_PI_F,
-                animationSpec = infiniteRepeatable(tween(20000, easing = LinearEasing)),
-                label = "phase"
+                animationSpec = infiniteRepeatable(
+                    animation = tween(4000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+                label = "breath"
             )
         } else {
-            remember { mutableStateOf(0f) } // Static when paused
+            remember { mutableStateOf(0f) }
         }
 
-        // OPTIMIZATION: Derive rotation and breath from master phase
-        // Only computes when animation is active
-        val derivedValues by remember {
+        // Pre-compute all wave values - returns static when paused
+        val waveState by remember {
             derivedStateOf {
                 if (!shouldAnimate) {
-                    // Return default static values when paused
-                    Pair(0f, 1.0f)
+                    ChatWaveState.DEFAULT
                 } else {
-                    val tDegrees = masterPhase * (360f / TWO_PI_F)
-                    val breathVal = 1.0f + 0.2f * fastSin(masterPhase * 4f)
-                    Pair(tDegrees, breathVal)
+                    val auraWave = fastSin(breathPhase)
+                    val cloudWave = fastSin(breathPhase + PI_F * 0.25f)
+                    val coreWave = fastSin(breathPhase)
+                    val beat = (coreWave + 1f) * 0.5f
+                    val floatY = 5f * fastSin(breathPhase * 0.5f)
+                    ChatWaveState(
+                        auraScale = 2.2f + auraWave * 0.1f,
+                        auraAlpha = (0.2f + auraWave * 0.05f).coerceIn(0f, 1f),
+                        cloudScale = 1.5f + cloudWave * 0.15f,
+                        cloudAlpha = (0.4f + cloudWave * 0.1f).coerceIn(0f, 1f),
+                        coreScale = 0.8f + beat * 0.2f,
+                        coreAlpha = (0.8f + beat * 0.2f).coerceIn(0f, 1f),
+                        floatY = floatY
+                    )
                 }
             }
         }
 
-        // Pre-computed brushes (Zero-Allocation) - always cached regardless of animation state
-        val orbitBrush1 = remember(accentColor) {
-            Brush.sweepGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    accentColor.copy(alpha = 0.1f),
-                    accentColor.copy(alpha = 0.4f),
-                    Color.Transparent
-                )
-            )
-        }
-
-        val orbitBrush2 = remember(accentColor) {
-            Brush.sweepGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    accentColor.copy(alpha = 0.2f),
-                    accentColor.copy(alpha = 0.05f),
-                    Color.Transparent
-                )
-            )
-        }
-
-        val coreBrush = remember(accentColor) {
-            Brush.radialGradient(
-                colors = listOf(accentColor, accentColor.copy(alpha = 0.2f), Color.Transparent)
-            )
-        }
-
-        // Pre-cached colors
-        val centerColor = remember(accentColor) { accentColor.copy(alpha = 0.8f) }
-        val satelliteColor = remember(accentColor) { accentColor.copy(alpha = 0.3f) }
-
-        // Pre-compute pixel values outside draw loop
+        // Pre-computed brushes with FIXED maximum radius
         val density = LocalDensity.current
-        val cachedSizes = remember(density) {
-            with(density) {
-                ChatEmptySizes(
-                    coreBase = 25.dp.toPx(),
-                    centerRadius = 4.dp.toPx(),
-                    innerStroke = 12.dp.toPx(),
-                    outerStroke = 20.dp.toPx(),
-                    satelliteRadius = 6.dp.toPx()
-                )
-            }
+        val baseSizePx = remember(density) { with(density) { 50.dp.toPx() } }
+        val maxAuraRadius = baseSizePx * 2.4f
+
+        val auraBrush = remember(accentColor, maxAuraRadius) {
+            Brush.radialGradient(
+                colors = listOf(accentColor.copy(alpha = 0.5f), Color.Transparent),
+                radius = maxAuraRadius
+            )
+        }
+
+        val cloudBrush = remember(accentColor, baseSizePx) {
+            Brush.radialGradient(
+                colors = listOf(accentColor, accentColor.copy(alpha = 0.2f), Color.Transparent),
+                radius = baseSizePx * 1.8f
+            )
+        }
+
+        val coreBrush = remember(accentColor, baseSizePx) {
+            Brush.radialGradient(
+                colors = listOf(accentColor, accentColor.copy(alpha = 0.5f), Color.Transparent),
+                radius = baseSizePx * 1.1f
+            )
         }
 
         Canvas(modifier = Modifier.size(160.dp)) {
-            val cx = size.width * 0.5f
-            val cy = size.height * 0.5f
-            val centerOffset = Offset(cx, cy)
+            val center = this.center
+            val state = waveState
 
-            val (t, breath) = derivedValues
+            // 1. AURA LAYER - Outermost glow
+            drawCircle(
+                brush = auraBrush,
+                radius = baseSizePx * state.auraScale,
+                center = center,
+                alpha = state.auraAlpha
+            )
 
-            // 1. The Living Core (The "Sun")
+            // 2. CLOUD LAYER - Middle ethereal layer
+            drawCircle(
+                brush = cloudBrush,
+                radius = baseSizePx * state.cloudScale,
+                center = center,
+                alpha = state.cloudAlpha
+            )
+
+            // 3. CORE LAYER - Inner soul with subtle float
             drawCircle(
                 brush = coreBrush,
-                radius = cachedSizes.coreBase * breath,
-                center = centerOffset
-            )
-            drawCircle(
-                color = centerColor,
-                radius = cachedSizes.centerRadius,
-                center = centerOffset
-            )
-
-            // 2. Inner Cloud Orbit (Mental - Fast, Dense)
-            // Rotates 2x per cycle (720° total, completing 2 full loops)
-            withTransform({ rotate(t * 2f, pivot = centerOffset) }) {
-                drawCircle(
-                    brush = orbitBrush1,
-                    radius = size.width * 0.25f,
-                    center = centerOffset,
-                    style = Stroke(width = cachedSizes.innerStroke, cap = StrokeCap.Round)
-                )
-            }
-
-            // 3. Outer Cloud Orbit (Crust - Slow, Ethereal)
-            // Rotates 1x per cycle (360° total, completing 1 full loop) in reverse direction
-            val outerRotation = -t + 120f
-            withTransform({ rotate(outerRotation, pivot = centerOffset) }) {
-                drawCircle(
-                    brush = orbitBrush2,
-                    radius = size.width * 0.40f,
-                    center = centerOffset,
-                    style = Stroke(width = cachedSizes.outerStroke, cap = StrokeCap.Round)
-                )
-            }
-
-            // 4. Satellite Cloud (Attached to Outer Orbit)
-            val satelliteR = size.width * 0.40f
-            val satAngle = (outerRotation * (PI_F / 180f)) + 4.5f
-            val satX = cx + fastCos(satAngle) * satelliteR
-            val satY = cy + fastSin(satAngle) * satelliteR
-
-            drawCircle(
-                color = satelliteColor,
-                radius = cachedSizes.satelliteRadius,
-                center = Offset(satX, satY)
+                radius = baseSizePx * state.coreScale,
+                center = Offset(center.x, center.y + state.floatY),
+                alpha = state.coreAlpha
             )
         }
     }
 }
 
-/** Pre-computed pixel sizes for ChatEmptyState (avoid per-frame density conversions) */
-private data class ChatEmptySizes(
-    val coreBase: Float,
-    val centerRadius: Float,
-    val innerStroke: Float,
-    val outerStroke: Float,
-    val satelliteRadius: Float
-)
+/** Pre-computed wave state for ChatEmptyState (same as NotesEmptyState) */
+private data class ChatWaveState(
+    val auraScale: Float,
+    val auraAlpha: Float,
+    val cloudScale: Float,
+    val cloudAlpha: Float,
+    val coreScale: Float,
+    val coreAlpha: Float,
+    val floatY: Float
+) {
+    companion object {
+        /** Default static state when animation is paused */
+        val DEFAULT = ChatWaveState(
+            auraScale = 2.2f,
+            auraAlpha = 0.2f,
+            cloudScale = 1.5f,
+            cloudAlpha = 0.4f,
+            coreScale = 0.8f,
+            coreAlpha = 0.8f,
+            floatY = 0f
+        )
+    }
+}
 
 /**
  * Notes Empty State: "Spark of Idea"

@@ -4,10 +4,12 @@ import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.agent.tools.base.NoteInfo
 import com.example.smarty.agent.tools.base.NoteSearchResult
+import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.model.Note
 import com.example.smarty.util.PrivacyGuard
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 @Serializable
 data class GetCategoryNotesArgs(
@@ -35,6 +37,13 @@ class GetCategoryNotesTool(
     """.trimIndent()
 
     override suspend fun execute(args: GetCategoryNotesArgs): NoteSearchResult {
+        // Check cache first to avoid duplicate DB queries
+        val cacheKey = ToolResultCache.generateKey(name, args.categoryName)
+        val cached = ToolResultCache.get(cacheKey)
+        if (cached != null) {
+            return Json.decodeFromString(NoteSearchResult.serializer(), cached)
+        }
+
         return try {
             val allNotes = getActiveNotes()
             val visibleNotes = PrivacyGuard.getAiVisibleNotes(allNotes)
@@ -56,7 +65,7 @@ class GetCategoryNotesTool(
                 )
             }
 
-            NoteSearchResult(
+            val result = NoteSearchResult(
                 success = true,
                 notes = noteInfos,
                 totalCount = categoryNotes.size,
@@ -65,6 +74,11 @@ class GetCategoryNotesTool(
                 else
                     "Found ${noteInfos.size} notes in '${args.categoryName}'"
             )
+
+            // Cache the successful result
+            ToolResultCache.put(cacheKey, Json.encodeToString(NoteSearchResult.serializer(), result))
+
+            result
         } catch (e: Exception) {
             NoteSearchResult(
                 success = false,

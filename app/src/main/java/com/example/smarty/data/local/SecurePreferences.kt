@@ -1,6 +1,7 @@
 package com.example.smarty.data.local
 
 import android.content.Context
+import android.util.Base64
 import dev.spght.encryptedprefs.EncryptedSharedPreferences
 import dev.spght.encryptedprefs.MasterKey
 import com.google.gson.Gson
@@ -8,6 +9,9 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.security.SecureRandom
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
 
 enum class AIProvider {
     GEMINI,
@@ -299,45 +303,46 @@ class SecurePreferences(private val context: Context) {
     private val keyOperationLock = Any()
 
     // Lazy StateFlows - initialized on first access to avoid blocking constructor
-    private val _isPinSet: MutableStateFlow<Boolean> by lazy { MutableStateFlow(isPinConfigured()) }
-    val isPinSet: StateFlow<Boolean> by lazy { _isPinSet.asStateFlow() }
+    // Using PUBLICATION mode for thread safety without synchronization overhead
+    private val _isPinSet: MutableStateFlow<Boolean> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(isPinConfigured()) }
+    val isPinSet: StateFlow<Boolean> by lazy(LazyThreadSafetyMode.PUBLICATION) { _isPinSet.asStateFlow() }
 
     // Legacy single API key for backward compatibility
-    private val _apiKey: MutableStateFlow<String?> by lazy { MutableStateFlow(getApiKey()) }
-    val apiKey: StateFlow<String?> by lazy { _apiKey.asStateFlow() }
+    private val _apiKey: MutableStateFlow<String?> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(getApiKey()) }
+    val apiKey: StateFlow<String?> by lazy(LazyThreadSafetyMode.PUBLICATION) { _apiKey.asStateFlow() }
 
     // Multi-provider API key states
-    private val _geminiKeys: MutableStateFlow<List<String>> by lazy { MutableStateFlow(getProviderKeys(AIProvider.GEMINI)) }
-    val geminiKeys: StateFlow<List<String>> by lazy { _geminiKeys.asStateFlow() }
+    private val _geminiKeys: MutableStateFlow<List<String>> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(getProviderKeys(AIProvider.GEMINI)) }
+    val geminiKeys: StateFlow<List<String>> by lazy(LazyThreadSafetyMode.PUBLICATION) { _geminiKeys.asStateFlow() }
 
-    private val _huggingFaceKeys: MutableStateFlow<List<String>> by lazy { MutableStateFlow(getProviderKeys(AIProvider.HUGGINGFACE)) }
-    val huggingFaceKeys: StateFlow<List<String>> by lazy { _huggingFaceKeys.asStateFlow() }
+    private val _huggingFaceKeys: MutableStateFlow<List<String>> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(getProviderKeys(AIProvider.HUGGINGFACE)) }
+    val huggingFaceKeys: StateFlow<List<String>> by lazy(LazyThreadSafetyMode.PUBLICATION) { _huggingFaceKeys.asStateFlow() }
 
-    private val _providerConfigs: MutableStateFlow<Map<AIProvider, AIProviderConfig>> by lazy { MutableStateFlow(getAllProviderConfigs()) }
-    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> by lazy { _providerConfigs.asStateFlow() }
+    private val _providerConfigs: MutableStateFlow<Map<AIProvider, AIProviderConfig>> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(getAllProviderConfigs()) }
+    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> by lazy(LazyThreadSafetyMode.PUBLICATION) { _providerConfigs.asStateFlow() }
 
     // Provider priority order - separate StateFlow for UI reactivity
-    private val _providerPriorityOrder: MutableStateFlow<List<AIProvider>> by lazy { MutableStateFlow(getProviderPriority()) }
-    val providerPriorityOrder: StateFlow<List<AIProvider>> by lazy { _providerPriorityOrder.asStateFlow() }
+    private val _providerPriorityOrder: MutableStateFlow<List<AIProvider>> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(getProviderPriority()) }
+    val providerPriorityOrder: StateFlow<List<AIProvider>> by lazy(LazyThreadSafetyMode.PUBLICATION) { _providerPriorityOrder.asStateFlow() }
 
     // Theme preference
-    private val _isDarkTheme: MutableStateFlow<Boolean> by lazy { MutableStateFlow(getDarkThemePreference()) }
-    val isDarkTheme: StateFlow<Boolean> by lazy { _isDarkTheme.asStateFlow() }
+    private val _isDarkTheme: MutableStateFlow<Boolean> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(getDarkThemePreference()) }
+    val isDarkTheme: StateFlow<Boolean> by lazy(LazyThreadSafetyMode.PUBLICATION) { _isDarkTheme.asStateFlow() }
 
     // Provider Priority Management
-    // Default order: GROQ first, then others
+    // Default order: Cloud providers first, LOCAL_PC last as fallback
     private val defaultProviderPriority = listOf(
-        AIProvider.LOCAL_PC,  // Local PC first for testing (REMOVE BEFORE PUBLISHING!)
-        AIProvider.GROQ,      // Top priority for cloud
-        AIProvider.GEMINI,
-        AIProvider.DEEPSEEK,
-        AIProvider.CEREBRAS,
-        AIProvider.COHERE,
-        AIProvider.OPENAI,
+        AIProvider.GROQ,      // Top priority - fast and free tier available
+        AIProvider.OPENAI,    // High quality
+        AIProvider.GEMINI,    // Google's offering
+        AIProvider.GITHUB,    // Free with GitHub account
+        AIProvider.DEEPSEEK,  // Good quality, affordable
+        AIProvider.CEREBRAS,  // Ultra-fast inference
+        AIProvider.COHERE,    // Free trial tier
         AIProvider.OPENROUTER,
         AIProvider.ANTHROPIC,
         AIProvider.HUGGINGFACE,
-        AIProvider.GITHUB     // Free with GitHub account
+        AIProvider.LOCAL_PC   // Last - requires running local server (for testing only)
     )
 
     fun getProviderPriority(): List<AIProvider> {
@@ -365,7 +370,13 @@ class SecurePreferences(private val context: Context) {
 
     companion object {
         private const val KEY_PIN_HASH = "pin_hash"
+        private const val KEY_PIN_HASH_LEGACY = "pin_hash_legacy"  // For migration tracking
         private const val KEY_API_KEY = "ai_api_key"
+
+        // PBKDF2 configuration
+        private const val PBKDF2_ITERATIONS = 10000
+        private const val PBKDF2_KEY_LENGTH = 256
+        private const val SALT_LENGTH = 16
         private const val KEY_FIRST_LAUNCH = "first_launch"
         // API Keys for each provider
         private const val KEY_GEMINI_KEYS = "gemini_api_keys"
@@ -393,9 +404,11 @@ class SecurePreferences(private val context: Context) {
         private const val DEFAULT_BACKUP_INTERVAL_DAYS = 100
         // Tavily Web Search API
         private const val KEY_TAVILY_API_KEY = "tavily_api_key"
+        // FTS Maintenance
+        private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
         // Local PC USB Tethering IP (TESTING ONLY - Remove before publishing!)
         private const val KEY_LOCAL_PC_IP = "local_pc_ip"
-        private const val DEFAULT_LOCAL_PC_IP = "10.224.189.60"
+        private const val DEFAULT_LOCAL_PC_IP = "10.166.18.196"  // Hardcoded for testing
         private const val DEFAULT_LOCAL_PC_PORT = "8000"
 
         @Volatile
@@ -424,24 +437,63 @@ class SecurePreferences(private val context: Context) {
     }
 
     fun setPin(pin: String) {
-        val pinHash = hashPin(pin)
-        encryptedPrefs.edit().putString(KEY_PIN_HASH, pinHash).apply()
+        // Always use secure PBKDF2 hashing for new PINs
+        val pinHash = hashPinSecure(pin)
+        encryptedPrefs.edit()
+            .putString(KEY_PIN_HASH, pinHash)
+            .remove(KEY_PIN_HASH_LEGACY)  // Clear legacy marker if present
+            .apply()
         _isPinSet.value = true
     }
 
     fun clearPin() {
-        encryptedPrefs.edit().remove(KEY_PIN_HASH).apply()
+        encryptedPrefs.edit()
+            .remove(KEY_PIN_HASH)
+            .remove(KEY_PIN_HASH_LEGACY)
+            .apply()
         _isPinSet.value = false
     }
 
+    /**
+     * Verify a PIN, handling both legacy SHA-256 and new PBKDF2 hashes.
+     * If a legacy hash is detected and the PIN is correct, the hash is
+     * automatically migrated to the new secure format.
+     */
     fun verifyPin(pin: String): Boolean {
         val storedHash = encryptedPrefs.getString(KEY_PIN_HASH, null) ?: return false
-        return hashPin(pin) == storedHash
+
+        // Check if this is a legacy SHA-256 hash (64 hex chars)
+        if (isLegacyHash(storedHash)) {
+            @Suppress("DEPRECATION")
+            val legacyHash = hashPinLegacy(pin)
+            if (legacyHash == storedHash) {
+                // PIN is correct - migrate to secure hash
+                migrateToSecureHash(pin)
+                return true
+            }
+            return false
+        }
+
+        // Use secure PBKDF2 verification
+        return verifyPinSecure(pin, storedHash)
+    }
+
+    /**
+     * Migrate a legacy SHA-256 hash to secure PBKDF2 hash.
+     * Called automatically when a user successfully verifies their PIN
+     * and the hash is still using the old format.
+     */
+    private fun migrateToSecureHash(pin: String) {
+        val secureHash = hashPinSecure(pin)
+        encryptedPrefs.edit()
+            .putString(KEY_PIN_HASH, secureHash)
+            .putBoolean(KEY_PIN_HASH_LEGACY, true)  // Mark that migration occurred
+            .apply()
     }
 
     fun changePin(oldPin: String, newPin: String): Boolean {
         if (!verifyPin(oldPin)) return false
-        setPin(newPin)
+        setPin(newPin)  // setPin always uses secure hashing
         return true
     }
 
@@ -524,10 +576,10 @@ class SecurePreferences(private val context: Context) {
         }
         val filteredKeys = keys.filter { it.isNotBlank() }
         if (filteredKeys.isEmpty()) {
-            encryptedPrefs.edit().remove(key).apply()
+            encryptedPrefs.edit().remove(key).commit()
         } else {
             val json = gson.toJson(filteredKeys)
-            encryptedPrefs.edit().putString(key, json).apply()
+            encryptedPrefs.edit().putString(key, json).commit()
         }
 
         // Update state flows
@@ -637,12 +689,75 @@ class SecurePreferences(private val context: Context) {
         return null
     }
 
-    private fun hashPin(pin: String): String {
-        // Simple hash for demo - in production use proper bcrypt/argon2
+    /**
+     * Securely hash a PIN using PBKDF2WithHmacSHA256.
+     * The salt is prepended to the hash and both are Base64 encoded together.
+     *
+     * @param pin The PIN to hash
+     * @param salt Optional salt; if null, a new random salt is generated
+     * @return Base64 encoded string containing salt + hash
+     */
+    private fun hashPinSecure(pin: String, salt: ByteArray? = null): String {
+        val actualSalt = salt ?: ByteArray(SALT_LENGTH).also { SecureRandom().nextBytes(it) }
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val spec = PBEKeySpec(pin.toCharArray(), actualSalt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH)
+        val hash = factory.generateSecret(spec).encoded
+        // Combine salt and hash for storage
+        return Base64.encodeToString(actualSalt + hash, Base64.NO_WRAP)
+    }
+
+    /**
+     * Verify a PIN against a PBKDF2 hash.
+     * Extracts the salt from the stored hash and recomputes for comparison.
+     *
+     * @param pin The PIN to verify
+     * @param storedHash The stored Base64 encoded salt+hash
+     * @return true if PIN matches
+     */
+    private fun verifyPinSecure(pin: String, storedHash: String): Boolean {
+        return try {
+            val decoded = Base64.decode(storedHash, Base64.NO_WRAP)
+            if (decoded.size < SALT_LENGTH) return false
+
+            val salt = decoded.copyOfRange(0, SALT_LENGTH)
+            val expectedHash = decoded.copyOfRange(SALT_LENGTH, decoded.size)
+
+            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            val spec = PBEKeySpec(pin.toCharArray(), salt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH)
+            val actualHash = factory.generateSecret(spec).encoded
+
+            // Constant-time comparison to prevent timing attacks
+            if (expectedHash.size != actualHash.size) return false
+            var result = 0
+            for (i in expectedHash.indices) {
+                result = result or (expectedHash[i].toInt() xor actualHash[i].toInt())
+            }
+            result == 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Legacy SHA-256 hash for backward compatibility during migration.
+     * @deprecated Use hashPinSecure instead
+     */
+    @Suppress("DEPRECATION")
+    private fun hashPinLegacy(pin: String): String {
         val bytes = pin.toByteArray()
         val md = java.security.MessageDigest.getInstance("SHA-256")
         val digest = md.digest(bytes)
         return digest.fold("") { str, it -> str + "%02x".format(it) }
+    }
+
+    /**
+     * Check if the stored hash is a legacy SHA-256 hash.
+     * Legacy hashes are 64-character hex strings.
+     * PBKDF2 hashes are Base64 encoded and have a different format.
+     */
+    private fun isLegacyHash(hash: String): Boolean {
+        // Legacy SHA-256 hash is 64 hex characters
+        return hash.length == 64 && hash.all { it in '0'..'9' || it in 'a'..'f' }
     }
 
     // Theme Management
@@ -705,6 +820,24 @@ class SecurePreferences(private val context: Context) {
         if (lastBackup == 0L) return -1
         val diff = System.currentTimeMillis() - lastBackup
         return (diff / (24L * 60 * 60 * 1000)).toInt()
+    }
+
+    // ==================== FTS Maintenance ====================
+
+    /**
+     * Get the last time FTS index maintenance was performed.
+     * @return Timestamp in milliseconds, or 0L if never performed
+     */
+    fun getLastFtsMaintenance(): Long {
+        return encryptedPrefs.getLong(KEY_LAST_FTS_MAINTENANCE, 0L)
+    }
+
+    /**
+     * Set the last FTS maintenance time.
+     * @param timestamp Current time in milliseconds
+     */
+    fun setLastFtsMaintenance(timestamp: Long) {
+        encryptedPrefs.edit().putLong(KEY_LAST_FTS_MAINTENANCE, timestamp).apply()
     }
 
     // ==================== Tavily Web Search API ====================

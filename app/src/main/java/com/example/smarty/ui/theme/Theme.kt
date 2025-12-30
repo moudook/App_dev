@@ -124,7 +124,8 @@ private val LightColorScheme = lightColorScheme(
 )
 
 // Animation duration for smooth theme transition
-private const val THEME_ANIMATION_DURATION = 400
+// Increased for smoother visual experience
+private const val THEME_ANIMATION_DURATION = 500
 
 /**
  * Animate a single color transition
@@ -217,15 +218,22 @@ fun CogniTheme(
     if (!view.isInEditMode) {
         // BUG-057 fix: Use animated background to prevent flash during theme switch
         val animatedBackground = animatedColorScheme.background
+        val animatedSurface = animatedColorScheme.surface
+
         SideEffect {
             val window = (view.context as Activity).window
-            // Use transparent status bar for edge-to-edge
-            @Suppress("DEPRECATION")
-            window.statusBarColor = Color.Transparent.toArgb()
-            @Suppress("DEPRECATION")
-            window.navigationBarColor = Color.Transparent.toArgb()
-            // Set window background to animated background color to prevent flash
+
+            // Set window background to animated color for smooth transition
             window.decorView.setBackgroundColor(animatedBackground.toArgb())
+
+            // Use semi-transparent system bars that blend with content
+            // This provides a smoother visual experience during theme switch
+            @Suppress("DEPRECATION")
+            window.statusBarColor = animatedBackground.copy(alpha = 0.8f).toArgb()
+            @Suppress("DEPRECATION")
+            window.navigationBarColor = animatedSurface.copy(alpha = 0.9f).toArgb()
+
+            // Update system bar icon colors based on theme
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme

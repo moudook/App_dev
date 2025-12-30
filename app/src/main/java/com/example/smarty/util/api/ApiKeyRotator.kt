@@ -177,14 +177,23 @@ object ApiKeyRotator {
     }
 
     /**
-     * Get agent keys (Key 1 only for dedicated agent usage).
-     * For backward compatibility, returns list with single key.
+     * Get agent keys (Key 1 and Key 2) for agent operations.
+     * Agent operations can rotate between these keys for rate limiting.
+     *
+     * Returns:
+     * - 2+ keys available: Key 1 and Key 2 (for rotation)
+     * - 1 key available: Just that key
+     * - 0 keys: Empty list
      *
      * @param allKeys All available API keys for a provider
-     * @return List containing Key 1 only
+     * @return List containing Key 1 and Key 2 (if available) for agent rotation
      */
     fun getAgentKeys(allKeys: List<String>): List<String> {
-        return listOfNotNull(getAgentKey(allKeys))
+        return when {
+            allKeys.size >= AGENT_KEY_COUNT -> allKeys.take(AGENT_KEY_COUNT)  // Key 1 and Key 2
+            allKeys.isNotEmpty() -> listOf(allKeys[0])  // Only Key 1 available
+            else -> emptyList()
+        }
     }
 
     /**

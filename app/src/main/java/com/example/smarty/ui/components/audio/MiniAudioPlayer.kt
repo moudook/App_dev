@@ -26,15 +26,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.smarty.data.model.AudioPlayerUiState
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.AudioPink
+import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.IconSize
+import com.example.smarty.ui.theme.Alpha
 
 /**
  * Compact mini audio player bar
- * Height reduced to 52dp, positioned above input field
- */
-/**
- * Compact mini audio player bar
- * Redesigned to match the "ChatSessionItem" aesthetic (Minimal, Squircle, Apple-like).
+ * Redesigned to match the app's unified theme (blue accent).
  */
 @Composable
 fun MiniAudioPlayer(
@@ -45,7 +43,7 @@ fun MiniAudioPlayer(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
-    val accentColor = AudioPink
+    val accentColor = LocalAccentColor.current // Use app accent color
     
     // UI Constants for "Music Capsule" aesthetic
     val containerShape = RoundedCornerShape(32.dp) // Fully rounded pill/capsule
@@ -53,7 +51,7 @@ fun MiniAudioPlayer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .height(72.dp) // Slightly taller to accommodate pill shape comfortable
+            .height(ComponentSpacing.miniPlayerHeight) // Slightly taller to accommodate pill shape comfortable
             .clip(containerShape)
             .clickable {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -82,10 +80,10 @@ fun MiniAudioPlayer(
                     bass = state.bassAmplitude,
                     mid = state.midAmplitude,
                     treble = state.trebleAmplitude,
-                    size = 48.dp,
+                    size = IconSize.container,
                     primaryColor = accentColor,
-                    secondaryColor = accentColor.copy(alpha = 0.5f),
-                    backgroundColor = accentColor.copy(alpha = 0.1f)
+                    secondaryColor = accentColor.copy(alpha = Alpha.half),
+                    backgroundColor = accentColor.copy(alpha = Alpha.soft)
                 )
             }
 
@@ -126,7 +124,7 @@ fun MiniAudioPlayer(
                                 .height(3.dp) // Slightly thicker for visibility
                                 .clip(RoundedCornerShape(1.5.dp)),
                             color = accentColor,
-                            trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                            trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.moderate),
                         )
                         
                         Spacer(modifier = Modifier.width(8.dp))
@@ -137,7 +135,7 @@ fun MiniAudioPlayer(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = androidx.compose.ui.unit.TextUnit(11f, androidx.compose.ui.unit.TextUnitType.Sp)
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.heavy)
                         )
                     }
                 } else {
@@ -159,17 +157,17 @@ fun MiniAudioPlayer(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onPlayPauseClick()
                     },
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(IconSize.massive),
                     shape = CircleShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f), // Darker circle on dark background
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = Alpha.half), // Darker circle on dark background
                         contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
                     Icon(
                         imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (state.isPlaying) "Pause" else "Play",
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(IconSize.large)
                     )
                 }
                 
@@ -178,13 +176,13 @@ fun MiniAudioPlayer(
                 // Close (Subtle X)
                 IconButton(
                     onClick = onCloseClick,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(IconSize.huge)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(18.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
+                        modifier = Modifier.size(IconSize.medium)
                     )
                 }
             }

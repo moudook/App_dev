@@ -3,6 +3,7 @@ package com.example.smarty.agent.tools.calendar
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
+import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.toon.ToonManager
@@ -92,6 +93,14 @@ class GetEventsTool(
     override suspend fun execute(args: GetEventsArgs): GetEventsResult {
         Log.d(TAG, "Getting events: timeRange='${args.timeRange}', query='${args.query}', limit=${args.limit}")
 
+        // Check cache first to avoid duplicate DB queries
+        val cacheKey = ToolResultCache.generateKey(name, "${args.timeRange}|${args.query}|${args.limit}")
+        val cached = ToolResultCache.get(cacheKey)
+        if (cached != null) {
+            Log.d(TAG, "Returning cached result for timeRange: '${args.timeRange}'")
+            return Json.decodeFromString(GetEventsResult.serializer(), cached)
+        }
+
         return try {
             val (startMillis, endMillis) = getTimeRange(args.timeRange)
             Log.d(TAG, "Time range: ${Date(startMillis)} to ${Date(endMillis)}")
@@ -127,13 +136,18 @@ class GetEventsTool(
                 else -> "Found ${summaries.size} events"
             }
 
-            GetEventsResult(
+            val result = GetEventsResult(
                 success = true,
                 events = summaries,
                 count = summaries.size,
                 timeRange = args.timeRange,
                 message = message
             )
+
+            // Cache the successful result
+            ToolResultCache.put(cacheKey, Json.encodeToString(GetEventsResult.serializer(), result))
+
+            result
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get events: ${e.message}", e)
             GetEventsResult(

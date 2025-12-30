@@ -17,12 +17,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.smarty.data.model.AudioPlayerUiState
-import com.example.smarty.ui.theme.AudioPink
+import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.IconSize
+import com.example.smarty.ui.theme.Alpha
 
 /**
  * Full-screen audio player modal with waveform visualization
  * Shows track info, waveform, time stamps, and playback controls
+ * Uses app accent color (blue) for unified theming
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,20 +38,20 @@ fun FullAudioPlayer(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
-    val accentColor = AudioPink
+    val accentColor = LocalAccentColor.current // Use app accent color instead of pink
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shape = RoundedCornerShape(topStart = ComponentSpacing.sheetCornerRadius, topEnd = ComponentSpacing.sheetCornerRadius),
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Surface(
                 modifier = Modifier.padding(vertical = 12.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f), // Subtle handle
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.moderate), // Subtle handle
                 shape = RoundedCornerShape(2.dp)
             ) {
-                Box(modifier = Modifier.size(width = 32.dp, height = 4.dp))
+                Box(modifier = Modifier.size(width = ComponentSpacing.sheetDragHandleWidth, height = ComponentSpacing.sheetDragHandleHeight))
             }
         },
         modifier = modifier
@@ -56,7 +59,7 @@ fun FullAudioPlayer(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = ComponentSpacing.sheetPadding)
                 .padding(bottom = 32.dp) // Moderate bottom padding
         ) {
             // Header: Icon + Info + Play Button (All in one row)
@@ -66,16 +69,16 @@ fun FullAudioPlayer(
             ) {
                 // 1. Album Art (Compact Squircle)
                 Surface(
-                    modifier = Modifier.size(56.dp),
+                    modifier = Modifier.size(ComponentSpacing.albumArtSize),
                     shape = RoundedCornerShape(14.dp),
-                    color = accentColor.copy(alpha = 0.2f),
+                    color = accentColor.copy(alpha = Alpha.moderate),
                     contentColor = accentColor
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.MusicNote,
                             contentDescription = null,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(IconSize.xxl)
                         )
                     }
                 }
@@ -112,7 +115,7 @@ fun FullAudioPlayer(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onPlayPauseClick()
                     },
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(IconSize.container),
                     shape = CircleShape,
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = accentColor,
@@ -122,7 +125,7 @@ fun FullAudioPlayer(
                     Icon(
                         imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (state.isPlaying) "Pause" else "Play",
-                         modifier = Modifier.size(24.dp)
+                         modifier = Modifier.size(IconSize.xl)
                     )
                 }
             }
@@ -136,9 +139,9 @@ fun FullAudioPlayer(
                 onSeek = onSeek,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(36.dp), // Minimal height
+                    .height(ComponentSpacing.waveformHeight), // Minimal height
                 activeColor = accentColor,
-                inactiveColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                inactiveColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = Alpha.emphasis)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -151,12 +154,12 @@ fun FullAudioPlayer(
                 Text(
                     text = state.currentPositionFormatted,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
                 )
                 Text(
                     text = state.durationFormatted,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
                 )
             }
         }
