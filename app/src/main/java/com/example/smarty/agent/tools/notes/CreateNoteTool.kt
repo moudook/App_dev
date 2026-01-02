@@ -7,7 +7,6 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.ContentTypeDetector
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -27,20 +26,17 @@ data class CreateNoteArgs(
 class CreateNoteTool(
     private val repository: CogniRepository,
     private val onProcessNote: suspend (Note) -> Unit
-) : Tool<CreateNoteArgs, NoteOperationResult>() {
-
-    override val argsSerializer: KSerializer<CreateNoteArgs> = CreateNoteArgs.serializer()
-    override val resultSerializer: KSerializer<NoteOperationResult> = NoteOperationResult.serializer()
-
-    override val name = "create_note"
-
-    override val description = """
+) : Tool<CreateNoteArgs, NoteOperationResult>(
+    argsSerializer = CreateNoteArgs.serializer(),
+    resultSerializer = NoteOperationResult.serializer(),
+    name = "create_note",
+    description = """
         Creates a new note in the user's note collection.
         Use this when the user asks to save, remember, or note down information.
         IMPORTANT: Always provide a clear, descriptive title (2-5 words) that summarizes the note.
         The AI will analyze and categorize the note unless a category is specified.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: CreateNoteArgs): NoteOperationResult {
         return try {
             if (args.content.isBlank()) {

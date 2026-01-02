@@ -6,7 +6,6 @@ import com.example.smarty.agent.tools.base.CogniToolUtils
 import com.example.smarty.agent.tools.base.NoteOperationResult
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -25,20 +24,17 @@ class ArchiveNoteTool(
     private val repository: CogniRepository,
     private val getActiveNotes: () -> List<Note>,
     private val findNoteByDescription: suspend (String, List<Note>) -> Note?
-) : Tool<ArchiveNoteArgs, NoteOperationResult>() {
-
-    override val argsSerializer: KSerializer<ArchiveNoteArgs> = ArchiveNoteArgs.serializer()
-    override val resultSerializer: KSerializer<NoteOperationResult> = NoteOperationResult.serializer()
-
-    override val name = "archive_note"
-
-    override val description = """
+) : Tool<ArchiveNoteArgs, NoteOperationResult>(
+    argsSerializer = ArchiveNoteArgs.serializer(),
+    resultSerializer = NoteOperationResult.serializer(),
+    name = "archive_note",
+    description = """
         Archives a note (moves it to archive).
         Use when the user wants to archive or hide a note without deleting.
         Can specify by noteId or description.
         Private notes cannot be archived by AI.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: ArchiveNoteArgs): NoteOperationResult {
         return try {
             val noteToArchive = when {

@@ -7,7 +7,6 @@ import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.search.SemanticSearchEngine
 import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
 private val json = Json { encodeDefaults = false }
@@ -67,20 +66,17 @@ data class SmartSearchResult(
  */
 class SmartSearchTool(
     private val getActiveNotes: () -> List<Note>
-) : Tool<SmartSearchArgs, SmartSearchResult>() {
-
-    override val argsSerializer: KSerializer<SmartSearchArgs> = SmartSearchArgs.serializer()
-    override val resultSerializer: KSerializer<SmartSearchResult> = SmartSearchResult.serializer()
-
-    override val name = "smart_search"
-
-    override val description = """
+) : Tool<SmartSearchArgs, SmartSearchResult>(
+    argsSerializer = SmartSearchArgs.serializer(),
+    resultSerializer = SmartSearchResult.serializer(),
+    name = "smart_search",
+    description = """
         Advanced note search with relevance scoring and smart matching.
         Features: fuzzy matching (typo-tolerant), time filtering (today/week/month), type filtering, relevance ranking.
         Use for complex searches like "notes about meetings from last week" or "anything related to project X".
         Returns scored results with match highlights.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: SmartSearchArgs): SmartSearchResult {
         val allNotes = getActiveNotes()
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(allNotes)

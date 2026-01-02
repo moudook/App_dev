@@ -9,7 +9,6 @@ import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
 import java.util.*
@@ -69,21 +68,18 @@ class DeepResearchTool(
     private val tavilySearchProvider: TavilySearchProvider,
     private val repository: CogniRepository,
     private val getApiKey: () -> String?
-) : Tool<DeepResearchArgs, DeepResearchResult>() {
-
-    override val argsSerializer: KSerializer<DeepResearchArgs> = DeepResearchArgs.serializer()
-    override val resultSerializer: KSerializer<DeepResearchResult> = DeepResearchResult.serializer()
-
-    override val name = "deep_research"
-
-    override val description = """
+) : Tool<DeepResearchArgs, DeepResearchResult>(
+    argsSerializer = DeepResearchArgs.serializer(),
+    resultSerializer = DeepResearchResult.serializer(),
+    name = "deep_research",
+    description = """
         Performs comprehensive multi-step research on a topic.
         Automatically generates multiple search queries, gathers information from various angles,
         synthesizes findings, and optionally saves the research as a structured note.
         Use for: "research X", "find out about Y", "investigate Z", "learn everything about W".
         Returns findings with sources and can save directly to notes.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: DeepResearchArgs): DeepResearchResult {
         val apiKey = getApiKey() ?: return DeepResearchResult(
             success = false,
@@ -111,7 +107,7 @@ class DeepResearchTool(
                         apiKey = apiKey,
                         query = query,
                         maxResults = 3,
-                        topic = "research"
+                        topic = "general"
                     )
 
                     if (result.success && result.results.isNotEmpty()) {

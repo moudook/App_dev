@@ -6,7 +6,6 @@ import com.example.smarty.agent.tools.base.CogniToolUtils
 import com.example.smarty.agent.tools.base.NoteOperationResult
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -25,20 +24,17 @@ class DeleteNoteTool(
     private val repository: CogniRepository,
     private val getActiveNotes: () -> List<Note>,
     private val findNoteByDescription: suspend (String, List<Note>) -> Note?
-) : Tool<DeleteNoteArgs, NoteOperationResult>() {
-
-    override val argsSerializer: KSerializer<DeleteNoteArgs> = DeleteNoteArgs.serializer()
-    override val resultSerializer: KSerializer<NoteOperationResult> = NoteOperationResult.serializer()
-
-    override val name = "delete_note"
-
-    override val description = """
+) : Tool<DeleteNoteArgs, NoteOperationResult>(
+    argsSerializer = DeleteNoteArgs.serializer(),
+    resultSerializer = NoteOperationResult.serializer(),
+    name = "delete_note",
+    description = """
         Deletes a note from the user's collection.
         Use when the user asks to remove or delete a note.
         Can specify by noteId or description.
         Private notes cannot be deleted.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: DeleteNoteArgs): NoteOperationResult {
         return try {
             val noteToDelete = when {

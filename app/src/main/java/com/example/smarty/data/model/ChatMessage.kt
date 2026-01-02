@@ -55,7 +55,8 @@ data class ChatMessage(
     val suggestions: List<String> = emptyList(),  // AI-provided suggestions (max 2, from TOON response)
     val isError: Boolean = false,  // True when this message represents an API error
     val citations: List<Citation> = emptyList(),  // Sources from web research
-    val inlineImages: List<InlineChatImage> = emptyList()  // Images from ViewImageTool to display inline
+    val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
+    val clarificationRequest: ClarificationRequest? = null  // Interactive clarification request
 ) {
     /**
      * Check if this is a user message

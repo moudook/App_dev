@@ -14,7 +14,6 @@ import ai.koog.prompt.executor.llms.all.simpleAnthropicExecutor
 import ai.koog.prompt.executor.llms.all.simpleOpenAIExecutor
 import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.clients.anthropic.AnthropicModels
-import ai.koog.prompt.executor.clients.openai.OpenAIModels
 import ai.koog.prompt.executor.clients.openai.OpenAILLMClient
 import ai.koog.prompt.executor.clients.openai.OpenAIClientSettings
 import ai.koog.prompt.executor.llms.SingleLLMPromptExecutor
@@ -763,17 +762,8 @@ class CogniAgentProvider(
     }
 
     private fun mapOpenAIModel(modelId: String): LLModel {
-        return when {
-            modelId.contains("gpt-4o-mini") -> OpenAIModels.CostOptimized.GPT4oMini
-            modelId.contains("gpt-4o") -> OpenAIModels.Chat.GPT4o
-            modelId.contains("gpt-4.1-nano") -> OpenAIModels.CostOptimized.GPT4_1Nano
-            modelId.contains("gpt-4.1-mini") -> OpenAIModels.CostOptimized.GPT4_1Mini
-            modelId.contains("gpt-4.1") -> OpenAIModels.Chat.GPT4_1
-            modelId.contains("gpt-5-mini") -> OpenAIModels.Chat.GPT5Mini
-            modelId.contains("gpt-5-nano") -> OpenAIModels.Chat.GPT5Nano
-            modelId.contains("gpt-5") -> OpenAIModels.Chat.GPT5
-            else -> OpenAIModels.CostOptimized.GPT4oMini // Default
-        }
+        // Use dynamic model creation to support all OpenAI models without hardcoded constants
+        return createOpenAICompatibleModel(modelId)
     }
 
     /**

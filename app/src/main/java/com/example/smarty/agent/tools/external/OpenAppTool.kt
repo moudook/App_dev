@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import java.util.Locale
 
@@ -34,18 +33,11 @@ data class OpenAppResult(
 class OpenAppTool(
     private val context: Context,
     private val onLaunchApp: (String) -> Unit
-) : Tool<OpenAppArgs, OpenAppResult>() {
-
-    override val argsSerializer: KSerializer<OpenAppArgs> = OpenAppArgs.serializer()
-    override val resultSerializer: KSerializer<OpenAppResult> = OpenAppResult.serializer()
-
-    companion object {
-        private const val TAG = "OpenAppTool"
-    }
-
-    override val name = "open_app"
-
-    override val description = """
+) : Tool<OpenAppArgs, OpenAppResult>(
+    argsSerializer = OpenAppArgs.serializer(),
+    resultSerializer = OpenAppResult.serializer(),
+    name = "open_app",
+    description = """
         Opens an installed Android app by name.
         Use this when user wants to launch/open/start an application.
 
@@ -62,6 +54,10 @@ class OpenAppTool(
         - "fb" for Facebook
         - "wa" for WhatsApp
     """.trimIndent()
+) {
+    companion object {
+        private const val TAG = "OpenAppTool"
+    }
 
     override suspend fun execute(args: OpenAppArgs): OpenAppResult {
         Log.d(TAG, "Opening app: '${args.appName}'")

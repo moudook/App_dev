@@ -128,6 +128,8 @@ fun CogniNavHost(
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when AI tab is clicked
     onEnterChatWithNoteReference: (String) -> Unit = {},  // @Mention: Enter chat with note pre-referenced
+    // AI Planning Status
+    aiPlanStatus: String? = null,
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
@@ -323,6 +325,8 @@ fun CogniNavHost(
                 // @Mention autocomplete
                 mentionState = mentionState,
                 onMentionSelected = onMentionSelected,
+                // AI Planning Status
+                aiPlanStatus = aiPlanStatus,
                 // Pending chat text (for "Ask AI" from note card)
                 pendingChatText = pendingChatText,
                 onClearPendingChatText = onClearPendingChatText,

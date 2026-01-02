@@ -49,6 +49,12 @@ import com.example.smarty.util.api.RateLimiter
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
+import com.example.smarty.agent.tools.planning.CreatePlanTool
+import com.example.smarty.agent.tools.planning.MarkStepCompleteTool
+import com.example.smarty.agent.tools.planning.ExecutionPlanManager
+import com.example.smarty.agent.tools.planning.PlanStatus
+import com.example.smarty.agent.tools.planning.StepStatus
+
 
 /**
  * Web search citation for AI responses
@@ -276,6 +282,9 @@ interface AgentCallbacks {
 
     // Callback for ViewImageTool to display images inline in chat
     fun onDisplayImages(images: List<ImageDisplayItem>)
+    
+    // Callback for status updates from internal planning system
+    fun onPlanStatusChanged(status: String?)
 }
 
 /**
@@ -376,11 +385,19 @@ class CogniAgent(
         }
     }
 
+
     /**
      * NEW-016: Tool Example Store for few-shot learning.
      * Provides relevant examples to improve tool selection accuracy by 25-40%.
      */
     private val toolExampleStore = ToolExampleStore()
+
+    /**
+     * NEW: Planning Manager for multi-step task orchestration.
+     */
+    private val executionPlanManager = ExecutionPlanManager { status ->
+        callbacks.onPlanStatusChanged(status)
+    }
 
     /**
      * BATCH-3C: Agent Optimizer for comprehensive query optimization.
@@ -412,80 +429,58 @@ class CogniAgent(
 
         optimizer
     }
-
-    /**
-     * System prompt for the Cogni AI Agent.
-     *
-     * OPTIMIZED using best practices from:
-     * - Claude (Anthropic) - structured sections, clear guidelines
-     * - Manus AI - agent loop patterns, step-by-step execution
-     * - Cline - tool usage rules, completion verification
-     * - CO-STAR framework - Context, Objective, Style, Tone, Audience, Response
-     *
-     * Key improvements:
-     * - Clear identity and personality section
-     * - Explicit tool usage rules with examples
-     * - Fallback behavior for audio/errors
-     * - Response formatting guidelines
-     * - Behavior constraints to prevent common issues
-     */
     private val systemPrompt = """
 # IDENTITY
-You are Loum, a warm, intelligent, and highly capable AI companion. 
-You exist to have genuine conversations, solve complex problems, and orchestrate tasks to help the user.
+You are Loum, a helpful AI assistant. You solve complex problems efficiently using your available tools.
 
-# CORE PRINCIPLE: CONVERSATION FIRST, MASTERY SECOND
-1. **For Simple Chat**: Be a charming companion. Reply directly, warm and concise. NO tools.
-   - "How are you?" → "I'm doing great, thanks for asking! How's your day going?"
-   - "What is 2+2?" → "It's 4."
+# CORE BEHAVIOR
+- **NEVER show your planning to the user.** Your plans are INTERNAL ONLY.
+- **Execute silently.** Do not narrate what you're doing.
+- **Only respond when you have something useful to say** (result, answer, or clarification needed).
 
-2. **For Complex Tasks**: Be a Master Orchestrator. Plan and execute multi-step workflows.
-   - User: "Plan a cleaning session with music and reminders" 
-   - You: Search ideas → Create Note → Schedule Event → Play Music.
+# DECISION FLOW
+1. **Simple Question** → Answer directly. No tools needed.
+2. **Ambiguous Request** → Ask for clarification using the JSON format below.
+3. **Complex Task (requires 2+ tools)** → Create a plan internally, execute all steps, then provide the final result.
+4. **Single Tool Task** → Execute the tool, return the result.
 
-# WHEN TO USE TOOLS (The "Mastery" Logic)
-Do not use tools for general knowledge, math, or chat.
-ONLY use tools when the user's request **requires** interacting with the app or outside world.
+# FOR COMPLEX TASKS (Multi-Step)
+When a task requires multiple tools:
+1. Call `create_plan(goal="...", steps=[...])` to set up your plan.
+2. Execute each step by calling the appropriate tool.
+3. After each tool succeeds, call `mark_step_complete(resultSummary="...")`.
+4. Repeat until all steps are done.
+5. **ONLY THEN** respond to the user with the final outcome.
 
-## Complex Orchestration (Multi-Step Logic)
-You can chain tools to solve complex needs. Pass information from one step to the next.
-*Example: "Find cleaning ideas, save them, and play music"*
-1. **Think**: I need ideas (Web/Knowledge), a note (CreateNote), an event (CreateEvent), and music (PlayAudio).
-2. **Step 1**: `web_search("fast room cleaning tips")` OR use internal knowledge.
-3. **Step 2**: `create_note(title="Cleaning Game Plan", content=[ideas from step 1])`
-4. **Step 3**: `create_event(title="Cleaning Session", startTime="today 2pm")`
-5. **Step 4**: `play_audio("upbeat music")` (Fallback: if "upbeat" not found, play *any* music).
+**IMPORTANT:** 
+- Do NOT output the plan to the user.
+- Do NOT say "I'm starting step 1..." or "Now executing...".
+- Just work silently and give the user the final answer/result.
 
-## Resilient Execution (Never Give Up)
-If a specific tool fails or returns no results, **find a fallback** instead of stopping.
-- if `play_audio("cleaning playlist")` fails → try `play_audio("pop music")` or just `play_audio("")` to shuffle all.
-- if `web_search` fails → use your own knowledge to create the note.
-- **Goal**: Always leave the user better off than if you did nothing.
+# CLARIFICATION FORMAT (only when you genuinely need more info)
+{clarification: {
+  question: "What kind of party are you planning?",
+  options: ["Birthday", "Graduation", "Casual hangout"],
+  custom: true
+}}
 
-# PERSONALITY & TONE
-- **Warm & Authentic**: Speak naturally, like a smart friend. "Got it, on it!" 
-- **Intellectually Honest**: If you don't know, admit it. Don't hallucinate info.
-- **Proactive**: If you see a way to help that's obvious from the request, do it (e.g., creating a note for a list).
-
-# TOOL GUIDELINES
-1. **Chain Tools**: You can use multiple tools in sequence if needed.
-2. **Output Format**: 
-   - For simple answers: Just text.
-   - For actions: "Done! I've [summary of actions]."
-3. **Calendar Defaults**: If no time specified, use **2:00 PM today** (or tomorrow if today is over).
-4. **Music Defaults**: If specific song not found, try a genre or random shuffle.
-
-# CRITICAL CONSTRAINTS
-- NEVER expose internal IDs, file paths, or system errors to the user.
-- NEVER start with robotic phrases like "Certainly", "Processing", "Executing".
-- NEVER end with "Is there anything else?" (It's annoying).
+# TOOL RULES
+- One tool per response (unless clearly parallelizable).
+- If a tool fails, try an alternative or report the issue to the user.
     """.trimIndent()
+
+
+
 
     /**
      * Build the tool registry with all available tools.
      */
     private fun buildToolRegistry(): ToolRegistry {
         return ToolRegistry {
+            // Planning Tools
+            tool(CreatePlanTool(executionPlanManager))
+            tool(MarkStepCompleteTool(executionPlanManager))
+
             // Note tools
             tool(CreateNoteTool(repository, callbacks::processNoteWithAi))
             tool(SearchNotesTool(callbacks::getActiveNotes))
@@ -569,6 +564,34 @@ If a specific tool fails or returns no results, **find a fallback** instead of s
         val formattedDate = today.format(dateFormatter)
 
         return buildString {
+            // === PLANNING CONTEXT INJECTION ===
+            val activePlan = executionPlanManager.getActivePlan()
+            if (activePlan != null && activePlan.status == PlanStatus.IN_PROGRESS) {
+                appendLine("\n=== CURRENT EXECUTION PLAN ===")
+                appendLine("GOAL: ${activePlan.goal}")
+                activePlan.steps.forEach { step ->
+                    val statusLabel = when(step.status) {
+                        StepStatus.COMPLETED -> "[COMPLETED]"
+                        StepStatus.IN_PROGRESS -> "[IN PROGRESS]"
+                        StepStatus.PENDING -> "[PENDING]"
+                        StepStatus.FAILED -> "[FAILED]"
+                        StepStatus.SKIPPED -> "[SKIPPED]"
+                    }
+                    val result = if (step.resultSummary != null) " -> Result: ${step.resultSummary}" else ""
+                    appendLine("$statusLabel Step ${step.index}: ${step.description}$result")
+                }
+                
+                val currentStep = activePlan.getCurrentStep()
+                if (currentStep != null) {
+                    appendLine("\nNEXT ACTION REQUIRED: Step ${currentStep.index} (${currentStep.description})")
+                    appendLine("INSTRUCTION: Execute Step ${currentStep.index} now using the appropriate tool. If the step is an internal thought or calculation, assume it is done. Once the action is finished, IMMEDIATELY call `mark_step_complete`.")
+                } else {
+                    appendLine("\nALL STEPS COMPLETED. Summarize the results to the user.")
+                }
+                appendLine("==============================\n")
+            }
+            // ==================================
+
             appendLine("CURRENT DATE: $formattedDate")
             appendLine()
             appendLine("CURRENT STATE:")
@@ -827,49 +850,94 @@ If a specific tool fails or returns no results, **find a fallback** instead of s
             try {
                 Log.d(TAG, "Trying ${executorResult.provider} ($keyLabel) / ${executorResult.model}")
 
-                val agent = AIAgent(
-                    promptExecutor = executorResult.executor,
-                    llmModel = executorResult.model,
-                    systemPrompt = systemPrompt,
-                    toolRegistry = toolRegistry,
-                    maxIterations = maxIterations  // Dynamic based on task complexity
-                )
-
-                // Execute with provider-specific timeout to prevent hanging indefinitely
-                // LOCAL_PC gets shorter timeout (45s), cloud providers get longer (90-120s)
-                //
-                // AGENT-003 KNOWN LIMITATION: This timeout applies to the entire agent.run() call,
-                // not individual tool executions. If a single tool (e.g., WebSearch, DeepResearch)
-                // is slow, it can consume most of the timeout budget, leaving insufficient time
-                // for subsequent tools. Per-tool timeouts would require changes to the Koog
-                // agent framework or a custom tool wrapper layer.
-                //
+                // ═══════════════════════════════════════════════════════════════
+                // PLAN EXECUTION LOOP
+                // When the agent creates a plan, we need to keep calling it until
+                // all steps are complete. Each iteration rebuilds context with
+                // the updated plan state.
+                // ═══════════════════════════════════════════════════════════════
+                
+                var currentResponse = ""
+                var planLoopIterations = 0
+                val maxPlanLoopIterations = 10 // Safety limit to prevent infinite loops
+                
                 val providerTimeout = getTimeoutForProvider(executorResult.provider)
-                val response = withTimeout(providerTimeout) {
-                    agent.run(fullPrompt)
+                
+                do {
+                    planLoopIterations++
+                    Log.d(TAG, "Plan loop iteration $planLoopIterations")
+                    
+                    // Rebuild context with current plan state
+                    val currentPrompt = buildContext() + examplesSection + historySection + 
+                        thinkingContextSection + mentionContextSection + 
+                        "USER: ${processed.maskedQuery}"
+                    
+                    // Rebuild tool registry (in case state changed)
+                    val currentToolRegistry = buildToolRegistry()
+                    
+                    val agent = AIAgent(
+                        promptExecutor = executorResult.executor,
+                        llmModel = executorResult.model,
+                        systemPrompt = systemPrompt,
+                        toolRegistry = currentToolRegistry,
+                        maxIterations = maxIterations
+                    )
+                    
+                    // Execute agent
+                    val response = withTimeout(providerTimeout) {
+                        agent.run(currentPrompt)
+                    }
+                    
+                    currentResponse = response
+                    Log.d(TAG, "Agent response (iter $planLoopIterations): ${response.take(100)}...")
+                    
+                    // Check if there's still an active plan with pending steps
+                    val activePlan = executionPlanManager.getActivePlan()
+                    val hasPendingSteps = activePlan != null && 
+                        activePlan.status == PlanStatus.IN_PROGRESS &&
+                        activePlan.getCurrentStep() != null
+                    
+                    if (!hasPendingSteps) {
+                        Log.d(TAG, "No more pending steps, exiting plan loop")
+                        break
+                    }
+                    
+                    // Safety: Check for stuck state (same step for too many iterations)
+                    if (planLoopIterations >= maxPlanLoopIterations) {
+                        Log.w(TAG, "Plan loop reached max iterations ($maxPlanLoopIterations), breaking to prevent infinite loop")
+                        break
+                    }
+                    
+                    // Small delay between iterations to prevent rate limiting
+                    delay(100)
+                    
+                } while (true)
+                
+                // Clear the plan after completion
+                if (executionPlanManager.getActivePlan()?.status == PlanStatus.COMPLETED) {
+                    executionPlanManager.clearPlan()
                 }
 
                 // Record success with failover manager and rate limiter
-                Log.i(TAG, "✓ Success with ${executorResult.provider} ($keyLabel)")
+                Log.i(TAG, "✓ Success with ${executorResult.provider} ($keyLabel) after $planLoopIterations iterations")
                 agentProvider.recordSuccess(executorResult.provider)
-                rateLimiter?.recordCall()  // Track API usage
+                rateLimiter?.recordCall()
 
                 // BATCH-3C: Post-process response (unmask PII, cache for semantic similarity)
-                // Note: postProcess() handles caching to semantic cache internally
                 val finalResponse = try {
-                    agentOptimizer.postProcess(userMessage, processed.maskedQuery, response)
+                    agentOptimizer.postProcess(userMessage, processed.maskedQuery, currentResponse)
                 } catch (e: Exception) {
                     Log.w(TAG, "AgentOptimizer postProcess failed, using raw response", e)
-                    response
+                    currentResponse
                 }
 
                 // BATCH-3C: Caching is now handled by AgentOptimizer's semantic cache
-                // The old AIResponseCache was incompatible with agent chat responses
                 if (isSimpleQuery) {
                     Log.d(TAG, "Simple query processed - cached via AgentOptimizer semantic cache")
                 }
 
                 return AgentResult.Success(finalResponse, executorResult.provider)
+
 
             } catch (e: TimeoutCancellationException) {
                 // Agent took too long - try next provider

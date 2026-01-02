@@ -7,7 +7,6 @@ import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
 private val json = Json { encodeDefaults = false }
@@ -68,21 +67,18 @@ data class BatchOperationResult(
 class BatchOperationsTool(
     private val repository: CogniRepository,
     private val getActiveNotes: () -> List<Note>
-) : Tool<BatchOperationArgs, BatchOperationResult>() {
-
-    override val argsSerializer: KSerializer<BatchOperationArgs> = BatchOperationArgs.serializer()
-    override val resultSerializer: KSerializer<BatchOperationResult> = BatchOperationResult.serializer()
-
-    override val name = "batch_notes"
-
-    override val description = """
+) : Tool<BatchOperationArgs, BatchOperationResult>(
+    argsSerializer = BatchOperationArgs.serializer(),
+    resultSerializer = BatchOperationResult.serializer(),
+    name = "batch_notes",
+    description = """
         Performs batch operations on multiple notes matching a search query.
         Operations: 'preview' (show matching notes), 'archive' (archive all matches), 'update_category' (move to category).
         IMPORTANT: Always use preview first, then execute with confirmation.
         For destructive operations, user confirmation is required.
         Maximum 25 notes per operation for safety.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: BatchOperationArgs): BatchOperationResult {
         val allNotes = getActiveNotes()
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(allNotes)

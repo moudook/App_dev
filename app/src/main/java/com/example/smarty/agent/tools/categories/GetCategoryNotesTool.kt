@@ -7,7 +7,6 @@ import com.example.smarty.agent.tools.base.NoteSearchResult
 import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.model.Note
 import com.example.smarty.util.PrivacyGuard
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -23,19 +22,16 @@ data class GetCategoryNotesArgs(
  */
 class GetCategoryNotesTool(
     private val getActiveNotes: () -> List<Note>
-) : Tool<GetCategoryNotesArgs, NoteSearchResult>() {
-
-    override val argsSerializer: KSerializer<GetCategoryNotesArgs> = GetCategoryNotesArgs.serializer()
-    override val resultSerializer: KSerializer<NoteSearchResult> = NoteSearchResult.serializer()
-
-    override val name = "get_category_notes"
-
-    override val description = """
+) : Tool<GetCategoryNotesArgs, NoteSearchResult>(
+    argsSerializer = GetCategoryNotesArgs.serializer(),
+    resultSerializer = NoteSearchResult.serializer(),
+    name = "get_category_notes",
+    description = """
         Gets all notes in a specific category.
         Use when the user wants to see notes in a particular category.
         Private notes are automatically excluded.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: GetCategoryNotesArgs): NoteSearchResult {
         // Check cache first to avoid duplicate DB queries
         val cacheKey = ToolResultCache.generateKey(name, args.categoryName)

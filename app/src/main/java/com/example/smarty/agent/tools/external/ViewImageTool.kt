@@ -12,7 +12,6 @@ import com.example.smarty.data.model.getAttachments
 import com.example.smarty.data.model.getTags
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.search.SemanticSearchEngine
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -32,11 +31,25 @@ data class ViewImageArgs(
 class ViewImageTool(
     private val getActiveNotes: () -> List<Note>,
     private val onDisplayImages: (List<ImageDisplayItem>) -> Unit
-) : Tool<ViewImageArgs, ImageDisplayResult>() {
+) : Tool<ViewImageArgs, ImageDisplayResult>(
+    argsSerializer = ViewImageArgs.serializer(),
+    resultSerializer = ImageDisplayResult.serializer(),
+    name = "view_image",
+    description = """
+        MUST USE THIS TOOL when user says: "show the image", "open the photo", "view the picture", "display the screenshot".
+        Searches notes to find images and displays them inline in the chat.
 
-    override val argsSerializer: KSerializer<ViewImageArgs> = ViewImageArgs.serializer()
-    override val resultSerializer: KSerializer<ImageDisplayResult> = ImageDisplayResult.serializer()
+        ROBUST SEARCH: Searches across filename, note title, tags, summary, category, and content.
+        Uses fuzzy matching - can find images even with partial or similar names.
 
+        Required: query parameter with search term.
+        Examples:
+        - User says "show my beach photos" -> query="beach"
+        - User says "open the image in my vacation note" -> query="vacation"
+        - User says "view my screenshots" -> query="screenshots"
+        - User says "show the sunset picture" -> query="sunset"
+    """.trimIndent()
+) {
     companion object {
         private const val TAG = "ViewImageTool"
 
@@ -64,23 +77,6 @@ class ViewImageTool(
         Log.d(TAG, "Cleaned query: '$query' -> '$result'")
         return result.ifEmpty { query.lowercase().trim() }
     }
-
-    override val name = "view_image"
-
-    override val description = """
-        MUST USE THIS TOOL when user says: "show the image", "open the photo", "view the picture", "display the screenshot".
-        Searches notes to find images and displays them inline in the chat.
-
-        ROBUST SEARCH: Searches across filename, note title, tags, summary, category, and content.
-        Uses fuzzy matching - can find images even with partial or similar names.
-
-        Required: query parameter with search term.
-        Examples:
-        - User says "show my beach photos" -> query="beach"
-        - User says "open the image in my vacation note" -> query="vacation"
-        - User says "view my screenshots" -> query="screenshots"
-        - User says "show the sunset picture" -> query="sunset"
-    """.trimIndent()
 
     override suspend fun execute(args: ViewImageArgs): ImageDisplayResult {
         Log.i(TAG, "ViewImageTool.execute() CALLED - query='${args.query}', noteId=${args.noteId}")

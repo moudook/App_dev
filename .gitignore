@@ -31,7 +31,7 @@ aux
 AUX
 prn
 PRN
-.claude
+
 
 # ============================================
 # PRIVATE FILES DIRECTORY
@@ -86,6 +86,7 @@ system-prompts-and-models-of-ai-tools-main/
 LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/*
 !LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/start_local_llm_secure.bat
 !LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/start_local_llm.bat
+
 
 # ============================================
 # IDE & BUILD FILES

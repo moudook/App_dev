@@ -7,7 +7,6 @@ import com.example.smarty.agent.tools.base.TodoOperationResult
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -24,19 +23,16 @@ data class ToggleTodoArgs(
  */
 class ToggleTodoTool(
     private val repository: CogniRepository
-) : Tool<ToggleTodoArgs, TodoOperationResult>() {
-
-    override val argsSerializer: KSerializer<ToggleTodoArgs> = ToggleTodoArgs.serializer()
-    override val resultSerializer: KSerializer<TodoOperationResult> = TodoOperationResult.serializer()
-
-    override val name = "toggle_todo"
-
-    override val description = """
+) : Tool<ToggleTodoArgs, TodoOperationResult>(
+    argsSerializer = ToggleTodoArgs.serializer(),
+    resultSerializer = TodoOperationResult.serializer(),
+    name = "toggle_todo",
+    description = """
         Toggles a todo item's completion status (done/not done).
         Use when the user wants to mark a task as complete or incomplete.
         Private notes cannot be modified by AI.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: ToggleTodoArgs): TodoOperationResult {
         return try {
             val note = CogniToolUtils.getFreshAiAccessibleNote(repository, args.noteId)

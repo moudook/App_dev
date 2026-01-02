@@ -6,7 +6,6 @@ import com.example.smarty.agent.tools.base.CogniToolUtils
 import com.example.smarty.agent.tools.base.NoteOperationResult
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -25,20 +24,17 @@ class UnarchiveNoteTool(
     private val repository: CogniRepository,
     private val getArchivedNotes: () -> List<Note>,
     private val findNoteByDescription: suspend (String, List<Note>) -> Note?
-) : Tool<UnarchiveNoteArgs, NoteOperationResult>() {
-
-    override val argsSerializer: KSerializer<UnarchiveNoteArgs> = UnarchiveNoteArgs.serializer()
-    override val resultSerializer: KSerializer<NoteOperationResult> = NoteOperationResult.serializer()
-
-    override val name = "unarchive_note"
-
-    override val description = """
+) : Tool<UnarchiveNoteArgs, NoteOperationResult>(
+    argsSerializer = UnarchiveNoteArgs.serializer(),
+    resultSerializer = NoteOperationResult.serializer(),
+    name = "unarchive_note",
+    description = """
         Unarchives a note (restores from archive).
         Use when the user wants to restore an archived note.
         Can specify by noteId or description.
         Private notes cannot be unarchived by AI.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: UnarchiveNoteArgs): NoteOperationResult {
         return try {
             val noteToUnarchive = when {

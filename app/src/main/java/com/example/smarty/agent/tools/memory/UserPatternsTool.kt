@@ -7,7 +7,6 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import java.util.*
 
@@ -74,20 +73,17 @@ data class UserPatternsResult(
 class UserPatternsTool(
     private val getActiveNotes: () -> List<Note>,
     private val getCategories: () -> List<Category>
-) : Tool<UserPatternsArgs, UserPatternsResult>() {
-
-    override val argsSerializer: KSerializer<UserPatternsArgs> = UserPatternsArgs.serializer()
-    override val resultSerializer: KSerializer<UserPatternsResult> = UserPatternsResult.serializer()
-
-    override val name = "analyze_patterns"
-
-    override val description = """
+) : Tool<UserPatternsArgs, UserPatternsResult>(
+    argsSerializer = UserPatternsArgs.serializer(),
+    resultSerializer = UserPatternsResult.serializer(),
+    name = "analyze_patterns",
+    description = """
         Analyzes user's note-taking patterns to provide insights and personalized suggestions.
         Returns: top categories, activity trends, frequent topics, and actionable suggestions.
         Use to understand user habits, provide proactive help, or when user asks about their note organization.
         Analysis types: 'categories', 'activity', 'topics', 'all'.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: UserPatternsArgs): UserPatternsResult {
         val allNotes = getActiveNotes()
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(allNotes)

@@ -728,15 +728,33 @@ object AIResponseParser {
     // ==================== Validation Helpers ====================
 
     /**
-     * Validate that a category is in the allowed list.
-     * Returns "Note" if invalid.
+     * Validate and sanitize a category.
+     * Allows dynamic categories (Stacks) instead of restricting to a fixed list.
+     * Sanitizes input to ensure clean UI display (Title Case, max length, no special chars).
      *
      * @param category The category to validate
-     * @return Valid category or "Note" as fallback
+     * @return Validated category or "Note" as fallback
      */
     fun validateCategory(category: String?): String {
-        return if (category != null && category in VALID_CATEGORIES) {
-            category
+        if (category.isNullOrBlank()) return "Note"
+
+        // check if it is one of the standard categories (fast path)
+        val standardMatch = VALID_CATEGORIES.find { it.equals(category, ignoreCase = true) }
+        if (standardMatch != null) return standardMatch
+
+        // For dynamic categories:
+        // 1. Remove special chars (keep spaces/hyphens for multi-word stacks like "Side Project")
+        // 2. Limit length to prevent UI issues
+        // 3. Title Case
+        val clean = category.trim()
+            .replace(Regex("[^a-zA-Z0-9\\s\\-]"), "")
+            .take(20)
+
+        return if (clean.isNotEmpty()) {
+            // Capitalize first letter of each word
+            clean.split(" ").joinToString(" ") { word ->
+                word.lowercase().replaceFirstChar { it.uppercase() }
+            }
         } else {
             "Note"
         }

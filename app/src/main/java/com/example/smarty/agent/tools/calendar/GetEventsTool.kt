@@ -7,7 +7,6 @@ import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.toon.ToonManager
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
@@ -71,24 +70,21 @@ data class EventSummary(
  */
 class GetEventsTool(
     private val repository: CogniRepository
-) : Tool<GetEventsArgs, GetEventsResult>() {
-
-    companion object {
-        private const val TAG = "GetEventsTool"
-    }
-
-    override val argsSerializer: KSerializer<GetEventsArgs> = GetEventsArgs.serializer()
-    override val resultSerializer: KSerializer<GetEventsResult> = GetEventsResult.serializer()
-
-    override val name = "get_events"
-
-    override val description = """
+) : Tool<GetEventsArgs, GetEventsResult>(
+    argsSerializer = GetEventsArgs.serializer(),
+    resultSerializer = GetEventsResult.serializer(),
+    name = "get_events",
+    description = """
         Retrieves calendar events for the user.
         Use this to check what's on the user's calendar or find specific events.
         Time ranges: 'today', 'tomorrow', 'this_week', 'next_week', 'upcoming'
         Can also search by title/description with the query parameter.
         Note: Private events marked by user are never returned.
     """.trimIndent()
+) {
+    companion object {
+        private const val TAG = "GetEventsTool"
+    }
 
     override suspend fun execute(args: GetEventsArgs): GetEventsResult {
         Log.d(TAG, "Getting events: timeRange='${args.timeRange}', query='${args.query}', limit=${args.limit}")

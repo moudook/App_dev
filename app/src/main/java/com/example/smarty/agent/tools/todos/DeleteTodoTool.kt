@@ -7,7 +7,6 @@ import com.example.smarty.agent.tools.base.TodoOperationResult
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -24,19 +23,16 @@ data class DeleteTodoArgs(
  */
 class DeleteTodoTool(
     private val repository: CogniRepository
-) : Tool<DeleteTodoArgs, TodoOperationResult>() {
-
-    override val argsSerializer: KSerializer<DeleteTodoArgs> = DeleteTodoArgs.serializer()
-    override val resultSerializer: KSerializer<TodoOperationResult> = TodoOperationResult.serializer()
-
-    override val name = "delete_todo"
-
-    override val description = """
+) : Tool<DeleteTodoArgs, TodoOperationResult>(
+    argsSerializer = DeleteTodoArgs.serializer(),
+    resultSerializer = TodoOperationResult.serializer(),
+    name = "delete_todo",
+    description = """
         Deletes a todo item from a note.
         Use when the user wants to remove a task from a checklist.
         Private notes cannot be modified by AI.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: DeleteTodoArgs): TodoOperationResult {
         return try {
             val note = CogniToolUtils.getFreshAiAccessibleNote(repository, args.noteId)

@@ -69,6 +69,7 @@ import com.halilibo.richtext.ui.RichText
 import com.halilibo.richtext.ui.RichTextStyle
 import com.halilibo.richtext.ui.string.RichTextStringStyle
 import androidx.compose.animation.core.FastOutSlowInEasing
+import com.example.smarty.data.model.ClarificationRequest
 
 /**
  * Pre-compiled regex patterns for markdown parsing.
@@ -98,7 +99,8 @@ fun ChatMessageItem(
     modifier: Modifier = Modifier,
     getNote: (String) -> Note? = { null },
     onNoteClick: (Note) -> Unit = {},
-    onSuggestionClick: (String) -> Unit = {}
+    onSuggestionClick: (String) -> Unit = {},
+    onClarificationSubmit: (String) -> Unit = {}
 ) {
     val isUser = message.role == ChatRole.USER
     val accentColor = LocalAccentColor.current
@@ -301,6 +303,16 @@ fun ChatMessageItem(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
+                }
+
+                // Clarification request (Inside bubble)
+                message.clarificationRequest?.let { request ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ClarificationBubble(
+                        request = request,
+                        onSubmit = onClarificationSubmit,
+                        accentColor = accentColor
+                    )
                 }
             }
         }
@@ -798,6 +810,7 @@ private fun parseMarkdownToAnnotatedString(
 
         // Inline code: `code` - using pre-compiled pattern
         MarkdownPatterns.inlineCode.findAll(text).forEach { match ->
+            // Check if this overlaps with any bold or italic match
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(
@@ -806,7 +819,7 @@ private fun parseMarkdownToAnnotatedString(
                     style = SpanStyle(
                         color = codeColor,
                         fontFamily = FontFamily.Monospace,
-                        background = codeColor.copy(alpha = Alpha.soft)
+                        background = codeColor.copy(alpha = 0.1f)
                     )
                 ))
             }
@@ -814,6 +827,7 @@ private fun parseMarkdownToAnnotatedString(
 
         // Links: [text](url) - using pre-compiled pattern
         MarkdownPatterns.link.findAll(text).forEach { match ->
+            // Check overlaps
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(
@@ -845,7 +859,7 @@ private fun parseMarkdownToAnnotatedString(
             }
         }
 
-        // Sort matches by position
+        // Sort matches by start index to process sequentially
         val sortedMatches = matches.sortedBy { it.range.first }
 
         // Build the annotated string
@@ -877,6 +891,116 @@ private fun parseMarkdownToAnnotatedString(
         if (currentIndex < text.length) {
             withStyle(SpanStyle(color = normalColor)) {
                 append(text.substring(currentIndex))
+            }
+        }
+    }
+}
+
+/**
+ * Bubble for interactive clarification requests.
+ * Contains: Question, Option Chips, and Optional Text Input.
+ */
+@Composable
+private fun ClarificationBubble(
+    request: ClarificationRequest,
+    onSubmit: (String) -> Unit,
+    accentColor: Color
+) {
+    var customInput by remember { mutableStateOf("") }
+    var isSubmitted by remember { mutableStateOf(false) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Question Header
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Clarification Needed",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = accentColor
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = request.question,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Options list
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                request.options.forEach { option ->
+                    Surface(
+                        onClick = { 
+                            if (!isSubmitted) {
+                                isSubmitted = true
+                                onSubmit(option) 
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSubmitted) MaterialTheme.colorScheme.surfaceVariant else accentColor.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, if (isSubmitted) Color.Transparent else accentColor.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSubmitted
+                    ) {
+                        Text(
+                            text = option,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isSubmitted) MaterialTheme.colorScheme.onSurfaceVariant else accentColor,
+                            modifier = Modifier.padding(12.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            // Custom Input Field
+            if (request.allowCustomInput) {
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = customInput,
+                        onValueChange = { customInput = it },
+                        placeholder = { Text("Other...", fontSize = 14.sp) },
+                        modifier = Modifier.weight(1f),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isSubmitted,
+                        trailingIcon = {
+                            if (customInput.isNotBlank() && !isSubmitted) {
+                                androidx.compose.material3.IconButton(
+                                    onClick = {
+                                        isSubmitted = true
+                                        onSubmit(customInput)
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Submit",
+                                        tint = accentColor
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
             }
         }
     }

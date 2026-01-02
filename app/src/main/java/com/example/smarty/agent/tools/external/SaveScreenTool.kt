@@ -8,7 +8,6 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
@@ -35,18 +34,11 @@ data class SaveScreenArgs(
 class SaveScreenTool(
     private val repository: CogniRepository,
     private val getScreenContext: () -> ScreenContext?
-) : Tool<SaveScreenArgs, NoteOperationResult>() {
-
-    override val argsSerializer: KSerializer<SaveScreenArgs> = SaveScreenArgs.serializer()
-    override val resultSerializer: KSerializer<NoteOperationResult> = NoteOperationResult.serializer()
-
-    companion object {
-        private const val TAG = "SaveScreenTool"
-    }
-
-    override val name = "save_screen"
-
-    override val description = """
+) : Tool<SaveScreenArgs, NoteOperationResult>(
+    argsSerializer = SaveScreenArgs.serializer(),
+    resultSerializer = NoteOperationResult.serializer(),
+    name = "save_screen",
+    description = """
         Saves the current screen context as a note.
         Use when user wants to save/capture/remember what's on screen.
 
@@ -62,6 +54,10 @@ class SaveScreenTool(
         - Screen context description
         - Timestamp
     """.trimIndent()
+) {
+    companion object {
+        private const val TAG = "SaveScreenTool"
+    }
 
     override suspend fun execute(args: SaveScreenArgs): NoteOperationResult {
         Log.d(TAG, "Saving screen context")

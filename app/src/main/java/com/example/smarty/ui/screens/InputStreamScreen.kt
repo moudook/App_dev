@@ -140,6 +140,8 @@ fun InputStreamScreen(
     // @Mention parameters (Chat mode)
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },  // Returns updated text
+    // AI Planning Status (dynamic placeholder)
+    aiPlanStatus: String? = null,
     // Pending chat text (for "Ask AI" from note card)
     pendingChatText: String? = null,
     onClearPendingChatText: () -> Unit = {},
@@ -1420,6 +1422,7 @@ fun InputStreamScreen(
                         // The Actual Input Field with halftone shimmer inside
                         CogniInputField(
                             value = textValue,
+                            aiPlanStatus = aiPlanStatus,
                             onValueChange = { newTextValue ->
                                 // Cancel auto-send if user manually types
                                 if (autoSendActive) {

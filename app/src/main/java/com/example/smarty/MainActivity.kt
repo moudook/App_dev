@@ -250,6 +250,9 @@ class MainActivity : ComponentActivity() {
                 // @Mention autocomplete state
                 val mentionState by viewModel.mentionState.collectAsState()
                 val pendingChatText by viewModel.pendingChatText.collectAsState()
+                
+                // AI Planning Status (Progress UI)
+                val aiPlanStatus by viewModel.aiPlanStatus.collectAsState()
 
                 // AI exclusion state
                 val isAiExcluded by viewModel.pendingNoteAiExcluded.collectAsState()
@@ -587,6 +590,7 @@ class MainActivity : ComponentActivity() {
                                     isChatMode = isChatMode,
                                     chatMessages = chatMessages,
                                     isChatProcessing = isChatProcessing,
+                                    aiPlanStatus = aiPlanStatus,
                                     onSendChatMessage = { content, attachments ->
                                         viewModel.sendChatMessage(content, attachments)
                                     },

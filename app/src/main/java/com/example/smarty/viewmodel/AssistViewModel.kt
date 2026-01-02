@@ -172,6 +172,10 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             })
             Log.d(TAG, "Images found: ${images.size} images to display inline")
         }
+
+        override fun onPlanStatusChanged(status: String?) {
+            // Plan progress not displayed in assist mode
+        }
     }
 
     private val cogniAgent: CogniAgent by lazy {

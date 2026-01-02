@@ -5,7 +5,6 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -40,25 +39,22 @@ data class CreateEventArgs(
  */
 class CreateEventTool(
     private val repository: CogniRepository
-) : Tool<CreateEventArgs, CalendarOperationResult>() {
-
-    companion object {
-        private const val TAG = "CreateEventTool"
-        private const val DEFAULT_EVENT_DURATION_MS = 3600000L // 1 hour
-    }
-
-    override val argsSerializer: KSerializer<CreateEventArgs> = CreateEventArgs.serializer()
-    override val resultSerializer: KSerializer<CalendarOperationResult> = CalendarOperationResult.serializer()
-
-    override val name = "create_event"
-
-    override val description = """
+) : Tool<CreateEventArgs, CalendarOperationResult>(
+    argsSerializer = CreateEventArgs.serializer(),
+    resultSerializer = CalendarOperationResult.serializer(),
+    name = "create_event",
+    description = """
         Creates a new calendar event or meeting.
         Use this when the user wants to schedule a meeting, appointment, or event.
         Supports natural language time expressions like "tomorrow 2pm" or "next Monday at 10:00".
         Set isPrivate=true for sensitive events (medical, personal, confidential meetings).
         Private events are hidden from AI in future queries for user privacy.
     """.trimIndent()
+) {
+    companion object {
+        private const val TAG = "CreateEventTool"
+        private const val DEFAULT_EVENT_DURATION_MS = 3600000L // 1 hour
+    }
 
     override suspend fun execute(args: CreateEventArgs): CalendarOperationResult {
         Log.d(TAG, "Creating event: title='${args.title}', startTime='${args.startTime}', endTime='${args.endTime}'")

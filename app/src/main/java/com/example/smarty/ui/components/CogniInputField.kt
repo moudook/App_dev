@@ -164,6 +164,7 @@ fun CogniInputField(
     isChatMode: Boolean = false,
     isHistoryMode: Boolean = false, // New parameter
     chatPlaceholder: String = "Ask anything...",
+    aiPlanStatus: String? = null, // e.g. "Loum is planning..."
     isProcessing: Boolean = false,
     onOpenChatHistory: () -> Unit = {},
     onNewChat: () -> Unit = {}, // New parameter
@@ -224,6 +225,7 @@ fun CogniInputField(
     val currentPlaceholder = when {
         isVoiceListening -> "Listening..."
         isSearchMode -> "Search notes..."
+        !aiPlanStatus.isNullOrBlank() -> aiPlanStatus
         isChatMode -> chatPlaceholder
         else -> placeholder
     }

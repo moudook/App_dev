@@ -9,7 +9,6 @@ import com.example.smarty.agent.tools.base.NoteSearchResult
 import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.model.Note
 import com.example.smarty.util.search.SemanticSearchEngine
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -31,20 +30,17 @@ data class SearchNotesArgs(
  */
 class SearchNotesTool(
     private val getActiveNotes: () -> List<Note>
-) : Tool<SearchNotesArgs, NoteSearchResult>() {
-
-    override val argsSerializer: KSerializer<SearchNotesArgs> = SearchNotesArgs.serializer()
-    override val resultSerializer: KSerializer<NoteSearchResult> = NoteSearchResult.serializer()
-
-    override val name = "search_notes"
-
-    override val description = """
+) : Tool<SearchNotesArgs, NoteSearchResult>(
+    argsSerializer = SearchNotesArgs.serializer(),
+    resultSerializer = NoteSearchResult.serializer(),
+    name = "search_notes",
+    description = """
         Searches the user's notes by keyword or category using semantic/fuzzy matching.
         Understands variations like "meetings" matching "meeting notes" or "mtg".
         Use this to find relevant notes based on user queries.
         Private notes are automatically excluded from results.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: SearchNotesArgs): NoteSearchResult {
         // Check cache first to avoid duplicate searches
         val cacheKey = ToolResultCache.generateKey(name, "${args.query}|${args.category}")

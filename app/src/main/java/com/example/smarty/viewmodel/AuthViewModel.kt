@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.smarty.viewmodel
 
 import android.app.Application

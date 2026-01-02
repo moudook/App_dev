@@ -8,7 +8,6 @@ import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -25,19 +24,16 @@ data class AddTodosArgs(
  */
 class AddTodosTool(
     private val repository: CogniRepository
-) : Tool<AddTodosArgs, TodoOperationResult>() {
-
-    override val argsSerializer: KSerializer<AddTodosArgs> = AddTodosArgs.serializer()
-    override val resultSerializer: KSerializer<TodoOperationResult> = TodoOperationResult.serializer()
-
-    override val name = "add_todos"
-
-    override val description = """
+) : Tool<AddTodosArgs, TodoOperationResult>(
+    argsSerializer = AddTodosArgs.serializer(),
+    resultSerializer = TodoOperationResult.serializer(),
+    name = "add_todos",
+    description = """
         Adds todo/checklist items to an existing note.
         Use when the user wants to add tasks or checklist items to a note.
         Private notes cannot have todos added by AI.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: AddTodosArgs): TodoOperationResult {
         return try {
             if (args.todos.isEmpty()) {

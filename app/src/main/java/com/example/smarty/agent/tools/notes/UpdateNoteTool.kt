@@ -5,7 +5,6 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.agent.tools.base.CogniToolUtils
 import com.example.smarty.agent.tools.base.NoteOperationResult
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -26,19 +25,16 @@ data class UpdateNoteArgs(
  */
 class UpdateNoteTool(
     private val repository: CogniRepository
-) : Tool<UpdateNoteArgs, NoteOperationResult>() {
-
-    override val argsSerializer: KSerializer<UpdateNoteArgs> = UpdateNoteArgs.serializer()
-    override val resultSerializer: KSerializer<NoteOperationResult> = NoteOperationResult.serializer()
-
-    override val name = "update_note"
-
-    override val description = """
+) : Tool<UpdateNoteArgs, NoteOperationResult>(
+    argsSerializer = UpdateNoteArgs.serializer(),
+    resultSerializer = NoteOperationResult.serializer(),
+    name = "update_note",
+    description = """
         Updates an existing note's title, content, or category.
         Use when the user wants to modify a note.
         Private notes cannot be updated.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: UpdateNoteArgs): NoteOperationResult {
         return try {
             val note = CogniToolUtils.getFreshAiAccessibleNote(repository, args.noteId)

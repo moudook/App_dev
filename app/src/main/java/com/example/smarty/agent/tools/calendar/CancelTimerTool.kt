@@ -4,7 +4,6 @@ import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
 import com.example.smarty.service.AlarmScheduler
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -22,22 +21,19 @@ data class CancelTimerArgs(
  */
 class CancelTimerTool(
     private val alarmScheduler: AlarmScheduler
-) : Tool<CancelTimerArgs, TimerOperationResult>() {
-
-    companion object {
-        private const val TAG = "CancelTimerTool"
-    }
-
-    override val argsSerializer: KSerializer<CancelTimerArgs> = CancelTimerArgs.serializer()
-    override val resultSerializer: KSerializer<TimerOperationResult> = TimerOperationResult.serializer()
-
-    override val name = "cancel_timer"
-
-    override val description = """
+) : Tool<CancelTimerArgs, TimerOperationResult>(
+    argsSerializer = CancelTimerArgs.serializer(),
+    resultSerializer = TimerOperationResult.serializer(),
+    name = "cancel_timer",
+    description = """
         Cancels a scheduled timer or alarm.
         Can cancel by timer ID or by name.
         Use this when the user wants to cancel, stop, or remove a timer/alarm.
     """.trimIndent()
+) {
+    companion object {
+        private const val TAG = "CancelTimerTool"
+    }
 
     override suspend fun execute(args: CancelTimerArgs): TimerOperationResult {
         Log.d(TAG, "Cancelling timer: timerId='${args.timerId}', name='${args.name}'")

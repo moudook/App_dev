@@ -8,7 +8,6 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.toon.ToonManager
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -65,14 +64,11 @@ data class GetRecentNotesResult(
  */
 class GetRecentNotesTool(
     private val getActiveNotes: () -> List<Note>
-) : Tool<GetRecentNotesArgs, GetRecentNotesResult>() {
-
-    override val argsSerializer: KSerializer<GetRecentNotesArgs> = GetRecentNotesArgs.serializer()
-    override val resultSerializer: KSerializer<GetRecentNotesResult> = GetRecentNotesResult.serializer()
-
-    override val name = "get_recent_notes"
-
-    override val description = """
+) : Tool<GetRecentNotesArgs, GetRecentNotesResult>(
+    argsSerializer = GetRecentNotesArgs.serializer(),
+    resultSerializer = GetRecentNotesResult.serializer(),
+    name = "get_recent_notes",
+    description = """
         MUST USE THIS TOOL when user asks for "latest", "most recent", "newest" notes.
         Gets notes sorted by creation time (newest first).
 
@@ -84,7 +80,7 @@ class GetRecentNotesTool(
 
         DO NOT use search_notes for "latest" queries - use THIS tool instead!
     """.trimIndent()
-
+) {
     override suspend fun execute(args: GetRecentNotesArgs): GetRecentNotesResult {
         return try {
             val allNotes = PrivacyGuard.getAiVisibleNotes(getActiveNotes())

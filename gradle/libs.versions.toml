@@ -29,7 +29,7 @@ paging = "3.3.5"
 pdfboxAndroid = "2.0.27.0"
 media3 = "1.5.1"
 # Koog AI Agent Framework
-koog = "0.5.4"
+koog = "0.6.0"
 kotlinxCoroutines = "1.10.2"
 kotlinxSerialization = "1.8.1"
 ktor = "3.0.0"
@@ -86,6 +86,7 @@ androidx-media3-session = { group = "androidx.media3", name = "media3-session", 
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 # Koog AI Agent Framework
 koog-agents = { group = "ai.koog", name = "koog-agents", version.ref = "koog" }
+koog-agents-planner = { group = "ai.koog", name = "agents-planner", version.ref = "koog" }
 koog-executor-google = { group = "ai.koog", name = "prompt-executor-google-client", version.ref = "koog" }
 koog-executor-anthropic = { group = "ai.koog", name = "prompt-executor-anthropic-client", version.ref = "koog" }
 koog-executor-openai = { group = "ai.koog", name = "prompt-executor-openai-client", version.ref = "koog" }

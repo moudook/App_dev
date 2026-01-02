@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.smarty.viewmodel
 
 import android.app.Application
@@ -41,6 +42,7 @@ import com.example.smarty.agent.CogniAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.data.model.InlineChatImage
 import com.example.smarty.data.remote.providers.TavilySearchProvider
+import com.example.smarty.data.model.ClarificationRequest
 
 import com.example.smarty.ui.components.PendingShareData
 import com.google.gson.Gson
@@ -256,6 +258,14 @@ class CogniViewModel(
     /** Current cursor position in chat input (for mention detection) */
     private var chatInputCursorPosition: Int = 0
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PLAN PROGRESS UI STATE
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** Current AI plan status (e.g., "Step 2/5: Searching for recipes...") */
+    private val _aiPlanStatus = MutableStateFlow<String?>(null)
+    val aiPlanStatus: StateFlow<String?> = _aiPlanStatus.asStateFlow()
+
     // GROQ key usage stats exposed for UI - lazy
     val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
 
@@ -386,6 +396,10 @@ class CogniViewModel(
                 InlineChatImage(uri = it.uri, fileName = it.fileName, noteTitle = it.noteTitle)
             })
             Log.d(TAG, "Images found: ${images.size} images to display inline")
+        }
+        
+        override fun onPlanStatusChanged(status: String?) {
+            _aiPlanStatus.value = status
         }
     }
 
@@ -1245,6 +1259,12 @@ class CogniViewModel(
                         val primaryOriginal = attachments[0]
                         val type = detectTypeFromMime(primaryOriginal.mimeType)
 
+                        val title = when {
+                            content.isNotBlank() -> extractTitle(content, type)
+                            attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
+                            else -> primaryOriginal.fileName
+                        }
+
                         val tempAttachments = attachments.map {
                             NoteAttachment(
                                 uri = it.uri.toString(),
@@ -1252,12 +1272,6 @@ class CogniViewModel(
                                 mimeType = it.mimeType,
                                 fileSize = it.fileSize
                             )
-                        }
-
-                        val title = when {
-                            content.isNotBlank() -> extractTitle(content, type)
-                            attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
-                            else -> primaryOriginal.fileName
                         }
 
                         val initialContent = if (content.isNotBlank()) {
@@ -1477,6 +1491,122 @@ class CogniViewModel(
             // BUG FIX (Issue #18): Log errors instead of silent failure
             Log.e(TAG, "Failed to extract suggestions from response: ${e.message}", e)
             return Pair(response.trim(), emptyList())
+        }
+    }
+
+    /**
+     * Parsing of Clarification Request from AI response.
+     * Expected format: {clarification:{question:"...",options:["A","B"],custom:true}}
+     */
+    private fun extractClarificationFromResponse(response: String): Pair<String, com.example.smarty.data.model.ClarificationRequest?> {
+        try {
+            // Pattern: {clarification:{...}}
+            val pattern = Regex("""\{clarification:\s*\{(.*?)\}\}""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            val match: kotlin.text.MatchResult = pattern.find(response) ?: return Pair(response, null)
+            
+            val content = match.groupValues.get(1)
+            
+            // Extract question
+            val questionMatch = Regex("""question:\s*["'](.*?)["']""").find(content)
+            val question = questionMatch?.groupValues?.get(1) ?: return Pair(response, null)
+            
+            // Extract options
+            val optionsMatch = Regex("""options:\s*\[(.*?)\]""").find(content)
+            val optionsStr = optionsMatch?.groupValues?.get(1) ?: ""
+            val options = optionsStr.split(",")
+                .map { it.trim().trim('"', '\'') }
+                .filter { it.isNotBlank() }
+            
+            // Extract custom input flag
+            val customMatch = Regex("""custom:\s*(true|false)""").find(content)
+            val allowCustomString = customMatch?.groupValues?.get(1)
+            val allowCustom = allowCustomString?.toBoolean() ?: true
+            
+            val request = ClarificationRequest(
+                question = question,
+                options = options,
+                allowCustomInput = allowCustom
+            )
+            
+            // Clean response
+            val matchValue = match.value
+            val cleanedResponse = response.replace(matchValue, "").trim()
+            
+            Log.d(TAG, "Extracted Clarification Request: $question")
+            return Pair(cleanedResponse, request)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing clarification request", e)
+            return Pair(response, null)
+        }
+    }
+
+    /**
+     * Filter out internal planning text from AI responses.
+     * The planning system is for internal AI task management - users should only see final results.
+     * 
+     * @param response The raw AI response
+     * @return Cleaned response with planning text removed, or null if this is purely a planning message
+     */
+    private fun filterPlanningText(response: String): String? {
+        val trimmed = response.trim()
+        
+        // Patterns that indicate this is internal planning text (should be hidden)
+        val planningPatterns = listOf(
+            "=== CURRENT EXECUTION PLAN ===",
+            "IMMEDIATE ACTION:",
+            "NEXT ACTION:",
+            "Step 1/",
+            "Step 2/",
+            "Step 3/",
+            "Step 4/",
+            "Step 5/",
+            "Step 6/",
+            "Step 7/",
+            "Execute this now",
+            "Executing step",
+            "I'm starting by",
+            "Now executing",
+            "I'll start by",
+            "First, I'll",
+            "I'm now going to",
+            "Proceeding with step"
+        )
+        
+        // Check if the response is primarily planning text
+        val isPlanningMessage = planningPatterns.any { pattern ->
+            trimmed.contains(pattern, ignoreCase = true)
+        }
+        
+        if (isPlanningMessage) {
+            Log.d(TAG, "Filtering out planning text: ${trimmed.take(50)}...")
+            
+            // If the response is ONLY planning text, return null to skip this message entirely
+            // This happens during intermediate plan steps
+            val linesWithoutPlanning = trimmed.lines().filter { line ->
+                !planningPatterns.any { pattern -> line.contains(pattern, ignoreCase = true) }
+            }.joinToString("\n").trim()
+            
+            return if (linesWithoutPlanning.isBlank() || linesWithoutPlanning.length < 20) {
+                null // Skip this message entirely - it's just planning
+            } else {
+                linesWithoutPlanning // Return the non-planning part
+            }
+        }
+        
+        return response // No planning text detected, return as-is
+    }
+    
+    /**
+     * Submit user response to a clarification request.
+     * Treats the response as a user message.
+     */
+    fun submitClarification(response: String) {
+        if (response.isBlank()) return
+        
+        viewModelScope.launch {
+            // Add as user message and trigger agent
+            sendChatMessage(response)
         }
     }
 
@@ -3463,6 +3593,15 @@ class CogniViewModel(
                     is AgentResult.Success -> {
                         Log.d(TAG, "Agent completed successfully via ${result.provider}")
 
+                        // Filter out internal planning text - users should only see final results
+                        val filteredResponse = filterPlanningText(result.response)
+                        
+                        // Skip this message entirely if it's purely planning text
+                        if (filteredResponse == null) {
+                            Log.d(TAG, "Skipping planning-only message")
+                            return@launch // Don't add a chat bubble for planning steps
+                        }
+
                         // Detect if this was an audio-related query
                         val isAudioQuery = content.lowercase().let {
                             it.contains("play") || it.contains("music") || it.contains("audio") ||
@@ -3470,7 +3609,10 @@ class CogniViewModel(
                         }
 
                         // Extract suggestions from TOON format: {suggestions:["a","b"]}
-                        val (cleanedResponse, suggestions) = extractSuggestionsFromResponse(result.response)
+                        val (responseWithoutSuggestions, suggestions) = extractSuggestionsFromResponse(filteredResponse)
+                        
+                        // Extract clarification request from TOON format
+                        val (cleanedResponse, clarificationRequest) = extractClarificationFromResponse(responseWithoutSuggestions)
 
                         // Convert WebCitation to Citation for the message
                         val citations = pendingCitations.map { wc ->
@@ -3490,7 +3632,8 @@ class CogniViewModel(
                             suggestions = suggestions,
                             isError = false,
                             citations = citations,
-                            inlineImages = inlineImages
+                            inlineImages = inlineImages,
+                            clarificationRequest = clarificationRequest
                         )
 
                         chatManager.addAssistantMessage(assistantMessage)
@@ -3510,6 +3653,7 @@ class CogniViewModel(
                             )
                         }
                     }
+
 
                     is AgentResult.Error -> {
                         Log.e(TAG, "Agent error: ${result.message}")

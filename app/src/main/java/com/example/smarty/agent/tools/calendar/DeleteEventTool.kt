@@ -4,7 +4,6 @@ import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -22,22 +21,19 @@ data class DeleteEventArgs(
  */
 class DeleteEventTool(
     private val repository: CogniRepository
-) : Tool<DeleteEventArgs, CalendarOperationResult>() {
-
-    companion object {
-        private const val TAG = "DeleteEventTool"
-    }
-
-    override val argsSerializer: KSerializer<DeleteEventArgs> = DeleteEventArgs.serializer()
-    override val resultSerializer: KSerializer<CalendarOperationResult> = CalendarOperationResult.serializer()
-
-    override val name = "delete_event"
-
-    override val description = """
+) : Tool<DeleteEventArgs, CalendarOperationResult>(
+    argsSerializer = DeleteEventArgs.serializer(),
+    resultSerializer = CalendarOperationResult.serializer(),
+    name = "delete_event",
+    description = """
         Deletes a calendar event.
         Can delete by event ID or by searching for the event title.
         Use this when the user wants to cancel or remove a meeting/event.
     """.trimIndent()
+) {
+    companion object {
+        private const val TAG = "DeleteEventTool"
+    }
 
     override suspend fun execute(args: DeleteEventArgs): CalendarOperationResult {
         Log.d(TAG, "Deleting event: eventId='${args.eventId}', query='${args.query}'")

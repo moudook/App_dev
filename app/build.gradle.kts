@@ -140,6 +140,7 @@ dependencies {
 
     // Koog AI Agent Framework
     implementation(libs.koog.agents)
+    implementation(libs.koog.agents.planner)
     implementation(libs.koog.executor.google)
     implementation(libs.koog.executor.anthropic)
     implementation(libs.koog.executor.openai)

@@ -9,7 +9,6 @@ import com.example.smarty.data.model.getAttachments
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.search.SemanticSearchEngine
 import com.example.smarty.util.toon.ToonManager
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -53,24 +52,22 @@ data class SearchAudioResult(
  */
 class SearchAudioNotesTool(
     private val getActiveNotes: () -> List<Note>
-) : Tool<SearchAudioArgs, SearchAudioResult>() {
-
-    override val argsSerializer: KSerializer<SearchAudioArgs> = SearchAudioArgs.serializer()
-    override val resultSerializer: KSerializer<SearchAudioResult> = SearchAudioResult.serializer()
-
-    companion object {
-        private const val TAG = "SearchAudioNotesTool"
-    }
-
-    override val name = "search_audio_notes"
-
-    override val description = """
+) : Tool<SearchAudioArgs, SearchAudioResult>(
+    argsSerializer = SearchAudioArgs.serializer(),
+    resultSerializer = SearchAudioResult.serializer(),
+    name = "search_audio_notes",
+    description = """
         Search for notes containing audio files (music, podcasts, recordings).
         Use this to find audio content before playing.
         Returns notes with audio attachments or AUDIO type.
         Example: "find my music" → search_audio_notes(query="music")
         Example: "what audio do I have?" → search_audio_notes()
     """.trimIndent()
+) {
+
+    companion object {
+        private const val TAG = "SearchAudioNotesTool"
+    }
 
     override suspend fun execute(args: SearchAudioArgs): SearchAudioResult {
         return try {
@@ -194,23 +191,21 @@ data class SearchImageResult(
  */
 class SearchImageNotesTool(
     private val getActiveNotes: () -> List<Note>
-) : Tool<SearchImageArgs, SearchImageResult>() {
-
-    override val argsSerializer: KSerializer<SearchImageArgs> = SearchImageArgs.serializer()
-    override val resultSerializer: KSerializer<SearchImageResult> = SearchImageResult.serializer()
-
-    companion object {
-        private const val TAG = "SearchImageNotesTool"
-    }
-
-    override val name = "search_image_notes"
-
-    override val description = """
+) : Tool<SearchImageArgs, SearchImageResult>(
+    argsSerializer = SearchImageArgs.serializer(),
+    resultSerializer = SearchImageResult.serializer(),
+    name = "search_image_notes",
+    description = """
         Search for notes containing images (photos, screenshots, graphics).
         Returns notes with image attachments or IMAGE type.
         Example: "find my photos" → search_image_notes(query="photos")
         Example: "show my images" → search_image_notes()
     """.trimIndent()
+) {
+
+    companion object {
+        private const val TAG = "SearchImageNotesTool"
+    }
 
     override suspend fun execute(args: SearchImageArgs): SearchImageResult {
         return try {
@@ -335,10 +330,16 @@ data class SearchDocumentResult(
  */
 class SearchDocumentNotesTool(
     private val getActiveNotes: () -> List<Note>
-) : Tool<SearchDocumentArgs, SearchDocumentResult>() {
-
-    override val argsSerializer: KSerializer<SearchDocumentArgs> = SearchDocumentArgs.serializer()
-    override val resultSerializer: KSerializer<SearchDocumentResult> = SearchDocumentResult.serializer()
+) : Tool<SearchDocumentArgs, SearchDocumentResult>(
+    argsSerializer = SearchDocumentArgs.serializer(),
+    resultSerializer = SearchDocumentResult.serializer(),
+    name = "search_document_notes",
+    description = """
+        Search for notes containing documents (PDFs, Word docs, spreadsheets, etc).
+        Example: "find my PDFs" → search_document_notes(query="pdf")
+        Example: "show my documents" → search_document_notes()
+    """.trimIndent()
+) {
 
     companion object {
         private const val TAG = "SearchDocumentNotesTool"
@@ -353,14 +354,6 @@ class SearchDocumentNotesTool(
             "text/csv"
         )
     }
-
-    override val name = "search_document_notes"
-
-    override val description = """
-        Search for notes containing documents (PDFs, Word docs, spreadsheets, etc).
-        Example: "find my PDFs" → search_document_notes(query="pdf")
-        Example: "show my documents" → search_document_notes()
-    """.trimIndent()
 
     override suspend fun execute(args: SearchDocumentArgs): SearchDocumentResult {
         return try {

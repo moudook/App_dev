@@ -87,7 +87,7 @@ class TavilySearchProvider(
         val maxResults: Int = 5,                // 0-20, default 5
         @SerializedName("include_answer")
         val includeAnswer: Boolean = true,      // Get AI summary
-        val topic: String = "general"           // general, news, finance
+        val topic: String = "general"           // general, news, finance (NOT research/code)
     )
 
     /**
@@ -179,14 +179,25 @@ class TavilySearchProvider(
                     answer = null,
                     results = emptyList(),
                     error = when (httpResponse.code) {
-                        401 -> "Invalid Tavily API key. Please check your settings."
+                    401 -> "Invalid Tavily API key. Please check your settings."
                         429 -> "Rate limit exceeded. Please try again later."
+                        400 -> "Invalid search parameters. Please check topic or query."
                         else -> "Search failed: ${httpResponse.code}"
                     }
                 )
             }
 
             val tavilyResponse = gson.fromJson(responseBody, TavilyResponse::class.java)
+
+            if (tavilyResponse == null) {
+                Log.e(TAG, "Failed to parse Tavily response body")
+                return@withContext SearchResponse(
+                    success = false,
+                    answer = null,
+                    results = emptyList(),
+                    error = "Invalid response from search service"
+                )
+            }
 
             val results = tavilyResponse.results?.mapNotNull { result ->
                 if (result.title != null && result.url != null && result.content != null) {

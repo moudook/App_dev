@@ -10,7 +10,6 @@ import com.example.smarty.data.model.getAttachments
 import com.example.smarty.data.model.getTags
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.search.SemanticSearchEngine
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -32,11 +31,25 @@ data class PlayAudioArgs(
 class PlayAudioTool(
     private val getActiveNotes: () -> List<Note>,
     private val onPlayAudio: (AudioTrack) -> Unit
-) : Tool<PlayAudioArgs, AudioPlaybackResult>() {
+) : Tool<PlayAudioArgs, AudioPlaybackResult>(
+    argsSerializer = PlayAudioArgs.serializer(),
+    resultSerializer = AudioPlaybackResult.serializer(),
+    name = "play_audio",
+    description = """
+        MUST USE THIS TOOL when user says: "play", "play music", "play audio", "play song", "play podcast".
+        Searches and plays audio files attached to user's notes.
 
-    override val argsSerializer: KSerializer<PlayAudioArgs> = PlayAudioArgs.serializer()
-    override val resultSerializer: KSerializer<AudioPlaybackResult> = AudioPlaybackResult.serializer()
+        ROBUST SEARCH: Searches across filename, note title, tags, summary, category, and content.
+        Uses fuzzy matching - can find audio even with partial or similar names.
 
+        Required: query parameter with search term.
+        Examples:
+        - User says "play jazz" → query="jazz"
+        - User says "play my podcast" → query="podcast"
+        - User says "play pretty little baby" → query="pretty little baby"
+        - User says "play that song I tagged as workout" → query="workout"
+    """.trimIndent()
+) {
     companion object {
         private const val TAG = "PlayAudioTool"
 
@@ -66,23 +79,6 @@ class PlayAudioTool(
         Log.d(TAG, "Cleaned query: '$query' → '$result'")
         return result.ifEmpty { query.lowercase().trim() }
     }
-
-    override val name = "play_audio"
-
-    override val description = """
-        MUST USE THIS TOOL when user says: "play", "play music", "play audio", "play song", "play podcast".
-        Searches and plays audio files attached to user's notes.
-
-        ROBUST SEARCH: Searches across filename, note title, tags, summary, category, and content.
-        Uses fuzzy matching - can find audio even with partial or similar names.
-
-        Required: query parameter with search term.
-        Examples:
-        - User says "play jazz" → query="jazz"
-        - User says "play my podcast" → query="podcast"
-        - User says "play pretty little baby" → query="pretty little baby"
-        - User says "play that song I tagged as workout" → query="workout"
-    """.trimIndent()
 
     override suspend fun execute(args: PlayAudioArgs): AudioPlaybackResult {
         // BUG FIX (ISSUE 3): Add explicit entry point logging

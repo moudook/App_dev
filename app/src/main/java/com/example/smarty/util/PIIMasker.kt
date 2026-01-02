@@ -140,6 +140,7 @@ object PIIMasker : ComponentCallbacks2 {
     @Deprecated("Deprecated in Java")
     override fun onConfigurationChanged(newConfig: Configuration) {}
 
+    @Deprecated("Deprecated in Java")
     override fun onLowMemory() {
         Log.d("PIIMasker", "Low memory warning - clearing placeholder map")
         clearSession()

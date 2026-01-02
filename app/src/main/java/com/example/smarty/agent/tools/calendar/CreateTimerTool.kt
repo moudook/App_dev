@@ -6,7 +6,6 @@ import android.util.Log
 import com.example.smarty.data.model.CogniTimer
 import com.example.smarty.service.AlarmScheduler
 import com.google.gson.Gson
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -33,24 +32,21 @@ data class CreateTimerArgs(
  */
 class CreateTimerTool(
     private val alarmScheduler: AlarmScheduler
-) : Tool<CreateTimerArgs, TimerOperationResult>() {
-
+) : Tool<CreateTimerArgs, TimerOperationResult>(
+    argsSerializer = CreateTimerArgs.serializer(),
+    resultSerializer = TimerOperationResult.serializer(),
+    name = "create_timer",
+    description = """
+        Creates a timer or alarm that will play audio for 5 seconds when triggered.
+        Supports one-time timers ("in 5 minutes", "at 3 PM") and recurring alarms on specific days.
+        Use this when the user wants to set a reminder, alarm, or timer.
+    """.trimIndent()
+) {
     companion object {
         private const val TAG = "CreateTimerTool"
     }
 
     private val gson = Gson()
-
-    override val argsSerializer: KSerializer<CreateTimerArgs> = CreateTimerArgs.serializer()
-    override val resultSerializer: KSerializer<TimerOperationResult> = TimerOperationResult.serializer()
-
-    override val name = "create_timer"
-
-    override val description = """
-        Creates a timer or alarm that will play audio for 5 seconds when triggered.
-        Supports one-time timers ("in 5 minutes", "at 3 PM") and recurring alarms on specific days.
-        Use this when the user wants to set a reminder, alarm, or timer.
-    """.trimIndent()
 
     override suspend fun execute(args: CreateTimerArgs): TimerOperationResult {
         Log.d(TAG, "Creating timer: name='${args.name}', triggerTime='${args.triggerTime}', isAlarm=${args.isAlarm}")

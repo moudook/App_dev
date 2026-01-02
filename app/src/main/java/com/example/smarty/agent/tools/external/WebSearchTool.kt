@@ -6,7 +6,6 @@ import android.util.Log
 import com.example.smarty.agent.tools.base.WebResult
 import com.example.smarty.agent.tools.base.WebSearchResult
 import com.example.smarty.data.remote.providers.TavilySearchProvider
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -15,7 +14,7 @@ data class WebSearchArgs(
     val query: String,
     @property:LLMDescription("Brief explanation of why this search is needed")
     val reason: String,
-    @property:LLMDescription("Topic category: 'general', 'news', 'research', or 'code'")
+    @property:LLMDescription("Topic category: 'general', 'news', or 'finance'")
     val topic: String = "general",
     @property:LLMDescription("Maximum number of results to return (1-10)")
     val maxResults: Int = 5
@@ -38,11 +37,17 @@ class WebSearchTool(
     private val tavilySearchProvider: TavilySearchProvider,
     private val getApiKey: () -> String?,
     private val onCitationsFound: ((List<SearchCitation>) -> Unit)? = null
-) : Tool<WebSearchArgs, WebSearchResult>() {
-
-    override val argsSerializer: KSerializer<WebSearchArgs> = WebSearchArgs.serializer()
-    override val resultSerializer: KSerializer<WebSearchResult> = WebSearchResult.serializer()
-
+) : Tool<WebSearchArgs, WebSearchResult>(
+    argsSerializer = WebSearchArgs.serializer(),
+    resultSerializer = WebSearchResult.serializer(),
+    name = "web_search",
+    description = """
+        Searches the internet for real-time information.
+        Use for queries about current events, facts, weather, news,
+        or any information not in your knowledge base.
+        Provide a reason explaining why search is needed.
+    """.trimIndent()
+) {
     companion object {
         private const val TAG = "WebSearchTool"
         private const val TAVILY_RATE_KEY = "tavily_search"
@@ -55,15 +60,6 @@ class WebSearchTool(
         private var dailyCallCount = 0
         private var lastResetDay = 0L
     }
-
-    override val name = "web_search"
-
-    override val description = """
-        Searches the internet for real-time information.
-        Use for queries about current events, facts, weather, news,
-        or any information not in your knowledge base.
-        Provide a reason explaining why search is needed.
-    """.trimIndent()
 
     private fun checkRateLimit(): Boolean {
         val today = System.currentTimeMillis() / (24 * 60 * 60 * 1000)

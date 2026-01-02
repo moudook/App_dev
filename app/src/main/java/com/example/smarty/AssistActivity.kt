@@ -253,6 +253,10 @@ class AssistActivity : ComponentActivity() {
             // AssistActivity doesn't display images inline - this is handled by AssistViewModel
             Log.d(TAG, "Images found: ${images.size} (not displayed in overlay mode)")
         }
+
+        override fun onPlanStatusChanged(status: String?) {
+            // Plan progress not shown in overlay mode
+        }
     }
 
     // Screen context captured when assistant is triggered

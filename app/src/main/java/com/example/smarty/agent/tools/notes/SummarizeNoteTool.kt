@@ -5,7 +5,6 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.agent.tools.base.CogniToolUtils
 import com.example.smarty.agent.tools.base.SummarizeResult
 import com.example.smarty.data.repository.CogniRepository
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -21,19 +20,16 @@ data class SummarizeNoteArgs(
  */
 class SummarizeNoteTool(
     private val repository: CogniRepository
-) : Tool<SummarizeNoteArgs, SummarizeResult>() {
-
-    override val argsSerializer: KSerializer<SummarizeNoteArgs> = SummarizeNoteArgs.serializer()
-    override val resultSerializer: KSerializer<SummarizeResult> = SummarizeResult.serializer()
-
-    override val name = "summarize_note"
-
-    override val description = """
+) : Tool<SummarizeNoteArgs, SummarizeResult>(
+    argsSerializer = SummarizeNoteArgs.serializer(),
+    resultSerializer = SummarizeResult.serializer(),
+    name = "summarize_note",
+    description = """
         Gets a note's content for summarization or detailed review.
         Use when the user asks to summarize, explain, or read a specific note.
         Private notes cannot be accessed.
     """.trimIndent()
-
+) {
     override suspend fun execute(args: SummarizeNoteArgs): SummarizeResult {
         return try {
             val note = CogniToolUtils.getFreshAiAccessibleNote(repository, args.noteId)
