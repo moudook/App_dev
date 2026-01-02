@@ -17,6 +17,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -69,6 +70,7 @@ class NoteProcessingQueueManager(
     sealed class NoteProcessingEvent {
         data class Retry(val noteId: String, val attempt: Int) : NoteProcessingEvent()
         data class Failed(val noteId: String, val reason: String) : NoteProcessingEvent()
+        data class Completed(val noteId: String, val noteTitle: String?) : NoteProcessingEvent()
     }
 
     // Queue state (thread-safe)
@@ -76,8 +78,8 @@ class NoteProcessingQueueManager(
     private val isProcessing = AtomicBoolean(false)
     private var queueJob: Job? = null
 
-    // Retry tracking for timed-out notes
-    private val retryCount = mutableMapOf<String, Int>()
+    // Retry tracking for timed-out notes (thread-safe: accessed from multiple coroutines)
+    private val retryCount = ConcurrentHashMap<String, Int>()
 
     // Observable state
     private val _pendingCount = MutableStateFlow(0)
@@ -215,6 +217,19 @@ class NoteProcessingQueueManager(
     }
 
     /**
+     * Called when a provider becomes available (API key added, provider enabled, etc.)
+     * Triggers immediate queue processing instead of waiting for next poll cycle.
+     */
+    fun onProviderAvailable() {
+        Log.d(TAG, "Provider became available, triggering immediate queue processing")
+        scope.launch(Dispatchers.IO) {
+            // Small delay to let provider config settle
+            delay(500)
+            processQueue()
+        }
+    }
+
+    /**
      * Process pending notes in the queue.
      */
     private suspend fun processQueue() {
@@ -292,6 +307,9 @@ class NoteProcessingQueueManager(
 
                 noteDao.updateNote(updatedNote)
                 Log.d(TAG, "Note processed successfully: ${note.id}")
+
+                // Emit completion event for sound notification
+                _processingEvents.emit(NoteProcessingEvent.Completed(note.id, result.title))
                 true
             } else {
                 // AI failed - save with default category
@@ -357,17 +375,22 @@ class NoteProcessingQueueManager(
      * Save note with default category (used when AI fails or times out).
      */
     private suspend fun saveWithDefaultCategory(note: Note) {
-        val categoryName = ContentTypeDetector.getStorageCategoryName(note.type)
+        // Use smart keyword-based categorization instead of just type-based "Saved Files"
+        val fallbackResponse = com.example.smarty.data.remote.AIResponseParser.smartFallbackCategorization(note.content)
+        val categoryName = fallbackResponse.category
         val category = repository.getOrCreateCategory(categoryName)
 
         val updatedNote = note.copy(
             categoryId = category.id,
             categoryName = category.name,
+            summary = fallbackResponse.summary.takeIf { it.isNotBlank() },
+            whySaved = fallbackResponse.whySaved.takeIf { it.isNotBlank() },
             processingStatus = ProcessingStatus.COMPLETED,
             updatedAt = System.currentTimeMillis()
         )
 
         noteDao.updateNote(updatedNote)
+        Log.d(TAG, "Saved note ${note.id} with smart fallback category: $categoryName")
     }
 
     /**

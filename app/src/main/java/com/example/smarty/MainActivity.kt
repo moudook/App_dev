@@ -12,7 +12,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.animation.Crossfade
@@ -55,9 +54,6 @@ import com.example.smarty.ui.screens.VoiceEnrollmentScreen
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.voice.speaker.SpeakerEmbeddingManager
 import com.example.smarty.voice.speaker.VoiceEnrollmentManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 
 class MainActivity : ComponentActivity() {
     // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
@@ -70,12 +66,12 @@ class MainActivity : ComponentActivity() {
     private val audioPlayerViewModel: AudioPlayerViewModel by viewModels()
 
     // Voice enrollment manager for first-time setup
-    private val enrollmentScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // FIX: Use lifecycleScope instead of custom scope to prevent Activity context leaks
     private val speakerEmbeddingManager by lazy {
         SpeakerEmbeddingManager(applicationContext)
     }
     private val voiceEnrollmentManager by lazy {
-        VoiceEnrollmentManager(applicationContext, enrollmentScope)
+        VoiceEnrollmentManager(applicationContext, lifecycleScope)
     }
 
     // Track mic permission state for enrollment check
@@ -251,6 +247,10 @@ class MainActivity : ComponentActivity() {
                 val chatSessions by viewModel.chatSessions.collectAsState()
                 val currentSessionId by viewModel.currentSessionId.collectAsState()
 
+                // @Mention autocomplete state
+                val mentionState by viewModel.mentionState.collectAsState()
+                val pendingChatText by viewModel.pendingChatText.collectAsState()
+
                 // AI exclusion state
                 val isAiExcluded by viewModel.pendingNoteAiExcluded.collectAsState()
 
@@ -281,11 +281,10 @@ class MainActivity : ComponentActivity() {
                 // GROQ key usage stats for UI display
                 val groqKeyUsageStats by viewModel.groqKeyUsageStats.collectAsState()
 
-                // TTS for AI responses state
-                val isTTSEnabled by viewModel.isTTSEnabled.collectAsState()
-
-                // Local LLM Server IP state
+                // Local LLM Server IP/Port state (USB/WiFi)
                 val localServerIP by viewModel.localServerIP.collectAsState()
+                val localServerPort by viewModel.localServerPort.collectAsState()
+                val localServerUseHttps by viewModel.localServerUseHttps.collectAsState()
 
                 // Shake mode switch animation trigger
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
@@ -306,8 +305,6 @@ class MainActivity : ComponentActivity() {
                 // Trigger audio playback when AI agent requests it
                 LaunchedEffect(pendingAudioPlayback) {
                     pendingAudioPlayback?.let { track ->
-                        // Stop TTS before playing audio - user wants to hear music, not TTS
-                        viewModel.stopTTS()
                         audioPlayerViewModel.playAudio(track)
                         viewModel.clearPendingAudioPlayback()
                     }
@@ -536,8 +533,8 @@ class MainActivity : ComponentActivity() {
                                     onUpdateNoteTodos = { noteId, todos, onComplete ->
                                         viewModel.updateNoteTodos(noteId, todos, onComplete)
                                     },
-                                    onEditNote = { noteId, newTitle, newContent, newAttachments ->
-                                        viewModel.editNote(noteId, newTitle, newContent, newAttachments)
+                                    onEditNote = { noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments ->
+                                        viewModel.editNote(noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments)
                                     },
                                     onMarkAsViewed = { noteId ->
                                         viewModel.markNoteAsViewed(noteId)
@@ -599,6 +596,9 @@ class MainActivity : ComponentActivity() {
                                     onEnterChatMode = {
                                         viewModel.enterChatMode()
                                     },
+                                    onEnterChatWithNoteReference = { noteTitle ->
+                                        viewModel.enterChatWithNoteReference(noteTitle)
+                                    },
                                     // Chat history management
                                     chatSessions = chatSessions,
                                     currentSessionId = currentSessionId,
@@ -610,6 +610,20 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onDeleteChatSession = { sessionId ->
                                         viewModel.deleteChatSession(sessionId)
+                                    },
+                                    // @Mention autocomplete
+                                    mentionState = mentionState,
+                                    onMentionSelected = { suggestion, currentText ->
+                                        viewModel.onMentionSelected(suggestion, currentText)
+                                    },
+                                    // Pending chat text (for "Ask AI" from note card)
+                                    pendingChatText = pendingChatText,
+                                    onClearPendingChatText = {
+                                        viewModel.clearPendingChatText()
+                                    },
+                                    // Mention state update (for autocomplete)
+                                    onUpdateMentionState = { text, cursorPosition ->
+                                        viewModel.updateMentionState(text, cursorPosition)
                                     },
                                     // AI exclusion state
                                     isAiExcluded = isAiExcluded,
@@ -716,7 +730,7 @@ class MainActivity : ComponentActivity() {
                                     // Voice fingerprint management
                                     isVoiceEnrolled = isVoiceEnrolled,
                                     onDeleteVoiceFingerprint = {
-                                        enrollmentScope.launch {
+                                        lifecycleScope.launch {
                                             speakerEmbeddingManager.deleteEnrollment()
                                             // Clear skip flag so user can enroll again from first launch
                                             speakerEmbeddingManager.setEnrollmentSkipped(false)
@@ -731,16 +745,18 @@ class MainActivity : ComponentActivity() {
                                         voiceEnrollmentManager.resetEnrollment()
                                         showVoiceEnrollment = true
                                     },
-                                    // TTS for AI responses
-                                    isTTSEnabled = isTTSEnabled,
-                                    onTTSEnabledChange = { enabled ->
-                                        viewModel.setTTSEnabled(enabled)
-                                    },
-                                    onStopTTS = { viewModel.stopTTS() },
-                                    // Local LLM Server
+                                    // Local LLM Server (USB/WiFi)
                                     localServerIP = localServerIP,
+                                    localServerPort = localServerPort,
+                                    localServerUseHttps = localServerUseHttps,
                                     onSetLocalServerIP = { ip ->
                                         viewModel.setLocalServerIP(ip)
+                                    },
+                                    onSetLocalServerPort = { port ->
+                                        viewModel.setLocalServerPort(port)
+                                    },
+                                    onSetLocalServerUseHttps = { useHttps ->
+                                        viewModel.setLocalServerUseHttps(useHttps)
                                     },
                                     modifier = Modifier.fillMaxSize()
                                 )
@@ -831,8 +847,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // Cancel enrollment scope to prevent Activity context leak
-        enrollmentScope.cancel()
+        // lifecycleScope is automatically cancelled by ComponentActivity
         super.onDestroy()
     }
 

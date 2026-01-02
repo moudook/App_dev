@@ -24,7 +24,7 @@ enum class AIProvider {
     ANTHROPIC,
     HUGGINGFACE,
     GITHUB,
-    LOCAL_PC  // FOR TESTING ONLY - Remove before publishing!
+    LOCAL_PC  // Local LLM server via USB/WiFi connection
 }
 
 /**
@@ -224,8 +224,8 @@ object AIModels {
     )
     const val GITHUB_DEFAULT = "openai/gpt-4o-mini"
 
-    // Local PC models - FOR TESTING ONLY (Remove before publishing!)
-    // These are models you can run locally via USB tethering
+    // Local PC models - Run AI locally on your computer
+    // Connect via USB tethering or WiFi to your local LLM server
     val LOCAL_PC_MODELS = listOf(
         "qwen2.5-3b-instruct" to "Qwen 2.5 3B Instruct (Default)",
         "qwen2.5-7b-instruct" to "Qwen 2.5 7B Instruct",
@@ -342,7 +342,7 @@ class SecurePreferences(private val context: Context) {
         AIProvider.OPENROUTER,
         AIProvider.ANTHROPIC,
         AIProvider.HUGGINGFACE,
-        AIProvider.LOCAL_PC   // Last - requires running local server (for testing only)
+        AIProvider.LOCAL_PC   // Local LLM - requires running server on your PC
     )
 
     fun getProviderPriority(): List<AIProvider> {
@@ -406,10 +406,13 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_TAVILY_API_KEY = "tavily_api_key"
         // FTS Maintenance
         private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
-        // Local PC USB Tethering IP (TESTING ONLY - Remove before publishing!)
+        // Local PC USB/WiFi Tethering
         private const val KEY_LOCAL_PC_IP = "local_pc_ip"
-        private const val DEFAULT_LOCAL_PC_IP = "10.166.18.158"  // Hardcoded for testing
-        private const val DEFAULT_LOCAL_PC_PORT = "8000"
+        private const val KEY_LOCAL_PC_PORT = "local_pc_port"
+        private const val KEY_LOCAL_PC_USE_HTTPS = "local_pc_use_https"
+        private const val DEFAULT_LOCAL_PC_IP = "10.166.18.183"  // Default USB tethering IP
+        private const val DEFAULT_LOCAL_PC_PORT = "8000"  // HTTP port (HTTPS typically 8443)
+        private const val DEFAULT_LOCAL_PC_USE_HTTPS = false
 
         @Volatile
         private var INSTANCE: SecurePreferences? = null
@@ -870,30 +873,69 @@ class SecurePreferences(private val context: Context) {
         return !getTavilyApiKey().isNullOrBlank()
     }
 
-    // ==================== Local PC USB Tethering (TESTING ONLY) ====================
+    // ==================== Local PC USB/WiFi Tethering ====================
 
     /**
-     * Get Local PC IP address for USB tethering.
-     * FOR TESTING ONLY - Remove before publishing!
+     * Get Local PC IP address for USB/WiFi connection.
+     * Run AI locally on your computer for privacy and offline use.
+     *
+     * Typical IP ranges:
+     * - USB Tethering: 10.x.x.x
+     * - WiFi: 192.168.x.x
      */
     fun getLocalPCIP(): String {
         return encryptedPrefs.getString(KEY_LOCAL_PC_IP, DEFAULT_LOCAL_PC_IP) ?: DEFAULT_LOCAL_PC_IP
     }
 
     /**
-     * Set Local PC IP address for USB tethering.
-     * FOR TESTING ONLY - Remove before publishing!
+     * Set Local PC IP address for USB/WiFi connection.
      */
     fun setLocalPCIP(ip: String) {
         encryptedPrefs.edit().putString(KEY_LOCAL_PC_IP, ip.trim()).apply()
     }
 
     /**
+     * Get Local PC port for USB/WiFi connection.
+     * Default: 8000 (llama.cpp default is 8080)
+     */
+    fun getLocalPCPort(): String {
+        return encryptedPrefs.getString(KEY_LOCAL_PC_PORT, DEFAULT_LOCAL_PC_PORT) ?: DEFAULT_LOCAL_PC_PORT
+    }
+
+    /**
+     * Set Local PC port for USB/WiFi connection.
+     */
+    fun setLocalPCPort(port: String) {
+        // Validate port is numeric and in valid range
+        val portNum = port.trim().toIntOrNull()
+        if (portNum != null && portNum in 1..65535) {
+            encryptedPrefs.edit().putString(KEY_LOCAL_PC_PORT, port.trim()).apply()
+        }
+    }
+
+    /**
+     * Get whether to use HTTPS for Local PC connection.
+     * HTTPS provides encryption between phone and PC.
+     */
+    fun getLocalPCUseHttps(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_LOCAL_PC_USE_HTTPS, DEFAULT_LOCAL_PC_USE_HTTPS)
+    }
+
+    /**
+     * Set whether to use HTTPS for Local PC connection.
+     */
+    fun setLocalPCUseHttps(useHttps: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_LOCAL_PC_USE_HTTPS, useHttps).apply()
+    }
+
+    /**
      * Get full Local PC URL for API calls.
-     * FOR TESTING ONLY - Remove before publishing!
+     * Supports both HTTP (default) and HTTPS (encrypted).
+     * Uses configurable IP, port, and protocol for flexibility.
      */
     fun getLocalPCUrl(): String {
-        return "http://${getLocalPCIP()}:$DEFAULT_LOCAL_PC_PORT/v1/chat/completions"
+        val protocol = if (getLocalPCUseHttps()) "https" else "http"
+        return "$protocol://${getLocalPCIP()}:${getLocalPCPort()}/v1/chat/completions"
     }
 
     // ==================== Dynamic Model Management ====================

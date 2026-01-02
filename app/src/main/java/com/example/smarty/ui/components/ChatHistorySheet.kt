@@ -92,21 +92,8 @@ fun ChatHistorySheet(
                 }
 
                 // New Chat (Text Button Style for "Apple-like" cleanness)
-                TextButton(
-                    onClick = {
-                        onNewChat()
-                        onDismiss()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = accentColor)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "New Chat")
-                }
+                // New Chat button removed as per user request (redundant with bottom action bar)
+                Box(modifier = Modifier.size(1.dp)) // Spacer placeholder or just empty
             }
 
             // Sessions list
@@ -204,6 +191,8 @@ private fun ChatSessionItem(
             .padding(all = 8.dp), // Tighter outer padding to allow internal breathing
         verticalAlignment = Alignment.CenterVertically
     ) {
+        val isNewChat = session.title.isBlank() || session.title.equals("New Chat", ignoreCase = true) || session.title.equals("New Conversation", ignoreCase = true)
+
         // 1. Icon (Proper Squircle)
         Surface(
             modifier = Modifier.size(44.dp), // Slightly smaller, tighter
@@ -213,7 +202,6 @@ private fun ChatSessionItem(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 // Smart Icon Logic
-                val isNewChat = session.title.isBlank() || session.title.equals("New Chat", ignoreCase = true) || session.title.equals("New Conversation", ignoreCase = true)
                 val icon = when {
                     isNewChat -> Icons.Rounded.AutoAwesome // Sparkle for new/AI start
                     isSelected -> Icons.Rounded.ChatBubble
@@ -236,7 +224,7 @@ private fun ChatSessionItem(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = session.title.ifBlank { "New Conversation" }, // "Conversation" sounds better than "Chat"
+                text = if (isSelected && isNewChat) "Current Chat" else session.title.ifBlank { "New Conversation" },
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Medium, // lighter than SemiBold for Apple look
                     fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)

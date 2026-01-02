@@ -19,11 +19,13 @@ import com.example.smarty.agent.tools.categories.SearchDocumentNotesTool
 import com.example.smarty.agent.tools.external.OpenAppTool
 import com.example.smarty.agent.tools.external.PlayAudioTool
 import com.example.smarty.agent.tools.external.SaveScreenTool
+import com.example.smarty.agent.tools.external.ViewImageTool
 import com.example.smarty.agent.tools.external.ScreenContext
 import com.example.smarty.agent.tools.external.SearchCitation
 import com.example.smarty.agent.tools.external.WebSearchTool
 import com.example.smarty.agent.tools.memory.UserPatternsTool
 import com.example.smarty.agent.tools.notes.*
+import com.example.smarty.data.model.ThinkingModeContext
 import com.example.smarty.agent.tools.research.DeepResearchTool
 import com.example.smarty.agent.prompts.ToolExampleStore
 import com.example.smarty.agent.tools.todos.AddTodosTool
@@ -35,6 +37,7 @@ import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.TaggedNoteContext
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.service.AlarmScheduler
@@ -241,6 +244,16 @@ sealed class AgentResult {
 }
 
 /**
+ * Image display item for ViewImageTool callback.
+ * Contains information needed to display an image inline in chat.
+ */
+data class ImageDisplayItem(
+    val uri: String,
+    val fileName: String,
+    val noteTitle: String
+)
+
+/**
  * Callbacks for agent operations that need ViewModel state or actions.
  */
 interface AgentCallbacks {
@@ -260,6 +273,9 @@ interface AgentCallbacks {
     // New callbacks for OpenApp and SaveScreen tools
     fun launchApp(packageName: String)
     fun getScreenContext(): ScreenContext?
+
+    // Callback for ViewImageTool to display images inline in chat
+    fun onDisplayImages(images: List<ImageDisplayItem>)
 }
 
 /**
@@ -377,12 +393,8 @@ class CogniAgent(
      * - Few-shot examples: 25-40% improvement in tool selection accuracy
      */
     private val agentOptimizer by lazy {
-        val openAiKey = callbacks.getOpenAiApiKey()
-        val geminiKey = callbacks.getGeminiApiKey()
         val optimizer = AgentOptimizer(
-            openAiApiKey = openAiKey,
-            geminiApiKey = geminiKey,
-            enableSemanticCache = true,
+            enableCache = true,
             enablePiiMasking = true,
             enableHistoryCompression = true,
             enableFewShotExamples = true
@@ -390,15 +402,8 @@ class CogniAgent(
 
         // Log cache status for debugging
         when (optimizer.getCacheMode()) {
-            AgentOptimizer.CacheMode.OPENAI_SEMANTIC -> {
-                Log.i(TAG, "AgentOptimizer: Semantic cache ENABLED (OpenAI embeddings)")
-            }
-            AgentOptimizer.CacheMode.GEMINI_SEMANTIC -> {
-                Log.i(TAG, "AgentOptimizer: Semantic cache ENABLED (Gemini embeddings)")
-            }
             AgentOptimizer.CacheMode.HASH_BASED -> {
-                Log.i(TAG, "AgentOptimizer: Hash-based cache ENABLED (no embedding API keys available)")
-                Log.d(TAG, "AgentOptimizer: For semantic caching, configure OpenAI or Gemini API key in settings")
+                Log.i(TAG, "AgentOptimizer: On-device hash-based cache ENABLED")
             }
             AgentOptimizer.CacheMode.DISABLED -> {
                 Log.w(TAG, "AgentOptimizer: Caching DISABLED")
@@ -411,55 +416,69 @@ class CogniAgent(
     /**
      * System prompt for the Cogni AI Agent.
      *
-     * OPTIMIZED using CO-STAR framework from AI Agent research:
-     * - Context: Background + state
-     * - Objective: Primary purpose
-     * - Style: Communication rules
-     * - Tone: Personality
-     * - Audience: User profile
-     * - Response: Output format
+     * OPTIMIZED using best practices from:
+     * - Claude (Anthropic) - structured sections, clear guidelines
+     * - Manus AI - agent loop patterns, step-by-step execution
+     * - Cline - tool usage rules, completion verification
+     * - CO-STAR framework - Context, Objective, Style, Tone, Audience, Response
      *
-     * Token-efficient: ~1200 tokens (was ~1800)
+     * Key improvements:
+     * - Clear identity and personality section
+     * - Explicit tool usage rules with examples
+     * - Fallback behavior for audio/errors
+     * - Response formatting guidelines
+     * - Behavior constraints to prevent common issues
      */
     private val systemPrompt = """
-You are Loum, a friendly AI companion and personal assistant. Respond in English only.
+# IDENTITY
+You are Loum, a warm, intelligent, and highly capable AI companion. 
+You exist to have genuine conversations, solve complex problems, and orchestrate tasks to help the user.
 
-PERSONALITY:
-- Warm, helpful, and conversational like a trusted friend
-- Keep responses natural and human-like
-- Be concise but not robotic - 1-2 sentences is perfect
-- Show genuine interest when chatting
-- Use casual language, not formal corporate speak
+# CORE PRINCIPLE: CONVERSATION FIRST, MASTERY SECOND
+1. **For Simple Chat**: Be a charming companion. Reply directly, warm and concise. NO tools.
+   - "How are you?" → "I'm doing great, thanks for asking! How's your day going?"
+   - "What is 2+2?" → "It's 4."
 
-WHEN USER ASKS FOR ACTIONS (notes, audio, reminders, etc.):
-1. DECOMPOSE complex requests into steps
-2. Call tools ONE AT A TIME in sequence
-3. Complete ALL requested actions before responding
-4. After tools finish, confirm briefly what was done
-5. NEVER expose filenames, IDs, or technical details
+2. **For Complex Tasks**: Be a Master Orchestrator. Plan and execute multi-step workflows.
+   - User: "Plan a cleaning session with music and reminders" 
+   - You: Search ideas → Create Note → Schedule Event → Play Music.
 
-TOOL CALLING EXAMPLE:
-User: "count my notes and play some music"
-→ Call search_notes to count
-→ Call play_audio
-→ Response: "You have 4 notes. Music is playing!"
+# WHEN TO USE TOOLS (The "Mastery" Logic)
+Do not use tools for general knowledge, math, or chat.
+ONLY use tools when the user's request **requires** interacting with the app or outside world.
 
-WHEN USER JUST WANTS TO CHAT:
-- Be friendly and conversational
-- Answer questions naturally
-- Share thoughts, give opinions if asked
-- Keep it brief but warm
+## Complex Orchestration (Multi-Step Logic)
+You can chain tools to solve complex needs. Pass information from one step to the next.
+*Example: "Find cleaning ideas, save them, and play music"*
+1. **Think**: I need ideas (Web/Knowledge), a note (CreateNote), an event (CreateEvent), and music (PlayAudio).
+2. **Step 1**: `web_search("fast room cleaning tips")` OR use internal knowledge.
+3. **Step 2**: `create_note(title="Cleaning Game Plan", content=[ideas from step 1])`
+4. **Step 3**: `create_event(title="Cleaning Session", startTime="today 2pm")`
+5. **Step 4**: `play_audio("upbeat music")` (Fallback: if "upbeat" not found, play *any* music).
 
-EXAMPLES:
-User: "hey" → "Hey! What's up?"
-User: "how are you" → "I'm good! Ready to help. What do you need?"
-User: "what can you do" → "I can manage your notes, play music, set reminders, search the web - just ask!"
-User: "thanks" → "Anytime!"
+## Resilient Execution (Never Give Up)
+If a specific tool fails or returns no results, **find a fallback** instead of stopping.
+- if `play_audio("cleaning playlist")` fails → try `play_audio("pop music")` or just `play_audio("")` to shuffle all.
+- if `web_search` fails → use your own knowledge to create the note.
+- **Goal**: Always leave the user better off than if you did nothing.
 
-═══════════════════════════════════════
-OUTPUT PARSING
-═══════════════════════════════════════
-TOON format: {key:value|key2:value2} - parse like compact JSON.
+# PERSONALITY & TONE
+- **Warm & Authentic**: Speak naturally, like a smart friend. "Got it, on it!" 
+- **Intellectually Honest**: If you don't know, admit it. Don't hallucinate info.
+- **Proactive**: If you see a way to help that's obvious from the request, do it (e.g., creating a note for a list).
+
+# TOOL GUIDELINES
+1. **Chain Tools**: You can use multiple tools in sequence if needed.
+2. **Output Format**: 
+   - For simple answers: Just text.
+   - For actions: "Done! I've [summary of actions]."
+3. **Calendar Defaults**: If no time specified, use **2:00 PM today** (or tomorrow if today is over).
+4. **Music Defaults**: If specific song not found, try a genre or random shuffle.
+
+# CRITICAL CONSTRAINTS
+- NEVER expose internal IDs, file paths, or system errors to the user.
+- NEVER start with robotic phrases like "Certainly", "Processing", "Executing".
+- NEVER end with "Is there anything else?" (It's annoying).
     """.trimIndent()
 
     /**
@@ -470,6 +489,7 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
             // Note tools
             tool(CreateNoteTool(repository, callbacks::processNoteWithAi))
             tool(SearchNotesTool(callbacks::getActiveNotes))
+            tool(GetRecentNotesTool(callbacks::getActiveNotes))  // For "latest", "most recent" queries
             tool(UpdateNoteTool(repository))
             tool(DeleteNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
             tool(ArchiveNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
@@ -506,6 +526,10 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
                 getActiveNotes = callbacks::getActiveNotes,
                 onPlayAudio = callbacks::requestAudioPlayback
             ))
+            tool(ViewImageTool(
+                getActiveNotes = callbacks::getActiveNotes,
+                onDisplayImages = callbacks::onDisplayImages
+            ))
             tool(OpenAppTool(
                 context = context,
                 onLaunchApp = callbacks::launchApp
@@ -539,7 +563,14 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
         val categories = callbacks.getCategories()
         val safeCounts = PrivacyGuard.getAiSafeCategoryCounts(categories, activeNotes)
 
+        // Get today's date
+        val today = java.time.LocalDate.now()
+        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")
+        val formattedDate = today.format(dateFormatter)
+
         return buildString {
+            appendLine("CURRENT DATE: $formattedDate")
+            appendLine()
             appendLine("CURRENT STATE:")
             appendLine("- Total visible notes: ${visibleNotes.size}")
 
@@ -566,8 +597,15 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
      *
      * @param userMessage The current user message
      * @param conversationHistory Previous messages in the conversation (optional)
+     * @param taggedNoteContext Optional context from @mentioned notes (for focused note references)
+     * @param thinkingModeContext Optional context for @thinking deep document analysis mode
      */
-    suspend fun run(userMessage: String, conversationHistory: List<Pair<String, String>> = emptyList()): AgentResult {
+    suspend fun run(
+        userMessage: String,
+        conversationHistory: List<Pair<String, String>> = emptyList(),
+        taggedNoteContext: TaggedNoteContext? = null,
+        thinkingModeContext: ThinkingModeContext? = null
+    ): AgentResult {
         Log.d(TAG, "Running agent with message: ${userMessage.take(50)}... (history: ${conversationHistory.size} messages)")
 
         // Get all available executors for fallback (already filtered by health)
@@ -611,7 +649,7 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
                 processed.cacheHit,
                 availableExecutors.firstOrNull()?.provider ?: AIProvider.GEMINI
             )
-        } else if (!agentOptimizer.isSemanticCacheEnabled()) {
+        } else if (!agentOptimizer.isCacheAvailable()) {
             Log.d(TAG, "Semantic cache lookup skipped - cache not available (OpenAI API key required)")
         }
 
@@ -671,9 +709,54 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
             ""
         }
 
-        // Build full prompt with context, examples, history, and current message
+        // ═══════════════════════════════════════════════════════════════
+        // @THINKING MODE - Deep document analysis with full content
+        // ═══════════════════════════════════════════════════════════════
+        val thinkingContextSection = if (thinkingModeContext != null && thinkingModeContext.isThinkingMode) {
+            Log.d(TAG, "@THINKING MODE: Analyzing ${thinkingModeContext.documentFileName ?: "document"} (${thinkingModeContext.totalChars} chars, ${thinkingModeContext.documentChunks.size} chunks)")
+            buildString {
+                appendLine("\n\n=== DEEP THINKING MODE ===")
+                appendLine("You are in DEEP THINKING mode. Analyze the following document content THOROUGHLY.")
+                thinkingModeContext.documentFileName?.let { appendLine("Document: $it") }
+                thinkingModeContext.targetNote?.let { appendLine("Note Title: ${it.title}") }
+                appendLine("Total Content: ${thinkingModeContext.totalChars} characters")
+                appendLine()
+                appendLine("USER'S QUESTION: ${thinkingModeContext.userQuery.ifBlank { "Analyze this document in depth." }}")
+                appendLine()
+                appendLine("=== FULL DOCUMENT CONTENT ===")
+                appendLine()
+                // Include all document chunks
+                thinkingModeContext.documentChunks.forEach { chunk ->
+                    appendLine("[SECTION ${chunk.index + 1}/${chunk.totalChunks}]")
+                    appendLine(chunk.content)
+                    appendLine()
+                }
+                appendLine("=== END OF DOCUMENT ===")
+                appendLine()
+                appendLine("INSTRUCTIONS: Analyze the ENTIRE document above to thoroughly answer the user's question. Consider all sections and provide a comprehensive response.")
+                appendLine()
+            }
+        } else ""
+
+        // ═══════════════════════════════════════════════════════════════
+        // @MENTION CONTEXT - Include referenced notes if present
+        // (Only used when NOT in thinking mode)
+        // ═══════════════════════════════════════════════════════════════
+        val mentionContextSection = if (thinkingModeContext?.isThinkingMode != true && taggedNoteContext != null && taggedNoteContext.totalChars > 0) {
+            if (taggedNoteContext.needsChunking) {
+                // Large context - include chunk summary
+                Log.d(TAG, "Including chunked mention context (${taggedNoteContext.chunks.size} chunks)")
+                "\n\n${taggedNoteContext.chunks.firstOrNull()?.content ?: ""}\n[Additional ${taggedNoteContext.chunks.size - 1} chunks available]\n"
+            } else {
+                // Normal context - include full content
+                Log.d(TAG, "Including mention context: ${taggedNoteContext.noteCount} notes, ${taggedNoteContext.totalChars} chars")
+                "\n\n${taggedNoteContext.contextString}\n"
+            }
+        } else ""
+
+        // Build full prompt with context, examples, history, thinking mode, mentions, and current message
         // BATCH-3C: Use masked query from optimizer for PII protection
-        val fullPrompt = buildContext() + examplesSection + historySection + "USER: ${processed.maskedQuery}"
+        val fullPrompt = buildContext() + examplesSection + historySection + thinkingContextSection + mentionContextSection + "USER: ${processed.maskedQuery}"
         val toolRegistry = buildToolRegistry()
 
         // BATCH-3C: Token estimation pre-check to prevent context window overflow
@@ -1000,7 +1083,7 @@ TOON format: {key:value|key2:value2} - parse like compact JSON.
      * BATCH-3C: Check if semantic cache is enabled.
      * Semantic cache requires OpenAI API key for embeddings.
      */
-    fun isSemanticCacheEnabled() = agentOptimizer.isSemanticCacheEnabled()
+    fun isCacheAvailable() = agentOptimizer.isCacheAvailable()
 
     /**
      * BATCH-3C: Clear PII masking session (call when starting new conversation).

@@ -82,6 +82,13 @@ class HashBasedCache(
     suspend fun get(query: String): String? = mutex.withLock {
         if (query.isBlank()) return@withLock null
 
+        // CRITICAL FIX: Never return cached results for action-oriented queries
+        // These depend on dynamic data (notes, audio, etc.) and must always execute fresh
+        if (isActionQuery(query)) {
+            Log.d(TAG, "Cache BYPASS: Action query detected - '$query' will execute fresh")
+            return@withLock null
+        }
+
         // Clean expired entries
         evictExpired()
 
@@ -100,6 +107,56 @@ class HashBasedCache(
         return@withLock null
     }
 
+    // Action keywords that should NOT be cached (depend on dynamic data)
+    // These queries involve operations on user data that can change at any time
+    private val ACTION_KEYWORDS = setOf(
+        // Playback/media actions
+        "play", "pause", "stop", "resume",
+        // Search/query actions
+        "search", "find", "look", "check",
+        // Display actions
+        "show", "display", "tell", "give", "list",
+        // Data retrieval
+        "get", "fetch", "read", "open",
+        // Data modification
+        "archive", "unarchive", "delete", "update", "create", "add", "remove", "edit", "modify",
+        // Counting/analytics (depend on current note count)
+        "count", "how many", "total", "number of",
+        // Note-specific queries (always depend on dynamic data)
+        "notes", "note", "audio", "document", "image", "file"
+    )
+
+    /**
+     * Check if a query is action-oriented (should not be cached).
+     * Action queries depend on dynamic note/audio data that can change.
+     *
+     * EXPANDED CRITERIA:
+     * - Commands that perform operations (play, delete, archive, etc.)
+     * - Queries about user data (notes, audio, documents)
+     * - Count/quantity queries (how many notes, etc.)
+     */
+    private fun isActionQuery(query: String): Boolean {
+        val normalizedQuery = query.lowercase().trim()
+
+        // Check for any action keyword
+        val hasActionKeyword = ACTION_KEYWORDS.any { keyword ->
+            normalizedQuery.startsWith(keyword) ||
+            normalizedQuery.contains(" $keyword ") ||
+            normalizedQuery.contains("$keyword ") ||
+            normalizedQuery.contains(" $keyword") ||
+            normalizedQuery.endsWith(keyword)
+        }
+
+        // Also check for question patterns about user data
+        val isDataQuestion = normalizedQuery.contains("my ") ||
+            normalizedQuery.contains("i have") ||
+            normalizedQuery.contains("do i have") ||
+            normalizedQuery.contains("what's in my") ||
+            normalizedQuery.contains("what is in my")
+
+        return hasActionKeyword || isDataQuestion
+    }
+
     /**
      * Store a query-response pair in the cache.
      *
@@ -109,6 +166,13 @@ class HashBasedCache(
      */
     suspend fun put(query: String, response: String, containsNoteData: Boolean = false) = mutex.withLock {
         if (query.isBlank() || response.isBlank()) return@withLock
+
+        // CRITICAL FIX: Don't cache action-oriented queries that depend on dynamic data
+        // These queries (play, search, find, etc.) should always execute fresh
+        if (isActionQuery(query)) {
+            Log.d(TAG, "SKIP CACHE: Action query detected - '$query' will not be cached")
+            return@withLock
+        }
 
         // Evict if at capacity
         if (cache.size >= maxEntries) {

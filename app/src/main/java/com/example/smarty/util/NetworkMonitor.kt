@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.util.Log
 import com.example.smarty.ui.components.ConnectionStatus
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -14,52 +15,128 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 /**
  * Network connectivity monitor for Phase 7.
  * Observes network state changes and exposes as a Flow.
+ * 
+ * IMPORTANT: Supports BOTH cloud APIs AND local LLM servers:
+ * - Cloud APIs: Requires validated internet (NET_CAPABILITY_VALIDATED)
+ * - Local LLM: Only requires WiFi/USB/Ethernet transport (no internet validation needed)
  */
 class NetworkMonitor(context: Context) {
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
+    companion object {
+        private const val TAG = "NetworkMonitor"
+    }
+
     val connectionStatus: Flow<ConnectionStatus> = callbackFlow {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                trySend(ConnectionStatus.CONNECTED)
+                Log.d(TAG, "onAvailable: network=$network")
+                // Check current network capabilities
+                val status = checkCurrentNetworkStatus()
+                trySend(status)
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                Log.d(TAG, "onCapabilitiesChanged: network=$network, hasValidated=${networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)}")
+                val status = determineStatus(networkCapabilities)
+                trySend(status)
             }
 
             override fun onLosing(network: Network, maxMsToLive: Int) {
+                Log.d(TAG, "onLosing: network=$network, maxMsToLive=$maxMsToLive")
                 trySend(ConnectionStatus.CONNECTING)
             }
 
             override fun onLost(network: Network) {
-                trySend(ConnectionStatus.DISCONNECTED)
+                Log.d(TAG, "onLost: network=$network")
+                // Check if there are other available networks before reporting disconnected
+                val status = checkCurrentNetworkStatus()
+                trySend(status)
             }
 
             override fun onUnavailable() {
+                Log.d(TAG, "onUnavailable")
                 trySend(ConnectionStatus.OFFLINE)
             }
         }
 
+        // Use a broad network request that captures WiFi, USB, and Ethernet
+        // Don't require NET_CAPABILITY_INTERNET as local networks may not have it
         val request = NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .addTransportType(NetworkCapabilities.TRANSPORT_CELLULAR)
+            .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+            // Note: TRANSPORT_USB might not be directly available on all devices
             .build()
 
-        connectivityManager.registerNetworkCallback(request, callback)
+        try {
+            connectivityManager.registerNetworkCallback(request, callback)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register network callback: ${e.message}")
+            // Fallback: try default network callback
+            try {
+                connectivityManager.registerDefaultNetworkCallback(callback)
+            } catch (e2: Exception) {
+                Log.e(TAG, "Failed to register default network callback: ${e2.message}")
+            }
+        }
 
         // Emit initial state
-        val currentNetwork = connectivityManager.activeNetwork
-        val capabilities = connectivityManager.getNetworkCapabilities(currentNetwork)
-        val initialStatus = when {
-            capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true ->
-                ConnectionStatus.CONNECTED
-            currentNetwork != null ->
-                ConnectionStatus.CONNECTING
-            else ->
-                ConnectionStatus.OFFLINE
-        }
+        val initialStatus = checkCurrentNetworkStatus()
+        Log.d(TAG, "Initial status: $initialStatus")
         trySend(initialStatus)
 
         awaitClose {
-            connectivityManager.unregisterNetworkCallback(callback)
+            try {
+                connectivityManager.unregisterNetworkCallback(callback)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to unregister network callback: ${e.message}")
+            }
         }
     }.distinctUntilChanged()
+
+    /**
+     * Check current network status using active network.
+     * This is called on initial state and when networks are lost to find alternatives.
+     */
+    private fun checkCurrentNetworkStatus(): ConnectionStatus {
+        val currentNetwork = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(currentNetwork)
+        
+        Log.d(TAG, "checkCurrentNetworkStatus: hasNetwork=${currentNetwork != null}, " +
+                "hasWifi=${capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)}, " +
+                "hasValidated=${capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)}")
+        
+        return determineStatus(capabilities)
+    }
+
+    /**
+     * Determine connection status based on network capabilities.
+     * Handles both cloud APIs (validated internet) and local LLM scenarios (WiFi/USB without validation).
+     */
+    private fun determineStatus(caps: NetworkCapabilities?): ConnectionStatus {
+        return when {
+            caps == null -> ConnectionStatus.OFFLINE
+            
+            // Fully validated internet (for cloud AI providers like OpenAI, Gemini, etc.)
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ->
+                ConnectionStatus.CONNECTED
+            
+            // Local network scenarios: WiFi, USB tethering, or Ethernet without internet validation
+            // This allows connections to local LLM servers (e.g., llama.cpp, Ollama)
+            // Even without internet validation, these transports can reach local servers
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ->
+                ConnectionStatus.CONNECTED
+            
+            // Cellular without validation - likely connecting
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ->
+                ConnectionStatus.CONNECTING
+            
+            // Other network types without validation
+            else -> ConnectionStatus.CONNECTING
+        }
+    }
 }

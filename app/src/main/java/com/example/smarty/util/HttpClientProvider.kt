@@ -1,7 +1,12 @@
 package com.example.smarty.util
 
 import okhttp3.OkHttpClient
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 /**
  * Singleton provider for shared OkHttpClient instances.
@@ -80,6 +85,55 @@ object HttpClientProvider {
             .readTimeout(LONG_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(LONG_WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            .build()
+    }
+
+    /**
+     * Trust manager that accepts all certificates.
+     * ONLY FOR LOCAL LAN CONNECTIONS - do not use for internet traffic!
+     *
+     * This is safe because:
+     * 1. Only used for private RFC 1918 IP addresses (10.x.x.x, 192.168.x.x, 172.16-31.x.x)
+     * 2. Traffic stays within user's local network
+     * 3. User explicitly configures their own PC's IP
+     * 4. Self-signed certificates from Caddy are expected
+     */
+    private val trustAllCerts: Array<TrustManager> = arrayOf(
+        object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+        }
+    )
+
+    /**
+     * SSL context configured to trust all certificates.
+     * ONLY FOR LOCAL LAN CONNECTIONS!
+     */
+    private val trustAllSslContext: SSLContext by lazy {
+        SSLContext.getInstance("TLS").apply {
+            init(null, trustAllCerts, SecureRandom())
+        }
+    }
+
+    /**
+     * Client for local LAN server connections (USB tethering, WiFi).
+     * Trusts self-signed certificates for HTTPS connections.
+     *
+     * SECURITY: This client trusts ALL certificates. Only use for:
+     * - Local PC connections via private IP addresses
+     * - Self-signed certificates from Caddy reverse proxy
+     *
+     * DO NOT use for internet traffic!
+     */
+    val localServer: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .sslSocketFactory(trustAllSslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+            .hostnameVerifier { _, _ -> true }
             .build()
     }
 }

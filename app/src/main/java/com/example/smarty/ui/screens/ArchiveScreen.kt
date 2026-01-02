@@ -75,6 +75,9 @@ fun ArchiveScreen(
             }
         }
     } else {
+        // Intercept system back button
+        androidx.activity.compose.BackHandler(onBack = onBackClick)
+
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -88,14 +91,6 @@ fun ArchiveScreen(
                                 text = "${archivedNotes.size} item${if (archivedNotes.size != 1) "s" else ""}",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
                             )
                         }
                     },

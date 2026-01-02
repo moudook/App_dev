@@ -20,6 +20,17 @@ data class TodoItem(
 )
 
 /**
+ * Per-chunk analysis result stored in Note.chunkAnalysesJson
+ * Used for documents processed in multiple chunks (pages)
+ */
+data class ChunkAnalysis(
+    val index: Int,           // Chunk index (0-based)
+    val totalChunks: Int,     // Total number of chunks
+    val pageRange: String,    // e.g., "1-5", "6-10"
+    val summary: String       // Analysis/summary of this chunk
+)
+
+/**
  * Attachment item stored as JSON within Note.attachmentsJson
  * Supports multiple files per note
  */
@@ -79,7 +90,10 @@ enum class ProcessingStatus {
         Index(value = ["isFullPrivacy"]),  // Full privacy mode filtering
         // PERFORMANCE: isPinned indices for efficient note list queries
         Index(value = ["isPinned"]),  // Single column for pinned status
-        Index(value = ["isPinned", "createdAt"])  // Composite for sorted queries (pinned first, then by date)
+        Index(value = ["isPinned", "createdAt"]),  // Composite for sorted queries (pinned first, then by date)
+        // PERFORMANCE (Sprint 3): processingStatus index for queue management
+        Index(value = ["processingStatus"]),  // Queue processing queries
+        Index(value = ["processingStatus", "updatedAt"])  // Stuck note detection with timeout
     ]
 )
 data class Note(
@@ -111,7 +125,8 @@ data class Note(
     val isViewed: Boolean = false, // Track if the note has been viewed by the user
     val isPinned: Boolean = false, // Pin note to top of list
     val reminderText: String? = null, // Smart reminder text to show on card
-    val reminderExpiresAt: Long? = null // When reminder should stop showing (null = forever)
+    val reminderExpiresAt: Long? = null, // When reminder should stop showing (null = forever)
+    val chunkAnalysesJson: String? = null // JSON string of List<ChunkAnalysis> for per-page document analyses
 ) : PrivacyAware {
     /**
      * PrivacyAware implementation.
@@ -138,6 +153,7 @@ private object GsonHolder {
     val todoListType = object : TypeToken<List<TodoItem>>() {}.type!!
     val attachmentListType = object : TypeToken<List<NoteAttachment>>() {}.type!!
     val tagsListType = object : TypeToken<List<String>>() {}.type!!
+    val chunkAnalysisListType = object : TypeToken<List<ChunkAnalysis>>() {}.type!!
 }
 
 /**
@@ -171,6 +187,9 @@ fun Note.getAttachments(): List<NoteAttachment> {
     return try {
         GsonHolder.instance.fromJson(attachmentsJson, GsonHolder.attachmentListType) ?: emptyList()
     } catch (e: Exception) {
+        // CRITICAL: Log JSON parsing failures - this can cause audio to be "invisible"
+        android.util.Log.e("Note", "⚠️ ATTACHMENT JSON PARSE FAILED for note ${id.take(8)}: ${e.message}")
+        android.util.Log.d("Note", "Raw JSON: ${attachmentsJson?.take(200)}")
         emptyList()
     }
 }
@@ -228,6 +247,34 @@ fun Note.withTags(tags: List<String>): Note {
         updatedAt = System.currentTimeMillis()
     )
 }
+
+/**
+ * Extension function to parse chunk analyses from JSON
+ */
+fun Note.getChunkAnalyses(): List<ChunkAnalysis> {
+    if (chunkAnalysesJson.isNullOrBlank()) return emptyList()
+    return try {
+        GsonHolder.instance.fromJson(chunkAnalysesJson, GsonHolder.chunkAnalysisListType) ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+}
+
+/**
+ * Extension function to create a new Note with updated chunk analyses
+ */
+fun Note.withChunkAnalyses(analyses: List<ChunkAnalysis>): Note {
+    val json = if (analyses.isEmpty()) null else GsonHolder.instance.toJson(analyses)
+    return copy(
+        chunkAnalysesJson = json,
+        updatedAt = System.currentTimeMillis()
+    )
+}
+
+/**
+ * Check if this note has per-chunk analyses available
+ */
+fun Note.hasChunkAnalyses(): Boolean = !chunkAnalysesJson.isNullOrBlank()
 
 /**
  * Get all attachment URIs (combines legacy single + multiple attachments)

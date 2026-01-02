@@ -379,3 +379,37 @@ data class LocalBackupMetadata(
             }
         }
 }
+
+/**
+ * Storage statistics for the backup system.
+ * Sprint 6: Storage management optimization.
+ */
+data class BackupStorageStats(
+    val backupCount: Int,
+    val totalBackupSize: Long,
+    val maxBackupCount: Int,
+    val maxTotalSize: Long,
+    val orphanedTempSize: Long,
+    val isOverCountLimit: Boolean,
+    val isOverSizeLimit: Boolean
+) {
+    val displayTotalSize: String
+        get() = when {
+            totalBackupSize < 1024 -> "$totalBackupSize B"
+            totalBackupSize < 1024 * 1024 -> "${totalBackupSize / 1024} KB"
+            else -> String.format("%.1f MB", totalBackupSize / (1024.0 * 1024.0))
+        }
+
+    val displayMaxSize: String
+        get() = String.format("%.0f MB", maxTotalSize / (1024.0 * 1024.0))
+
+    val displayOrphanedSize: String
+        get() = when {
+            orphanedTempSize < 1024 -> "$orphanedTempSize B"
+            orphanedTempSize < 1024 * 1024 -> "${orphanedTempSize / 1024} KB"
+            else -> String.format("%.1f MB", orphanedTempSize / (1024.0 * 1024.0))
+        }
+
+    val sizeUsagePercent: Float
+        get() = (totalBackupSize.toFloat() / maxTotalSize).coerceIn(0f, 1f)
+}

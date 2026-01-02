@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +47,7 @@ enum class NavigationTab(
     val label: String,
     val opensSheet: Boolean = false
 ) {
-    NOTES(Icons.Rounded.StickyNote2, "Note"),
+    NOTES(Icons.AutoMirrored.Rounded.StickyNote2, "Note"),
     CHAT(Icons.Rounded.AutoAwesome, "Chat"),
     CALENDAR(Icons.Rounded.CalendarMonth, "Calendar", opensSheet = true),
     STACKS(Icons.Rounded.GridView, "Stacks", opensSheet = true),
@@ -68,6 +70,11 @@ fun HorizontalActionBar(
     onTabSelected: (NavigationTab) -> Unit,
     modifier: Modifier = Modifier,
     isChatMode: Boolean = false,
+    isHistoryMode: Boolean = false,
+    isCalendarMode: Boolean = false,
+    isStacksMode: Boolean = false,
+    isArchiveMode: Boolean = false,
+    isSettingsMode: Boolean = false,
     archiveCount: Int = 0
 ) {
     val haptic = LocalHapticFeedback.current
@@ -76,7 +83,7 @@ fun HorizontalActionBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),    
+            .padding(vertical = 4.dp),    
         color = Color.Transparent
     ) {
         Row(
@@ -93,12 +100,38 @@ fun HorizontalActionBar(
                     else -> selectedTab == tab
                 }
 
+                // Special handling for each tab in its respective inline mode
+                val isHistoryChat = isHistoryMode && tab == NavigationTab.CHAT
+                val isCalendarActive = isCalendarMode && tab == NavigationTab.CALENDAR
+                val isStacksActive = isStacksMode && tab == NavigationTab.STACKS
+                val isArchiveActive = isArchiveMode && tab == NavigationTab.ARCHIVE
+                val isSettingsActive = isSettingsMode && tab == NavigationTab.SETTINGS
+                
+                val displayIcon = when {
+                    isHistoryChat -> Icons.Outlined.History
+                    isCalendarActive -> Icons.Rounded.CalendarMonth
+                    isStacksActive -> Icons.Filled.Folder
+                    isArchiveActive -> Icons.Filled.Archive
+                    isSettingsActive -> Icons.Filled.Settings
+                    else -> tab.icon
+                }
+                val displayLabel = when {
+                    isHistoryChat -> "History"
+                    isCalendarActive -> "Calendar"
+                    isStacksActive -> "Stacks"
+                    isArchiveActive -> "Archive"
+                    isSettingsActive -> "Settings"
+                    else -> tab.label
+                }
+                val showLabel = isHistoryChat || isCalendarActive || isStacksActive || 
+                               isArchiveActive || isSettingsActive
+
                 ActionPill(
-                    icon = tab.icon,
-                    label = tab.label,
+                    icon = displayIcon,
+                    label = displayLabel,
                     isSelected = isSelected,
+                    showLabel = showLabel,
                     accentColor = accentColor,
-                    badge = if (tab == NavigationTab.ARCHIVE && archiveCount > 0) archiveCount else null,
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         onTabSelected(tab)
@@ -110,30 +143,45 @@ fun HorizontalActionBar(
 }
 
 /**
- * Individual action pill - Icon Only.
+ * Individual action pill.
+ * Adapts to show label for specific states (like History).
  */
 @Composable
 private fun ActionPill(
     icon: ImageVector,
     label: String,
     isSelected: Boolean,
+    showLabel: Boolean = false,
     accentColor: Color,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    badge: Int? = null
+    modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     
-    // Animate background color
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    
+    // Animate background color - Matches "Saved Audio" Pill Blue
+    val targetBgColor = if (isSelected) {
+        if (isDark) Color(0xFF004F70) else Color(0xFFC4E7FF)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+    }
+    
     val backgroundColor by animateColorAsState(
-        targetValue = if (isSelected) accentColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        targetValue = targetBgColor,
         animationSpec = tween(AnimationDuration.standard),
         label = "pillBg"
     )
 
-    // Animate icon color
+    // Animate icon/text color
+    val targetContentColor = if (isSelected) {
+        if (isDark) Color(0xFFC2E8FF) else Color(0xFF004C6D)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+    }
+    
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+        targetValue = targetContentColor,
         animationSpec = tween(AnimationDuration.standard),
         label = "pillContent"
     )
@@ -146,39 +194,49 @@ private fun ActionPill(
         ),
         label = "pillScale"
     )
-
-    Box(
+    
+    Surface(
+        color = backgroundColor,
+        shape = RoundedCornerShape(50),
         modifier = modifier
             .scale(scale)
-            .size(34.dp) // Significantly reduced size
-            .clip(RoundedCornerShape(50)) // Circle
-            .background(backgroundColor)
+            .height(30.dp) // Maintain consistent height
+            .animateContentSize() // Smooth expansion
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = contentColor,
-            modifier = Modifier.size(20.dp) // Slightly smaller icon for balance
-        )
-        
-        // Badge logic
-        if (badge != null && badge > 0) {
+        Row(
+            modifier = Modifier.padding(horizontal = if (showLabel) 12.dp else 0.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            // Icon centering logic: 
+            // If explicit label shown, use standard spacing.
+            // If no label (icon only), ensure it's a 30dp square for alignment.
+            
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = 4.dp, y = (-4).dp)
-                    .size(14.dp)
-                    .background(MaterialTheme.colorScheme.error, RoundedCornerShape(50))
-                    .border(1.5.dp, MaterialTheme.colorScheme.surface, RoundedCornerShape(50)),
+                    .size(if (showLabel) 20.dp else 30.dp), // layout size
                 contentAlignment = Alignment.Center
             ) {
-                 // Dot only for cleaner look on icon-only UI
+                 Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = contentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            
+            if (showLabel) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = contentColor
+                )
             }
         }
     }

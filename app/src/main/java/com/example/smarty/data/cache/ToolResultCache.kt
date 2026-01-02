@@ -1,12 +1,19 @@
 package com.example.smarty.data.cache
 
+import android.util.Log
 import android.util.LruCache
 
 /**
  * LRU cache for tool execution results to avoid duplicate DB/API calls.
  * Short TTL (30 seconds) since tool results can change quickly.
+ *
+ * SECURITY: Cache must be invalidated when:
+ * - Any note is updated (privacy state could change)
+ * - Notes are archived/unarchived
+ * - Notes are deleted
  */
 object ToolResultCache {
+    private const val TAG = "ToolResultCache"
     private const val MAX_CACHE_SIZE = 50
     private const val TTL_MS = 30_000L  // 30 seconds
 
@@ -36,5 +43,19 @@ object ToolResultCache {
 
     fun clear() {
         cache.evictAll()
+    }
+
+    /**
+     * SECURITY FIX: Invalidate cache when notes are modified.
+     * Called from repository when any note update occurs.
+     * This prevents cached results from leaking private note data
+     * when a user marks a note as private between searches.
+     */
+    fun invalidateNoteCache() {
+        val cacheSize = cache.size()
+        if (cacheSize > 0) {
+            Log.d(TAG, "Invalidating $cacheSize cached entries due to note modification")
+            cache.evictAll()
+        }
     }
 }

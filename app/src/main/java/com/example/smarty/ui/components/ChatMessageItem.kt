@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -61,11 +62,26 @@ import com.example.smarty.ui.theme.AnimationDuration
 import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.getAttachments
+import com.example.smarty.ui.components.viewers.FullScreenImageViewer
+import com.example.smarty.ui.components.InlineNotePreview
 import com.halilibo.richtext.markdown.Markdown
 import com.halilibo.richtext.ui.RichText
 import com.halilibo.richtext.ui.RichTextStyle
 import com.halilibo.richtext.ui.string.RichTextStringStyle
 import androidx.compose.animation.core.FastOutSlowInEasing
+
+/**
+ * Pre-compiled regex patterns for markdown parsing.
+ * Moved to file level to avoid recreation on every recomposition.
+ * This is a critical performance optimization - regex compilation is O(n) expensive.
+ */
+private object MarkdownPatterns {
+    val bold = Regex("\\*\\*(.+?)\\*\\*")
+    val italic = Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)")
+    val inlineCode = Regex("`([^`]+)`")
+    val link = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
+    val underline = Regex("__(.+?)__")
+}
 
 /**
  * Unified Chat Message Bubble Component
@@ -124,7 +140,8 @@ fun ChatMessageItem(
                     Text(
                         text = message.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            lineHeight = 22.sp,
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
                             letterSpacing = 0.15.sp,
                             fontWeight = FontWeight.SemiBold
                         ),
@@ -158,10 +175,12 @@ fun ChatMessageItem(
 
                     // Use ClickableText to make links work
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                    @Suppress("DEPRECATION")
                     androidx.compose.foundation.text.ClickableText(
                         text = annotatedText,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            lineHeight = 22.sp,
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
                             letterSpacing = 0.15.sp
                         ),
                         onClick = { offset ->
@@ -175,6 +194,55 @@ fun ChatMessageItem(
                             }
                         }
                     )
+                }
+
+                // Inline Image Preview (for AI messages with images from ViewImageTool)
+                if (!isUser && message.hasInlineImages) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    var showFullScreen by remember { mutableStateOf(false) }
+                    var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
+
+                    InlineImagePreview(
+                        images = message.inlineImages,
+                        onExpandImage = { index ->
+                            fullScreenIndex = index
+                            showFullScreen = true
+                        },
+                        modifier = Modifier
+                            .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                            .clip(RoundedCornerShape(16.dp))
+                    )
+
+                    // Full-screen viewer dialog
+                    if (showFullScreen && message.inlineImages.isNotEmpty()) {
+                        val currentImage = message.inlineImages.getOrNull(fullScreenIndex)
+                            ?: message.inlineImages.first()
+                        FullScreenImageViewer(
+                            imageUri = currentImage.uri,
+                            onDismiss = { showFullScreen = false },
+                            contentDescription = currentImage.fileName
+                        )
+                    }
+                }
+
+                // Referenced Notes (Inline)
+                if (!isUser && message.referencedNoteIds.isNotEmpty()) {
+                    val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
+                    val relevantNotes = message.referencedNoteIds
+                        .filter { it !in actionNoteIds }
+                        .mapNotNull { getNote(it) }
+
+                    if (relevantNotes.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        InlineNotePreview(
+                            notes = relevantNotes,
+                            onNoteClick = { onNoteClick(it) },
+                            modifier = Modifier
+                                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                .clip(RoundedCornerShape(16.dp))
+                        )
+                    }
                 }
 
                 // Attachments Count
@@ -349,38 +417,7 @@ fun ChatMessageItem(
             }
         }
 
-        // Relevant Notes (below timestamp row)
-        if (!isUser && message.referencedNoteIds.isNotEmpty()) {
-            val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
-            val relevantNotes = message.referencedNoteIds
-                .filter { it !in actionNoteIds }
-                .mapNotNull { getNote(it) }
-                .take(3)
-
-            if (relevantNotes.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Referenced",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                    color = accentColor,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-
-                relevantNotes.forEach { note ->
-                    NoteCard(
-                        note = note,
-                        onClick = { onNoteClick(note) },
-                        onDelete = {},
-                        onOpenTodo = {},
-                        modifier = Modifier
-                            .widthIn(max = ComponentSpacing.bubbleMaxWidth)
-                            .shadow(2.dp, RoundedCornerShape(16.dp)),
-                        isSelectionMode = true
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-            }
-        }
+        
     }
 }
 
@@ -737,8 +774,8 @@ private fun parseMarkdownToAnnotatedString(
         // Find all markdown elements
         val matches = mutableListOf<MarkdownMatch>()
 
-        // Bold: **text**
-        Regex("\\*\\*(.+?)\\*\\*").findAll(text).forEach { match ->
+        // Bold: **text** (using pre-compiled pattern)
+        MarkdownPatterns.bold.findAll(text).forEach { match ->
             matches.add(MarkdownMatch(
                 range = match.range,
                 displayText = match.groupValues[1],
@@ -746,8 +783,8 @@ private fun parseMarkdownToAnnotatedString(
             ))
         }
 
-        // Italic: *text* (but not **)
-        Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)").findAll(text).forEach { match ->
+        // Italic: *text* (but not **) - using pre-compiled pattern
+        MarkdownPatterns.italic.findAll(text).forEach { match ->
             // Check if this overlaps with any bold match
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
@@ -759,8 +796,8 @@ private fun parseMarkdownToAnnotatedString(
             }
         }
 
-        // Inline code: `code`
-        Regex("`([^`]+)`").findAll(text).forEach { match ->
+        // Inline code: `code` - using pre-compiled pattern
+        MarkdownPatterns.inlineCode.findAll(text).forEach { match ->
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(
@@ -775,8 +812,8 @@ private fun parseMarkdownToAnnotatedString(
             }
         }
 
-        // Links: [text](url)
-        Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)").findAll(text).forEach { match ->
+        // Links: [text](url) - using pre-compiled pattern
+        MarkdownPatterns.link.findAll(text).forEach { match ->
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(
@@ -793,8 +830,8 @@ private fun parseMarkdownToAnnotatedString(
             }
         }
 
-        // Underline: __text__
-        Regex("__(.+?)__").findAll(text).forEach { match ->
+        // Underline: __text__ - using pre-compiled pattern
+        MarkdownPatterns.underline.findAll(text).forEach { match ->
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(

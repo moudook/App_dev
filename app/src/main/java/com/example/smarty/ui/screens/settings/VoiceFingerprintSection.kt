@@ -2,6 +2,7 @@ package com.example.smarty.ui.screens.settings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.SafetyOrange
 
@@ -46,136 +48,171 @@ fun VoiceFingerprintSheetContent(
             .padding(horizontal = 24.dp)
             .padding(bottom = 32.dp)
     ) {
-        // Header
-        Text(
-            text = "Voice ID",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontWeight = FontWeight.Bold
-            ),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = if (isVoiceEnrolled) {
-                "Your voice fingerprint is active. Only your voice will trigger the wake word."
-            } else {
-                "Set up Voice ID to ensure only your voice triggers the wake word."
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Status indicator
-        VoiceIdStatusCard(isEnrolled = isVoiceEnrolled)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        if (isVoiceEnrolled) {
-            // Retrain Button
-            Button(
-                onClick = {
-                    onDismiss()
-                    onRetrainVoice()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = accentColor
-                ),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+        // Modern Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
                 Text(
-                    text = "Retrain Voice ID",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Delete Button
-            OutlinedButton(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                border = BorderStroke(1.dp, SafetyOrange.copy(alpha = 0.5f)),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.DeleteForever,
-                    contentDescription = null,
-                    tint = SafetyOrange,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Delete Voice ID",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold
+                    text = "Voice Identity",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp
                     ),
-                    color = SafetyOrange
+                    color = MaterialTheme.colorScheme.onBackground
                 )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Info text
-            Text(
-                text = "Retraining will replace your current voice fingerprint with a new one.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
-        } else {
-            // Setup Button
-            Button(
-                onClick = {
-                    onDismiss()
-                    onRetrainVoice()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = accentColor
-                ),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Set Up Voice ID",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    text = "Secure your assistant with voice",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Surface(
+                shape = CircleShape,
+                color = accentColor.copy(alpha = 0.1f),
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.GraphicEq,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
 
-            Text(
-                text = "You'll be asked to speak a few phrases to create your unique voice fingerprint.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 24.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+        )
+
+        // Main Status Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Status Visual
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isVoiceEnrolled) accentColor.copy(alpha = 0.1f)
+                            else MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                        .border(
+                            2.dp,
+                            if (isVoiceEnrolled) accentColor.copy(alpha = 0.3f) 
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isVoiceEnrolled) Icons.Default.Mic else Icons.Default.MicNone,
+                        contentDescription = null,
+                        tint = if (isVoiceEnrolled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = if (isVoiceEnrolled) "Voice Identity Active" else "No Voice Identity",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = if (isVoiceEnrolled) 
+                        "Only your voice can trigger the assistant." 
+                    else 
+                        "Train the assistant to recognize your voice.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Actions
+                if (isVoiceEnrolled) {
+                    // Retrain
+                    Button(
+                        onClick = {
+                            onDismiss()
+                            onRetrainVoice()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Retrain Voice Model")
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Delete
+                    TextButton(
+                        onClick = { showDeleteDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, null, tint = SafetyOrange, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Delete Voice Model", color = SafetyOrange)
+                    }
+
+                } else {
+                    // Setup
+                    Button(
+                        onClick = {
+                            onDismiss()
+                            onRetrainVoice()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accentColor,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) {
+                        Icon(Icons.Default.GraphicEq, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Set Up Voice Identity")
+                    }
+                }
+            }
         }
     }
 
@@ -189,74 +226,6 @@ fun VoiceFingerprintSheetContent(
             },
             onDismiss = { showDeleteDialog = false }
         )
-    }
-}
-
-/**
- * Voice ID status card showing enrollment state.
- */
-@Composable
-private fun VoiceIdStatusCard(
-    isEnrolled: Boolean
-) {
-    val accentColor = LocalAccentColor.current
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isEnrolled) {
-                accentColor.copy(alpha = 0.1f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            }
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isEnrolled) accentColor.copy(alpha = 0.2f)
-                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (isEnrolled) Icons.Default.CheckCircle else Icons.Default.MicOff,
-                    contentDescription = null,
-                    tint = if (isEnrolled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column {
-                Text(
-                    text = if (isEnrolled) "Voice ID Active" else "Voice ID Not Set",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = if (isEnrolled) {
-                        "Your unique voice pattern is stored"
-                    } else {
-                        "Anyone's voice can trigger wake word"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
     }
 }
 

@@ -246,18 +246,13 @@ fun BackupSettingsScreen(
             }
         }
     } else {
+        // Intercept system back button
+        androidx.activity.compose.BackHandler(onBack = onBackClick)
+
         Scaffold(
             topBar = {
                 TopAppBar(
                     title = { Text("Backup & Sync") },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
-                            )
-                        }
-                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
                     )

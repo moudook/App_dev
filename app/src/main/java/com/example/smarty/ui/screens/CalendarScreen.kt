@@ -88,7 +88,7 @@ enum class SyncStatus {
 fun CalendarScreen(
     events: List<CalendarEvent>,
     onBackClick: () -> Unit,
-    onAddEvent: () -> Unit,
+    onAddEvent: (Calendar) -> Unit,
     onEventClick: (CalendarEvent) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
     syncStatus: SyncStatus = SyncStatus.Idle,
@@ -161,15 +161,17 @@ fun CalendarScreen(
     }
 
     // Theme-aware colors
-    val bgColor = calendarBackground()
     val surfaceColor = calendarSurface()
     val textPrimary = calendarTextPrimary()
     val textMuted = calendarTextMuted()
 
+    // Intercept system back button
+    androidx.activity.compose.BackHandler(onBack = onBackClick)
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(bgColor)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         Column(
             modifier = Modifier
@@ -186,21 +188,7 @@ fun CalendarScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Back Button
-                FilledIconButton(
-                    onClick = onBackClick,
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = surfaceColor,
-                        contentColor = textPrimary
-                    ),
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+
 
                 // Right side buttons - Sync + Add
                 Row(
@@ -260,7 +248,7 @@ fun CalendarScreen(
                     FilledIconButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onAddEvent()
+                            onAddEvent(selectedDate)
                         },
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = surfaceColor,

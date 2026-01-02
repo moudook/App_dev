@@ -192,17 +192,18 @@ class CogniAgentProviderTest {
     }
 
     // =========================================================================
-    // HUGGINGFACE UNSUPPORTED TEST
+    // HUGGINGFACE EXECUTOR TEST
     // =========================================================================
 
     @Test
-    fun `HuggingFace returns unsupported provider`() {
+    fun `HuggingFace creates valid executor`() {
         setupProvider(AIProvider.HUGGINGFACE, "test-hf-key", "meta-llama/Llama-2-7b")
 
         val result = agentProvider.getExecutor()
 
-        assertTrue("HuggingFace should be unsupported", result is CogniAgentProvider.ExecutorResult.UnsupportedProvider)
-        assertEquals(AIProvider.HUGGINGFACE, (result as CogniAgentProvider.ExecutorResult.UnsupportedProvider).provider)
+        // HuggingFace is now supported with OpenAI-compatible inference API
+        assertTrue("HuggingFace should be supported", result is CogniAgentProvider.ExecutorResult.Success)
+        assertEquals(AIProvider.HUGGINGFACE, (result as CogniAgentProvider.ExecutorResult.Success).provider)
     }
 
     // =========================================================================
@@ -269,13 +270,13 @@ class CogniAgentProviderTest {
     }
 
     @Test
-    fun `hasConfiguredProvider excludes HuggingFace`() {
+    fun `hasConfiguredProvider includes HuggingFace`() {
         every { securePreferences.getProviderPriority() } returns listOf(AIProvider.HUGGINGFACE)
         every { securePreferences.isProviderEnabled(AIProvider.HUGGINGFACE) } returns true
         every { securePreferences.getProviderKeys(AIProvider.HUGGINGFACE) } returns listOf("key")
 
-        // HuggingFace is not supported for agent, so should return false
-        assertFalse(agentProvider.hasConfiguredProvider())
+        // HuggingFace is now supported for agent
+        assertTrue(agentProvider.hasConfiguredProvider())
     }
 
     // =========================================================================

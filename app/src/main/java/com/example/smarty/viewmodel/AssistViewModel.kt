@@ -10,7 +10,9 @@ import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
 import com.example.smarty.agent.CogniAgent
 import com.example.smarty.agent.CogniAgentProvider
+import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.WebCitation
+import com.example.smarty.data.model.InlineChatImage
 import com.example.smarty.data.local.CogniDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.Attachment
@@ -27,8 +29,10 @@ import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.api.GroqKeyManager
 import com.google.gson.Gson
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -95,6 +99,9 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     // Temporary storage for citations during agent execution (thread-safe)
     private val pendingCitations = java.util.concurrent.CopyOnWriteArrayList<WebCitation>()
 
+    // Temporary storage for inline images during agent execution (thread-safe)
+    private val pendingInlineImages = java.util.concurrent.CopyOnWriteArrayList<InlineChatImage>()
+
     // Agent callbacks for Koog tools that need ViewModel state
     private val agentCallbacks = object : AgentCallbacks {
         override fun getActiveNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_notes.value)
@@ -155,6 +162,15 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
             // Return cached screen context if available
             return null  // AssistViewModel doesn't track screen context
+        }
+
+        override fun onDisplayImages(images: List<ImageDisplayItem>) {
+            // Store images for the current chat response
+            pendingInlineImages.clear()
+            pendingInlineImages.addAll(images.map {
+                InlineChatImage(uri = it.uri, fileName = it.fileName, noteTitle = it.noteTitle)
+            })
+            Log.d(TAG, "Images found: ${images.size} images to display inline")
         }
     }
 
@@ -268,6 +284,10 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                     conversationHistory = conversationHistory
                 )
 
+                // Get inline images and clear pending
+                val inlineImages = pendingInlineImages.toList()
+                pendingInlineImages.clear()
+
                 // Create assistant message from result
                 val assistantMessage = when (result) {
                     is AgentResult.Success -> ChatMessage(
@@ -279,7 +299,8 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                                 url = citation.url,
                                 snippet = citation.snippet
                             )
-                        }
+                        },
+                        inlineImages = inlineImages
                     )
                     is AgentResult.Error -> ChatMessage(
                         role = ChatRole.ASSISTANT,
@@ -298,14 +319,16 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                     _messages.value = _messages.value + assistantMessage
                 }
 
-                // Save message pair to persistent storage
+                // Save message pair to persistent storage (non-cancellable to prevent data loss)
                 sessionId?.let { id ->
-                    chatRepository.saveMessagePair(
-                        sessionId = id,
-                        userMessage = userMessage,
-                        assistantMessage = assistantMessage,
-                        shouldSave = true
-                    )
+                    withContext(NonCancellable) {
+                        chatRepository.saveMessagePair(
+                            sessionId = id,
+                            userMessage = userMessage,
+                            assistantMessage = assistantMessage,
+                            shouldSave = true
+                        )
+                    }
                 }
 
             } catch (e: Exception) {
@@ -346,9 +369,18 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 sessionId?.let { id ->
-                    // Finalize the session
-                    chatRepository.finalizeSession(id)
-                    Log.d(TAG, "Finalized assistant session: $id")
+                    // Use NonCancellable to ensure session is finalized even if scope is cancelled
+                    withContext(NonCancellable) {
+                        // Only finalize if we have messages to save
+                        val messageCount = _messages.value.size
+                        if (messageCount > 0) {
+                            Log.d(TAG, "Keeping assistant session: $id with $messageCount messages")
+                        } else {
+                            // Finalize empty sessions (will be cleaned up)
+                            chatRepository.finalizeSession(id)
+                            Log.d(TAG, "Finalized empty assistant session: $id")
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving session: ${e.message}", e)
@@ -365,17 +397,20 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             messageMutex.withLock {
                 _messages.value = _messages.value + message
             }
-            // Persist to database if we have a session
+            // Persist to database if we have a session (non-cancellable to prevent data loss)
             if (message.role == ChatRole.ASSISTANT) {
                 val userMsg = _messages.value.lastOrNull { it.role == ChatRole.USER }
                 if (userMsg != null) {
                     sessionId?.let { id ->
-                        chatRepository.saveMessagePair(
-                            sessionId = id,
-                            userMessage = userMsg,
-                            assistantMessage = message,
-                            shouldSave = true
-                        )
+                        withContext(NonCancellable) {
+                            chatRepository.saveMessagePair(
+                                sessionId = id,
+                                userMessage = userMsg,
+                                assistantMessage = message,
+                                shouldSave = true
+                            )
+                            Log.d(TAG, "Message pair saved to session: $id")
+                        }
                     }
                 }
             }

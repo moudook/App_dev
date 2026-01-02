@@ -2,10 +2,14 @@ package com.example.smarty.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.StickyNote2
 import androidx.compose.material.icons.automirrored.filled.TextSnippet
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.automirrored.outlined.StickyNote2
+import androidx.compose.material.icons.automirrored.outlined.TextSnippet
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.smarty.data.model.NoteType
@@ -58,21 +62,21 @@ object NoteCardIcons {
      */
     private val NOTE_TYPE_ICONS: Array<ImageVector> by lazy {
         arrayOf(
-            Icons.Default.EditNote,         // BRAIN_DUMP - "Note"
-            Icons.Default.PlayCircle,       // YOUTUBE - "Yt" (Clean Play Circle)
-            Icons.Default.Language,         // WEBSITE - "Link" (Globe/Web)
-            Icons.Default.Photo,            // IMAGE - "Img" (Single image frame)
-            Icons.Default.Close,            // TWITTER - "X" (Literal X using Close icon)
-            Icons.Default.CameraAlt,       // INSTAGRAM - "IG" (Camera)
-            Icons.AutoMirrored.Filled.Article, // DOCUMENT - "Doc" (Article/Document)
-            Icons.Default.TableChart,      // SPREADSHEET - "Excel" (Table grid)
-            Icons.Default.Slideshow,       // PRESENTATION - "PPT" (Slides)
-            Icons.Default.Videocam,        // VIDEO - "Vid" (Video camera)
-            Icons.Default.Mic,             // AUDIO - "Aud" (Microphone)
-            Icons.Default.Terminal,        // CODE - "Code" (Terminal/Code)
-            Icons.Default.FolderZip,       // ARCHIVE - "Zip" (Compressed folder)
-            Icons.Default.Android,         // APK - "APK" (Android robot)
-            Icons.Default.AttachFile       // FILE - "File" (Attachment)
+            Icons.Outlined.EditNote,         // BRAIN_DUMP - "Note"
+            Icons.Outlined.PlayCircle,       // YOUTUBE - "Yt" (Clean Play Circle)
+            Icons.Outlined.Language,         // WEBSITE - "Link" (Globe/Web)
+            Icons.Outlined.Photo,            // IMAGE - "Img" (Single image frame)
+            Icons.Outlined.Close,            // TWITTER - "X" (Literal X using Close icon)
+            Icons.Outlined.CameraAlt,       // INSTAGRAM - "IG" (Camera)
+            Icons.AutoMirrored.Outlined.Article, // DOCUMENT - "Doc" (Article/Document)
+            Icons.Outlined.TableChart,      // SPREADSHEET - "Excel" (Table grid)
+            Icons.Outlined.Slideshow,       // PRESENTATION - "PPT" (Slides)
+            Icons.Outlined.Videocam,        // VIDEO - "Vid" (Video camera)
+            Icons.Outlined.Mic,             // AUDIO - "Aud" (Microphone)
+            Icons.Outlined.Terminal,        // CODE - "Code" (Terminal/Code)
+            Icons.Outlined.FolderZip,       // ARCHIVE - "Zip" (Compressed folder)
+            Icons.Outlined.Android,         // APK - "APK" (Android robot)
+            Icons.Outlined.AttachFile       // FILE - "File" (Attachment)
         )
     }
 

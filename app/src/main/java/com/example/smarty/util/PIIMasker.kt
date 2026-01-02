@@ -124,6 +124,7 @@ object PIIMasker : ComponentCallbacks2 {
     /**
      * Handle memory pressure events by clearing the placeholder map.
      */
+    @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         when (level) {
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
@@ -136,6 +137,7 @@ object PIIMasker : ComponentCallbacks2 {
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onConfigurationChanged(newConfig: Configuration) {}
 
     override fun onLowMemory() {

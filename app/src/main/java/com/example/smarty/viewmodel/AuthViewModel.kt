@@ -23,7 +23,11 @@ import kotlinx.coroutines.launch
 
 /**
  * ViewModel for Authentication
+ * 
+ * Note: GoogleSignIn API is deprecated. Migration to Credential Manager API is recommended
+ * for future releases. See: https://developers.google.com/identity/sign-in/android/legacy-sign-in
  */
+@Suppress("DEPRECATION")
 class AuthViewModel(
     application: Application,
     private val authRepository: AuthRepository

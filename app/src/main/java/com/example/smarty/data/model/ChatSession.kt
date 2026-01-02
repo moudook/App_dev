@@ -73,7 +73,8 @@ data class ChatMessageEntity(
     val attachmentsJson: String = "[]",  // JSON serialized attachments
     val executedActionsJson: String = "[]",  // JSON serialized actions
     val referencedNoteIds: String = "",  // Comma-separated note IDs
-    val citationsJson: String = "[]"  // JSON serialized citations from web search
+    val citationsJson: String = "[]",  // JSON serialized citations from web search
+    val inlineImagesJson: String = "[]"  // JSON serialized inline images from ViewImageTool
 ) {
     /**
      * Convert to domain model ChatMessage
@@ -90,6 +91,17 @@ data class ChatMessageEntity(
             emptyList()
         }
 
+        // Parse inline images from JSON
+        val inlineImages: List<InlineChatImage> = try {
+            if (inlineImagesJson.isNotBlank() && inlineImagesJson != "[]") {
+                Companion.parseInlineImagesJson(inlineImagesJson)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+
         return ChatMessage(
             id = id,
             role = ChatRole.valueOf(role),
@@ -98,7 +110,8 @@ data class ChatMessageEntity(
             timestamp = timestamp,
             executedActions = actions,
             referencedNoteIds = referencedNoteIds.split(",").filter { it.isNotBlank() },
-            citations = citations
+            citations = citations,
+            inlineImages = inlineImages
         )
     }
 
@@ -114,6 +127,13 @@ data class ChatMessageEntity(
                 "[]"
             }
 
+            // Serialize inline images to JSON
+            val inlineImagesJson = if (message.inlineImages.isNotEmpty()) {
+                Companion.serializeInlineImagesToJson(message.inlineImages)
+            } else {
+                "[]"
+            }
+
             return ChatMessageEntity(
                 id = message.id,
                 sessionId = sessionId,
@@ -121,7 +141,8 @@ data class ChatMessageEntity(
                 content = message.content,
                 timestamp = message.timestamp,
                 referencedNoteIds = message.referencedNoteIds.joinToString(","),
-                citationsJson = citationsJson
+                citationsJson = citationsJson,
+                inlineImagesJson = inlineImagesJson
             )
         }
 
@@ -192,6 +213,74 @@ data class ChatMessageEntity(
                 val url = citation.url.replace("\\", "\\\\").replace("\"", "\\\"")
                 val snippet = citation.snippet.replace("\\", "\\\\").replace("\"", "\\\"")
                 """{"title":"$title","url":"$url","snippet":"$snippet"}"""
+            }
+            return "[${items.joinToString(",")}]"
+        }
+
+        /**
+         * Parse inline images from JSON string
+         */
+        private fun parseInlineImagesJson(json: String): List<InlineChatImage> {
+            val images = mutableListOf<InlineChatImage>()
+            try {
+                val trimmed = json.trim().removePrefix("[").removeSuffix("]")
+                if (trimmed.isBlank()) return emptyList()
+
+                // Split by },{ but keep track of nested braces
+                val items = mutableListOf<String>()
+                var depth = 0
+                var start = 0
+                for (i in trimmed.indices) {
+                    when (trimmed[i]) {
+                        '{' -> depth++
+                        '}' -> {
+                            depth--
+                            if (depth == 0) {
+                                items.add(trimmed.substring(start, i + 1).trim().removePrefix(",").trim())
+                                start = i + 1
+                            }
+                        }
+                    }
+                }
+
+                for (item in items) {
+                    val obj = item.removePrefix("{").removeSuffix("}")
+                    var uri = ""
+                    var fileName = ""
+                    var noteTitle = ""
+
+                    val regex = """"(\w+)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"""".toRegex()
+                    regex.findAll(obj).forEach { match ->
+                        val (key, value) = match.destructured
+                        val unescaped = value.replace("\\\"", "\"").replace("\\\\", "\\")
+                        when (key) {
+                            "uri" -> uri = unescaped
+                            "fileName" -> fileName = unescaped
+                            "noteTitle" -> noteTitle = unescaped
+                        }
+                    }
+
+                    if (uri.isNotBlank()) {
+                        images.add(InlineChatImage(uri = uri, fileName = fileName, noteTitle = noteTitle))
+                    }
+                }
+            } catch (e: Exception) {
+                // Return empty on parse error
+            }
+            return images
+        }
+
+        /**
+         * Serialize inline images to JSON string
+         */
+        private fun serializeInlineImagesToJson(images: List<InlineChatImage>): String {
+            if (images.isEmpty()) return "[]"
+
+            val items = images.map { image ->
+                val uri = image.uri.replace("\\", "\\\\").replace("\"", "\\\"")
+                val fileName = image.fileName.replace("\\", "\\\\").replace("\"", "\\\"")
+                val noteTitle = image.noteTitle.replace("\\", "\\\\").replace("\"", "\\\"")
+                """{"uri":"$uri","fileName":"$fileName","noteTitle":"$noteTitle"}"""
             }
             return "[${items.joinToString(",")}]"
         }

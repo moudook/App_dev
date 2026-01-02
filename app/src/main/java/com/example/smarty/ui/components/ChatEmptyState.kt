@@ -3,6 +3,7 @@ package com.example.smarty.ui.components
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -121,7 +122,8 @@ private fun EmptyStateContainer(
  */
 @Composable
 fun ChatEmptyState(modifier: Modifier = Modifier) {
-    val accentColor = LocalAccentColor.current
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val accentColor = if (isDark) Color(0xFFC2E8FF) else Color(0xFF007AFF) // SystemBlue for Light Mode visibility
 
     EmptyStateContainer(
         title = "Focus",
@@ -276,7 +278,8 @@ private data class ChatWaveState(
  */
 @Composable
 fun NotesEmptyState(modifier: Modifier = Modifier) {
-    val accentColor = LocalAccentColor.current
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val accentColor = if (isDark) Color(0xFFC2E8FF) else Color(0xFF007AFF) // SystemBlue for Light Mode visibility
 
     EmptyStateContainer(
         title = "Hello, Moudook!",

@@ -1,7 +1,7 @@
 #info
 # Ignore all markdown files globally
+.md
 *.md
-**/*.md
 
 # Keep README.md tracked
 !README.md
@@ -33,22 +33,20 @@ prn
 PRN
 .claude
 
-# Reference files
-bad ai response.txt
-The features that I want to add I a.txt
-Cogni_Icon.svg
-nul
-NUL
-*.pdf
+# ============================================
+# PRIVATE FILES DIRECTORY
+# ============================================
+# All sensitive files (issues, solutions, screenshots, 
+# reference docs, personal notes, etc.) go in _private/
+_private/
 
-# Reference/Notes
+# ============================================
+# GENERAL FILE TYPE IGNORES
+# ============================================
+# Reference/Notes file types
 *.notes
 *.reference
-
-# AI Agent Documentation (local reference only)
-.agent/
-# .agent/*.md (now allowed for workflows)
-api_groQ_smarty_cogni.txt
+*.pdf
 
 # Temporary files
 *.tmp
@@ -56,15 +54,42 @@ api_groQ_smarty_cogni.txt
 *.bak
 *.swp
 temp.txt
+instructions.txt
 
-# Screenshots/conversation files
+# Screenshot patterns (general)
 thread-*.png
 screenshot*.png
-# Specific PNG files to ignore
-analyse_this_image.png
-issue_in_chat_mode.png
-Audio_player_issue.png
 
+# ============================================
+# PROJECT-SPECIFIC DIRECTORIES
+# ============================================
+# AI Agent Documentation (local reference only)
+.agent/
+# .agent/*.md (now allowed for workflows)
+
+# Speech Recognition Models (see README for download instructions)
+vosk-model-*/
+app/src/main/assets/vosk-model-*/
+
+# Text-to-Speech Models (downloadable)
+app/src/main/assets/tts_models/
+
+# Experiment directories
+AUDIO_effects/
+
+
+for_my_reference/
+system-prompts-and-models-of-ai-tools-main/
+
+
+# LLM Server Binaries (Ignore all except startup scripts)
+LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/*
+!LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/start_local_llm_secure.bat
+!LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/start_local_llm.bat
+
+# ============================================
+# IDE & BUILD FILES
+# ============================================
 # IDE specific
 .idea/
 *.ipr
@@ -94,6 +119,9 @@ gen/
 out/
 release/
 
+# ============================================
+# SECURITY & CREDENTIALS
+# ============================================
 # Login & Credentials - COMPREHENSIVE PROTECTION
 *.keystore
 *.jks
@@ -133,64 +161,3 @@ credentials.json
 *.db
 *.sqlite
 *.sqlite3
-
-#errors
-koog_migration_errors.log
-compile_log.txt
-compile_log_2.txt
-compile_log_3.txt
-compile_log_4.txt
-build_log.txt
-
-#issues
-#issues_with_the_app/
-issue_with_ai_agent_audio_player_case_2.png
-issue_with_ai_agent_audio_player.png
-agent_issue_during_chat.png
-new_app_icon_for_cogni_11zon.png
-new_app_icon_for_cogni.png
-
-#solutions
-error_and_warning_solution.txt
-AI_AGENT_SOLUTION_1.txt
-AI_AGENT_SOLUTION_2.txt
-AI_AGENT_SOLUTION_3.txt
-update_settings.py
-.env
-for_my_reference/
-
-#research
-# on the wake words
-terminator_android.ppn
-input_block_issue.png
-
-#memory_leaks
-memory_leaks.jpeg
-
-#experiment
-AUDIO_effects/
-
-#done
-
-# Speech Recognition Models (see README for download instructions)
-vosk-model-*/
-app/src/main/assets/vosk-model-*/
-w
-# Text-to-Speech Models (downloadable)
-app/src/main/assets/tts_models/
-
-#img
-refrence_.png
-refrence.jpg
-tracked_files.txt
-I'm for I'm going for this style for the notecard UI, Something like this So that it don't overlap with other things A small title.png
-something_like_this_for_the_citation.png
-
-#logs
-build_log_2.txt
-build_log_error.txt
-build_log_full.txt
-build_log_retry.txt
-document_viewer_issues_meltdown.txt
-
-LLM_THROUGH_USB_THEARING/

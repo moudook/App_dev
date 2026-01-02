@@ -142,12 +142,20 @@ class BatchOperationsTool(
 
         // Execute operation
         var affectedCount = 0
+        var skippedPrivate = 0
         try {
             when (operation) {
                 "archive" -> {
                     matchingNotes.forEach { note ->
-                        repository.archiveNote(note.id)
-                        affectedCount++
+                        // SECURITY FIX: Re-verify privacy before each operation
+                        // Note could have been marked private between preview and execute
+                        val freshNote = repository.getNoteById(note.id)
+                        if (freshNote != null && PrivacyGuard.canAiProcess(freshNote)) {
+                            repository.archiveNote(note.id)
+                            affectedCount++
+                        } else {
+                            skippedPrivate++
+                        }
                     }
                 }
 
@@ -165,21 +173,28 @@ class BatchOperationsTool(
 
                     val category = repository.getOrCreateCategory(args.targetCategory)
                     matchingNotes.forEach { note ->
-                        repository.updateNoteCategory(note.id, category.id, category.name)
-                        affectedCount++
+                        // SECURITY FIX: Re-verify privacy before each operation
+                        val freshNote = repository.getNoteById(note.id)
+                        if (freshNote != null && PrivacyGuard.canAiProcess(freshNote)) {
+                            repository.updateNoteCategory(note.id, category.id, category.name)
+                            affectedCount++
+                        } else {
+                            skippedPrivate++
+                        }
                     }
                 }
             }
 
+            val skippedMsg = if (skippedPrivate > 0) " ($skippedPrivate notes skipped - now private)" else ""
             return BatchOperationResult(
                 success = true,
                 operation = operation,
                 matchingNotes = noteInfos,
                 affectedCount = affectedCount,
                 message = when (operation) {
-                    "archive" -> "Successfully archived $affectedCount notes"
-                    "update_category" -> "Successfully moved $affectedCount notes to '${args.targetCategory}'"
-                    else -> "Operation completed on $affectedCount notes"
+                    "archive" -> "Successfully archived $affectedCount notes$skippedMsg"
+                    "update_category" -> "Successfully moved $affectedCount notes to '${args.targetCategory}'$skippedMsg"
+                    else -> "Operation completed on $affectedCount notes$skippedMsg"
                 }
             )
         } catch (e: Exception) {

@@ -86,8 +86,10 @@ object SemanticSearchEngine {
         val normalizedQuery = normalizeText(query)
         val queryTokens = tokenize(normalizedQuery)
         val querySoundex = queryTokens.map { soundex(it) }.filter { it.isNotEmpty() }
+        val significantTokens = queryTokens.filter { it.length >= 3 }
 
-        Log.d(TAG, "Searching for: '$normalizedQuery' (tokens: $queryTokens)")
+        Log.d(TAG, "🔍 Search query: '$query' → normalized: '$normalizedQuery'")
+        Log.d(TAG, "🔍 Tokens: $queryTokens, Significant tokens (3+ chars): $significantTokens")
 
         // OPTIMIZED: Early termination and result limiting for better performance
         val results = mutableListOf<SearchResult<T>>()
@@ -166,7 +168,7 @@ object SemanticSearchEngine {
                 return MatchResult(1.0, MatchType.EXACT, listOf(text))
             }
 
-            // 2. Contains match
+            // 2. Contains match - query is contained in the text
             if (normalizedText.contains(query)) {
                 val containsScore = 0.95 - (0.1 * (normalizedText.length - query.length) / normalizedText.length)
                 if (containsScore > bestScore) {
@@ -176,6 +178,40 @@ object SemanticSearchEngine {
                     matchedTerms.add(text)
                 }
                 continue
+            }
+
+            // 2b. Reverse contains - text is contained in query (user typed more than file name)
+            if (query.contains(normalizedText) && normalizedText.length >= 3) {
+                val reverseContainsScore = 0.90 - (0.1 * (query.length - normalizedText.length) / query.length)
+                if (reverseContainsScore > bestScore) {
+                    bestScore = reverseContainsScore
+                    bestMatchType = MatchType.CONTAINS
+                    matchedTerms.clear()
+                    matchedTerms.add(text)
+                }
+                continue
+            }
+
+            // 2c. Word-by-word phrase containment check
+            // Check if all significant query words appear in the text in any order
+            val significantQueryTokens = queryTokens.filter { it.length >= 3 }
+            if (significantQueryTokens.isNotEmpty()) {
+                val matchedWords = significantQueryTokens.count { qToken ->
+                    textTokens.any { tToken -> tToken == qToken || tToken.contains(qToken) || qToken.contains(tToken) }
+                }
+                Log.d(TAG, "📝 Phrase check: '$text' → matched $matchedWords/${significantQueryTokens.size} words")
+                if (matchedWords == significantQueryTokens.size) {
+                    // All significant words found! This is a strong match
+                    val phraseScore = 0.92
+                    Log.d(TAG, "✅ All significant words matched in '$text'! Score: $phraseScore")
+                    if (phraseScore > bestScore) {
+                        bestScore = phraseScore
+                        bestMatchType = MatchType.CONTAINS
+                        matchedTerms.clear()
+                        matchedTerms.add(text)
+                    }
+                    continue
+                }
             }
 
             // 3. Token overlap matching
@@ -344,38 +380,88 @@ object SemanticSearchEngine {
 
     /**
      * Token overlap score - how many query tokens match target tokens.
+     * Enhanced with consecutive word bonus for better phrase matching.
      */
     private fun tokenOverlapScore(queryTokens: List<String>, targetTokens: List<String>): Double {
         if (queryTokens.isEmpty() || targetTokens.isEmpty()) return 0.0
 
         var matchedTokens = 0
         var partialMatches = 0.0
+        val matchedIndices = mutableListOf<Int>()  // Track indices for consecutive check
 
         for (queryToken in queryTokens) {
             // Exact token match
-            if (targetTokens.any { it == queryToken }) {
+            val exactMatchIndex = targetTokens.indexOfFirst { it == queryToken }
+            if (exactMatchIndex >= 0) {
                 matchedTokens++
+                matchedIndices.add(exactMatchIndex)
                 continue
             }
 
             // Partial token match (contains)
-            val containsMatch = targetTokens.any { it.contains(queryToken) || queryToken.contains(it) }
-            if (containsMatch) {
+            val containsMatchIndex = targetTokens.indexOfFirst {
+                it.contains(queryToken) || queryToken.contains(it)
+            }
+            if (containsMatchIndex >= 0) {
                 partialMatches += 0.7
+                matchedIndices.add(containsMatchIndex)
                 continue
             }
 
             // Fuzzy token match
-            val bestFuzzyMatch = targetTokens.maxOfOrNull { jaroWinklerSimilarity(queryToken, it) } ?: 0.0
+            var bestFuzzyMatch = 0.0
+            var bestFuzzyIndex = -1
+            targetTokens.forEachIndexed { index, targetToken ->
+                val similarity = jaroWinklerSimilarity(queryToken, targetToken)
+                if (similarity > bestFuzzyMatch) {
+                    bestFuzzyMatch = similarity
+                    bestFuzzyIndex = index
+                }
+            }
+
             if (bestFuzzyMatch >= 0.85) {
                 partialMatches += bestFuzzyMatch * 0.8
+                if (bestFuzzyIndex >= 0) matchedIndices.add(bestFuzzyIndex)
             } else if (bestFuzzyMatch >= 0.70) {
                 partialMatches += bestFuzzyMatch * 0.5
+                if (bestFuzzyIndex >= 0) matchedIndices.add(bestFuzzyIndex)
             }
         }
 
-        val totalScore = matchedTokens + partialMatches
-        return (totalScore / queryTokens.size).coerceAtMost(1.0)
+        val baseScore = (matchedTokens + partialMatches) / queryTokens.size
+
+        // BONUS: Add consecutive word bonus if query words appear in sequence
+        val consecutiveBonus = calculateConsecutiveBonus(matchedIndices, queryTokens.size)
+
+        // BONUS: If ALL query tokens matched exactly, give a high score
+        val perfectMatchBonus = if (matchedTokens == queryTokens.size) 0.15 else 0.0
+
+        return (baseScore + consecutiveBonus + perfectMatchBonus).coerceAtMost(1.0)
+    }
+
+    /**
+     * Calculate bonus for consecutive word matches.
+     * If query "deep in your love" matches indices [0,1,2,3] in target, give max bonus.
+     */
+    private fun calculateConsecutiveBonus(indices: List<Int>, querySize: Int): Double {
+        if (indices.size < 2) return 0.0
+
+        val sorted = indices.sorted()
+        var consecutiveCount = 1
+        var maxConsecutive = 1
+
+        for (i in 1 until sorted.size) {
+            if (sorted[i] == sorted[i-1] + 1) {
+                consecutiveCount++
+                maxConsecutive = max(maxConsecutive, consecutiveCount)
+            } else {
+                consecutiveCount = 1
+            }
+        }
+
+        // Bonus based on how many consecutive matches vs query size
+        // All words consecutive = 0.10 bonus
+        return (maxConsecutive.toDouble() / querySize) * 0.10
     }
 
     /**

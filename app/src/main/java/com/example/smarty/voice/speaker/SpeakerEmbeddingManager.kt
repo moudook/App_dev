@@ -45,8 +45,8 @@ class SpeakerEmbeddingManager(private val context: Context) {
         // Verification threshold (0.0 to 1.0)
         // Higher = stricter (fewer false accepts, more false rejects)
         // Lower = more lenient (more false accepts, fewer false rejects)
-        // 0.75 is a good balance based on research
-        const val VERIFICATION_THRESHOLD = 0.70
+        // 0.78 provides stricter speaker discrimination to prevent false accepts
+        const val VERIFICATION_THRESHOLD = 0.90
 
         // Minimum samples required for enrollment
         const val MIN_ENROLLMENT_SAMPLES = 3
@@ -314,7 +314,8 @@ class SpeakerEmbeddingManager(private val context: Context) {
      * @return true if speaker is verified, false otherwise
      */
     suspend fun quickVerify(audioSamples: ShortArray): Boolean = withContext(Dispatchers.Default) {
-        val enrolledEmbedding = cachedEmbedding ?: loadEmbedding() ?: return@withContext true // Allow if not enrolled
+        // SECURITY FIX: If not enrolled, REJECT (false) - don't allow any voice through
+        val enrolledEmbedding = cachedEmbedding ?: loadEmbedding() ?: return@withContext false
 
         val inputEmbedding = mfcc.extractEmbedding(audioSamples)
         val similarity = mfcc.cosineSimilarity(inputEmbedding, enrolledEmbedding)

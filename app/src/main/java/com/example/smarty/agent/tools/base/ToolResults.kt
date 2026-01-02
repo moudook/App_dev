@@ -97,6 +97,14 @@ data class WebResult(
 
 /**
  * Result for audio playback operations.
+ *
+ * FALLBACK BEHAVIOR: When `shouldFallbackToAI` is true and `success` is false,
+ * the AI agent should generate a graceful, conversational response instead of
+ * showing the raw error message. This maintains decorum when audio isn't available.
+ *
+ * Example fallback responses:
+ * - "I couldn't find that audio, but I'd be happy to help you save some music!"
+ * - "No matching audio found. Would you like me to search your notes instead?"
  */
 @Serializable
 data class AudioPlaybackResult(
@@ -105,7 +113,8 @@ data class AudioPlaybackResult(
     val trackTitle: String? = null,
     val message: String,
     val error: String? = null,
-    val availableAudio: List<String>? = null  // List of available audio filenames when search fails
+    val availableAudio: List<String>? = null,  // List of available audio filenames when search fails
+    val shouldFallbackToAI: Boolean = false  // When true, AI should respond gracefully instead of showing error
 ) {
     override fun toString(): String {
         val jsonStr = json.encodeToString(serializer(), this)
@@ -164,6 +173,41 @@ data class SummarizeResult(
     val title: String,
     val summary: String?,
     val content: String,
+    val error: String? = null
+) {
+    override fun toString(): String {
+        val jsonStr = json.encodeToString(serializer(), this)
+        return ToonManager.jsonToToon(jsonStr)
+    }
+}
+
+/**
+ * Information about a single image attachment.
+ * Used INTERNALLY by ViewImageTool - NOT serialized to AI response.
+ * Contains sensitive URIs that should not be exposed.
+ */
+data class ImageInfo(
+    val uri: String,
+    val fileName: String,
+    val mimeType: String,
+    val index: Int,
+    val attachmentId: String? = null
+)
+
+/**
+ * Result for image display operations.
+ * Used by ViewImageTool to report found images.
+ *
+ * SECURITY: Does NOT include URIs or file paths - these are internal.
+ * The AI only sees success status, note title, and image count.
+ * Actual images are displayed via the onDisplayImages callback.
+ */
+@Serializable
+data class ImageDisplayResult(
+    val success: Boolean,
+    val noteTitle: String? = null,
+    val imageCount: Int = 0,
+    val message: String,
     val error: String? = null
 ) {
     override fun toString(): String {

@@ -19,11 +19,14 @@ import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
+import com.example.smarty.data.model.MentionState
+import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.TodoItem
+import com.example.smarty.data.model.ChunkAnalysis
 import com.example.smarty.data.model.Citation
 import com.example.smarty.data.model.getAllAttachmentUris
 import com.example.smarty.data.model.getAttachments
@@ -35,6 +38,8 @@ import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
 import com.example.smarty.agent.CogniAgent
 import com.example.smarty.agent.CogniAgentProvider
+import com.example.smarty.agent.ImageDisplayItem
+import com.example.smarty.data.model.InlineChatImage
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 
 import com.example.smarty.ui.components.PendingShareData
@@ -44,17 +49,26 @@ import java.util.concurrent.TimeUnit
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.data.model.ChatSession
+import com.example.smarty.util.CompletionSoundManager
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.viewmodel.managers.NoteProcessingQueueManager
 import com.example.smarty.util.FileStorageHelper
 import com.example.smarty.util.PDFTextExtractor
 import com.example.smarty.util.PDFExtractionResult
+import com.example.smarty.util.PDFChunkedResult
+import com.example.smarty.util.PDFChunk
+import com.example.smarty.util.ProcessingStrategy
 import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.util.mention.MentionParser
+import com.example.smarty.util.mention.MentionResolver
+import com.example.smarty.util.mention.NoteContextBuilder
+import com.example.smarty.util.mention.ThinkingModeProcessor
+import com.example.smarty.data.remote.DocumentAnalysisResponse
 import com.example.smarty.util.ShakeDetector
 import com.example.smarty.util.NetworkMonitor
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.voice.VoskWakeWordManager
-import com.example.smarty.voice.ResponseTTSManager
+// TTS removed - was: import com.example.smarty.voice.ResponseTTSManager
 import com.example.smarty.util.api.RateLimiter
 import android.media.AudioManager
 import android.telephony.TelephonyManager
@@ -79,6 +93,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -194,31 +209,9 @@ class CogniViewModel(
         GroqKeyManager.getInstance(application)
     }
 
-    // TTS Manager for speaking AI responses - lazy
-    private val responseTTSManager: ResponseTTSManager by lazy {
-        ResponseTTSManager(application).also { tts ->
-            // Set up callbacks to pause/resume wake word detection during TTS
-            // Note: These callbacks are called from TTS background thread,
-            // so we post to viewModelScope for thread safety
-            tts.setSpeechLifecycleCallbacks(
-                onStart = {
-                    // Post to main thread for thread safety
-                    viewModelScope.launch(Dispatchers.Main) {
-                        // Pause wake word detection while AI is speaking
-                        voskWakeWordManager?.stopListening()
-                        Log.d(TAG, "TTS started - paused wake word detection")
-                    }
-                },
-                onEnd = {
-                    // Post to main thread for thread safety
-                    viewModelScope.launch(Dispatchers.Main) {
-                        // Resume wake word detection after AI finishes speaking
-                        voskWakeWordManager?.restartListening()
-                        Log.d(TAG, "TTS ended - resumed wake word detection")
-                    }
-                }
-            )
-        }
+    // Completion sound manager for AI agent and notecard processing
+    private val completionSoundManager: CompletionSoundManager by lazy {
+        CompletionSoundManager.getInstance(application)
     }
 
     // Koog-based AI Agent (GROQ-only with multi-key rotation) - lazy
@@ -237,16 +230,44 @@ class CogniViewModel(
         )
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // @MENTION SYSTEM - Note tagging/reference in chat
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** MentionResolver for resolving @mentions to notes */
+    private val mentionResolver: MentionResolver by lazy {
+        MentionResolver(database.noteDao())
+    }
+
+    /** ThinkingModeProcessor for @thinking deep document analysis */
+    private val thinkingModeProcessor: ThinkingModeProcessor by lazy {
+        ThinkingModeProcessor(application)
+    }
+
+    /** NoteContextBuilder for building AI context from mentions */
+    private val noteContextBuilder: NoteContextBuilder by lazy {
+        NoteContextBuilder(mentionResolver)
+    }
+
+    /** Current mention state for autocomplete dropdown */
+    private val _mentionState = MutableStateFlow(MentionState())
+    val mentionState: StateFlow<MentionState> = _mentionState.asStateFlow()
+
+    /** Current cursor position in chat input (for mention detection) */
+    private var chatInputCursorPosition: Int = 0
+
     // GROQ key usage stats exposed for UI - lazy
     val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
 
-    // TTS state exposed for UI
-    val isTTSSpeaking: StateFlow<Boolean> by lazy { responseTTSManager.isSpeaking }
-    val isTTSEnabled: StateFlow<Boolean> by lazy { responseTTSManager.isEnabled }
-
-    // Local LLM Server IP state
+    // Local LLM Server IP/Port/HTTPS state (USB/WiFi connectivity)
     private val _localServerIP = MutableStateFlow(securePreferences.getLocalPCIP())
     val localServerIP: StateFlow<String> = _localServerIP.asStateFlow()
+
+    private val _localServerPort = MutableStateFlow(securePreferences.getLocalPCPort())
+    val localServerPort: StateFlow<String> = _localServerPort.asStateFlow()
+
+    private val _localServerUseHttps = MutableStateFlow(securePreferences.getLocalPCUseHttps())
+    val localServerUseHttps: StateFlow<Boolean> = _localServerUseHttps.asStateFlow()
 
     fun setLocalServerIP(ip: String) {
         securePreferences.setLocalPCIP(ip)
@@ -254,10 +275,49 @@ class CogniViewModel(
         Log.d(TAG, "Local server IP set to: $ip")
     }
 
+    fun setLocalServerPort(port: String) {
+        securePreferences.setLocalPCPort(port)
+        _localServerPort.value = port
+        Log.d(TAG, "Local server port set to: $port")
+    }
+
+    fun setLocalServerUseHttps(useHttps: Boolean) {
+        securePreferences.setLocalPCUseHttps(useHttps)
+        _localServerUseHttps.value = useHttps
+        Log.d(TAG, "Local server HTTPS set to: $useHttps")
+    }
+
+    /**
+     * UNFILTERED notes source for AI agent.
+     * BUG FIX: Agent was using `notes.value` which is filtered by current UI state.
+     * This caused audio search to fail when user had filters/category selected.
+     * This StateFlow observes ALL notes from repository without any UI filtering.
+     *
+     * CRITICAL FIX: Use SharingStarted.Eagerly to ensure notes are ALWAYS available.
+     * Previous issue: WhileSubscribed(5000) caused empty list on cold start or
+     * when no UI component was actively collecting, breaking audio playback.
+     */
+    private val _allNotesForAgent: StateFlow<List<Note>> = repository.getAllNotes()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     // Agent callbacks for Koog tools that need ViewModel state
     // SECURITY: Pre-filter notes at callback level for defense-in-depth
+    // BUG FIX: Use _allNotesForAgent instead of notes.value to avoid UI filter interference
     private val agentCallbacks = object : AgentCallbacks {
-        override fun getActiveNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(notes.value)
+        override fun getActiveNotes(): List<Note> {
+            val rawNotes = _allNotesForAgent.value
+            val visibleNotes = PrivacyGuard.getAiVisibleNotes(rawNotes)
+
+            // DIAGNOSTIC: Log note counts to help debug agent issues
+            Log.d(TAG, "📊 getActiveNotes callback: raw=${rawNotes.size}, visible=${visibleNotes.size}")
+
+            // Warn if notes appear empty (potential StateFlow race condition)
+            if (rawNotes.isEmpty()) {
+                Log.w(TAG, "⚠️ getActiveNotes: StateFlow returned EMPTY - may be cold start race condition")
+            }
+
+            return visibleNotes
+        }
         override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value)
         override fun getCategories(): List<Category> = categories.value
         override fun getTavilyApiKey(): String? = securePreferences.getTavilyApiKey()
@@ -281,10 +341,6 @@ class CogniViewModel(
         override fun requestAudioPlayback(track: AudioTrack) {
             // BUG FIX (ISSUE 3): Add logging to verify tool callback execution
             Log.i(TAG, "▶ requestAudioPlayback CALLBACK INVOKED: track='${track.title}', uri=${track.uri}")
-
-            // Stop TTS before playing audio - user wants to hear the audio, not TTS
-            responseTTSManager.stop()
-            Log.d(TAG, "TTS stopped for audio playback")
 
             // Delegate to AudioPlaybackManager - single source of truth for pending audio state
             audioPlaybackManager.requestPlayback(track)
@@ -322,10 +378,22 @@ class CogniViewModel(
             // CogniViewModel (main app) doesn't track screen context like AssistActivity
             return null
         }
+
+        override fun onDisplayImages(images: List<ImageDisplayItem>) {
+            // Store images for the current chat response
+            pendingInlineImages.clear()
+            pendingInlineImages.addAll(images.map {
+                InlineChatImage(uri = it.uri, fileName = it.fileName, noteTitle = it.noteTitle)
+            })
+            Log.d(TAG, "Images found: ${images.size} images to display inline")
+        }
     }
 
     // Temporary storage for citations during agent execution
     private val pendingCitations = CopyOnWriteArrayList<com.example.smarty.agent.WebCitation>()
+
+    // Temporary storage for inline images during agent execution
+    private val pendingInlineImages = CopyOnWriteArrayList<InlineChatImage>()
 
     // Chat repository for persistence - lazy to avoid blocking
     private val chatRepository: ChatRepository by lazy {
@@ -461,6 +529,7 @@ class CogniViewModel(
     private var audioPlayerCollectorJob: Job? = null
 
     // Phone state listener for call detection
+    @Suppress("DEPRECATION")
     private var phoneStateListener: PhoneStateListener? = null
     private var telephonyManager: TelephonyManager? = null
 
@@ -730,8 +799,25 @@ class CogniViewModel(
     val calendarEvents: StateFlow<List<CalendarEvent>>
         get() = calendarManager.calendarEvents
 
-    private val _selectedNote = MutableStateFlow<Note?>(null)
-    val selectedNote: StateFlow<Note?> = _selectedNote.asStateFlow()
+    /**
+     * REACTIVE SELECTED NOTE - Auto-updates when note changes in database.
+     *
+     * FIX: Previously _selectedNote was a snapshot that didn't update when AI processing completed.
+     * Now we store only the note ID and observe the actual note from the database.
+     * This ensures the detail view always shows fresh data (summary, whySaved, category).
+     */
+    private val _selectedNoteId = MutableStateFlow<String?>(null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val selectedNote: StateFlow<Note?> = _selectedNoteId
+        .flatMapLatest { noteId ->
+            if (noteId != null) {
+                repository.getNoteByIdFlow(noteId)
+            } else {
+                flowOf(null)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val _isProcessing = MutableStateFlow(false)
     val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
@@ -789,12 +875,32 @@ class CogniViewModel(
             }
         }
 
+        // Collect note processing events for completion sound
+        viewModelScope.launch {
+            noteProcessingQueueManager.processingEvents.collect { event ->
+                when (event) {
+                    is NoteProcessingQueueManager.NoteProcessingEvent.Completed -> {
+                        // Play completion sound when notecard processing finishes
+                        completionSoundManager.playNotecardCompletionSound(
+                            isAppInForeground = _isAppInForeground.value,
+                            noteTitle = event.noteTitle
+                        )
+                        // Note: selectedNote is reactive and auto-updates from database
+                    }
+                    // Retry and Failed events can be handled here if needed for UI notifications
+                    is NoteProcessingQueueManager.NoteProcessingEvent.Retry -> {
+                        Log.d(TAG, "Note ${event.noteId} retry attempt ${event.attempt}")
+                    }
+                    is NoteProcessingQueueManager.NoteProcessingEvent.Failed -> {
+                        Log.w(TAG, "Note ${event.noteId} processing failed: ${event.reason}")
+                    }
+                }
+            }
+        }
+
         // Restore state from SavedStateHandle after process death (BUG-053)
         // Made non-blocking - failures won't affect startup
         restoreState()
-
-        // Initialize Neural TTS (uses bundled model, no download needed)
-        initializeNeuralTTS()
 
         // Schedule FTS maintenance (weekly optimization)
         scheduleFtsMaintenance()
@@ -851,21 +957,38 @@ class CogniViewModel(
     }
 
     /**
-     * Schedule FTS5 index maintenance.
+     * Schedule FTS index maintenance.
      * Runs optimization once per week to maintain search performance.
      * Non-blocking - runs in background IO thread.
+     *
+     * NOTE: 'optimize' is FTS5-specific. FTS4 only supports 'rebuild'.
+     * If FTS is not available (version 0), skip maintenance entirely.
      */
     private fun scheduleFtsMaintenance() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                // Check FTS version - maintenance commands differ between FTS4 and FTS5
+                val ftsVersion = CogniDatabase.getFtsVersion()
+                if (ftsVersion == 0) {
+                    Log.d(TAG, "FTS not available, skipping maintenance")
+                    return@launch
+                }
+
                 val lastMaintenance = securePreferences.getLastFtsMaintenance()
                 val oneWeekAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
 
                 if (lastMaintenance < oneWeekAgo) {
-                    Log.d(TAG, "Running FTS maintenance...")
-                    database.noteDao().optimizeFtsIndex()
+                    Log.d(TAG, "Running FTS$ftsVersion maintenance...")
+                    if (ftsVersion == 5) {
+                        // FTS5 supports 'optimize' for better performance
+                        database.noteDao().optimizeFtsIndex()
+                        Log.i(TAG, "FTS5 index optimized")
+                    } else {
+                        // FTS4 only supports 'rebuild' - skip for weekly maintenance
+                        // (rebuild is expensive, only use if index is corrupted)
+                        Log.d(TAG, "FTS4 detected - skipping optimization (no optimize command)")
+                    }
                     securePreferences.setLastFtsMaintenance(System.currentTimeMillis())
-                    Log.i(TAG, "FTS index optimized")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "FTS maintenance failed", e)
@@ -887,13 +1010,13 @@ class CogniViewModel(
      */
     private fun restoreState() {
         viewModelScope.launch {
-            // Restore selected note by ID with retry
+            // Restore selected note by ID - just set the ID, the reactive Flow will fetch the note
             savedStateHandle.get<String>(KEY_SELECTED_NOTE_ID)?.let { noteId ->
                 restoreWithRetry("note") {
-                    val note = repository.getNoteById(noteId)
-                    if (note != null) {
-                        _selectedNote.value = note
-                        Log.d(TAG, "Restored selectedNote: ${note.id}")
+                    val noteExists = repository.getNoteById(noteId) != null
+                    if (noteExists) {
+                        _selectedNoteId.value = noteId
+                        Log.d(TAG, "Restored selectedNoteId: $noteId")
                         true
                     } else {
                         savedStateHandle.remove<String>(KEY_SELECTED_NOTE_ID)
@@ -977,9 +1100,20 @@ class CogniViewModel(
     }
 
     fun selectNote(note: Note?) {
-        _selectedNote.value = note
+        // Only store the ID - the actual note is observed reactively from the database
+        _selectedNoteId.value = note?.id
         // Persist to SavedStateHandle for process death recovery (BUG-053)
         savedStateHandle[KEY_SELECTED_NOTE_ID] = note?.id
+    }
+
+    /**
+     * DEPRECATED: No longer needed since selectedNote is now reactive.
+     * The Flow automatically emits updates when the database changes.
+     * Keeping this as a no-op to avoid breaking existing call sites.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    private fun syncSelectedNoteIfNeeded(updatedNote: Note) {
+        // No-op: selectedNote is now a reactive Flow that auto-updates from database
     }
 
     fun selectCategory(category: Category?) {
@@ -1428,6 +1562,7 @@ class CogniViewModel(
             updatedAt = System.currentTimeMillis()
         )
         repository.updateNote(updatedNote)
+        syncSelectedNoteIfNeeded(updatedNote)
     }
 
     // Delegate to ContentTypeDetector for O(1) storage category lookup
@@ -1656,10 +1791,7 @@ class CogniViewModel(
         viewModelScope.launch {
             val success = repository.restoreNoteVersion(noteId, versionId)
             if (success) {
-                // Refresh selected note if viewing this note
-                if (_selectedNote.value?.id == noteId) {
-                    _selectedNote.value = repository.getNoteById(noteId)
-                }
+                // Note: selectedNote is reactive and will auto-update from database
                 // Reload versions to show the new version created by restoration
                 loadNoteVersions(noteId)
                 Log.d(TAG, "Note restored to version: $versionId")
@@ -1680,7 +1812,7 @@ class CogniViewModel(
      * Called when user edits a note from the detail view.
      * Automatically saves a version snapshot before updating.
      */
-    fun editNote(noteId: String, newTitle: String, newContent: String, newAttachments: List<NoteAttachment>? = null) {
+    fun editNote(noteId: String, newTitle: String, newContent: String, newSummary: String?, newWhySaved: String?, newAttachments: List<NoteAttachment>? = null) {
         viewModelScope.launch {
             try {
                 noteOperationMutex.withLock {
@@ -1689,6 +1821,8 @@ class CogniViewModel(
                         var updatedNote = it.copy(
                             title = newTitle,
                             content = newContent,
+                            summary = newSummary,
+                            whySaved = newWhySaved,
                             updatedAt = System.currentTimeMillis()
                         )
 
@@ -1722,10 +1856,7 @@ class CogniViewModel(
 
                         // Use updateNoteWithVersion to save version history
                         repository.updateNoteWithVersion(updatedNote, "User edit")
-                        // Update selected note if this is the currently viewed note
-                        if (_selectedNote.value?.id == noteId) {
-                            _selectedNote.value = updatedNote
-                        }
+                        // Note: selectedNote is reactive and will auto-update from database
                         Log.d(TAG, "Note edited with version: $noteId")
                     }
                 }
@@ -1898,6 +2029,7 @@ class CogniViewModel(
                 updatedAt = System.currentTimeMillis()
             )
             repository.updateNote(updatedNote)
+            syncSelectedNoteIfNeeded(updatedNote)
         } catch (e: Exception) {
             Log.e(TAG, "AI processing error for note ${note.id}: ${e.message}", e)
             // On error, enqueue for retry instead of giving up immediately
@@ -1915,6 +2047,9 @@ class CogniViewModel(
     /**
      * Process PDF documents with AI analysis
      * Extracts text from PDF and sends to AI for comprehensive summarization
+     * 
+     * For long documents (>30 pages), uses chunked extraction with map-reduce summarization.
+     * For shorter documents, uses direct extraction for speed.
      *
      * SECURITY: Private PDFs are NEVER processed - uses PrivacyGuard
      */
@@ -1934,81 +2069,19 @@ class CogniViewModel(
 
         try {
             val uri = Uri.parse(note.fileUri)
-            val extractionResult = pdfExtractor.extractText(uri)
-
-            when (extractionResult) {
-                is PDFExtractionResult.Success -> {
-                    Log.i(TAG, "PDF text extracted: ${extractionResult.characterCount} chars from ${extractionResult.pageCount} pages")
-
-                    // Use document analysis for comprehensive summarization
-                    val documentResponse = aiService.analyzeDocument(
-                        documentText = extractionResult.text,
-                        fileName = note.fileName,
-                        userContext = null // Could pass user instructions if available
-                    )
-
-                    val category = repository.getOrCreateCategory(documentResponse.category)
-
-                    // Build comprehensive summary with key points
-                    val fullSummary = buildString {
-                        append(documentResponse.summary)
-                        if (documentResponse.keyPoints.isNotEmpty()) {
-                            append("\n\nKey Points:")
-                            documentResponse.keyPoints.forEach { point ->
-                                append("\n• $point")
-                            }
-                        }
-                        if (documentResponse.actionItems.isNotEmpty()) {
-                            append("\n\nAction Items:")
-                            documentResponse.actionItems.forEach { item ->
-                                append("\n☐ $item")
-                            }
-                        }
-                    }
-
-                    val updatedNote = note.copy(
-                        title = documentResponse.title,
-                        summary = fullSummary,
-                        whySaved = documentResponse.userRelevance,
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.COMPLETED,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    repository.updateNote(updatedNote)
-                    Log.i(TAG, "PDF processed successfully: ${documentResponse.title}")
+            
+            // Check document length to determine processing strategy
+            val strategy = pdfExtractor.getProcessingStrategy(uri)
+            Log.i(TAG, "PDF processing strategy: $strategy")
+            
+            when (strategy) {
+                ProcessingStrategy.CHUNKED, ProcessingStrategy.CHUNKED_HIERARCHICAL -> {
+                    // Long document - use chunked extraction with map-reduce
+                    processLongPdfWithChunks(note, uri)
                 }
-
-                is PDFExtractionResult.Empty -> {
-                    Log.w(TAG, "PDF has no extractable text: ${extractionResult.message}")
-
-                    // Still categorize the PDF even without text content
-                    val category = repository.getOrCreateCategory("Documents")
-                    val updatedNote = note.copy(
-                        summary = "Image-based PDF (${extractionResult.pageCount} pages). Text extraction not available for scanned documents.",
-                        whySaved = "Document saved for reference",
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.COMPLETED,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    repository.updateNote(updatedNote)
-                }
-
-                is PDFExtractionResult.Error -> {
-                    Log.e(TAG, "PDF extraction failed: ${extractionResult.message}")
-
-                    // Mark as failed but still save
-                    val category = repository.getOrCreateCategory("Documents")
-                    val updatedNote = note.copy(
-                        summary = "PDF could not be analyzed: ${extractionResult.message}",
-                        whySaved = "Document saved",
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.FAILED,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    repository.updateNote(updatedNote)
+                ProcessingStrategy.DIRECT -> {
+                    // Short document - use direct extraction
+                    processShortPdf(note, uri)
                 }
             }
         } catch (e: Exception) {
@@ -2024,9 +2097,410 @@ class CogniViewModel(
                 updatedAt = System.currentTimeMillis()
             )
             repository.updateNote(updatedNote)
+            syncSelectedNoteIfNeeded(updatedNote)
         } finally {
             _isProcessing.value = false
         }
+    }
+
+    /**
+     * Process short PDFs (≤30 pages) using direct extraction.
+     * This is the faster method for smaller documents.
+     */
+    private suspend fun processShortPdf(note: Note, uri: Uri) {
+        val extractionResult = pdfExtractor.extractText(uri)
+
+        when (extractionResult) {
+            is PDFExtractionResult.Success -> {
+                Log.i(TAG, "PDF text extracted: ${extractionResult.characterCount} chars from ${extractionResult.pageCount} pages")
+
+                // Use document analysis for comprehensive summarization
+                val documentResponse = aiService.analyzeDocument(
+                    documentText = extractionResult.text,
+                    fileName = note.fileName,
+                    userContext = null
+                )
+
+                val category = repository.getOrCreateCategory(documentResponse.category)
+
+                // Build comprehensive summary with key points
+                val fullSummary = buildString {
+                    append(documentResponse.summary)
+                    if (documentResponse.keyPoints.isNotEmpty()) {
+                        append("\n\nKey Points:")
+                        documentResponse.keyPoints.forEach { point ->
+                            append("\n• $point")
+                        }
+                    }
+                    if (documentResponse.actionItems.isNotEmpty()) {
+                        append("\n\nAction Items:")
+                        documentResponse.actionItems.forEach { item ->
+                            append("\n☐ $item")
+                        }
+                    }
+                }
+
+                val updatedNote = note.copy(
+                    title = documentResponse.title,
+                    summary = fullSummary,
+                    whySaved = documentResponse.userRelevance,
+                    categoryId = category.id,
+                    categoryName = category.name,
+                    processingStatus = ProcessingStatus.COMPLETED,
+                    updatedAt = System.currentTimeMillis()
+                )
+                repository.updateNote(updatedNote)
+                syncSelectedNoteIfNeeded(updatedNote)
+                Log.i(TAG, "PDF processed successfully: ${documentResponse.title}")
+            }
+
+            is PDFExtractionResult.Empty -> {
+                Log.w(TAG, "PDF has no extractable text: ${extractionResult.message}")
+
+                // Use PDF metadata (title, filename, page count) for AI categorization
+                // This allows meaningful categorization even for image-based PDFs
+                val pdfInfo = pdfExtractor.getPDFInfo(uri)
+                val metadataDescription = buildString {
+                    append("PDF Document: ${note.fileName ?: "Unknown"}\n")
+                    pdfInfo?.let { info ->
+                        info.title?.let { append("Title: $it\n") }
+                        info.author?.let { append("Author: $it\n") }
+                        info.subject?.let { append("Subject: $it\n") }
+                    }
+                    append("Pages: ${extractionResult.pageCount}\n")
+                    append("Note: This is an image-based/scanned PDF - text content not extractable.")
+                }
+
+                try {
+                    // Let AI categorize based on metadata
+                    val documentResponse = aiService.analyzeDocument(
+                        documentText = metadataDescription,
+                        fileName = note.fileName,
+                        userContext = "This PDF has no extractable text (likely scanned/image-based). Categorize based on the title, filename, and metadata provided."
+                    )
+
+                    val category = repository.getOrCreateCategory(documentResponse.category)
+                    val updatedNote = note.copy(
+                        title = documentResponse.title,
+                        summary = "📷 Image-based PDF (${extractionResult.pageCount} pages)\n\n${documentResponse.summary}",
+                        whySaved = documentResponse.userRelevance ?: "Document saved for reference",
+                        categoryId = category.id,
+                        categoryName = category.name,
+                        processingStatus = ProcessingStatus.COMPLETED,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    repository.updateNote(updatedNote)
+                    syncSelectedNoteIfNeeded(updatedNote)
+                    Log.i(TAG, "Image-based PDF categorized via metadata: ${documentResponse.title}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "AI categorization failed for image PDF, using defaults: ${e.message}")
+                    // Fallback if AI fails
+                    val category = repository.getOrCreateCategory("Documents")
+                    val updatedNote = note.copy(
+                        summary = "Image-based PDF (${extractionResult.pageCount} pages). Text extraction not available for scanned documents.",
+                        whySaved = "Document saved for reference",
+                        categoryId = category.id,
+                        categoryName = category.name,
+                        processingStatus = ProcessingStatus.COMPLETED,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    repository.updateNote(updatedNote)
+                    syncSelectedNoteIfNeeded(updatedNote)
+                }
+            }
+
+            is PDFExtractionResult.Error -> {
+                Log.e(TAG, "PDF extraction failed: ${extractionResult.message}")
+
+                val category = repository.getOrCreateCategory("Documents")
+                val updatedNote = note.copy(
+                    summary = "PDF could not be analyzed: ${extractionResult.message}",
+                    whySaved = "Document saved",
+                    categoryId = category.id,
+                    categoryName = category.name,
+                    processingStatus = ProcessingStatus.FAILED,
+                    updatedAt = System.currentTimeMillis()
+                )
+                repository.updateNote(updatedNote)
+                syncSelectedNoteIfNeeded(updatedNote)
+            }
+        }
+    }
+
+    /**
+     * Process long PDFs (>30 pages) using chunked extraction with map-reduce summarization.
+     *
+     * This method:
+     * 1. Extracts text in chunks (5 pages per chunk with 10% overlap)
+     * 2. Summarizes each chunk independently (Map phase) - with LIVE UI updates
+     * 3. Combines chunk summaries using iterative refinement (Reduce phase)
+     *
+     * LIVE APPENDING: Updates the note after each chunk is processed, giving
+     * users real-time feedback as the document is analyzed section by section.
+     *
+     * Model-agnostic: Works with any configured AI provider.
+     * Memory-efficient: Processes page-by-page, never loads entire document.
+     */
+    private suspend fun processLongPdfWithChunks(note: Note, uri: Uri) {
+        val chunkedResult = pdfExtractor.extractTextChunked(uri)
+
+        when (chunkedResult) {
+            is PDFChunkedResult.Success -> {
+                Log.i(TAG, "PDF chunked extraction: ${chunkedResult.chunkCount} chunks from ${chunkedResult.pagesProcessed}/${chunkedResult.totalPages} pages")
+
+                // Phase 1: MAP - Summarize each chunk independently with LIVE updates
+                val chunkSummaries = mutableListOf<String>()
+                val chunkAnalysesList = mutableListOf<ChunkAnalysis>()
+                var successfulChunks = 0
+                val totalChunks = chunkedResult.chunkCount
+
+                // Show initial processing state to user
+                var currentNote = note.copy(
+                    summary = "📄 Processing ${chunkedResult.totalPages}-page document...\n\nAnalyzing section 1 of $totalChunks...",
+                    processingStatus = ProcessingStatus.PROCESSING
+                )
+                repository.updateNote(currentNote)
+                syncSelectedNoteIfNeeded(currentNote)
+
+                // PARALLEL PROCESSING: Process chunks in batches of 2 (matching server's --parallel 2)
+                val parallelBatchSize = 2
+                val chunkBatches = chunkedResult.chunks.chunked(parallelBatchSize)
+                
+                for (batch in chunkBatches) {
+                    try {
+                        Log.d(TAG, "Processing batch of ${batch.size} chunks in parallel")
+                        
+                        // Process batch in parallel using coroutineScope
+                        val batchResults = coroutineScope {
+                            batch.map { chunk ->
+                                async {
+                                    try {
+                                        Log.d(TAG, "Summarizing chunk ${chunk.index + 1}/$totalChunks (pages ${chunk.startPage}-${chunk.endPage})")
+                                        
+                                        val chunkResponse = aiService.analyzeDocument(
+                                            documentText = chunk.toPromptContext(),
+                                            fileName = "${note.fileName} - Pages ${chunk.startPage}-${chunk.endPage}",
+                                            userContext = "This is part ${chunk.index + 1} of $totalChunks from a larger document. Summarize the key points concisely."
+                                        )
+                                        
+                                        // Return result with chunk info
+                                        Triple(chunk, chunkResponse, null as Exception?)
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "Failed to summarize chunk ${chunk.index}: ${e.message}")
+                                        Triple(chunk, null, e)
+                                    }
+                                }
+                            }.awaitAll()
+                        }
+                        
+                        // Process results from this batch (in order by chunk index)
+                        for ((chunk, chunkResponse, error) in batchResults.sortedBy { it.first.index }) {
+                            if (chunkResponse != null) {
+                                val pageRange = "${chunk.startPage}-${chunk.endPage}"
+                                val chunkSummary = chunkResponse.summary.trim()
+                                chunkSummaries.add("[Pages $pageRange] $chunkSummary")
+                                
+                                // Store for toggle feature
+                                chunkAnalysesList.add(
+                                    ChunkAnalysis(
+                                        index = chunk.index,
+                                        totalChunks = totalChunks,
+                                        pageRange = pageRange,
+                                        summary = chunkSummary
+                                    )
+                                )
+                                successfulChunks++
+                            }
+                        }
+                        
+                        // LIVE APPENDING: Update UI after each batch completes
+                        val progressSummary = buildString {
+                            append("📄 Processing ${chunkedResult.totalPages}-page document...\n")
+                            append("✓ Completed $successfulChunks/$totalChunks sections (parallel processing)\n\n")
+
+                            // Show all processed chunk summaries accumulated so far
+                            chunkSummaries.forEachIndexed { idx, summary ->
+                                append(summary)
+                                if (idx < chunkSummaries.lastIndex) append("\n\n")
+                            }
+
+                            // Show what's being processed next (if not last batch)
+                            val lastProcessedIndex = batch.maxOfOrNull { it.index } ?: 0
+                            if (lastProcessedIndex + 1 < totalChunks) {
+                                val nextBatchStart = lastProcessedIndex + 2
+                                val nextBatchEnd = minOf(lastProcessedIndex + 1 + parallelBatchSize, totalChunks)
+                                append("\n\nAnalyzing sections $nextBatchStart-$nextBatchEnd of $totalChunks...")
+                            } else {
+                                append("\n\nGenerating final summary...")
+                            }
+                        }
+
+                        // Update note - preserve all fields from currentNote, only change summary
+                        currentNote = currentNote.copy(
+                            summary = progressSummary,
+                            chunkAnalysesJson = com.google.gson.Gson().toJson(chunkAnalysesList)
+                        )
+                        repository.updateNote(currentNote)
+                        syncSelectedNoteIfNeeded(currentNote)
+                        Log.d(TAG, "Live update: batch completed, ${successfulChunks} chunks processed so far")
+
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Batch processing error: ${e.message}")
+                        // Continue with other batches - partial summary is better than none
+                    }
+                }
+
+                if (chunkSummaries.isEmpty()) {
+                    // All chunks failed - fall back to error state
+                    handlePdfExtractionError(note, "Failed to analyze document content")
+                    return
+                }
+
+                Log.i(TAG, "MAP phase complete: $successfulChunks/$totalChunks chunks summarized")
+
+                // Phase 2: REDUCE - Combine chunk summaries into final summary
+                val combinedSummaries = chunkSummaries.joinToString("\n\n")
+                
+                // If combined summaries fit in context, use single final summarization
+                // Otherwise, we'd need hierarchical reduction (for very long docs)
+                val finalResponse = try {
+                    aiService.analyzeDocument(
+                        documentText = combinedSummaries,
+                        fileName = note.fileName,
+                        userContext = """
+                            This is a comprehensive summary of a ${chunkedResult.totalPages}-page document.
+                            The document was analyzed in ${chunkedResult.chunkCount} sections.
+                            Please synthesize these section summaries into a cohesive final summary.
+                            Identify the main themes, key findings, and important action items.
+                        """.trimIndent()
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "Final synthesis failed, using combined summaries: ${e.message}")
+                    // Fallback: use combined chunk summaries directly
+                    DocumentAnalysisResponse(
+                        title = note.fileName ?: "Document",
+                        summary = combinedSummaries,
+                        category = "Documents",
+                        keyPoints = emptyList(),
+                        actionItems = emptyList(),
+                        userRelevance = "Comprehensive ${chunkedResult.totalPages}-page document"
+                    )
+                }
+
+                val category = repository.getOrCreateCategory(finalResponse.category)
+
+                // Build comprehensive summary with coverage info
+                val fullSummary = buildString {
+                    append("📄 ${chunkedResult.totalPages} pages analyzed (${successfulChunks} sections)\n\n")
+                    append(finalResponse.summary)
+                    if (finalResponse.keyPoints.isNotEmpty()) {
+                        append("\n\nKey Points:")
+                        finalResponse.keyPoints.forEach { point ->
+                            append("\n• $point")
+                        }
+                    }
+                    if (finalResponse.actionItems.isNotEmpty()) {
+                        append("\n\nAction Items:")
+                        finalResponse.actionItems.forEach { item ->
+                            append("\n☐ $item")
+                        }
+                    }
+                    if (!chunkedResult.isComplete()) {
+                        append("\n\n⚠️ Note: Some pages could not be processed.")
+                    }
+                }
+
+                // Preserve chunk analyses from processing phase for toggle feature
+                val updatedNote = currentNote.copy(
+                    title = finalResponse.title,
+                    summary = fullSummary,
+                    whySaved = finalResponse.userRelevance,
+                    categoryId = category.id,
+                    categoryName = category.name,
+                    processingStatus = ProcessingStatus.COMPLETED,
+                    updatedAt = System.currentTimeMillis()
+                    // chunkAnalysesJson is already set in currentNote from processing loop
+                )
+                repository.updateNote(updatedNote)
+                syncSelectedNoteIfNeeded(updatedNote)
+                Log.i(TAG, "Long PDF processed successfully: ${finalResponse.title} (${chunkedResult.totalPages} pages, ${chunkAnalysesList.size} chunk analyses saved)")
+            }
+
+            is PDFChunkedResult.Empty -> {
+                Log.w(TAG, "PDF has no extractable text: ${chunkedResult.message}")
+
+                // Use PDF metadata for AI categorization (same as processShortPdf)
+                val pdfInfo = pdfExtractor.getPDFInfo(uri)
+                val metadataDescription = buildString {
+                    append("PDF Document: ${note.fileName ?: "Unknown"}\n")
+                    pdfInfo?.let { info ->
+                        info.title?.let { append("Title: $it\n") }
+                        info.author?.let { append("Author: $it\n") }
+                        info.subject?.let { append("Subject: $it\n") }
+                    }
+                    append("Pages: ${chunkedResult.pageCount}\n")
+                    append("Note: This is an image-based/scanned PDF - text content not extractable.")
+                }
+
+                try {
+                    val documentResponse = aiService.analyzeDocument(
+                        documentText = metadataDescription,
+                        fileName = note.fileName,
+                        userContext = "This PDF has no extractable text (likely scanned/image-based). Categorize based on the title, filename, and metadata provided."
+                    )
+
+                    val category = repository.getOrCreateCategory(documentResponse.category)
+                    val updatedNote = note.copy(
+                        title = documentResponse.title,
+                        summary = "📷 Image-based PDF (${chunkedResult.pageCount} pages)\n\n${documentResponse.summary}",
+                        whySaved = documentResponse.userRelevance ?: "Document saved for reference",
+                        categoryId = category.id,
+                        categoryName = category.name,
+                        processingStatus = ProcessingStatus.COMPLETED,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    repository.updateNote(updatedNote)
+                    syncSelectedNoteIfNeeded(updatedNote)
+                    Log.i(TAG, "Image-based PDF categorized via metadata: ${documentResponse.title}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "AI categorization failed for image PDF: ${e.message}")
+                    val category = repository.getOrCreateCategory("Documents")
+                    val updatedNote = note.copy(
+                        summary = "Image-based PDF (${chunkedResult.pageCount} pages). Text extraction not available.",
+                        whySaved = "Document saved for reference",
+                        categoryId = category.id,
+                        categoryName = category.name,
+                        processingStatus = ProcessingStatus.COMPLETED,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    repository.updateNote(updatedNote)
+                    syncSelectedNoteIfNeeded(updatedNote)
+                }
+            }
+
+            is PDFChunkedResult.Error -> {
+                handlePdfExtractionError(note, chunkedResult.message)
+            }
+        }
+    }
+
+    /**
+     * Handle PDF extraction errors consistently.
+     */
+    private suspend fun handlePdfExtractionError(note: Note, errorMessage: String) {
+        Log.e(TAG, "PDF extraction failed: $errorMessage")
+
+        val category = repository.getOrCreateCategory("Documents")
+        val updatedNote = note.copy(
+            summary = "PDF could not be analyzed: $errorMessage",
+            whySaved = "Document saved",
+            categoryId = category.id,
+            categoryName = category.name,
+            processingStatus = ProcessingStatus.FAILED,
+            updatedAt = System.currentTimeMillis()
+        )
+        repository.updateNote(updatedNote)
+        syncSelectedNoteIfNeeded(updatedNote)
     }
 
     /**
@@ -2046,6 +2520,8 @@ class CogniViewModel(
         if (provider == AIProvider.GROQ) {
             viewModelScope.launch { agentProvider.syncGroqKeys() }
         }
+        // Trigger queue processing - provider just became available
+        noteProcessingQueueManager.onProviderAvailable()
     }
 
     fun removeApiKey(provider: AIProvider, apiKey: String) {
@@ -2062,10 +2538,16 @@ class CogniViewModel(
         if (provider == AIProvider.GROQ) {
             viewModelScope.launch { agentProvider.syncGroqKeys() }
         }
+        // Trigger queue processing - provider config changed
+        noteProcessingQueueManager.onProviderAvailable()
     }
 
     fun setProviderEnabled(provider: AIProvider, enabled: Boolean) {
         securePreferences.setProviderEnabled(provider, enabled)
+        // If provider was enabled, trigger queue processing
+        if (enabled) {
+            noteProcessingQueueManager.onProviderAvailable()
+        }
     }
 
     fun setSelectedModel(provider: AIProvider, model: String) {
@@ -2304,6 +2786,7 @@ class CogniViewModel(
         try {
             telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
             phoneStateListener = object : PhoneStateListener() {
+                @Deprecated("Deprecated in Java")
                 override fun onCallStateChanged(state: Int, phoneNumber: String?) {
                     when (state) {
                         TelephonyManager.CALL_STATE_RINGING,
@@ -2467,8 +2950,13 @@ class CogniViewModel(
             Log.d(TAG, "Cannot resume Vosk - system music active")
             return
         }
+        // Check if Vosk is globally paused (e.g., by AssistActivity)
+        if (VoskWakeWordManager.isGloballyPaused) {
+            Log.d(TAG, "Cannot resume Vosk - globally paused by AssistActivity")
+            return
+        }
 
-        Log.d(TAG, "All conditions met - resuming Vosk")
+        Log.d(TAG, "All conditions met - resuming Vosk wake word detection")
         voskWakeWordManager?.restartListening()
     }
 
@@ -2746,6 +3234,38 @@ class CogniViewModel(
     }
 
     /**
+     * Initial text to pre-populate in chat input (for @mention quick reference).
+     * Set when user clicks "Ask AI" from KnowledgeCard.
+     */
+    private val _pendingChatText = MutableStateFlow<String?>(null)
+    val pendingChatText: StateFlow<String?> = _pendingChatText.asStateFlow()
+
+    /**
+     * Enter chat mode with a note pre-referenced.
+     * Called when user clicks "Ask AI" button on a note card.
+     *
+     * @param noteTitle Title of the note to reference
+     */
+    fun enterChatWithNoteReference(noteTitle: String) {
+        // Build the @mention text
+        val mentionText = if (noteTitle.contains(' ')) {
+            "@\"$noteTitle\" "
+        } else {
+            "@${noteTitle.replace(' ', '_')} "
+        }
+
+        _pendingChatText.value = mentionText
+        enterChatMode()
+    }
+
+    /**
+     * Clear pending chat text after it's been consumed by the UI.
+     */
+    fun clearPendingChatText() {
+        _pendingChatText.value = null
+    }
+
+    /**
      * Exit chat mode and return to note input mode (delegated to ChatManager)
      */
     fun exitChatMode() {
@@ -2782,44 +3302,87 @@ class CogniViewModel(
         chatManager.clearChatHistory()
     }
 
-    // ==================== TTS Control Methods ====================
+    // ═══════════════════════════════════════════════════════════════════════════
+    // @MENTION HANDLING - Real-time autocomplete for note references
+    // ═══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Enable or disable TTS for AI responses.
+     * Update mention state when chat input text changes.
+     * Detects active @mention typing and fetches suggestions.
+     *
+     * @param text Current text field content
+     * @param cursorPosition Current cursor position in text
      */
-    fun setTTSEnabled(enabled: Boolean) {
-        responseTTSManager.setEnabled(enabled)
+    fun updateMentionState(text: String, cursorPosition: Int) {
+        chatInputCursorPosition = cursorPosition
+
+        viewModelScope.launch {
+            val detection = MentionParser.detectActiveMention(text, cursorPosition)
+
+            if (detection.isTypingMention && !detection.isEmailPattern) {
+                // User is typing a mention - get suggestions
+                val suggestions = mentionResolver.getSuggestions(detection.query)
+                _mentionState.value = MentionState(
+                    isActive = true,
+                    query = detection.query,
+                    triggerIndex = detection.triggerIndex,
+                    suggestions = suggestions,
+                    highlightedIndex = 0
+                )
+            } else {
+                // Not typing a mention - dismiss dropdown
+                if (_mentionState.value.isActive) {
+                    _mentionState.value = MentionState()
+                }
+            }
+        }
     }
 
     /**
-     * Stop current TTS speech immediately.
+     * Handle mention selection from autocomplete dropdown.
+     * Returns the text to insert (replacing @query with proper mention).
+     *
+     * @param suggestion Selected mention suggestion
+     * @param currentText Current text field content
+     * @return Updated text with mention inserted
      */
-    fun stopTTS() {
-        responseTTSManager.stop()
+    fun onMentionSelected(suggestion: MentionSuggestion, currentText: String): String {
+        val mentionState = _mentionState.value
+        if (!mentionState.isActive || mentionState.triggerIndex < 0) {
+            return currentText
+        }
+
+        // Build the replacement text based on suggestion type
+        val replacement = when (suggestion) {
+            is MentionSuggestion.NoteSuggestion -> {
+                val title = suggestion.note.title
+                // Use quotes if title has spaces
+                if (title.contains(' ')) "@\"$title\"" else "@${title.replace(' ', '_')}"
+            }
+            is MentionSuggestion.TypeFilter -> "@${suggestion.keyword}"
+            is MentionSuggestion.SpecialFilter -> "@${suggestion.filterName}"
+            is MentionSuggestion.CommandSuggestion -> "@${suggestion.commandName}"
+        }
+
+        // Calculate what to replace: from @triggerIndex to cursor position
+        val beforeMention = currentText.substring(0, mentionState.triggerIndex)
+        val afterCursor = if (chatInputCursorPosition < currentText.length) {
+            currentText.substring(chatInputCursorPosition)
+        } else ""
+
+        // Dismiss the dropdown
+        _mentionState.value = MentionState()
+
+        // Return updated text with mention and trailing space
+        return "$beforeMention$replacement $afterCursor"
     }
 
     /**
-     * Speak text using TTS (for AI responses).
+     * Dismiss mention dropdown without selection.
      */
-    private fun speakResponse(text: String) {
-        responseTTSManager.speak(text)
+    fun dismissMention() {
+        _mentionState.value = MentionState()
     }
-
-    // Neural TTS Voice Management (bundled model - no download needed)
-    val currentTtsVoice: StateFlow<String> by lazy { responseTTSManager.currentVoice }
-    val isTtsReady: StateFlow<Boolean> by lazy { responseTTSManager.isInitialized }
-
-    /**
-     * Initialize neural TTS - uses bundled model (no download needed).
-     * Called during ViewModel initialization.
-     */
-    fun initializeNeuralTTS() {
-        // Neural TTS is auto-initialized in ResponseTTSManager
-        // with bundled voice model (en_US-lessac-medium)
-        Log.d(TAG, "Neural TTS initialization triggered (auto-initialized in ResponseTTSManager)")
-    }
-
-    // ==================== End TTS Control Methods ====================
 
     /**
      * Send a message in chat mode using the Koog-based AI agent.
@@ -2847,8 +3410,6 @@ class CogniViewModel(
             val userMessage = chatManager.addUserMessage(content, attachments)
 
             try {
-                // Run agent
-
                 // Build conversation history for agent memory
                 val conversationHistory = chatManager.chatMessages.value
                     .filter { it.role != ChatRole.SYSTEM } // Exclude system messages
@@ -2864,8 +3425,39 @@ class CogniViewModel(
                 // Clear pending citations before running agent
                 pendingCitations.clear()
 
-                // Run the Koog agent with conversation history
-                val result = cogniAgent.run(content, conversationHistory)
+                // ═══════════════════════════════════════════════════════════════
+                // Reset mention state when message is sent (hide suggestions)
+                // ═══════════════════════════════════════════════════════════════
+                _mentionState.value = MentionState()
+
+                // ═══════════════════════════════════════════════════════════════
+                // @MENTION PROCESSING - Parse and resolve note references
+                // ═══════════════════════════════════════════════════════════════
+                val parsedMentions = MentionParser.parseAllMentions(content)
+                val taggedNoteContext = if (parsedMentions.isNotEmpty()) {
+                    Log.d(TAG, "Found ${parsedMentions.size} @mentions in message")
+                    val resolvedMentions = mentionResolver.resolveMentions(parsedMentions)
+                    val context = noteContextBuilder.buildContext(resolvedMentions)
+                    Log.d(TAG, "Built context: ${context.noteCount} notes, ${context.totalChars} chars, chunking=${context.needsChunking}")
+                    context
+                } else null
+
+                // ═══════════════════════════════════════════════════════════════
+                // @THINKING MODE - Deep document analysis
+                // ═══════════════════════════════════════════════════════════════
+                val thinkingModeContext = if (thinkingModeProcessor.hasThinkingCommand(content) && taggedNoteContext != null) {
+                    Log.d(TAG, "@thinking command detected - initiating deep document analysis")
+                    val referencedNotes = taggedNoteContext.resolvedMentions.flatMap { it.notes }
+                    thinkingModeProcessor.processThinkingMode(content, referencedNotes)
+                } else null
+
+                // Clean content: remove @mentions from the user prompt
+                val cleanedContent = if (parsedMentions.isNotEmpty()) {
+                    MentionParser.cleanMessage(content, parsedMentions)
+                } else content
+
+                // Run Koog agent with tagged note context and thinking mode context
+                val result = cogniAgent.run(cleanedContent, conversationHistory, taggedNoteContext, thinkingModeContext)
 
                 when (result) {
                     is AgentResult.Success -> {
@@ -2886,6 +3478,10 @@ class CogniViewModel(
                         }
                         pendingCitations.clear()
 
+                        // Get inline images from ViewImageTool
+                        val inlineImages = pendingInlineImages.toList()
+                        pendingInlineImages.clear()
+
                         // Create assistant message from agent response
                         val assistantMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
@@ -2893,18 +3489,11 @@ class CogniViewModel(
                             isAudioRelated = isAudioQuery,
                             suggestions = suggestions,
                             isError = false,
-                            citations = citations
+                            citations = citations,
+                            inlineImages = inlineImages
                         )
 
                         chatManager.addAssistantMessage(assistantMessage)
-
-                        // Speak AI response - but NOT if audio playback was just triggered
-                        // (user wants to hear the music, not TTS talking over it)
-                        if (pendingAudioPlayback.value == null) {
-                            speakResponse(cleanedResponse)
-                        } else {
-                            Log.d(TAG, "Skipping TTS - audio playback pending")
-                        }
 
                         chatManager.markApiCallSuccessful()
                         chatManager.saveMessagePair(
@@ -2912,6 +3501,14 @@ class CogniViewModel(
                             assistantMessage = assistantMessage,
                             hasApiKeys = securePreferences.hasAnyApiKeys()
                         )
+
+                        // Play completion sound (not for voice assistant mode)
+                        // Check if NOT triggered by wake word to avoid playing in AI assistant mode
+                        if (!_wakeWordTriggered.value) {
+                            completionSoundManager.playAgentCompletionSound(
+                                isAppInForeground = _isAppInForeground.value
+                            )
+                        }
                     }
 
                     is AgentResult.Error -> {
@@ -3171,8 +3768,8 @@ class CogniViewModel(
         voskWakeWordManager?.destroy()
         voskWakeWordManager = null
 
-        // Clean up TTS resources
-        responseTTSManager.shutdown()
+        // Clean up completion sound manager
+        completionSoundManager.shutdown()
 
         // Clean up phone state listener to prevent memory leak
         @Suppress("DEPRECATION")

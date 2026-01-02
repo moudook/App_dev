@@ -18,8 +18,21 @@ class PDFTextExtractor(private val context: Context) {
 
     companion object {
         private const val TAG = "PDFTextExtractor"
+        
+        // Legacy limits (kept for backward compatibility with extractText)
         private const val MAX_TEXT_LENGTH = 15000  // Limit text to avoid token limits
-        private const val MAX_PAGES = 50  // Reasonable page limit
+        private const val MAX_PAGES = 50  // Reasonable page limit for single extraction
+        
+        // Chunked extraction parameters for processing ALL pages
+        // These allow comprehensive analysis of 150+ page documents
+        private const val PAGES_PER_CHUNK = 5           // Process 5 pages at a time
+        private const val CHARS_PER_CHUNK = 4000        // ~1000 tokens per chunk
+        private const val OVERLAP_CHARS = 400           // 10% overlap for context
+        private const val MAX_CHUNKS = 50               // Safety limit: 50 chunks = 250 pages max
+        private const val CHUNK_SUMMARY_TARGET = 300    // Target chars per chunk summary
+        
+        // No page limit for chunked extraction - process ALL pages
+        private const val CHUNKED_MAX_PAGES = Int.MAX_VALUE
 
         @Volatile
         private var isInitialized = false
@@ -235,6 +248,163 @@ class PDFTextExtractor(private val context: Context) {
             } catch (_: Exception) {}
         }
     }
+
+    /**
+     * Extract text from PDF in chunks for processing long documents (150+ pages).
+     * 
+     * This method processes ALL pages of the PDF, not just the first 50.
+     * Each chunk contains text from a configurable number of pages with overlap
+     * to maintain context across chunk boundaries.
+     * 
+     * Memory-efficient: Processes page-by-page, doesn't load entire document.
+     * Model-agnostic: Returns chunks suitable for any LLM provider.
+     * 
+     * @param uri The content URI of the PDF file
+     * @return PDFChunkedResult containing chunks for map-reduce summarization
+     */
+    suspend fun extractTextChunked(uri: Uri): PDFChunkedResult = withContext(Dispatchers.IO) {
+        Log.i(TAG, "Starting chunked PDF extraction from URI: $uri")
+
+        var inputStream: InputStream? = null
+        var document: PDDocument? = null
+
+        try {
+            inputStream = context.contentResolver.openInputStream(uri)
+                ?: return@withContext PDFChunkedResult.Error("Could not open PDF file")
+
+            document = PDDocument.load(inputStream)
+
+            val totalPages = document.numberOfPages
+            Log.i(TAG, "PDF loaded for chunked extraction: $totalPages pages")
+
+            if (totalPages == 0) {
+                return@withContext PDFChunkedResult.Error("PDF has no pages")
+            }
+
+            val chunks = mutableListOf<PDFChunk>()
+            val stripper = PDFTextStripper().apply { sortByPosition = true }
+            
+            var chunkIndex = 0
+            var currentPage = 1
+            var previousOverlapText = ""
+            var totalCharactersExtracted = 0
+
+            // Process pages in groups of PAGES_PER_CHUNK
+            while (currentPage <= totalPages && chunkIndex < MAX_CHUNKS) {
+                val startPage = currentPage
+                val endPage = minOf(currentPage + PAGES_PER_CHUNK - 1, totalPages)
+
+                // Extract text for this chunk of pages
+                stripper.startPage = startPage
+                stripper.endPage = endPage
+                
+                val rawText = try {
+                    stripper.getText(document)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to extract pages $startPage-$endPage: ${e.message}")
+                    currentPage = endPage + 1
+                    continue
+                }
+
+                val cleanedText = cleanText(rawText)
+                
+                if (cleanedText.isNotBlank()) {
+                    // Add overlap from previous chunk for context continuity
+                    val textWithContext = if (previousOverlapText.isNotEmpty()) {
+                        "[...] $previousOverlapText\n\n$cleanedText"
+                    } else {
+                        cleanedText
+                    }
+                    
+                    // Truncate if individual chunk is too large
+                    val chunkText = if (textWithContext.length > CHARS_PER_CHUNK) {
+                        textWithContext.take(CHARS_PER_CHUNK) + "\n[...]"
+                    } else {
+                        textWithContext
+                    }
+
+                    chunks.add(
+                        PDFChunk(
+                            index = chunkIndex,
+                            startPage = startPage,
+                            endPage = endPage,
+                            text = chunkText,
+                            characterCount = chunkText.length
+                        )
+                    )
+
+                    totalCharactersExtracted += cleanedText.length
+                    chunkIndex++
+
+                    // Save overlap for next chunk (last OVERLAP_CHARS of current text)
+                    previousOverlapText = if (cleanedText.length > OVERLAP_CHARS) {
+                        cleanedText.takeLast(OVERLAP_CHARS)
+                    } else {
+                        cleanedText
+                    }
+                }
+
+                currentPage = endPage + 1
+            }
+
+            if (chunks.isEmpty()) {
+                Log.w(TAG, "No text content extracted (might be image-based PDF)")
+                return@withContext PDFChunkedResult.Empty(
+                    pageCount = totalPages,
+                    message = "This PDF appears to contain images only. Text extraction is not available for scanned documents."
+                )
+            }
+
+            val pagesProcessed = chunks.lastOrNull()?.endPage ?: 0
+            val wasLimited = chunkIndex >= MAX_CHUNKS && currentPage <= totalPages
+
+            Log.i(TAG, "Chunked extraction complete: ${chunks.size} chunks, $totalCharactersExtracted chars from $pagesProcessed pages")
+
+            PDFChunkedResult.Success(
+                chunks = chunks,
+                totalPages = totalPages,
+                pagesProcessed = pagesProcessed,
+                totalCharacters = totalCharactersExtracted,
+                chunkCount = chunks.size,
+                wasLimited = wasLimited
+            )
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Chunked PDF extraction failed: ${e.message}", e)
+            PDFChunkedResult.Error(
+                message = "Failed to extract text: ${e.message ?: "Unknown error"}"
+            )
+        } finally {
+            try {
+                document?.close()
+                inputStream?.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error closing resources: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Check if a PDF is considered "long" and should use chunked processing.
+     * Returns true for PDFs over 30 pages (where chunking provides significant benefit).
+     */
+    suspend fun isLongDocument(uri: Uri): Boolean {
+        val info = getPDFInfo(uri)
+        return info != null && info.pageCount > 30
+    }
+
+    /**
+     * Get recommended processing strategy for a PDF.
+     * Returns CHUNKED for long documents (>30 pages), DIRECT for shorter ones.
+     */
+    suspend fun getProcessingStrategy(uri: Uri): ProcessingStrategy {
+        val info = getPDFInfo(uri) ?: return ProcessingStrategy.DIRECT
+        return when {
+            info.pageCount > 100 -> ProcessingStrategy.CHUNKED_HIERARCHICAL
+            info.pageCount > 30 -> ProcessingStrategy.CHUNKED
+            else -> ProcessingStrategy.DIRECT
+        }
+    }
 }
 
 /**
@@ -269,3 +439,74 @@ data class PDFInfo(
     val creator: String?,
     val creationDate: java.util.Date?
 )
+
+/**
+ * A single chunk from a PDF for map-reduce summarization.
+ * Contains text from a range of pages with metadata.
+ */
+data class PDFChunk(
+    val index: Int,           // Chunk number (0-based)
+    val startPage: Int,       // First page in this chunk (1-based)
+    val endPage: Int,         // Last page in this chunk (1-based)
+    val text: String,         // Extracted and cleaned text
+    val characterCount: Int   // Number of characters in this chunk
+) {
+    /**
+     * Format chunk for AI prompt with page context.
+     */
+    fun toPromptContext(): String {
+        return "[Pages $startPage-$endPage]\n$text"
+    }
+}
+
+/**
+ * Result of chunked PDF extraction for long documents.
+ * Contains all chunks ready for map-reduce summarization.
+ */
+sealed class PDFChunkedResult {
+    data class Success(
+        val chunks: List<PDFChunk>,   // All extracted chunks
+        val totalPages: Int,          // Total pages in PDF
+        val pagesProcessed: Int,      // Pages actually processed
+        val totalCharacters: Int,     // Total characters extracted
+        val chunkCount: Int,          // Number of chunks
+        val wasLimited: Boolean       // True if hit MAX_CHUNKS limit
+    ) : PDFChunkedResult() {
+        
+        /**
+         * Get combined text from all chunks (for direct processing if context allows).
+         * Use only if total characters fit in model context window.
+         */
+        fun getCombinedText(): String {
+            return chunks.joinToString("\n\n---\n\n") { it.toPromptContext() }
+        }
+        
+        /**
+         * Check if document was fully processed (no pages skipped).
+         */
+        fun isComplete(): Boolean = pagesProcessed >= totalPages && !wasLimited
+    }
+
+    data class Empty(
+        val pageCount: Int,
+        val message: String
+    ) : PDFChunkedResult()
+
+    data class Error(
+        val message: String
+    ) : PDFChunkedResult()
+}
+
+/**
+ * Processing strategy for PDFs based on document length.
+ */
+enum class ProcessingStrategy {
+    /** Direct extraction - for short documents (≤30 pages) */
+    DIRECT,
+    
+    /** Chunked extraction with map-reduce - for medium documents (31-100 pages) */
+    CHUNKED,
+    
+    /** Hierarchical chunked extraction - for very long documents (>100 pages) */
+    CHUNKED_HIERARCHICAL
+}

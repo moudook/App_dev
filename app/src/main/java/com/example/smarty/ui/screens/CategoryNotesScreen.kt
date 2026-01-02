@@ -30,6 +30,8 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.util.CategoryShareManager
 import kotlinx.coroutines.launch
 
+import androidx.activity.compose.BackHandler
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryNotesScreen(
@@ -57,6 +59,9 @@ fun CategoryNotesScreen(
         }
     }
 
+    // Intercept system back button
+    BackHandler(onBack = onBackClick)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -70,14 +75,6 @@ fun CategoryNotesScreen(
                             text = "${categoryNotes.size} item${if (categoryNotes.size != 1) "s" else ""}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
                         )
                     }
                 },

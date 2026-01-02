@@ -305,8 +305,22 @@ class CreateEventTool(
             }
         }
 
-        Log.w(TAG, "Failed to parse datetime: '$input'")
-        return null
+        // FALLBACK: If no format matched, default to today at 2 PM
+        // This provides a better UX than returning an error when the LLM provides an unclear time
+        Log.w(TAG, "Could not parse datetime '$input', defaulting to today at 2:00 PM")
+        val defaultCalendar = Calendar.getInstance()
+        defaultCalendar.set(Calendar.HOUR_OF_DAY, 14)  // 2 PM default
+        defaultCalendar.set(Calendar.MINUTE, 0)
+        defaultCalendar.set(Calendar.SECOND, 0)
+        defaultCalendar.set(Calendar.MILLISECOND, 0)
+        
+        // If it's already past 2 PM today, default to tomorrow at 2 PM
+        if (defaultCalendar.timeInMillis < System.currentTimeMillis()) {
+            defaultCalendar.add(Calendar.DAY_OF_YEAR, 1)
+            Log.d(TAG, "2 PM already passed today, defaulting to tomorrow at 2:00 PM")
+        }
+        
+        return defaultCalendar.timeInMillis
     }
 
     /**

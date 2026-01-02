@@ -73,6 +73,7 @@ fun Modifier.shimmerEffect(
  */
 @Composable
 fun rememberShimmerBrush(
+    baseColor: Color = Color.Transparent,
     highlightColor: Color = Color.White.copy(alpha = 0.15f),
     durationMillis: Int = 2000
 ): Brush {
@@ -83,7 +84,7 @@ fun rememberShimmerBrush(
     if (!shouldAnimate) {
         // Static brush when backgrounded
         return Brush.linearGradient(
-            colors = listOf(Color.Transparent, highlightColor.copy(alpha = highlightColor.alpha * 0.5f), Color.Transparent)
+            colors = listOf(baseColor, highlightColor.copy(alpha = highlightColor.alpha * 0.5f), baseColor)
         )
     }
 
@@ -103,9 +104,9 @@ fun rememberShimmerBrush(
 
     return Brush.linearGradient(
         colors = listOf(
-            Color.Transparent,
+            baseColor,
             highlightColor,
-            Color.Transparent
+            baseColor
         ),
         start = Offset(shimmerTranslate - 400f, 0f),
         end = Offset(shimmerTranslate, 0f)

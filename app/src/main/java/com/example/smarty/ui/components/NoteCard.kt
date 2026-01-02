@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -27,8 +30,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -50,20 +51,19 @@ import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.AnimationDuration
 import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.util.ContentTypeDetector
-import com.example.smarty.ui.animation.shimmerEffect
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
  * Modern Soft Minimalist NoteCard with smooth interactions:
+ * - Redesigned to match premium UI with pills and cleaner topography.
  * - Super-rounded corners (28dp) with floating soft shadow
  * - Spring-based press animation with scale + subtle rotation
  * - Swipe right: Archive (main view) or Delete (archive view)
  * - Swipe left: Open todos (main view) or Unarchive (archive view)
- * - Clean border-free design with selection state highlight
- * - 3D lift effect on press
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NoteCard(
     note: Note,
@@ -72,15 +72,15 @@ fun NoteCard(
     onOpenTodo: () -> Unit,
     modifier: Modifier = Modifier,
     index: Int = 0,
-    isArchiveView: Boolean = false,  // Controls swipe behavior context
-    onArchive: (() -> Unit)? = null,  // Archive action for main view (swipe right)
-    onUnarchive: (() -> Unit)? = null,  // Unarchive action for archive view (swipe left)
-    isSelected: Boolean = false,  // Multi-select: is this card selected
-    isSelectionMode: Boolean = false,  // Multi-select: is selection mode active
-    onLongPress: () -> Unit = {},  // Multi-select: long press to enter selection mode
-    onPlayYouTube: (String) -> Unit = {},  // Callback to play YouTube video
-    searchQuery: String? = null,  // Search query for highlighting matching text
-    isNewlyProcessed: Boolean = false  // Show blue dot for newly processed notes
+    isArchiveView: Boolean = false,
+    onArchive: (() -> Unit)? = null,
+    onUnarchive: (() -> Unit)? = null,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onLongPress: () -> Unit = {},
+    onPlayYouTube: (String) -> Unit = {},
+    searchQuery: String? = null,
+    isNewlyProcessed: Boolean = false
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -92,80 +92,50 @@ fun NoteCard(
 
     // Swipe state
     val swipeOffset = remember { Animatable(0f) }
-    val swipeThreshold = remember { with(density) { 60.dp.toPx() } }  // Distance to trigger action
-    val swipeActivationThreshold = remember { with(density) { 30.dp.toPx() } }  // Minimum drag to start showing swipe UI
-    var swipeActivated by remember { mutableStateOf(false) }  // Has the swipe been activated this gesture?
-    var accumulatedDrag by remember { mutableFloatStateOf(0f) }  // Track total drag distance
-    // MEDIUM-007: Prevent rapid swipe modal overlap
+    val swipeThreshold = remember { with(density) { 60.dp.toPx() } }
+    val swipeActivationThreshold = remember { with(density) { 30.dp.toPx() } }
+    var swipeActivated by remember { mutableStateOf(false) }
+    var accumulatedDrag by remember { mutableFloatStateOf(0f) }
     var actionInProgress by remember { mutableStateOf(false) }
     val snapBackSpec = spring<Float>(dampingRatio = 0.8f, stiffness = 800f)
 
-    // Apple-style Card Transform (Scale + Rotation)
-    val (scale, rotation) = animatedCardTransform(
-        pressed = isPressed,
-        index = index
-    )
+    // Animation transforms
+    val (scale, rotation) = animatedCardTransform(pressed = isPressed, index = index)
+    val tilt = animateCardTilt(pressed = isPressed, pressedElevation = 2f)
 
-    // 3D Tilt Effect on Press
-    val tilt = animateCardTilt(
-        pressed = isPressed,
-        pressedElevation = 2f // More subtle in the new design
-    )
-
-    // Border color handling
+    // Border color
     val borderColor by animateColorAsState(
         targetValue = when {
             isSelected -> LocalAccentColor.current
             note.processingStatus == ProcessingStatus.PROCESSING -> LocalAccentColor.current.copy(alpha = 0.5f)
-            swipeOffset.value > swipeThreshold * 0.5f -> {
-                if (isArchiveView) MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                // MEDIUM-019: Improved contrast for accessibility (0.5f -> 0.7f)
-                else SystemGray.copy(alpha = 0.7f)
-            }
+            swipeOffset.value > swipeThreshold * 0.5f -> if (isArchiveView) MaterialTheme.colorScheme.error.copy(alpha = 0.5f) else SystemGray.copy(alpha = 0.7f)
             swipeOffset.value < -swipeThreshold * 0.5f -> SystemBlue.copy(alpha = 0.5f)
-            else -> Color.Transparent // Clean look by default
+            else -> Color.Transparent
         },
         animationSpec = tween(AnimationDuration.fast),
         label = "border"
     )
 
-    // OPTIMIZED: Swipe indicator alpha using derivedStateOf
-    // derivedStateOf only triggers recomposition when the derived value actually changes
-    // This prevents unnecessary recompositions during swipe gestures
-    val swipeAlpha by remember {
-        derivedStateOf { (abs(swipeOffset.value) / swipeThreshold).coerceIn(0f, 1f) }
-    }
+    val swipeAlpha by remember { derivedStateOf { (abs(swipeOffset.value) / swipeThreshold).coerceIn(0f, 1f) } }
 
-    Box(
-        modifier = modifier.fillMaxWidth()
-    ) {
-        // Swipe Background Layer
+    Box(modifier = modifier.fillMaxWidth()) {
+        // Swipe Background
         if (swipeAlpha > 0f) {
             val isSwipeRight = swipeOffset.value > 0
-            val color = if (isSwipeRight) {
-                if (isArchiveView) MaterialTheme.colorScheme.error else SystemGray
-            } else {
-                if (isArchiveView) SystemBlue else SystemBlue
-            }
+            val color = if (isSwipeRight) (if (isArchiveView) MaterialTheme.colorScheme.error else SystemGray) else (if (isArchiveView) SystemBlue else SystemBlue)
+            val icon = if (isSwipeRight) (if (isArchiveView) Icons.Default.Delete else Icons.Default.Archive) else (if (isArchiveView) Icons.Default.Unarchive else Icons.Default.Checklist)
 
-            val icon = if (isSwipeRight) {
-                if (isArchiveView) Icons.Default.Delete else Icons.Default.Archive
-            } else {
-                if (isArchiveView) Icons.Default.Unarchive else Icons.Default.Checklist
-            }
-
-            val shapes = LocalShapes.current
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .clip(shapes.cardMedium)
+                    .clip(LocalShapes.current.cardMedium)
                     .background(color),
                 contentAlignment = if (isSwipeRight) Alignment.CenterStart else Alignment.CenterEnd
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = Color.White, // Always white on colored background
+                    tint = Color.White,
                     modifier = Modifier
                         .padding(horizontal = 16.dp)
                         .scale(0.8f + swipeAlpha * 0.4f)
@@ -173,7 +143,7 @@ fun NoteCard(
             }
         }
 
-        // Main Card Content
+        // Main Card Surface
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -182,293 +152,208 @@ fun NoteCard(
                 .graphicsLayer {
                     rotationZ = rotation
                     cameraDistance = 12f * density.density
+                    scaleX = scale
+                    scaleY = scale
                 }
                 .cardTilt3D(tilt)
                 .pointerInput(isSelectionMode) {
                     detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            tryAwaitRelease()
-                            isPressed = false
-                        },
-                        onLongPress = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onLongPress()
-                        },
-                        onTap = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onClick()
-                        }
+                        onPress = { isPressed = true; tryAwaitRelease(); isPressed = false },
+                        onLongPress = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onLongPress() },
+                        onTap = { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onClick() }
                     )
                 }
                 .pointerInput(isSelectionMode) {
                     if (!isSelectionMode) {
                         detectHorizontalDragGestures(
                             onDragEnd = {
-                                // MEDIUM-007: Prevent action if one is already in progress
                                 if (actionInProgress) {
                                     coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
-                                    swipeActivated = false
-                                    accumulatedDrag = 0f
-                                    return@detectHorizontalDragGestures
+                                    swipeActivated = false; accumulatedDrag = 0f; return@detectHorizontalDragGestures
                                 }
-
-                                if (swipeActivated && swipeOffset.value > swipeThreshold) {
-                                    // INSTANT: Call action FIRST, then animate
+                                if (swipeActivated && abs(swipeOffset.value) > swipeThreshold) {
                                     actionInProgress = true
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    if (isArchiveView) onDelete() else onArchive?.invoke()
-                                    coroutineScope.launch {
-                                        swipeOffset.snapTo(0f)
-                                        actionInProgress = false
-                                    }
-                                } else if (swipeActivated && swipeOffset.value < -swipeThreshold) {
-                                    // INSTANT: Call action FIRST, then animate
-                                    actionInProgress = true
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    if (isArchiveView) onUnarchive?.invoke() else onOpenTodo()
-                                    coroutineScope.launch {
-                                        swipeOffset.snapTo(0f)
-                                        actionInProgress = false
-                                    }
+                                    if (swipeOffset.value > 0) { if (isArchiveView) onDelete() else onArchive?.invoke() }
+                                    else { if (isArchiveView) onUnarchive?.invoke() else onOpenTodo() }
+                                    coroutineScope.launch { swipeOffset.snapTo(0f); actionInProgress = false }
                                 } else {
                                     coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
                                 }
-                                // Reset activation state for next gesture
-                                swipeActivated = false
-                                accumulatedDrag = 0f
+                                swipeActivated = false; accumulatedDrag = 0f
                             },
-                            onDragCancel = {
-                                coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
-                                // Reset activation state
-                                swipeActivated = false
-                                accumulatedDrag = 0f
-                            },
+                            onDragCancel = { coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }; swipeActivated = false; accumulatedDrag = 0f },
                             onHorizontalDrag = { _, dragAmount ->
-                                // Accumulate drag distance
                                 accumulatedDrag += dragAmount
-
-                                // Only start showing swipe UI after exceeding activation threshold
                                 if (!swipeActivated && abs(accumulatedDrag) > swipeActivationThreshold) {
                                     swipeActivated = true
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
-
-                                // Only update swipe offset if activated
-                                if (swipeActivated) {
-                                    coroutineScope.launch {
-                                        // DIRECT 1:1 MAPPING: Once activated, follow the finger exactly.
-                                        // This removes the "resistance" or "reset" feeling when changing directions.
-                                        swipeOffset.snapTo(accumulatedDrag)
-                                    }
-                                }
+                                if (swipeActivated) coroutineScope.launch { swipeOffset.snapTo(accumulatedDrag) }
                             }
                         )
                     }
                 },
             shape = LocalShapes.current.cardMedium,
-            // Uniform look for all cards - distinction is via tags only
-            color = MaterialTheme.colorScheme.surface,
+            color = animateColorAsState(
+                targetValue = if (isSelected) com.example.smarty.ui.theme.SystemBlue.copy(alpha = 0.20f).compositeOver(MaterialTheme.colorScheme.surface) else MaterialTheme.colorScheme.surface,
+                label = "cardBackground"
+            ).value,
             shadowElevation = 0.dp,
-            border = if (isSelected) {
-                androidx.compose.foundation.BorderStroke(2.dp, LocalAccentColor.current)
-            } else {
-                // High contrast border for better definition against background
-                androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-            },
+            border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, com.example.smarty.ui.theme.SystemBlue) else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(ComponentSpacing.noteCardHeight) // Fixed height: Horizontal expands, Vertical fixed
-                    .padding(horizontal = ComponentSpacing.noteCardPaddingHorizontal, vertical = ComponentSpacing.noteCardPaddingVertical), // Adjusted padding for fixed height
-                verticalArrangement = Arrangement.SpaceBetween // Distribute content evenly
+                    .padding(16.dp)
             ) {
-                if (note.processingStatus == ProcessingStatus.PROCESSING || note.processingStatus == ProcessingStatus.PENDING) {
-                    // Enhanced Shimmering Skeleton Loader with staggered wave effect
-                    val shimmerBaseColor = LocalAccentColor.current.copy(alpha = 0.4f)
-
-                    // MEDIUM-003: Use key() to force recomposition when theme changes
-                    // This prevents shimmer glitches during theme switch
-                    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
-                    key(isDarkTheme, shimmerBaseColor) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Title skeleton - first in sequence
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.6f)
-                                .height(20.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Alpha.subtle))
-                                .shimmerEffect(
-                                    shimmerColor = shimmerBaseColor,
-                                    durationMs = AnimationDuration.shimmerCycle,
-                                    delayMs = 0,
-                                    shimmerWidth = 350f
-                                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // 1. Title
+                    val titleStyle = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        letterSpacing = (-0.5).sp
+                    )
+                    
+                    if (searchQuery.isNullOrBlank()) {
+                        Text(
+                            text = note.title.ifBlank { "Untitled Note" },
+                            style = titleStyle,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(end = 24.dp) // Space for edit icon area if needed
                         )
-                        
-                        Spacer(modifier = Modifier.height(4.dp))
-                        
-                        // Body skeleton - Line 1 (slightly delayed)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .height(14.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Alpha.faint))
-                                .shimmerEffect(
-                                    shimmerColor = shimmerBaseColor,
-                                    durationMs = AnimationDuration.shimmerCycle,
-                                    delayMs = 100,
-                                    shimmerWidth = 350f
-                                )
-                        )
-                        
-                        // Body skeleton - Line 2 (more delayed for wave effect)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.75f)
-                                .height(14.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = Alpha.faint))
-                                .shimmerEffect(
-                                    shimmerColor = shimmerBaseColor,
-                                    durationMs = AnimationDuration.shimmerCycle,
-                                    delayMs = 200,
-                                    shimmerWidth = 350f
-                                )
+                    } else {
+                        HighlightedText(
+                            text = note.title.ifBlank { "Untitled Note" },
+                            query = searchQuery,
+                            style = titleStyle,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    } // End key() block for theme-safe shimmer
-                } else {
-                    // Standard Content
-                    // Header: Title + Category + Indicators + New Note Dot
-                    // Standard Content
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp) // Nice gap between Title and Metadata
+
+                    // 2. Pills Layout
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth().padding(end = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // 1. Title Row (Top)
-                        if (searchQuery.isNullOrBlank()) {
-                            Text(
-                                text = note.title.ifBlank { "Untitled Note" },
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 16.sp,
-                                    letterSpacing = 0.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        } else {
-                            HighlightedText(
-                                text = note.title.ifBlank { "Untitled Note" },
-                                query = searchQuery,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 16.sp,
-                                    letterSpacing = 0.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                        // AI Generation Pill
+                        if (note.isAiCreated) {
+                            NoteCardPill(
+                                text = "AI Generation",
+                                icon = Icons.Default.AutoAwesome,
+                                backgroundColor = Color(0xFFE8DEF8), // Light Purple
+                                contentColor = Color(0xFF1D192B),
+                                darkBackgroundColor = Color(0xFF4A4458),
+                                darkContentColor = Color(0xFFE8DEF8)
                             )
                         }
 
-                        // 2. Metadata/Info Row (Bottom)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // 1. Tags (Left-most as requested)
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // AI Tag
-                                if (note.isAiCreated) {
-                                    Surface(
-                                        color = LocalAccentColor.current.copy(alpha = Alpha.soft),
-                                        shape = RoundedCornerShape(6.dp)
-                                    ) {
-                                        Text(
-                                            text = "AI",
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 10.sp
-                                            ),
-                                            color = LocalAccentColor.current,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-
-                                // Category Chip
-                                note.categoryName?.let { category ->
-                                    CategoryChip(
-                                        name = category,
-                                        isNew = note.processingStatus == ProcessingStatus.COMPLETED
-                                    )
-                                }
-                            }
-
-                            // Divider
-                            Box(
-                                modifier = Modifier
-                                    .height(14.dp)
-                                    .width(1.dp)
-                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        // Category Pill (Filter)
+                        note.categoryName?.let { category ->
+                            NoteCardPill(
+                                text = category,
+                                icon = Icons.Outlined.Folder, // Use Folder icon for category
+                                backgroundColor = Color(0xFFE3E8EF), // Light Grey/Blue
+                                contentColor = Color(0xFF1D2939),
+                                darkBackgroundColor = Color(0xFF344054),
+                                darkContentColor = Color(0xFFD0D5DD)
                             )
+                        }
 
-                            // 2. Icon (Now after tags, always Blue)
-                            val iconVector = remember(note.isAiCreated, note.type) {
-                                if (note.isAiCreated) Icons.Default.AutoAwesome else getNoteTypeIcon(note.type)
-                            }
-                            // Always use SystemBlue for consistency
-                            val iconTint = com.example.smarty.ui.theme.SystemBlue
-                            
-                            Box {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = iconTint.copy(alpha = Alpha.soft),
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = iconVector,
-                                            contentDescription = null,
-                                            tint = iconTint,
-                                            modifier = Modifier.size(IconSize.default)
-                                        )
-                                    }
-                                }
+                        // Attachments Pills
+                        val attachments = note.getAttachments()
+                        val hasAudio = note.type == NoteType.AUDIO || attachments.any { it.mimeType.startsWith("audio/") }
+                        val hasFiles = attachments.isNotEmpty() && !hasAudio // Simplification
 
-                                if (note.isFullPrivacy || note.excludeFromAiChat) {
-                                    PrivacyIndicatorChip(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomEnd)
-                                            .offset(x = 2.dp, y = 2.dp)
-                                    )
-                                }
-                            }
+                        if (hasFiles) {
+                            NoteCardPill(
+                                text = "SAVED FILES",
+                                icon = Icons.Default.Description,
+                                backgroundColor = Color(0xFFD1E9FF), // Light Blue
+                                contentColor = Color(0xFF003F7F),
+                                darkBackgroundColor = Color(0xFF004A77),
+                                darkContentColor = Color(0xFFC3E7FF)
+                            )
+                        }
+
+                        if (hasAudio) {
+                            NoteCardPill(
+                                text = "SAVED AUDIO",
+                                icon = Icons.Default.Mic,
+                                backgroundColor = Color(0xFFC4E7FF), // Light Cyan
+                                contentColor = Color(0xFF004C6D),
+                                darkBackgroundColor = Color(0xFF004F70),
+                                darkContentColor = Color(0xFFC2E8FF)
+                            )
                         }
                     }
                 }
-            }
 
+                // 3. Edit Icon (Bottom Right)
+                Icon(
+                    imageVector = Icons.Outlined.Edit,
+                    contentDescription = "Edit",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(20.dp)
+                )
+            }
         }
     }
 }
 
+@Composable
+fun NoteCardPill(
+    text: String,
+    icon: ImageVector,
+    backgroundColor: Color,
+    contentColor: Color,
+    darkBackgroundColor: Color,
+    darkContentColor: Color
+) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val bg = if (isDark) darkBackgroundColor else backgroundColor
+    val content = if (isDark) darkContentColor else contentColor
+
+    Surface(
+        color = bg,
+        shape = RoundedCornerShape(50), // Fully rounded pill
+        modifier = Modifier.height(28.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp
+                ),
+                color = content
+            )
+        }
+    }
+}
 
 /**
- * Category chip with pill shape
+ * Category chip with pill shape - for use in detail screens like KnowledgeCardScreen
  */
 @Composable
 fun CategoryChip(
@@ -476,15 +361,14 @@ fun CategoryChip(
     isNew: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val bg = if (isDark) Color(0xFF344054) else Color(0xFFE3E8EF)
+    val contentColor = if (isDark) Color(0xFFD0D5DD) else Color(0xFF1D2939)
+
     Surface(
         modifier = modifier,
-        shape = LocalShapes.current.pill,
-        color = if (isNew) {
-            LocalAccentColor.current.copy(alpha = Alpha.medium)
-        } else {
-             // More vivid default state
-             LocalAccentColor.current.copy(alpha = Alpha.soft)
-        },
+        shape = RoundedCornerShape(50), // Pill shape
+        color = if (isNew) LocalAccentColor.current.copy(alpha = Alpha.medium) else bg
     ) {
         Text(
             text = name.uppercase(),
@@ -493,203 +377,8 @@ fun CategoryChip(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp
             ),
-            color = LocalAccentColor.current, // Always accent color for vitality
+            color = if (isNew) LocalAccentColor.current else contentColor,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
 }
-
-/**
- * OPTIMIZED: Privacy indicator chip with shield icon.
- * Indicates that AI cannot access this note.
- *
- * Performance improvements:
- * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded (zero CPU in background)
- * - Uses graphicsLayer lambda for GPU-accelerated alpha animation
- * - Lambda version reads animation state during draw phase, reducing recompositions
- */
-@Composable
-fun PrivacyIndicatorChip(modifier: Modifier = Modifier) {
-    val privacyColor = com.example.smarty.ui.theme.SystemBlue
-
-    // LIFECYCLE-AWARE: Only animate when app is in foreground
-    val lifecycleState by com.example.smarty.ui.utils.rememberAnimationLifecycleState()
-    val shouldAnimate = lifecycleState == com.example.smarty.ui.utils.AnimationLifecycleState.RUNNING
-
-    val shimmerAlpha = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "privacyShimmer")
-        infiniteTransition.animateFloat(
-            initialValue = 0.6f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(AnimationDuration.breathCycle, easing = CogniEasing.appleEaseInOut),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "privacyShimmerAlpha"
-        ).value
-    } else {
-        0.8f // Static value when backgrounded - zero animation overhead
-    }
-
-    Icon(
-        imageVector = Icons.Default.Shield,
-        contentDescription = "Private - AI cannot access",
-        tint = privacyColor,
-        modifier = modifier
-            .size(IconSize.small)
-            .graphicsLayer { alpha = shimmerAlpha }
-    )
-}
-
-/**
- * OPTIMIZED: Processing indicator with pulsing animation
- *
- * Performance improvements:
- * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded (zero CPU in background)
- * - Uses graphicsLayer lambda for GPU-accelerated alpha animation
- * - Defers state read to draw phase, preventing recomposition on every frame
- */
-@Composable
-private fun ProcessingIndicator(modifier: Modifier = Modifier) {
-    val accentColor = LocalAccentColor.current
-
-    // LIFECYCLE-AWARE: Only animate when app is in foreground
-    val lifecycleState by com.example.smarty.ui.utils.rememberAnimationLifecycleState()
-    val shouldAnimate = lifecycleState == com.example.smarty.ui.utils.AnimationLifecycleState.RUNNING
-
-    val alpha = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "processing")
-        infiniteTransition.animateFloat(
-            initialValue = 0.3f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(AnimationDuration.breath, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "processingAlpha"
-        ).value
-    } else {
-        0.65f // Static mid-value when backgrounded
-    }
-
-    Box(
-        modifier = modifier
-            .clip(CircleShape)
-            .background(accentColor)
-            .graphicsLayer { this.alpha = alpha }
-    )
-}
-
-/**
- * Attachment indicator showing file type icon with badge number
- * Compact design: icon with count badge overlay (e.g., "3" or "9+")
- * Single file: icon only, no badge
- */
-/**
- * Attachment indicator showing file type icon with badge number
- * Compact design: icon with count badge overlay (e.g., "3" or "9+")
- * Single file: icon only, no badge
- */
-@Composable
-private fun NoteAttachmentIndicator(
-    note: Note,
-    attachmentCount: Int,
-    modifier: Modifier = Modifier
-) {
-    val attachments = note.getAttachments()
-
-    // Determine icon and color based on file type
-    val (icon, iconColor) = when {
-        attachmentCount > 1 -> {
-            // Multiple files - determine type from attachments or note type
-            val mimeTypes = attachments.map { it.mimeType }
-            val allImages = mimeTypes.all { it.startsWith("image/") }
-            val allVideos = mimeTypes.all { it.startsWith("video/") }
-            val allAudio = mimeTypes.all { it.startsWith("audio/") }
-
-            when {
-                allImages || note.type == NoteType.IMAGE -> Icons.Default.Photo to ImageTeal
-                allVideos || note.type == NoteType.VIDEO -> Icons.Default.Videocam to VideoRed
-                allAudio -> Icons.Default.MusicNote to AudioPink
-                else -> Icons.Default.AttachFile to FileGray
-            }
-        }
-        else -> {
-            // Single file - determine icon by type
-            val mimeType = note.fileMimeType ?: attachments.firstOrNull()?.mimeType
-            val noteType = note.type
-
-            when {
-                noteType == NoteType.IMAGE || mimeType?.startsWith("image/") == true ->
-                    Icons.Default.Photo to ImageTeal
-                noteType == NoteType.VIDEO || mimeType?.startsWith("video/") == true ->
-                    Icons.Default.Videocam to VideoRed
-                mimeType?.contains("pdf") == true ->
-                    Icons.AutoMirrored.Filled.Article to DocumentBlue
-                mimeType?.contains("document") == true || mimeType?.contains("word") == true ->
-                    Icons.AutoMirrored.Filled.Article to DocumentBlue
-                mimeType?.contains("sheet") == true || mimeType?.contains("excel") == true ->
-                    Icons.Default.TableChart to SpreadsheetGreen
-                mimeType?.contains("presentation") == true || mimeType?.contains("powerpoint") == true ->
-                    Icons.Default.Slideshow to PresentationOrange
-                mimeType?.contains("zip") == true || mimeType?.contains("rar") == true || mimeType?.contains("tar") == true ->
-                    Icons.Default.FolderZip to ArchiveYellow
-                mimeType == "application/vnd.android.package-archive" ->
-                    Icons.Default.Android to ApkGreen
-                else -> Icons.Default.AttachFile to FileGray
-            }
-        }
-    }
-
-    Box(modifier = modifier) {
-        // File type icon in rounded square
-        Surface(
-            modifier = Modifier.size(36.dp),
-            shape = RoundedCornerShape(10.dp),
-            color = iconColor.copy(alpha = Alpha.light)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = if (attachmentCount > 1) "$attachmentCount files" else "File",
-                    tint = iconColor,
-                    modifier = Modifier.size(IconSize.standard)
-                )
-            }
-        }
-
-        // Badge for count > 1
-        if (attachmentCount > 1) {
-            Surface(
-                modifier = Modifier
-                    .size(IconSize.standard)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 6.dp, y = (-6).dp),
-                shape = CircleShape,
-                color = iconColor
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Text(
-                        text = if (attachmentCount > 9) "9+" else attachmentCount.toString(),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = Color.White
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Format file size in a compact way - delegates to ContentTypeDetector
- */
-private fun formatFileSizeCompact(bytes: Long): String = com.example.smarty.util.ContentTypeDetector.formatSize(bytes)

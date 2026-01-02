@@ -29,6 +29,14 @@ sealed class CommandResult {
      * Command should be passed to the LLM for processing.
      */
     data object PassToLLM : CommandResult()
+
+    /**
+     * Save page/screen request - handled specially in AssistActivity.
+     * @param titleHint Optional hint for the note title (text after "save this page")
+     */
+    data class SavePageRequest(
+        val titleHint: String? = null
+    ) : CommandResult()
 }
 
 /**
@@ -61,6 +69,53 @@ class LocalCommandProcessor(
         private val OPEN_PREFIXES = listOf("open ", "launch ", "start ", "run ")
         private val PLAY_PREFIXES = listOf("play ", "play me ", "play some ", "put on ")
         private val STOP_PREFIXES = listOf("stop ", "pause ", "stop playing", "pause music")
+        // Keywords that indicate a "save page" command
+        private val SAVE_PAGE_KEYWORDS = listOf(
+            "save this page",
+            "save this screen",
+            "save the page",
+            "save the screen",
+            "save screen",
+            "save page",
+            "capture this",
+            "capture screen",
+            "capture page",
+            "remember this page",
+            "remember this screen",
+            "remember this",
+            "screenshot this",
+            "screenshot",
+            "take a screenshot",
+            "take screenshot"
+        )
+    }
+
+    /**
+     * Extract title hint from a save page command.
+     * Returns the part of the text that should be used as the title.
+     */
+    private fun extractSavePageHint(input: String): String? {
+        val normalized = input.lowercase(Locale.getDefault())
+
+        // Find which keyword was used and extract everything after it
+        for (keyword in SAVE_PAGE_KEYWORDS) {
+            val index = normalized.indexOf(keyword)
+            if (index != -1) {
+                // Get everything after the keyword
+                val afterKeyword = input.substring(index + keyword.length).trim()
+                Log.d(TAG, "Found keyword '$keyword', extracted hint: '$afterKeyword'")
+                return afterKeyword.ifEmpty { null }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Check if input is a save page command.
+     */
+    private fun isSavePageCommand(input: String): Boolean {
+        val normalized = input.lowercase(Locale.getDefault())
+        return SAVE_PAGE_KEYWORDS.any { keyword -> normalized.contains(keyword) }
     }
 
     /**
@@ -97,6 +152,13 @@ class LocalCommandProcessor(
             if (normalizedInput.startsWith(prefix) || normalizedInput == prefix.trim()) {
                 return handleStopCommand()
             }
+        }
+
+        // Check for "save this page/screen" commands - use contains() for more flexibility
+        if (isSavePageCommand(input)) {
+            val titleHint = extractSavePageHint(input)
+            Log.d(TAG, "Save page command detected! Input: '$input', Hint: '$titleHint'")
+            return CommandResult.SavePageRequest(titleHint = titleHint)
         }
 
         // Not a local command, pass to LLM

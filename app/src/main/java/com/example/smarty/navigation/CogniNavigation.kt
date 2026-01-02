@@ -20,6 +20,8 @@ import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatSession
+import com.example.smarty.data.model.MentionState
+import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteVersion
@@ -103,7 +105,7 @@ fun CogniNavHost(
     onDeleteNote: (Note) -> Unit,
     onDeleteNoteById: (String) -> Unit,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
-    onEditNote: (String, String, String, List<NoteAttachment>) -> Unit = { _, _, _, _ -> },  // noteId, newTitle, newContent, newAttachments
+    onEditNote: (String, String, String, String?, String?, List<NoteAttachment>) -> Unit = { _, _, _, _, _, _ -> },  // noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments
     onMarkAsViewed: (String) -> Unit = {}, // New tracking action
     // Version history
     selectedNoteVersions: List<NoteVersion> = emptyList(),
@@ -125,12 +127,21 @@ fun CogniNavHost(
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when AI tab is clicked
+    onEnterChatWithNoteReference: (String) -> Unit = {},  // @Mention: Enter chat with note pre-referenced
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
     onSwitchChatSession: (String) -> Unit = {},
     onNewChatSession: () -> Unit = {},
     onDeleteChatSession: (String) -> Unit = {},
+    // @Mention parameters (Chat mode)
+    mentionState: MentionState = MentionState(),
+    onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },
+    // Pending chat text (for "Ask AI" from note card)
+    pendingChatText: String? = null,
+    onClearPendingChatText: () -> Unit = {},
+    // Mention state update callback
+    onUpdateMentionState: (String, Int) -> Unit = { _, _ -> },
     // AI exclusion management
     isAiExcluded: Boolean = false,
     onInputTextChange: (String) -> Unit = {},
@@ -197,13 +208,13 @@ fun CogniNavHost(
     isVoiceEnrolled: Boolean = false,
     onDeleteVoiceFingerprint: () -> Unit = {},
     onRetrainVoice: () -> Unit = {},
-    // TTS for AI responses
-    isTTSEnabled: Boolean = true,
-    onTTSEnabledChange: (Boolean) -> Unit = {},
-    onStopTTS: () -> Unit = {},  // Stop TTS when user taps screen in chat mode
-    // Local LLM Server
+    // Local LLM Server (USB/WiFi)
     localServerIP: String = "",
+    localServerPort: String = "8000",
+    localServerUseHttps: Boolean = false,
     onSetLocalServerIP: (String) -> Unit = {},
+    onSetLocalServerPort: (String) -> Unit = {},
+    onSetLocalServerUseHttps: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     // Auth State
     isLoggedIn: Boolean = false,
@@ -309,6 +320,14 @@ fun CogniNavHost(
                 onSwitchChatSession = onSwitchChatSession,
                 onNewChatSession = onNewChatSession,
                 onDeleteChatSession = onDeleteChatSession,
+                // @Mention autocomplete
+                mentionState = mentionState,
+                onMentionSelected = onMentionSelected,
+                // Pending chat text (for "Ask AI" from note card)
+                pendingChatText = pendingChatText,
+                onClearPendingChatText = onClearPendingChatText,
+                // Mention state update
+                onUpdateMentionState = onUpdateMentionState,
                 // AI exclusion
                 isAiExcluded = isAiExcluded,
                 onInputTextChange = onInputTextChange,
@@ -349,7 +368,12 @@ fun CogniNavHost(
 
                 // Calendar
                 calendarEvents = calendarEvents,
-                onAddCalendarEvent = { onAddCalendarEvent("", null, System.currentTimeMillis(), System.currentTimeMillis() + 3600000, false, null, null, null, false) },
+                // FIX: onAddCalendarEvent should be a no-op - actual creation goes through onCreateCalendarEvent
+                // The previous implementation incorrectly created empty events immediately
+                onAddCalendarEvent = { /* No-op - dialog shown internally by CalendarSheet/CalendarContent */ },
+                onCreateCalendarEvent = { title, description, startTime, endTime, isAllDay ->
+                    onAddCalendarEvent(title, description, startTime, endTime, isAllDay, null, null, null, false)
+                },
                 onEventClick = { event ->
                     // Event click handling - could open edit sheet
                 },
@@ -386,13 +410,39 @@ fun CogniNavHost(
                 isVoiceEnrolled = isVoiceEnrolled,
                 onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
                 onRetrainVoice = onRetrainVoice,
-                isTTSEnabled = isTTSEnabled,
-                onTTSEnabledChange = onTTSEnabledChange,
-                onStopTTS = onStopTTS,
                 onRefreshModels = onRefreshModels,
                 getAvailableModels = getAvailableModels,
                 onSignOut = onSignOut,
                 // Settings sub-sheet content
+                aiConfigContent = @androidx.compose.runtime.Composable { onDismiss ->
+                    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+                    val aiConfigSheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+                    AIConfigBottomSheet(
+                        sheetState = aiConfigSheetState,
+                        providerConfigs = providerConfigs,
+                        providerPriorityOrder = providerPriorityOrder,
+                        onDismiss = onDismiss,
+                        onAddApiKey = onAddApiKey,
+                        onRemoveApiKey = onRemoveApiKey,
+                        onUpdateApiKey = onUpdateApiKey,
+                        onSetProviderEnabled = onSetProviderEnabled,
+                        onSetSelectedModel = onSetSelectedModel,
+                        onSetProviderPriority = onSetProviderPriority,
+                        onTestApiKey = onTestApiKey,
+                        tavilyApiKey = tavilyApiKey,
+                        onSetTavilyApiKey = onSetTavilyApiKey,
+                        groqKeyUsageStats = groqKeyUsageStats,
+                        onRefreshModels = onRefreshModels,
+                        getAvailableModels = getAvailableModels,
+                        localServerIP = localServerIP,
+                        localServerPort = localServerPort,
+                        localServerUseHttps = localServerUseHttps,
+                        onSetLocalServerIP = onSetLocalServerIP,
+                        onSetLocalServerPort = onSetLocalServerPort,
+                        onSetLocalServerUseHttps = onSetLocalServerUseHttps
+                    )
+                },
                 archiveContentForSettings = { onDismiss ->
                     ArchiveScreen(
                         archivedNotes = archivedNotes,
@@ -484,7 +534,12 @@ fun CogniNavHost(
                     noteVersions = selectedNoteVersions,
                     onLoadVersions = { onLoadNoteVersions(note.id) },
                     onRestoreVersion = { versionId -> onRestoreNoteVersion(note.id, versionId) },
-                    bottomContentPadding = bottomContentPadding
+                    bottomContentPadding = bottomContentPadding,
+                    // @Mention: Ask AI about this note
+                    onAskAI = {
+                        onEnterChatWithNoteReference(note.title)
+                        navController.safePopBackStack()
+                    }
                 )
             }
         }
@@ -523,12 +578,13 @@ fun CogniNavHost(
                 isVoiceEnrolled = isVoiceEnrolled,
                 onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
                 onRetrainVoice = onRetrainVoice,
-                // TTS for AI responses
-                isTTSEnabled = isTTSEnabled,
-                onTTSEnabledChange = onTTSEnabledChange,
-                // Local LLM Server
+                // Local LLM Server (USB/WiFi)
                 localServerIP = localServerIP,
+                localServerPort = localServerPort,
+                localServerUseHttps = localServerUseHttps,
                 onSetLocalServerIP = onSetLocalServerIP,
+                onSetLocalServerPort = onSetLocalServerPort,
+                onSetLocalServerUseHttps = onSetLocalServerUseHttps,
                 // Dynamic Models
                 onRefreshModels = onRefreshModels,
                 getAvailableModels = getAvailableModels,
@@ -783,11 +839,15 @@ fun CalendarRoute(
 ) {
     var showAddSheet by remember { mutableStateOf(false) }
     var selectedEventForEdit by remember { mutableStateOf<CalendarEvent?>(null) }
+    var selectedDateForNewEvent by remember { mutableStateOf<java.util.Calendar?>(null) }
 
     CalendarScreen(
         events = calendarEvents,
         onBackClick = onBackClick,
-        onAddEvent = { showAddSheet = true },
+        onAddEvent = { selectedDate ->
+            selectedDateForNewEvent = selectedDate
+            showAddSheet = true
+        },
         onEventClick = { event ->
             selectedEventForEdit = event
         },
@@ -807,11 +867,16 @@ fun CalendarRoute(
             dragHandle = null
         ) {
             com.example.smarty.ui.components.AddEventSheet(
-                onDismiss = { showAddSheet = false },
+                onDismiss = {
+                    showAddSheet = false
+                    selectedDateForNewEvent = null
+                },
                 onConfirm = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->
                     onAddCalendarEvent(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate)
                     showAddSheet = false
-                }
+                    selectedDateForNewEvent = null
+                },
+                initialDate = selectedDateForNewEvent ?: java.util.Calendar.getInstance()
             )
         }
     }

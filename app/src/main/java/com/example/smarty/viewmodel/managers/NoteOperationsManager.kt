@@ -15,6 +15,7 @@ import com.example.smarty.data.model.getAttachments
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
+import com.example.smarty.data.remote.AIResponseParser
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.ContentTypeDetector
@@ -634,13 +635,16 @@ class NoteOperationsManager(
     }
 
     private suspend fun storeWithoutAnalysis(note: Note) {
-        val categoryName = ContentTypeDetector.getStorageCategoryName(note.type)
+        // Use smart keyword-based categorization instead of just type-based "Saved Files"
+        val fallbackResponse = AIResponseParser.smartFallbackCategorization(note.content)
+        val categoryName = fallbackResponse.category
         val category = repository.getOrCreateCategory(categoryName)
+
         val updatedNote = note.copy(
             categoryId = category.id,
             categoryName = category.name,
-            summary = null,
-            whySaved = null,
+            summary = fallbackResponse.summary.takeIf { it.isNotBlank() },
+            whySaved = fallbackResponse.whySaved.takeIf { it.isNotBlank() },
             processingStatus = ProcessingStatus.COMPLETED,
             updatedAt = System.currentTimeMillis()
         )
@@ -650,6 +654,7 @@ class NoteOperationsManager(
         } else {
             repository.updateNote(updatedNote)
         }
+        Log.d(TAG, "Stored note ${note.id} with fallback category: $categoryName")
     }
 
     private suspend fun saveNoteWithoutAiProcessing(note: Note) {
@@ -720,22 +725,28 @@ class NoteOperationsManager(
 
     private suspend fun copyAttachmentToStorage(attachment: Attachment): Attachment {
         return try {
-            val result = FileStorageHelper.copyToInternalStorage(
+            // Use compressAndStore for optimal compression based on file type:
+            // - Images → WebP (26-34% smaller)
+            // - Videos/Audio → No compression (already compressed)
+            // - Documents → GZIP
+            val result = FileStorageHelper.compressAndStore(
                 context = context,
                 sourceUri = attachment.uri,
                 mimeType = attachment.mimeType,
                 originalFileName = attachment.fileName
             )
             if (result != null) {
+                Log.d(TAG, "Attachment compressed: ${attachment.fileName} " +
+                    "(${result.compressionType}, saved ${result.savedBytes} bytes)")
                 attachment.copy(
                     uri = Uri.parse(result.uri),
-                    fileSize = result.fileSize
+                    fileSize = result.compressedSize
                 )
             } else {
                 attachment
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to copy attachment: ${e.message}", e)
+            Log.e(TAG, "Failed to compress attachment: ${e.message}", e)
             attachment
         }
     }

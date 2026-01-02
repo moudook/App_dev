@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.example.smarty.BuildConfig
 import com.example.smarty.data.local.AIProvider
@@ -57,12 +58,20 @@ class LocalBackupManager(
         get() = File(context.filesDir, LOCAL_BACKUPS_DIR).also { it.mkdirs() }
 
     companion object {
+        private const val TAG = "LocalBackupManager"
         private const val LOCAL_BACKUPS_DIR = "local_backups"
         private const val ATTACHMENTS_DIR = "attachments"
         private const val IMAGES_DIR = "attachments/images"
         private const val FILES_DIR = "attachments/files"
         private const val PREFERENCES_FILENAME = "preferences.json"
         private const val METADATA_FILENAME = "local_metadata.json"
+
+        // =====================================================================
+        // SPRINT 6: STORAGE MANAGEMENT LIMITS
+        // =====================================================================
+        private const val MAX_BACKUP_COUNT = 5           // Keep max 5 local backups
+        private const val MAX_TOTAL_BACKUP_SIZE = 500 * 1024 * 1024L  // 500MB total limit
+        private const val TEMP_DIR_PREFIX = "local_backup_temp_"
 
         // =====================================================================
         // HIGH-PERFORMANCE I/O SETTINGS
@@ -206,6 +215,9 @@ class LocalBackupManager(
                 // Cleanup temp directory
                 tempDir.deleteRecursively()
 
+                // Sprint 6: Enforce backup limits after creating new backup
+                enforceBackupLimits()
+
                 _localBackupState.value = BackupOperationState.Success(
                     "Local backup created successfully"
                 )
@@ -308,6 +320,153 @@ class LocalBackupManager(
     suspend fun getTotalLocalBackupSize(): Long = withContext(Dispatchers.IO) {
         localBackupsDir.listFiles()?.filter { it.extension == "zip" }
             ?.sumOf { it.length() } ?: 0L
+    }
+
+    // =========================================================================
+    // SPRINT 6: STORAGE CLEANUP & MANAGEMENT
+    // =========================================================================
+
+    /**
+     * Enforce backup limits by removing oldest backups.
+     * Called after creating a new backup.
+     *
+     * Limits:
+     * - Max 5 backups (configurable via MAX_BACKUP_COUNT)
+     * - Max 500MB total size (configurable via MAX_TOTAL_BACKUP_SIZE)
+     *
+     * @return Number of backups deleted
+     */
+    suspend fun enforceBackupLimits(): Int = withContext(Dispatchers.IO) {
+        var deletedCount = 0
+
+        try {
+            val backups = listLocalBackups().sortedByDescending { it.createdAt }
+
+            // Enforce count limit - keep only MAX_BACKUP_COUNT backups
+            if (backups.size > MAX_BACKUP_COUNT) {
+                val toDelete = backups.drop(MAX_BACKUP_COUNT)
+                toDelete.forEach { backup ->
+                    deleteLocalBackup(backup)
+                    deletedCount++
+                    Log.d(TAG, "Deleted old backup (count limit): ${backup.fileName}")
+                }
+            }
+
+            // Enforce size limit - delete oldest until under MAX_TOTAL_BACKUP_SIZE
+            var remainingBackups = listLocalBackups().sortedByDescending { it.createdAt }
+            var totalSize = remainingBackups.sumOf { it.fileSize }
+
+            while (totalSize > MAX_TOTAL_BACKUP_SIZE && remainingBackups.size > 1) {
+                val oldest = remainingBackups.last()
+                deleteLocalBackup(oldest)
+                deletedCount++
+                totalSize -= oldest.fileSize
+                remainingBackups = remainingBackups.dropLast(1)
+                Log.d(TAG, "Deleted old backup (size limit): ${oldest.fileName}")
+            }
+
+            if (deletedCount > 0) {
+                Log.i(TAG, "Backup limits enforced: $deletedCount backups deleted")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error enforcing backup limits", e)
+        }
+
+        deletedCount
+    }
+
+    /**
+     * Clean up orphaned temp directories from failed/interrupted backups.
+     * Should be called on app startup.
+     *
+     * @return Number of orphaned directories cleaned
+     */
+    suspend fun cleanupOrphanedTempDirs(): Int = withContext(Dispatchers.IO) {
+        var cleanedCount = 0
+
+        try {
+            val cacheDir = context.cacheDir
+            val tempDirs = cacheDir.listFiles { file ->
+                file.isDirectory && file.name.startsWith(TEMP_DIR_PREFIX)
+            } ?: emptyArray()
+
+            tempDirs.forEach { dir ->
+                try {
+                    // Only delete if older than 1 hour (in case backup is in progress)
+                    val ageMs = System.currentTimeMillis() - dir.lastModified()
+                    if (ageMs > 60 * 60 * 1000L) {
+                        val deletedBytes = calculateDirSize(dir)
+                        if (dir.deleteRecursively()) {
+                            cleanedCount++
+                            Log.d(TAG, "Cleaned orphaned temp dir: ${dir.name} (${formatSize(deletedBytes)})")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to clean temp dir: ${dir.name}", e)
+                }
+            }
+
+            if (cleanedCount > 0) {
+                Log.i(TAG, "Cleaned $cleanedCount orphaned backup temp directories")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cleaning orphaned temp dirs", e)
+        }
+
+        cleanedCount
+    }
+
+    /**
+     * Get storage statistics for the backup system.
+     */
+    suspend fun getStorageStats(): BackupStorageStats = withContext(Dispatchers.IO) {
+        val backups = listLocalBackups()
+        val totalSize = backups.sumOf { it.fileSize }
+        val orphanedTempSize = calculateOrphanedTempSize()
+
+        BackupStorageStats(
+            backupCount = backups.size,
+            totalBackupSize = totalSize,
+            maxBackupCount = MAX_BACKUP_COUNT,
+            maxTotalSize = MAX_TOTAL_BACKUP_SIZE,
+            orphanedTempSize = orphanedTempSize,
+            isOverCountLimit = backups.size > MAX_BACKUP_COUNT,
+            isOverSizeLimit = totalSize > MAX_TOTAL_BACKUP_SIZE
+        )
+    }
+
+    /**
+     * Calculate total size of orphaned temp directories.
+     */
+    private fun calculateOrphanedTempSize(): Long {
+        return try {
+            val cacheDir = context.cacheDir
+            val tempDirs = cacheDir.listFiles { file ->
+                file.isDirectory && file.name.startsWith(TEMP_DIR_PREFIX)
+            } ?: emptyArray()
+
+            tempDirs.sumOf { calculateDirSize(it) }
+        } catch (e: Exception) {
+            0L
+        }
+    }
+
+    /**
+     * Calculate total size of a directory recursively.
+     */
+    private fun calculateDirSize(dir: File): Long {
+        return dir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    }
+
+    /**
+     * Format file size for logging.
+     */
+    private fun formatSize(bytes: Long): String {
+        return when {
+            bytes >= 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+            bytes >= 1024 -> "${bytes / 1024} KB"
+            else -> "$bytes B"
+        }
     }
 
     // Helper functions

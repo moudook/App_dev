@@ -5,9 +5,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -77,152 +80,186 @@ fun ProviderSection(
     var editingKeyValue by remember { mutableStateOf("") }
     var modelDropdownExpanded by remember { mutableStateOf(false) }
     
-    // Decoupled expansion state
+    // Decoupled expansion state - default expand if enabled and keys exist, or if it's the first one
     var isExpanded by remember { mutableStateOf(false) }
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        // Provider header with toggle and expansion
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { isExpanded = !isExpanded } // Toggle expansion on click
-                .padding(vertical = 4.dp), // Add touch target padding
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Provider header with toggle and expansion
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-               // Expansion Arrow
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp).padding(end = 8.dp)
-                )
-
-                Column {
-                    Text(
-                        text = providerName,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (isEnabled) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column {
+                        Text(
+                            text = providerName,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            ),
+                            color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = providerDescription,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                     Switch(
+                        checked = isEnabled,
+                        onCheckedChange = onToggleEnabled,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = LocalAccentColor.current,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            uncheckedBorderColor = Color.Transparent
+                        ),
+                        modifier = Modifier.scale(0.8f)
                     )
-                    Text(
-                        text = providerDescription,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(28.dp)) {
+                         Icon(
+                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
-            
-            Switch(
-                checked = isEnabled,
-                onCheckedChange = onToggleEnabled,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = LocalAccentColor.current,
-                    checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.3f)
-                ),
-                modifier = Modifier.padding(start = 8.dp)
-            )
-        }
 
-        // Content (Keys, Models)
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // Content (Keys, Models)
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
             ) {
-                // Model selector - only shown when API keys are configured and enabled
-                AnimatedVisibility(
-                    visible = apiKeys.isNotEmpty() && isEnabled,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    ModelSelector(
-                        selectedModel = selectedModel,
-                        availableModels = availableModels,
-                        expanded = modelDropdownExpanded,
-                        onExpandedChange = { modelDropdownExpanded = it },
-                        onSelectModel = {
-                            onSelectModel(it)
-                            modelDropdownExpanded = false
-                        },
-                        onRefreshModels = onRefreshModels
-                    )
-                }
+                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                // Existing API keys
-                apiKeys.forEachIndexed { index, key ->
-                    ApiKeyItem(
-                        apiKey = key,
-                        keyNumber = index + 1,
-                        isEditing = editingKeyIndex == index,
-                        editValue = if (editingKeyIndex == index) editingKeyValue else key,
-                        onEditValueChange = { editingKeyValue = it },
-                        onStartEdit = {
-                            editingKeyIndex = index
-                            editingKeyValue = key
-                        },
-                        onSaveEdit = {
-                            if (editingKeyValue.isNotBlank() && editingKeyValue != key) {
-                                onUpdateKey(key, editingKeyValue)
-                            }
-                            editingKeyIndex = -1
-                            editingKeyValue = ""
-                        },
-                        onCancelEdit = {
-                            editingKeyIndex = -1
-                            editingKeyValue = ""
-                        },
-                        onRemove = { onRemoveKey(key) },
-                        onTest = { callback -> onTestKey(key, callback) },
-                        usageStats = keyUsageStats[key]  // Pass usage stats for this key
-                    )
-                }
+                    // Model selector - only shown when API keys are configured and enabled
+                    AnimatedVisibility(
+                        visible = apiKeys.isNotEmpty() && isEnabled,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        ModelSelector(
+                            selectedModel = selectedModel,
+                            availableModels = availableModels,
+                            expanded = modelDropdownExpanded,
+                            onExpandedChange = { modelDropdownExpanded = it },
+                            onSelectModel = {
+                                onSelectModel(it)
+                                modelDropdownExpanded = false
+                            },
+                            onRefreshModels = onRefreshModels
+                        )
+                    }
 
-                // Add new key input
-                AnimatedVisibility(
-                    visible = showNewKeyInput,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
-                ) {
-                    NewApiKeyInput(
-                        value = newKeyInput,
-                        onValueChange = { newKeyInput = it },
-                        onSave = {
-                            if (newKeyInput.isNotBlank()) {
-                                onAddKey(newKeyInput)
+                    // Existing API keys Title
+                    if (apiKeys.isNotEmpty()) {
+                         Text(
+                            text = "API KEYS",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    // Existing API keys List
+                    apiKeys.forEachIndexed { index, key ->
+                        ApiKeyItem(
+                            apiKey = key,
+                            keyNumber = index + 1,
+                            isEditing = editingKeyIndex == index,
+                            editValue = if (editingKeyIndex == index) editingKeyValue else key,
+                            onEditValueChange = { editingKeyValue = it },
+                            onStartEdit = {
+                                editingKeyIndex = index
+                                editingKeyValue = key
+                            },
+                            onSaveEdit = {
+                                if (editingKeyValue.isNotBlank() && editingKeyValue != key) {
+                                    onUpdateKey(key, editingKeyValue)
+                                }
+                                editingKeyIndex = -1
+                                editingKeyValue = ""
+                            },
+                            onCancelEdit = {
+                                editingKeyIndex = -1
+                                editingKeyValue = ""
+                            },
+                            onRemove = { onRemoveKey(key) },
+                            onTest = { callback -> onTestKey(key, callback) },
+                            usageStats = keyUsageStats[key]  // Pass usage stats for this key
+                        )
+                    }
+
+                    // Add new key input
+                    AnimatedVisibility(
+                        visible = showNewKeyInput,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
+                    ) {
+                        NewApiKeyInput(
+                            value = newKeyInput,
+                            onValueChange = { newKeyInput = it },
+                            onSave = {
+                                if (newKeyInput.isNotBlank()) {
+                                    onAddKey(newKeyInput)
+                                    newKeyInput = ""
+                                    showNewKeyInput = false
+                                }
+                            },
+                            onCancel = {
                                 newKeyInput = ""
                                 showNewKeyInput = false
                             }
-                        },
-                        onCancel = {
-                            newKeyInput = ""
-                            showNewKeyInput = false
-                        }
-                    )
-                }
-
-                // Add key button
-                if (!showNewKeyInput) {
-                    OutlinedButton(
-                        onClick = { showNewKeyInput = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(ComponentSpacing.buttonCornerRadius)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(ComponentSpacing.iconSize)
                         )
-                        Spacer(modifier = Modifier.width(ComponentSpacing.iconGap))
-                        Text(if (apiKeys.isEmpty()) "Add API Key" else "Add Backup Key")
+                    }
+
+                    // Add key button
+                    if (!showNewKeyInput) {
+                        Button(
+                            onClick = { showNewKeyInput = true },
+                            modifier = Modifier.fillMaxWidth().height(40.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (apiKeys.isEmpty()) "Add API Key" else "Add Backup Key")
+                        }
                     }
                 }
             }
@@ -243,66 +280,90 @@ private fun ModelSelector(
     onSelectModel: (String) -> Unit,
     onRefreshModels: (() -> Unit)? = null
 ) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Model",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    val selectedDisplayName = availableModels.find { it.first == selectedModel }?.second ?: selectedModel
 
-            if (onRefreshModels != null) {
-                IconButton(
-                    onClick = onRefreshModels,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Refresh Models",
-                        tint = LocalAccentColor.current,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = onExpandedChange
         ) {
-            OutlinedTextField(
-                value = availableModels.find { it.first == selectedModel }?.second ?: selectedModel,
-                onValueChange = {},
-                readOnly = true,
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(56.dp)
                     .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                textStyle = MaterialTheme.typography.bodySmall,
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = LocalAccentColor.current,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                ),
-                shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-                singleLine = true
-            )
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                border = if (expanded) BorderStroke(1.dp, LocalAccentColor.current) else null,
+                onClick = { onExpandedChange(!expanded) }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Model",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = selectedDisplayName,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                         if (onRefreshModels != null) {
+                            IconButton(
+                                onClick = onRefreshModels,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Refresh",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.rotate(if (expanded) 180f else 0f)
+                        )
+                    }
+                }
+            }
+            
             ExposedDropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { onExpandedChange(false) }
+                onDismissRequest = { onExpandedChange(false) },
+                shape = RoundedCornerShape(12.dp),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
             ) {
                 availableModels.forEach { (modelId, displayName) ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 text = displayName,
-                                style = MaterialTheme.typography.bodySmall
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         },
                         onClick = { onSelectModel(modelId) },
@@ -315,7 +376,8 @@ private fun ModelSelector(
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
-                        }
+                        },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
             }
@@ -357,27 +419,25 @@ fun ApiKeyItem(
     var testResult by remember { mutableStateOf<Boolean?>(null) }
 
     // Determine border color based on health status
+    // Only show border if there is an issue or active test result
+    val showBorder = usageStats?.healthStatus != KeyHealthStatus.HEALTHY && usageStats?.healthStatus != null || testResult != null
+    
     val borderColor = when {
         usageStats?.healthStatus == KeyHealthStatus.ERROR -> SafetyOrange
         usageStats?.healthStatus == KeyHealthStatus.DAILY_EXHAUSTED -> SafetyOrange.copy(alpha = 0.7f)
-        usageStats?.healthStatus == KeyHealthStatus.RATE_LIMITED -> Color(0xFFFF9800) // Orange
+        usageStats?.healthStatus == KeyHealthStatus.RATE_LIMITED -> Color(0xFFFF9800)
         usageStats?.healthStatus == KeyHealthStatus.COOLDOWN -> Color(0xFFFF9800)
         testResult == true -> LocalAccentColor.current
         testResult == false -> SafetyOrange
-        usageStats?.healthStatus == KeyHealthStatus.HEALTHY -> LocalAccentColor.current.copy(alpha = 0.5f)
-        else -> MaterialTheme.colorScheme.outline
+        else -> Color.Transparent
     }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                1.dp,
-                borderColor,
-                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-            ),
-        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-        color = MaterialTheme.colorScheme.surface
+            .then(if (showBorder) Modifier.border(1.dp, borderColor, RoundedCornerShape(12.dp)) else Modifier),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
@@ -391,7 +451,7 @@ fun ApiKeyItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = "Key #$keyNumber",
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     // Show label if available
@@ -420,11 +480,12 @@ fun ApiKeyItem(
                                 testResult = result
                             }
                         },
-                        enabled = !isTesting
+                        enabled = !isTesting,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         if (isTesting) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
+                                modifier = Modifier.size(14.dp),
                                 strokeWidth = 2.dp,
                                 color = LocalAccentColor.current
                             )
@@ -433,34 +494,36 @@ fun ApiKeyItem(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = "Test",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
 
                     // Edit button
                     if (!isEditing) {
-                        IconButton(onClick = onStartEdit) {
+                        IconButton(onClick = onStartEdit, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
                                 contentDescription = "Edit",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
 
                     // Delete button
-                    IconButton(onClick = onRemove) {
+                    IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Remove",
-                            tint = SafetyOrange,
-                            modifier = Modifier.size(18.dp)
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Key value display/edit
             if (isEditing) {
@@ -480,12 +543,13 @@ fun ApiKeyItem(
 
             // Usage stats display (for GROQ keys)
             usageStats?.let { stats ->
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 KeyUsageDisplay(stats)
             }
 
             // Test result
             testResult?.let { result ->
+                Spacer(modifier = Modifier.height(8.dp))
                 TestResultIndicator(isValid = result)
             }
         }

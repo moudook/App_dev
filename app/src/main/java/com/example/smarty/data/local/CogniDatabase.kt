@@ -31,7 +31,7 @@ import com.example.smarty.data.model.NoteVersion
         ProviderUsage::class,       // Provider usage for rate limiting
         NoteVersion::class          // Note version history for git-like versioning
     ],
-    version = 21,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices
+    version = 24,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices, v22: processingStatus indices, v23: chunkAnalysesJson, v24: inlineImagesJson
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -51,8 +51,18 @@ abstract class CogniDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: CogniDatabase? = null
 
+        // Track which FTS version is available (null = not checked yet)
+        @Volatile
+        private var ftsVersion: Int? = null
+
         /**
-         * Callback to ensure FTS5 table exists.
+         * Check if FTS is available and which version.
+         * @return 5 for FTS5, 4 for FTS4, 0 if neither is available
+         */
+        fun getFtsVersion(): Int = ftsVersion ?: 0
+
+        /**
+         * Callback to ensure FTS table exists.
          * FTS tables are defined in migrations but NOT as Room entities,
          * so they don't get created on fresh database creation (only on migration).
          * This callback ensures the FTS table exists whenever the database is opened.
@@ -87,7 +97,28 @@ abstract class CogniDatabase : RoomDatabase() {
             }
 
             private fun createFtsTable(db: SupportSQLiteDatabase) {
-                try {
+                // Try FTS5 first, fall back to FTS4 if not available
+                if (tryCreateFts5Table(db)) {
+                    ftsVersion = 5
+                    Log.i(TAG, "FTS5 table created/verified successfully")
+                } else if (tryCreateFts4Table(db)) {
+                    ftsVersion = 4
+                    Log.i(TAG, "FTS4 table created/verified successfully (FTS5 not available)")
+                } else {
+                    ftsVersion = 0
+                    Log.w(TAG, "FTS not available - search will use LIKE queries (slower)")
+                }
+            }
+
+            /**
+             * Try to create FTS5 table (preferred, better ranking with bm25).
+             * @return true if successful, false if FTS5 not available
+             */
+            private fun tryCreateFts5Table(db: SupportSQLiteDatabase): Boolean {
+                return try {
+                    // Drop existing table/triggers if switching versions
+                    dropFtsTableAndTriggers(db)
+
                     // Create FTS5 virtual table for fast text search
                     db.execSQL("""
                         CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
@@ -105,7 +136,7 @@ abstract class CogniDatabase : RoomDatabase() {
                         SELECT rowid, COALESCE(title, ''), COALESCE(content, ''), COALESCE(summary, '') FROM notes
                     """)
 
-                    // Create triggers to keep FTS table in sync
+                    // Create triggers to keep FTS table in sync (FTS5 syntax)
                     db.execSQL("""
                         CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN
                             INSERT INTO notes_fts(rowid, title, content, summary)
@@ -129,9 +160,78 @@ abstract class CogniDatabase : RoomDatabase() {
                         END
                     """)
 
-                    Log.i(TAG, "FTS table created/verified successfully")
+                    true
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to create FTS table", e)
+                    Log.w(TAG, "FTS5 not available: ${e.message}")
+                    false
+                }
+            }
+
+            /**
+             * Try to create FTS4 table (fallback for older SQLite versions).
+             * @return true if successful, false if FTS4 not available
+             */
+            private fun tryCreateFts4Table(db: SupportSQLiteDatabase): Boolean {
+                return try {
+                    // Drop existing table/triggers if switching versions
+                    dropFtsTableAndTriggers(db)
+
+                    // Create FTS4 virtual table (different syntax than FTS5)
+                    db.execSQL("""
+                        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts4(
+                            title,
+                            content,
+                            summary,
+                            content="notes"
+                        )
+                    """)
+
+                    // Populate FTS table with existing data
+                    db.execSQL("""
+                        INSERT OR IGNORE INTO notes_fts(rowid, title, content, summary)
+                        SELECT rowid, COALESCE(title, ''), COALESCE(content, ''), COALESCE(summary, '') FROM notes
+                    """)
+
+                    // Create triggers to keep FTS table in sync (FTS4 syntax - different from FTS5)
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS notes_fts_ai AFTER INSERT ON notes BEGIN
+                            INSERT INTO notes_fts(rowid, title, content, summary)
+                            VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.content, ''), COALESCE(new.summary, ''));
+                        END
+                    """)
+
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS notes_fts_ad AFTER DELETE ON notes BEGIN
+                            DELETE FROM notes_fts WHERE rowid = old.rowid;
+                        END
+                    """)
+
+                    db.execSQL("""
+                        CREATE TRIGGER IF NOT EXISTS notes_fts_au AFTER UPDATE ON notes BEGIN
+                            DELETE FROM notes_fts WHERE rowid = old.rowid;
+                            INSERT INTO notes_fts(rowid, title, content, summary)
+                            VALUES (new.rowid, COALESCE(new.title, ''), COALESCE(new.content, ''), COALESCE(new.summary, ''));
+                        END
+                    """)
+
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "FTS4 also not available: ${e.message}")
+                    false
+                }
+            }
+
+            /**
+             * Drop existing FTS table and triggers (for version switching).
+             */
+            private fun dropFtsTableAndTriggers(db: SupportSQLiteDatabase) {
+                try {
+                    db.execSQL("DROP TRIGGER IF EXISTS notes_fts_ai")
+                    db.execSQL("DROP TRIGGER IF EXISTS notes_fts_ad")
+                    db.execSQL("DROP TRIGGER IF EXISTS notes_fts_au")
+                    db.execSQL("DROP TABLE IF EXISTS notes_fts")
+                } catch (e: Exception) {
+                    // Ignore - table might not exist
                 }
             }
         }
@@ -164,7 +264,10 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_17_18,
                         Migrations.MIGRATION_18_19,  // Performance: isPinned indices
                         Migrations.MIGRATION_19_20,  // Citations storage
-                        Migrations.MIGRATION_20_21   // Performance: composite indices
+                        Migrations.MIGRATION_20_21,  // Performance: composite indices
+                        Migrations.MIGRATION_21_22,  // Performance: processingStatus indices for queue
+                        Migrations.MIGRATION_22_23,  // Feature: chunkAnalysesJson for per-page analyses
+                        Migrations.MIGRATION_23_24   // Feature: inlineImagesJson for image viewing in chat
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

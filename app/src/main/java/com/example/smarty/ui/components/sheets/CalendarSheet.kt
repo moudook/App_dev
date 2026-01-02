@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.ui.screens.CalendarScreen
+import java.util.Calendar
 
 // Calendar dark theme colors
 private val CalendarDarkBg = Color(0xFF0D0D12)
@@ -34,6 +35,7 @@ fun CalendarSheet(
 ) {
     // State for showing add event dialog
     var showAddEventDialog by remember { mutableStateOf(false) }
+    var selectedDateForNewEvent by remember { mutableStateOf<Calendar?>(null) }
 
     // Handle back button
     BackHandler(enabled = true) {
@@ -51,9 +53,10 @@ fun CalendarSheet(
         CalendarScreen(
             events = events,
             onBackClick = onDismiss,
-            onAddEvent = {
-                // Show dialog instead of directly adding
+            onAddEvent = { selectedDate ->
+                // Show dialog with the selected date
                 if (onCreateEvent != null) {
+                    selectedDateForNewEvent = selectedDate
                     showAddEventDialog = true
                 } else {
                     // Fallback to legacy behavior
@@ -68,11 +71,16 @@ fun CalendarSheet(
     // Add Event Dialog
     if (showAddEventDialog && onCreateEvent != null) {
         AddEventDialog(
-            onDismiss = { showAddEventDialog = false },
+            onDismiss = {
+                showAddEventDialog = false
+                selectedDateForNewEvent = null
+            },
             onConfirm = { title, description, startTime, endTime, isAllDay ->
                 onCreateEvent(title, description, startTime, endTime, isAllDay)
                 showAddEventDialog = false
-            }
+                selectedDateForNewEvent = null
+            },
+            initialDate = selectedDateForNewEvent ?: Calendar.getInstance()
         )
     }
 }

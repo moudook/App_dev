@@ -9,6 +9,8 @@
     <files-path name="audio" path="audio/" />
     <files-path name="video" path="video/" />
     <files-path name="documents" path="documents/" />
+    <!-- Screenshots from "save this page" feature -->
+    <files-path name="screenshots" path="screenshots/" />
     <!-- Local backup files for sharing -->
     <files-path name="local_backups" path="local_backups/" />
     <!-- External storage paths for viewing files -->

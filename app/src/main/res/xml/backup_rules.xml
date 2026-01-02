@@ -20,9 +20,7 @@
     <exclude domain="file" path="attachments/"/>
     <exclude domain="file" path="voice_notes/"/>
     <exclude domain="file" path="compressed/"/>
-
-    <!-- Cache directories -->
-    <exclude domain="cache" path="."/>
+    <exclude domain="file" path="screenshots/"/>
 
     <!-- Vosk speech model (large, re-downloadable) -->
     <exclude domain="file" path="vosk-model-small-hi-0.22/"/>

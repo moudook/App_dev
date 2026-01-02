@@ -6,7 +6,8 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.detekt)
     alias(libs.plugins.google.services)
-    alias(libs.plugins.firebase.crashlytics)
+    // REMOVED: Crashlytics plugin - not implemented (BATCH-10 optimization)
+    // alias(libs.plugins.firebase.crashlytics)
     id("kotlin-parcelize")
 }
 
@@ -127,8 +128,8 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
 
-    // YouTube Player (IFrame-based, ToS compliant)
-    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.1")
+    // REMOVED: YouTube Player - Not used in codebase (BATCH-08 optimization)
+    // implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.1")
 
     // Markdown rendering for AI chat responses
     implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
@@ -136,10 +137,6 @@ dependencies {
 
     // Vosk - Offline speech recognition for wake word detection
     implementation("com.alphacephei:vosk-android:0.3.75")
-
-    // Sherpa-ONNX - Neural TTS with Piper VITS models (natural-sounding offline TTS)
-    // Using official AAR from k2-fsa GitHub releases
-    implementation(files("libs/sherpa-onnx.aar"))
 
     // Koog AI Agent Framework
     implementation(libs.koog.agents)
@@ -150,14 +147,20 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)
 
-    // Firebase
+    // Firebase - Only auth is actively used (BATCH-10 optimization)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
-    implementation(libs.firebase.firestore)
-    implementation(libs.firebase.crashlytics)
-    implementation(libs.firebase.messaging)
-    implementation(libs.firebase.analytics)
-    implementation(libs.firebase.config)
+    // REMOVED: Unused Firebase modules identified in BATCH-10 analysis
+    // Firestore not used - app uses Room for local storage, Google Drive for backup
+    // implementation(libs.firebase.firestore)
+    // Crashlytics not implemented - no recordException() calls
+    // implementation(libs.firebase.crashlytics)
+    // FCM not implemented - no FirebaseMessagingService
+    // implementation(libs.firebase.messaging)
+    // Analytics not implemented - no logEvent() calls
+    // implementation(libs.firebase.analytics)
+    // Remote Config not implemented - no fetchAndActivate() calls
+    // implementation(libs.firebase.config)
 
     // TOON (Token-Oriented Object Notation) - native implementation in util/toon/
 

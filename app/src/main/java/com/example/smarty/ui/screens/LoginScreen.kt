@@ -5,9 +5,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,10 +25,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,12 +41,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.smarty.R
+import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.viewmodel.AuthViewModel
 import com.example.smarty.viewmodel.AuthViewModelFactory
 import kotlinx.coroutines.delay
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LOGIN SCREEN COMPOSABLE - No startup animation for faster launch
+// LOGIN SCREEN - STACKS / NOTECARD DESIGN
 // ═══════════════════════════════════════════════════════════════════════════════
 
 @Composable
@@ -53,6 +62,7 @@ fun LoginScreen(
         factory = AuthViewModelFactory(application)
     )
     val focusManager = LocalFocusManager.current
+    val accentColor = LocalAccentColor.current
 
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -62,12 +72,6 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-
-    var isVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(80)
-        isVisible = true
-    }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -81,239 +85,230 @@ fun LoginScreen(
         }
     }
 
-    // Design System Colors for Glassy Look
-    val whiteText = Color.White
-    val mutedText = Color.White.copy(alpha = 0.7f)
-    val glassBorder = Color.White.copy(alpha = 0.3f)
-
-    // Simple gradient background - no animation
-    com.example.smarty.ui.components.GeometricGradientBackground(
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier.fillMaxSize()
-    ) {
-        // Content Column
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .imePadding()
-                .verticalScroll(rememberScrollState()),
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(100.dp))
+            Spacer(modifier = Modifier.height(60.dp))
 
-            // Welcome Text
-            AnimatedVisibility(
-                visible = isVisible,
-                enter = fadeIn(tween(500)) + slideInVertically(
-                    initialOffsetY = { 24 },
-                    animationSpec = tween(500, easing = EaseOutCubic)
-                )
+            // 1. BRAND HEADER
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(bottom = 40.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // Logo placeholder or simple icon
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(accentColor.copy(alpha = 0.1f))
+                        .border(1.dp, accentColor.copy(alpha = 0.2f), RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Access",
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Light, // Thin elegant font
-                            letterSpacing = 2.sp
-                        ),
-                        color = whiteText
-                    )
-                    Text(
-                        text = "Intelligence",
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = (-1).sp
-                        ),
-                        color = whiteText
-                    )
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    Text(
-                        text = if (isLoginMode) "Authenticate to continue" else "Initialize new identity",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = mutedText,
-                        textAlign = TextAlign.Center
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_launcher_monochrome),
+                        contentDescription = "Logo",
+                        tint = accentColor,
+                        modifier = Modifier.size(40.dp)
                     )
                 }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "Welcome to Loum",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp
+                    ),
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = if (isLoginMode) "Sign in to continue" else "Create your account",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // 2. GLASSY FORM CARD
-            AnimatedVisibility(
-                visible = isVisible,
-                enter = fadeIn(tween(500, delayMillis = 150)) + slideInVertically(
-                    initialOffsetY = { 32 },
-                    animationSpec = tween(500, delayMillis = 150, easing = EaseOutCubic)
-                )
+            // 2. MAIN CARD
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                com.example.smarty.ui.components.GlassySurface(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Glassy Input Fields
-                        OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it; viewModel.clearError() },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Email Identity", color = mutedText) },
-                            leadingIcon = { Icon(Icons.Default.Email, null, tint = whiteText) },
-                            singleLine = true,
-                            enabled = !isLoading,
-                            isError = error != null,
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Email,
-                                imeAction = ImeAction.Next
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = whiteText,
-                                unfocusedBorderColor = glassBorder,
-                                focusedLabelColor = whiteText,
-                                unfocusedLabelColor = mutedText,
-                                cursorColor = whiteText,
-                                focusedTextColor = whiteText,
-                                unfocusedTextColor = whiteText
-                            )
+                    // Email Field
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it; viewModel.clearError() },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Email") },
+                        leadingIcon = { Icon(Icons.Default.Email, null) },
+                        singleLine = true,
+                        enabled = !isLoading,
+                        isError = error != null,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = accentColor,
+                            focusedLabelColor = accentColor
                         )
+                    )
 
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it; viewModel.clearError() },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Passcode", color = mutedText) },
-                            leadingIcon = { Icon(Icons.Default.Lock, null, tint = whiteText) },
-                            trailingIcon = {
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                    Icon(
-                                        if (passwordVisible) Icons.Default.VisibilityOff
-                                        else Icons.Default.Visibility,
-                                        null, tint = whiteText
-                                    )
-                                }
-                            },
-                            singleLine = true,
-                            enabled = !isLoading,
-                            isError = error != null,
-                            visualTransformation = if (passwordVisible) VisualTransformation.None
-                                else PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Password,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    focusManager.clearFocus()
-                                    if (isLoginMode) viewModel.signIn(email, password)
-                                    else viewModel.signUp(email, password)
-                                }
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = whiteText,
-                                unfocusedBorderColor = glassBorder,
-                                focusedLabelColor = whiteText,
-                                unfocusedLabelColor = mutedText,
-                                cursorColor = whiteText,
-                                focusedTextColor = whiteText,
-                                unfocusedTextColor = whiteText
-                            )
-                        )
-
-                        AnimatedVisibility(visible = error != null) {
-                            Text(
-                                text = error ?: "",
-                                color = Color(0xFFFF8A80), // Red accent for dark bg
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(start = 4.dp)
-                            )
-                        }
-
-                        if (isLoginMode) {
-                            Text(
-                                text = "Recover Access",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = whiteText,
-                                modifier = Modifier
-                                    .align(Alignment.End)
-                                    .clickable { if (email.isNotBlank()) viewModel.resetPassword(email) }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // High-contrast Action Button
-                        Button(
-                            onClick = {
+                    // Password Field
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it; viewModel.clearError() },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Password") },
+                        leadingIcon = { Icon(Icons.Default.Lock, null) },
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    if (passwordVisible) Icons.Default.VisibilityOff
+                                    else Icons.Default.Visibility,
+                                    null
+                                )
+                            }
+                        },
+                        singleLine = true,
+                        enabled = !isLoading,
+                        isError = error != null,
+                        visualTransformation = if (passwordVisible) VisualTransformation.None
+                            else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
                                 focusManager.clearFocus()
                                 if (isLoginMode) viewModel.signIn(email, password)
                                 else viewModel.signUp(email, password)
-                            },
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White,
-                                contentColor = Color.Black,
-                                disabledContainerColor = Color.White.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(Modifier.size(24.dp), color = Color.Black)
-                            } else {
-                                Text(
-                                    if (isLoginMode) "INITIALIZE SESSION" else "REGISTER IDENTITY",
-                                    style = MaterialTheme.typography.titleSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp
-                                    )
-                                )
                             }
-                        }
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = accentColor,
+                            focusedLabelColor = accentColor
+                        )
+                    )
 
-                        // Glassy Divider
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        ) {
-                            HorizontalDivider(Modifier.weight(1f), color = glassBorder)
-                            Text(" OR ", color = mutedText, style = MaterialTheme.typography.labelSmall)
-                            HorizontalDivider(Modifier.weight(1f), color = glassBorder)
-                        }
+                    // Error Message
+                    AnimatedVisibility(visible = error != null) {
+                        Text(
+                            text = error ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
 
-                        // Glassy Google Button
-                        OutlinedButton(
-                            onClick = { googleSignInLauncher.launch(viewModel.getGoogleSignInIntent()) },
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            enabled = !isLoading,
-                            shape = RoundedCornerShape(16.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, glassBorder),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = whiteText)
-                        ) {
-                            Icon(
-                                painter = androidx.compose.ui.res.painterResource(
-                                    id = com.example.smarty.R.drawable.ic_google_logo
-                                ),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = Color.Unspecified
+                    // Forgot Password (Login Mode Only)
+                    if (isLoginMode) {
+                        Text(
+                            text = "Forgot password?",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = accentColor,
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .clickable { if (email.isNotBlank()) viewModel.resetPassword(email) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Primary Button
+                    Button(
+                        onClick = {
+                            focusManager.clearFocus()
+                            if (isLoginMode) viewModel.signIn(email, password)
+                            else viewModel.signUp(email, password)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = accentColor,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
                             )
-                            Spacer(Modifier.width(12.dp))
-                            Text("Google Access", fontWeight = FontWeight.Medium)
+                        } else {
+                            Text(
+                                text = if (isLoginMode) "Sign In" else "Create Account",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
                         }
+                    }
+                    
+                    // Divider
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(Modifier.weight(1f))
+                        Text(
+                            text = "OR",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                        HorizontalDivider(Modifier.weight(1f))
+                    }
+
+                    // Google Button
+                    OutlinedButton(
+                        onClick = { googleSignInLauncher.launch(viewModel.getGoogleSignInIntent()) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_google_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = "Continue with Google",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             }
@@ -321,21 +316,28 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Switch Mode Link
-            AnimatedVisibility(
-                visible = isVisible,
-                enter = fadeIn(tween(500, delayMillis = 300))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                TextButton(
-                    onClick = { isLoginMode = !isLoginMode; viewModel.clearError() }
-                ) {
-                    Text(
-                        if (isLoginMode) "Create new identity" else "Access existing session",
-                        color = whiteText.copy(alpha = 0.9f)
-                    )
-                }
+                Text(
+                    text = if (isLoginMode) "Don't have an account? " else "Already have an account? ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                )
+                Text(
+                    text = if (isLoginMode) "Sign Up" else "Sign In",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                    color = accentColor,
+                    modifier = Modifier.clickable { 
+                        isLoginMode = !isLoginMode
+                        viewModel.clearError() 
+                    }
+                )
             }
-
+            
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
+

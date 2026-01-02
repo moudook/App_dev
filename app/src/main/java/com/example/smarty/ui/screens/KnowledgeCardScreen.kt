@@ -2,6 +2,7 @@ package com.example.smarty.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,12 +18,16 @@ import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material3.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.smarty.ui.theme.ComponentSpacing
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +42,8 @@ import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.NoteVersion
 import com.example.smarty.data.model.getAttachments
+import com.example.smarty.data.model.getChunkAnalyses
+import com.example.smarty.data.model.hasChunkAnalyses
 import com.example.smarty.ui.components.CategoryChip
 import com.example.smarty.ui.components.DecompressionPlaceholder
 import com.example.smarty.ui.components.FloatingActionBar
@@ -51,15 +58,21 @@ import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
+import androidx.compose.ui.text.font.FontWeight
 import com.example.smarty.util.CompressionType
 import com.example.smarty.util.FileCompressor
 import com.example.smarty.util.FileStorageHelper
 import com.example.smarty.util.FileViewerHelper
+import com.example.smarty.util.LazyDecompressor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import androidx.compose.runtime.rememberCoroutineScope
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.foundation.text.appendInlineContent
+import com.example.smarty.ui.components.rememberShimmerBrush
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +81,7 @@ fun KnowledgeCardScreen(
     onBackClick: () -> Unit,
     onArchiveClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onEditNote: (String, String, String, List<NoteAttachment>) -> Unit = { _, _, _, _ -> },  // noteId, newTitle, newContent, attachments
+    onEditNote: (String, String, String, String?, String?, List<NoteAttachment>) -> Unit = { _, _, _, _, _, _ -> },  // noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments
     onPlayAudio: (AudioTrack) -> Unit = {},
     onMarkAsViewed: () -> Unit = {},
     // Version history callbacks
@@ -76,12 +89,25 @@ fun KnowledgeCardScreen(
     onLoadVersions: () -> Unit = {},
     onRestoreVersion: (String) -> Unit = {},  // versionId
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    // @Mention: Ask AI about this note (opens chat with note pre-referenced)
+    onAskAI: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var showEditSheet by remember { mutableStateOf(false) }
+    // var showEditSheet by remember { mutableStateOf(false) } // Removed in favor of in-place editing
     var showVersionHistory by remember { mutableStateOf(false) }
+    
+    // In-Place Editing State
+    var isEditing by remember { mutableStateOf(false) }
+    var editedTitle by remember(note.title) { mutableStateOf(note.title) }
+    var editedContent by remember(note.content) { mutableStateOf(note.content) }
+    var editedSummary by remember(note.summary) { mutableStateOf(note.summary ?: "") }
+    var editedWhySaved by remember(note.whySaved) { mutableStateOf(note.whySaved ?: "") }
+    // We retain currentAttachments behavior from existing code if possible, or just pass note.attachments
+    // For now, we don't fully support attachment editing in-place, preserving current list
+    // For now, we don't fully support attachment editing in-place, preserving current list
+    val currentAttachments = note.getAttachments()
 
     // Viewer states
     var showImageViewer by remember { mutableStateOf(false) }
@@ -95,6 +121,18 @@ fun KnowledgeCardScreen(
     var documentViewerMimeType by remember { mutableStateOf<String?>(null) }
     var documentViewerFileName by remember { mutableStateOf<String?>(null) }
 
+    // Decompression state
+    var isDecompressing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Tab State
+    var selectedTab by remember { mutableStateOf(KnowledgeTab.SUMMARY) }
+
+    // Chunk analyses toggle state (for documents with per-page analyses)
+    var showChunkAnalyses by remember { mutableStateOf(false) }
+    val hasChunks = note.hasChunkAnalyses()
+    val chunkAnalyses = remember(note.chunkAnalysesJson) { note.getChunkAnalyses() }
+
     // Mark as viewed when screen is opened
     LaunchedEffect(note.id) {
         if (!note.isViewed) {
@@ -102,343 +140,593 @@ fun KnowledgeCardScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showEditSheet = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+    // Intercept system back button
+    androidx.activity.compose.BackHandler(onBack = {
+        if (isEditing || showVersionHistory || showImageViewer || showVideoPlayer || showDocumentViewer) {
+             isEditing = false
+             showVersionHistory = false
+             showImageViewer = false
+             showVideoPlayer = false
+             showDocumentViewer = false
+        } else {
+            onBackClick()
+        }
+    })
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        MeshSpillEffect()
+        
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent
+                    )
                 )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
+            },
+            containerColor = Color.Transparent
+        ) { paddingValues ->
         Box(
             modifier = Modifier.fillMaxSize()
         ) {
             Column(
                 modifier = modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 100.dp + bottomContentPadding),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                    .padding(horizontal = 20.dp)
+                    // Only apply bottom padding from scaffold (navigation bar), ignore top to scroll behind header
+                    .padding(bottom = paddingValues.calculateBottomPadding() + 100.dp + bottomContentPadding), 
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-            // Type and Category Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = getNoteTypeIcon(note.type),
-                        contentDescription = null,
-                        tint = getNoteTypeColor(note.type),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = getNoteTypeName(note.type),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = getNoteTypeColor(note.type)
-                    )
-                }
+                 // Spacer to push content down initially, clearing the transparent header
+                 Spacer(modifier = Modifier.height(paddingValues.calculateTopPadding() + 8.dp))
+                 
+                // Top spacing to show gradient effect
+                Spacer(modifier = Modifier.height(8.dp))
 
-                note.categoryName?.let { category ->
-                    CategoryChip(name = category)
-                }
-            }
-
-            // Privacy Banner (shown when note is private)
-            if (note.isFullPrivacy || note.excludeFromAiChat) {
-                PrivacyBanner()
-            }
-
-            // Title
-            Text(
-                text = note.title,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold,
-                    letterSpacing = (-1).sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            // AI Summary Section
-            note.summary?.let { summary ->
-                SectionCard(
-                    title = "AI Summary",
-                    icon = Icons.Default.AutoAwesome
-                ) {
-                    Text(
-                        text = summary,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            // Why You Saved This
-            note.whySaved?.let { reason ->
-                SectionCard(
-                    title = "Why You Saved This",
-                    icon = Icons.Default.Lightbulb,
-                    accentColor = LocalAccentColor.current
-                ) {
-                    Text(
-                        text = reason,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = LocalAccentColor.current
-                    )
-                }
-            }
-
-            // Original Content
-            SectionCard(
-                title = "Original Content",
-                icon = Icons.Default.Description
-            ) {
-                Text(
-                    text = note.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                // 1. Unified Header Card
+                KnowledgeHeaderCard(
+                    note = note,
+                    isEditing = isEditing,
+                    editedTitle = editedTitle,
+                    onTitleChange = { editedTitle = it }
                 )
-            }
 
-            // Unified File/Attachment Section
-            // We combine legacy main file (if no attachments exist) with the attachments list
-            // to avoid duplicates and ensure a consistent list UI.
-            val attachments = note.getAttachments()
-            
-            val legacyMainAttachment = if (attachments.isEmpty() && note.type != NoteType.AUDIO && (note.imageUri != null || note.fileUri != null)) {
-                val uri = note.imageUri ?: note.fileUri
-                if (uri != null) {
-                    val fallbackMime = when (note.type) {
-                        NoteType.IMAGE -> "image/*"
-                        NoteType.VIDEO -> "video/*"
-                        else -> "*/*"
-                    }
-                    NoteAttachment(
-                        uri = uri,
-                        fileName = note.fileName ?: "File",
-                        mimeType = note.fileMimeType ?: fallbackMime,
-                        fileSize = note.fileSize ?: 0L
-                    )
-                } else null
-            } else null
+                // 2. Custom Tab Row
+                KnowledgeTabRow(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it }
+                )
 
-            val otherAttachments = attachments.filter { !it.mimeType.startsWith("audio/") } + listOfNotNull(legacyMainAttachment)
-            val audioAttachments = attachments.filter { it.mimeType.startsWith("audio/") }
-
-            // 1. Render Non-Audio Attachments
-            if (otherAttachments.isNotEmpty()) {
-                AttachmentMosaic(
-                    attachments = otherAttachments,
-                    onOpenAttachment = { attachment ->
-                        val mimeType = attachment.mimeType.ifEmpty { "*/*" }
-                        when {
-                            mimeType.startsWith("image/") -> {
-                                imageViewerUri = attachment.uri
-                                showImageViewer = true
-                            }
-                            mimeType.startsWith("video/") -> {
-                                videoPlayerUri = attachment.uri
-                                showVideoPlayer = true
-                            }
-                            else -> {
-                                documentViewerUri = attachment.uri
-                                documentViewerMimeType = mimeType
-                                documentViewerFileName = attachment.fileName
-                                showDocumentViewer = true
+                // 3. Tab Content
+                when (selectedTab) {
+                    KnowledgeTab.SUMMARY -> {
+                        // Logic to split header/content for better layout (e.g. "115 pages analysed" vs body)
+                        val fullSummary = note.summary ?: "No summary available."
+                        val (summaryTitle, summaryContent) = remember(fullSummary) {
+                            if (fullSummary.contains("\n\n")) {
+                                val parts = fullSummary.split("\n\n", limit = 2)
+                                // Heuristic: Header should be short (< 100 chars) to be treated as a kicker
+                                if (parts[0].length < 100) parts[0] to parts[1] else "" to fullSummary
+                            } else {
+                                "" to fullSummary
                             }
                         }
-                    }
-                )
-            }
 
-            // 2. Audio Gallery Section (Unified for all audio files)
-            // Combine strict attachments with legacy fileUri if applicable (for backward compatibility)
-            val legacyAudioItem = if (note.type == NoteType.AUDIO && note.fileUri != null && attachments.isEmpty()) {
-                NoteAttachment(
-                    uri = note.fileUri,
-                    fileName = note.fileName ?: "Audio file",
-                    mimeType = "audio/*",
-                    fileSize = note.fileSize ?: 0L
-                )
-            } else null
+                        val isInlineMode = !isEditing && summaryTitle.isEmpty() && !showChunkAnalyses
 
-            // Combine both sources
-            val allAudioItems = audioAttachments + listOfNotNull(legacyAudioItem)
-
-            if (allAudioItems.isNotEmpty()) {
-                SectionCard(
-                    title = if (allAudioItems.size > 1) "${allAudioItems.size} Audio Files" else "Audio",
-                    icon = Icons.Default.MusicNote,
-                    accentColor = AudioPink
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        allAudioItems.forEachIndexed { index, audioItem ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                        // AI Summary Section
+                        if (isEditing || note.summary != null) {
+                            SectionCard(
+                                title = if (isEditing) "" else if (showChunkAnalyses) "Per-Page Analysis" else summaryTitle,
+                                icon = Icons.Outlined.Psychology,
+                                inlineLayout = isInlineMode && !hasChunks,
+                                onIconClick = if (hasChunks && !isEditing) {
+                                    { showChunkAnalyses = !showChunkAnalyses }
+                                } else null,
+                                showToggleIndicator = hasChunks && !isEditing,
+                                isToggled = showChunkAnalyses
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = audioItem.fileName,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    val sizeText = if (audioItem.fileSize > 0) formatFileSize(audioItem.fileSize) else null
-                                    if (sizeText != null) {
-                                        Text(
-                                            text = sizeText,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                if (isEditing) {
+                                    OutlinedTextField(
+                                        value = editedSummary,
+                                        onValueChange = { editedSummary = it },
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = LocalAccentColor.current,
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                                         )
+                                    )
+                                } else if (showChunkAnalyses && chunkAnalyses.isNotEmpty()) {
+                                    // Show per-page/chunk analyses
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        chunkAnalyses.forEach { chunk ->
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(
+                                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                                        RoundedCornerShape(12.dp)
+                                                    )
+                                                    .padding(12.dp)
+                                            ) {
+                                                // Page range header
+                                                Text(
+                                                    text = "Pages ${chunk.pageRange}",
+                                                    style = MaterialTheme.typography.labelMedium.copy(
+                                                        fontWeight = FontWeight.Bold
+                                                    ),
+                                                    color = LocalAccentColor.current
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                // Chunk summary
+                                                Text(
+                                                    text = chunk.summary,
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        lineHeight = 22.sp
+                                                    ),
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if (isInlineMode) {
+                                        // Story Chapter Style (Inline Icon)
+                                        val text = androidx.compose.ui.text.buildAnnotatedString {
+                                            appendInlineContent("icon", "[icon]")
+                                            append(" ")
+                                            append(summaryContent)
+                                        }
+                                        val inlineContent = mapOf(
+                                            "icon" to androidx.compose.foundation.text.InlineTextContent(
+                                                androidx.compose.ui.text.Placeholder(
+                                                    width = 40.sp,
+                                                    height = 28.sp,
+                                                    placeholderVerticalAlign = androidx.compose.ui.text.PlaceholderVerticalAlign.Center
+                                                )
+                                            ) {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.fillMaxSize().padding(end = 8.dp)
+                                                ) {
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = LocalAccentColor.current.copy(alpha = 0.1f),
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                imageVector = Icons.Outlined.Psychology,
+                                                                contentDescription = null,
+                                                                tint = LocalAccentColor.current,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        )
+
+                                        Text(
+                                            text = text,
+                                            inlineContent = inlineContent,
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = 17.sp,
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                lineHeight = 28.sp,
+                                                letterSpacing = 0.15.sp
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+                                        )
+                                    } else {
+                                        // Dynamic text rendering to support shimmer on processing status
+                                        val contentParts = remember(summaryContent) { summaryContent.split("\n\n") }
+
+                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                            contentParts.forEach { part ->
+                                                // Check for processing keywords
+                                                val isAnalyzing = part.startsWith("Analyzing section") || part.startsWith("Generating final summary")
+
+                                                val baseColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)
+
+                                                if (isAnalyzing) {
+                                                    // Shimmer effect for active processing
+                                                    val shimmerBrush = rememberShimmerBrush(
+                                                        baseColor = baseColor,
+                                                        highlightColor = LocalAccentColor.current.copy(alpha = 0.8f),
+                                                        durationMillis = 1500
+                                                    )
+
+                                                    Text(
+                                                        text = part,
+                                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                                            fontSize = 17.sp,
+                                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                            lineHeight = 28.sp,
+                                                            letterSpacing = 0.15.sp,
+                                                            brush = shimmerBrush
+                                                        )
+                                                        // Note: 'color' param is ignored when 'brush' is provided in style
+                                                    )
+                                                } else {
+                                                    // Standard text
+                                                    Text(
+                                                        text = part,
+                                                        style = MaterialTheme.typography.bodyLarge.copy(
+                                                            fontSize = 17.sp,
+                                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                                            lineHeight = 28.sp,
+                                                            letterSpacing = 0.15.sp
+                                                        ),
+                                                        color = baseColor
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                FilledIconButton(
-                                    onClick = {
-                                        val track = AudioTrack(
-                                            uri = audioItem.uri,
-                                            title = note.title, // Use note title as context
-                                            fileName = audioItem.fileName,
-                                            sourceNoteId = note.id,
-                                            mimeType = audioItem.mimeType
-                                        )
-                                        onPlayAudio(track)
-                                    },
-                                    colors = IconButtonDefaults.filledIconButtonColors(
-                                        containerColor = AudioPink,
-                                        contentColor = MaterialTheme.colorScheme.surface
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.PlayArrow,
-                                        contentDescription = "Play audio"
-                                    )
-                                }
                             }
-                            
-                            // Divider between items
-                            if (index < allAudioItems.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        } else {
+                             // Fallback only if not editing and no summary
+                             SectionCard(
+                                title = "",
+                                icon = Icons.Outlined.Psychology
+                            ) {
+                                Text(
+                                    text = "No summary available for this item.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
+
+                        // Why You Saved This
+                        // Why You Saved This
+                        if (isEditing || note.whySaved != null) {
+                            val isWhySavedInline = !isEditing
+                            SectionCard(
+                                title = "",
+                                icon = Icons.Outlined.BookmarkBorder,
+                                accentColor = LocalAccentColor.current,
+                                inlineLayout = isWhySavedInline
+                            ) {
+                                if (isEditing) {
+                                    OutlinedTextField(
+                                        value = editedWhySaved,
+                                        onValueChange = { editedWhySaved = it },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = LocalAccentColor.current,
+                                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                        )
+                                    )
+                                } else {
+                                    // Inline Text Wrapping (Napkin Sketch Style)
+                                    val whySavedText = note.whySaved ?: ""
+                                    val text = androidx.compose.ui.text.buildAnnotatedString {
+                                        appendInlineContent("icon", "[icon]")
+                                        append(" ")
+                                        append(whySavedText)
+                                    }
+                                    
+                                    val inlineContent = mapOf(
+                                        "icon" to androidx.compose.foundation.text.InlineTextContent(
+                                            androidx.compose.ui.text.Placeholder(
+                                                width = 40.sp, 
+                                                height = 24.sp, // Slightly shorter for alignment
+                                                placeholderVerticalAlign = androidx.compose.ui.text.PlaceholderVerticalAlign.Center
+                                            )
+                                        ) {
+                                            Box(
+                                                contentAlignment = Alignment.Center,
+                                                modifier = Modifier.fillMaxSize().padding(end = 8.dp)
+                                            ) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = LocalAccentColor.current.copy(alpha = 0.1f),
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.BookmarkBorder,
+                                                            contentDescription = null,
+                                                            tint = LocalAccentColor.current,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+
+                                    Text(
+                                        text = text,
+                                        inlineContent = inlineContent,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontSize = 17.sp,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                            lineHeight = 26.sp
+                                        ),
+                                        color = LocalAccentColor.current
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    KnowledgeTab.FILES -> {
+                        // Unified File/Attachment Section
+                        val attachments = note.getAttachments()
+                        
+                        val legacyMainAttachment = if (attachments.isEmpty() && note.type != NoteType.AUDIO && (note.imageUri != null || note.fileUri != null)) {
+                            val uri = note.imageUri ?: note.fileUri
+                            if (uri != null) {
+                                val fallbackMime = when (note.type) {
+                                    NoteType.IMAGE -> "image/*"
+                                    NoteType.VIDEO -> "video/*"
+                                    else -> "*/*"
+                                }
+                                NoteAttachment(
+                                    uri = uri,
+                                    fileName = note.fileName ?: "File",
+                                    mimeType = note.fileMimeType ?: fallbackMime,
+                                    fileSize = note.fileSize ?: 0L
+                                )
+                            } else null
+                        } else null
+
+                        val otherAttachments = attachments.filter { !it.mimeType.startsWith("audio/") } + listOfNotNull(legacyMainAttachment)
+                        val audioAttachments = attachments.filter { it.mimeType.startsWith("audio/") }
+                        
+                        val legacyAudioItem = if (note.type == NoteType.AUDIO && note.fileUri != null && attachments.isEmpty()) {
+                            NoteAttachment(
+                                uri = note.fileUri,
+                                fileName = note.fileName ?: "Audio file",
+                                mimeType = "audio/*",
+                                fileSize = note.fileSize ?: 0L
+                            )
+                        } else null
+                        
+                        val allAudioItems = audioAttachments + listOfNotNull(legacyAudioItem)
+                        val finalAttachments = (otherAttachments + allAudioItems).distinctBy { it.uri }
+
+                        if (finalAttachments.isEmpty()) {
+                            // Empty State
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 40.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Text(
+                                        text = "No files attached",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                }
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                finalAttachments.forEach { attachment ->
+                                    FileAttachmentItem(
+                                        attachment = attachment,
+                                        onOpen = {
+                                            val mimeType = attachment.mimeType.ifEmpty { "*/*" }
+                                            if (mimeType.startsWith("audio/")) {
+                                                val track = AudioTrack(
+                                                    uri = attachment.uri,
+                                                    title = note.title,
+                                                    fileName = attachment.fileName,
+                                                    sourceNoteId = note.id,
+                                                    mimeType = attachment.mimeType
+                                                )
+                                                onPlayAudio(track)
+                                            } else {
+                                                when {
+                                                    mimeType.startsWith("image/") -> {
+                                                        imageViewerUri = attachment.uri
+                                                        showImageViewer = true
+                                                    }
+                                                    mimeType.startsWith("video/") -> {
+                                                        videoPlayerUri = attachment.uri
+                                                        showVideoPlayer = true
+                                                    }
+                                                    else -> {
+                                                        val uri = attachment.uri
+                                                        documentViewerUri = uri
+                                                        documentViewerMimeType = mimeType
+                                                        documentViewerFileName = attachment.fileName
+                                                        showDocumentViewer = true
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    KnowledgeTab.ORIGINAL -> {
+                        // Original Content
+                        SectionCard(
+                            title = "",
+                            icon = Icons.AutoMirrored.Outlined.Article,
+                            forceVertical = true
+                        ) {
+                            if (isEditing) {
+                                OutlinedTextField(
+                                    value = editedContent,
+                                    onValueChange = { editedContent = it },
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = LocalAccentColor.current,
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                    )
+                                )
+                            } else {
+                                Text(
+                                    text = note.content.ifBlank { "No content text available." },
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 17.sp,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        lineHeight = 26.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        
+                        // Source Link Button
+                        note.sourceUrl?.let { url ->
+                            OutlinedButton(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    context.startActivity(intent)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Open Source")
+                            }
+                        }
                     }
                 }
-            }
-
-            // Source Link Button
-            note.sourceUrl?.let { url ->
-                OutlinedButton(
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Open Source",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-            }
-
-            // Metadata Footer
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                
+                // Common Footer Elements
+                // Metadata Footer
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Created ${formatDate(note.createdAt)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 )
+                
+                Spacer(modifier = Modifier.weight(1f))
+
                 Text(
                     text = "ID: ${note.id.take(8)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 )
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                // History Icon (Minimalist)
+                IconButton(
+                    onClick = {
+                        onLoadVersions()
+                        showVersionHistory = true
+                    },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = "View History",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
+        }
 
-            // Version History Button
-            OutlinedButton(
-                onClick = {
-                    onLoadVersions()
-                    showVersionHistory = true
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outline
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.History,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "View History",
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
-            }
+            // ══════════════════════════════════════════════════════════════
+            // GRADIENT SCRIMS
+            // ══════════════════════════════════════════════════════════════
+            
+            // 1. Top Header Scrim (White -> Transparent)
+            // Hides scrolling text behind the transparent TopAppBar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .align(Alignment.TopCenter)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            // 2. Bottom Footer Scrim (Transparent -> White)
+            // Hides scrolling text behind the FAB area
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
+                                MaterialTheme.colorScheme.background
+                            )
+                        )
+                    )
+            )
 
             // Floating Action Bar at bottom
             FloatingActionBar(
-                onEdit = { showEditSheet = true },
+                onEdit = {
+                    if (isEditing) {
+                        onEditNote(
+                            note.id,
+                            editedTitle,
+                            editedContent,
+                            editedSummary.ifBlank { null },
+                            editedWhySaved.ifBlank { null },
+                            currentAttachments.distinctBy { it.uri }
+                        )
+                        isEditing = false
+                    } else {
+                        // Reset fields
+                        editedTitle = note.title
+                        editedContent = note.content
+                        editedSummary = note.summary ?: ""
+                        editedWhySaved = note.whySaved ?: ""
+                        isEditing = true
+                    }
+                },
                 onArchive = onArchiveClick,
                 onDelete = { showDeleteDialog = true },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = ComponentSpacing.screenPadding)
+                    .navigationBarsPadding(),
+                isVisible = !showImageViewer && !showVideoPlayer,
+                isEditing = isEditing,
+                onAskAI = onAskAI
             )
         }
     }
@@ -519,31 +807,33 @@ fun KnowledgeCardScreen(
         )
     }
 
-    // Edit Note Sheet
-    if (showEditSheet) {
-        val initialAttachments = remember(note) {
-            val list = note.getAttachments().toMutableList()
-            if (list.isEmpty() && note.fileUri != null) {
-                list.add(
-                    NoteAttachment(
-                        uri = note.fileUri,
-                        fileName = note.fileName ?: "File",
-                        mimeType = note.fileMimeType ?: "*/*",
-                        fileSize = note.fileSize ?: 0L
-                    )
+    // Decompression Loading Dialog
+    if (isDecompressing) {
+        AlertDialog(
+            onDismissRequest = { /* Can't dismiss while decompressing */ },
+            confirmButton = { },
+            title = {
+                Text(
+                    text = "Opening Document",
+                    style = MaterialTheme.typography.titleMedium
                 )
-            }
-            list
-        }
-
-        EditNoteSheet(
-            note = note,
-            initialAttachments = initialAttachments,
-            onDismiss = { showEditSheet = false },
-            onSave = { newTitle, newContent, newAttachments ->
-                onEditNote(note.id, newTitle, newContent, newAttachments)
-                showEditSheet = false
-            }
+            },
+            text = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Text(
+                        text = "Decompressing file...",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
         )
     }
 
@@ -558,6 +848,173 @@ fun KnowledgeCardScreen(
             }
         )
     }
+    }
+}
+
+// --- NEW COMPONENTS FOR REDESIGN ---
+
+enum class KnowledgeTab(val title: String) {
+    SUMMARY("Summary"),
+    FILES("Files"),
+    ORIGINAL("Original Content")
+}
+
+@Composable
+fun KnowledgeHeaderCard(
+    note: Note,
+    isEditing: Boolean = false,
+    editedTitle: String = "",
+    onTitleChange: (String) -> Unit = {}
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .softCardShadow(shape = RoundedCornerShape(28.dp)),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface, 
+        shadowElevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon Container
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = getNoteTypeColor(note.type).copy(alpha = 0.1f),
+                modifier = Modifier.size(56.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = getNoteTypeIcon(note.type),
+                        contentDescription = null,
+                        tint = getNoteTypeColor(note.type),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+
+            // Info Column
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = getNoteTypeName(note.type).uppercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                
+                if (isEditing) {
+                    OutlinedTextField(
+                        value = editedTitle,
+                        onValueChange = onTitleChange,
+                        textStyle = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            lineHeight = 28.sp
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedBorderColor = LocalAccentColor.current,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+                } else {
+                    Text(
+                        text = note.title,
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            lineHeight = 28.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            
+            // Status Tag (TODO / DONE / PROCESSING)
+            val statusColor = when(note.processingStatus) {
+                com.example.smarty.data.model.ProcessingStatus.COMPLETED -> Color(0xFF66C2A5) // Greenish
+                com.example.smarty.data.model.ProcessingStatus.FAILED -> MaterialTheme.colorScheme.error
+                else -> Color(0xFFFC8D62) // Orangeish for pending/processing
+            }
+            
+            Surface(
+                color = statusColor.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(50),
+                modifier = Modifier.align(Alignment.Top)
+            ) {
+                Text(
+                    text = if (note.processingStatus == com.example.smarty.data.model.ProcessingStatus.COMPLETED) "DONE" else "TODO",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = statusColor,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+private val AppLightBlue = Color(0xFFD0E7FE)
+private val AppDarkBlue = Color(0xFF003258)
+
+@Composable
+fun KnowledgeTabRow(
+    selectedTab: KnowledgeTab,
+    onTabSelected: (KnowledgeTab) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        KnowledgeTab.entries.forEach { tab ->
+            val isSelected = selectedTab == tab
+            val animColor by animateColorAsState(
+                targetValue = if (isSelected) AppLightBlue else Color.Transparent, 
+                label = "tabBg"
+            )
+            val textColor by animateColorAsState(
+                targetValue = if (isSelected) AppDarkBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                label = "tabText"
+            )
+            val elevation by animateDpAsState(
+                targetValue = if (isSelected) 4.dp else 0.dp,
+                label = "tabElevation"
+            )
+
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = if (isSelected) animColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), // Light gray for unselected
+                shadowElevation = 0.dp, // Flat for cleaner look
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .clickable { onTabSelected(tab) }
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Text(
+                        text = tab.title,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium
+                        ),
+                        color = textColor
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -565,54 +1022,137 @@ private fun SectionCard(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     accentColor: androidx.compose.ui.graphics.Color = LocalAccentColor.current,
+    inlineLayout: Boolean = false,
+    forceVertical: Boolean = false,
+    onIconClick: (() -> Unit)? = null,
+    showToggleIndicator: Boolean = false,
+    isToggled: Boolean = false,
     content: @Composable () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .softCardShadow(shape = RoundedCornerShape(28.dp)),
-        shape = RoundedCornerShape(28.dp),
+            .softCardShadow(shape = RoundedCornerShape(26.dp)),
+        shape = RoundedCornerShape(26.dp),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 0.dp // Handled by custom shadow
+        shadowElevation = 0.dp
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+        if (inlineLayout) {
+             // Custom/Inline Mode: No forced Row/Column structure, just padding
+             // Caller handles icon integration (e.g. inline text)
+             Box(modifier = Modifier.padding(20.dp)) {
+                 content()
+             }
+        } else if (title.isNotBlank() || forceVertical || showToggleIndicator) {
+            // Mode 1: Header + Full Width Body (For Summary with metadata OR forced vertical layout)
+            Column(
+                modifier = Modifier.padding(20.dp)
+            ) {
+                // Header Row: Icon + Title (if present)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Icon Container (clickable if onIconClick provided)
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isToggled) accentColor.copy(alpha = 0.2f) else accentColor.copy(alpha = 0.1f),
+                        modifier = Modifier
+                            .size(32.dp)
+                            .then(
+                                if (onIconClick != null) {
+                                    Modifier.clickable { onIconClick() }
+                                } else Modifier
+                            )
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = if (showToggleIndicator) "Toggle view" else null,
+                                tint = accentColor,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    // Title Text (Metadata like "115 pages analyzed")
+                    if (title.isNotBlank()) {
+                        Text(
+                            text = title, // Keep original case
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+
+                    // Toggle indicator (shown when chunk analyses available)
+                    if (showToggleIndicator) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isToggled) accentColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.clickable { onIconClick?.invoke() }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                @Suppress("DEPRECATION")
+                                Icon(
+                                    imageVector = if (isToggled) Icons.Filled.ViewList else Icons.Default.Summarize,
+                                    contentDescription = null,
+                                    tint = if (isToggled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isToggled) "Pages" else "Summary",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isToggled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Main Content (Full Width)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    content()
+                }
+            }
+        } else {
+            // Mode 2: Icon | Content Side-by-Side (For simple sections)
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier.padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.Top
             ) {
                 // Icon Container
                 Surface(
                     shape = CircleShape,
-                    color = accentColor.copy(alpha = 0.12f),
-                    modifier = Modifier.size(42.dp)
+                    color = accentColor.copy(alpha = 0.1f),
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
                             tint = accentColor,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
                 
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        fontSize = 17.sp,
-                        letterSpacing = (-0.5).sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            
-            // Content with slight padding
-            Box(modifier = Modifier.padding(start = 4.dp)) {
-                content()
+                // Content Column
+                Box(modifier = Modifier.weight(1f)) {
+                    content()
+                }
             }
         }
     }
@@ -648,168 +1188,92 @@ private fun formatFileSize(bytes: Long): String = com.example.smarty.util.Conten
 
 
 @Composable
-fun AttachmentMosaic(
-    attachments: List<NoteAttachment>,
-    onOpenAttachment: (NoteAttachment) -> Unit
-) {
-    if (attachments.isEmpty()) return
-
-    val count = attachments.size
-    val spacing = 2.dp
-    // Height constraint for the mosaic
-    val height = 280.dp 
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height)
-            .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-    ) {
-        // LEFT COLUMN (Main Item)
-        // If count == 1, take full width. Else take 66% (or weight 1.8f).
-        Box(
-            modifier = Modifier
-                .weight(if (count > 1) 1.8f else 1f)
-                .fillMaxHeight()
-        ) {
-           MosaicTile(attachments[0], onOpen = { onOpenAttachment(attachments[0]) })
-        }
-
-        if (count > 1) {
-            Spacer(modifier = Modifier.width(spacing))
-            
-            // RIGHT COLUMN
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            ) {
-                // Top Right Item
-                // If count == 2, take full height. Else take 50% (weight 1f).
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                ) {
-                    MosaicTile(attachments[1], onOpen = { onOpenAttachment(attachments[1]) })
-                }
-                
-                if (count > 2) {
-                    Spacer(modifier = Modifier.height(spacing))
-                    
-                    // Bottom Right Item (Counter or 3rd Image)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                    ) {
-                        // Display 3rd item as background
-                        MosaicTile(
-                            attachment = attachments[2],
-                            onOpen = { onOpenAttachment(attachments[2]) },
-                            isDimmed = count > 3
-                        )
-                         
-                         // Dedicated Overlay for overflow (Count > 3)
-                         // e.g. If 4 items, we show 1, 2, 3(dimmed) with "+1" meaning "3 and 1 more" -> Total 4.
-                         // Or usually "+N" on the last tile means "N more items hidden".
-                         // So if Total=4, Valid Indices: 0,1,2,3.
-                         // We show 0,1,2. Hidden=3. Count=1.
-                         // Display "+1".
-                         // Text should be "+${count - 3}" if we consider 3 shown.
-                         // Wait, user sketch says "+4" and "img 2".
-                         // Implying "img 2" is one item, "+4" is the rest.
-                         // Total = 1(Main) + 1(Img2) + 4(Rest) = 6.
-                         // My layout: Main, TopRight(Img2), BottomRight(Rest).
-                         // BottomRight acts as the container for the rest.
-                         // So BottomRight should display "+4".
-                         // Does it show Img3? Probably as background.
-                         // So Count - 2 is the number represented in that box?
-                         // If Total=6. Main(1) + TR(1) = 2 shown fully.
-                         // Remaining = 4.
-                         // So "+4".
-                         // Yes, `count - 2` logic works for the text.
-                         
-                         if (count > 3) {
-                             Box(
-                                 modifier = Modifier
-                                    .matchParentSize()
-                                    .background(Color.Black.copy(alpha = 0.5f)),
-                                 contentAlignment = Alignment.Center
-                             ) {
-                                  Text(
-                                      text = "+${count - 2}", 
-                                      style = MaterialTheme.typography.displaySmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Medium),
-                                      color = Color.White
-                                  )
-                             }
-                         }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MosaicTile(
+fun FileAttachmentItem(
     attachment: NoteAttachment,
-    onOpen: () -> Unit,
-    isDimmed: Boolean = false
+    onOpen: () -> Unit
 ) {
-    val mimeType = attachment.mimeType
-    val isImage = mimeType.startsWith("image/")
-    val isVideo = mimeType.startsWith("video/")
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable { onOpen() }
+    Surface(
+        onClick = onOpen,
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
+        modifier = Modifier.fillMaxWidth().height(64.dp)
     ) {
-        if (isImage) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(attachment.uri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = attachment.fileName,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            // Fallback for non-images
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            // Thumbnail / Icon
+            val mimeType = attachment.mimeType
+            val isImage = mimeType.startsWith("image/")
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isImage) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f) else AppLightBlue),
                 contentAlignment = Alignment.Center
             ) {
-                // Icon Logic
-                val icon = when {
-                    isVideo -> Icons.Default.Videocam
-                    mimeType.startsWith("audio/") -> Icons.Default.MusicNote
-                    else -> Icons.AutoMirrored.Filled.Article
-                }
-                Icon(
-                    imageVector = icon, 
-                    contentDescription = null, 
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(32.dp)
-                )
-                if (isVideo) {
-                     Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play",
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(48.dp)
-                     )
+                if (isImage) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(attachment.uri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    val icon = when {
+                        mimeType.startsWith("video/") -> Icons.Outlined.Videocam
+                        mimeType.startsWith("audio/") -> Icons.Outlined.AudioFile
+                        mimeType.contains("pdf") -> Icons.Outlined.PictureAsPdf
+                        mimeType.contains("sheet") || mimeType.contains("excel") -> Icons.Outlined.TableChart
+                        mimeType.contains("presentation") || mimeType.contains("powerpoint") -> Icons.Outlined.Slideshow
+                        mimeType.contains("zip") || mimeType.contains("rar") -> Icons.Outlined.FolderZip
+                        mimeType == "application/vnd.android.package-archive" -> Icons.Outlined.Android
+                        else -> Icons.AutoMirrored.Outlined.Article
+                    }
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = AppDarkBlue,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
-        }
-        
-        // Gradient scrim for text legibility if needed, or simple dim
-        if (isDimmed) {
-             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.1f)))
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            // Text Info
+            Column(
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = attachment.fileName,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${attachment.mimeType.substringAfterLast('/')} • ${formatFileSize(attachment.fileSize)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            // Open/Play Icon
+            val actionIcon = if (attachment.mimeType.startsWith("audio/")) Icons.Default.PlayArrow else Icons.Default.ChevronRight
+            Icon(
+                imageVector = actionIcon,
+                contentDescription = "Open",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
@@ -846,21 +1310,21 @@ private fun CompactFileRow(
 ) {
     // Determine icon and color based on mime type
     val (icon, iconColor) = when {
-        mimeType.startsWith("image/") -> Icons.Default.Photo to com.example.smarty.ui.theme.ImageTeal
-        mimeType.startsWith("video/") -> Icons.Default.Videocam to com.example.smarty.ui.theme.VideoRed
-        mimeType.startsWith("audio/") -> Icons.Default.MusicNote to AudioPink
-        mimeType.contains("pdf") -> Icons.AutoMirrored.Filled.Article to com.example.smarty.ui.theme.DocumentBlue
+        mimeType.startsWith("image/") -> Icons.Outlined.Image to com.example.smarty.ui.theme.ImageTeal
+        mimeType.startsWith("video/") -> Icons.Outlined.Videocam to com.example.smarty.ui.theme.VideoRed
+        mimeType.startsWith("audio/") -> Icons.Outlined.AudioFile to AudioPink
+        mimeType.contains("pdf") -> Icons.Outlined.PictureAsPdf to com.example.smarty.ui.theme.DocumentBlue
         mimeType.contains("document") || mimeType.contains("word") ->
-            Icons.AutoMirrored.Filled.Article to com.example.smarty.ui.theme.DocumentBlue
+            Icons.AutoMirrored.Outlined.Article to com.example.smarty.ui.theme.DocumentBlue
         mimeType.contains("sheet") || mimeType.contains("excel") ->
-            Icons.Default.TableChart to com.example.smarty.ui.theme.SpreadsheetGreen
+            Icons.Outlined.TableChart to com.example.smarty.ui.theme.SpreadsheetGreen
         mimeType.contains("presentation") || mimeType.contains("powerpoint") ->
-            Icons.Default.Slideshow to com.example.smarty.ui.theme.PresentationOrange
+            Icons.Outlined.Slideshow to com.example.smarty.ui.theme.PresentationOrange
         mimeType.contains("zip") || mimeType.contains("rar") ->
-            Icons.Default.FolderZip to com.example.smarty.ui.theme.ArchiveYellow
+            Icons.Outlined.FolderZip to com.example.smarty.ui.theme.ArchiveYellow
         mimeType == "application/vnd.android.package-archive" ->
-            Icons.Default.Android to com.example.smarty.ui.theme.ApkGreen
-        else -> Icons.Default.AttachFile to com.example.smarty.ui.theme.FileGray
+            Icons.Outlined.Android to com.example.smarty.ui.theme.ApkGreen
+        else -> Icons.Outlined.AttachFile to com.example.smarty.ui.theme.FileGray
     }
 
     Row(
@@ -1116,10 +1580,10 @@ private fun EditNoteSheet(
                                 ) {
                                     Icon(
                                         imageVector = when {
-                                            attachment.mimeType.startsWith("image/") -> Icons.Default.Photo
-                                            attachment.mimeType.startsWith("audio/") -> Icons.Default.MusicNote
-                                            attachment.mimeType.startsWith("video/") -> Icons.Default.Videocam
-                                            else -> Icons.Default.AttachFile
+                                            attachment.mimeType.startsWith("image/") -> Icons.Outlined.Image
+                                            attachment.mimeType.startsWith("audio/") -> Icons.Outlined.AudioFile
+                                            attachment.mimeType.startsWith("video/") -> Icons.Outlined.Videocam
+                                            else -> Icons.Outlined.AttachFile
                                         },
                                         contentDescription = null,
                                         tint = LocalAccentColor.current,

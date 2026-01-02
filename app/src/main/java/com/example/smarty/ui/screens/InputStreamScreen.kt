@@ -9,7 +9,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -27,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -38,13 +44,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
+import com.example.smarty.data.model.MentionState
+import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.data.model.ChatSession
-import com.example.smarty.ui.components.ChatHistorySheet
 import com.example.smarty.ui.components.CogniInputField
 import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.data.model.NoteType
@@ -58,7 +65,7 @@ import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.SafetyOrange
-import com.example.smarty.ui.components.ShakeCloudEffect
+
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.ConnectionStatusIndicator
 import com.example.smarty.ui.components.HorizontalActionBar
@@ -68,11 +75,17 @@ import com.example.smarty.ui.components.sheets.StacksSheet
 import com.example.smarty.ui.components.sheets.ArchiveSheet
 import com.example.smarty.ui.components.sheets.SettingsSheet
 import com.example.smarty.ui.components.AnimatedCategoryFilterChip
+import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.local.AIProvider
+import com.example.smarty.ui.screens.inputstream.CalendarContent
+import com.example.smarty.ui.screens.inputstream.ChatHistoryContent
 import com.example.smarty.ui.screens.inputstream.ChatModeContent
 import com.example.smarty.ui.screens.inputstream.NormalModeContent
 import com.example.smarty.ui.screens.inputstream.SelectionModeToolbar
+import com.example.smarty.ui.screens.inputstream.StacksContent
+import com.example.smarty.ui.screens.inputstream.ArchiveContent
+import com.example.smarty.ui.screens.inputstream.SettingsContent
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.util.api.KeyUsageStats
 import androidx.compose.material.icons.filled.LightMode
@@ -124,6 +137,14 @@ fun InputStreamScreen(
     onSwitchChatSession: (String) -> Unit = {},
     onNewChatSession: () -> Unit = {},
     onDeleteChatSession: (String) -> Unit = {},
+    // @Mention parameters (Chat mode)
+    mentionState: MentionState = MentionState(),
+    onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },  // Returns updated text
+    // Pending chat text (for "Ask AI" from note card)
+    pendingChatText: String? = null,
+    onClearPendingChatText: () -> Unit = {},
+    // Mention state update callback (called on text change in chat mode)
+    onUpdateMentionState: (String, Int) -> Unit = { _, _ -> },
     // AI exclusion parameters
     isAiExcluded: Boolean = false,
     onInputTextChange: (String) -> Unit = {},
@@ -145,7 +166,7 @@ fun InputStreamScreen(
     onRecordSearch: (String) -> Unit = {},
     onClearSearchHistory: () -> Unit = {},
 
-    wasShakeTriggered: Boolean = false,  // For border glow animation on mode switch
+    wasShakeTriggered: Boolean = false,  // Deprecated: shake indicator removed, kept for API compatibility
     connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED,  // Phase 7
     // Camera trigger from widget
     cameraTriggered: Boolean = false,
@@ -201,13 +222,11 @@ fun InputStreamScreen(
     isVoiceEnrolled: Boolean = false,
     onDeleteVoiceFingerprint: () -> Unit = {},
     onRetrainVoice: () -> Unit = {},
-    isTTSEnabled: Boolean = true,
-    onTTSEnabledChange: (Boolean) -> Unit = {},
-    onStopTTS: () -> Unit = {},  // Stop TTS when user taps screen in chat mode
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { emptyList() },
     onSignOut: () -> Unit = {},
     // Settings sub-sheet content
+    aiConfigContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
     archiveContentForSettings: @Composable (onDismiss: () -> Unit) -> Unit = {},
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
     pinSetupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
@@ -257,6 +276,21 @@ fun InputStreamScreen(
         onInputAttachmentsChange(attachments)
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // @MENTION: Consume pending chat text (from "Ask AI" button on note cards)
+    // ═══════════════════════════════════════════════════════════════════════════
+    LaunchedEffect(pendingChatText) {
+        if (pendingChatText != null && pendingChatText.isNotBlank()) {
+            // Set the pending text to chat input
+            chatModeTextValue = TextFieldValue(
+                text = pendingChatText,
+                selection = androidx.compose.ui.text.TextRange(pendingChatText.length)
+            )
+            // Clear the pending text so it doesn't re-trigger
+            onClearPendingChatText()
+        }
+    }
+
     val gridState = rememberLazyStaggeredGridState()
     val chatListState = rememberLazyListState()
 
@@ -264,7 +298,7 @@ fun InputStreamScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var lastArchivedNoteId by remember { mutableStateOf<String?>(null) }
 
-    // Accent color for theming (used by ShakeCloudEffect)
+    // Accent color for theming
     val accentColor = LocalAccentColor.current
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -275,34 +309,115 @@ fun InputStreamScreen(
     var showCalendarSheet by remember { mutableStateOf(false) }
     val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // Calendar inline view state (shows calendar in main area instead of sheet)
+    var showCalendarInline by remember { mutableStateOf(false) }
+
     var showStacksSheet by remember { mutableStateOf(false) }
     val stacksSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Stacks inline view state
+    var showStacksInline by remember { mutableStateOf(false) }
 
     var showArchiveSheet by remember { mutableStateOf(false) }
     val archiveSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // Archive inline view state
+    var showArchiveInline by remember { mutableStateOf(false) }
+
     var showSettingsSheet by remember { mutableStateOf(false) }
     val settingsSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Settings inline view state
+    var showSettingsInline by remember { mutableStateOf(false) }
 
     // Category filter state
     var activeCategoryFilter by remember { mutableStateOf<Category?>(null) }
 
+    // Chat history inline view state (shows history in main area instead of bottom sheet)
+    var showChatHistoryInline by remember { mutableStateOf(false) }
+
+    // Reset history view when entering chat mode (e.g., via shake gesture)
+    // This ensures shake always opens chat messages, not history
+    LaunchedEffect(isChatMode) {
+        if (isChatMode) {
+            // Entering chat mode - always show chat messages, not history
+            showChatHistoryInline = false
+            // Also close calendar inline view when entering chat mode
+            showCalendarInline = false
+        }
+    }
+
+    // Reset inline views when exiting chat mode
+    LaunchedEffect(isChatMode) {
+        if (!isChatMode) {
+            showChatHistoryInline = false
+        }
+    }
+
     // Handle tab selection - open sheets or switch modes
     fun handleTabSelection(tab: NavigationTab) {
         selectedTab = tab
+        
+        // Helper to close all inline views
+        fun closeAllInlineViews() {
+            showCalendarInline = false
+            showStacksInline = false
+            showArchiveInline = false
+            showSettingsInline = false
+            showChatHistoryInline = false
+        }
+        
         when (tab) {
             NavigationTab.NOTES -> {
-                if (isChatMode) onExitChatMode()
-            }
-            NavigationTab.CHAT -> {
-                if (!isChatMode) {
-                    onEnterChatMode()
+                closeAllInlineViews()
+                if (isChatMode) {
+                    onExitChatMode()
                 }
             }
-            NavigationTab.CALENDAR -> showCalendarSheet = true
-            NavigationTab.STACKS -> showStacksSheet = true
-            NavigationTab.ARCHIVE -> showArchiveSheet = true
-            NavigationTab.SETTINGS -> showSettingsSheet = true
+            NavigationTab.CHAT -> {
+                closeAllInlineViews()
+                if (!isChatMode) {
+                    onEnterChatMode()
+                } else if (showChatHistoryInline) {
+                    showChatHistoryInline = false
+                }
+            }
+            NavigationTab.CALENDAR -> {
+                if (showCalendarInline) {
+                    showCalendarInline = false
+                } else {
+                    if (isChatMode) onExitChatMode()
+                    closeAllInlineViews()
+                    showCalendarInline = true
+                }
+            }
+            NavigationTab.STACKS -> {
+                if (showStacksInline) {
+                    showStacksInline = false
+                } else {
+                    if (isChatMode) onExitChatMode()
+                    closeAllInlineViews()
+                    showStacksInline = true
+                }
+            }
+            NavigationTab.ARCHIVE -> {
+                if (showArchiveInline) {
+                    showArchiveInline = false
+                } else {
+                    if (isChatMode) onExitChatMode()
+                    closeAllInlineViews()
+                    showArchiveInline = true
+                }
+            }
+            NavigationTab.SETTINGS -> {
+                if (showSettingsInline) {
+                    showSettingsInline = false
+                } else {
+                    if (isChatMode) onExitChatMode()
+                    closeAllInlineViews()
+                    showSettingsInline = true
+                }
+            }
         }
     }
 
@@ -570,20 +685,46 @@ fun InputStreamScreen(
         clearSelection()
     }
 
+    // Handle back button press - exit history view first, then chat mode
+    // Priority: History view → Chat mode → Normal navigation
+    BackHandler(enabled = isChatMode && showChatHistoryInline && !isSelectionMode) {
+        showChatHistoryInline = false
+    }
+
     // Handle back button press - exit chat mode and return to main page
-    // This only triggers when in chat mode and NOT in selection mode
-    BackHandler(enabled = isChatMode && !isSelectionMode) {
+    // This only triggers when in chat mode, NOT showing history, and NOT in selection mode
+    BackHandler(enabled = isChatMode && !showChatHistoryInline && !isSelectionMode) {
         onExitChatMode()
     }
+
+    // Handle back button press - exit calendar inline view
+    BackHandler(enabled = showCalendarInline && !isSelectionMode) {
+        showCalendarInline = false
+    }
+
+    // Handle back button press - exit stacks inline view
+    BackHandler(enabled = showStacksInline && !isSelectionMode) {
+        showStacksInline = false
+    }
+
+    // Handle back button press - exit archive inline view
+    BackHandler(enabled = showArchiveInline && !isSelectionMode) {
+        showArchiveInline = false
+    }
+
+    // Handle back button press - exit settings inline view
+    BackHandler(enabled = showSettingsInline && !isSelectionMode) {
+        showSettingsInline = false
+    }
+
+    // Add event dialog state for inline calendar
+    var showAddEventDialog by remember { mutableStateOf(false) }
+    var selectedDateForNewEvent by remember { mutableStateOf<java.util.Calendar?>(null) }
 
     // Todo sheet state - store ID only and derive note from notes list to stay in sync
     var selectedNoteIdForTodo by remember { mutableStateOf<String?>(null) }
     val selectedNoteForTodo = selectedNoteIdForTodo?.let { id -> notes.find { it.id == id } }
     val todoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // Chat history sheet state
-    var showChatHistorySheet by remember { mutableStateOf(false) }
-    val chatHistorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Delete confirmation state - store ID only and derive note from list to stay in sync
     var noteToDeleteId by remember { mutableStateOf<String?>(null) }
@@ -770,13 +911,14 @@ fun InputStreamScreen(
     }
 
     Box(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background) // Base background
     ) {
-        // Shake cloud effect overlay (0.4s expand/contract from edges)
-        ShakeCloudEffect(
-            isVisible = wasShakeTriggered,
-            modifier = Modifier.fillMaxSize()
-        )
+        // Dynamic Mesh Spill Background (header gradient)
+        MeshSpillEffect()
+
+
         
         Scaffold(
         modifier = Modifier.imePadding(), // This handles keyboard
@@ -854,15 +996,26 @@ fun InputStreamScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.background)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colorStops = arrayOf(
+                                        0.0f to MaterialTheme.colorScheme.background,
+                                        0.3f to MaterialTheme.colorScheme.background,
+                                        0.5f to MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
+                                        0.7f to MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                                        0.85f to MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
+                                        1.0f to Color.Transparent
+                                    )
+                                )
+                            )
                     ) {
                         // Minimal Header Row: Logo | Status | Theme Toggle
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
-                                .padding(top = 8.dp)
-                                .height(48.dp)
+                                .padding(top = 2.dp)
+                                .height(40.dp)
                                 .padding(horizontal = 20.dp)
                         ) {
                             // Logo/Brand (Left)
@@ -900,9 +1053,21 @@ fun InputStreamScreen(
 
                         // Horizontal Action Bar - All features accessible here
                         HorizontalActionBar(
-                            selectedTab = if (isChatMode) NavigationTab.CHAT else selectedTab,
+                            selectedTab = when {
+                                showStacksInline -> NavigationTab.STACKS
+                                showArchiveInline -> NavigationTab.ARCHIVE
+                                showSettingsInline -> NavigationTab.SETTINGS
+                                showCalendarInline -> NavigationTab.CALENDAR
+                                isChatMode -> NavigationTab.CHAT
+                                else -> selectedTab
+                            },
                             onTabSelected = { tab -> handleTabSelection(tab) },
                             isChatMode = isChatMode,
+                            isHistoryMode = showChatHistoryInline,
+                            isCalendarMode = showCalendarInline,
+                            isStacksMode = showStacksInline,
+                            isArchiveMode = showArchiveInline,
+                            isSettingsMode = showSettingsInline,
                             archiveCount = archivedNotes.size
                         )
 
@@ -920,7 +1085,7 @@ fun InputStreamScreen(
         bottomBar = {
             // Deprecated: Input field moved to main Box for floating transparency
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = Color.Transparent
     ) { paddingValues ->
         // Clear focus when tapping outside the input field
         val topPadding = paddingValues.calculateTopPadding()
@@ -928,7 +1093,7 @@ fun InputStreamScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = topPadding) // Only respect top padding
+                // .padding(top = topPadding) -- REMOVED to allow scrolling behind header
                 .pointerInput(speechState.isListening, isChatMode) {
                     detectTapGestures(
                         onTap = {
@@ -938,69 +1103,252 @@ fun InputStreamScreen(
                             if (speechState.isListening) {
                                 speechState.stopListening()
                             }
-                            // Stop TTS gently when user taps screen in chat mode
-                            if (isChatMode) {
-                                onStopTTS()
-                            }
                         }
                     )
                 }
         ) {
-            // Animated content switching between notes and chat
+            // Determine which content to show
+            // Priority: Stacks > Archive > Settings > Calendar > Chat > Notes
+            val contentMode = when {
+                showStacksInline -> "stacks"
+                showArchiveInline -> "archive"
+                showSettingsInline -> "settings"
+                showCalendarInline -> "calendar"
+                isChatMode -> "chat"
+                else -> "notes"
+            }
+
+            // Animated content switching between notes, chat, and calendar
             AnimatedContent(
-                targetState = isChatMode,
+                targetState = contentMode,
                 transitionSpec = {
                     fadeIn(tween(240)) togetherWith fadeOut(tween(160))
                 },
-                label = "chatModeTransition",
+                label = "contentModeTransition",
                 modifier = Modifier.fillMaxSize()
-            ) { showChat ->
-                val contentBottomPadding = PaddingValues(
-                    top = ComponentSpacing.listContentPadding,
+            ) { mode ->
+                val contentPaddingWithTop = PaddingValues(
+                    top = ComponentSpacing.listContentPadding + topPadding, // Start content below header
                     bottom = 140.dp + bottomContentPadding // Extra padding for floating input
                 )
 
-                if (showChat) {
-                    // Chat mode content - extracted to ChatModeContent component
-                    ChatModeContent(
-                        chatMessages = chatMessages,
-                        chatListState = chatListState,
-                        notes = notes,
-                        onNoteClick = onNoteClick,
-                        onSendChatMessage = onSendChatMessage,
-                        contentPadding = contentBottomPadding,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    // Notes mode content - extracted to NormalModeContent component
-                    NormalModeContent(
-                        displayedNotes = displayedNotes,
-                        isNotesLoading = isNotesLoading,
-                        isSearchMode = isSearchMode,
-                        searchQuery = textValue.text,
-                        gridState = gridState,
-                        isRefreshing = isRefreshing,
-                        onRefreshNotes = onRefreshNotes,
-                        bottomContentPadding = bottomContentPadding,
-                        isSelectionMode = isSelectionMode,
-                        selectedNoteIds = selectedNoteIds,
-                        onToggleSelection = { noteId -> toggleSelection(noteId) },
-                        onEnterSelectionMode = { noteId ->
-                            isSelectionMode = true
-                            selectedNoteIds = setOf(noteId)
-                        },
-                        onNoteClick = onNoteClick,
-                        onArchiveNote = onArchiveNote,
-                        onDeleteNoteRequest = { noteId ->
-                            noteToDeleteId = noteId
-                            showDeleteDialog = true
-                        },
-                        onOpenTodo = { noteId -> selectedNoteIdForTodo = noteId },
-                        onPlayYouTube = onPlayYouTube,
-                        snackbarHostState = snackbarHostState,
-                        onSetLastArchivedNoteId = { lastArchivedNoteId = it },
-                        modifier = Modifier.fillMaxSize()
-                    )
+                when (mode) {
+                    "stacks" -> {
+                        // Stacks inline view - categories grid
+                        StacksContent(
+                            categories = categories,
+                            onCategoryClick = { category ->
+                                activeCategoryFilter = category
+                                showStacksInline = false  // Close and filter notes
+                            },
+                            onCreateCategory = onCreateCategory,
+                            onDeleteCategory = onDeleteCategory,
+                            contentPadding = contentPaddingWithTop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    "archive" -> {
+                        // Archive inline view - archived notes
+                        ArchiveContent(
+                            archivedNotes = archivedNotes,
+                            onDeleteNote = onDeleteNote,
+                            onUnarchiveNote = onUnarchiveNote,
+                            contentPadding = contentPaddingWithTop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    "settings" -> {
+                        // Settings inline view
+                        SettingsContent(
+                            providerConfigs = providerConfigs,
+                            providerPriorityOrder = providerPriorityOrder,
+                            onAddApiKey = onAddApiKey,
+                            onRemoveApiKey = onRemoveApiKey,
+                            onUpdateApiKey = onUpdateApiKey,
+                            onSetProviderEnabled = onSetProviderEnabled,
+                            onSetSelectedModel = onSetSelectedModel,
+                            onSetProviderPriority = onSetProviderPriority,
+                            onTestApiKey = onTestApiKey,
+                            isPinConfigured = isPinConfigured,
+                            onRemovePin = onRemovePin,
+                            isDarkTheme = isDarkTheme,
+                            onToggleTheme = onToggleTheme,
+                            tavilyApiKey = tavilyApiKey,
+                            onSetTavilyApiKey = onSetTavilyApiKey,
+                            cacheSizeBytes = cacheSizeBytes,
+                            onClearCache = onClearCache,
+                            isClearingCache = isClearingCache,
+                            shakeSensitivity = shakeSensitivity,
+                            onShakeSensitivityChange = onShakeSensitivityChange,
+                            groqKeyUsageStats = groqKeyUsageStats,
+                            isVoiceEnrolled = isVoiceEnrolled,
+                            onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
+                            onRetrainVoice = onRetrainVoice,
+                            onRefreshModels = onRefreshModels,
+                            getAvailableModels = getAvailableModels,
+                            onSignOut = onSignOut,
+                            aiConfigContent = aiConfigContent,
+                            archiveContent = archiveContentForSettings,
+                            backupContent = backupContent,
+                            pinSetupContent = pinSetupContent,
+                            pinChangeContent = pinChangeContent,
+                            contentPadding = contentPaddingWithTop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    "calendar" -> {
+                        // Calendar inline view - same layer as note cards
+                        CalendarContent(
+                            events = calendarEvents,
+                            onEventClick = onEventClick,
+                            onAddEvent = { selectedDate ->
+                                // Show inline add event dialog with selected date
+                                selectedDateForNewEvent = selectedDate
+                                showAddEventDialog = true
+                            },
+                            onDeleteEvent = onDeleteCalendarEvent,
+                            contentPadding = contentPaddingWithTop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    "chat" -> {
+                        // Chat mode - switches between messages and history view
+                        AnimatedContent(
+                            targetState = showChatHistoryInline,
+                            transitionSpec = {
+                                if (targetState) {
+                                    // Entering history: Zoom out effect (starts large 1.1x and settles to 1.0x)
+                                    scaleIn(
+                                        initialScale = 1.1f, 
+                                        animationSpec = tween(350, easing = LinearOutSlowInEasing)
+                                    ) + fadeIn(tween(200)) togetherWith
+                                    scaleOut(
+                                        targetScale = 0.95f, 
+                                        animationSpec = tween(350)
+                                    ) + fadeOut(tween(200))
+                                } else {
+                                    // Returning to chat: Zoom in (history fades out scaling down)
+                                    scaleIn(
+                                        initialScale = 0.95f, 
+                                        animationSpec = tween(350)
+                                    ) + fadeIn(tween(200)) togetherWith 
+                                    scaleOut(
+                                        targetScale = 1.1f, 
+                                        animationSpec = tween(350)
+                                    ) + fadeOut(tween(200))
+                                }
+                            },
+                            label = "chatHistoryTransition",
+                            modifier = Modifier.fillMaxSize()
+                        ) { showHistory ->
+                            if (showHistory) {
+                                // History view - same layer as note cards
+                                ChatHistoryContent(
+                                    sessions = chatSessions,
+                                    currentSessionId = currentSessionId,
+                                    onSelectSession = onSwitchChatSession,
+                                    onNewChat = onNewChatSession,
+                                    onDeleteSession = onDeleteChatSession,
+                                    onBackToChat = { showChatHistoryInline = false },
+                                    contentPadding = contentPaddingWithTop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                // Chat messages view with pinch-to-zoom-out gesture for history
+                                // Track cumulative scale during pinch gesture
+                                var cumulativeScale by remember { mutableFloatStateOf(1f) }
+                                var pointerCount by remember { mutableIntStateOf(0) }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .pointerInput(Unit) {
+                                            awaitEachGesture {
+                                                // Wait for first pointer down
+                                                awaitFirstDown(requireUnconsumed = false)
+                                                
+                                                do {
+                                                    val event = awaitPointerEvent()
+                                                    
+                                                    // Track the number of active pointers
+                                                    pointerCount = event.changes.count { it.pressed }
+                                                    
+                                                    // Only process zoom if we have 2+ pointers (actual pinch gesture)
+                                                    if (pointerCount >= 2) {
+                                                        // Calculate zoom from the event
+                                                        val zoom = event.calculateZoom()
+                                                        
+                                                        // Update cumulative scale
+                                                        cumulativeScale *= zoom
+                                                        
+                                                        // Trigger history when pinch-out (zoom out) below threshold
+                                                        // Using 0.70f for more deliberate gesture detection
+                                                        if (cumulativeScale < 0.70f) {
+                                                            showChatHistoryInline = true
+                                                            cumulativeScale = 1f // Reset for next gesture
+                                                        }
+                                                        
+                                                        // Reset scale when zooming back in
+                                                        if (zoom > 1f && cumulativeScale > 1f) {
+                                                            cumulativeScale = 1f
+                                                        }
+                                                        
+                                                        // Consume the event to prevent scrolling during pinch
+                                                        event.changes.forEach { it.consume() }
+                                                    }
+                                                    // If pointerCount == 1, allow normal scrolling
+                                                } while (event.changes.any { it.pressed })
+                                                
+                                                // Reset when all fingers are lifted
+                                                cumulativeScale = 1f
+                                            }
+                                        }
+                                ) {
+                                    ChatModeContent(
+                                        chatMessages = chatMessages,
+                                        chatListState = chatListState,
+                                        notes = notes,
+                                        onNoteClick = onNoteClick,
+                                        onSendChatMessage = onSendChatMessage,
+                                        contentPadding = contentPaddingWithTop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    else -> {
+                        // Notes mode content - extracted to NormalModeContent component
+                        NormalModeContent(
+                            displayedNotes = displayedNotes,
+                            isNotesLoading = isNotesLoading,
+                            isSearchMode = isSearchMode,
+                            searchQuery = textValue.text,
+                            gridState = gridState,
+                            isRefreshing = isRefreshing,
+                            onRefreshNotes = onRefreshNotes,
+                            bottomContentPadding = bottomContentPadding,
+                            topContentPadding = topPadding,
+                            isSelectionMode = isSelectionMode,
+                            selectedNoteIds = selectedNoteIds,
+                            onToggleSelection = { noteId -> toggleSelection(noteId) },
+                            onEnterSelectionMode = { noteId ->
+                                isSelectionMode = true
+                                selectedNoteIds = setOf(noteId)
+                            },
+                            onNoteClick = onNoteClick,
+                            onArchiveNote = onArchiveNote,
+                            onDeleteNoteRequest = { noteId ->
+                                noteToDeleteId = noteId
+                                showDeleteDialog = true
+                            },
+                            onOpenTodo = { noteId -> selectedNoteIdForTodo = noteId },
+                            onPlayYouTube = onPlayYouTube,
+                            snackbarHostState = snackbarHostState,
+                            onSetLastArchivedNoteId = { lastArchivedNoteId = it },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
@@ -1014,13 +1362,32 @@ fun InputStreamScreen(
                     .padding(bottom = bottomContentPadding)
                     .navigationBarsPadding()
             ) {
+                // Bottom Gradient Scrim (Hides scrolling text behind input)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp) // Height to cover input area + fade
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
+                                    MaterialTheme.colorScheme.background
+                                )
+                            )
+                        )
+                )
+
                 Column(
-                    modifier = Modifier.padding(
-                        start = ComponentSpacing.screenPadding,
-                        end = ComponentSpacing.screenPadding,
-                        bottom = ComponentSpacing.screenPadding,
-                        top = 0.dp
-                    )
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = ComponentSpacing.screenPadding,
+                            end = ComponentSpacing.screenPadding,
+                            bottom = ComponentSpacing.screenPadding,
+                            top = 0.dp
+                        )
                 ) {
                     // Search suggestions dropdown (BATCH 5C)
                     // Shows when in search mode with empty query and recent searches available
@@ -1045,27 +1412,8 @@ fun InputStreamScreen(
                     }
 
                     // Processing indicator
-                    AnimatedVisibility(
-                        visible = isProcessing || isChatProcessing,
-                        enter = fadeIn(tween(160)) + expandVertically(),
-                        exit = fadeOut(tween(120)) + shrinkVertically()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = ComponentSpacing.cardHeaderGap),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            ProcessingDotsIndicator()
-                            Spacer(modifier = Modifier.width(ComponentSpacing.iconGap))
-                            Text(
-                                text = if (isChatMode) "Thinking..." else "Processing...",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = LocalAccentColor.current
-                            )
-                        }
-                    }
+                    // Processing indicator REMOVED as per user request (shimmer is sufficient)
+                    // (AnimatedVisibility block was here)
 
                     // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
                     Box(contentAlignment = Alignment.Center) {
@@ -1084,6 +1432,8 @@ fun InputStreamScreen(
                                 // Update the correct state based on current mode
                                 if (isChatMode) {
                                     chatModeTextValue = newTextValue
+                                    // @Mention: Update mention state for autocomplete
+                                    onUpdateMentionState(newTextValue.text, newTextValue.selection.end)
                                 } else {
                                     normalModeTextValue = newTextValue
                                     // Search mode integration
@@ -1159,6 +1509,7 @@ fun InputStreamScreen(
                             },
                             onRemoveAttachment = { id -> attachments = attachments.filter { it.id != id } },
                             isChatMode = isChatMode,
+                            isHistoryMode = showChatHistoryInline, // Pass history state
                             isProcessing = isChatProcessing,
                             onClearInput = {
                                 // Clear local state depending on mode
@@ -1177,7 +1528,11 @@ fun InputStreamScreen(
                                     onSearchQueryChange("")
                                 }
                             },
-                            onOpenChatHistory = { showChatHistorySheet = true },
+                            onOpenChatHistory = { showChatHistoryInline = true },
+                            onNewChat = { 
+                                onNewChatSession()
+                                showChatHistoryInline = false
+                            },
                             isAiExcluded = isAiExcluded,
                             isSearchMode = isSearchMode,
                             onToggleSearch = {
@@ -1218,7 +1573,17 @@ fun InputStreamScreen(
                             onStopRecording = {
                                 voiceRecorder.stopRecording()
                             },
-                            isRecording = isRecording
+                            isRecording = isRecording,
+                            // @Mention autocomplete (Chat mode only)
+                            mentionState = mentionState,
+                            onMentionSelected = { suggestion ->
+                                // Get updated text from callback and set it
+                                val updatedText = onMentionSelected(suggestion, chatModeTextValue.text)
+                                chatModeTextValue = TextFieldValue(
+                                    text = updatedText,
+                                    selection = androidx.compose.ui.text.TextRange(updatedText.length)
+                                )
+                            }
                         )
                     }
                 }
@@ -1300,21 +1665,6 @@ fun InputStreamScreen(
         )
     }
 
-    // Chat history bottom sheet
-    if (showChatHistorySheet) {
-        ChatHistorySheet(
-            sessions = chatSessions,
-            currentSessionId = currentSessionId,
-            sheetState = chatHistorySheetState,
-            onDismiss = { showChatHistorySheet = false },
-            onSelectSession = { sessionId ->
-                onSwitchChatSession(sessionId)
-            },
-            onNewChat = onNewChatSession,
-            onDeleteSession = onDeleteChatSession
-        )
-    }
-
     // ═══════════════════════════════════════════════════════════════════════════
     // CENTRALIZED UI: Bottom Sheets for all features
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1387,8 +1737,6 @@ fun InputStreamScreen(
             isVoiceEnrolled = isVoiceEnrolled,
             onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
             onRetrainVoice = onRetrainVoice,
-            isTTSEnabled = isTTSEnabled,
-            onTTSEnabledChange = onTTSEnabledChange,
             onRefreshModels = onRefreshModels,
             getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,
@@ -1396,6 +1744,22 @@ fun InputStreamScreen(
             backupContent = backupContent,
             pinSetupContent = pinSetupContent,
             pinChangeContent = pinChangeContent
+        )
+    }
+
+    // Add Event Dialog for inline calendar
+    if (showAddEventDialog && onCreateCalendarEvent != null) {
+        AddEventDialog(
+            onDismiss = {
+                showAddEventDialog = false
+                selectedDateForNewEvent = null
+            },
+            onConfirm = { title, description, startTime, endTime, isAllDay ->
+                onCreateCalendarEvent(title, description, startTime, endTime, isAllDay)
+                showAddEventDialog = false
+                selectedDateForNewEvent = null
+            },
+            initialDate = selectedDateForNewEvent ?: java.util.Calendar.getInstance()
         )
     }
 }
@@ -1452,6 +1816,87 @@ private fun SearchSuggestionsDropdown(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-        }
+    }
+    }
+}
+
+/**
+ * Mesh Spill Effect: A subtle, cloud-like gradient background for both top and bottom.
+ * Replicates the "ChatGPT" look with overlapping radial gradients.
+ */
+@Composable
+internal fun MeshSpillEffect(modifier: Modifier = Modifier) {
+    val accentColor = LocalAccentColor.current
+    // Use Canvas to draw blurred circles at the top and bottom
+    androidx.compose.foundation.Canvas(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = 0.85f } // Slight transparency adjustment
+    ) {
+        // ══════════════════════════════════════════════════════════════
+        // TOP CIRCLES
+        // ══════════════════════════════════════════════════════════════
+        // Circle 1: Top Left - Larger, more diffuse with smooth multi-stop gradient
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0.0f to accentColor.copy(alpha = 0.12f),
+                    0.2f to accentColor.copy(alpha = 0.10f),
+                    0.4f to accentColor.copy(alpha = 0.07f),
+                    0.6f to accentColor.copy(alpha = 0.04f),
+                    0.8f to accentColor.copy(alpha = 0.01f),
+                    1.0f to Color.Transparent
+                ),
+                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.2f, y = 0f),
+                radius = size.width * 1.0f
+            )
+        )
+        // Circle 2: Top Right - Softer highlight with smooth fade
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0.0f to accentColor.copy(alpha = 0.10f),
+                    0.25f to accentColor.copy(alpha = 0.07f),
+                    0.5f to accentColor.copy(alpha = 0.04f),
+                    0.75f to accentColor.copy(alpha = 0.015f),
+                    1.0f to Color.Transparent
+                ),
+                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.8f, y = size.height * 0.1f),
+                radius = size.width * 0.9f
+            )
+        )
+
+        // ══════════════════════════════════════════════════════════════
+        // BOTTOM CIRCLES (Mirrored)
+        // ══════════════════════════════════════════════════════════════
+        // Circle 3: Bottom Right - Larger, more diffuse
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0.0f to accentColor.copy(alpha = 0.12f),
+                    0.2f to accentColor.copy(alpha = 0.10f),
+                    0.4f to accentColor.copy(alpha = 0.07f),
+                    0.6f to accentColor.copy(alpha = 0.04f),
+                    0.8f to accentColor.copy(alpha = 0.01f),
+                    1.0f to Color.Transparent
+                ),
+                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.8f, y = size.height),
+                radius = size.width * 1.0f
+            )
+        )
+        // Circle 4: Bottom Left - Softer highlight with smooth fade
+        drawCircle(
+            brush = Brush.radialGradient(
+                colorStops = arrayOf(
+                    0.0f to accentColor.copy(alpha = 0.10f),
+                    0.25f to accentColor.copy(alpha = 0.07f),
+                    0.5f to accentColor.copy(alpha = 0.04f),
+                    0.75f to accentColor.copy(alpha = 0.015f),
+                    1.0f to Color.Transparent
+                ),
+                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.2f, y = size.height * 0.9f),
+                radius = size.width * 0.9f
+            )
+        )
     }
 }

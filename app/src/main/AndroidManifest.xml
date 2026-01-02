@@ -22,6 +22,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!-- Audio visualizer requires RECORD_AUDIO to capture audio output -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -168,6 +169,12 @@
             android:stopWithTask="true">
             <!-- stopWithTask="true" stops service when app is swiped away to conserve resources -->
         </service>
+
+        <!-- Screen Capture Service - For "save this page" screenshot functionality -->
+        <service
+            android:name=".service.ScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- Timer/Alarm Receivers -->
         <receiver

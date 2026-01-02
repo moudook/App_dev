@@ -59,8 +59,9 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
     private val anthropicProvider: AIProviderContract = AnthropicProvider(client, gson)
     private val huggingFaceProvider: AIProviderContract = HuggingFaceProvider(client, gson)
     private val githubProvider: AIProviderContract = OpenAICompatibleProvider.github(client, gson)
-    // FOR TESTING ONLY - Remove before publishing!
-    // Cached local PC provider instance - recreated only when URL changes
+    // Local LLM provider - connects to your PC via USB/WiFi for privacy and offline use
+    // Cached instance - recreated only when URL changes
+    // Uses localServer client that trusts self-signed certificates for HTTPS
     private var _localPCProvider: OpenAICompatibleProvider? = null
     private var _localPCUrl: String? = null
     private val localPCProvider: AIProviderContract
@@ -68,7 +69,8 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             val currentUrl = securePreferences.getLocalPCUrl()
             if (_localPCProvider == null || _localPCUrl != currentUrl) {
                 _localPCUrl = currentUrl
-                _localPCProvider = OpenAICompatibleProvider.localPC(client, gson, currentUrl)
+                // Use localServer client that trusts self-signed certificates for HTTPS
+                _localPCProvider = OpenAICompatibleProvider.localPC(HttpClientProvider.localServer, gson, currentUrl)
             }
             return _localPCProvider!!
         }

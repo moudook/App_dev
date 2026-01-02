@@ -40,15 +40,6 @@ fun SelectionModeToolbar(
     TopAppBar(
         modifier = modifier,
         title = { /* Empty - no text displayed */ },
-        navigationIcon = {
-            IconButton(onClick = onClearSelection) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Cancel selection",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        },
         actions = {
             // Select All button
             IconButton(onClick = onSelectAll) {

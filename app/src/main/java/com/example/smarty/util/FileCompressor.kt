@@ -198,6 +198,11 @@ object FileCompressor {
                         copyWithoutCompression(context, processUri, originalFileName, destDir, mimeType)
                     }
 
+                    // PDF → No compression (already compressed binary format)
+                    mimeType?.contains("pdf") == true -> {
+                        copyWithoutCompression(context, processUri, originalFileName, destDir, mimeType)
+                    }
+
                     // Documents and other files → GZIP compression
                     else -> {
                         compressWithGzip(context, processUri, originalFileName, destDir, mimeType)

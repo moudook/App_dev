@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.smarty.data.local.AIModels
 import com.example.smarty.data.local.AIProvider
@@ -115,12 +117,13 @@ fun SettingsScreen(
     isVoiceEnrolled: Boolean = false,
     onDeleteVoiceFingerprint: () -> Unit = {},
     onRetrainVoice: () -> Unit = {},
-    // TTS for AI responses
-    isTTSEnabled: Boolean = true,
-    onTTSEnabledChange: (Boolean) -> Unit = {},
-    // Local LLM Server
+    // Local LLM Server (USB/WiFi)
     localServerIP: String = "",
+    localServerPort: String = "8000",
+    localServerUseHttps: Boolean = false,
     onSetLocalServerIP: (String) -> Unit = {},
+    onSetLocalServerPort: (String) -> Unit = {},
+    onSetLocalServerUseHttps: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { AIModels.getModelsForProvider(it) },
@@ -140,33 +143,34 @@ fun SettingsScreen(
     var showVoiceFingerprintSheet by remember { mutableStateOf(false) }
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Local PC Testing state (FOR TESTING ONLY - Remove before publishing!)
+    // Local LLM connection state
     var localPCTestStatus by remember { mutableStateOf<String?>(null) }
     var isTestingLocalPC by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
     val isSystemDark = isSystemInDarkTheme()
 
+    // Intercept system back button
+    // If any sheet is open, close it. Otherwise, navigate back.
+    androidx.activity.compose.BackHandler(onBack = {
+        if (showArchiveSheet || showBackupSheet || showPinSetupSheet || showPinChangeSheet || showAboutSheet || showShakeSensitivitySheet || showVoiceFingerprintSheet || showAIConfigSheet) {
+            showArchiveSheet = false
+            showBackupSheet = false
+            showPinSetupSheet = false
+            showPinChangeSheet = false
+            showAboutSheet = false
+            showShakeSensitivitySheet = false
+            showVoiceFingerprintSheet = false
+            showAIConfigSheet = false
+        } else {
+            onBackClick()
+        }
+    })
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { onToggleTheme(!isDarkTheme) }) {
-                        Icon(
-                            imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = "Toggle Theme"
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -208,11 +212,6 @@ fun SettingsScreen(
                         if (isVoiceEnrolled) showVoiceFingerprintSheet = true
                         else onRetrainVoice()
                     }
-                )
-                SettingsToggleRow(
-                    title = "Speak Responses",
-                    isChecked = isTTSEnabled,
-                    onCheckedChange = onTTSEnabledChange
                 )
             }
 
@@ -339,7 +338,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Logout,
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(24.dp)
@@ -399,7 +398,11 @@ fun SettingsScreen(
             onRefreshModels = onRefreshModels,
             getAvailableModels = getAvailableModels,
             localServerIP = localServerIP,
-            onSetLocalServerIP = onSetLocalServerIP
+            localServerPort = localServerPort,
+            localServerUseHttps = localServerUseHttps,
+            onSetLocalServerIP = onSetLocalServerIP,
+            onSetLocalServerPort = onSetLocalServerPort,
+            onSetLocalServerUseHttps = onSetLocalServerUseHttps
         )
     }
 
@@ -580,7 +583,7 @@ fun SettingsScreen(
         ModalBottomSheet(
             onDismissRequest = { showVoiceFingerprintSheet = false },
             sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onSurface,
             shape = LocalShapes.current.bottomSheet,
             dragHandle = {
@@ -721,10 +724,12 @@ fun SettingsScreen(
 
     // Shake Sensitivity Bottom Sheet
     if (showShakeSensitivitySheet) {
+        val accentColor = LocalAccentColor.current
+        
         ModalBottomSheet(
             onDismissRequest = { showShakeSensitivitySheet = false },
             sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onSurface,
             shape = LocalShapes.current.bottomSheet,
             dragHandle = {
@@ -752,43 +757,173 @@ fun SettingsScreen(
                     .padding(bottom = 48.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Shake Sensitivity",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                // Modern Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Shake Gesture",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                letterSpacing = (-0.5).sp
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Configure chat mode activation",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                    }
+                    
+                    Surface(
+                        shape = CircleShape,
+                        color = accentColor.copy(alpha = 0.1f),
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Vibration,
+                                contentDescription = null,
+                                tint = accentColor,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Main Card with Control
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Text(
-                    text = "Adjust how sensitive the shake gesture is for toggling private mode",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 24.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-
-                // Semicircle sensitivity control
-                ShakeSensitivityControl(
-                    sensitivity = shakeSensitivity,
-                    onSensitivityChange = onShakeSensitivityChange,
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Semicircle sensitivity control
+                        ShakeSensitivityControl(
+                            sensitivity = shakeSensitivity,
+                            onSensitivityChange = onShakeSensitivityChange,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(24.dp))
+                        
+                        // Hint text
+                        Text(
+                            text = when {
+                                shakeSensitivity < 0.3f -> "Low: Requires strong shake movement"
+                                shakeSensitivity < 0.7f -> "Medium: Balanced sensitivity"
+                                else -> "High: Light shake triggers mode switch"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Hint text
-                Text(
-                    text = when {
-                        shakeSensitivity < 0.3f -> "Low: Requires strong shake movement"
-                        shakeSensitivity < 0.7f -> "Medium: Balanced sensitivity"
-                        else -> "High: Light shake triggers mode switch"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+                // Preset Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Low preset
+                    Surface(
+                        onClick = { onShakeSensitivityChange(0.15f) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (shakeSensitivity < 0.3f) accentColor.copy(alpha = 0.15f) 
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "Low",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = if (shakeSensitivity < 0.3f) 
+                                        androidx.compose.ui.text.font.FontWeight.Bold 
+                                        else androidx.compose.ui.text.font.FontWeight.Medium
+                                ),
+                                color = if (shakeSensitivity < 0.3f) accentColor 
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // Medium preset (Baseline)
+                    Surface(
+                        onClick = { onShakeSensitivityChange(0.63f) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (shakeSensitivity in 0.3f..0.69f) accentColor.copy(alpha = 0.15f) 
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Text(
+                                text = "Medium",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = if (shakeSensitivity in 0.3f..0.69f) 
+                                        androidx.compose.ui.text.font.FontWeight.Bold 
+                                        else androidx.compose.ui.text.font.FontWeight.Medium
+                                ),
+                                color = if (shakeSensitivity in 0.3f..0.69f) accentColor 
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "(Default)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                    
+                    // High preset
+                    Surface(
+                        onClick = { onShakeSensitivityChange(0.85f) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (shakeSensitivity >= 0.7f) accentColor.copy(alpha = 0.15f) 
+                                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "High",
+                                style = MaterialTheme.typography.titleSmall.copy(
+                                    fontWeight = if (shakeSensitivity >= 0.7f) 
+                                        androidx.compose.ui.text.font.FontWeight.Bold 
+                                        else androidx.compose.ui.text.font.FontWeight.Medium
+                                ),
+                                color = if (shakeSensitivity >= 0.7f) accentColor 
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -957,7 +1092,7 @@ private fun SettingsToggleItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AIConfigBottomSheet(
+internal fun AIConfigBottomSheet(
     sheetState: SheetState,
     providerConfigs: Map<AIProvider, AIProviderConfig>,
     providerPriorityOrder: List<AIProvider>,
@@ -975,7 +1110,11 @@ private fun AIConfigBottomSheet(
     onRefreshModels: (AIProvider) -> Unit,
     getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
     localServerIP: String = "",
-    onSetLocalServerIP: (String) -> Unit = {}
+    localServerPort: String = "8000",
+    localServerUseHttps: Boolean = false,
+    onSetLocalServerIP: (String) -> Unit = {},
+    onSetLocalServerPort: (String) -> Unit = {},
+    onSetLocalServerUseHttps: (Boolean) -> Unit = {}
 ) {
     val shapes = LocalShapes.current
 
@@ -996,30 +1135,94 @@ private fun AIConfigBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = shapes.bottomSheet,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.background // Contrast with Surface cards
     ) {
         HideSystemBars()
         Column(
             modifier = Modifier
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.92f) // Taller sheet
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
                 .navigationBarsPadding()
         ) {
-            Text(
-                text = "AI Providers",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 8.dp)
+            // Header
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 24.dp)
+            ) {
+                 Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "AI Intelligence",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                letterSpacing = (-0.5).sp
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Configure your AI providers and models",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        )
+                    }
+                    
+                    // Optional: Add a "Done" button or icon if needed, but the drag handle is standard.
+                    // Could add a small icon/illustration here.
+                    Surface(
+                         shape = androidx.compose.foundation.shape.CircleShape,
+                         color = LocalAccentColor.current.copy(alpha = 0.1f),
+                         modifier = Modifier.size(48.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.SmartToy, // AI Icon
+                                contentDescription = null,
+                                tint = LocalAccentColor.current,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            HorizontalDivider(
+                modifier = Modifier.padding(bottom = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
             )
 
-            Text(
-                text = "Hold and drag providers to reorder fallback priority.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp) // Less horizontal padding so cards are wider
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Intro/Help text moved to just a small hint if needed, or removed as redundant.
+                // Keeping the drag hint but making it subtle.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 8.dp, start = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DragIndicator,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                     Text(
+                        text = "Drag providers to reorder priority",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    )
+                }
 
             val providerInfo = mapOf(
                 AIProvider.GEMINI to Triple("Gemini", "Google's fastest AI", "https://aistudio.google.com/apikey"),
@@ -1032,7 +1235,7 @@ private fun AIConfigBottomSheet(
                 AIProvider.OPENROUTER to Triple("OpenRouter", "Multi-model", "https://openrouter.ai/keys"),
                 AIProvider.HUGGINGFACE to Triple("HuggingFace", "Open source", "https://huggingface.co/settings/tokens"),
                 AIProvider.GITHUB to Triple("GitHub Models", "Free with GitHub", "https://github.com/settings/tokens"),
-                AIProvider.LOCAL_PC to Triple("Local PC (USB)", "Offline testing", "")  // FOR TESTING ONLY
+                AIProvider.LOCAL_PC to Triple("Local LLM", "Run AI locally", "")
             )
 
             // Iterate through providers with drag-and-drop reordering
@@ -1180,7 +1383,11 @@ private fun AIConfigBottomSheet(
 
             LocalServerSection(
                 serverIP = localServerIP,
-                onSetServerIP = onSetLocalServerIP
+                serverPort = localServerPort,
+                useHttps = localServerUseHttps,
+                onSetServerIP = onSetLocalServerIP,
+                onSetServerPort = onSetLocalServerPort,
+                onSetUseHttps = onSetLocalServerUseHttps
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -1208,6 +1415,7 @@ private fun AIConfigBottomSheet(
             }
         }
     }
+}
 }
 
 /**
@@ -1459,12 +1667,34 @@ private sealed class TestResult {
 
 /**
  * Test connection to local LLM server by pinging the models endpoint
+ * Supports both HTTP and HTTPS (with self-signed certificate trust)
  */
-private suspend fun testLocalServer(ip: String): TestResult {
+private suspend fun testLocalServer(ip: String, port: String, useHttps: Boolean): TestResult {
     return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
-            val url = java.net.URL("http://$ip:8000/v1/models")
-            val connection = url.openConnection() as java.net.HttpURLConnection
+            val protocol = if (useHttps) "https" else "http"
+            val url = java.net.URL("$protocol://$ip:$port/v1/models")
+
+            val connection = if (useHttps) {
+                // For HTTPS with self-signed certificates, we need to trust all certs
+                // This is safe for local LAN connections only
+                val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                    override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                })
+
+                val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
+                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+
+                val httpsConnection = url.openConnection() as javax.net.ssl.HttpsURLConnection
+                httpsConnection.sslSocketFactory = sslContext.socketFactory
+                httpsConnection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                httpsConnection
+            } else {
+                url.openConnection() as java.net.HttpURLConnection
+            }
+
             connection.requestMethod = "GET"
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
@@ -1484,6 +1714,8 @@ private suspend fun testLocalServer(ip: String): TestResult {
             TestResult.Failure("Connection timeout - check IP address")
         } catch (e: java.net.UnknownHostException) {
             TestResult.Failure("Invalid IP address")
+        } catch (e: javax.net.ssl.SSLHandshakeException) {
+            TestResult.Failure("SSL error - certificate issue")
         } catch (e: Exception) {
             TestResult.Failure("Error: ${e.message ?: "Unknown error"}")
         }
@@ -1492,23 +1724,42 @@ private suspend fun testLocalServer(ip: String): TestResult {
 
 /**
  * Local LLM Server configuration section.
- * Allows users to input a local server IP for running LLMs via USB tethering.
+ * Allows users to connect to local AI server via USB tethering or WiFi.
+ * Supports both HTTP (default) and HTTPS (encrypted) connections.
  */
 @Composable
 private fun LocalServerSection(
     serverIP: String,
-    onSetServerIP: (String) -> Unit
+    serverPort: String,
+    useHttps: Boolean,
+    onSetServerIP: (String) -> Unit,
+    onSetServerPort: (String) -> Unit,
+    onSetUseHttps: (Boolean) -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     var ipInput by remember { mutableStateOf(serverIP) }
+    var portInput by remember { mutableStateOf(serverPort.ifBlank { "8000" }) }
+    var httpsEnabled by remember { mutableStateOf(useHttps) }
     var isEditing by remember { mutableStateOf(false) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<TestResult?>(null) }
     val scope = rememberCoroutineScope()
 
+    // Detect connection type based on IP range
+    val connectionType = when {
+        ipInput.startsWith("10.") -> "USB/WiFi"
+        ipInput.startsWith("192.168.") -> "WiFi"
+        ipInput.startsWith("172.") -> "Ethernet"
+        else -> "Network"
+    }
+
     // Sync with external state
-    LaunchedEffect(serverIP) {
-        if (!isEditing) ipInput = serverIP
+    LaunchedEffect(serverIP, serverPort, useHttps) {
+        if (!isEditing) {
+            ipInput = serverIP
+            portInput = serverPort.ifBlank { "8000" }
+            httpsEnabled = useHttps
+        }
     }
 
     // Clear test result after 5 seconds
@@ -1549,21 +1800,29 @@ private fun LocalServerSection(
                         color = if (serverIP.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Connect to a local AI server via USB",
+                        text = "Connect via USB tethering or WiFi",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Status indicator
+            // Status indicator with connection type
             if (serverIP.isNotBlank()) {
-                Icon(
-                    imageVector = Icons.Default.Dns,
-                    contentDescription = "Configured",
-                    tint = LocalAccentColor.current,
-                    modifier = Modifier.size(20.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = connectionType,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = LocalAccentColor.current
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.Dns,
+                        contentDescription = "Configured",
+                        tint = LocalAccentColor.current,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
 
@@ -1578,31 +1837,36 @@ private fun LocalServerSection(
             ) {
                 // Info text
                 Text(
-                    text = "Enter the IP address of your local LLM server (e.g., 192.168.1.100). The server should be running on port 8000 with OpenAI-compatible API.",
+                    text = "Connect to your local LLM server. Use USB IP (10.x.x.x) for USB tethering or WiFi IP (192.168.x.x) for wireless. Run 'start_local_llm.bat' on your PC to see available IPs.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
 
-                // IP Input
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            if (ipInput.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
-                            RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-                        ),
-                    shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-                    color = MaterialTheme.colorScheme.surface
+                // IP and Port Input Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
+                    // IP Input
+                    Surface(
+                        modifier = Modifier
+                            .weight(2f)
+                            .border(
+                                1.dp,
+                                if (ipInput.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
+                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
+                            ),
+                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
+                        color = MaterialTheme.colorScheme.surface
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "IP Address",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box {
                                 androidx.compose.foundation.text.BasicTextField(
                                     value = ipInput,
                                     onValueChange = {
@@ -1628,126 +1892,216 @@ private fun LocalServerSection(
                                 }
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Test result message
-                        AnimatedVisibility(
-                            visible = testResult != null || isTesting,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                when {
-                                    isTesting -> {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
-                                            strokeWidth = 2.dp,
-                                            color = LocalAccentColor.current
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Testing connection...",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    testResult is TestResult.Success -> {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = "Success",
-                                            tint = SystemGreen,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Connection successful! Server saved.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = SystemGreen
-                                        )
-                                    }
-                                    testResult is TestResult.Failure -> {
-                                        Icon(
-                                            imageVector = Icons.Default.Warning,
-                                            contentDescription = "Failed",
-                                            tint = SafetyOrange,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = (testResult as TestResult.Failure).message,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = SafetyOrange
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            if (serverIP.isNotBlank()) {
-                                TextButton(
-                                    onClick = {
-                                        onSetServerIP("")
-                                        ipInput = ""
-                                        isEditing = false
-                                        testResult = null
-                                    },
-                                    enabled = !isTesting
-                                ) {
-                                    Text("Clear", color = SafetyOrange)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (ipInput.isNotBlank()) {
-                                        scope.launch {
-                                            isTesting = true
-                                            testResult = null
-                                            val result = testLocalServer(ipInput.trim())
-                                            isTesting = false
-                                            testResult = result
-
-                                            if (result is TestResult.Success) {
-                                                onSetServerIP(ipInput.trim())
-                                                isEditing = false
-                                            }
+                    // Port Input
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .border(
+                                1.dp,
+                                if (portInput.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
+                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
+                            ),
+                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = "Port",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box {
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = portInput,
+                                    onValueChange = { newValue ->
+                                        // Only allow numeric input
+                                        if (newValue.all { it.isDigit() }) {
+                                            portInput = newValue
+                                            isEditing = true
                                         }
-                                    }
-                                },
-                                enabled = ipInput.isNotBlank() && !isTesting,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = LocalAccentColor.current,
-                                    contentColor = MaterialTheme.colorScheme.surface
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = com.example.smarty.ui.theme.MonoFont,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(LocalAccentColor.current),
+                                    singleLine = true
                                 )
-                            ) {
-                                if (isTesting) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.surface
+                                if (portInput.isEmpty()) {
+                                    Text(
+                                        text = "8000",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = com.example.smarty.ui.theme.MonoFont
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     )
-                                } else {
-                                    Text("Test & Save")
                                 }
                             }
                         }
                     }
                 }
 
+                // HTTPS Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Use HTTPS (Encrypted)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (httpsEnabled) "Traffic is encrypted" else "Traffic is unencrypted",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (httpsEnabled) SystemGreen else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                    Switch(
+                        checked = httpsEnabled,
+                        onCheckedChange = {
+                            httpsEnabled = it
+                            isEditing = true
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.surface,
+                            checkedTrackColor = LocalAccentColor.current,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.surface,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
+                }
+
+                // Test result message
+                AnimatedVisibility(
+                    visible = testResult != null || isTesting,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        when {
+                            isTesting -> {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = LocalAccentColor.current
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Testing connection...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            testResult is TestResult.Success -> {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Success",
+                                    tint = SystemGreen,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Connection successful! Settings saved.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = SystemGreen
+                                )
+                            }
+                            testResult is TestResult.Failure -> {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Failed",
+                                    tint = SafetyOrange,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = (testResult as TestResult.Failure).message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = SafetyOrange
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    if (serverIP.isNotBlank()) {
+                        TextButton(
+                            onClick = {
+                                onSetServerIP("")
+                                onSetServerPort("8000")
+                                ipInput = ""
+                                portInput = "8000"
+                                isEditing = false
+                                testResult = null
+                            },
+                            enabled = !isTesting
+                        ) {
+                            Text("Clear", color = SafetyOrange)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (ipInput.isNotBlank()) {
+                                scope.launch {
+                                    isTesting = true
+                                    testResult = null
+                                    val port = portInput.ifBlank { "8000" }
+                                    val result = testLocalServer(ipInput.trim(), port, httpsEnabled)
+                                    isTesting = false
+                                    testResult = result
+
+                                    if (result is TestResult.Success) {
+                                        onSetServerIP(ipInput.trim())
+                                        onSetServerPort(port)
+                                        onSetUseHttps(httpsEnabled)
+                                        isEditing = false
+                                    }
+                                }
+                            }
+                        },
+                        enabled = ipInput.isNotBlank() && !isTesting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = LocalAccentColor.current,
+                            contentColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        if (isTesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.surface
+                            )
+                        } else {
+                            Text("Test & Save")
+                        }
+                    }
+                }
+
                 // Current URL display if configured
                 if (serverIP.isNotBlank()) {
+                    val displayPort = serverPort.ifBlank { "8000" }
                     Text(
-                        text = "Server URL: http://$serverIP:8000/v1/chat/completions",
+                        text = "URL: http://$serverIP:$displayPort/v1/chat/completions",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = com.example.smarty.ui.theme.MonoFont
                         ),
@@ -1788,14 +2142,14 @@ private fun SettingsSection(
         color = if (isExpanded)
             accentColor.copy(alpha = 0.08f)
         else
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        onClick = onToggle
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Column {
             // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable(onClick = onToggle)
                     .padding(20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

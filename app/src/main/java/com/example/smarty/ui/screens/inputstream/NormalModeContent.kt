@@ -46,6 +46,7 @@ fun NormalModeContent(
     isRefreshing: Boolean,
     onRefreshNotes: () -> Unit,
     bottomContentPadding: Dp,
+    topContentPadding: Dp = 0.dp,
     // Selection mode
     isSelectionMode: Boolean,
     selectedNoteIds: Set<String>,
@@ -94,7 +95,7 @@ fun NormalModeContent(
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    top = ComponentSpacing.listContentPadding,
+                    top = ComponentSpacing.listContentPadding + topContentPadding,
                     bottom = 140.dp + bottomContentPadding,
                     start = 8.dp,
                     end = 8.dp
@@ -140,9 +141,7 @@ fun NormalModeContent(
                     val stableOnLongPress = remember(note.id) {
                         { onEnterSelectionMode(note.id) }
                     }
-                    val isNoteSelected by remember(note.id) {
-                        derivedStateOf { note.id in selectedNoteIds }
-                    }
+                    val isNoteSelected = note.id in selectedNoteIds
 
                     NoteCard(
                         note = note,

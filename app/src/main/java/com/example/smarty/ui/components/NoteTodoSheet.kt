@@ -27,7 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material.icons.outlined.Notes
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -224,7 +224,7 @@ fun NoteTodoSheet(
                 ) {
                     // Note icon
                     Icon(
-                        imageVector = Icons.Outlined.Notes,
+                        imageVector = Icons.AutoMirrored.Outlined.Notes,
                         contentDescription = null,
                         tint = LocalAccentColor.current,
                         modifier = Modifier.size(18.dp)

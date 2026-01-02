@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
@@ -124,8 +125,8 @@ private val LightColorScheme = lightColorScheme(
 )
 
 // Animation duration for smooth theme transition
-// Increased for smoother visual experience
-private const val THEME_ANIMATION_DURATION = 500
+// Standard Material duration for large area transitions
+private const val THEME_ANIMATION_DURATION = 350
 
 /**
  * Animate a single color transition
@@ -134,7 +135,10 @@ private const val THEME_ANIMATION_DURATION = 500
 private fun animateColor(targetColor: Color): Color {
     val animatedColor by animateColorAsState(
         targetValue = targetColor,
-        animationSpec = tween(durationMillis = THEME_ANIMATION_DURATION),
+        animationSpec = tween(
+            durationMillis = THEME_ANIMATION_DURATION,
+            easing = androidx.compose.animation.core.FastOutSlowInEasing
+        ),
         label = "themeColor"
     )
     return animatedColor
@@ -222,23 +226,47 @@ fun CogniTheme(
         val animatedBackground = animatedColorScheme.background
         val animatedSurface = animatedColorScheme.surface
 
+        // Optimize: Cache Window and Controller to avoid repetitive lookups
+        val context = view.context
+        val window = remember(context) { (context as? Activity)?.window }
+        val insetsController = remember(window, view) { 
+            window?.let { WindowCompat.getInsetsController(it, view) }
+        }
+
         SideEffect {
-            val window = (view.context as Activity).window
+            window?.let { win ->
+                val decorView = win.decorView
+                // Only update if changed to avoid unnecessary JNI calls
+                val bgColorArgb = animatedBackground.toArgb()
+                
+                // Note: getSolidColor() is not reliable for background color check, 
+                // so we just set it as setting background color is relatively cheap if hardware accelerated.
+                decorView.setBackgroundColor(bgColorArgb)
 
-            // Set window background to animated color for smooth transition
-            window.decorView.setBackgroundColor(animatedBackground.toArgb())
+                // Use semi-transparent system bars that blend with content
+                @Suppress("DEPRECATION")
+                val targetStatusBarColor = animatedBackground.copy(alpha = 0.8f).toArgb()
+                @Suppress("DEPRECATION")
+                if (win.statusBarColor != targetStatusBarColor) {
+                    win.statusBarColor = targetStatusBarColor
+                }
 
-            // Use semi-transparent system bars that blend with content
-            // This provides a smoother visual experience during theme switch
-            @Suppress("DEPRECATION")
-            window.statusBarColor = animatedBackground.copy(alpha = 0.8f).toArgb()
-            @Suppress("DEPRECATION")
-            window.navigationBarColor = animatedSurface.copy(alpha = 0.9f).toArgb()
+                @Suppress("DEPRECATION")
+                val targetNavBarColor = animatedSurface.copy(alpha = 0.9f).toArgb()
+                @Suppress("DEPRECATION")
+                if (win.navigationBarColor != targetNavBarColor) {
+                    win.navigationBarColor = targetNavBarColor
+                }
 
-            // Update system bar icon colors based on theme
-            WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkTheme
-                isAppearanceLightNavigationBars = !darkTheme
+                // Update system bar icon colors
+                insetsController?.apply {
+                    if (isAppearanceLightStatusBars != !darkTheme) {
+                        isAppearanceLightStatusBars = !darkTheme
+                    }
+                    if (isAppearanceLightNavigationBars != !darkTheme) {
+                        isAppearanceLightNavigationBars = !darkTheme
+                    }
+                }
             }
         }
     }

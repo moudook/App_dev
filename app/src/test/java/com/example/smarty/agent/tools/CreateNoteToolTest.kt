@@ -234,7 +234,8 @@ class CreateNoteToolTest {
         val result = createNoteTool.execute(args)
 
         val stringOutput = result.toString()
-        assertTrue("Should start with SUCCESS", stringOutput.startsWith("SUCCESS:"))
+        // TOON format: {success:true|noteTitle:My Note|...}
+        assertTrue("Should contain success:true", stringOutput.contains("success:true") || stringOutput.contains("success: true"))
         assertTrue("Should contain note title", stringOutput.contains("My Note"))
     }
 
@@ -244,7 +245,8 @@ class CreateNoteToolTest {
         val result = createNoteTool.execute(args)
 
         val stringOutput = result.toString()
-        assertTrue("Should start with FAILED", stringOutput.startsWith("FAILED:"))
+        // TOON format: {success:false|...}
+        assertTrue("Should contain success:false", stringOutput.contains("success:false") || stringOutput.contains("success: false"))
     }
 
     // =========================================================================

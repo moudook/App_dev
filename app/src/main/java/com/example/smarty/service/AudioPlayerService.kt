@@ -537,6 +537,25 @@ class AudioPlayerService : MediaSessionService() {
 
     private fun playTrack(track: AudioTrack) {
         Log.d(TAG, "Playing track: ${track.title}")
+
+        // Safety: Ensure player is initialized (handles service restart scenarios)
+        if (player == null) {
+            Log.w(TAG, "Player not initialized, reinitializing...")
+            initializePlayer()
+        }
+
+        // CRITICAL: Stop any currently playing audio first to prevent conflicts
+        // This releases audio focus and resources before starting new playback
+        player?.let { exoPlayer ->
+            if (exoPlayer.isPlaying || exoPlayer.playbackState == Player.STATE_READY ||
+                exoPlayer.playbackState == Player.STATE_BUFFERING) {
+                Log.d(TAG, "Stopping current playback before playing new track")
+                releaseVisualizer()  // Release visualizer to free audio session
+                exoPlayer.stop()
+                exoPlayer.clearMediaItems()
+            }
+        }
+
         serviceScope.launch {
             stateMutex.withLock {
                 currentTrack = track
@@ -597,26 +616,44 @@ class AudioPlayerService : MediaSessionService() {
     }
 
     private fun stop() {
-        Log.d(TAG, "Stopping playback")
+        Log.d(TAG, "Stopping playback - full cleanup")
 
-        // 1. Remove notification IMMEDIATELY for responsive UI
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
-        notificationManager.cancel(NOTIFICATION_ID)
+        // 1. Stop position updates FIRST to prevent state race conditions
+        stopPositionUpdates()
 
-        // 2. Then proceed with resource cleanup (which might take time)
+        // 2. Remove notification IMMEDIATELY for responsive UI
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping foreground: ${e.message}")
+        }
+
+        // 3. Force cancel notification (belt and suspenders approach)
+        try {
+            val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
+            notificationManager.cancel(NOTIFICATION_ID)
+            // Also cancel ALL notifications from this channel to be thorough
+            notificationManager.cancelAll()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error canceling notification: ${e.message}")
+        }
+
+        // 4. Release audio resources
         releaseVisualizer()
         player?.stop()
         player?.clearMediaItems()
-        serviceScope.launch {
-            stateMutex.withLock {
-                currentTrack = null
-            }
-            updateState { AudioPlayerState() }
-            stopPositionUpdates()
-        }
 
-        // 3. Finally stop the service
+        // 5. Reset state synchronously to avoid race conditions
+        currentTrack = null
+        _playerState.value = AudioPlayerState()
+        _currentAmplitude.value = 0f
+        _bassAmplitude.value = 0f
+        _midAmplitude.value = 0f
+        _trebleAmplitude.value = 0f
+
+        Log.d(TAG, "Playback stopped, state reset - wake word can now resume")
+
+        // 6. Finally stop the service
         stopSelf()
     }
 

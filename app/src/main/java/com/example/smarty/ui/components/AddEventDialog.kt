@@ -18,22 +18,23 @@ import java.util.*
 @Composable
 fun AddEventDialog(
     onDismiss: () -> Unit,
-    onConfirm: (title: String, description: String?, startTime: Long, endTime: Long, isAllDay: Boolean) -> Unit
+    onConfirm: (title: String, description: String?, startTime: Long, endTime: Long, isAllDay: Boolean) -> Unit,
+    initialDate: Calendar = Calendar.getInstance()
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var isAllDay by remember { mutableStateOf(false) }
 
-    // Default to today at current hour, 1 hour duration
-    val calendar = remember { Calendar.getInstance() }
-    var startHour by remember { mutableIntStateOf(calendar.get(Calendar.HOUR_OF_DAY)) }
+    // Use the provided initial date (selected date from calendar)
+    val selectedDate = remember { initialDate.clone() as Calendar }
+    var startHour by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
     var startMinute by remember { mutableIntStateOf(0) }
-    var endHour by remember { mutableIntStateOf((calendar.get(Calendar.HOUR_OF_DAY) + 1) % 24) }
+    var endHour by remember { mutableIntStateOf((Calendar.getInstance().get(Calendar.HOUR_OF_DAY) + 1) % 24) }
     var endMinute by remember { mutableIntStateOf(0) }
 
-    // Simple date display
+    // Display the selected date
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
-    val currentDate = remember { dateFormat.format(calendar.time) }
+    val displayDate = remember(selectedDate) { dateFormat.format(selectedDate.time) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -64,9 +65,9 @@ fun AddEventDialog(
                     maxLines = 3
                 )
 
-                // Date display (read-only for now - events are for today)
+                // Date display (shows the selected date from calendar)
                 Text(
-                    text = "Date: $currentDate",
+                    text = "Date: $displayDate",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -159,13 +160,14 @@ fun AddEventDialog(
             TextButton(
                 onClick = {
                     if (title.isNotBlank()) {
-                        val startCal = Calendar.getInstance().apply {
+                        // Use the selected date, not today's date
+                        val startCal = (selectedDate.clone() as Calendar).apply {
                             set(Calendar.HOUR_OF_DAY, if (isAllDay) 0 else startHour)
                             set(Calendar.MINUTE, if (isAllDay) 0 else startMinute)
                             set(Calendar.SECOND, 0)
                             set(Calendar.MILLISECOND, 0)
                         }
-                        val endCal = Calendar.getInstance().apply {
+                        val endCal = (selectedDate.clone() as Calendar).apply {
                             set(Calendar.HOUR_OF_DAY, if (isAllDay) 23 else endHour)
                             set(Calendar.MINUTE, if (isAllDay) 59 else endMinute)
                             set(Calendar.SECOND, if (isAllDay) 59 else 0)

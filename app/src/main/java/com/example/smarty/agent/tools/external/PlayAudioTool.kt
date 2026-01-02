@@ -46,6 +46,25 @@ class PlayAudioTool(
         private val TIME_COLON_PATTERN = Regex("""(\d+):(\d{1,2})""")
         private val TIME_MINUTES_PATTERN = Regex("""(\d+)\s*(?:minutes?|mins?)""")
         private val TIME_SECONDS_PATTERN = Regex("""(\d+)\s*(?:seconds?|secs?)""")
+
+        // Command words to strip from search queries
+        private val COMMAND_WORDS = setOf(
+            "play", "find", "search", "open", "start", "listen", "put", "get",
+            "give", "show", "the", "a", "an", "me", "my", "some", "that", "this"
+        )
+    }
+
+    /**
+     * Clean query by removing command words and normalizing.
+     * "play deep in your love" → "deep in your love"
+     * "play the song deep in your love" → "song deep in your love"
+     */
+    private fun cleanQuery(query: String): String {
+        val words = query.lowercase().trim().split(Regex("\\s+"))
+        val cleaned = words.filter { it !in COMMAND_WORDS && it.length >= 2 }
+        val result = cleaned.joinToString(" ")
+        Log.d(TAG, "Cleaned query: '$query' → '$result'")
+        return result.ifEmpty { query.lowercase().trim() }
     }
 
     override val name = "play_audio"
@@ -153,16 +172,27 @@ class PlayAudioTool(
 
             // OPTIMIZED: Search audio-categorized notes FIRST for better performance
             // SECURITY: Filter to only AI-accessible notes (excludes private notes)
-            val allNotes = PrivacyGuard.getAiVisibleNotes(getActiveNotes())
+            val rawNotes = getActiveNotes()
+            val allNotes = PrivacyGuard.getAiVisibleNotes(rawNotes)
+
+            // DIAGNOSTIC: Log note counts to debug audio search issues
+            Log.i(TAG, "📊 NOTES DEBUG: raw=${rawNotes.size}, afterPrivacy=${allNotes.size}")
 
             // Step 1: Search only audio-type notes first (faster, more accurate)
             val audioNotes = allNotes.filter { note ->
-                note.type == com.example.smarty.data.model.NoteType.AUDIO ||
-                note.getAttachments().any { it.mimeType.startsWith("audio/") } ||
-                note.fileMimeType?.startsWith("audio/") == true
+                val isAudioType = note.type == com.example.smarty.data.model.NoteType.AUDIO
+                val hasAudioAttachments = note.getAttachments().any { it.mimeType.startsWith("audio/") }
+                val hasLegacyAudio = note.fileMimeType?.startsWith("audio/") == true
+
+                // Log each note's audio detection for debugging
+                if (isAudioType || hasAudioAttachments || hasLegacyAudio) {
+                    Log.d(TAG, "🎵 Audio note found: id=${note.id.take(8)}, type=$isAudioType, attachments=$hasAudioAttachments, legacy=$hasLegacyAudio, title='${note.title.take(30)}'")
+                }
+
+                isAudioType || hasAudioAttachments || hasLegacyAudio
             }
 
-            Log.d(TAG, "Found ${audioNotes.size} audio-categorized notes to search")
+            Log.i(TAG, "📊 AUDIO FILTER: Found ${audioNotes.size} audio-categorized notes to search")
 
             // Try audio notes first
             var matchingAudio = findMatchingAudio(audioNotes, args.query)
@@ -190,12 +220,13 @@ class PlayAudioTool(
             val allAudioFiles = getAllAudioFiles(allNotes)
 
             if (allAudioFiles.isEmpty()) {
-                // No audio files exist at all
+                // No audio files exist at all - AI should respond gracefully
                 AudioPlaybackResult(
                     success = false,
                     action = "play",
                     message = "No audio files found in any notes. Save some audio first!",
-                    error = "No audio in notes"
+                    error = "No audio in notes",
+                    shouldFallbackToAI = true  // Let AI respond gracefully
                 )
             } else {
                 // Audio exists but query didn't match - show available options
@@ -224,12 +255,14 @@ class PlayAudioTool(
                         message = "Playing"  // Keep brief
                     )
                 } else {
+                    // Audio exists but query didn't match - AI should handle gracefully
                     AudioPlaybackResult(
                         success = false,
                         action = "play",
                         message = "Audio not found",  // Keep brief, don't list alternatives
                         error = "Audio not found",
-                        availableAudio = null  // Don't expose internal data
+                        availableAudio = null,  // Don't expose internal data
+                        shouldFallbackToAI = true  // Let AI respond gracefully to maintain decorum
                     )
                 }
             }
@@ -255,7 +288,9 @@ class PlayAudioTool(
      * 2. Multiple attachments: note.getAttachments() from attachmentsJson
      */
     private fun findMatchingAudio(notes: List<Note>, query: String): AudioTrack? {
-        Log.d(TAG, "Robust semantic search for audio in ${notes.size} notes: '$query'")
+        // Clean the query by removing command words
+        val cleanedQuery = cleanQuery(query)
+        Log.i(TAG, "🔍 SEARCH: query='$query' → cleaned='$cleanedQuery', searching ${notes.size} notes")
 
         // Build a list of searchable audio items with ALL available metadata
         data class AudioItem(
@@ -330,15 +365,19 @@ class PlayAudioTool(
         }
 
         if (audioItems.isEmpty()) {
-            Log.d(TAG, "No audio items found in notes")
+            Log.w(TAG, "❌ NO AUDIO ITEMS found in ${notes.size} notes - check attachmentsJson/fileUri fields")
             return null
         }
 
-        Log.d(TAG, "Found ${audioItems.size} audio items to search across all metadata")
+        // Log all found audio files for debugging
+        Log.i(TAG, "📊 AUDIO ITEMS: Found ${audioItems.size} audio files:")
+        audioItems.forEachIndexed { index, item ->
+            Log.d(TAG, "  [$index] '${item.fileName}' in note '${item.noteTitle.take(20)}'")
+        }
 
         // Use semantic search with ALL available text fields
         val results = SemanticSearchEngine.search(
-            query = query,
+            query = cleanedQuery,
             items = audioItems,
             textExtractor = { item ->
                 // Build comprehensive searchable text list
@@ -372,10 +411,10 @@ class PlayAudioTool(
         )
 
         if (results.isEmpty()) {
-            Log.d(TAG, "No semantic matches found for '$query', trying deep fallback...")
+            Log.d(TAG, "No semantic matches found for '$cleanedQuery', trying deep fallback...")
 
             // Deep fallback: Try individual word matching against ALL fields
-            val queryWords = SemanticSearchEngine.tokenize(query)
+            val queryWords = SemanticSearchEngine.tokenize(cleanedQuery)
             val fallbackResults = audioItems.mapNotNull { item ->
                 // Combine ALL searchable fields
                 val combinedText = buildString {
@@ -420,7 +459,7 @@ class PlayAudioTool(
             }
 
             // Ultra fallback: Check if any filename or tag CONTAINS any query word
-            val normalizedQuery = query.lowercase().replace(NON_ALPHANUMERIC_SPACE_PATTERN, "")
+            val normalizedQuery = cleanedQuery.lowercase().replace(NON_ALPHANUMERIC_SPACE_PATTERN, "")
             val queryParts = normalizedQuery.split(" ").filter { it.length >= 2 }
 
             val ultraFallback = audioItems.firstOrNull { item ->
@@ -440,7 +479,7 @@ class PlayAudioTool(
             // SUPER fallback: Check if filename contains ANY single character sequence from query (3+ chars)
             val superFallback = audioItems.firstOrNull { item ->
                 val fileNameLower = item.fileName.lowercase().replace(NON_ALPHANUMERIC_PATTERN, "")
-                val queryClean = query.lowercase().replace(NON_ALPHANUMERIC_PATTERN, "")
+                val queryClean = cleanedQuery.lowercase().replace(NON_ALPHANUMERIC_PATTERN, "")
 
                 // Check if there's any 3+ char overlap
                 queryClean.length >= 3 && (
@@ -455,7 +494,7 @@ class PlayAudioTool(
                 return superFallback.track
             }
 
-            Log.d(TAG, "No match found for '$query' in ${audioItems.size} audio items")
+            Log.d(TAG, "No match found for '$cleanedQuery' (original: '$query') in ${audioItems.size} audio items")
             return null
         }
 

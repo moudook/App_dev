@@ -86,14 +86,14 @@ class GroqKeyManager private constructor(context: Context) {
 
     companion object {
         private const val TAG = "GroqKeyManager"
-        private const val PREFS_NAME = "groq_key_manager_secure"  // New name for encrypted prefs
+        private const val PREFS_NAME = "groq_key_manager_secure"
         private const val KEY_CONFIGS = "key_configs"
         private const val KEY_DAILY_COUNTS = "daily_counts"
         private const val KEY_LAST_RESET_DATE = "last_reset_date"
 
         private const val MINUTE_MS = 60_000L
         private const val DAY_MS = 24 * 60 * 60 * 1000L
-        private const val DEFAULT_COOLDOWN_MS = 60_000L  // 1 minute cooldown on error
+        private const val DEFAULT_COOLDOWN_MS = 60_000L
 
         @Volatile
         private var INSTANCE: GroqKeyManager? = null
@@ -105,27 +105,41 @@ class GroqKeyManager private constructor(context: Context) {
                 }
             }
         }
+
+        /**
+         * Creates EncryptedSharedPreferences. Throws if encryption unavailable.
+         * This prevents accidental storage of API keys in plaintext.
+         */
+        private fun createEncryptedPrefs(context: Context): SharedPreferences {
+            return try {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    context,
+                    PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "CRITICAL: Failed to create encrypted storage for API keys", e)
+                // SECURITY: Fail hard - never fall back to insecure plaintext storage
+                throw SecurityException(
+                    "Cannot create secure storage for API keys. " +
+                    "Device may not support encryption or KeyStore is unavailable. " +
+                    "Error: ${e.message}",
+                    e
+                )
+            }
+        }
     }
 
     /**
      * BUG FIX (TECH-003): Use EncryptedSharedPreferences for API key storage.
-     * Falls back to regular SharedPreferences if encryption fails.
+     * SECURITY: Fails hard if encryption is unavailable - never falls back to plaintext.
      */
-    private val prefs: SharedPreferences = try {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to create encrypted prefs, using standard (INSECURE): ${e.message}")
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    }
+    private val prefs: SharedPreferences = createEncryptedPrefs(context)
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
 

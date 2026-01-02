@@ -133,6 +133,15 @@ class SpeechToTextState(
 
                 val locale = languageCode ?: Locale.getDefault().toLanguageTag()
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+
+                // SILENCE TIMEOUT EXTENSION: Wait 2.5 seconds of silence before stopping
+                // This allows users to take brief pauses/breaths while speaking
+                // EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: Silence after speech is detected
+                // EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: Silence when speech might be complete
+                // EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: Minimum length before considering silence
+                putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
+                putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
+                putExtra("android.speech.extra.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 1500L)
             }
 
             hasReceivedCallback = false

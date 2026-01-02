@@ -8,6 +8,12 @@ import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
@@ -39,12 +46,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import kotlin.math.abs
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -119,104 +132,180 @@ private fun PdfViewerContent(
 ) {
     val context = LocalContext.current
 
-    // State - only exists while viewer is open
-    var pdfRenderer by mutableStateOf<PdfRenderer?>(null)
-    var fileDescriptor by mutableStateOf<ParcelFileDescriptor?>(null) // BUG-014: Track for cleanup
+    // State - must use remember to retain across recompositions!
+    var pdfRenderer by remember { mutableStateOf<PdfRenderer?>(null) }
+    var fileDescriptor by remember { mutableStateOf<ParcelFileDescriptor?>(null) } // BUG-014: Track for cleanup
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
-    var totalPages by mutableStateOf(0)
-    var pageBitmap by mutableStateOf<Bitmap?>(null)
-    var isLoading by mutableStateOf(true)
-    var errorMessage by mutableStateOf<String?>(null)
+    var totalPages by remember { mutableIntStateOf(0) }
+    var pageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Zoom and pan state
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    val minScale = 1f
+    val maxScale = 5f
 
     // Initialize PDF renderer - only when composable is active
     LaunchedEffect(documentUri) {
         withContext(Dispatchers.IO) {
             try {
+                Log.d(TAG, "Initializing PdfRenderer for: $documentUri")
                 val fd = getFileDescriptor(context, documentUri)
                 if (fd != null) {
                     fileDescriptor = fd // BUG-014: Store for cleanup
                     val renderer = PdfRenderer(fd)
                     pdfRenderer = renderer
                     totalPages = renderer.pageCount
+                    Log.d(TAG, "PdfRenderer created successfully. Pages: $totalPages")
                     isLoading = false
                 } else {
+                    Log.e(TAG, "FileDescriptor is null for: $documentUri")
                     errorMessage = "Could not open PDF file. The file may have been moved or deleted."
                     isLoading = false
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "Exception creating PdfRenderer: ${e.message}", e)
                 errorMessage = "Error opening PDF: ${e.message}"
                 isLoading = false
             }
         }
     }
 
+    // Reset zoom when page changes
+    LaunchedEffect(currentPage) {
+        scale = 1f
+        offset = Offset.Zero
+    }
+
     // Render current page - lazy, only when needed
     // BUG-046: Memory-adaptive scaling based on device capabilities
-    LaunchedEffect(currentPage, pdfRenderer) {
+    // BUG-047: Fixed race condition when rapidly switching pages
+    // - Added debounce delay to prevent rapid re-renders
+    // - Added mutex to ensure only one page is rendered at a time
+    // - PdfRenderer.openPage() throws if a page is already open
+    LaunchedEffect(currentPage, isLoading) {
+        Log.d(TAG, "Render LaunchedEffect triggered: currentPage=$currentPage, isLoading=$isLoading, pdfRenderer=${pdfRenderer != null}")
+        if (isLoading) return@LaunchedEffect
+        
+        // BUG-047: Debounce rapid page changes - wait 150ms before rendering
+        // This allows the user to swipe through pages quickly without triggering
+        // expensive renders for each intermediate page
+        kotlinx.coroutines.delay(150)
+        
         pdfRenderer?.let { renderer ->
+            Log.d(TAG, "Starting page render: page=$currentPage, totalPages=${renderer.pageCount}")
             withContext(Dispatchers.IO) {
                 try {
                     if (currentPage < renderer.pageCount) {
-                        // Recycle previous bitmap to free memory
-                        pageBitmap?.recycle()
+                        // Store old bitmap reference for safe recycling after new bitmap is set
+                        val oldBitmap = pageBitmap
 
-                        val page = renderer.openPage(currentPage)
+                        // BUG-047: Synchronized page access - PdfRenderer only allows one page open at a time
+                        // Use synchronized block to prevent concurrent page operations
+                        val newBitmap = synchronized(renderer) {
+                            // Double-check we still want this page (may have changed during debounce)
+                            if (currentPage >= renderer.pageCount) return@synchronized null
+                            
+                            val page = try {
+                                renderer.openPage(currentPage)
+                            } catch (e: IllegalStateException) {
+                                // Page already open or renderer closed - skip this render
+                                Log.w(TAG, "Could not open page $currentPage: ${e.message}")
+                                return@synchronized null
+                            }
 
-                        // Calculate adaptive scale based on device capabilities (BUG-046)
-                        val maxDimension = try {
-                            ResourceManager.getMaxImageDimension()
-                        } catch (e: Exception) {
-                            2048 // Fallback
+                            // Calculate adaptive scale based on device capabilities (BUG-046)
+                            val maxDimension = try {
+                                ResourceManager.getMaxImageDimension()
+                            } catch (e: Exception) {
+                                2048 // Fallback
+                            }
+
+                            // Calculate scale to fit within max dimension while maintaining aspect ratio
+                            val pageWidth = page.width
+                            val pageHeight = page.height
+                            val scaleFactor = minOf(
+                                maxDimension.toFloat() / pageWidth,
+                                maxDimension.toFloat() / pageHeight,
+                                3f // Cap at 3x to prevent excessive memory usage
+                            ).coerceAtLeast(1f) // At least 1x scale
+
+                            val renderWidth = (pageWidth * scaleFactor).toInt()
+                            val renderHeight = (pageHeight * scaleFactor).toInt()
+
+                            // Check memory before allocating (BUG-046)
+                            val requiredMB = (renderWidth.toLong() * renderHeight * 4) / (1024 * 1024)
+                            val hasMemory = try {
+                                ResourceManager.hasEnoughMemory(requiredMB)
+                            } catch (e: Exception) {
+                                true // Proceed if ResourceManager not initialized
+                            }
+
+                            // If not enough memory, reduce scale
+                            val finalWidth: Int
+                            val finalHeight: Int
+                            if (!hasMemory) {
+                                // Reduce to 1x if memory constrained
+                                finalWidth = pageWidth
+                                finalHeight = pageHeight
+                                Log.w(TAG, "Reduced PDF scale due to memory pressure")
+                            } else {
+                                finalWidth = renderWidth
+                                finalHeight = renderHeight
+                            }
+
+                            val bitmap = try {
+                                Bitmap.createBitmap(
+                                    finalWidth,
+                                    finalHeight,
+                                    Bitmap.Config.ARGB_8888
+                                )
+                            } catch (e: OutOfMemoryError) {
+                                Log.e(TAG, "OOM creating bitmap, trying smaller size")
+                                page.close()
+                                // Try with original size as fallback
+                                Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
+                            }
+                            
+                            try {
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            } finally {
+                                page.close() // Always close the page
+                            }
+                            
+                            Log.d(TAG, "PDF page rendered: ${pageWidth}x${pageHeight} -> ${finalWidth}x${finalHeight} (${requiredMB}MB)")
+                            bitmap
                         }
+                        
+                        // Only update bitmap if render succeeded
+                        if (newBitmap != null) {
+                            // Set new bitmap first
+                            pageBitmap = newBitmap
 
-                        // Calculate scale to fit within max dimension while maintaining aspect ratio
-                        val pageWidth = page.width
-                        val pageHeight = page.height
-                        val scaleFactor = minOf(
-                            maxDimension.toFloat() / pageWidth,
-                            maxDimension.toFloat() / pageHeight,
-                            3f // Cap at 3x to prevent excessive memory usage
-                        ).coerceAtLeast(1f) // At least 1x scale
-
-                        val renderWidth = (pageWidth * scaleFactor).toInt()
-                        val renderHeight = (pageHeight * scaleFactor).toInt()
-
-                        // Check memory before allocating (BUG-046)
-                        val requiredMB = (renderWidth.toLong() * renderHeight * 4) / (1024 * 1024)
-                        val hasMemory = try {
-                            ResourceManager.hasEnoughMemory(requiredMB)
-                        } catch (e: Exception) {
-                            true // Proceed if ResourceManager not initialized
+                            // Recycle old bitmap after UI has had chance to update
+                            kotlinx.coroutines.delay(100)
+                            try {
+                                oldBitmap?.let { bmp ->
+                                    if (!bmp.isRecycled) {
+                                        bmp.recycle()
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // Ignore - bitmap may already be recycled or in use
+                            }
                         }
-
-                        // If not enough memory, reduce scale
-                        val finalWidth: Int
-                        val finalHeight: Int
-                        if (!hasMemory) {
-                            // Reduce to 1x if memory constrained
-                            finalWidth = pageWidth
-                            finalHeight = pageHeight
-                            Log.w(TAG, "Reduced PDF scale due to memory pressure")
-                        } else {
-                            finalWidth = renderWidth
-                            finalHeight = renderHeight
-                        }
-
-                        val bitmap = Bitmap.createBitmap(
-                            finalWidth,
-                            finalHeight,
-                            Bitmap.Config.ARGB_8888
-                        )
-                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        page.close()
-                        pageBitmap = bitmap
-
-                        Log.d(TAG, "PDF page rendered: ${pageWidth}x${pageHeight} -> ${finalWidth}x${finalHeight} (${requiredMB}MB)")
                     }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "OOM rendering PDF page", e)
                     errorMessage = "Not enough memory to render page. Try closing other apps."
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // BUG-047: Normal cancellation when user switches pages rapidly - don't log as error
+                    Log.d(TAG, "Page render cancelled (user switched pages)")
+                    throw e // Re-throw to properly cancel the coroutine
                 } catch (e: Exception) {
+                    Log.e(TAG, "Exception rendering PDF page: ${e.message}", e)
                     errorMessage = "Error rendering page: ${e.message}"
                 }
             }
@@ -227,7 +316,12 @@ private fun PdfViewerContent(
     DisposableEffect(Unit) {
         onDispose {
             try {
-                pageBitmap?.recycle()
+                // Safe bitmap recycling - check if not already recycled
+                pageBitmap?.let { bitmap ->
+                    if (!bitmap.isRecycled) {
+                        bitmap.recycle()
+                    }
+                }
                 pageBitmap = null
                 pdfRenderer?.close()
                 pdfRenderer = null
@@ -239,16 +333,21 @@ private fun PdfViewerContent(
         }
     }
 
+    // Light background color for better PDF viewing
+    val backgroundColor = Color(0xFFF5F5F5)
+    val headerColor = MaterialTheme.colorScheme.surface
+    val contentColor = MaterialTheme.colorScheme.onSurface
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.DarkGray)
+            .background(backgroundColor)
     ) {
         when {
             isLoading -> {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
             errorMessage != null -> {
@@ -261,40 +360,138 @@ private fun PdfViewerContent(
                     Icon(
                         imageVector = Icons.Default.Description,
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.6f),
+                        tint = contentColor.copy(alpha = 0.6f),
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = errorMessage ?: "Unknown error",
-                        color = Color.White,
+                        color = contentColor,
                         textAlign = TextAlign.Center
                     )
                 }
             }
             pageBitmap != null -> {
-                Image(
-                    bitmap = pageBitmap!!.asImageBitmap(),
-                    contentDescription = "PDF page ${currentPage + 1}",
-                    contentScale = ContentScale.Fit,
+                val swipeThreshold = 100f // Minimum swipe distance to trigger page change
+
+                // Zoomable and pannable PDF content with swipe navigation
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 56.dp, bottom = 80.dp)
-                )
+                        .padding(top = 56.dp, bottom = if (totalPages > 1) 64.dp else 0.dp)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                // Wait for first finger down
+                                awaitFirstDown(requireUnconsumed = false)
+
+                                var zoom = 1f
+                                var pan = Offset.Zero
+                                var totalPanX = 0f
+                                var isPinching = false
+
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val pointerCount = event.changes.size
+
+                                    // Detect if this is a pinch gesture (2+ fingers)
+                                    if (pointerCount >= 2) {
+                                        isPinching = true
+                                        zoom = event.calculateZoom()
+                                        pan = event.calculatePan()
+
+                                        // Apply zoom
+                                        val newScale = (scale * zoom).coerceIn(minScale, maxScale)
+                                        scale = newScale
+
+                                        // Apply pan when zoomed
+                                        if (scale > 1f) {
+                                            val maxOffsetX = (size.width * (scale - 1)) / 2
+                                            val maxOffsetY = (size.height * (scale - 1)) / 2
+                                            offset = Offset(
+                                                x = (offset.x + pan.x).coerceIn(-maxOffsetX, maxOffsetX),
+                                                y = (offset.y + pan.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                            )
+                                        }
+                                    } else if (pointerCount == 1 && !isPinching) {
+                                        // Single finger drag
+                                        val change = event.changes.first()
+                                        if (change.positionChanged()) {
+                                            val dragAmount = change.position - change.previousPosition
+
+                                            if (scale > 1.1f) {
+                                                // When zoomed, pan the image
+                                                val maxOffsetX = (size.width * (scale - 1)) / 2
+                                                val maxOffsetY = (size.height * (scale - 1)) / 2
+                                                offset = Offset(
+                                                    x = (offset.x + dragAmount.x).coerceIn(-maxOffsetX, maxOffsetX),
+                                                    y = (offset.y + dragAmount.y).coerceIn(-maxOffsetY, maxOffsetY)
+                                                )
+                                            } else {
+                                                // When not zoomed, track for page swipe
+                                                totalPanX += dragAmount.x
+                                            }
+                                        }
+                                    }
+
+                                    // Consume all changes
+                                    event.changes.forEach { it.consume() }
+
+                                } while (event.changes.any { it.pressed })
+
+                                // Gesture ended - check for page swipe (only when not zoomed and wasn't pinching)
+                                if (!isPinching && scale <= 1.1f) {
+                                    if (totalPanX < -swipeThreshold && currentPage < totalPages - 1) {
+                                        currentPage++ // Swipe left = next page
+                                    } else if (totalPanX > swipeThreshold && currentPage > 0) {
+                                        currentPage-- // Swipe right = previous page
+                                    }
+                                }
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    // Toggle zoom on double tap
+                                    if (scale > 1.5f) {
+                                        scale = 1f
+                                        offset = Offset.Zero
+                                    } else {
+                                        scale = 2.5f
+                                    }
+                                }
+                            )
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = pageBitmap!!.asImageBitmap(),
+                        contentDescription = "PDF page ${currentPage + 1}",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offset.x,
+                                translationY = offset.y
+                            )
+                    )
+                }
             }
         }
 
-        // Header - static
+        // Header with improved styling
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter),
-            color = Color.Black.copy(alpha = 0.7f)
+            color = headerColor,
+            shadowElevation = 4.dp
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -302,63 +499,76 @@ private fun PdfViewerContent(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
-                        tint = Color.White
+                        tint = contentColor
                     )
                 }
 
                 Text(
                     text = fileName ?: "PDF Document",
-                    color = Color.White,
+                    color = contentColor,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
                 )
 
-                Spacer(modifier = Modifier.width(48.dp))
+                // Zoom indicator
+                if (scale > 1f) {
+                    Text(
+                        text = "${(scale * 100).toInt()}%",
+                        color = contentColor.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.width(48.dp))
+                }
             }
         }
 
-        // Page navigation - static controls
+        // Page navigation - compact pill style at bottom
         if (totalPages > 1) {
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter),
-                color = Color.Black.copy(alpha = 0.7f)
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = headerColor,
+                shadowElevation = 6.dp
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = { if (currentPage > 0) currentPage-- },
-                        enabled = currentPage > 0
+                        enabled = currentPage > 0,
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
                             contentDescription = "Previous page",
-                            tint = if (currentPage > 0) Color.White else Color.Gray
+                            tint = if (currentPage > 0) contentColor else contentColor.copy(alpha = 0.3f)
                         )
                     }
 
                     Text(
                         text = "${currentPage + 1} / $totalPages",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        color = contentColor,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(horizontal = 12.dp)
                     )
 
                     IconButton(
                         onClick = { if (currentPage < totalPages - 1) currentPage++ },
-                        enabled = currentPage < totalPages - 1
+                        enabled = currentPage < totalPages - 1,
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateNext,
                             contentDescription = "Next page",
-                            tint = if (currentPage < totalPages - 1) Color.White else Color.Gray
+                            tint = if (currentPage < totalPages - 1) contentColor else contentColor.copy(alpha = 0.3f)
                         )
                     }
                 }
@@ -374,9 +584,9 @@ private fun TextViewerContent(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var textContent by mutableStateOf<String?>(null)
-    var isLoading by mutableStateOf(true)
-    var errorMessage by mutableStateOf<String?>(null)
+    var textContent by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // Load text only when composable is active (BUG-014: Proper resource cleanup with use())
     LaunchedEffect(documentUri) {

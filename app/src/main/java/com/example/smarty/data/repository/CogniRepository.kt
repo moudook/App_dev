@@ -4,14 +4,17 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.room.Transaction
+import android.util.Log
 import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.local.CategoryDao
+import com.example.smarty.data.local.CogniDatabase
 import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.local.NoteVersionDao
 import com.example.smarty.data.model.NoteVersion
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.cache.ToolResultCache
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -35,6 +38,14 @@ class CogniRepository(
 
     suspend fun getNoteById(id: String): Note? = noteDao.getNoteById(id)
 
+    /**
+     * Observe a note by ID as a Flow.
+     * Emits new value whenever the note is updated in the database.
+     * Used for reactive detail view that auto-updates when AI processing completes.
+     */
+    fun getNoteByIdFlow(id: String): Flow<Note?> = noteDao.getNoteByIdFlow(id)
+        .distinctUntilChanged()
+
     fun searchNotes(query: String, types: List<com.example.smarty.data.model.NoteType>): Flow<List<Note>> {
         val hasTypeFilter = types.isNotEmpty()
         // If types list is empty, Room requires a non-empty list for IN clause even if we use the boolean flag logic.
@@ -45,21 +56,37 @@ class CogniRepository(
     }
 
     // =========================================================================
-    // FTS5 FULL-TEXT SEARCH
+    // FTS FULL-TEXT SEARCH (with FTS5/FTS4/LIKE fallback)
     // =========================================================================
 
     /**
-     * Fast full-text search using FTS5.
-     * Sanitizes query to prevent FTS5 syntax errors.
-     * Returns results ranked by relevance (BM25 algorithm).
+     * Fast full-text search using FTS.
+     * Automatically uses FTS5, FTS4, or LIKE search based on device capability.
+     * - FTS5: Ranked by relevance (BM25 algorithm)
+     * - FTS4: Ordered by creation date (no BM25)
+     * - LIKE: Fallback if no FTS available
      */
     suspend fun searchNotesFts(query: String): List<Note> {
         val sanitizedQuery = sanitizeFtsQuery(query)
         if (sanitizedQuery.isBlank()) return emptyList()
+
         return try {
-            noteDao.searchNotesFts(sanitizedQuery)
+            when (CogniDatabase.getFtsVersion()) {
+                5 -> {
+                    Log.d(TAG, "Using FTS5 search")
+                    noteDao.searchNotesFts(sanitizedQuery)
+                }
+                4 -> {
+                    Log.d(TAG, "Using FTS4 search (no bm25 ranking)")
+                    noteDao.searchNotesFts4(sanitizedQuery)
+                }
+                else -> {
+                    Log.d(TAG, "FTS not available, using LIKE search")
+                    noteDao.searchNotes(query, emptyList(), false).first()
+                }
+            }
         } catch (e: Exception) {
-            // Fallback to LIKE search if FTS fails
+            Log.w(TAG, "FTS search failed, falling back to LIKE: ${e.message}")
             noteDao.searchNotes(query, emptyList(), false).first()
         }
     }
@@ -70,9 +97,15 @@ class CogniRepository(
     suspend fun searchNotesFtsWithType(query: String, types: List<com.example.smarty.data.model.NoteType>): List<Note> {
         val sanitizedQuery = sanitizeFtsQuery(query)
         if (sanitizedQuery.isBlank()) return emptyList()
+
         return try {
-            noteDao.searchNotesFtsWithType(sanitizedQuery, types)
+            when (CogniDatabase.getFtsVersion()) {
+                5 -> noteDao.searchNotesFtsWithType(sanitizedQuery, types)
+                4 -> noteDao.searchNotesFts4WithType(sanitizedQuery, types)
+                else -> noteDao.searchNotes(query, types, true).first()
+            }
         } catch (e: Exception) {
+            Log.w(TAG, "FTS search with type failed, falling back: ${e.message}")
             noteDao.searchNotes(query, types, true).first()
         }
     }
@@ -85,8 +118,17 @@ class CogniRepository(
         if (sanitizedQuery.isBlank()) {
             return kotlinx.coroutines.flow.flowOf(emptyList())
         }
-        return noteDao.searchNotesFtsFlow(sanitizedQuery)
-            .distinctUntilChanged()
+
+        return try {
+            when (CogniDatabase.getFtsVersion()) {
+                5 -> noteDao.searchNotesFtsFlow(sanitizedQuery).distinctUntilChanged()
+                4 -> noteDao.searchNotesFts4Flow(sanitizedQuery).distinctUntilChanged()
+                else -> noteDao.searchNotes(query, emptyList(), false).distinctUntilChanged()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "FTS flow search failed, falling back: ${e.message}")
+            noteDao.searchNotes(query, emptyList(), false).distinctUntilChanged()
+        }
     }
 
     /**
@@ -110,6 +152,8 @@ class CogniRepository(
     // =========================================================================
 
     companion object {
+        private const val TAG = "CogniRepository"
+
         // Default paging configuration - 20 items per page, prefetch 2 pages
         private val DEFAULT_PAGING_CONFIG = PagingConfig(
             pageSize = 20,
@@ -214,11 +258,17 @@ class CogniRepository(
             }
     }
 
-    suspend fun updateNote(note: Note) = noteDao.updateNote(note)
+    suspend fun updateNote(note: Note) {
+        noteDao.updateNote(note)
+        // SECURITY: Invalidate AI tool cache - privacy state may have changed
+        ToolResultCache.invalidateNoteCache()
+    }
 
     suspend fun updateNotes(notes: List<Note>) {
         if (notes.isEmpty()) return
         noteDao.updateNotes(notes)
+        // SECURITY: Invalidate AI tool cache - privacy state may have changed
+        ToolResultCache.invalidateNoteCache()
     }
 
     @Transaction
@@ -227,6 +277,8 @@ class CogniRepository(
         note.categoryId?.let { categoryDao.decrementNoteCount(it) }
         // Clean up any calendar events linked to this note
         calendarDao.clearNoteLinkForNote(note.id)
+        // SECURITY: Invalidate AI tool cache - note no longer exists
+        ToolResultCache.invalidateNoteCache()
     }
 
     @Transaction
@@ -234,6 +286,8 @@ class CogniRepository(
         val note = noteDao.getNoteById(noteId) ?: return
         noteDao.archiveNote(noteId)
         note.categoryId?.let { categoryDao.decrementNoteCount(it) }
+        // SECURITY: Invalidate AI tool cache - note visibility changed
+        ToolResultCache.invalidateNoteCache()
     }
 
     @Transaction
@@ -241,6 +295,8 @@ class CogniRepository(
         val note = noteDao.getNoteById(noteId) ?: return
         noteDao.unarchiveNote(noteId)
         note.categoryId?.let { categoryDao.incrementNoteCount(it) }
+        // SECURITY: Invalidate AI tool cache - note visibility changed
+        ToolResultCache.invalidateNoteCache()
     }
 
     // Bulk operations (Phase 4)
@@ -253,6 +309,8 @@ class CogniRepository(
         notes.forEach { note ->
             note.categoryId?.let { categoryDao.decrementNoteCount(it) }
         }
+        // SECURITY: Invalidate AI tool cache - note visibility changed
+        ToolResultCache.invalidateNoteCache()
     }
 
     @Transaction
@@ -264,6 +322,8 @@ class CogniRepository(
         notes.forEach { note ->
             note.categoryId?.let { categoryDao.incrementNoteCount(it) }
         }
+        // SECURITY: Invalidate AI tool cache - note visibility changed
+        ToolResultCache.invalidateNoteCache()
     }
 
     @Transaction
@@ -276,6 +336,8 @@ class CogniRepository(
             note.categoryId?.let { categoryDao.decrementNoteCount(it) }
             calendarDao.clearNoteLinkForNote(note.id)
         }
+        // SECURITY: Invalidate AI tool cache - notes deleted
+        ToolResultCache.invalidateNoteCache()
     }
 
     @Transaction

@@ -240,9 +240,9 @@ class CogniAgentProvider(
     }
 
     /**
-     * Create Local PC executor (OpenAI-compatible inference API via USB tethering).
-     * FOR TESTING ONLY - Remove before publishing!
-     * Uses dynamic IP from SecurePreferences - IP can change with each USB tethering session.
+     * Create Local PC executor (OpenAI-compatible inference API via USB/WiFi).
+     * Run AI locally on your computer for privacy and offline use.
+     * Uses dynamic IP from SecurePreferences - IP can change with each connection session.
      * Validates connectivity before creating executor to provide meaningful error messages.
      */
     private fun createLocalPCExecutor(apiKey: String, modelId: String, keyIndex: Int): ExecutorResult {
@@ -284,9 +284,10 @@ class CogniAgentProvider(
 
     /**
      * Validates connectivity to LOCAL_PC server with a short timeout.
-     * Performs a simple HTTP GET request to check if the server is reachable.
+     * Performs a simple HTTP/HTTPS GET request to check if the server is reachable.
+     * Supports self-signed certificates for HTTPS connections.
      *
-     * @param baseUrl The base URL of the local server (e.g., "http://192.168.x.x:8080")
+     * @param baseUrl The base URL of the local server (e.g., "http://192.168.x.x:8080" or "https://...")
      * @return LocalPCConnectionResult indicating success or failure with error details
      */
     private fun validateLocalPCConnection(baseUrl: String): LocalPCConnectionResult {
@@ -301,7 +302,26 @@ class CogniAgentProvider(
             Log.d(TAG, "Validating LOCAL_PC connection to: $testUrl")
 
             val url = URL(testUrl)
-            val connection = url.openConnection() as HttpURLConnection
+            val connection = if (testUrl.startsWith("https")) {
+                // For HTTPS with self-signed certificates, we need to trust all certs
+                // This is safe for local LAN connections only
+                val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+                    override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                    override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
+                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                })
+
+                val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
+                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+
+                val httpsConnection = url.openConnection() as javax.net.ssl.HttpsURLConnection
+                httpsConnection.sslSocketFactory = sslContext.socketFactory
+                httpsConnection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
+                httpsConnection
+            } else {
+                url.openConnection() as HttpURLConnection
+            }
+
             connection.requestMethod = "GET"
             connection.connectTimeout = LOCAL_PC_CONNECTION_TIMEOUT_MS
             connection.readTimeout = LOCAL_PC_CONNECTION_TIMEOUT_MS
@@ -357,6 +377,12 @@ class CogniAgentProvider(
                 isConnected = false,
                 errorMessage = "Host not found - check IP address"
             )
+        } catch (e: javax.net.ssl.SSLHandshakeException) {
+            Log.w(TAG, "LOCAL_PC SSL handshake error: ${e.message}")
+            LocalPCConnectionResult(
+                isConnected = false,
+                errorMessage = "SSL certificate error"
+            )
         } catch (e: java.io.IOException) {
             Log.w(TAG, "LOCAL_PC I/O error: ${e.message}")
             LocalPCConnectionResult(
@@ -370,6 +396,16 @@ class CogniAgentProvider(
                 errorMessage = "Unexpected error: ${e.message ?: "Unknown error"}"
             )
         }
+    }
+
+    /**
+     * Get the LOCAL_PC base URL.
+     * Public method to expose LOCAL_PC URL configuration.
+     */
+    fun getLocalPCBaseUrl(): String? {
+        val fullUrl = securePreferences.getLocalPCUrl()
+        if (fullUrl.isBlank()) return null
+        return extractBaseUrl(fullUrl)
     }
 
     /**

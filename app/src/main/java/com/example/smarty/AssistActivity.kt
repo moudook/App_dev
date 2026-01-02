@@ -9,6 +9,7 @@ import android.graphics.drawable.ColorDrawable
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -28,6 +29,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +71,7 @@ import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
 import com.example.smarty.agent.CogniAgent
 import com.example.smarty.agent.CogniAgentProvider
+import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.WebCitation
 import com.example.smarty.data.local.CogniDatabase
 import com.example.smarty.data.local.SecurePreferences
@@ -76,7 +80,9 @@ import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
+import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.CogniRepository
@@ -84,6 +90,7 @@ import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.service.AudioPlayerService
 import com.example.smarty.service.CommandResult
 import com.example.smarty.service.LocalCommandProcessor
+import com.example.smarty.service.ScreenCaptureService
 import com.example.smarty.ui.theme.CogniTheme
 import com.example.smarty.ui.theme.GeminiColors
 import com.example.smarty.util.PrivacyGuard
@@ -97,6 +104,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.util.Locale
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import androidx.compose.ui.graphics.Color as ComposeColor
 
@@ -152,11 +160,12 @@ class AssistActivity : ComponentActivity() {
 
     // Lazy dependencies
     private val securePreferences: SecurePreferences by lazy { SecurePreferences.getInstance(application) }
+    private val aiService: AIService by lazy { AIService(securePreferences) }
     private val database: CogniDatabase by lazy { CogniDatabase.getDatabase(application) }
     private val repository: CogniRepository by lazy {
         CogniRepository(database.noteDao(), database.categoryDao(), database.calendarDao(), database.noteVersionDao())
     }
-    private val chatRepository by lazy<ChatRepository> { ChatRepository(database.chatDao()) }
+    // Note: chatRepository removed - session management is handled by AssistViewModel
     private val groqKeyManager: GroqKeyManager by lazy { GroqKeyManager.getInstance(application) }
     private val tavilySearchProvider: TavilySearchProvider by lazy {
         val httpClient = OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
@@ -186,8 +195,22 @@ class AssistActivity : ComponentActivity() {
         // Gemini API key for AgentOptimizer semantic cache fallback
         override fun getGeminiApiKey(): String? = securePreferences.getProviderKeys(com.example.smarty.data.local.AIProvider.GEMINI).firstOrNull()
         override suspend fun processNoteWithAi(note: Note) {
-            // Mark as completed immediately - no AI processing in assistant mode for speed
-            repository.updateNote(note.copy(processingStatus = ProcessingStatus.COMPLETED))
+            // In assistant mode, assign a category based on content type for speed
+            // (skipping full AI analysis to maintain responsiveness)
+            val categoryName = when {
+                NoteType.isAnalyzable(note.type) -> {
+                    // Use ContentTypeDetector's mock response to get a category
+                    val (tag, _, _) = com.example.smarty.util.ContentTypeDetector.generateMockAiResponse(note.type, note.content)
+                    tag.ifBlank { "Quick Notes" }
+                }
+                else -> com.example.smarty.util.ContentTypeDetector.getStorageCategoryName(note.type)
+            }
+            val category = repository.getOrCreateCategory(categoryName)
+            repository.updateNote(note.copy(
+                categoryId = category.id,
+                categoryName = category.name,
+                processingStatus = ProcessingStatus.COMPLETED
+            ))
         }
         override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
             return notes.find { it.title.contains(description, ignoreCase = true) || it.content.contains(description, ignoreCase = true) }
@@ -225,10 +248,65 @@ class AssistActivity : ComponentActivity() {
         override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
             return capturedScreenContext
         }
+
+        override fun onDisplayImages(images: List<ImageDisplayItem>) {
+            // AssistActivity doesn't display images inline - this is handled by AssistViewModel
+            Log.d(TAG, "Images found: ${images.size} (not displayed in overlay mode)")
+        }
     }
 
     // Screen context captured when assistant is triggered
     private var capturedScreenContext: com.example.smarty.agent.tools.external.ScreenContext? = null
+
+    // MediaProjection for screen capture
+    private lateinit var mediaProjectionManager: MediaProjectionManager
+    private var pendingSavePageHint: String? = null
+    private var pendingSavePageOriginalText: String? = null
+    // Deferred to signal when save operation completes (for async permission flow)
+    private var pendingSaveCompletion: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    // MediaProjection permission launcher
+    private val mediaProjectionLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val completion = pendingSaveCompletion
+            if (result.resultCode == RESULT_OK && result.data != null) {
+                Log.d(TAG, "MediaProjection permission granted")
+                // Start the capture service
+                ScreenCaptureService.start(this, result.resultCode, result.data!!)
+                // Wait for service to be ready, then capture
+                lifecycleScope.launch {
+                    try {
+                        // Poll for service ready (faster than fixed delay)
+                        var attempts = 0
+                        while (!ScreenCaptureService.isReady() && attempts < 20) {
+                            kotlinx.coroutines.delay(50)
+                            attempts++
+                        }
+                        if (ScreenCaptureService.isReady()) {
+                            proceedWithScreenCapture(pendingSavePageHint, pendingSavePageOriginalText ?: "")
+                        } else {
+                            Log.w(TAG, "Service not ready after waiting, falling back to text-only")
+                            savePageWithoutScreenshot(pendingSavePageHint, pendingSavePageOriginalText ?: "")
+                        }
+                    } finally {
+                        // Signal completion to waiting coroutine
+                        completion?.complete(Unit)
+                    }
+                }
+            } else {
+                Log.w(TAG, "MediaProjection permission denied")
+                lifecycleScope.launch {
+                    try {
+                        savePageWithoutScreenshot(pendingSavePageHint, pendingSavePageOriginalText ?: "")
+                    } finally {
+                        // Signal completion to waiting coroutine
+                        completion?.complete(Unit)
+                    }
+                }
+            }
+            pendingSavePageHint = null
+            pendingSavePageOriginalText = null
+        }
 
     private val cogniAgent: CogniAgent by lazy {
         CogniAgent(this, agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks)
@@ -237,8 +315,6 @@ class AssistActivity : ComponentActivity() {
     private val localCommandProcessor: LocalCommandProcessor by lazy {
         LocalCommandProcessor(this, { cachedNotes }, { playAudio(it) }, { launchApp(it) })
     }
-
-    private var sessionId: String? = null
 
     // Assist context from triggering app
     private var assistContext: AssistContext? = null
@@ -260,6 +336,9 @@ class AssistActivity : ComponentActivity() {
         // Initialize audio manager for audio focus handling
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
+        // Initialize MediaProjection manager for screen capture
+        mediaProjectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+
         // Extract assist context from intent
         extractAssistContext()
 
@@ -272,11 +351,10 @@ class AssistActivity : ComponentActivity() {
         // This prevents Vosk from grabbing the microphone before Google speech can start
         // initWakeWordManager() will be called after first speech recognition completes
 
-        // Session - defer to background to not block main thread during speech startup
+        // Load notes for agent context - session is created by AssistViewModel
+        // REMOVED: Duplicate session creation that was deactivating ViewModel's session
         lifecycleScope.launch(Dispatchers.IO) {
             loadNotesForContext()
-            val session = chatRepository.createNewSession()
-            sessionId = session.id
         }
 
         // Back press handler
@@ -387,6 +465,7 @@ class AssistActivity : ComponentActivity() {
         // 3. Legacy edge-to-edge for older APIs
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
+        @Suppress("DEPRECATION")
         window.apply {
             // 4. Clear any background drawables
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
@@ -402,6 +481,7 @@ class AssistActivity : ComponentActivity() {
             setDimAmount(0f)
         }
 
+        @Suppress("DEPRECATION")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
         }
@@ -955,6 +1035,12 @@ class AssistActivity : ComponentActivity() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
                 // Use online recognition (more reliable for assistant overlay)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+
+                // SILENCE TIMEOUT EXTENSION: Wait 2.5 seconds of silence before stopping
+                // This allows users to take brief pauses/breaths while speaking
+                putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
+                putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
+                putExtra("android.speech.extra.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 1500L)
             }
 
             Log.d(TAG, "Calling speechRecognizer.startListening()...")
@@ -1031,6 +1117,10 @@ class AssistActivity : ComponentActivity() {
                         val assistantMessage = ChatMessage(role = ChatRole.ASSISTANT, content = commandResult.response)
                         viewModel.addMessage(assistantMessage)  // UI-005: Use ViewModel for persistence
                     }
+                    is CommandResult.SavePageRequest -> {
+                        // Handle "save this page" command
+                        handleSavePageRequest(commandResult.titleHint, text)
+                    }
                     is CommandResult.PassToLLM -> {
                          val cleanHistory = messages.filter { it.role != ChatRole.SYSTEM }.map {
                              (if(it.role==ChatRole.USER) "USER" else "ASSISTANT") to it.content
@@ -1068,11 +1158,497 @@ class AssistActivity : ComponentActivity() {
     }
 
     /**
+     * Handle "save this page" voice command.
+     * Captures a screenshot and saves it as a note with AI-generated title.
+     *
+     * Flow:
+     * 1. Check if ScreenCaptureService is ready (has MediaProjection permission)
+     * 2. If yes, capture screenshot immediately
+     * 3. If no, request permission and capture after granted
+     * 4. Save note with screenshot attached
+     *
+     * @param titleHint Optional hint from user speech (e.g., "as a note to remember today's holiday")
+     * @param originalText The original user input for context
+     */
+    private suspend fun handleSavePageRequest(titleHint: String?, originalText: String) {
+        currentToolStatus.value = "Preparing to capture..."
+
+        if (ScreenCaptureService.isReady()) {
+            // Service is ready, capture immediately (direct call, no nested launch)
+            Log.d(TAG, "ScreenCaptureService ready, capturing...")
+            proceedWithScreenCapture(titleHint, originalText)
+        } else {
+            // Need to request MediaProjection permission
+            Log.d(TAG, "Requesting MediaProjection permission...")
+            pendingSavePageHint = titleHint
+            pendingSavePageOriginalText = originalText
+
+            // Create deferred to wait for permission callback to complete
+            val completion = kotlinx.coroutines.CompletableDeferred<Unit>()
+            pendingSaveCompletion = completion
+
+            try {
+                val intent = mediaProjectionManager.createScreenCaptureIntent()
+                mediaProjectionLauncher.launch(intent)
+                // Wait for the save operation to complete (signaled by callback)
+                completion.await()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to request MediaProjection: ${e.message}", e)
+                completion.complete(Unit) // Don't leave waiting
+                // Fall back to text-only capture
+                savePageWithoutScreenshot(titleHint, originalText)
+            } finally {
+                pendingSaveCompletion = null
+            }
+        }
+    }
+
+    /**
+     * Proceed with screen capture after permission is granted.
+     * Briefly hides the overlay, captures the screen, then saves as note.
+     */
+    private suspend fun proceedWithScreenCapture(titleHint: String?, originalText: String) {
+        try {
+            currentToolStatus.value = "Capturing screenshot..."
+
+            // Briefly hide the assistant UI to capture the underlying screen
+            withContext(Dispatchers.Main) {
+                assistantPill.visibility = View.INVISIBLE
+            }
+
+            // Small delay to ensure UI is hidden
+            kotlinx.coroutines.delay(100)
+
+            // Capture screenshot
+            val screenshotPath = ScreenCaptureService.captureScreenshot()
+
+            // Restore UI
+            withContext(Dispatchers.Main) {
+                assistantPill.visibility = View.VISIBLE
+            }
+
+            if (screenshotPath != null) {
+                Log.d(TAG, "Screenshot captured: $screenshotPath")
+                savePageWithScreenshot(titleHint, originalText, screenshotPath)
+            } else {
+                Log.w(TAG, "Screenshot capture failed, falling back to text-only")
+                savePageWithoutScreenshot(titleHint, originalText)
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during screen capture: ${e.message}", e)
+            // Restore UI in case of error
+            withContext(Dispatchers.Main) {
+                assistantPill.visibility = View.VISIBLE
+            }
+            savePageWithoutScreenshot(titleHint, originalText)
+        }
+    }
+
+    /**
+     * Save page with screenshot attached.
+     */
+    private suspend fun savePageWithScreenshot(
+        titleHint: String?,
+        originalText: String,
+        screenshotPath: String
+    ) {
+        try {
+            val screenContext = capturedScreenContext
+            currentToolStatus.value = "Saving..."
+
+            // Copy screenshot to permanent storage
+            val screenshotFile = java.io.File(screenshotPath)
+            val permanentDir = java.io.File(filesDir, "screenshots")
+            permanentDir.mkdirs()
+            val permanentFile = java.io.File(permanentDir, "screenshot_${System.currentTimeMillis()}.png")
+
+            withContext(Dispatchers.IO) {
+                screenshotFile.copyTo(permanentFile, overwrite = true)
+                screenshotFile.delete() // Clean up cache file
+            }
+
+            val screenshotUri = androidx.core.content.FileProvider.getUriForFile(
+                this@AssistActivity,
+                "${packageName}.fileprovider",
+                permanentFile
+            ).toString()
+
+            // Build note content
+            val content = buildScreenCaptureContent(screenContext, true)
+
+            // Generate title - prioritize hint-based title
+            val title = generateTitle(titleHint, screenContext)
+
+            // Get or create category for screenshots
+            val category = withContext(Dispatchers.IO) {
+                repository.getOrCreateCategory("Screenshots")
+            }
+
+            // Generate basic tags from app name and title hint
+            val appName = screenContext?.referringApp ?: "Unknown"
+            val tags = mutableListOf<String>()
+            if (appName != "Unknown" && appName.isNotBlank()) {
+                tags.add(appName)
+            }
+            // Add cleaned hint words as tags if available
+            titleHint?.split(" ")
+                ?.filter { it.length > 3 && it.first().isUpperCase() }
+                ?.take(3)
+                ?.forEach { tags.add(it) }
+            val tagsJson = if (tags.isNotEmpty()) {
+                com.google.gson.Gson().toJson(tags)
+            } else null
+
+            // Create note with screenshot
+            // Use COMPLETED status so AI doesn't reprocess and overwrite our title
+            // Use NoteType.IMAGE so it displays correctly in Files tab
+            val note = Note(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                content = content,
+                type = NoteType.IMAGE,
+                processingStatus = ProcessingStatus.COMPLETED,
+                categoryId = category.id,
+                categoryName = category.name,
+                tagsJson = tagsJson,
+                fileUri = screenshotUri,
+                fileName = permanentFile.name,
+                fileMimeType = "image/png",
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+
+            // Debug logging
+            Log.d(TAG, "Creating screenshot note:")
+            Log.d(TAG, "  - id: ${note.id}")
+            Log.d(TAG, "  - title: $title")
+            Log.d(TAG, "  - titleHint: $titleHint")
+            Log.d(TAG, "  - fileUri: $screenshotUri")
+            Log.d(TAG, "  - fileName: ${permanentFile.name}")
+            Log.d(TAG, "  - type: ${note.type}")
+            Log.d(TAG, "  - categoryId: ${category.id}")
+            Log.d(TAG, "  - categoryName: ${category.name}")
+            Log.d(TAG, "  - tags: $tags")
+
+            withContext(Dispatchers.IO) {
+                repository.insertNote(note)
+            }
+
+            Log.d(TAG, "Page saved with screenshot: ${note.id}")
+            currentToolStatus.value = null
+
+            viewModel.addMessage(ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "✓ Page saved with screenshot: **$title**"
+            ))
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving page with screenshot: ${e.message}", e)
+            currentToolStatus.value = null
+            viewModel.addMessage(ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "Failed to save the page: ${e.localizedMessage ?: "Unknown error"}",
+                isError = true
+            ))
+        }
+    }
+
+    /**
+     * Save page without screenshot (fallback when capture fails or permission denied).
+     */
+    private suspend fun savePageWithoutScreenshot(titleHint: String?, originalText: String) {
+        try {
+            val screenContext = capturedScreenContext
+
+            if (screenContext == null) {
+                currentToolStatus.value = null
+                viewModel.addMessage(ChatMessage(
+                    role = ChatRole.ASSISTANT,
+                    content = "I couldn't capture the screen context. Please try again.",
+                    isError = true
+                ))
+                return
+            }
+
+            currentToolStatus.value = "Saving..."
+
+            // Build note content
+            val content = buildScreenCaptureContent(screenContext, false)
+
+            // Generate title - prioritize hint-based title
+            val title = generateTitle(titleHint, screenContext)
+
+            // Get or create category for screen captures
+            val category = withContext(Dispatchers.IO) {
+                repository.getOrCreateCategory("Screen Captures")
+            }
+
+            // Generate basic tags from app name and title hint
+            val appName = screenContext.referringApp ?: "Unknown"
+            val tags = mutableListOf<String>()
+            if (appName != "Unknown" && appName.isNotBlank()) {
+                tags.add(appName)
+            }
+            titleHint?.split(" ")
+                ?.filter { it.length > 3 && it.first().isUpperCase() }
+                ?.take(3)
+                ?.forEach { tags.add(it) }
+            val tagsJson = if (tags.isNotEmpty()) {
+                com.google.gson.Gson().toJson(tags)
+            } else null
+
+            // Create note without screenshot
+            // Use COMPLETED status so AI doesn't reprocess and overwrite our title
+            val note = Note(
+                id = UUID.randomUUID().toString(),
+                title = title,
+                content = content,
+                type = NoteType.BRAIN_DUMP,
+                processingStatus = ProcessingStatus.COMPLETED,
+                categoryId = category.id,
+                categoryName = category.name,
+                tagsJson = tagsJson,
+                createdAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
+            )
+
+            withContext(Dispatchers.IO) {
+                repository.insertNote(note)
+            }
+
+            Log.d(TAG, "Page saved (text only): ${note.id}")
+            Log.d(TAG, "  - categoryId: ${category.id}")
+            Log.d(TAG, "  - categoryName: ${category.name}")
+            Log.d(TAG, "  - tags: $tags")
+            currentToolStatus.value = null
+
+            viewModel.addMessage(ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "✓ Page saved: **$title**\n_(Screenshot unavailable - text context only)_"
+            ))
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving page: ${e.message}", e)
+            currentToolStatus.value = null
+            viewModel.addMessage(ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "Failed to save the page: ${e.localizedMessage ?: "Unknown error"}",
+                isError = true
+            ))
+        }
+    }
+
+    /**
+     * Build note content from screen context.
+     */
+    private fun buildScreenCaptureContent(
+        screenContext: com.example.smarty.agent.tools.external.ScreenContext?,
+        hasScreenshot: Boolean
+    ): String {
+        return buildString {
+            if (hasScreenshot) {
+                appendLine("📸 **Screenshot captured**")
+                appendLine()
+            }
+
+            screenContext?.selectedText?.let {
+                if (it.isNotBlank()) {
+                    appendLine("**Selected Text:**")
+                    appendLine(it)
+                    appendLine()
+                }
+            }
+
+            screenContext?.referringApp?.let {
+                appendLine("**Source App:** $it")
+            }
+
+            screenContext?.capturedAt?.let {
+                val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                    .format(java.util.Date(it))
+                appendLine("**Captured:** $timestamp")
+            }
+
+            screenContext?.contextData?.let { data ->
+                if (data.isNotEmpty()) {
+                    appendLine()
+                    appendLine("**Context:**")
+                    data.forEach { (key, value) ->
+                        appendLine("- $key: $value")
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Generate a title for the saved page using AI.
+     * - AI only knows there's a screenshot and the user's hint
+     * - AI does NOT receive the screenshot filename or content
+     */
+    private suspend fun generateTitle(
+        titleHint: String?,
+        screenContext: com.example.smarty.agent.tools.external.ScreenContext?
+    ): String {
+        val appName = screenContext?.referringApp ?: "Screen"
+
+        // If user provided a hint, use AI to generate a proper title
+        if (!titleHint.isNullOrBlank()) {
+            val aiTitle = generateTitleWithAI(titleHint, appName)
+            if (aiTitle != null) {
+                Log.d(TAG, "AI generated title: $aiTitle")
+                return aiTitle
+            }
+            // Fallback: clean the hint manually
+            val cleanedTitle = cleanHintToTitle(titleHint)
+            if (cleanedTitle.isNotBlank()) {
+                return cleanedTitle
+            }
+        }
+
+        // No hint - just use "Screenshot [App Name]"
+        return "Screenshot $appName"
+    }
+
+    /**
+     * Use AI to generate a proper title from user's hint.
+     * AI only knows: there's a screenshot from an app, and user's description.
+     * AI does NOT receive: filename, file path, or image content.
+     */
+    private suspend fun generateTitleWithAI(hint: String, appName: String): String? {
+        return try {
+            currentToolStatus.value = "Generating title..."
+
+            val systemPrompt = """Generate a very short title (2-4 words, max 30 characters).
+RULES: Only output the title. No quotes. No punctuation. No explanation."""
+            val userPrompt = "Screenshot from $appName. Description: $hint"
+
+            val response = withContext(Dispatchers.IO) {
+                aiService.simpleChat(systemPrompt, userPrompt)
+            }
+
+            // Clean up the response
+            var title = response.trim()
+                .removePrefix("\"").removeSuffix("\"")
+                .removePrefix("Title:").removePrefix("title:")
+                .removePrefix("**").removeSuffix("**")
+                .lines().first()
+                .trim()
+
+            // Enforce word count limit (max 5 words)
+            val words = title.split(" ").filter { it.isNotBlank() }
+            if (words.size > 5) {
+                title = words.take(4).joinToString(" ")
+            }
+
+            // Enforce character limit
+            if (title.length > 40) {
+                title = title.take(37) + "..."
+            }
+
+            if (title.isNotBlank() && title.length >= 2) {
+                Log.d(TAG, "AI generated title: '$title' from hint: '$hint'")
+                title
+            } else null
+        } catch (e: Exception) {
+            Log.w(TAG, "AI title generation failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Clean up the user's hint to create a proper title.
+     * Example: "from my trip" -> "My Trip"
+     * Example: "as a note to remember today's holiday" -> "Today's Holiday"
+     */
+    private fun cleanHintToTitle(hint: String): String {
+        var cleaned = hint.trim()
+
+        // Remove punctuation at start/end
+        cleaned = cleaned.trimStart { it.isWhitespace() || it in ".,;:!?-–—" }
+        cleaned = cleaned.trimEnd { it.isWhitespace() || it in ".,;:!?-–—" }
+
+        if (cleaned.isBlank()) return ""
+
+        // Remove common filler phrases (case-insensitive)
+        // Order matters - check longer phrases first
+        val prefixesToRemove = listOf(
+            // Memory/reminder phrases
+            "as a memory for this ",
+            "as a memory for the ",
+            "as a memory for my ",
+            "as a memory for ",
+            "as a memory of ",
+            "as a reminder for this ",
+            "as a reminder for the ",
+            "as a reminder for my ",
+            "as a reminder for ",
+            "as a reminder of ",
+            "as a note to remember ",
+            "as a note about ",
+            "as a note for ",
+            "as a note to ",
+            "as a note ",
+            // Action phrases
+            "to remember this ",
+            "to remember the ",
+            "to remember my ",
+            "to remember ",
+            "for reference ",
+            "for later ",
+            // Simple prefixes
+            "remember ",
+            "called ",
+            "named ",
+            "titled ",
+            "about ",
+            "from this ",
+            "from the ",
+            "from my ",
+            "from ",
+            "with ",
+            "this ",
+            "as ",
+            "to ",
+            "for ",
+            "the ",
+            "my ",
+            "a "
+        )
+
+        val lowerCleaned = cleaned.lowercase(Locale.getDefault())
+        for (prefix in prefixesToRemove) {
+            if (lowerCleaned.startsWith(prefix)) {
+                cleaned = cleaned.substring(prefix.length).trim()
+                break
+            }
+        }
+
+        if (cleaned.isBlank()) return ""
+
+        // Title case: capitalize first letter of each word
+        cleaned = cleaned.split(" ")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word ->
+                word.replaceFirstChar {
+                    if (it.isLowerCase()) it.titlecase(Locale.getDefault())
+                    else it.toString()
+                }
+            }
+
+        // Limit length
+        return if (cleaned.length > 60) cleaned.take(57) + "..." else cleaned
+    }
+
+    /**
      * Finish activity with smooth transition (no animation)
      */
     private fun finishWithAnimation() {
         stopListening()
         stopWakeWordDetection()
+        // Save the chat session before closing
+        viewModel.saveAndClose()
         finish()
         @Suppress("DEPRECATION")
         overridePendingTransition(0, android.R.anim.fade_out)
@@ -1189,22 +1765,33 @@ class AssistActivity : ComponentActivity() {
         Log.d(TAG, "onResume - activity is visible")
 
         // CRITICAL: Pause all Vosk instances across the app to free up microphone
+        // This must happen BEFORE speech recognition starts
         com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = true
         Log.d(TAG, "Vosk globally paused for Google speech recognition")
 
-        // Start speech recognition IMMEDIATELY in onResume for assistant overlay
-        // No delay - we need to grab the mic before anything else can
+        // Start speech recognition with a small delay to ensure Vosk has released the mic
+        // This delay is necessary when the main app is running in the background
         if (!hasStartedListeningOnFocus && !hasFallbackStartedListening &&
             assistContext?.selectedText.isNullOrBlank() && !isListening.value && !isProcessing.value) {
-            Log.d(TAG, "onResume: Starting speech recognition immediately")
+            Log.d(TAG, "onResume: Scheduling speech recognition after Vosk release")
             hasFallbackStartedListening = true
             hasAttemptedSpeechStart = true
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                startListening()
-            } else {
-                Log.e(TAG, "onResume: No RECORD_AUDIO permission")
-                inputField.hint = "Tap mic to speak..."
-            }
+
+            // Give Vosk 150ms to fully release the microphone before starting Google Speech
+            // This prevents audio conflicts when the main app is running
+            window.decorView.postDelayed({
+                if (!isActivityResumed) {
+                    Log.w(TAG, "Activity no longer resumed, skipping speech start")
+                    return@postDelayed
+                }
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "onResume: Starting speech recognition after Vosk delay")
+                    startListening()
+                } else {
+                    Log.e(TAG, "onResume: No RECORD_AUDIO permission")
+                    inputField.hint = "Tap mic to speak..."
+                }
+            }, 150)
         }
     }
 
@@ -1329,6 +1916,7 @@ fun BubbleMessage(msg: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
+        @Suppress("DEPRECATION")
         ClickableText(
             text = annotatedText,
             style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),

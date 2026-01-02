@@ -87,7 +87,9 @@ class VoskWakeWordManager(
         )
 
         // Model validity cache duration - must be in companion object for const
-        private const val VALIDITY_CACHE_MS = 5000L
+        // OPTIMIZATION: Increased from 5s to 30s for better offline performance
+        // This reduces overhead when resuming from pause/background
+        private const val VALIDITY_CACHE_MS = 30_000L
 
         /**
          * Global flag to pause Vosk across all instances.
@@ -173,7 +175,8 @@ class VoskWakeWordManager(
     // Debounce for restartListening to prevent rapid consecutive calls
     @Volatile
     private var lastRestartTime = 0L
-    private val restartDebounceMs = 500L  // Minimum 500ms between restarts
+    // OPTIMIZATION: Reduced from 200ms to 100ms for faster wake word responsiveness
+    private val restartDebounceMs = 100L
 
     // Flag to track if a restart is currently in progress
     @Volatile
@@ -617,8 +620,9 @@ class VoskWakeWordManager(
                     speechService = null
                     _isListening.value = false
 
-                    // Small delay to let native resources settle
-                    kotlinx.coroutines.delay(100)
+                    // OPTIMIZATION: Reduced delay from 100ms to 50ms for faster restart
+                    // Native resources should settle quickly after stop()
+                    kotlinx.coroutines.delay(50)
 
                     // Need to recreate recognizer after it's been used
                     // Close old recognizer CAREFULLY - wait for it to be idle
@@ -887,58 +891,23 @@ class VoskWakeWordManager(
                                     wakeWordTriggered = false
                                 }
                             } catch (e: Exception) {
-                                Log.e(TAG, "Speaker verification error: ${e.message}")
-                                // On error, allow the wake word through
-                                stopListening()
-                                if (!isDestroyed) {
-                                    try {
-                                        scope.launch(Dispatchers.Main) {
-                                            if (!isDestroyed) {
-                                                onWakeWordDetected()
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
-                                    }
-                                }
+                                // SECURITY FIX: On error, REJECT instead of allowing
+                                Log.e(TAG, "Speaker verification error - REJECTING: ${e.message}")
+                                Log.d(TAG, "VOSK_SPEECH [REJECTED]: Verification error for \"$text\"")
+                                wakeWordTriggered = false
                             }
                         }
                     } else {
-                        // Not enough audio samples, trigger anyway
-                        Log.w(TAG, "Not enough audio for verification, triggering anyway")
-                        stopListening()
-                        if (!isDestroyed) {
-                            try {
-                                scope.launch(Dispatchers.Main) {
-                                    if (!isDestroyed) {
-                                        onWakeWordDetected()
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
-                            }
-                        }
+                        // SECURITY FIX: Not enough audio samples - REJECT instead of allowing
+                        Log.w(TAG, "Not enough audio for verification - REJECTING")
+                        Log.d(TAG, "VOSK_SPEECH [REJECTED]: Insufficient audio for verification")
+                        wakeWordTriggered = false
                     }
                 } else {
-                    // Not enrolled, trigger without verification
-                    Log.d(TAG, "No speaker enrolled - triggering without verification")
-
-                    // Stop listening to free the mic for Google STT
-                    stopListening()
-
-                    // Notify callback on main thread (only if not destroyed)
-                    if (!isDestroyed) {
-                        try {
-                            scope.launch(Dispatchers.Main) {
-                                // Double-check destroyed flag inside coroutine
-                                if (!isDestroyed) {
-                                    onWakeWordDetected()
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
-                        }
-                    }
+                    // SECURITY FIX: Not enrolled - REJECT and require enrollment
+                    Log.w(TAG, "No speaker enrolled - REJECTING (enrollment required)")
+                    Log.d(TAG, "VOSK_SPEECH [REJECTED]: No voice enrollment found")
+                    wakeWordTriggered = false
                 }
             }
         } catch (e: Exception) {

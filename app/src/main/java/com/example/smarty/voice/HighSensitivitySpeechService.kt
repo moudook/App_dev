@@ -151,13 +151,14 @@ class HighSensitivitySpeechService(
                 }
 
                 if (readCount > 0) {
-                    // Apply gain amplification
+                    // Apply gain amplification for Vosk wake word detection
                     applyGain(buffer, amplifiedBuffer, readCount)
 
-                    // Store in rolling buffer for speaker verification
+                    // SECURITY FIX: Store ORIGINAL (non-amplified) audio for speaker verification
+                    // Using amplified audio distorts MFCC features and causes false accepts
                     synchronized(bufferLock) {
                         for (i in 0 until readCount) {
-                            verificationBuffer[bufferWriteIndex] = amplifiedBuffer[i]
+                            verificationBuffer[bufferWriteIndex] = buffer[i]  // Use original, not amplified
                             bufferWriteIndex = (bufferWriteIndex + 1) % verificationBufferSize
                         }
                     }

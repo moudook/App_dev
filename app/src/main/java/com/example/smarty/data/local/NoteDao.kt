@@ -51,6 +51,14 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :id")
     suspend fun getNoteById(id: String): Note?
 
+    /**
+     * Observe a note by ID as a Flow.
+     * Emits new value whenever the note is updated in the database.
+     * Used for reactive UI updates (e.g., detail view auto-refresh).
+     */
+    @Query("SELECT * FROM notes WHERE id = :id LIMIT 1")
+    fun getNoteByIdFlow(id: String): Flow<Note?>
+
     @Query("SELECT * FROM notes WHERE isArchived = 1 ORDER BY updatedAt DESC")
     fun getArchivedNotes(): Flow<List<Note>>
 
@@ -332,12 +340,66 @@ interface NoteDao {
     suspend fun resetStuckNotes(timeoutThreshold: Long, timestamp: Long = System.currentTimeMillis()): Int
 
     // =========================================================================
-    // FTS5 MAINTENANCE QUERIES
+    // FTS4 COMPATIBLE SEARCH QUERIES (fallback when FTS5 not available)
+    // =========================================================================
+
+    /**
+     * Full-text search using FTS4 (no bm25 ranking).
+     * Returns notes ordered by creation date instead of relevance.
+     * Used when device SQLite doesn't support FTS5.
+     *
+     * @param query Sanitized FTS query string.
+     */
+    @SkipQueryVerification
+    @Query("""
+        SELECT notes.* FROM notes
+        INNER JOIN notes_fts ON notes.rowid = notes_fts.rowid
+        WHERE notes_fts MATCH :query
+        AND notes.isArchived = 0
+        ORDER BY notes.createdAt DESC
+    """)
+    suspend fun searchNotesFts4(query: String): List<Note>
+
+    /**
+     * FTS4 search with type filter.
+     *
+     * @param query Sanitized FTS query string.
+     * @param types List of note types to filter by.
+     */
+    @SkipQueryVerification
+    @Query("""
+        SELECT notes.* FROM notes
+        INNER JOIN notes_fts ON notes.rowid = notes_fts.rowid
+        WHERE notes_fts MATCH :query
+        AND notes.isArchived = 0
+        AND notes.type IN (:types)
+        ORDER BY notes.createdAt DESC
+    """)
+    suspend fun searchNotesFts4WithType(query: String, types: List<com.example.smarty.data.model.NoteType>): List<Note>
+
+    /**
+     * FTS4 search as Flow for reactive updates.
+     *
+     * @param query Sanitized FTS query string.
+     */
+    @SkipQueryVerification
+    @Query("""
+        SELECT notes.* FROM notes
+        INNER JOIN notes_fts ON notes.rowid = notes_fts.rowid
+        WHERE notes_fts MATCH :query
+        AND notes.isArchived = 0
+        ORDER BY notes.createdAt DESC
+    """)
+    fun searchNotesFts4Flow(query: String): Flow<List<Note>>
+
+    // =========================================================================
+    // FTS MAINTENANCE QUERIES
     // =========================================================================
 
     /**
      * Rebuild FTS5 index if corrupted.
      * Call periodically (e.g., on app startup once per week).
+     * NOTE: Only works with FTS5. Check CogniDatabase.getFtsVersion() first.
      */
     @SkipQueryVerification
     @Query("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')")
@@ -346,6 +408,7 @@ interface NoteDao {
     /**
      * Optimize FTS5 index for better query performance.
      * Call after bulk operations.
+     * NOTE: Only works with FTS5. Check CogniDatabase.getFtsVersion() first.
      */
     @SkipQueryVerification
     @Query("INSERT INTO notes_fts(notes_fts) VALUES('optimize')")
@@ -354,6 +417,7 @@ interface NoteDao {
     /**
      * Check FTS5 index integrity.
      * Throws exception if corrupted.
+     * NOTE: Only works with FTS5. Check CogniDatabase.getFtsVersion() first.
      */
     @SkipQueryVerification
     @Query("INSERT INTO notes_fts(notes_fts, rank) VALUES('integrity-check', 1)")

@@ -284,7 +284,14 @@ class WebSearchToolTest {
         val result = webSearchTool.execute(args)
 
         val stringOutput = result.toString()
-        assertTrue("Should indicate failure", stringOutput.contains("failed"))
+        // TOON format: {success:false|...} or contains "error"
+        assertTrue(
+            "Should indicate failure",
+            stringOutput.contains("success:false") ||
+            stringOutput.contains("success: false") ||
+            stringOutput.contains("error") ||
+            stringOutput.contains("No API key")
+        )
     }
 
     // =========================================================================

@@ -75,6 +75,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.Attachment
+import com.example.smarty.data.model.MentionState
+import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.CogniEasing
 import com.example.smarty.ui.animation.CogniMotion
@@ -160,9 +162,11 @@ fun CogniInputField(
     onRemoveAttachment: (String) -> Unit = {},
     // Chat mode support
     isChatMode: Boolean = false,
+    isHistoryMode: Boolean = false, // New parameter
     chatPlaceholder: String = "Ask anything...",
     isProcessing: Boolean = false,
     onOpenChatHistory: () -> Unit = {},
+    onNewChat: () -> Unit = {}, // New parameter
     // AI exclusion support
     isAiExcluded: Boolean = false,
     // Search mode support
@@ -184,7 +188,10 @@ fun CogniInputField(
     // Search filter parameters (used when isSearchMode = true)
     selectedFilters: Set<AttachmentOption> = emptySet(),
     onFilterToggle: (AttachmentOption) -> Unit = {},
-    onClearFilters: () -> Unit = {}
+    onClearFilters: () -> Unit = {},
+    // @Mention support (Chat mode only)
+    mentionState: MentionState = MentionState(),
+    onMentionSelected: (MentionSuggestion) -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -274,9 +281,9 @@ fun CogniInputField(
 
     Column(modifier = modifier.fillMaxWidth()) {
 
-        // Chat mode indicator pill (above input)
+        // Chat mode indicator pill (above input) - hidden when mention suggestions are showing
         AnimatedVisibility(
-            visible = isChatMode,
+            visible = isChatMode && !mentionState.isActive,
             enter = slideInVertically(initialOffsetY = { 20 }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { 20 }) + fadeOut()
         ) {
@@ -287,7 +294,9 @@ fun CogniInputField(
                 contentAlignment = Alignment.Center
             ) {
                 Surface(
-                    modifier = Modifier.clickable { onOpenChatHistory() },
+                    modifier = Modifier.clickable { 
+                        if (isHistoryMode) onNewChat() else onOpenChatHistory()
+                    },
                     shape = CircleShape,
                     color = LocalAccentColor.current.copy(alpha = 0.85f)
                 ) {
@@ -296,25 +305,29 @@ fun CogniInputField(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.ChatBubble,
+                            imageVector = if (isHistoryMode) Icons.Default.Add else Icons.Default.ChatBubble,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Chat Mode",
+                            text = if (isHistoryMode) "New Chat" else "Chat Mode",
                             style = MaterialTheme.typography.labelMedium,
                             color = Color.White
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Box(Modifier.width(1.dp).height(10.dp).background(Color.White.copy(alpha = 0.3f)))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Tap for history",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
+                        
+                        // Separator and secondary text only for normal Chat Mode (not History Mode)
+                        if (!isHistoryMode) {
+                            Spacer(Modifier.width(8.dp))
+                            Box(Modifier.width(1.dp).height(10.dp).background(Color.White.copy(alpha = 0.3f)))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Tap for history",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.7f)
+                            )
+                        }
                     }
                 }
             }
@@ -413,6 +426,18 @@ fun CogniInputField(
                      )
                 }
             }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        // @MENTION AUTOCOMPLETE DROPDOWN (Chat mode only, above input)
+        // ═══════════════════════════════════════════════════════════════════
+        if (isChatMode) {
+            val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+            MentionDropdown(
+                mentionState = mentionState,
+                onSuggestionSelected = onMentionSelected,
+                isDarkTheme = isDark
+            )
         }
 
         // ═══════════════════════════════════════════════════════════════════
@@ -714,10 +739,7 @@ private fun InputPill(
                     isAgentWorking && !isVoiceListening && !autoSendActive -> ShimmerDirection.RIGHT_TO_LEFT
                     else -> ShimmerDirection.LEFT_TO_RIGHT
                 }
-                val shimmerColor = when {
-                    isAgentWorking && !isVoiceListening && !autoSendActive -> AgentShimmerColor
-                    else -> LocalAccentColor.current
-                }
+                val shimmerColor = LocalAccentColor.current
                 val shimmerSpeed = if (autoSendActive) 3.5f else 1f
 
                 Box(
