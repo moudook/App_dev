@@ -31,6 +31,16 @@ sealed class CommandResult {
     data object PassToLLM : CommandResult()
 
     /**
+     * Command was handled locally but ALSO needs to be passed to LLM.
+     * Use when query contains multiple tasks (e.g., "play music and create a note").
+     * The local action is executed first, then the query goes to AI.
+     */
+    data class HandledAndPassToLLM(
+        val response: String,
+        val action: CommandAction? = null
+    ) : CommandResult()
+
+    /**
      * Save page/screen request - handled specially in AssistActivity.
      * @param titleHint Optional hint for the note title (text after "save this page")
      */
@@ -65,10 +75,35 @@ class LocalCommandProcessor(
     companion object {
         private const val TAG = "LocalCommandProcessor"
 
-        // Command prefixes (case-insensitive)
-        private val OPEN_PREFIXES = listOf("open ", "launch ", "start ", "run ")
+        // Command prefixes (case-insensitive) - ordered by specificity (longer first)
+        private val OPEN_PREFIXES = listOf(
+            "open up the ", "open up my ", "open up ",
+            "open the ", "open my ", "open ",
+            "launch the ", "launch my ", "launch ",
+            "start the ", "start my ", "start ",
+            "run the ", "run my ", "run ",
+            "go to ", "switch to "
+        )
         private val PLAY_PREFIXES = listOf("play ", "play me ", "play some ", "put on ")
         private val STOP_PREFIXES = listOf("stop ", "pause ", "stop playing", "pause music")
+
+        // Task words that indicate the query has multiple tasks
+        // If "play" + these words are found, audio is played AND query goes to AI
+        private val TASK_WORDS = listOf(
+            "create", "make", "write", "build", "generate", "draft", "prepare", "compose",
+            "add", "save", "update", "edit", "modify", "delete", "remove",
+            "set", "schedule", "remind", "timer", "alarm",
+            "send", "share", "post", "upload",
+            "search", "find", "look", "get", "fetch",
+            "calculate", "convert", "translate",
+            "summarize", "explain", "analyze",
+            "then", "also", "and also", "after that", "next"
+        )
+
+        // Filler words to remove from app queries
+        private val FILLER_WORDS = listOf(
+            "app", "application", "the", "a", "an", "my", "please", "for me", "now"
+        )
         // Keywords that indicate a "save page" command
         private val SAVE_PAGE_KEYWORDS = listOf(
             "save this page",
@@ -127,7 +162,7 @@ class LocalCommandProcessor(
     fun process(input: String): CommandResult {
         val normalizedInput = input.trim().lowercase(Locale.getDefault())
 
-        // Check for "open" commands
+        // Check for "open" commands (must be at start)
         for (prefix in OPEN_PREFIXES) {
             if (normalizedInput.startsWith(prefix)) {
                 val appQuery = normalizedInput.removePrefix(prefix).trim()
@@ -137,14 +172,11 @@ class LocalCommandProcessor(
             }
         }
 
-        // Check for "play" commands
-        for (prefix in PLAY_PREFIXES) {
-            if (normalizedInput.startsWith(prefix)) {
-                val musicQuery = normalizedInput.removePrefix(prefix).trim()
-                if (musicQuery.isNotEmpty()) {
-                    return handlePlayCommand(musicQuery)
-                }
-            }
+        // Check for "play" commands - can appear anywhere in the query
+        // This allows queries like "hey can you play my workout playlist"
+        val playResult = tryExtractAndPlayAudio(normalizedInput)
+        if (playResult != null) {
+            return playResult
         }
 
         // Check for "stop/pause" commands
@@ -166,19 +198,113 @@ class LocalCommandProcessor(
     }
 
     /**
+     * Try to extract a "play {audio_name}" command from anywhere in the input.
+     * The audio name is limited to 2-3 words after "play".
+     *
+     * If the query contains task words (create, make, etc.), the audio is played
+     * AND the query is passed to AI for additional processing.
+     *
+     * Examples:
+     * - "play my workout music" -> plays audio, returns Handled (no task words)
+     * - "play relaxing songs and create a note" -> plays audio, returns HandledAndPassToLLM
+     * - "hey can you create a note and play jazz" -> plays audio, returns HandledAndPassToLLM
+     *
+     * @return CommandResult if audio was found, null otherwise (to pass to LLM)
+     */
+    private fun tryExtractAndPlayAudio(normalizedInput: String): CommandResult? {
+        // Find "play" keyword with various patterns
+        val playPatterns = listOf(
+            "play ", "play me ", "play some ", "put on ", "start playing "
+        )
+
+        for (pattern in playPatterns) {
+            val playIndex = normalizedInput.indexOf(pattern)
+            if (playIndex != -1) {
+                // Extract text after the play keyword
+                val afterPlay = normalizedInput.substring(playIndex + pattern.length).trim()
+                if (afterPlay.isEmpty()) continue
+
+                // Extract 1-3 words as the audio query (audio names are usually short)
+                val words = afterPlay.split(Regex("\\s+"))
+                val audioQuery = words.take(3).joinToString(" ").trim()
+
+                if (audioQuery.isEmpty()) continue
+
+                Log.d(TAG, "Detected play command in query. Audio query: '$audioQuery'")
+
+                // Try to find matching audio in notes
+                val notes = getNotes()
+                val audioMatch = findBestAudioMatch(audioQuery, notes)
+
+                if (audioMatch != null) {
+                    val (track, noteName) = audioMatch
+                    Log.d(TAG, "Found audio match: ${track.title} from note: $noteName")
+
+                    onPlayAudio(track)
+
+                    // Check if query contains task words (indicating multiple tasks)
+                    val hasTaskWords = containsTaskWords(normalizedInput)
+                    Log.d(TAG, "Query has task words: $hasTaskWords")
+
+                    return if (hasTaskWords) {
+                        // Play audio AND send to AI for additional tasks
+                        CommandResult.HandledAndPassToLLM(
+                            response = "Playing ${track.title}",
+                            action = CommandAction.PlayAudio(track)
+                        )
+                    } else {
+                        // Just play audio, no need for AI
+                        CommandResult.Handled(
+                            response = "Playing ${track.title}",
+                            action = CommandAction.PlayAudio(track)
+                        )
+                    }
+                } else {
+                    // No audio found - don't handle, let AI process the query
+                    Log.d(TAG, "No audio found for '$audioQuery', passing to LLM")
+                    return null
+                }
+            }
+        }
+
+        return null // No play command found
+    }
+
+    /**
+     * Check if the input contains any task words.
+     * Task words indicate the user wants to do multiple things.
+     */
+    private fun containsTaskWords(input: String): Boolean {
+        return TASK_WORDS.any { taskWord ->
+            // Check for whole word match using word boundaries
+            input.contains(Regex("\\b${Regex.escape(taskWord)}\\b"))
+        }
+    }
+
+    /**
      * Handle "open [app]" command.
      * Searches installed apps thoroughly and launches the most relevant match.
      * Always finds a result if any apps are installed.
      */
     private fun handleOpenCommand(appQuery: String): CommandResult {
-        Log.d(TAG, "Processing open command: $appQuery")
+        Log.d(TAG, "Processing open command: '$appQuery'")
+
+        // Clean the query by removing filler words
+        val cleanedQuery = cleanAppQuery(appQuery)
+        Log.d(TAG, "Cleaned query: '$cleanedQuery'")
+
+        if (cleanedQuery.isEmpty()) {
+            return CommandResult.Handled(response = "What app would you like me to open?")
+        }
 
         val installedApps = getInstalledApps()
+        Log.d(TAG, "Found ${installedApps.size} installed apps")
+
         if (installedApps.isEmpty()) {
             return CommandResult.Handled(response = "I couldn't find any apps on your device.")
         }
 
-        val match = findBestAppMatch(appQuery, installedApps)
+        val match = findBestAppMatch(cleanedQuery, installedApps)
 
         return if (match != null) {
             val (packageName, appName, confidence) = match
@@ -201,7 +327,7 @@ class LocalCommandProcessor(
                 CommandResult.Handled(response = "Sorry, I couldn't open $appName")
             }
         } else {
-            // This shouldn't happen if installedApps is not empty, but handle it
+            Log.w(TAG, "No app match found for query: '$cleanedQuery'")
             CommandResult.Handled(
                 response = "I couldn't find an app matching \"$appQuery\" on your device."
             )
@@ -209,38 +335,22 @@ class LocalCommandProcessor(
     }
 
     /**
-     * Handle "play [music]" command.
-     * Searches notes with audio attachments and plays the best match.
-     * UI-001: Added try-catch for robust error handling.
+     * Clean up the app query by removing filler words and normalizing.
      */
-    private fun handlePlayCommand(musicQuery: String): CommandResult {
-        Log.d(TAG, "Processing play command: $musicQuery")
+    private fun cleanAppQuery(query: String): String {
+        var cleaned = query.lowercase(Locale.getDefault()).trim()
 
-        return try {
-            val notes = getNotes()
-            val audioMatch = findBestAudioMatch(musicQuery, notes)
-
-            if (audioMatch != null) {
-                val (track, noteName) = audioMatch
-                Log.d(TAG, "Found audio match: ${track.title} from note: $noteName")
-
-                onPlayAudio(track)
-                CommandResult.Handled(
-                    response = "Playing ${track.title}",
-                    action = CommandAction.PlayAudio(track)
-                )
-            } else {
-                // No local audio found
-                CommandResult.Handled(
-                    response = "I couldn't find any music matching \"$musicQuery\" in your notes."
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in handlePlayCommand: ${e.message}", e)
-            CommandResult.Handled(
-                response = "Sorry, I couldn't play the audio: ${e.localizedMessage ?: "Unknown error"}"
-            )
+        // Remove filler words
+        for (filler in FILLER_WORDS) {
+            // Remove as whole word (with word boundaries)
+            cleaned = cleaned.replace(Regex("\\b${Regex.escape(filler)}\\b"), " ")
         }
+
+        // Normalize whitespace
+        cleaned = cleaned.replace(Regex("\\s+"), " ").trim()
+
+        Log.d(TAG, "Cleaned app query: '$query' -> '$cleaned'")
+        return cleaned
     }
 
     /**

@@ -80,6 +80,8 @@ import com.example.smarty.util.api.GroqKeyManager
 import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.service.AudioPlayerService
+import com.example.smarty.service.CommandResult
+import com.example.smarty.service.LocalCommandProcessor
 import com.example.smarty.data.model.PlaybackState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -230,6 +232,43 @@ class CogniViewModel(
             callbacks = agentCallbacks,
             rateLimiter = rateLimiter  // API budget management
         )
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // LOCAL COMMAND PROCESSOR - Handle commands without AI (open app, play music)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * LocalCommandProcessor handles hardcoded commands like "open youtube", "play music"
+     * These commands don't need AI processing and execute immediately.
+     */
+    private val localCommandProcessor: LocalCommandProcessor by lazy {
+        LocalCommandProcessor(
+            context = getApplication(),
+            getNotes = { notes.value },
+            onPlayAudio = { track -> playAudioTrack(track) },
+            onLaunchApp = { packageName -> launchApp(packageName) }
+        )
+    }
+
+    /**
+     * Launch an app by package name.
+     * Used by LocalCommandProcessor for "open [app]" commands.
+     */
+    private fun launchApp(packageName: String) {
+        try {
+            val context = getApplication<Application>()
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                Log.d(TAG, "Successfully launched app: $packageName")
+            } else {
+                Log.w(TAG, "No launch intent found for package: $packageName")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error launching app $packageName: ${e.message}")
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -3540,6 +3579,46 @@ class CogniViewModel(
             val userMessage = chatManager.addUserMessage(content, attachments)
 
             try {
+                // ═══════════════════════════════════════════════════════════════
+                // LOCAL COMMAND PROCESSING - Handle hardcoded commands without AI
+                // Commands like "open youtube", "play music" execute immediately
+                // ═══════════════════════════════════════════════════════════════
+                val commandResult = localCommandProcessor.process(content)
+                when (commandResult) {
+                    is CommandResult.Handled -> {
+                        Log.d(TAG, "Local command handled: ${commandResult.response}")
+                        val assistantMessage = ChatMessage(
+                            role = ChatRole.ASSISTANT,
+                            content = commandResult.response
+                        )
+                        chatManager.addAssistantMessage(assistantMessage)
+                        chatManager.saveMessagePair(
+                            userMessage = userMessage,
+                            assistantMessage = assistantMessage,
+                            hasApiKeys = securePreferences.hasAnyApiKeys()
+                        )
+                        return@launch // Command handled locally, no AI needed
+                    }
+                    is CommandResult.HandledAndPassToLLM -> {
+                        // Execute local action first (e.g., play audio)
+                        Log.d(TAG, "Local command handled AND passing to LLM: ${commandResult.response}")
+                        val localMessage = ChatMessage(
+                            role = ChatRole.ASSISTANT,
+                            content = commandResult.response
+                        )
+                        chatManager.addAssistantMessage(localMessage)
+                        // Continue to AI processing below for additional tasks
+                    }
+                    is CommandResult.SavePageRequest -> {
+                        // Save page not supported in main chat, pass to AI
+                        Log.d(TAG, "Save page request in main chat - passing to AI")
+                    }
+                    is CommandResult.PassToLLM -> {
+                        // Continue to AI processing below
+                        Log.d(TAG, "Command not local, passing to AI agent")
+                    }
+                }
+
                 // Build conversation history for agent memory
                 val conversationHistory = chatManager.chatMessages.value
                     .filter { it.role != ChatRole.SYSTEM } // Exclude system messages

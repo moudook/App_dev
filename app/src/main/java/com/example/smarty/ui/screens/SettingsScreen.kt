@@ -508,7 +508,7 @@ fun SettingsScreen(
             HideSystemBars()
             Box(
                 modifier = Modifier
-                    .fillMaxHeight(0.5f)
+                    .fillMaxHeight(0.75f)  // Increased from 0.5f to show all buttons including 0
                     .fillMaxWidth()
                     .padding(bottom = 32.dp)
             ) {
@@ -544,7 +544,7 @@ fun SettingsScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxHeight(0.5f)
+                    .fillMaxHeight(0.75f)  // Increased from 0.5f to show all buttons including 0
                     .fillMaxWidth()
                     .padding(bottom = 32.dp)
             ) {

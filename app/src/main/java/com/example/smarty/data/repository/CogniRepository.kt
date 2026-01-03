@@ -258,15 +258,75 @@ class CogniRepository(
             }
     }
 
+    /**
+     * Update a note and handle category count changes.
+     * If the note's category changed (e.g., after AI processing), update counts accordingly.
+     */
+    @Transaction
     suspend fun updateNote(note: Note) {
+        // Get the old note to check if category changed
+        val oldNote = noteDao.getNoteById(note.id)
+        val oldCategoryId = oldNote?.categoryId
+        val newCategoryId = note.categoryId
+
+        // Update the note
         noteDao.updateNote(note)
+
+        // Handle category count changes
+        if (oldCategoryId != newCategoryId) {
+            // Decrement old category count (if note was in a category)
+            oldCategoryId?.let { categoryDao.decrementNoteCount(it) }
+            // Increment new category count (if note is now in a category)
+            newCategoryId?.let { categoryDao.incrementNoteCount(it) }
+        }
+
         // SECURITY: Invalidate AI tool cache - privacy state may have changed
         ToolResultCache.invalidateNoteCache()
     }
 
+    /**
+     * Update multiple notes and handle category count changes.
+     * Efficiently handles category changes by batching count updates.
+     */
+    @Transaction
     suspend fun updateNotes(notes: List<Note>) {
         if (notes.isEmpty()) return
+
+        // Get old notes to check for category changes
+        val noteIds = notes.map { it.id }
+        val oldNotes = noteIds.mapNotNull { noteDao.getNoteById(it) }
+        val oldCategoryMap = oldNotes.associate { it.id to it.categoryId }
+
+        // Update all notes
         noteDao.updateNotes(notes)
+
+        // Calculate category count changes
+        val categoryChanges = mutableMapOf<String, Int>() // categoryId -> delta
+
+        for (note in notes) {
+            val oldCategoryId = oldCategoryMap[note.id]
+            val newCategoryId = note.categoryId
+
+            if (oldCategoryId != newCategoryId) {
+                // Decrement old category
+                oldCategoryId?.let {
+                    categoryChanges[it] = (categoryChanges[it] ?: 0) - 1
+                }
+                // Increment new category
+                newCategoryId?.let {
+                    categoryChanges[it] = (categoryChanges[it] ?: 0) + 1
+                }
+            }
+        }
+
+        // Apply category count changes
+        for ((categoryId, delta) in categoryChanges) {
+            when {
+                delta > 0 -> repeat(delta) { categoryDao.incrementNoteCount(categoryId) }
+                delta < 0 -> repeat(-delta) { categoryDao.decrementNoteCount(categoryId) }
+            }
+        }
+
         // SECURITY: Invalidate AI tool cache - privacy state may have changed
         ToolResultCache.invalidateNoteCache()
     }

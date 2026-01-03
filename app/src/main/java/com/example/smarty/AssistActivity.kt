@@ -1121,6 +1121,27 @@ class AssistActivity : ComponentActivity() {
                         val assistantMessage = ChatMessage(role = ChatRole.ASSISTANT, content = commandResult.response)
                         viewModel.addMessage(assistantMessage)  // UI-005: Use ViewModel for persistence
                     }
+                    is CommandResult.HandledAndPassToLLM -> {
+                        // Execute local action first (e.g., play audio)
+                        val localMessage = ChatMessage(role = ChatRole.ASSISTANT, content = commandResult.response)
+                        viewModel.addMessage(localMessage)
+
+                        // Then also pass to LLM for additional tasks
+                        val cleanHistory = messages.filter { it.role != ChatRole.SYSTEM }.map {
+                            (if(it.role==ChatRole.USER) "USER" else "ASSISTANT") to it.content
+                        }.takeLast(10)
+
+                        val result = withContext(Dispatchers.IO) {
+                            cogniAgent.run(text, cleanHistory)
+                        }
+
+                        val response = when (result) {
+                            is AgentResult.Success -> result.response
+                            is AgentResult.Error -> result.message
+                            is AgentResult.NoProvider -> "Please set up an AI provider in settings."
+                        }
+                        viewModel.addMessage(ChatMessage(role = ChatRole.ASSISTANT, content = response, isError = result is AgentResult.Error))
+                    }
                     is CommandResult.SavePageRequest -> {
                         // Handle "save this page" command
                         handleSavePageRequest(commandResult.titleHint, text)
@@ -1745,16 +1766,31 @@ RULES: Only output the title. No quotes. No punctuation. No explanation."""
         }
     }
     
-    private fun launchApp(pkg: String) { 
+    private fun launchApp(pkg: String) {
         try {
+            Log.d(TAG, "Attempting to launch app: $pkg")
             val intent = packageManager.getLaunchIntentForPackage(pkg)
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
+                Log.d(TAG, "Successfully launched app: $pkg")
                 finishWithAnimation()
+            } else {
+                Log.w(TAG, "No launch intent found for package: $pkg")
+                // App exists but doesn't have a launchable activity
+                viewModel.addMessage(ChatMessage(
+                    role = ChatRole.ASSISTANT,
+                    content = "Couldn't launch this app - it may not have a main activity.",
+                    isError = true
+                ))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error launching app: ${e.message}")
+            Log.e(TAG, "Error launching app $pkg: ${e.message}")
+            viewModel.addMessage(ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = "Error opening app: ${e.localizedMessage ?: "Unknown error"}",
+                isError = true
+            ))
         }
     }
     
