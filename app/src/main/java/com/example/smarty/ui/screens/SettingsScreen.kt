@@ -129,7 +129,13 @@ fun SettingsScreen(
     // AI Memory
     aiMemories: List<com.example.smarty.data.model.AIMemory> = emptyList(),
     onDeleteAIMemory: (com.example.smarty.data.model.AIMemory) -> Unit = {},
-    onClearAllAIMemories: () -> Unit = {}
+    onClearAllAIMemories: () -> Unit = {},
+    // Memory sync
+    onSyncAIMemories: () -> Unit = {},
+    isMemorySyncInProgress: Boolean = false,
+    memorySyncResult: String? = null,
+    unreadForMemoryCount: Int = 0,
+    onClearMemorySyncResult: () -> Unit = {}
 ) {
     var showAIConfigSheet by remember { mutableStateOf(false) }
     val aiConfigSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -770,7 +776,13 @@ fun SettingsScreen(
                     memories = aiMemories,
                     onDeleteMemory = onDeleteAIMemory,
                     onClearAllMemories = onClearAllAIMemories,
-                    onDismiss = { showAIMemorySheet = false }
+                    onDismiss = { showAIMemorySheet = false },
+                    // Sync functionality
+                    onSyncMemories = onSyncAIMemories,
+                    isSyncing = isMemorySyncInProgress,
+                    syncResult = memorySyncResult,
+                    unreadNotesCount = unreadForMemoryCount,
+                    onClearSyncResult = onClearMemorySyncResult
                 )
             }
         }
