@@ -28,11 +28,7 @@ class AddTodosTool(
     argsSerializer = AddTodosArgs.serializer(),
     resultSerializer = TodoOperationResult.serializer(),
     name = "add_todos",
-    description = """
-        Adds todo/checklist items to an existing note.
-        Use when the user wants to add tasks or checklist items to a note.
-        Private notes cannot have todos added by AI.
-    """.trimIndent()
+    description = """ONLY use when user says "add task" or "add todo". Do NOT use otherwise.""".trimIndent()
 ) {
     override suspend fun execute(args: AddTodosArgs): TodoOperationResult {
         return try {

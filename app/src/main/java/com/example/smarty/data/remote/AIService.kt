@@ -31,8 +31,27 @@ data class DocumentAnalysisResponse(
     val category: String,
     val actionItems: List<String>,
     val userRelevance: String,
+    val references: DocumentReferences? = null,  // Formulas, key terms, recurring topics
     val success: Boolean = true,
     val error: String? = null
+)
+
+/**
+ * References extracted from document analysis.
+ * Contains formulas, key terms with definitions, and recurring topics.
+ */
+data class DocumentReferences(
+    val formulas: List<String> = emptyList(),
+    val keyTerms: List<KeyTerm> = emptyList(),
+    val recurringTopics: List<String> = emptyList()
+)
+
+/**
+ * A key term with its definition.
+ */
+data class KeyTerm(
+    val term: String,
+    val definition: String
 )
 
 // ==================== API Request/Response Models ====================

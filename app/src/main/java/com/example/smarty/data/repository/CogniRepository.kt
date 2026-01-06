@@ -561,6 +561,22 @@ class CogniRepository(
      * duplicate categories. Now re-checks after insert to return the winning category.
      */
     suspend fun getOrCreateCategory(name: String): Category {
+        // Validate category name: max 10 characters
+        if (name.length > 10) {
+            // Truncate to 10 characters if it exceeds the limit
+            val truncatedName = name.take(10)
+            // First check if truncated category exists
+            categoryDao.getCategoryByName(truncatedName)?.let { return it }
+
+            // Create new category with truncated name
+            val newCategory = Category(name = truncatedName)
+            categoryDao.insertCategory(newCategory)
+
+            // Re-check to handle race condition: if another thread inserted first,
+            // return that one instead (prevents duplicates with same name)
+            return categoryDao.getCategoryByName(truncatedName) ?: newCategory
+        }
+
         // First check if category exists
         categoryDao.getCategoryByName(name)?.let { return it }
 

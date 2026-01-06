@@ -492,4 +492,19 @@ object Migrations {
             db.execSQL("ALTER TABLE chat_messages ADD COLUMN inlineImagesJson TEXT NOT NULL DEFAULT '[]'")
         }
     }
+
+    /**
+     * Migration 24 → 25: Add isReadForMemory column and index.
+     * Tracks which notes have been analyzed for AI memory learning.
+     * Prevents re-processing notes and saves resources.
+     */
+    val MIGRATION_24_25 = object : Migration(24, 25) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add isReadForMemory column - default to 0 (false) so existing notes get analyzed
+            db.execSQL("ALTER TABLE notes ADD COLUMN isReadForMemory INTEGER NOT NULL DEFAULT 0")
+            
+            // Create index for efficient memory learning queries
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_isReadForMemory ON notes(isReadForMemory)")
+        }
+    }
 }

@@ -21,6 +21,7 @@ import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.DatabaseWriteBatcher
 import com.example.smarty.util.FileStorageHelper
+import com.example.smarty.util.ImageTextExtractor
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.viewmodel.SharedContent
 import kotlinx.coroutines.CoroutineScope
@@ -571,6 +572,13 @@ class NoteOperationsManager(
 
     /**
      * Process note with AI for categorization and summary.
+     * 
+     * MIXED CONTENT HANDLING:
+     * - Extracts text from ALL attachment types (images, PDFs, documents)
+     * - Images: Uses OCR (ML Kit Text Recognition)
+     * - PDFs: Uses text extraction, falls back to OCR for scanned PDFs
+     * - Combines user text + extracted text from attachments
+     * - Sends combined content to AI for analysis
      */
     suspend fun processNoteWithAi(note: Note) {
         if (!PrivacyGuard.canAiProcess(note)) {
@@ -582,12 +590,100 @@ class NoteOperationsManager(
         _isProcessing.value = true
 
         try {
+            val attachments = note.getAttachments()
+            val extractedTexts = mutableListOf<String>()
+            
+            // Start with user's text content if present
+            val userText = note.content.takeIf { 
+                it.isNotBlank() && 
+                !it.startsWith("[Attached:") && 
+                !it.all { c -> c.isWhitespace() } 
+            }
+            
+            if (userText != null) {
+                extractedTexts.add("[User Content]\n$userText")
+                Log.d(TAG, "Added user text: ${userText.length} chars")
+            }
+            
+            // Process each attachment type and extract text
+            for (attachment in attachments) {
+                try {
+                    val uri = Uri.parse(attachment.uri)
+                    val mimeType = attachment.mimeType.lowercase()
+                    
+                    when {
+                        // IMAGES: Run OCR
+                        mimeType.startsWith("image/") -> {
+                            Log.d(TAG, "Processing image: ${attachment.fileName}")
+                            val ocrResult = ImageTextExtractor.extractTextFromUri(context, uri)
+                            if (ocrResult.hasText) {
+                                extractedTexts.add("[Image: ${attachment.fileName}]\n${ocrResult.text}")
+                                Log.d(TAG, "OCR extracted ${ocrResult.text.length} chars from ${attachment.fileName}")
+                            }
+                        }
+                        
+                        // PDFs: Extract text, fallback to OCR for scanned PDFs
+                        mimeType == "application/pdf" -> {
+                            Log.d(TAG, "Processing PDF: ${attachment.fileName}")
+                            val pdfExtractor = com.example.smarty.util.PDFTextExtractor(context)
+                            val pdfResult = pdfExtractor.extractTextWithOcrFallback(uri)
+                            
+                            when (pdfResult) {
+                                is com.example.smarty.util.PDFExtractionResult.Success -> {
+                                    extractedTexts.add("[PDF: ${attachment.fileName}]\n${pdfResult.text}")
+                                    Log.d(TAG, "PDF extracted ${pdfResult.characterCount} chars from ${attachment.fileName}")
+                                }
+                                is com.example.smarty.util.PDFExtractionResult.Empty -> {
+                                    Log.w(TAG, "PDF empty: ${attachment.fileName} - ${pdfResult.message}")
+                                }
+                                is com.example.smarty.util.PDFExtractionResult.Error -> {
+                                    Log.w(TAG, "PDF error: ${attachment.fileName} - ${pdfResult.message}")
+                                }
+                            }
+                        }
+                        
+                        // TEXT FILES: Read directly
+                        mimeType.startsWith("text/") -> {
+                            Log.d(TAG, "Processing text file: ${attachment.fileName}")
+                            try {
+                                val textContent = context.contentResolver.openInputStream(uri)?.use { 
+                                    it.bufferedReader().readText().take(10000) // Limit to 10KB
+                                }
+                                if (!textContent.isNullOrBlank()) {
+                                    extractedTexts.add("[File: ${attachment.fileName}]\n$textContent")
+                                    Log.d(TAG, "Text file: ${textContent.length} chars from ${attachment.fileName}")
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to read text file: ${e.message}")
+                            }
+                        }
+                        
+                        // OTHER TYPES: Just log metadata
+                        else -> {
+                            Log.d(TAG, "Skipping unsupported type: $mimeType (${attachment.fileName})")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to process attachment ${attachment.fileName}: ${e.message}")
+                }
+            }
+            
+            // Combine all extracted content
+            val enhancedContent = if (extractedTexts.isNotEmpty()) {
+                extractedTexts.joinToString("\n\n---\n\n")
+            } else {
+                // No text extracted - use attachment descriptions
+                "[Attachments: ${attachments.joinToString(", ") { it.fileName }}]"
+            }
+            
+            Log.i(TAG, "Combined content for AI: ${enhancedContent.length} chars from ${extractedTexts.size} sources")
+            
             // Build attachment metadata for AI (file names and types only, no content)
-            val attachmentMetadata = note.getAttachments().map { attachment ->
+            val attachmentMetadata = attachments.map { attachment ->
                 com.example.smarty.data.model.AttachmentMetadata.fromNoteAttachment(attachment)
             }.takeIf { it.isNotEmpty() }
 
-            val result = aiService.analyzeContent(note.content, attachmentMetadata)
+            val result = aiService.analyzeContent(enhancedContent, attachmentMetadata)
 
             if (result.success) {
                 val category = repository.getOrCreateCategory(result.category)
@@ -620,6 +716,7 @@ class NoteOperationsManager(
                 } else {
                     repository.updateNote(updatedNote)
                 }
+                Log.i(TAG, "Note processed: category=${result.category}, title=${result.title}")
                 aiCallback?.onProcessingComplete(updatedNote)
             } else {
                 storeWithoutAnalysis(note)

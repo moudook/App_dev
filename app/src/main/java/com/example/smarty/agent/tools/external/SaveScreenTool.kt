@@ -39,20 +39,9 @@ class SaveScreenTool(
     resultSerializer = NoteOperationResult.serializer(),
     name = "save_screen",
     description = """
-        Saves the current screen context as a note.
-        Use when user wants to save/capture/remember what's on screen.
-
-        Examples:
-        - "save this screen" -> saves current screen context
-        - "capture this" -> saves current screen
-        - "remember what I'm looking at" -> saves screen context
-        - "save this page" -> saves current screen content
-
-        The saved note will include:
-        - Source app name
-        - Any selected text
-        - Screen context description
-        - Timestamp
+        Captures visible text and context from the CURRENT screen and saves it as a Note.
+        Triggers: "Save this screen", "Remember this", "Capture this info", "Take a note of this".
+        Action: Scrapes text/metadata from the active app (e.g., Chrome URL, email body) and stores it.
     """.trimIndent()
 ) {
     companion object {

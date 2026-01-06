@@ -49,9 +49,6 @@ private fun NavHostController.safePopBackStack(): Boolean {
 }
 
 sealed class Screen(val route: String) {
-    data object Pin : Screen("pin")
-    data object PinSetup : Screen("pin_setup")
-    data object PinChange : Screen("pin_change")
     data object VoiceEnrollment : Screen("voice_enrollment")
     data object InputStream : Screen("input_stream")
     data object Stacks : Screen("stacks")
@@ -83,18 +80,13 @@ fun CogniNavHost(
     onSetSelectedModel: (AIProvider, String) -> Unit,
     onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
-    // PIN management
-    isPinConfigured: Boolean,
-    onSetPin: (String) -> Unit,
-    onVerifyPin: (String) -> Boolean,
-    onChangePin: (String, String) -> Boolean,
-    onClearPin: () -> Unit,
     // Notes management
     onAddNote: (String, List<Attachment>) -> Unit,
     onSelectNote: (Note?) -> Unit,
     onSelectCategory: (Category?) -> Unit,
     onCreateCategory: (String) -> Unit,
     onDeleteCategory: (Category) -> Unit,
+    onSyncCategoryCounts: () -> Unit = {},  // Sync category counts when entering stacks view
     onArchiveNote: (String) -> Unit,
     onUnarchiveNote: (String) -> Unit,
     onBulkArchive: (List<String>) -> Unit = {},
@@ -160,6 +152,7 @@ fun CogniNavHost(
     onClearSearchHistory: () -> Unit = {},
     // Audio player for attachments
     onPlayAudio: (AudioTrack) -> Unit = {},
+    isMiniPlayerVisible: Boolean = false,  // Audio player visibility for gradient adjustment
     // Theme management
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit,
@@ -168,8 +161,9 @@ fun CogniNavHost(
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
     // Tavily Web Search API
-    tavilyApiKey: String? = null,
-    onSetTavilyApiKey: (String?) -> Unit = {},
+    tavilyApiKeys: List<String> = emptyList(),
+    onAddTavilyApiKey: (String) -> Unit = {},
+    onRemoveTavilyApiKey: (String) -> Unit = {},
     // Shake sensitivity
     shakeSensitivity: Float = 0.63f,
     onShakeSensitivityChange: (Float) -> Unit = {},
@@ -220,12 +214,21 @@ fun CogniNavHost(
     modifier: Modifier = Modifier,
     // Auth State
     isLoggedIn: Boolean = false,
-    onSignOut: () -> Unit = {}
+    onSignOut: () -> Unit = {},
+    // AI Memory
+    aiMemories: List<com.example.smarty.data.model.AIMemory> = emptyList(),
+    onDeleteAIMemory: (com.example.smarty.data.model.AIMemory) -> Unit = {},
+    onClearAllAIMemories: () -> Unit = {},
+    // Memory sync
+    onSyncAIMemories: () -> Unit = {},
+    isMemorySyncInProgress: Boolean = false,
+    memorySyncResult: String? = null,
+    unreadForMemoryCount: Int = 0,
+    onClearMemorySyncResult: () -> Unit = {}
 ) {
     // NOTE: Login is now handled in MainActivity BEFORE CogniNavHost is rendered
     // When we get here, user is ALWAYS logged in
-    // Start at PIN screen if configured, otherwise go to main input stream
-    val startDestination = if (isPinConfigured) Screen.Pin.route else Screen.InputStream.route
+    val startDestination = Screen.InputStream.route
 
     // Track navigation changes and notify ViewModel
     androidx.compose.runtime.LaunchedEffect(navController) {
@@ -240,43 +243,6 @@ fun CogniNavHost(
         startDestination = startDestination,
         modifier = modifier
     ) {
-        // PIN Entry Screen (for existing PIN)
-        composable(Screen.Pin.route) {
-            PinScreen(
-                isSetup = false,
-                onPinComplete = { pin ->
-                    val success = onVerifyPin(pin)
-                    if (success) {
-                        navController.navigate(Screen.InputStream.route) {
-                            popUpTo(Screen.Pin.route) { inclusive = true }
-                        }
-                    }
-                    success
-                }
-            )
-        }
-
-        // PIN Setup Screen (new PIN)
-        composable(Screen.PinSetup.route) {
-            PinSetupRoute(
-                onSetupComplete = { pin ->
-                    onSetPin(pin)
-                    navController.safePopBackStack()
-                }
-            )
-        }
-
-        // PIN Change Screen (verify old, set new)
-        composable(Screen.PinChange.route) {
-            PinChangeRoute(
-                onVerifyPin = onVerifyPin,
-                onSetPin = onSetPin,
-                onComplete = {
-                    navController.safePopBackStack()
-                }
-            )
-        }
-
         composable(Screen.InputStream.route) {
             InputStreamScreen(
                 notes = notes,
@@ -348,6 +314,7 @@ fun CogniNavHost(
                 onRecordSearch = onRecordSearch,
                 onClearSearchHistory = onClearSearchHistory,
                 bottomContentPadding = bottomContentPadding,
+                isMiniPlayerVisible = isMiniPlayerVisible,
                 externalSpeechState = externalSpeechState,
                 speechResults = speechResults,
                 wasShakeTriggered = wasShakeTriggered,
@@ -386,6 +353,7 @@ fun CogniNavHost(
                 // Categories/Stacks
                 onCreateCategory = onCreateCategory,
                 onDeleteCategory = onDeleteCategory,
+                onSyncCategoryCounts = onSyncCategoryCounts,
                 onCategoryClick = { category ->
                     onSelectCategory(category)
                     navController.navigate(Screen.CategoryNotes.route)
@@ -394,7 +362,6 @@ fun CogniNavHost(
                 // Settings props
                 providerConfigs = providerConfigs,
                 providerPriorityOrder = providerPriorityOrder,
-                isPinConfigured = isPinConfigured,
                 onAddApiKey = onAddApiKey,
                 onRemoveApiKey = onRemoveApiKey,
                 onUpdateApiKey = onUpdateApiKey,
@@ -402,9 +369,9 @@ fun CogniNavHost(
                 onSetSelectedModel = onSetSelectedModel,
                 onSetProviderPriority = onSetProviderPriority,
                 onTestApiKey = onTestApiKey,
-                onRemovePin = onClearPin,
-                tavilyApiKey = tavilyApiKey,
-                onSetTavilyApiKey = onSetTavilyApiKey,
+                tavilyApiKeys = tavilyApiKeys,
+                onAddTavilyApiKey = onAddTavilyApiKey,
+                onRemoveTavilyApiKey = onRemoveTavilyApiKey,
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,
                 isClearingCache = isClearingCache,
@@ -434,8 +401,9 @@ fun CogniNavHost(
                         onSetSelectedModel = onSetSelectedModel,
                         onSetProviderPriority = onSetProviderPriority,
                         onTestApiKey = onTestApiKey,
-                        tavilyApiKey = tavilyApiKey,
-                        onSetTavilyApiKey = onSetTavilyApiKey,
+                        tavilyApiKeys = tavilyApiKeys,
+                        onAddTavilyApiKey = onAddTavilyApiKey,
+                        onRemoveTavilyApiKey = onRemoveTavilyApiKey,
                         groqKeyUsageStats = groqKeyUsageStats,
                         onRefreshModels = onRefreshModels,
                         getAvailableModels = getAvailableModels,
@@ -459,23 +427,6 @@ fun CogniNavHost(
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
                         onBackClick = onDismiss,
-                        isEmbedded = true
-                    )
-                },
-                pinSetupContent = { onDismiss ->
-                    PinSetupRoute(
-                        onSetupComplete = { pin ->
-                            onSetPin(pin)
-                            onDismiss()
-                        },
-                        isEmbedded = true
-                    )
-                },
-                pinChangeContent = { onDismiss ->
-                    PinChangeRoute(
-                        onVerifyPin = onVerifyPin,
-                        onSetPin = onSetPin,
-                        onComplete = onDismiss,
                         isEmbedded = true
                     )
                 }
@@ -504,6 +455,7 @@ fun CogniNavHost(
                     category = category,
                     notes = notes,
                     onBackClick = {
+                        onSelectCategory(null) // Clear the selected category to clear the filter
                         navController.safePopBackStack()
                     },
                     onNoteClick = { note ->
@@ -539,6 +491,7 @@ fun CogniNavHost(
                     onLoadVersions = { onLoadNoteVersions(note.id) },
                     onRestoreVersion = { versionId -> onRestoreNoteVersion(note.id, versionId) },
                     bottomContentPadding = bottomContentPadding,
+                    isMiniPlayerVisible = isMiniPlayerVisible,
                     // @Mention: Ask AI about this note
                     onAskAI = {
                         onEnterChatWithNoteReference(note.title)
@@ -552,7 +505,6 @@ fun CogniNavHost(
             SettingsScreen(
                 providerConfigs = providerConfigs,
                 providerPriorityOrder = providerPriorityOrder,
-                isPinConfigured = isPinConfigured,
                 isDarkTheme = isDarkTheme,
                 onBackClick = {
                     navController.safePopBackStack()
@@ -564,11 +516,11 @@ fun CogniNavHost(
                 onSetSelectedModel = onSetSelectedModel,
                 onSetProviderPriority = onSetProviderPriority,
                 onTestApiKey = onTestApiKey,
-                onRemovePin = onClearPin,
                 onToggleTheme = onToggleTheme,
                 // Tavily Web Search API
-                tavilyApiKey = tavilyApiKey,
-                onSetTavilyApiKey = onSetTavilyApiKey,
+                tavilyApiKeys = tavilyApiKeys,
+                onAddTavilyApiKey = onAddTavilyApiKey,
+                onRemoveTavilyApiKey = onRemoveTavilyApiKey,
                 // Cache management
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,
@@ -608,23 +560,16 @@ fun CogniNavHost(
                         isEmbedded = true
                     )
                 },
-                pinSetupContent = { onDismiss ->
-                     PinSetupRoute(
-                         onSetupComplete = { pin ->
-                             onSetPin(pin)
-                             onDismiss()
-                         },
-                         isEmbedded = true
-                     )
-                },
-                pinChangeContent = { onDismiss ->
-                    PinChangeRoute(
-                        onVerifyPin = onVerifyPin,
-                        onSetPin = onSetPin,
-                        onComplete = onDismiss,
-                        isEmbedded = true
-                    )
-                },
+                // AI Memory
+                aiMemories = aiMemories,
+                onDeleteAIMemory = onDeleteAIMemory,
+                onClearAllAIMemories = onClearAllAIMemories,
+                // Memory sync
+                onSyncAIMemories = onSyncAIMemories,
+                isMemorySyncInProgress = isMemorySyncInProgress,
+                memorySyncResult = memorySyncResult,
+                unreadForMemoryCount = unreadForMemoryCount,
+                onClearMemorySyncResult = onClearMemorySyncResult,
                 onSignOut = onSignOut
             )
         }
@@ -766,57 +711,6 @@ fun BackupSettingsRoute(
         },
         isEmbedded = isEmbedded
     )
-}
-
-@Composable
-fun PinSetupRoute(
-    onSetupComplete: (String) -> Unit,
-    isEmbedded: Boolean = false
-) {
-    PinScreen(
-        isSetup = true,
-        onPinComplete = { true }, // Not used in setup mode
-        onSetupComplete = onSetupComplete,
-        isEmbedded = isEmbedded
-    )
-}
-
-@Composable
-fun PinChangeRoute(
-    onVerifyPin: (String) -> Boolean,
-    onSetPin: (String) -> Unit,
-    onComplete: () -> Unit,
-    isEmbedded: Boolean = false
-) {
-    var stage by remember { mutableStateOf(0) } // 0 = verify old, 1 = set new
-    var oldPinVerified by remember { mutableStateOf(false) }
-
-    if (!oldPinVerified) {
-        // First, verify old PIN
-        PinScreen(
-            isSetup = false,
-            onPinComplete = { oldPin ->
-                val success = onVerifyPin(oldPin)
-                if (success) {
-                    oldPinVerified = true
-                    stage = 1
-                }
-                success
-            },
-            isEmbedded = isEmbedded
-        )
-    } else {
-        // Then, set new PIN
-        PinScreen(
-            isSetup = true,
-            onPinComplete = { true },
-            onSetupComplete = { newPin ->
-                onSetPin(newPin)
-                onComplete()
-            },
-            isEmbedded = isEmbedded
-        )
-    }
 }
 
 /**

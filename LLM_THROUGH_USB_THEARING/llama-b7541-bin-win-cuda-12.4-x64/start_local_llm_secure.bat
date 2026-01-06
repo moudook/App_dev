@@ -30,18 +30,49 @@ if not exist "caddy_windows_amd64.exe" (
     exit /b 1
 )
 
+:: Kill any existing instances to prevent port conflicts
+echo [INFO] Cleaning up any existing instances...
+taskkill /F /IM caddy_windows_amd64.exe >nul 2>&1
+taskkill /F /IM llama-server.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
+
 echo [INFO] Detecting network interfaces...
 echo.
 
-:: Detect IPs
+:: Detect IPv4 IPs (skip IPv6 and link-local)
 set DETECTED_IP=
+set USB_IP=
+set WIFI_IP=
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address"') do (
     set "ip=%%a"
     set "ip=!ip: =!"
-    if not "!ip!"=="127.0.0.1" (
-        if "!DETECTED_IP!"=="" set DETECTED_IP=!ip!
-        echo   Found: !ip!
+    
+    :: Skip localhost
+    if "!ip!"=="127.0.0.1" (
+        REM skip localhost
+    ) else (
+        :: Categorize by IP range
+        if "!ip:~0,3!"=="10." (
+            :: USB tethering range (10.x.x.x)
+            if "!USB_IP!"=="" set USB_IP=!ip!
+            echo   Found USB: !ip!
+        ) else if "!ip:~0,8!"=="192.168." (
+            :: WiFi range (192.168.x.x)
+            if "!WIFI_IP!"=="" set WIFI_IP=!ip!
+            echo   Found WiFi: !ip!
+        ) else if "!ip:~0,4!"=="172." (
+            :: Private range (172.16-31.x.x)
+            echo   Found: !ip!
+            if "!DETECTED_IP!"=="" set DETECTED_IP=!ip!
+        )
     )
+)
+
+:: Prefer USB IP, then WiFi IP
+if not "!USB_IP!"=="" (
+    set DETECTED_IP=!USB_IP!
+) else if not "!WIFI_IP!"=="" (
+    set DETECTED_IP=!WIFI_IP!
 )
 echo.
 
@@ -88,7 +119,7 @@ if !errorLevel! neq 0 (
 )
 
 :: Check model
-if not exist "models\qwen2.5-3b-instruct-q4_k_m.gguf" (
+if not exist "models\gemma-3-4b-it-IQ4_NL.gguf" (
     echo [ERROR] Model file not found!
     pause
     exit /b 1
@@ -105,7 +136,7 @@ echo ============================================================
 echo.
 
 :: Start llama-server in background (localhost only for security)
-start /B "LLM Server" cmd /c ".\llama-server.exe --model models\qwen2.5-3b-instruct-q4_k_m.gguf --ctx-size 32768 --n-gpu-layers 20 --port !SERVER_PORT! --host 127.0.0.1 --parallel 2 --cont-batching"
+start /B "LLM Server" cmd /c ".\llama-server.exe --model models\gemma-3-4b-it-IQ4_NL.gguf --ctx-size 32768 --n-gpu-layers 20 --port !SERVER_PORT! --host 127.0.0.1 --parallel 2 --cont-batching"
 
 :: Wait for server to start
 timeout /t 3 /nobreak >nul

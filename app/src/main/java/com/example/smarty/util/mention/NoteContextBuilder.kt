@@ -112,6 +112,7 @@ class NoteContextBuilder(
             val singleNotes = resolvedMentions.filter { it.type == MentionType.SINGLE_NOTE }
             val typeFilters = resolvedMentions.filter { it.type == MentionType.TYPE_FILTER }
             val specialFilters = resolvedMentions.filter { it.type == MentionType.SPECIAL_FILTER }
+            val categoryMentions = resolvedMentions.filter { it.type == MentionType.CATEGORY }
 
             // Single note references
             if (singleNotes.isNotEmpty()) {
@@ -138,6 +139,22 @@ class NoteContextBuilder(
                         val content = noteContents.find { it.note.id == note.id }
                         if (content != null) {
                             append(formatNoteForContext(content.note, content.content, typeName))
+                        }
+                    }
+                }
+            }
+
+            // Category references
+            if (categoryMentions.isNotEmpty()) {
+                for (mention in categoryMentions) {
+                    val categoryName = mention.category?.name ?: "Category"
+
+                    append("[Category: $categoryName from @${mention.parsedMention.query}]\n\n")
+
+                    for (note in mention.notes) {
+                        val content = noteContents.find { it.note.id == note.id }
+                        if (content != null) {
+                            append(formatNoteForContext(content.note, content.content, "Category: $categoryName"))
                         }
                     }
                 }

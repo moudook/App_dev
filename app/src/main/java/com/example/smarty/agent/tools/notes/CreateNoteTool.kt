@@ -30,12 +30,7 @@ class CreateNoteTool(
     argsSerializer = CreateNoteArgs.serializer(),
     resultSerializer = NoteOperationResult.serializer(),
     name = "create_note",
-    description = """
-        Creates a new note in the user's note collection.
-        Use this when the user asks to save, remember, or note down information.
-        IMPORTANT: Always provide a clear, descriptive title (2-5 words) that summarizes the note.
-        The AI will analyze and categorize the note unless a category is specified.
-    """.trimIndent()
+    description = """ONLY use when user says "create note" or "save this". Do NOT use for chat responses.""".trimIndent()
 ) {
     override suspend fun execute(args: CreateNoteArgs): NoteOperationResult {
         return try {

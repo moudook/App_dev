@@ -1,6 +1,7 @@
 package com.example.smarty.util.mention
 
 import android.util.Log
+import com.example.smarty.data.local.CategoryDao
 import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.MentionType
@@ -20,11 +21,13 @@ import kotlinx.coroutines.withContext
  * - Fuzzy title matching using SemanticSearchEngine
  * - Type filter resolution (@audios, @documents, etc.)
  * - Special filter resolution (@recent, @pinned, @all)
+ * - Category resolution (@Work, @Personal)
  * - Privacy-aware - respects excludeFromAiChat and isFullPrivacy flags
  * - Returns max 4 suggestions for autocomplete
  */
 class MentionResolver(
-    private val noteDao: NoteDao
+    private val noteDao: NoteDao,
+    private val categoryDao: CategoryDao
 ) {
     companion object {
         private const val TAG = "MentionResolver"
@@ -66,7 +69,11 @@ class MentionResolver(
         val matchingSpecialFilters = getMatchingSpecialFilters(normalizedQuery)
         suggestions.addAll(matchingSpecialFilters.take(1)) // Max 1 special filter
 
-        // 3. Search for matching notes
+        // 3. Check for category matches
+        val categoryMatches = searchCategories(normalizedQuery)
+        suggestions.addAll(categoryMatches.take(2))
+
+        // 4. Search for matching notes
         val remainingSlots = MAX_SUGGESTIONS - suggestions.size
         if (remainingSlots > 0) {
             val noteMatches = searchNotesByTitle(normalizedQuery, remainingSlots)
@@ -125,6 +132,22 @@ class MentionResolver(
                         type = MentionType.SPECIAL_FILTER,
                         notes = notes,
                         specialFilter = specialFilter
+                    )
+                )
+                continue
+            }
+
+            // Check category
+            // We use getCategoryByName which returns nullable
+            val category = categoryDao.getCategoryByName(normalizedQuery)
+            if (category != null) {
+                val notes = getAiVisibleNotes().filter { it.categoryId == category.id }
+                resolved.add(
+                    ResolvedMention(
+                        parsedMention = mention,
+                        type = MentionType.CATEGORY,
+                        notes = notes.take(50),
+                        category = category
                     )
                 )
                 continue
@@ -279,6 +302,19 @@ class MentionResolver(
                 )
             }
             .filter { it.count > 0 }
+    }
+
+    /**
+     * Search categories by name.
+     */
+    private suspend fun searchCategories(query: String): List<MentionSuggestion.CategorySuggestion> {
+        val categories = categoryDao.searchCategories(query)
+        return categories.map { category ->
+            MentionSuggestion.CategorySuggestion(
+                category = category,
+                score = 1.0 // High confidence since it's a direct DB search match
+            )
+        }
     }
 
     /**

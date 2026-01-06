@@ -289,110 +289,65 @@ class CogniAgentProvider(
      * @param baseUrl The base URL of the local server (e.g., "http://192.168.x.x:8080" or "https://...")
      * @return LocalPCConnectionResult indicating success or failure with error details
      */
+    /**
+     * Validates connectivity to LOCAL_PC server with a short timeout.
+     * Uses OkHttp with "Trust All" SSL configuration for maximum reliability.
+     */
     private fun validateLocalPCConnection(baseUrl: String): LocalPCConnectionResult {
         return try {
-            // Try to connect to the models endpoint or base URL
+            // Try to connect to the health endpoint (standard llama.cpp) or v1/models
             val testUrl = if (baseUrl.endsWith("/v1")) {
-                "$baseUrl/models"
+                "$baseUrl/models" // .../v1/models
             } else {
-                "$baseUrl/v1/models"
+                "$baseUrl/health" // .../health
             }
 
             Log.d(TAG, "Validating LOCAL_PC connection to: $testUrl")
 
-            val url = URL(testUrl)
-            val connection = if (testUrl.startsWith("https")) {
-                // For HTTPS with self-signed certificates, we need to trust all certs
-                // This is safe for local LAN connections only
-                val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
+            // Create a trust-all OkHttp client specifically for this validation
+            val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(
+                object : javax.net.ssl.X509TrustManager {
                     override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
                     override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
                     override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
-                })
-
-                val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
-                sslContext.init(null, trustAllCerts, java.security.SecureRandom())
-
-                val httpsConnection = url.openConnection() as javax.net.ssl.HttpsURLConnection
-                httpsConnection.sslSocketFactory = sslContext.socketFactory
-                httpsConnection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
-                httpsConnection
-            } else {
-                url.openConnection() as HttpURLConnection
-            }
-
-            connection.requestMethod = "GET"
-            connection.connectTimeout = LOCAL_PC_CONNECTION_TIMEOUT_MS
-            connection.readTimeout = LOCAL_PC_CONNECTION_TIMEOUT_MS
-            connection.setRequestProperty("Accept", "application/json")
-
-            try {
-                connection.connect()
-                val responseCode = connection.responseCode
-
-                // Accept any successful response (2xx) or even some error codes that indicate server is running
-                // 200 = OK, 401 = Unauthorized (server running but auth needed), 404 = endpoint not found (server running)
-                when {
-                    responseCode in 200..299 -> {
-                        Log.d(TAG, "LOCAL_PC server responded with HTTP $responseCode")
-                        LocalPCConnectionResult(isConnected = true)
-                    }
-                    responseCode == 401 || responseCode == 403 -> {
-                        // Server is running but requires auth - still consider it connected
-                        Log.d(TAG, "LOCAL_PC server requires authentication (HTTP $responseCode) - server is reachable")
-                        LocalPCConnectionResult(isConnected = true)
-                    }
-                    responseCode == 404 -> {
-                        // /models endpoint not found, but server is running - try base health check
-                        Log.d(TAG, "LOCAL_PC /models endpoint not found (HTTP 404) - server is reachable")
-                        LocalPCConnectionResult(isConnected = true)
-                    }
-                    else -> {
-                        Log.w(TAG, "LOCAL_PC server returned unexpected HTTP $responseCode")
-                        LocalPCConnectionResult(
-                            isConnected = false,
-                            errorMessage = "Server returned HTTP $responseCode"
-                        )
-                    }
                 }
-            } finally {
-                connection.disconnect()
-            }
-        } catch (e: java.net.ConnectException) {
-            Log.w(TAG, "LOCAL_PC connection refused: ${e.message}")
-            LocalPCConnectionResult(
-                isConnected = false,
-                errorMessage = "Connection refused - is the server running?"
             )
-        } catch (e: java.net.SocketTimeoutException) {
-            Log.w(TAG, "LOCAL_PC connection timed out: ${e.message}")
-            LocalPCConnectionResult(
-                isConnected = false,
-                errorMessage = "Connection timed out after ${LOCAL_PC_CONNECTION_TIMEOUT_MS}ms"
-            )
-        } catch (e: java.net.UnknownHostException) {
-            Log.w(TAG, "LOCAL_PC host not found: ${e.message}")
-            LocalPCConnectionResult(
-                isConnected = false,
-                errorMessage = "Host not found - check IP address"
-            )
-        } catch (e: javax.net.ssl.SSLHandshakeException) {
-            Log.w(TAG, "LOCAL_PC SSL handshake error: ${e.message}")
-            LocalPCConnectionResult(
-                isConnected = false,
-                errorMessage = "SSL certificate error"
-            )
-        } catch (e: java.io.IOException) {
-            Log.w(TAG, "LOCAL_PC I/O error: ${e.message}")
-            LocalPCConnectionResult(
-                isConnected = false,
-                errorMessage = "Network error: ${e.message ?: "Unknown I/O error"}"
-            )
+
+            val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
+            sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+            val sslSocketFactory = sslContext.socketFactory
+
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(LOCAL_PC_CONNECTION_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                .readTimeout(LOCAL_PC_CONNECTION_TIMEOUT_MS.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
+                .hostnameVerifier { _, _ -> true }
+                .build()
+
+            val request = okhttp3.Request.Builder()
+                .url(testUrl)
+                .get()
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseCode = response.code
+            response.close()
+
+            // Any response from the server (200, 404, 400, 500) proves connectivity
+            Log.d(TAG, "LOCAL_PC server responded with HTTP $responseCode")
+            LocalPCConnectionResult(isConnected = true)
+
         } catch (e: Exception) {
-            Log.e(TAG, "LOCAL_PC unexpected error: ${e.message}", e)
+            val msg = e.message ?: "Unknown error"
+            Log.w(TAG, "LOCAL_PC validation failed: $msg")
+            
+            // Should we fail hard or soft? 
+            // If it's SSL related but we tried our best, maybe we should still return true 
+            // and let the actual library handle it? No, if validation fails here, likely everything fails.
+            
             LocalPCConnectionResult(
                 isConnected = false,
-                errorMessage = "Unexpected error: ${e.message ?: "Unknown error"}"
+                errorMessage = msg
             )
         }
     }

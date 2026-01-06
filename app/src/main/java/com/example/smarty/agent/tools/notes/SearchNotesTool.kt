@@ -34,12 +34,7 @@ class SearchNotesTool(
     argsSerializer = SearchNotesArgs.serializer(),
     resultSerializer = NoteSearchResult.serializer(),
     name = "search_notes",
-    description = """
-        Searches the user's notes by keyword or category using semantic/fuzzy matching.
-        Understands variations like "meetings" matching "meeting notes" or "mtg".
-        Use this to find relevant notes based on user queries.
-        Private notes are automatically excluded from results.
-    """.trimIndent()
+    description = """Searches your notes. ONLY use when user says \"search my notes for\" or \"find in my notes\". Do NOT use for general questions.""".trimIndent()
 ) {
     override suspend fun execute(args: SearchNotesArgs): NoteSearchResult {
         // Check cache first to avoid duplicate searches

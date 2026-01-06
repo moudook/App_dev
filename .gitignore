@@ -102,6 +102,14 @@ app/debug/
 *.apk
 *.aab
 build_output.txt
+build_errors_utf8.txt
+build_errors_2.txt
+build_errors_3.txt
+build_errors_4.txt
+build_errors_5.txt
+build_errors.txt
+build_log.txt
+tasks_and_issues.txt
 
 # Compiled files
 *.class

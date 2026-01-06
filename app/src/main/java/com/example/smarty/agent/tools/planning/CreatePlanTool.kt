@@ -26,9 +26,10 @@ class CreatePlanTool(
     resultSerializer = CreatePlanResult.serializer(),
     name = "create_plan",
     description = """
-        Creates a structured execution plan for complex or multi-step tasks.
-        Use this when the user's request involves multiple actions (e.g., "Find info AND create note AND set event").
-        This tool initializes a To-Do list that you will execute step-by-step.
+        Use specific tools (create_note, web_search) directly for most tasks.
+        ONLY use this tool if the user EXPLICITLY asks to "create a plan" or "make a plan".
+        NEVER use for "find X and save it" or "search and create note" - just do the actions.
+        DO NOT use this tool for general queries.
     """.trimIndent()
 ) {
     override suspend fun execute(args: CreatePlanArgs): CreatePlanResult {

@@ -78,10 +78,10 @@ class UserPatternsTool(
     resultSerializer = UserPatternsResult.serializer(),
     name = "analyze_patterns",
     description = """
-        Analyzes user's note-taking patterns to provide insights and personalized suggestions.
-        Returns: top categories, activity trends, frequent topics, and actionable suggestions.
-        Use to understand user habits, provide proactive help, or when user asks about their note organization.
-        Analysis types: 'categories', 'activity', 'topics', 'all'.
+        MUST USE THIS TOOL when the user asks for self-reflection or analysis of their own behavior.
+        Triggers: "how am I doing?", "what do I write about?", "show my stats", "analyze my notes", "my writing habits".
+        Provides a report on: 1. Top categories 2. Activity trends (frequency) 3. Common topics/themes.
+        Do NOT use for searching specific notes; use search_notes instead.
     """.trimIndent()
 ) {
     override suspend fun execute(args: UserPatternsArgs): UserPatternsResult {

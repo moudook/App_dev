@@ -83,7 +83,7 @@ class ShareFlowManager(
                         Log.d(TAG, "Web clipper: Got metadata - title: ${urlMetadata.title}")
                         type = NoteType.WEBSITE
 
-                        // Build enhanced text with metadata
+                        // Build enhanced text with metadata AND full article content (Reader Mode)
                         enhancedText = buildString {
                             append("📎 ${urlMetadata.title}\n")
                             append("🔗 ${urlMetadata.domain ?: url}\n")
@@ -91,7 +91,15 @@ class ShareFlowManager(
                                 append("\n$it\n")
                             }
                             append("\nSource: $url")
+                            
+                            // READER MODE: Append full article text for AI searchability
+                            urlMetadata.articleContent?.let { article ->
+                                append("\n\n--- Article Content ---\n\n")
+                                append(article)
+                            }
                         }
+                        
+                        Log.d(TAG, "Web clipper: Saved ${urlMetadata.articleContent?.length ?: 0} chars of article content")
                     }
                 }
             }

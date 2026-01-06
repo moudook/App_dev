@@ -84,8 +84,104 @@ class LocalCommandProcessor(
             "run the ", "run my ", "run ",
             "go to ", "switch to "
         )
-        private val PLAY_PREFIXES = listOf("play ", "play me ", "play some ", "put on ")
-        private val STOP_PREFIXES = listOf("stop ", "pause ", "stop playing", "pause music")
+        // Music/Audio playback prefixes - extensive multilingual support
+        // Ordered by specificity (longer phrases first)
+        private val PLAY_PREFIXES = listOf(
+            // English - expanded phrases
+            "play me some ", "play me the ", "play me a ", "play me ",
+            "play some ", "play the ", "play a ", "play ",
+            "put on some ", "put on the ", "put on ",
+            "start playing ", "start the ", "begin playing ",
+            "listen to some ", "listen to the ", "listen to ",
+            "hear some ", "hear the ", "hear ",
+            "i want to hear ", "i want to listen to ", "i wanna hear ",
+            "let me hear ", "let me listen to ",
+            "can you play ", "could you play ", "would you play ",
+            "please play ", "just play ",
+            "music ", "audio ", "song ", "track ",
+            "queue up ", "shuffle ", "loop ",
+            
+            // Hindi (हिंदी)
+            "गाना बजाओ ", "गाना सुनाओ ", "गाना चलाओ ",
+            "सुनाओ ", "बजाओ ", "चलाओ ",
+            "गाना ", "संगीत ", "म्यूजिक ",
+            "gaana bajao ", "gaana sunao ", "gaana chalao ",
+            "sunao ", "bajao ", "chalao ",
+            "gana bajao ", "gana sunao ", "gana chalao ",
+            "gana ", "sangeet ", "music bajao ",
+            
+            // Marathi (मराठी)
+            "गाणे लावा ", "गाणे ऐका ", "गाणे वाजवा ",
+            "लावा ", "ऐका ", "वाजवा ", "ऐकवा ",
+            "गाणे ", "संगीत ",
+            "gaane lava ", "gaane aika ", "gaane vajva ",
+            "lava ", "aika ", "vajva ", "aikva ",
+            "gaane ",
+            
+            // Spanish (Español)
+            "reproducir ", "reproduce ", "pon ", "ponme ",
+            "escuchar ", "escucha ", "oír ", "oye ",
+            "música ", "canción ", "pista ",
+            "quiero escuchar ", "quiero oír ",
+            
+            // French (Français)
+            "jouer ", "joue ", "écouter ", "écoute ",
+            "mets ", "mettez ", "lance ", "lancer ",
+            "musique ", "chanson ",
+            "je veux écouter ", "fais jouer ",
+            
+            // German (Deutsch)
+            "spielen ", "spiel ", "abspielen ", "spiele ",
+            "hören ", "höre ", "anhören ",
+            "musik ", "lied ", "song abspielen ",
+            "ich möchte hören ",
+            
+            // Portuguese (Português)
+            "tocar ", "toca ", "reproduzir ",
+            "ouvir ", "ouça ", "escutar ",
+            "música ", "canção ",
+            "quero ouvir ",
+            
+            // Italian (Italiano)
+            "riproduci ", "suona ", "metti ",
+            "ascolta ", "ascoltare ",
+            "musica ", "canzone ",
+            "voglio ascoltare ",
+            
+            // Arabic (العربية) - transliterated
+            "shaghal ", "shghel ", "ashghal ",
+            "samma3 ", "esma3 ",
+            "musiqa ", "aghani ", "ughnia ",
+            
+            // Japanese (日本語) - romanized
+            "nagashite ", "kiite ", "kakete ",
+            "ongaku ", "kyoku ",
+            
+            // Korean (한국어) - romanized  
+            "teulleo ", "deullyeo ", "jaesaeng ",
+            "eumag ", "norae ",
+            
+            // Chinese (中文) - pinyin
+            "bofang ", "ting ", "bo ",
+            "yinyue ", "gequ "
+        )
+        
+        // Stop/Pause commands - also multilingual
+        private val STOP_PREFIXES = listOf(
+            // English
+            "stop ", "pause ", "stop playing", "pause music",
+            "stop the ", "pause the ", "halt ", "end ",
+            // Hindi
+            "band karo", "roko", "रोको", "बंद करो",
+            // Spanish
+            "para ", "pausa ", "detener ",
+            // French
+            "arrête ", "arrêter ", "pause ",
+            // German
+            "stopp ", "anhalten ", "pausieren ",
+            // Marathi
+            "थांबवा", "थांब", "thambva", "thamb"
+        )
 
         // Task words that indicate the query has multiple tasks
         // If "play" + these words are found, audio is played AND query goes to AI
@@ -186,15 +282,96 @@ class LocalCommandProcessor(
             }
         }
 
-        // Check for "save this page/screen" commands - use contains() for more flexibility
+        // Check for \"save this page/screen\" commands - use contains() for more flexibility
         if (isSavePageCommand(input)) {
             val titleHint = extractSavePageHint(input)
             Log.d(TAG, "Save page command detected! Input: '$input', Hint: '$titleHint'")
             return CommandResult.SavePageRequest(titleHint = titleHint)
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // SIMPLE CONVERSATIONAL QUERIES - Handle without AI agent
+        // These bypass the tool-based agent to prevent unnecessary actions
+        // ═══════════════════════════════════════════════════════════════
+        val conversationalResponse = handleConversationalQuery(normalizedInput)
+        if (conversationalResponse != null) {
+            Log.d(TAG, "Handled as conversational query: '$normalizedInput'")
+            return CommandResult.Handled(response = conversationalResponse)
+        }
+
         // Not a local command, pass to LLM
         return CommandResult.PassToLLM
+    }
+
+    /**
+     * Handle simple conversational queries without invoking the AI agent.
+     * Returns a direct response for greetings, capability questions, etc.
+     * Returns null if the query should be passed to the AI agent.
+     */
+    private fun handleConversationalQuery(input: String): String? {
+        // Greetings
+        if (input in listOf("hi", "hello", "hey", "hi there", "hello there", "hey there", "yo", "hola", "namaste")) {
+            return listOf(
+                "Hey! How can I help you today?",
+                "Hello! What can I do for you?",
+                "Hi there! Need any help?",
+                "Hey! What's up?"
+            ).random()
+        }
+
+        // How are you
+        if (input in listOf("how are you", "how are you doing", "how's it going", "what's up", "sup", "howdy")) {
+            return listOf(
+                "I'm doing great, thanks for asking! How can I help you?",
+                "All good here! What can I do for you?",
+                "Doing well! Need anything?"
+            ).random()
+        }
+
+        // Identity questions
+        if (input in listOf("who are you", "what are you", "who is this", "what is this")) {
+            return "I'm Loum, your AI companion! I can help you with notes, todos, calendar, web search, and more. Just ask!"
+        }
+
+        // Capability questions - CRITICAL: prevents tool usage for "what can you do"
+        if (input.contains("what can you do") || input.contains("what do you do") || 
+            input.contains("help me") || input.contains("what are your capabilities") ||
+            input.contains("what features") || input.contains("what tools") ||
+            input == "help" || input == "?" || input.contains("how do i use")) {
+            return """Here's what I can help with:
+
+📝 **Notes** - Create, search, and manage your notes
+✅ **Todos** - Add and track your tasks  
+📅 **Calendar** - Manage events and set timers
+🔍 **Web Search** - Find information online
+📱 **Apps** - Open apps on your device
+🎵 **Audio** - Play music from your notes
+
+Just tell me what you need!"""
+        }
+
+        // Thank you
+        if (input in listOf("thank you", "thanks", "thx", "ty", "thank u", "thanks a lot", "thank you so much")) {
+            return listOf(
+                "You're welcome!",
+                "Happy to help!",
+                "Anytime!",
+                "No problem!"
+            ).random()
+        }
+
+        // Goodbye
+        if (input in listOf("bye", "goodbye", "see you", "see ya", "later", "cya", "bye bye")) {
+            return listOf(
+                "Goodbye! Have a great day!",
+                "See you later!",
+                "Take care!",
+                "Bye! Come back anytime!"
+            ).random()
+        }
+
+        // Not a simple conversational query
+        return null
     }
 
     /**
@@ -212,9 +389,56 @@ class LocalCommandProcessor(
      * @return CommandResult if audio was found, null otherwise (to pass to LLM)
      */
     private fun tryExtractAndPlayAudio(normalizedInput: String): CommandResult? {
-        // Find "play" keyword with various patterns
+        // Find music/audio keywords with extensive multilingual patterns
+        // These patterns are searched anywhere in the query (not just at start)
         val playPatterns = listOf(
-            "play ", "play me ", "play some ", "put on ", "start playing "
+            // English - ordered by specificity (longer first)
+            "play me some ", "play me the ", "play me a ", "play me ",
+            "play some ", "play the ", "play a ", "play ",
+            "put on some ", "put on the ", "put on ",
+            "start playing ", "begin playing ",
+            "listen to some ", "listen to the ", "listen to ",
+            "hear some ", "hear the ", "hear ",
+            "i want to hear ", "i want to listen to ", "i wanna hear ",
+            "let me hear ", "let me listen to ",
+            "can you play ", "could you play ", "would you play ",
+            "please play ", "just play ",
+            "queue up ", "shuffle ",
+            
+            // Hindi (हिंदी) - common phrases
+            "gaana bajao ", "gaana sunao ", "gaana chalao ",
+            "gana bajao ", "gana sunao ", "gana chalao ",
+            "sunao ", "bajao ", "chalao ",
+            "music bajao ", "sangeet sunao ",
+            
+            // Marathi (मराठी) - common phrases
+            "gaane lava ", "gaane aika ", "gaane vajva ",
+            "lava ", "aika ", "vajva ", "aikva ",
+            "gaane ",
+            
+            // Spanish
+            "reproducir ", "reproduce ", "pon ", "ponme ",
+            "escuchar ", "escucha ", "quiero escuchar ",
+            
+            // French
+            "jouer ", "joue ", "écouter ", "écoute ",
+            "mets ", "je veux écouter ", "fais jouer ",
+            
+            // German
+            "spielen ", "spiel ", "abspielen ", "spiele ",
+            "hören ", "höre ", "ich möchte hören ",
+            
+            // Portuguese
+            "tocar ", "toca ", "ouvir ", "quero ouvir ",
+            
+            // Italian
+            "riproduci ", "suona ", "ascolta ", "voglio ascoltare ",
+            
+            // Single-word triggers (checked last, less specific)
+            // These work when user says just "music xyz" or "audio xyz"
+            "music ", "audio ", "song ", "track ",
+            "gana ", "gaana ", "sangeet ", "gaane ",
+            "música ", "musique ", "musik ", "musica "
         )
 
         for (pattern in playPatterns) {

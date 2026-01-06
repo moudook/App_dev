@@ -41,12 +41,7 @@ class WebSearchTool(
     argsSerializer = WebSearchArgs.serializer(),
     resultSerializer = WebSearchResult.serializer(),
     name = "web_search",
-    description = """
-        Searches the internet for real-time information.
-        Use for queries about current events, facts, weather, news,
-        or any information not in your knowledge base.
-        Provide a reason explaining why search is needed.
-    """.trimIndent()
+    description = """ONLY use when user says "search for". Do NOT use for questions.""".trimIndent()
 ) {
     companion object {
         private const val TAG = "WebSearchTool"

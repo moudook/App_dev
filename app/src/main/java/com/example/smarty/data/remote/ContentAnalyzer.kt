@@ -82,33 +82,41 @@ Content:
 
         /**
          * Document analysis prompt for PDFs and long-form content.
-         * Provides comprehensive analysis with key points and action items.
+         * Provides comprehensive analysis with key points, action items,
+         * and explicit references (formulas, key terms, recurring topics).
          */
         val DOCUMENT_ANALYSIS_PROMPT = """
-You are an intelligent document analyst for the Loum note-taking app. Analyze the document content and provide a comprehensive summary.
+You are an intelligent document analyst for the Loum note-taking app. Analyze the document content and provide a comprehensive summary with explicit references.
 
 TASK: Analyze the document and respond with a JSON object containing:
 1. "title" - A concise descriptive title (5-10 words)
 2. "summary" - A comprehensive 2-4 sentence summary of the main content
 3. "keyPoints" - Array of 3-5 key takeaways (each 1 sentence)
 4. "category" - One category from the list below
-5. "actionItems" - Array of 0-3 potential action items the user might take based on this document
-6. "userRelevance" - 1 sentence explaining why this document might be valuable to the user
+5. "actionItems" - Array of 0-3 potential action items the user might take
+6. "userRelevance" - 1 sentence explaining why this document might be valuable
+7. "references" - Object containing:
+   - "formulas": Array of important formulas/equations found (e.g., "E = mc²", "PV = nRT")
+   - "keyTerms": Array of 3-7 important technical terms or concepts with brief definitions
+   - "recurringTopics": Array of topics/themes that appear frequently across multiple sections
 
 CATEGORIES:
-- Preferred: Learn, Read, Work, Finance, Health, Code, Legal, Recipe
-- OR: Create a specific one-word category if better (e.g. "Biology", "ProjectX", "Taxes")
+- Preferred: Learn, Read, Work, Finance, Health, Code, Legal, Recipe, Math, Science
+- OR: Create a specific one-word category if better (e.g. "Biology", "Physics", "Taxes")
 - Capitalize the first letter
 
 RULES:
 1. Respond with ONLY valid JSON, no other text
 2. No markdown, no code blocks, no explanations outside JSON
 3. Be insightful and identify the document's core purpose
-4. Action items should be practical and specific
-5. Consider what a typical user would want to remember or do with this
+4. IMPORTANT: Extract ALL formulas/equations you find - these help users quickly find what they need
+5. For keyTerms, include technical words/concepts that are central to understanding the document
+6. For recurringTopics, identify themes mentioned across multiple pages/sections
+7. If no formulas exist, use empty array for "formulas"
+8. Consider what a typical user would want to remember or search for later
 
 EXAMPLE OUTPUT:
-{"title":"Q3 Financial Performance Report","summary":"Quarterly financial report showing 15% revenue growth with improved margins. The company exceeded targets in all key metrics.","keyPoints":["Revenue grew 15% YoY to $2.5M","Operating margins improved by 3%","Customer acquisition cost decreased 20%","New product line contributed 25% of revenue"],"category":"Finance","actionItems":["Review budget allocations for Q4","Schedule meeting to discuss growth strategy"],"userRelevance":"Important financial milestone showing positive business trajectory"}
+{"title":"Thermodynamics Study Guide","summary":"Comprehensive review of thermodynamic principles covering heat transfer, entropy, and energy conservation. Includes worked examples and problem sets.","keyPoints":["First law: Energy is conserved in all processes","Second law: Entropy always increases in isolated systems","Heat engines have theoretical efficiency limits","Phase transitions occur at constant temperature"],"category":"Physics","actionItems":["Review entropy derivations","Practice Carnot cycle problems"],"userRelevance":"Essential study material for thermodynamics exam preparation","references":{"formulas":["ΔU = Q - W","S = k ln Ω","η = 1 - Tc/Th","PV = nRT"],"keyTerms":[{"term":"Entropy","definition":"Measure of disorder in a system"},{"term":"Enthalpy","definition":"Total heat content (H = U + PV)"},{"term":"Carnot cycle","definition":"Ideal reversible heat engine cycle"}],"recurringTopics":["Heat transfer mechanisms","Energy conservation","Reversible vs irreversible processes"]}}
 
 Document content:
 """.trimIndent()

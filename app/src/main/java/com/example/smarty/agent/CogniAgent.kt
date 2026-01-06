@@ -9,6 +9,7 @@ import com.example.smarty.agent.tools.calendar.CancelTimerTool
 import com.example.smarty.agent.tools.calendar.CreateEventTool
 import com.example.smarty.agent.tools.calendar.CreateTimerTool
 import com.example.smarty.agent.tools.calendar.DeleteEventTool
+import com.example.smarty.agent.tools.calendar.DeleteDayEventsTool
 import com.example.smarty.agent.tools.calendar.GetEventsTool
 import com.example.smarty.agent.tools.categories.GetCategoryNotesTool
 import com.example.smarty.agent.tools.categories.ListCategoriesTool
@@ -23,6 +24,7 @@ import com.example.smarty.agent.tools.external.ViewImageTool
 import com.example.smarty.agent.tools.external.ScreenContext
 import com.example.smarty.agent.tools.external.SearchCitation
 import com.example.smarty.agent.tools.external.WebSearchTool
+import com.example.smarty.agent.tools.memory.ManageMemoryTool
 import com.example.smarty.agent.tools.memory.UserPatternsTool
 import com.example.smarty.agent.tools.notes.*
 import com.example.smarty.data.model.ThinkingModeContext
@@ -39,6 +41,7 @@ import com.example.smarty.data.model.ChatRole
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TaggedNoteContext
 import com.example.smarty.data.remote.providers.TavilySearchProvider
+import com.example.smarty.data.local.AIMemoryDao
 import com.example.smarty.data.repository.CogniRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.HistoryCompressor
@@ -50,6 +53,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import com.example.smarty.agent.tools.planning.CreatePlanTool
+import com.example.smarty.agent.tools.planning.CancelPlanTool
 import com.example.smarty.agent.tools.planning.MarkStepCompleteTool
 import com.example.smarty.agent.tools.planning.ExecutionPlanManager
 import com.example.smarty.agent.tools.planning.PlanStatus
@@ -306,26 +310,27 @@ class CogniAgent(
     private val tavilySearchProvider: TavilySearchProvider,
     private val alarmScheduler: AlarmScheduler,
     private val callbacks: AgentCallbacks,
+    private val aiMemoryDao: AIMemoryDao,  // For memory management tool
     private val rateLimiter: RateLimiter? = null  // Optional rate limiter
 ) {
     companion object {
         private const val TAG = "CogniAgent"
 
         // Dynamic iteration limits based on task complexity
-        private const val MAX_ITERATIONS_SIMPLE = 15     // Simple queries, greetings
-        private const val MAX_ITERATIONS_STANDARD = 25   // Normal multi-step tasks
-        private const val MAX_ITERATIONS_COMPLEX = 35    // Long-horizon multi-step tasks
-        private const val MAX_ITERATIONS_RESEARCH = 40   // Complex research workflows
+        private const val MAX_ITERATIONS_SIMPLE = 100     // Simple queries, greetings (TESTING)
+        private const val MAX_ITERATIONS_STANDARD = 100   // Normal multi-step tasks (TESTING)
+        private const val MAX_ITERATIONS_COMPLEX = 100    // Long-horizon multi-step tasks (TESTING)
+        private const val MAX_ITERATIONS_RESEARCH = 100   // Complex research workflows (TESTING)
 
         // Rate limit constants
         private const val RATE_LIMIT_DAILY_THRESHOLD_MS = 30_000L  // If wait > 30s, it's daily limit
 
         // Provider-specific timeout constants (in milliseconds)
-        // LOCAL_PC: Fast local server, shorter timeout sufficient
-        private const val TIMEOUT_LOCAL_PC_MS = 45_000L      // 45 seconds
-        // Cloud providers: Need longer timeout for network latency
-        private const val TIMEOUT_CLOUD_DEFAULT_MS = 90_000L // 90 seconds
-        private const val TIMEOUT_CLOUD_SLOW_MS = 120_000L   // 120 seconds (for Anthropic/complex models)
+        // LOCAL_PC: Local LLMs can be slow, needs long timeout
+        private const val TIMEOUT_LOCAL_PC_MS = 300_000L     // 5 minutes
+        // Cloud providers: Need reasonable timeout for network latency
+        private const val TIMEOUT_CLOUD_DEFAULT_MS = 180_000L // 3 minutes
+        private const val TIMEOUT_CLOUD_SLOW_MS = 240_000L   // 4 minutes (for Anthropic/complex models)
 
         /**
          * Get the appropriate timeout for a given AI provider.
@@ -430,87 +435,45 @@ class CogniAgent(
         optimizer
     }
     private val systemPrompt = """
-# IDENTITY
-You are Loum, a helpful AI assistant. You solve complex problems efficiently using your available tools.
-
-# CORE BEHAVIOR
-- **NEVER show your planning to the user.** Your plans are INTERNAL ONLY.
-- **Execute silently.** Do not narrate what you're doing.
-- **Only respond when you have something useful to say** (result, answer, or clarification needed).
-
-# DECISION FLOW
-1. **Simple Question** → Answer directly. No tools needed.
-2. **Ambiguous Request** → Ask for clarification using the JSON format below.
-3. **Complex Task (requires 2+ tools)** → Create a plan internally, execute all steps, then provide the final result.
-4. **Single Tool Task** → Execute the tool, return the result.
-
-# FOR COMPLEX TASKS (Multi-Step)
-When a task requires multiple tools:
-1. Call `create_plan(goal="...", steps=[...])` to set up your plan.
-2. Execute each step by calling the appropriate tool.
-3. After each tool succeeds, call `mark_step_complete(resultSummary="...")`.
-4. Repeat until all steps are done.
-5. **ONLY THEN** respond to the user with the final outcome.
-
-**IMPORTANT:** 
-- Do NOT output the plan to the user.
-- Do NOT say "I'm starting step 1..." or "Now executing...".
-- Just work silently and give the user the final answer/result.
-
-# CLARIFICATION FORMAT (only when you genuinely need more info)
-{clarification: {
-  question: "What kind of party are you planning?",
-  options: ["Birthday", "Graduation", "Casual hangout"],
-  custom: true
-}}
-
-# TOOL RULES
-- One tool per response (unless clearly parallelizable).
-- If a tool fails, try an alternative or report the issue to the user.
+You are Loum, a text chatbot.
+ONLY use a tool if the user explicitly orders you to.
+Otherwise, just answer the question directly.
     """.trimIndent()
-
-
 
 
     /**
      * Build the tool registry with all available tools.
+     * SLIM VERSION: Only essential tools to reduce token count for smaller models.
      */
     private fun buildToolRegistry(): ToolRegistry {
         return ToolRegistry {
-            // Planning Tools
-            tool(CreatePlanTool(executionPlanManager))
-            tool(MarkStepCompleteTool(executionPlanManager))
-
-            // Note tools
+            // === CORE NOTE TOOLS ===
             tool(CreateNoteTool(repository, callbacks::processNoteWithAi))
             tool(SearchNotesTool(callbacks::getActiveNotes))
-            tool(GetRecentNotesTool(callbacks::getActiveNotes))  // For "latest", "most recent" queries
-            tool(UpdateNoteTool(repository))
-            tool(DeleteNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
-            tool(ArchiveNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
-            tool(UnarchiveNoteTool(repository, callbacks::getArchivedNotes, callbacks::findNoteByDescription))
-            tool(SummarizeNoteTool(repository))
+            // tool(GetRecentNotesTool(callbacks::getActiveNotes))
+            // tool(UpdateNoteTool(repository))
+            // tool(DeleteNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
+            // tool(ArchiveNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
+            // tool(UnarchiveNoteTool(repository, callbacks::getArchivedNotes, callbacks::findNoteByDescription))
+            // tool(SummarizeNoteTool(repository))
 
-            // Todo tools
+            // === CORE TODO TOOLS ===
             tool(AddTodosTool(repository))
-            tool(ToggleTodoTool(repository))
-            tool(DeleteTodoTool(repository))
+            // tool(ToggleTodoTool(repository))
+            // tool(DeleteTodoTool(repository))
 
-            // Category tools
-            tool(ListCategoriesTool(callbacks::getCategories, callbacks::getActiveNotes))
-            tool(GetCategoryNotesTool(callbacks::getActiveNotes))
+            // === CATEGORY TOOLS (DISABLED) ===
+            // tool(ListCategoriesTool(callbacks::getCategories, callbacks::getActiveNotes))
+            // tool(GetCategoryNotesTool(callbacks::getActiveNotes))
+            // tool(SearchAudioNotesTool(callbacks::getActiveNotes))
+            // tool(SearchImageNotesTool(callbacks::getActiveNotes))
+            // tool(SearchDocumentNotesTool(callbacks::getActiveNotes))
 
-            // Category-specific search tools (optimized for media types)
-            tool(SearchAudioNotesTool(callbacks::getActiveNotes))
-            tool(SearchImageNotesTool(callbacks::getActiveNotes))
-            tool(SearchDocumentNotesTool(callbacks::getActiveNotes))
-
-            // External tools
+            // === CORE EXTERNAL TOOLS ===
             tool(WebSearchTool(
                 tavilySearchProvider = tavilySearchProvider,
                 getApiKey = callbacks::getTavilyApiKey,
                 onCitationsFound = { searchCitations ->
-                    // Convert SearchCitation to WebCitation and report
                     val webCitations = searchCitations.map { sc ->
                         WebCitation(sc.title, sc.url, sc.snippet)
                     }
@@ -521,94 +484,47 @@ When a task requires multiple tools:
                 getActiveNotes = callbacks::getActiveNotes,
                 onPlayAudio = callbacks::requestAudioPlayback
             ))
-            tool(ViewImageTool(
-                getActiveNotes = callbacks::getActiveNotes,
-                onDisplayImages = callbacks::onDisplayImages
-            ))
+            // tool(ViewImageTool(...))
             tool(OpenAppTool(
                 context = context,
                 onLaunchApp = callbacks::launchApp
             ))
-            tool(SaveScreenTool(
-                repository = repository,
-                getScreenContext = callbacks::getScreenContext
-            ))
+            // tool(SaveScreenTool(...))
 
-            // Calendar and timer tools
-            tool(CreateEventTool(repository))
-            tool(DeleteEventTool(repository))
-            tool(GetEventsTool(repository))  // BUG FIX (NEW-015): AI can query calendar events
-            tool(CreateTimerTool(alarmScheduler))
-            tool(CancelTimerTool(alarmScheduler))
+            // === CORE CALENDAR TOOLS (DISABLED FOR REACTIVITY TEST) ===
+            // tool(CreateEventTool(repository))
+            // tool(DeleteEventTool(repository))
+            // tool(DeleteDayEventsTool(repository))
+            // tool(GetEventsTool(repository))
+            // tool(CreateTimerTool(alarmScheduler))
+            // tool(CancelTimerTool(alarmScheduler))
 
-            // Advanced tools for power users
-            tool(SmartSearchTool(callbacks::getActiveNotes))
-            tool(BatchOperationsTool(repository, callbacks::getActiveNotes))
-            tool(DeepResearchTool(tavilySearchProvider, repository, callbacks::getTavilyApiKey))
-            tool(UserPatternsTool(callbacks::getActiveNotes, callbacks::getCategories))
+            // === ADVANCED TOOLS (DISABLED FOR TOKEN SAVINGS) ===
+            // tool(SmartSearchTool(callbacks::getActiveNotes))
+            // tool(BatchOperationsTool(repository, callbacks::getActiveNotes))
+            // tool(DeepResearchTool(tavilySearchProvider, repository, callbacks::getTavilyApiKey))
+            // tool(UserPatternsTool(callbacks::getActiveNotes, callbacks::getCategories))
+
+            // === MEMORY TOOLS ===
+            tool(ManageMemoryTool(aiMemoryDao))
         }
     }
 
     /**
      * Build context string with current notes summary for the agent.
+     * SLIM VERSION: Minimal context to fit smaller LLM context windows.
      */
     private fun buildContext(): String {
         val activeNotes = callbacks.getActiveNotes()
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(activeNotes)
-        val categories = callbacks.getCategories()
-        val safeCounts = PrivacyGuard.getAiSafeCategoryCounts(categories, activeNotes)
 
-        // Get today's date
-        val today = java.time.LocalDate.now()
-        val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy")
-        val formattedDate = today.format(dateFormatter)
+        // Get current date AND time
+        val now = java.time.LocalDateTime.now()
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d, yyyy | h:mm a")
+        val formattedDateTime = now.format(formatter)
 
         return buildString {
-            // === PLANNING CONTEXT INJECTION ===
-            val activePlan = executionPlanManager.getActivePlan()
-            if (activePlan != null && activePlan.status == PlanStatus.IN_PROGRESS) {
-                appendLine("\n=== CURRENT EXECUTION PLAN ===")
-                appendLine("GOAL: ${activePlan.goal}")
-                activePlan.steps.forEach { step ->
-                    val statusLabel = when(step.status) {
-                        StepStatus.COMPLETED -> "[COMPLETED]"
-                        StepStatus.IN_PROGRESS -> "[IN PROGRESS]"
-                        StepStatus.PENDING -> "[PENDING]"
-                        StepStatus.FAILED -> "[FAILED]"
-                        StepStatus.SKIPPED -> "[SKIPPED]"
-                    }
-                    val result = if (step.resultSummary != null) " -> Result: ${step.resultSummary}" else ""
-                    appendLine("$statusLabel Step ${step.index}: ${step.description}$result")
-                }
-                
-                val currentStep = activePlan.getCurrentStep()
-                if (currentStep != null) {
-                    appendLine("\nNEXT ACTION REQUIRED: Step ${currentStep.index} (${currentStep.description})")
-                    appendLine("INSTRUCTION: Execute Step ${currentStep.index} now using the appropriate tool. If the step is an internal thought or calculation, assume it is done. Once the action is finished, IMMEDIATELY call `mark_step_complete`.")
-                } else {
-                    appendLine("\nALL STEPS COMPLETED. Summarize the results to the user.")
-                }
-                appendLine("==============================\n")
-            }
-            // ==================================
-
-            appendLine("CURRENT DATE: $formattedDate")
-            appendLine()
-            appendLine("CURRENT STATE:")
-            appendLine("- Total visible notes: ${visibleNotes.size}")
-
-            if (safeCounts.isNotEmpty()) {
-                appendLine("- Categories: ${safeCounts.entries.joinToString { "${it.key}: ${it.value}" }}")
-            }
-
-            if (visibleNotes.isNotEmpty()) {
-                appendLine("\nRECENT NOTES (last 5):")
-                visibleNotes.take(5).forEach { note ->
-                    // NO IDs - just titles (IDs are internal, user shouldn't see them)
-                    appendLine("- ${note.title.take(50)}")
-                }
-            }
-            appendLine()
+            appendLine("Current Time: $formattedDateTime | Notes: ${visibleNotes.size}")
         }
     }
 
@@ -720,17 +636,9 @@ When a task requires multiple tools:
             } + "\n"
         } else ""
 
-        // NEW-016: Get relevant tool examples for few-shot learning
-        // BATCH-3C: Now also available through agentOptimizer.getToolExamples()
-        val examplesSection = try {
-            val examples = toolExampleStore.getRelevantExamples(userMessage, count = 3)
-            if (examples.isNotEmpty()) {
-                "\n" + toolExampleStore.formatExamplesForPrompt(examples)
-            } else ""
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to get tool examples", e)
-            ""
-        }
+        // NEW-016: Tool examples DISABLED to reduce token count for smaller LLMs
+        // TODO: Re-enable for large context models
+        val examplesSection = "" // Disabled for token savings
 
         // ═══════════════════════════════════════════════════════════════
         // @THINKING MODE - Deep document analysis with full content
@@ -779,7 +687,7 @@ When a task requires multiple tools:
 
         // Build full prompt with context, examples, history, thinking mode, mentions, and current message
         // BATCH-3C: Use masked query from optimizer for PII protection
-        val fullPrompt = buildContext() + examplesSection + historySection + thinkingContextSection + mentionContextSection + "USER: ${processed.maskedQuery}"
+        val fullPrompt = buildContext() + historySection + thinkingContextSection + mentionContextSection + "USER: ${processed.maskedQuery}"
         val toolRegistry = buildToolRegistry()
 
         // BATCH-3C: Token estimation pre-check to prevent context window overflow

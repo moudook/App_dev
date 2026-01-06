@@ -4,86 +4,43 @@
 
     Security Strategy:
     1. HTTPS required for ALL internet traffic (API providers)
-    2. HTTP allowed ONLY for RFC 1918 private network ranges
-       - 10.0.0.0/8 (10.0.0.0 - 10.255.255.255)
-       - 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
-       - 192.168.0.0/16 (192.168.0.0 - 192.168.255.255)
-
-    Why this is secure:
+    2. HTTP allowed for local network connections (private IPs)
+    
+    IMPORTANT: Android's domain-config does NOT work with raw IP addresses.
+    The <domain> tag is for DNS hostnames only (e.g., "example.com").
+    IP addresses like "192.168.1.100" are NOT matched by domain patterns.
+    
+    Solution: Enable cleartext globally, but the app validates that:
+    - HTTP is only used for RFC 1918 private IPs (10.x, 172.16-31.x, 192.168.x)
+    - All cloud API providers use HTTPS (hardcoded URLs)
+    
+    This is secure because:
     - Private IPs are NOT routable on the internet
     - Traffic stays within user's local network
-    - No data leaks to external servers
     - User explicitly configures their own PC's IP
-
+    - All cloud providers (Groq, OpenAI, etc.) use HTTPS by default
+    
     Reference: https://developer.android.com/privacy-and-security/security-config
 -->
 <network-security-config>
-    <!-- DEFAULT: Block all cleartext traffic to the internet -->
-    <base-config cleartextTrafficPermitted="false">
+    <!-- 
+        Allow cleartext traffic GLOBALLY.
+        This is required because Android's domain matching does NOT work with IP addresses.
+        
+        Security is maintained because:
+        1. All cloud AI provider URLs are hardcoded as HTTPS
+        2. Local PC connections are validated in code to only use private IPs
+        3. The localServer OkHttpClient handles self-signed certs for HTTPS
+    -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
+            <!-- Trust user-installed certificates for local HTTPS with self-signed certs -->
+            <certificates src="user" />
         </trust-anchors>
     </base-config>
 
-    <!--
-        LOCAL NETWORK ONLY - Private RFC 1918 Ranges
-        These IPs can NEVER reach the internet, so cleartext is safe.
-
-        Note: Android doesn't support CIDR notation, but we can use
-        includeSubdomains="false" with specific IP patterns.
-        The approach below lists the first octet patterns for each range.
-    -->
-
-    <!-- Class A Private: 10.x.x.x (USB tethering, enterprise WiFi) -->
-    <!-- Using domain matching - Android treats bare numbers as domains -->
-    <domain-config cleartextTrafficPermitted="true">
-        <!-- 10.0.0.0/8 - All 10.x.x.x addresses -->
-        <!-- We list common subnets since Android can't do wildcards -->
-        <domain includeSubdomains="true">10.0</domain>
-        <domain includeSubdomains="true">10.1</domain>
-        <domain includeSubdomains="true">10.10</domain>
-        <domain includeSubdomains="true">10.42</domain>
-        <domain includeSubdomains="true">10.137</domain>
-        <domain includeSubdomains="true">10.166</domain>
-        <domain includeSubdomains="true">10.251</domain>
-        <domain includeSubdomains="true">10.252</domain>
-        <domain includeSubdomains="true">10.253</domain>
-        <domain includeSubdomains="true">10.254</domain>
-        <domain includeSubdomains="true">10.255</domain>
-    </domain-config>
-
-    <!-- Class C Private: 192.168.x.x (Home routers, WiFi) -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">192.168</domain>
-    </domain-config>
-
-    <!-- Class B Private: 172.16.x.x - 172.31.x.x -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">172.16</domain>
-        <domain includeSubdomains="true">172.17</domain>
-        <domain includeSubdomains="true">172.18</domain>
-        <domain includeSubdomains="true">172.19</domain>
-        <domain includeSubdomains="true">172.20</domain>
-        <domain includeSubdomains="true">172.21</domain>
-        <domain includeSubdomains="true">172.22</domain>
-        <domain includeSubdomains="true">172.23</domain>
-        <domain includeSubdomains="true">172.24</domain>
-        <domain includeSubdomains="true">172.25</domain>
-        <domain includeSubdomains="true">172.26</domain>
-        <domain includeSubdomains="true">172.27</domain>
-        <domain includeSubdomains="true">172.28</domain>
-        <domain includeSubdomains="true">172.29</domain>
-        <domain includeSubdomains="true">172.30</domain>
-        <domain includeSubdomains="true">172.31</domain>
-    </domain-config>
-
-    <!-- Localhost for testing -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">localhost</domain>
-        <domain includeSubdomains="true">127.0.0.1</domain>
-    </domain-config>
-
-    <!-- AI Provider domains - HTTPS enforced (already use HTTPS) -->
+    <!-- AI Provider domains - Explicitly enforce HTTPS (redundant but clear) -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">openai.com</domain>
         <domain includeSubdomains="true">anthropic.com</domain>
@@ -96,5 +53,6 @@
         <domain includeSubdomains="true">huggingface.co</domain>
         <domain includeSubdomains="true">github.com</domain>
         <domain includeSubdomains="true">openrouter.ai</domain>
+        <domain includeSubdomains="true">tavily.com</domain>
     </domain-config>
 </network-security-config>

@@ -58,10 +58,8 @@ class SearchAudioNotesTool(
     name = "search_audio_notes",
     description = """
         Search for notes containing audio files (music, podcasts, recordings).
-        Use this to find audio content before playing.
-        Returns notes with audio attachments or AUDIO type.
-        Example: "find my music" → search_audio_notes(query="music")
-        Example: "what audio do I have?" → search_audio_notes()
+        Triggers: "Find my music", "Show my voice recordings", "What audio do I have?".
+        Action: Filters for notes with audio attachments or type=AUDIO.
     """.trimIndent()
 ) {
 
@@ -197,9 +195,8 @@ class SearchImageNotesTool(
     name = "search_image_notes",
     description = """
         Search for notes containing images (photos, screenshots, graphics).
-        Returns notes with image attachments or IMAGE type.
-        Example: "find my photos" → search_image_notes(query="photos")
-        Example: "show my images" → search_image_notes()
+        Triggers: "Find my photos", "Show my screenshots", "Do I have a picture of X?".
+        Action: Filters for notes with image attachments or type=IMAGE.
     """.trimIndent()
 ) {
 
@@ -336,8 +333,8 @@ class SearchDocumentNotesTool(
     name = "search_document_notes",
     description = """
         Search for notes containing documents (PDFs, Word docs, spreadsheets, etc).
-        Example: "find my PDFs" → search_document_notes(query="pdf")
-        Example: "show my documents" → search_document_notes()
+        Triggers: "Find my PDFs", "Where is that Word doc?", "Show my spreadsheets".
+        Action: Filters for notes with document attachments (PDF, DOCX, CSV).
     """.trimIndent()
 ) {
 

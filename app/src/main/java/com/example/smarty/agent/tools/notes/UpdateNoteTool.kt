@@ -30,9 +30,9 @@ class UpdateNoteTool(
     resultSerializer = NoteOperationResult.serializer(),
     name = "update_note",
     description = """
-        Updates an existing note's title, content, or category.
-        Use when the user wants to modify a note.
-        Private notes cannot be updated.
+        Modifies an existing note's title, content, or category.
+        Triggers: "Change the title of note X", "Add this text to note Y", "Move note Z to Personal category".
+        Requirement: You usually need to search for the note first to get its ID.
     """.trimIndent()
 ) {
     override suspend fun execute(args: UpdateNoteArgs): NoteOperationResult {

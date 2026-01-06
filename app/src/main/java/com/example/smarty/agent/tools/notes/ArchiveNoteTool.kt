@@ -29,10 +29,9 @@ class ArchiveNoteTool(
     resultSerializer = NoteOperationResult.serializer(),
     name = "archive_note",
     description = """
-        Archives a note (moves it to archive).
-        Use when the user wants to archive or hide a note without deleting.
-        Can specify by noteId or description.
-        Private notes cannot be archived by AI.
+        Moves a note to the Archive, hiding it from main lists but keeping it searchable.
+        Triggers: "Archive note X", "Hide this note", "Move to archive".
+        Different from Delete: Archived notes can be restored. Deleted notes are gone.
     """.trimIndent()
 ) {
     override suspend fun execute(args: ArchiveNoteArgs): NoteOperationResult {

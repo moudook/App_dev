@@ -69,16 +69,9 @@ class GetRecentNotesTool(
     resultSerializer = GetRecentNotesResult.serializer(),
     name = "get_recent_notes",
     description = """
-        MUST USE THIS TOOL when user asks for "latest", "most recent", "newest" notes.
-        Gets notes sorted by creation time (newest first).
-
-        This is the CORRECT tool for:
-        - "show my latest note" → get_recent_notes(limit=1)
-        - "what's my most recent notecard" → get_recent_notes(limit=1)
-        - "show recent notes" → get_recent_notes(limit=5)
-        - "latest document note" → get_recent_notes(limit=1, noteType="DOCUMENT")
-
-        DO NOT use search_notes for "latest" queries - use THIS tool instead!
+        Retrieves the most recently created notes, sorted by date (newest first).
+        Triggers: "What was my last note?", "Show me recent items", "What did I write today?".
+        DIFFERENT FROM 'search_notes': Use this ONLY for temporal queries ("recent", "latest", "newest").
     """.trimIndent()
 ) {
     override suspend fun execute(args: GetRecentNotesArgs): GetRecentNotesResult {

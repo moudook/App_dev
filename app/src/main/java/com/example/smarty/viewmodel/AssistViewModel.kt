@@ -185,7 +185,8 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             repository = repository,
             tavilySearchProvider = tavilySearchProvider,
             alarmScheduler = alarmScheduler,
-            callbacks = agentCallbacks
+            callbacks = agentCallbacks,
+            aiMemoryDao = database.aiMemoryDao()  // For memory management tool
         )
     }
 

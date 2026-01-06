@@ -73,11 +73,11 @@ class DeepResearchTool(
     resultSerializer = DeepResearchResult.serializer(),
     name = "deep_research",
     description = """
-        Performs comprehensive multi-step research on a topic.
-        Automatically generates multiple search queries, gathers information from various angles,
-        synthesizes findings, and optionally saves the research as a structured note.
-        Use for: "research X", "find out about Y", "investigate Z", "learn everything about W".
-        Returns findings with sources and can save directly to notes.
+        Performs comprehensive, multi-step internet research on COMPLEX topics and SAVES the result as a Note.
+        Triggers: "research [topic]", "deep dive into [topic]", "write a report on [topic]", "learn everything about [topic]".
+        DIFFERENT FROM 'web_search':
+        - Use 'deep_research' for broad topics needing synthesis (e.g., "History of AI", "Quantum Physics explanation").
+        - Use 'web_search' for quick facts (e.g., "weather today", "score of the game").
     """.trimIndent()
 ) {
     override suspend fun execute(args: DeepResearchArgs): DeepResearchResult {

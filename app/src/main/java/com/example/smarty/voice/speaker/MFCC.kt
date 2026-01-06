@@ -82,6 +82,16 @@ class MFCC(
      * @return List of 39-dimensional feature vectors, one per frame
      */
     fun extractFeatures(audioSamples: ShortArray): List<DoubleArray> {
+        val result = extractFeaturesWithEnergy(audioSamples)
+        return result.map { it.features }
+    }
+
+    private data class FrameResult(val features: DoubleArray, val energy: Double)
+
+    /**
+     * Internal extraction that preserves frame energy for VAD
+     */
+    private fun extractFeaturesWithEnergy(audioSamples: ShortArray): List<FrameResult> {
         if (audioSamples.size < frameSize) {
             return emptyList()
         }
@@ -94,10 +104,19 @@ class MFCC(
 
         // Extract MFCC for each frame
         val mfccFrames = mutableListOf<DoubleArray>()
+        val energies = mutableListOf<Double>()
         var start = 0
 
         while (start + frameSize <= emphasized.size) {
             val frame = emphasized.sliceArray(start until start + frameSize)
+
+            // Calculate frame energy (sum of squares)
+            var energy = 0.0
+            for (sample in frame) {
+                energy += sample * sample
+            }
+            energies.add(energy)
+
             val mfcc = computeMFCC(frame)
             mfccFrames.add(mfcc)
             start += hopSize
@@ -113,7 +132,8 @@ class MFCC(
 
         // Combine: MFCC + Delta + Delta-Delta = 39 features
         return mfccFrames.indices.map { i ->
-            mfccFrames[i] + deltaFeatures[i] + deltaDeltaFeatures[i]
+            val combined = mfccFrames[i] + deltaFeatures[i] + deltaDeltaFeatures[i]
+            FrameResult(combined, energies[i])
         }
     }
 
@@ -121,25 +141,50 @@ class MFCC(
      * Extract speaker embedding from audio.
      * Averages all frame features to create a fixed-size embedding.
      *
+     * IMPROVED: Uses Energy-based Voice Activity Detection (VAD)
+     * to filter out silence and background noise.
+     *
      * @param audioSamples Raw audio samples
      * @return 39-dimensional speaker embedding (averaged features)
      */
     fun extractEmbedding(audioSamples: ShortArray): DoubleArray {
-        val features = extractFeatures(audioSamples)
+        val framesWithEnergy = extractFeaturesWithEnergy(audioSamples)
 
-        if (features.isEmpty()) {
+        if (framesWithEnergy.isEmpty()) {
             return DoubleArray(numCoeffs * 3) // Return zero embedding
         }
 
-        // Average all frames to get single embedding
+        // 1. Calculate energy statistics
+        val maxEnergy = framesWithEnergy.maxOfOrNull { it.energy } ?: 0.0
+
+        // 2. Determine dynamic threshold
+        // Use 15% of max energy or a minimum floor to avoid amplifying silence
+        // If the whole clip is silence, maxEnergy will be low, so we need a floor.
+        // 0.001 is a reasonable floor for normalized audio (0-1 range)
+        val energyThreshold = max(maxEnergy * 0.15, 0.0001)
+
+        // 3. Filter frames based on energy (Simple VAD)
+        val activeFrames = framesWithEnergy.filter { it.energy >= energyThreshold }
+
+        // If no frames passed VAD (all silence), use the top 10% loudest frames
+        // This prevents returning a zero embedding which might match other zero embeddings
+        val framesToUse = if (activeFrames.isEmpty()) {
+             framesWithEnergy.sortedByDescending { it.energy }
+                .take(max(1, framesWithEnergy.size / 10))
+        } else {
+            activeFrames
+        }
+
+        // 4. Average selected frames
         val embedding = DoubleArray(numCoeffs * 3)
-        for (frame in features) {
-            for (i in frame.indices) {
-                embedding[i] += frame[i]
+        for (frame in framesToUse) {
+            val features = frame.features
+            for (i in features.indices) {
+                embedding[i] += features[i]
             }
         }
 
-        val numFrames = features.size.toDouble()
+        val numFrames = framesToUse.size.toDouble()
         for (i in embedding.indices) {
             embedding[i] /= numFrames
         }

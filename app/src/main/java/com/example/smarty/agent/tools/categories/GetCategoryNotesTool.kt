@@ -27,9 +27,9 @@ class GetCategoryNotesTool(
     resultSerializer = NoteSearchResult.serializer(),
     name = "get_category_notes",
     description = """
-        Gets all notes in a specific category.
-        Use when the user wants to see notes in a particular category.
-        Private notes are automatically excluded.
+        Retrieves a list of notes from a specific category folder.
+        Triggers: "Show my work notes", "What's in my Personal folder?", "List all ideas".
+        Requirement: Needs exact 'categoryName' (e.g., 'Work', 'Personal').
     """.trimIndent()
 ) {
     override suspend fun execute(args: GetCategoryNotesArgs): NoteSearchResult {

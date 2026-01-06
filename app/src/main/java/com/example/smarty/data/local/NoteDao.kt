@@ -422,4 +422,48 @@ interface NoteDao {
     @SkipQueryVerification
     @Query("INSERT INTO notes_fts(notes_fts, rank) VALUES('integrity-check', 1)")
     suspend fun checkFtsIntegrity()
+
+    // =========================================================================
+    // AI MEMORY LEARNING QUERIES
+    // =========================================================================
+
+    /**
+     * Get notes that haven't been analyzed for AI memory learning.
+     * Only returns AI-visible notes (not private, not archived).
+     * Limited to prevent overwhelming memory with too many notes at once.
+     */
+    @Query("""
+        SELECT * FROM notes 
+        WHERE isReadForMemory = 0 
+        AND isArchived = 0 
+        AND isFullPrivacy = 0 
+        AND excludeFromAiChat = 0
+        ORDER BY createdAt DESC
+        LIMIT :limit
+    """)
+    suspend fun getNotesNotReadForMemory(limit: Int = 50): List<Note>
+
+    /**
+     * Mark a specific note as read for AI memory analysis.
+     */
+    @Query("UPDATE notes SET isReadForMemory = 1, updatedAt = :timestamp WHERE id = :noteId")
+    suspend fun markNoteAsReadForMemory(noteId: String, timestamp: Long = System.currentTimeMillis())
+
+    /**
+     * Mark multiple notes as read for AI memory analysis.
+     */
+    @Query("UPDATE notes SET isReadForMemory = 1, updatedAt = :timestamp WHERE id IN (:noteIds)")
+    suspend fun markNotesAsReadForMemory(noteIds: List<String>, timestamp: Long = System.currentTimeMillis())
+
+    /**
+     * Get count of notes that haven't been analyzed for memory.
+     */
+    @Query("SELECT COUNT(*) FROM notes WHERE isReadForMemory = 0 AND isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
+    suspend fun getUnreadForMemoryCount(): Int
+
+    /**
+     * Reset memory read status for all notes (for re-analysis).
+     */
+    @Query("UPDATE notes SET isReadForMemory = 0, updatedAt = :timestamp")
+    suspend fun resetAllMemoryReadStatus(timestamp: Long = System.currentTimeMillis())
 }

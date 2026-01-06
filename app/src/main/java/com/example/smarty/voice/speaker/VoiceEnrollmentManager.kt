@@ -38,7 +38,7 @@ class VoiceEnrollmentManager(
         private const val SAMPLE_RATE = 16000
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-        private const val RECORD_DURATION_MS = 4000L  // 4 seconds per phrase
+        private const val RECORD_DURATION_MS = 6000L  // Increased to 6s for longer sentences
         private const val MIN_AUDIO_LENGTH = SAMPLE_RATE * 2  // At least 2 seconds of audio
     }
 

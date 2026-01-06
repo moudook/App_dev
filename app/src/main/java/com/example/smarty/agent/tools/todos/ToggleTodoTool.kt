@@ -28,9 +28,9 @@ class ToggleTodoTool(
     resultSerializer = TodoOperationResult.serializer(),
     name = "toggle_todo",
     description = """
-        Toggles a todo item's completion status (done/not done).
-        Use when the user wants to mark a task as complete or incomplete.
-        Private notes cannot be modified by AI.
+        Toggles the completion status (check/uncheck) of a todo item.
+        Triggers: "Mark milk as done", "Check off the meeting", "I finished the report".
+        Requirement: Needs 'noteId' and 'todoId' (use search_notes first).
     """.trimIndent()
 ) {
     override suspend fun execute(args: ToggleTodoArgs): TodoOperationResult {

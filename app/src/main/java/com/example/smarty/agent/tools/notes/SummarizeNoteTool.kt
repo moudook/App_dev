@@ -25,9 +25,9 @@ class SummarizeNoteTool(
     resultSerializer = SummarizeResult.serializer(),
     name = "summarize_note",
     description = """
-        Gets a note's content for summarization or detailed review.
-        Use when the user asks to summarize, explain, or read a specific note.
-        Private notes cannot be accessed.
+        Retrieves the FULL content of a note for reading or summarization.
+        Triggers: "Summarize note X", "Read me note Y", "What is inside note Z?".
+        Action: Returns title, summary, and full body content.
     """.trimIndent()
 ) {
     override suspend fun execute(args: SummarizeNoteArgs): SummarizeResult {

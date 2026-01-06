@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.DisposableEffect
@@ -28,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -222,9 +224,6 @@ class MainActivity : ComponentActivity() {
                 val providerConfigs by viewModel.providerConfigs.collectAsState()
                 val providerPriorityOrder by viewModel.providerPriorityOrder.collectAsState()
 
-                // PIN state
-                val isPinConfigured by viewModel.isPinSet.collectAsState()
-
                 // Pending share state
                 val pendingShare by viewModel.pendingShare.collectAsState()
                 val isShareFullPrivacy by viewModel.pendingShareFullPrivacy.collectAsState()
@@ -276,7 +275,7 @@ class MainActivity : ComponentActivity() {
 
 
                 // Tavily Web Search API state
-                val tavilyApiKey by viewModel.tavilyApiKey.collectAsState()
+                val tavilyApiKeys by viewModel.tavilyApiKeys.collectAsState()
 
                 // Shake sensitivity state
                 val shakeSensitivity by viewModel.shakeSensitivity.collectAsState()
@@ -304,6 +303,24 @@ class MainActivity : ComponentActivity() {
 
                 // Audio playback request from AI agent
                 val pendingAudioPlayback by viewModel.pendingAudioPlayback.collectAsState()
+
+                // AI Memory state for settings UI
+                val aiMemories by viewModel.aiMemories.collectAsState()
+                val isMemorySyncInProgress by viewModel.isMemorySyncInProgress.collectAsState()
+                val memorySyncResult by viewModel.memorySyncResult.collectAsState()
+                var unreadForMemoryCount by remember { mutableIntStateOf(0) }
+                
+                // Load unread count when screen appears
+                LaunchedEffect(Unit) {
+                    unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
+                }
+                
+                // Refresh count after sync completes
+                LaunchedEffect(isMemorySyncInProgress) {
+                    if (!isMemorySyncInProgress) {
+                        unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
+                    }
+                }
 
                 // Trigger audio playback when AI agent requests it
                 LaunchedEffect(pendingAudioPlayback) {
@@ -480,20 +497,6 @@ class MainActivity : ComponentActivity() {
                                     onTestApiKey = { provider, key, callback ->
                                         viewModel.testApiKey(provider, key, callback)
                                     },
-                                    // PIN management
-                                    isPinConfigured = isPinConfigured,
-                                    onSetPin = { pin ->
-                                        viewModel.setPin(pin)
-                                    },
-                                    onVerifyPin = { pin ->
-                                        viewModel.verifyPin(pin)
-                                    },
-                                    onChangePin = { oldPin, newPin ->
-                                        viewModel.changePin(oldPin, newPin)
-                                    },
-                                    onClearPin = {
-                                        viewModel.clearPin()
-                                    },
                                     // Notes management
                                     onAddNote = { content, attachments ->
                                         viewModel.addNoteWithAttachments(content, attachments)
@@ -509,6 +512,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onDeleteCategory = { category ->
                                         viewModel.deleteCategory(category)
+                                    },
+                                    onSyncCategoryCounts = {
+                                        viewModel.syncCategoryCounts()
                                     },
                                     onArchiveNote = { noteId ->
                                         viewModel.archiveNote(noteId)
@@ -673,9 +679,13 @@ class MainActivity : ComponentActivity() {
                                     },
                                     isClearingCache = isClearingCache,
                                     // Tavily Web Search API
-                                    tavilyApiKey = tavilyApiKey,
-                                    onSetTavilyApiKey = { key ->
-                                        viewModel.setTavilyApiKey(key)
+                                    // Tavily Web Search API
+                                    tavilyApiKeys = tavilyApiKeys,
+                                    onAddTavilyApiKey = { key ->
+                                        viewModel.addTavilyApiKey(key)
+                                    },
+                                    onRemoveTavilyApiKey = { key ->
+                                        viewModel.removeTavilyApiKey(key)
                                     },
                                     // Shake sensitivity
                                     shakeSensitivity = shakeSensitivity,
@@ -762,6 +772,24 @@ class MainActivity : ComponentActivity() {
                                     onSetLocalServerUseHttps = { useHttps ->
                                         viewModel.setLocalServerUseHttps(useHttps)
                                     },
+                                    // AI Memory for settings UI
+                                    aiMemories = aiMemories,
+                                    onDeleteAIMemory = { memory ->
+                                        viewModel.deleteAIMemory(memory)
+                                    },
+                                    onClearAllAIMemories = {
+                                        viewModel.clearAllAIMemories()
+                                    },
+                                    // Memory sync
+                                    onSyncAIMemories = {
+                                        viewModel.syncAIMemoriesFromNotes()
+                                    },
+                                    isMemorySyncInProgress = isMemorySyncInProgress,
+                                    memorySyncResult = memorySyncResult,
+                                    unreadForMemoryCount = unreadForMemoryCount,
+                                    onClearMemorySyncResult = {
+                                        viewModel.clearMemorySyncResult()
+                                    },
                                     modifier = Modifier.fillMaxSize()
                                 )
 
@@ -769,6 +797,7 @@ class MainActivity : ComponentActivity() {
 
                                 // Mini Audio Player overlay at bottom (Hide when keyboard is open)
                                 val isKeyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
+                                val currentScreen by viewModel.currentScreen.collectAsState()
                                 AnimatedMiniPlayer(
                                     visible = isMiniPlayerVisible && !isFullPlayerVisible && !isKeyboardOpen,
                                     state = audioUiState,
@@ -778,6 +807,7 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
                                         .navigationBarsPadding()
+                                        .offset(y = if (currentScreen == "knowledge_card") (-84).dp else 0.dp) // Offset when on KnowledgeCard to avoid overlapping bottom buttons
                                 )
 
                                 // Full Audio Player modal

@@ -37,6 +37,8 @@ import com.example.smarty.ui.screens.settings.formatCacheSize
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.util.api.KeyUsageStats
+import com.example.smarty.data.model.AIMemory
+import com.example.smarty.ui.screens.settings.AIMemorySettingsContent
 
 /**
  * Inline settings content with "Chroma Studio" aesthetic.
@@ -55,15 +57,13 @@ fun SettingsContent(
     onSetSelectedModel: (AIProvider, String) -> Unit,
     onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
-    // Security
-    isPinConfigured: Boolean,
-    onRemovePin: () -> Unit,
     // Theme
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit,
     // Tavily
-    tavilyApiKey: String?,
-    onSetTavilyApiKey: (String?) -> Unit,
+    tavilyApiKeys: List<String>,
+    onAddTavilyApiKey: (String) -> Unit,
+    onRemoveTavilyApiKey: (String) -> Unit,
     // Cache
     cacheSizeBytes: Long,
     onClearCache: () -> Unit,
@@ -86,11 +86,19 @@ fun SettingsContent(
     aiConfigContent: @Composable (() -> Unit) -> Unit,
     archiveContent: @Composable (() -> Unit) -> Unit,
     backupContent: @Composable (() -> Unit) -> Unit,
-    pinSetupContent: @Composable (() -> Unit) -> Unit,
-    pinChangeContent: @Composable (() -> Unit) -> Unit,
     // Content padding
     contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // AI Memory
+    aiMemories: List<AIMemory> = emptyList(),
+    onDeleteAIMemory: (AIMemory) -> Unit = {},
+    onClearAllAIMemories: () -> Unit = {},
+    // Memory sync
+    onSyncAIMemories: () -> Unit = {},
+    isMemorySyncInProgress: Boolean = false,
+    memorySyncResult: String? = null,
+    unreadForMemoryCount: Int = 0,
+    onClearMemorySyncResult: () -> Unit = {}
 ) {
     val accentColor = LocalAccentColor.current
     val context = LocalContext.current
@@ -101,11 +109,9 @@ fun SettingsContent(
     var showAIConfigSheet by remember { mutableStateOf(false) }
     var showArchiveSheet by remember { mutableStateOf(false) }
     var showBackupSheet by remember { mutableStateOf(false) }
-    var showPinSetupSheet by remember { mutableStateOf(false) }
-    var showPinChangeSheet by remember { mutableStateOf(false) }
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
     var showVoiceFingerprintSheet by remember { mutableStateOf(false) }
-    var showRemovePinDialog by remember { mutableStateOf(false) }
+    var showAIMemorySheet by remember { mutableStateOf(false) }
 
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -193,12 +199,10 @@ fun SettingsContent(
                     }
                 )
                 SettingsItem(
-                    icon = Icons.Outlined.Security,
-                    label = if (isPinConfigured) "PIN Security" else "Set Up PIN",
-                    onClick = {
-                        if (isPinConfigured) showPinChangeSheet = true
-                        else showPinSetupSheet = true
-                    }
+                    icon = Icons.Outlined.Psychology,
+                    label = "AI Memory",
+                    value = if (aiMemories.isEmpty()) null else "${aiMemories.size}",
+                    onClick = { showAIMemorySheet = true }
                 )
                  SettingsItem(
                     icon = Icons.Outlined.Payments, // Using Payments for "Subscription & Billing" lookalike or Data
@@ -339,46 +343,6 @@ fun SettingsContent(
         }
     }
 
-    // PIN Setup Sheet
-    if (showPinSetupSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showPinSetupSheet = false },
-            sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shapes.bottomSheet
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(0.5f)
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                pinSetupContent { showPinSetupSheet = false }
-            }
-        }
-    }
-
-    // PIN Change Sheet
-    if (showPinChangeSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showPinChangeSheet = false },
-            sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shapes.bottomSheet
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(0.5f)
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                pinChangeContent { showPinChangeSheet = false }
-            }
-        }
-    }
-
     // Voice Fingerprint Sheet
     if (showVoiceFingerprintSheet) {
         ModalBottomSheet(
@@ -393,6 +357,29 @@ fun SettingsContent(
                 onRetrainVoice = onRetrainVoice,
                 onDeleteVoice = onDeleteVoiceFingerprint,
                 onDismiss = { showVoiceFingerprintSheet = false }
+            )
+        }
+    }
+
+    // AI Memory Sheet
+    if (showAIMemorySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAIMemorySheet = false },
+            sheetState = subSettingSheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = shapes.bottomSheet
+        ) {
+            AIMemorySettingsContent(
+                memories = aiMemories,
+                onDeleteMemory = onDeleteAIMemory,
+                onClearAllMemories = onClearAllAIMemories,
+                onDismiss = { showAIMemorySheet = false },
+                onSyncMemories = onSyncAIMemories,
+                isSyncing = isMemorySyncInProgress,
+                syncResult = memorySyncResult,
+                unreadNotesCount = unreadForMemoryCount,
+                onClearSyncResult = onClearMemorySyncResult
             )
         }
     }
@@ -413,50 +400,99 @@ fun SettingsContent(
                     .padding(bottom = 48.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Header with icon - matches notecard aesthetic
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Vibration,
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Text(
                     text = "Shake Sensitivity",
-                    style = MaterialTheme.typography.headlineMedium.copy(
+                    style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold
                     ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
-                    text = "Adjust sensitivity for shake gesture",
+                    text = "Adjust how sensitive the shake gesture is",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 24.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp)
                 )
-                com.example.smarty.ui.components.ShakeSensitivityControl(
-                    sensitivity = shakeSensitivity,
-                    onSensitivityChange = onShakeSensitivityChange,
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Sensitivity control in a card container
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    elevation = CardDefaults.cardElevation(0.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        com.example.smarty.ui.components.ShakeSensitivityControl(
+                            sensitivity = shakeSensitivity,
+                            onSensitivityChange = onShakeSensitivityChange
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Labels row matching notecard style
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                        Text(
+                            text = "Low",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Requires stronger shake",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "High",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Light shake triggers",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
             }
         }
-    }
-
-    // Remove PIN Dialog
-    if (showRemovePinDialog) {
-        AlertDialog(
-            onDismissRequest = { showRemovePinDialog = false },
-            title = { Text("Remove PIN?") },
-            text = { Text("Anyone with access to your device will be able to view your notes.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onRemovePin()
-                    showRemovePinDialog = false
-                }) {
-                    Text("Remove", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRemovePinDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            shape = shapes.cardMedium
-        )
     }
 }
 

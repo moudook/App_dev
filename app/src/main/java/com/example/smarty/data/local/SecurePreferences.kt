@@ -1,17 +1,13 @@
 package com.example.smarty.data.local
 
 import android.content.Context
-import android.util.Base64
-import dev.spght.encryptedprefs.EncryptedSharedPreferences
-import dev.spght.encryptedprefs.MasterKey
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.security.SecureRandom
-import javax.crypto.SecretKeyFactory
-import javax.crypto.spec.PBEKeySpec
 
 enum class AIProvider {
     GEMINI,
@@ -302,10 +298,6 @@ class SecurePreferences(private val context: Context) {
     // Lock for compound read-modify-write operations (BUG-023 fix)
     private val keyOperationLock = Any()
 
-    // Lazy StateFlows - initialized on first access to avoid blocking constructor
-    // Using PUBLICATION mode for thread safety without synchronization overhead
-    private val _isPinSet: MutableStateFlow<Boolean> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(isPinConfigured()) }
-    val isPinSet: StateFlow<Boolean> by lazy(LazyThreadSafetyMode.PUBLICATION) { _isPinSet.asStateFlow() }
 
     // Legacy single API key for backward compatibility
     private val _apiKey: MutableStateFlow<String?> by lazy(LazyThreadSafetyMode.PUBLICATION) { MutableStateFlow(getApiKey()) }
@@ -369,14 +361,8 @@ class SecurePreferences(private val context: Context) {
     }
 
     companion object {
-        private const val KEY_PIN_HASH = "pin_hash"
-        private const val KEY_PIN_HASH_LEGACY = "pin_hash_legacy"  // For migration tracking
         private const val KEY_API_KEY = "ai_api_key"
 
-        // PBKDF2 configuration
-        private const val PBKDF2_ITERATIONS = 10000
-        private const val PBKDF2_KEY_LENGTH = 256
-        private const val SALT_LENGTH = 16
         private const val KEY_FIRST_LAUNCH = "first_launch"
         // API Keys for each provider
         private const val KEY_GEMINI_KEYS = "gemini_api_keys"
@@ -402,15 +388,16 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_AUTO_BACKUP_ENABLED = "auto_backup_enabled"
         private const val KEY_AUTO_BACKUP_INTERVAL_DAYS = "auto_backup_interval_days"
         private const val DEFAULT_BACKUP_INTERVAL_DAYS = 100
-        // Tavily Web Search API
-        private const val KEY_TAVILY_API_KEY = "tavily_api_key"
+        // Tavily Web Search API (supports multiple keys)
+        private const val KEY_TAVILY_API_KEY = "tavily_api_key"  // Legacy single key
+        private const val KEY_TAVILY_API_KEYS = "tavily_api_keys"  // Multiple keys
         // FTS Maintenance
         private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
         // Local PC USB/WiFi Tethering
         private const val KEY_LOCAL_PC_IP = "local_pc_ip"
         private const val KEY_LOCAL_PC_PORT = "local_pc_port"
         private const val KEY_LOCAL_PC_USE_HTTPS = "local_pc_use_https"
-        private const val DEFAULT_LOCAL_PC_IP = "10.166.18.183"  // Default USB tethering IP
+        private const val DEFAULT_LOCAL_PC_IP = "10.200.244.247"  // Default USB tethering IP
         private const val DEFAULT_LOCAL_PC_PORT = "8000"  // HTTP port (HTTPS typically 8443)
         private const val DEFAULT_LOCAL_PC_USE_HTTPS = false
 
@@ -426,10 +413,6 @@ class SecurePreferences(private val context: Context) {
         }
     }
 
-    // PIN Management
-    fun isPinConfigured(): Boolean {
-        return encryptedPrefs.contains(KEY_PIN_HASH)
-    }
 
     fun isFirstLaunch(): Boolean {
         return !encryptedPrefs.contains(KEY_FIRST_LAUNCH)
@@ -439,66 +422,6 @@ class SecurePreferences(private val context: Context) {
         encryptedPrefs.edit().putBoolean(KEY_FIRST_LAUNCH, false).apply()
     }
 
-    fun setPin(pin: String) {
-        // Always use secure PBKDF2 hashing for new PINs
-        val pinHash = hashPinSecure(pin)
-        encryptedPrefs.edit()
-            .putString(KEY_PIN_HASH, pinHash)
-            .remove(KEY_PIN_HASH_LEGACY)  // Clear legacy marker if present
-            .apply()
-        _isPinSet.value = true
-    }
-
-    fun clearPin() {
-        encryptedPrefs.edit()
-            .remove(KEY_PIN_HASH)
-            .remove(KEY_PIN_HASH_LEGACY)
-            .apply()
-        _isPinSet.value = false
-    }
-
-    /**
-     * Verify a PIN, handling both legacy SHA-256 and new PBKDF2 hashes.
-     * If a legacy hash is detected and the PIN is correct, the hash is
-     * automatically migrated to the new secure format.
-     */
-    fun verifyPin(pin: String): Boolean {
-        val storedHash = encryptedPrefs.getString(KEY_PIN_HASH, null) ?: return false
-
-        // Check if this is a legacy SHA-256 hash (64 hex chars)
-        if (isLegacyHash(storedHash)) {
-            @Suppress("DEPRECATION")
-            val legacyHash = hashPinLegacy(pin)
-            if (legacyHash == storedHash) {
-                // PIN is correct - migrate to secure hash
-                migrateToSecureHash(pin)
-                return true
-            }
-            return false
-        }
-
-        // Use secure PBKDF2 verification
-        return verifyPinSecure(pin, storedHash)
-    }
-
-    /**
-     * Migrate a legacy SHA-256 hash to secure PBKDF2 hash.
-     * Called automatically when a user successfully verifies their PIN
-     * and the hash is still using the old format.
-     */
-    private fun migrateToSecureHash(pin: String) {
-        val secureHash = hashPinSecure(pin)
-        encryptedPrefs.edit()
-            .putString(KEY_PIN_HASH, secureHash)
-            .putBoolean(KEY_PIN_HASH_LEGACY, true)  // Mark that migration occurred
-            .apply()
-    }
-
-    fun changePin(oldPin: String, newPin: String): Boolean {
-        if (!verifyPin(oldPin)) return false
-        setPin(newPin)  // setPin always uses secure hashing
-        return true
-    }
 
     // Legacy single API key (for backward compatibility)
     fun setApiKey(apiKey: String?) {
@@ -692,76 +615,6 @@ class SecurePreferences(private val context: Context) {
         return null
     }
 
-    /**
-     * Securely hash a PIN using PBKDF2WithHmacSHA256.
-     * The salt is prepended to the hash and both are Base64 encoded together.
-     *
-     * @param pin The PIN to hash
-     * @param salt Optional salt; if null, a new random salt is generated
-     * @return Base64 encoded string containing salt + hash
-     */
-    private fun hashPinSecure(pin: String, salt: ByteArray? = null): String {
-        val actualSalt = salt ?: ByteArray(SALT_LENGTH).also { SecureRandom().nextBytes(it) }
-        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val spec = PBEKeySpec(pin.toCharArray(), actualSalt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH)
-        val hash = factory.generateSecret(spec).encoded
-        // Combine salt and hash for storage
-        return Base64.encodeToString(actualSalt + hash, Base64.NO_WRAP)
-    }
-
-    /**
-     * Verify a PIN against a PBKDF2 hash.
-     * Extracts the salt from the stored hash and recomputes for comparison.
-     *
-     * @param pin The PIN to verify
-     * @param storedHash The stored Base64 encoded salt+hash
-     * @return true if PIN matches
-     */
-    private fun verifyPinSecure(pin: String, storedHash: String): Boolean {
-        return try {
-            val decoded = Base64.decode(storedHash, Base64.NO_WRAP)
-            if (decoded.size < SALT_LENGTH) return false
-
-            val salt = decoded.copyOfRange(0, SALT_LENGTH)
-            val expectedHash = decoded.copyOfRange(SALT_LENGTH, decoded.size)
-
-            val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-            val spec = PBEKeySpec(pin.toCharArray(), salt, PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH)
-            val actualHash = factory.generateSecret(spec).encoded
-
-            // Constant-time comparison to prevent timing attacks
-            if (expectedHash.size != actualHash.size) return false
-            var result = 0
-            for (i in expectedHash.indices) {
-                result = result or (expectedHash[i].toInt() xor actualHash[i].toInt())
-            }
-            result == 0
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /**
-     * Legacy SHA-256 hash for backward compatibility during migration.
-     * @deprecated Use hashPinSecure instead
-     */
-    @Suppress("DEPRECATION")
-    private fun hashPinLegacy(pin: String): String {
-        val bytes = pin.toByteArray()
-        val md = java.security.MessageDigest.getInstance("SHA-256")
-        val digest = md.digest(bytes)
-        return digest.fold("") { str, it -> str + "%02x".format(it) }
-    }
-
-    /**
-     * Check if the stored hash is a legacy SHA-256 hash.
-     * Legacy hashes are 64-character hex strings.
-     * PBKDF2 hashes are Base64 encoded and have a different format.
-     */
-    private fun isLegacyHash(hash: String): Boolean {
-        // Legacy SHA-256 hash is 64 hex characters
-        return hash.length == 64 && hash.all { it in '0'..'9' || it in 'a'..'f' }
-    }
 
     // Theme Management
     fun getDarkThemePreference(): Boolean {
@@ -843,19 +696,101 @@ class SecurePreferences(private val context: Context) {
         encryptedPrefs.edit().putLong(KEY_LAST_FTS_MAINTENANCE, timestamp).apply()
     }
 
-    // ==================== Tavily Web Search API ====================
-
     /**
      * Get Tavily API key for web search functionality.
-     * Free tier: 1,000 API credits/month
+     * Returns the first available key from the list, or legacy single key.
+     * Free tier: 1,000 API credits/month per key
      * Key format: tvly-XXXXX
      */
     fun getTavilyApiKey(): String? {
-        return encryptedPrefs.getString(KEY_TAVILY_API_KEY, null)
+        synchronized(keyOperationLock) {
+            // Try new multi-key system first
+            val keys = getTavilyApiKeys().toMutableList()
+            if (keys.isNotEmpty()) {
+                val currentKey = keys.first()
+                
+                // Rotate if we have multiple keys (Round Robin)
+                if (keys.size > 1) {
+                    // Move first to last
+                    keys.removeAt(0)
+                    keys.add(currentKey)
+                    // Save updated order to persist rotation
+                    setTavilyApiKeys(keys)
+                }
+                
+                return currentKey
+            }
+            // Fallback to legacy single key
+            return encryptedPrefs.getString(KEY_TAVILY_API_KEY, null)
+        }
     }
 
     /**
-     * Set Tavily API key.
+     * Get all Tavily API keys.
+     */
+    fun getTavilyApiKeys(): List<String> {
+        val json = encryptedPrefs.getString(KEY_TAVILY_API_KEYS, null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Set all Tavily API keys.
+     */
+    fun setTavilyApiKeys(keys: List<String>) {
+        val filteredKeys = keys.filter { it.isNotBlank() }
+        if (filteredKeys.isEmpty()) {
+            encryptedPrefs.edit().remove(KEY_TAVILY_API_KEYS).apply()
+        } else {
+            val json = gson.toJson(filteredKeys)
+            encryptedPrefs.edit().putString(KEY_TAVILY_API_KEYS, json).apply()
+        }
+    }
+
+    /**
+     * Add a new Tavily API key.
+     */
+    fun addTavilyApiKey(newKey: String) {
+        if (newKey.isBlank()) return
+        synchronized(keyOperationLock) {
+            val currentKeys = getTavilyApiKeys().toMutableList()
+            if (!currentKeys.contains(newKey.trim())) {
+                currentKeys.add(newKey.trim())
+                setTavilyApiKeys(currentKeys)
+            }
+        }
+    }
+
+    /**
+     * Remove a Tavily API key.
+     */
+    fun removeTavilyApiKey(keyToRemove: String) {
+        synchronized(keyOperationLock) {
+            val currentKeys = getTavilyApiKeys().toMutableList()
+            currentKeys.remove(keyToRemove)
+            setTavilyApiKeys(currentKeys)
+        }
+    }
+
+    /**
+     * Get the next Tavily API key (for rotation on rate limit).
+     * @param currentKey The key that hit rate limit
+     * @return Next available key, or null if no more keys
+     */
+    fun getNextTavilyApiKey(currentKey: String): String? {
+        val keys = getTavilyApiKeys()
+        val currentIndex = keys.indexOf(currentKey)
+        if (currentIndex == -1 || keys.size <= 1) return null
+        val nextIndex = (currentIndex + 1) % keys.size
+        return if (nextIndex != currentIndex) keys[nextIndex] else null
+    }
+
+    /**
+     * Set Tavily API key (legacy single key - also adds to multi-key list).
      * @param key The API key (format: tvly-XXXXX), or null to remove
      */
     fun setTavilyApiKey(key: String?) {
@@ -863,6 +798,8 @@ class SecurePreferences(private val context: Context) {
             encryptedPrefs.edit().remove(KEY_TAVILY_API_KEY).apply()
         } else {
             encryptedPrefs.edit().putString(KEY_TAVILY_API_KEY, key.trim()).apply()
+            // Also add to multi-key system for consistency
+            addTavilyApiKey(key.trim())
         }
     }
 
@@ -870,7 +807,7 @@ class SecurePreferences(private val context: Context) {
      * Check if Tavily API key is configured.
      */
     fun hasTavilyApiKey(): Boolean {
-        return !getTavilyApiKey().isNullOrBlank()
+        return getTavilyApiKeys().isNotEmpty() || !encryptedPrefs.getString(KEY_TAVILY_API_KEY, null).isNullOrBlank()
     }
 
     // ==================== Local PC USB/WiFi Tethering ====================

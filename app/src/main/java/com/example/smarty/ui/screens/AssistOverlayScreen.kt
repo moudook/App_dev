@@ -293,6 +293,26 @@ private fun GlowingInputBar(
                 )
             }
 
+            // Voice button (moved to left of input)
+            IconButton(
+                onClick = onVoice,
+                modifier = Modifier
+                    .size(40.dp)
+                    .then(
+                        if (isListening) Modifier.background(
+                            GeminiBlue.copy(alpha = 0.15f),
+                            CircleShape
+                        ) else Modifier
+                    )
+            ) {
+                Icon(
+                    imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                    contentDescription = if (isListening) "Stop" else "Voice",
+                    tint = if (isListening) GeminiBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
             // Text input
             Box(
                 modifier = Modifier
@@ -324,7 +344,7 @@ private fun GlowingInputBar(
                 )
             }
 
-            // Voice or Send button
+            // Send button (on the right)
             AnimatedContent(
                 targetState = text.isNotBlank() && !isProcessing,
                 transitionSpec = {
@@ -362,23 +382,9 @@ private fun GlowingInputBar(
                         color = GeminiBlue
                     )
                 } else {
-                    IconButton(
-                        onClick = onVoice,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .then(
-                                if (isListening) Modifier.background(
-                                    GeminiBlue.copy(alpha = 0.15f),
-                                    CircleShape
-                                ) else Modifier
-                            )
-                    ) {
-                        Icon(
-                            imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = if (isListening) "Stop" else "Voice",
-                            tint = if (isListening) GeminiBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
+                    // Empty space to maintain consistent layout when no send button
+                    Box(modifier = Modifier.size(40.dp)) {
+                        // Empty - just for spacing consistency
                     }
                 }
             }

@@ -104,7 +104,7 @@ dependencies {
     implementation(libs.okhttp)
 
     // Security & DataStore (using maintained fork of deprecated JetSec library)
-    implementation("dev.spght:encryptedprefs-ktx:1.1.1")
+    implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore.preferences)
 
     // Google Sign-In and Drive API for backup
@@ -137,6 +137,9 @@ dependencies {
 
     // Vosk - Offline speech recognition for wake word detection
     implementation("com.alphacephei:vosk-android:0.3.75")
+
+    // ML Kit Text Recognition - OCR for images (on-device, ~5-10MB)
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Koog AI Agent Framework
     implementation(libs.koog.agents)

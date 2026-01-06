@@ -91,6 +91,10 @@ class VoskWakeWordManager(
         // This reduces overhead when resuming from pause/background
         private const val VALIDITY_CACHE_MS = 30_000L
 
+        // Cooldown between speaker verification attempts to prevent log spam/CPU usage
+        // when partial results keep returning the same wake word continuously
+        private const val VERIFICATION_COOLDOWN_MS = 1000L
+
         /**
          * Global flag to pause Vosk across all instances.
          * Set to true when AssistActivity is using Google Speech.
@@ -181,6 +185,10 @@ class VoskWakeWordManager(
     // Flag to track if a restart is currently in progress
     @Volatile
     private var isRestarting = false
+
+    // Timestamp of last verification attempt to handle debounce
+    @Volatile
+    private var lastVerificationTime = 0L
 
     /**
      * Check if the native model is still valid.
@@ -851,7 +859,17 @@ class VoskWakeWordManager(
             if (containsWakeWord && isStandalone) {
                 // Atomically set flag to prevent duplicate triggers
                 if (wakeWordTriggered || isDestroyed) return
+
+                // DEBOUNCE: Check cooldown to prevent rapid-fire verification on partial results
+                // Partial results come every ~50ms, so we need to ignore subsequent ones
+                // for the same utterance if verification failed.
+                val now = System.currentTimeMillis()
+                if (now - lastVerificationTime < VERIFICATION_COOLDOWN_MS) {
+                    return
+                }
+
                 wakeWordTriggered = true
+                lastVerificationTime = now
 
                 Log.w(TAG, "============================================")
                 Log.w(TAG, ">>> WAKE WORD DETECTED: '$text' <<<")
@@ -871,6 +889,10 @@ class VoskWakeWordManager(
 
                                 if (isVerified) {
                                     Log.i(TAG, "Speaker VERIFIED - triggering wake word")
+
+                                    // Clear verification buffer to prevent reusing old audio
+                                    speechService?.clearVerificationBuffer()
+
                                     // Stop listening and trigger callback
                                     stopListening()
                                     if (!isDestroyed) {

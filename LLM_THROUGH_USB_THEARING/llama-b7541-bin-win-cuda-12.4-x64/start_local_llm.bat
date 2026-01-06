@@ -38,25 +38,21 @@ echo.
 
 :: Try to identify each type
 set USB_IP=
+set HOTSPOT_IP=
 set WIFI_IP=
-set OTHER_IP=
 
 :: Get all IPs and categorize them
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4 Address"') do (
     set "ip=%%a"
     set "ip=!ip: =!"
 
-    :: Skip localhost
-    if "!ip!"=="127.0.0.1" (
-        REM skip
+    :: Check for standard Windows Hotspot IP (192.168.137.1)
+    if "!ip!"=="192.168.137.1" (
+        set HOTSPOT_IP=!ip!
     ) else if "!ip:~0,3!"=="10." (
         if "!USB_IP!"=="" set USB_IP=!ip!
     ) else if "!ip:~0,8!"=="192.168." (
         if "!WIFI_IP!"=="" set WIFI_IP=!ip!
-    ) else if "!ip:~0,4!"=="172." (
-        if "!OTHER_IP!"=="" set OTHER_IP=!ip!
-    ) else (
-        if "!OTHER_IP!"=="" set OTHER_IP=!ip!
     )
 )
 
@@ -75,47 +71,42 @@ if not "!USB_IP!"=="" (
     set HAS_ANY_IP=1
 )
 
-if not "!WIFI_IP!"=="" (
-    echo   [WIFI - 192.168.x.x]
-    echo   IP Address: !WIFI_IP!
-    echo   URL: http://!WIFI_IP!:!SERVER_PORT!
+if not "!HOTSPOT_IP!"=="" (
+    echo   [WINDOWS HOTSPOT - RECOMMENDED]
+    echo   IP Address: !HOTSPOT_IP!
+    echo   URL: http://!HOTSPOT_IP!:!SERVER_PORT!
     echo.
     set HAS_ANY_IP=1
-)
-
-if not "!OTHER_IP!"=="" (
-    echo   [OTHER NETWORK]
-    echo   IP Address: !OTHER_IP!
-    echo   URL: http://!OTHER_IP!:!SERVER_PORT!
-    echo.
-    set HAS_ANY_IP=1
+) else (
+    if not "!WIFI_IP!"=="" (
+        echo   [WIFI / HOTSPOT]
+        echo   IP Address: !WIFI_IP!
+        echo   URL: http://!WIFI_IP!:!SERVER_PORT!
+        echo.
+        set HAS_ANY_IP=1
+    )
 )
 
 if "!HAS_ANY_IP!"=="0" (
-    echo [ERROR] No network interfaces detected!
-    echo.
-    echo Please ensure:
-    echo   - USB tethering is enabled on your phone, OR
-    echo   - WiFi is connected, OR
-    echo   - Ethernet cable is connected
-    echo.
-    echo Run 'ipconfig' to see all available network adapters.
+    echo [ERROR] No network detected.
+    echo Please turn on Mobile Hotspot or Connect USB.
     pause
     exit /b 1
 )
 
 echo ============================================================
-echo   HOW TO CONNECT FROM YOUR ANDROID APP
+echo   HOW TO CONNECT (WIRELESS HOTSPOT METHOD)
 echo ============================================================
 echo.
-echo   1. Go to Settings -^> AI Providers
-echo   2. Find "Local PC" section
-echo   3. Enter one of the IP addresses shown above
-echo   4. Set port to: !SERVER_PORT!
+echo   1. On this Laptop: Open Settings -^> Network -^> Mobile Hotspot
+echo   2. Turn Mobile Hotspot: ON
+echo   3. Connect your Phone's WiFi to this Laptop's Hotspot
 echo.
-echo   IMPORTANT: Your phone must be able to reach your PC:
-echo   - For USB: Phone connected via USB cable with tethering ON
-echo   - For WiFi: BOTH devices on the SAME WiFi network
+echo   4. In App, use the IP Address shown above.
+echo      (Usually 192.168.137.1 or similar)
+echo.
+echo   5. Set Port to: !SERVER_PORT!
+echo   6. Turn HTTPS: OFF
 echo ============================================================
 echo.
 
@@ -136,9 +127,9 @@ if !errorLevel! neq 0 (
 echo.
 
 :: Check if model exists
-if not exist "models\qwen2.5-3b-instruct-q4_k_m.gguf" (
+if not exist "models\gemma-3-4b-it-IQ4_NL.gguf" (
     echo [ERROR] Model file not found!
-    echo [ERROR] Expected: models\qwen2.5-3b-instruct-q4_k_m.gguf
+    echo [ERROR] Expected: models\gemma-3-4b-it-IQ4_NL.gguf
     echo.
     echo Download a GGUF model and place it in the 'models' folder.
     pause
@@ -146,8 +137,8 @@ if not exist "models\qwen2.5-3b-instruct-q4_k_m.gguf" (
 )
 
 echo [INFO] Starting LLM server...
-echo [INFO] Model: qwen2.5-3b-instruct-q4_k_m.gguf
-echo [INFO] Context: 32768 tokens
+echo [INFO] Model: gemma-3-4b-it-IQ4_NL.gguf
+echo [INFO] Context: 65536 tokens (64K)
 echo [INFO] GPU Layers: 20 (RTX 2050)
 echo [INFO] Port: !SERVER_PORT!
 echo [INFO] Host: 0.0.0.0 (accepting connections from any device)
@@ -160,8 +151,8 @@ echo ============================================================
 echo.
 
 .\llama-server.exe ^
-  --model models\qwen2.5-3b-instruct-q4_k_m.gguf ^
-  --ctx-size 32768 ^
+  --model models\gemma-3-4b-it-IQ4_NL.gguf ^
+  --ctx-size 65536 ^
   --n-gpu-layers 20 ^
   --port !SERVER_PORT! ^
   --host 0.0.0.0 ^

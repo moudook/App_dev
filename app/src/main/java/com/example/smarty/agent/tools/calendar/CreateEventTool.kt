@@ -43,13 +43,7 @@ class CreateEventTool(
     argsSerializer = CreateEventArgs.serializer(),
     resultSerializer = CalendarOperationResult.serializer(),
     name = "create_event",
-    description = """
-        Creates a new calendar event or meeting.
-        Use this when the user wants to schedule a meeting, appointment, or event.
-        Supports natural language time expressions like "tomorrow 2pm" or "next Monday at 10:00".
-        Set isPrivate=true for sensitive events (medical, personal, confidential meetings).
-        Private events are hidden from AI in future queries for user privacy.
-    """.trimIndent()
+    description = """ONLY use when user says "schedule" or "remind me at". Do NOT use otherwise.""".trimIndent()
 ) {
     companion object {
         private const val TAG = "CreateEventTool"

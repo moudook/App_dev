@@ -313,7 +313,7 @@ class AssistActivity : ComponentActivity() {
         }
 
     private val cogniAgent: CogniAgent by lazy {
-        CogniAgent(this, agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks)
+        CogniAgent(this, agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks, database.aiMemoryDao())
     }
 
     private val localCommandProcessor: LocalCommandProcessor by lazy {

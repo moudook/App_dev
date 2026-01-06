@@ -1,10 +1,12 @@
 package com.example.smarty.util
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.rendering.PDFRenderer
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,6 +35,10 @@ class PDFTextExtractor(private val context: Context) {
         
         // No page limit for chunked extraction - process ALL pages
         private const val CHUNKED_MAX_PAGES = Int.MAX_VALUE
+        
+        // OCR fallback for scanned/image-based PDFs
+        private const val OCR_MAX_PAGES = 20            // Max pages to OCR (memory-intensive)
+        private const val OCR_DPI = 150                 // DPI for rendering (higher = better quality but slower)
 
         @Volatile
         private var isInitialized = false
@@ -403,6 +409,134 @@ class PDFTextExtractor(private val context: Context) {
             info.pageCount > 100 -> ProcessingStrategy.CHUNKED_HIERARCHICAL
             info.pageCount > 30 -> ProcessingStrategy.CHUNKED
             else -> ProcessingStrategy.DIRECT
+        }
+    }
+    
+    /**
+     * Extract text from a scanned/image-based PDF using OCR.
+     * 
+     * This method is called as a FALLBACK when regular text extraction returns empty,
+     * indicating the PDF contains images instead of selectable text.
+     * 
+     * Process:
+     * 1. Render each PDF page as a bitmap
+     * 2. Run ML Kit OCR on each bitmap
+     * 3. Combine extracted text from all pages
+     * 
+     * Memory-efficient: Renders and processes one page at a time.
+     * 
+     * @param uri The content URI of the PDF file
+     * @return PDFExtractionResult with OCR-extracted text
+     */
+    suspend fun extractTextWithOcr(uri: Uri): PDFExtractionResult = withContext(Dispatchers.IO) {
+        Log.i(TAG, "Starting OCR extraction for scanned PDF: $uri")
+        
+        var inputStream: InputStream? = null
+        var document: PDDocument? = null
+        
+        try {
+            inputStream = context.contentResolver.openInputStream(uri)
+                ?: return@withContext PDFExtractionResult.Error("Could not open PDF file")
+            
+            document = PDDocument.load(inputStream)
+            val pageCount = document.numberOfPages
+            val pagesToProcess = minOf(pageCount, OCR_MAX_PAGES)
+            
+            Log.i(TAG, "OCR: Processing $pagesToProcess of $pageCount pages")
+            
+            if (pageCount == 0) {
+                return@withContext PDFExtractionResult.Error("PDF has no pages")
+            }
+            
+            val renderer = PDFRenderer(document)
+            val extractedTexts = mutableListOf<String>()
+            var totalCharacters = 0
+            
+            for (pageIndex in 0 until pagesToProcess) {
+                try {
+                    // Render page to bitmap
+                    val bitmap: Bitmap = renderer.renderImageWithDPI(pageIndex, OCR_DPI.toFloat())
+                    
+                    // Run OCR on the bitmap
+                    val ocrResult = ImageTextExtractor.extractTextFromBitmap(bitmap)
+                    
+                    // Recycle bitmap immediately to free memory
+                    bitmap.recycle()
+                    
+                    if (ocrResult.hasText) {
+                        val pageText = "[Page ${pageIndex + 1}]\n${ocrResult.text}"
+                        extractedTexts.add(pageText)
+                        totalCharacters += ocrResult.text.length
+                        Log.d(TAG, "OCR Page ${pageIndex + 1}: ${ocrResult.text.length} chars extracted")
+                    } else {
+                        Log.d(TAG, "OCR Page ${pageIndex + 1}: No text found")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "OCR failed for page ${pageIndex + 1}: ${e.message}")
+                    // Continue with other pages
+                }
+            }
+            
+            if (extractedTexts.isEmpty()) {
+                Log.w(TAG, "OCR extraction found no text in any pages")
+                return@withContext PDFExtractionResult.Empty(
+                    pageCount = pageCount,
+                    message = "No text could be extracted from this scanned PDF via OCR."
+                )
+            }
+            
+            val combinedText = extractedTexts.joinToString("\n\n")
+            val wasTruncated = pagesToProcess < pageCount
+            
+            val finalText = if (combinedText.length > MAX_TEXT_LENGTH) {
+                Log.d(TAG, "OCR text truncated from ${combinedText.length} to $MAX_TEXT_LENGTH chars")
+                combinedText.take(MAX_TEXT_LENGTH) + "\n\n[OCR content truncated...]"
+            } else {
+                combinedText
+            }
+            
+            Log.i(TAG, "OCR extraction complete: ${finalText.length} chars from $pagesToProcess pages")
+            
+            PDFExtractionResult.Success(
+                text = "[OCR Extracted Text]\n$finalText",
+                pageCount = pageCount,
+                characterCount = finalText.length,
+                wasTrauncated = wasTruncated || combinedText.length > MAX_TEXT_LENGTH
+            )
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "OCR extraction failed: ${e.message}", e)
+            PDFExtractionResult.Error(
+                message = "OCR extraction failed: ${e.message ?: "Unknown error"}"
+            )
+        } finally {
+            try {
+                document?.close()
+                inputStream?.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Error closing resources: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Smart extraction that tries regular text extraction first,
+     * then falls back to OCR if the PDF is image-based.
+     * 
+     * @param uri The content URI of the PDF file
+     * @return PDFExtractionResult with extracted text (from text layer or OCR)
+     */
+    suspend fun extractTextWithOcrFallback(uri: Uri): PDFExtractionResult {
+        // First, try regular text extraction
+        val result = extractText(uri)
+        
+        return when (result) {
+            is PDFExtractionResult.Empty -> {
+                // PDF is image-based - try OCR
+                Log.i(TAG, "Regular extraction empty, attempting OCR fallback")
+                extractTextWithOcr(uri)
+            }
+            else -> result
         }
     }
 }

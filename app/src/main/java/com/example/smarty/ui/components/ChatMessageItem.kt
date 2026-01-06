@@ -25,6 +25,11 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.ui.zIndex
+import androidx.compose.material3.HorizontalDivider
+import com.example.smarty.ui.theme.softCardShadow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -70,6 +75,8 @@ import com.halilibo.richtext.ui.RichTextStyle
 import com.halilibo.richtext.ui.string.RichTextStringStyle
 import androidx.compose.animation.core.FastOutSlowInEasing
 import com.example.smarty.data.model.ClarificationRequest
+import com.example.smarty.data.model.Citation
+
 
 /**
  * Pre-compiled regex patterns for markdown parsing.
@@ -439,58 +446,43 @@ fun ChatMessageItem(
  */
 @Composable
 private fun CitationsInline(
-    citations: List<com.example.smarty.data.model.Citation>,
+    citations: List<Citation>,
     accentColor: Color
 ) {
     var showSelectionPopup by remember { mutableStateOf(false) }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
-    // Always show max 3 circles
-    val circleCount = minOf(citations.size, 3)
-    val hasMore = citations.size > 3
-    val circleSize = 18.dp
-    val overlap = 5.dp // How much circles overlap
-
-    Box(
-        modifier = Modifier
-            .clickable { showSelectionPopup = true }
-            .height(circleSize)
-            .width(circleSize * circleCount - overlap * (circleCount - 1).coerceAtLeast(0))
+    // Trigger: Clean Pill "Sources (N)"
+    Surface(
+        onClick = { showSelectionPopup = true },
+        shape = RoundedCornerShape(50),
+        color = accentColor.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.2f)),
+        modifier = Modifier.height(28.dp)
     ) {
-        // Show up to 3 overlapping circles
-        repeat(circleCount) { index ->
-            val isLastCircle = index == circleCount - 1
-            val circleText = when {
-                // Last circle shows "3+" if more than 3 citations
-                isLastCircle && hasMore -> "3+"
-                else -> ""
-            }
-
-            Surface(
-                shape = CircleShape,
-                color = accentColor,
-                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface),
-                modifier = Modifier
-                    .size(circleSize)
-                    .offset(x = (circleSize - overlap) * index)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (circleText.isNotEmpty()) {
-                        Text(
-                            text = circleText,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 8.sp
-                            ),
-                            color = Color.White
-                        )
-                    }
-                }
-            }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.AutoAwesome,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = "${citations.size} Sources",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                ),
+                color = accentColor
+            )
         }
     }
 
-    // Pinterest-inspired citation viewer - centered, clean, systematic
+    // Popup: NoteCard styled list
     if (showSelectionPopup) {
         androidx.compose.ui.window.Popup(
             alignment = Alignment.Center,
@@ -507,177 +499,206 @@ private fun CitationsInline(
                 shadowElevation = 16.dp,
                 modifier = Modifier
                     .widthIn(min = 300.dp, max = 360.dp)
-                    .heightIn(max = 480.dp)
+                    .heightIn(max = 520.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Header with centered title
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
+                    // Header
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 20.dp)
                     ) {
-                        // Icon badge
                         Surface(
                             shape = CircleShape,
-                            color = accentColor.copy(alpha = Alpha.soft),
-                            modifier = Modifier.size(48.dp)
+                            color = accentColor.copy(alpha = 0.1f),
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = null,
                                     tint = accentColor,
-                                    modifier = Modifier.size(IconSize.xl)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Text(
-                            text = "Sources",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        Text(
-                            text = "${citations.size} reference${if (citations.size > 1) "s" else ""} found",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.heavy)
-                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Sources",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${citations.size} references found",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Subtle divider
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.3f)
-                            .height(2.dp)
-                            .background(
-                                accentColor.copy(alpha = Alpha.moderate),
-                                RoundedCornerShape(1.dp)
-                            )
+                    // Divider
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(bottom = 20.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Scrollable citation list
+                    // List
                     Column(
                         modifier = Modifier
                             .weight(1f, fill = false)
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         citations.forEachIndexed { index, citation ->
-                            // Pinterest-style card
-                            Surface(
+                            SourceCard(
+                                citation = citation,
+                                index = index + 1,
                                 onClick = {
                                     try {
                                         uriHandler.openUri(citation.url)
                                         showSelectionPopup = false
                                     } catch (e: Exception) {
-                                        // Handle invalid URL
+                                        // Ignore
                                     }
-                                },
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outline.copy(alpha = Alpha.hint)
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Number badge - prominent
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = accentColor,
-                                        modifier = Modifier.size(36.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = "${index + 1}",
-                                                style = MaterialTheme.typography.titleSmall.copy(
-                                                    fontWeight = FontWeight.Bold
-                                                ),
-                                                color = Color.White
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(14.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        // Title
-                                        Text(
-                                            text = citation.title.ifBlank { "Untitled Source" },
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = FontWeight.SemiBold,
-                                                lineHeight = 20.sp
-                                            ),
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 2,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                        )
-
-                                        Spacer(modifier = Modifier.height(4.dp))
-
-                                        // Domain with link indicator
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(4.dp)
-                                                    .background(accentColor, CircleShape)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = try {
-                                                    java.net.URI(citation.url).host?.removePrefix("www.") ?: citation.url
-                                                } catch (e: Exception) {
-                                                    citation.url
-                                                },
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = accentColor.copy(alpha = Alpha.mostlyOpaque),
-                                                maxLines = 1
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    // Arrow indicator
-                                    Icon(
-                                        imageVector = Icons.Default.KeyboardArrowUp,
-                                        contentDescription = "Open",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                        modifier = Modifier
-                                            .size(IconSize.standard)
-                                            .rotate(90f)
-                                    )
                                 }
-                            }
+                            )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
+                    
+                    Spacer(modifier = Modifier.height(20.dp))
+                    
                     // Close hint
                     Text(
                         text = "Tap outside to close",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * A Citation Card styled like a NoteCard
+ */
+@Composable
+private fun SourceCard(
+    citation: Citation,
+    index: Int,
+    onClick: () -> Unit
+) {
+    val domain = try {
+        java.net.URI(citation.url).host?.removePrefix("www.") ?: "link"
+    } catch (e: Exception) { "link" }
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow, // Slightly different from bg
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .softCardShadow(shape = RoundedCornerShape(24.dp))
+            .zIndex(1f) // Ensure shadow renders
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Title and Number
+            Row(
+                verticalAlignment = Alignment.Top
+            ) {
+                // Index Badge
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "$index",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Text(
+                    text = citation.title.ifBlank { "Untitled Source" },
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 20.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            // Metadata Pills
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Domain Pill
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Link,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = domain,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+            
+            // Snippet (if available)
+            if (citation.snippet.isNotBlank()) {
+                 Text(
+                    text = citation.snippet,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
         }
     }

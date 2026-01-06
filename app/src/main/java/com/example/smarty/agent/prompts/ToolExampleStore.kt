@@ -207,13 +207,7 @@ class ToolExampleStore {
                 description = "Created note for shopping reminder",
                 keywords = setOf("write", "down", "note", "remember", "buy", "groceries")
             ),
-            ToolExample(
-                toolName = "create_note",
-                userQuery = "make a note about the project deadline",
-                arguments = mapOf("title" to "Project Deadline", "content" to "Project deadline details"),
-                description = "Created note about deadline",
-                keywords = setOf("make", "note", "project", "deadline", "work")
-            ),
+
             ToolExample(
                 toolName = "create_note",
                 userQuery = "save this idea for later",
@@ -402,6 +396,65 @@ class ToolExampleStore {
                 arguments = mapOf("noteId" to "<ID>"),
                 description = "Archived note",
                 keywords = setOf("archive", "old", "store", "hide", "project")
+            )
+        )
+
+        // Web Search examples - Added for better knowledge retrieval
+        examples["web_search"] = mutableListOf(
+            ToolExample(
+                toolName = "web_search",
+                userQuery = "who won the super bowl this year",
+                arguments = mapOf("query" to "super bowl winner 2025", "reason" to "User asked for current event result"),
+                description = "Searched for recent sports event",
+                keywords = setOf("won", "winner", "super", "bowl", "score", "game")
+            ),
+            ToolExample(
+                toolName = "web_search",
+                userQuery = "what is the stock price of Apple",
+                arguments = mapOf("query" to "Apple stock price", "topic" to "finance", "reason" to "User asked for real-time stock data"),
+                description = "Searched for stock price",
+                keywords = setOf("stock", "price", "market", "value", "cost", "share")
+            ),
+            ToolExample(
+                toolName = "web_search",
+                userQuery = "latest news about AI",
+                arguments = mapOf("query" to "artificial intelligence news", "topic" to "news", "reason" to "User asked for latest news"),
+                description = "Searched for news topic",
+                keywords = setOf("news", "latest", "update", "happening", "headlines")
+            ),
+            ToolExample(
+                toolName = "web_search",
+                userQuery = "when is diwali this year",
+                arguments = mapOf("query" to "Diwali date 2025", "reason" to "User asked for holiday date"),
+                description = "Searched for holiday date",
+                keywords = setOf("when", "date", "festival", "holiday", "calendar")
+            )
+        )
+
+
+
+        // App Launch examples
+        examples["open_app"] = mutableListOf(
+            ToolExample(
+                toolName = "open_app",
+                userQuery = "open spotify",
+                arguments = mapOf("appName" to "Spotify"),
+                description = "Opened Spotify",
+                keywords = setOf("open", "launch", "start", "play", "music", "app")
+            ),
+            ToolExample(
+                toolName = "open_app",
+                userQuery = "take me to whatsapp",
+                arguments = mapOf("appName" to "WhatsApp"),
+                description = "Opened WhatsApp",
+                keywords = setOf("open", "launch", "chat", "message", "whatsapp")
+            ),
+            ToolExample(
+                toolName = "open_app",
+                userQuery = "open calculator",
+                arguments = mapOf("appName" to "Calculator"),
+                description = "Opened Calculator",
+                keywords = setOf("calculate", "math", "open", "tool")
             )
         )
 

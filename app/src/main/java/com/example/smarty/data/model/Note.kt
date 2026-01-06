@@ -93,7 +93,9 @@ enum class ProcessingStatus {
         Index(value = ["isPinned", "createdAt"]),  // Composite for sorted queries (pinned first, then by date)
         // PERFORMANCE (Sprint 3): processingStatus index for queue management
         Index(value = ["processingStatus"]),  // Queue processing queries
-        Index(value = ["processingStatus", "updatedAt"])  // Stuck note detection with timeout
+        Index(value = ["processingStatus", "updatedAt"]),  // Stuck note detection with timeout
+        // AI Memory learning: track which notes have been analyzed
+        Index(value = ["isReadForMemory"])  // Memory learning queries
     ]
 )
 data class Note(
@@ -126,7 +128,8 @@ data class Note(
     val isPinned: Boolean = false, // Pin note to top of list
     val reminderText: String? = null, // Smart reminder text to show on card
     val reminderExpiresAt: Long? = null, // When reminder should stop showing (null = forever)
-    val chunkAnalysesJson: String? = null // JSON string of List<ChunkAnalysis> for per-page document analyses
+    val chunkAnalysesJson: String? = null, // JSON string of List<ChunkAnalysis> for per-page document analyses
+    val isReadForMemory: Boolean = false // Flag to track if note has been analyzed for AI memory learning
 ) : PrivacyAware {
     /**
      * PrivacyAware implementation.

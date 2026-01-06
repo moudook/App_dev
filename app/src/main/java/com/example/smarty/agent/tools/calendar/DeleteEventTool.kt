@@ -26,9 +26,9 @@ class DeleteEventTool(
     resultSerializer = CalendarOperationResult.serializer(),
     name = "delete_event",
     description = """
-        Deletes a calendar event.
-        Can delete by event ID or by searching for the event title.
-        Use this when the user wants to cancel or remove a meeting/event.
+        Cancels/deletes an existing calendar event or meeting.
+        Triggers: "Cancel my meeting", "Remove the appointment", "Delete the event".
+        Requirement: Needs 'eventId' or a search 'query' to identify the event.
     """.trimIndent()
 ) {
     companion object {

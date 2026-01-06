@@ -175,6 +175,9 @@ private fun MentionSuggestionItem(
             is MentionSuggestion.NoteSuggestion -> {
                 NoteSuggestionContent(suggestion, isDarkTheme)
             }
+            is MentionSuggestion.CategorySuggestion -> {
+                CategorySuggestionContent(suggestion, isDarkTheme)
+            }
             is MentionSuggestion.TypeFilter -> {
                 TypeFilterContent(suggestion, isDarkTheme)
             }
@@ -227,6 +230,65 @@ private fun NoteSuggestionContent(
             Text(
                 text = suggestion.note.type.name.replace("_", " ").lowercase()
                     .replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                maxLines = 1
+            )
+        }
+
+        // Match score indicator (subtle)
+        if (suggestion.score >= 0.8) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = "High match",
+                tint = Color(0xFFFFD700).copy(alpha = 0.7f),
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+
+/**
+ * Content for category suggestion item.
+ */
+@Composable
+private fun CategorySuggestionContent(
+    suggestion: MentionSuggestion.CategorySuggestion,
+    isDarkTheme: Boolean
+) {
+    val accentColor = LocalAccentColor.current
+    
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // Category icon (folder with accent color)
+        Icon(
+            imageVector = Icons.Default.Folder,
+            contentDescription = null,
+            tint = accentColor,
+            modifier = Modifier.size(20.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            // Category name
+            Text(
+                text = "@${suggestion.category.name}",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = MonoFont,
+                    fontWeight = FontWeight.Medium
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            // Category subtitle
+            Text(
+                text = "Category",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 maxLines = 1

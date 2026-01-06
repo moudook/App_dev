@@ -28,9 +28,9 @@ class DeleteTodoTool(
     resultSerializer = TodoOperationResult.serializer(),
     name = "delete_todo",
     description = """
-        Deletes a todo item from a note.
-        Use when the user wants to remove a task from a checklist.
-        Private notes cannot be modified by AI.
+        Permanently removes a todo item from a note.
+        Triggers: "Remove the milk task", "Delete the call mom item".
+        Critical Distinction: Use this for DELETION. For checking off done tasks, use 'toggle_todo'.
     """.trimIndent()
 ) {
     override suspend fun execute(args: DeleteTodoArgs): TodoOperationResult {

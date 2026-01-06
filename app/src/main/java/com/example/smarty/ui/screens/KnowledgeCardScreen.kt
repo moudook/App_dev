@@ -73,6 +73,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.foundation.text.appendInlineContent
 import com.example.smarty.ui.components.rememberShimmerBrush
+import com.example.smarty.ui.components.RelatedNotesSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,8 +90,12 @@ fun KnowledgeCardScreen(
     onLoadVersions: () -> Unit = {},
     onRestoreVersion: (String) -> Unit = {},  // versionId
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    isMiniPlayerVisible: Boolean = false,
     // @Mention: Ask AI about this note (opens chat with note pre-referenced)
     onAskAI: (() -> Unit)? = null,
+    // Related Notes: All notes for semantic linking
+    allNotes: List<Note> = emptyList(),
+    onNavigateToNote: (Note) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -181,7 +186,8 @@ fun KnowledgeCardScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp)
                     // Only apply bottom padding from scaffold (navigation bar), ignore top to scroll behind header
-                    .padding(bottom = paddingValues.calculateBottomPadding() + 100.dp + bottomContentPadding), 
+                    // Add extra padding to account for floating action bar and potential audio player overlap
+                    .padding(bottom = paddingValues.calculateBottomPadding() + 100.dp + bottomContentPadding),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                  // Spacer to push content down initially, clearing the transparent header
@@ -463,6 +469,16 @@ fun KnowledgeCardScreen(
                                 }
                             }
                         }
+                        
+                        // Related Knowledge Section (Semantic Note Linking)
+                        if (!isEditing && allNotes.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            RelatedNotesSection(
+                                currentNote = note,
+                                allNotes = allNotes,
+                                onNoteClick = onNavigateToNote
+                            )
+                        }
                     }
 
                     KnowledgeTab.FILES -> {
@@ -678,11 +694,12 @@ fun KnowledgeCardScreen(
             )
 
             // 2. Bottom Footer Scrim (Transparent -> White)
-            // Hides scrolling text behind the FAB area
+            // Hides scrolling text behind the FAB area and accounts for audio player when visible
+            val bottomScrimHeight = if (isMiniPlayerVisible) 260.dp else 180.dp
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
+                    .height(bottomScrimHeight)
                     .align(Alignment.BottomCenter)
                     .background(
                         brush = Brush.verticalGradient(

@@ -475,7 +475,6 @@ class BackupManager(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
-            isPinConfigured = securePreferences.isPinConfigured(),
             // Note: We don't backup API keys for security reasons
             // Users need to re-enter them after restore
             encryptedGeminiKeys = null,

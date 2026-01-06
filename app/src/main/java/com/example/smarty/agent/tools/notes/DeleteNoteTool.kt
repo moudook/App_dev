@@ -29,10 +29,9 @@ class DeleteNoteTool(
     resultSerializer = NoteOperationResult.serializer(),
     name = "delete_note",
     description = """
-        Deletes a note from the user's collection.
-        Use when the user asks to remove or delete a note.
-        Can specify by noteId or description.
-        Private notes cannot be deleted.
+        PERMANENTLY removes a note.
+        Triggers: "Delete note X", "Remove this note", "Trash note Y".
+        SAFETY: Only use when user explicitly says "delete" or "remove". Prefer 'archive_note' if unsure.
     """.trimIndent()
 ) {
     override suspend fun execute(args: DeleteNoteArgs): NoteOperationResult {

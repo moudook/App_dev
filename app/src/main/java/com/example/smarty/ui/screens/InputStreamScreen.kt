@@ -60,6 +60,7 @@ import com.example.smarty.ui.components.SearchFilterTypeSelector
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import com.example.smarty.ui.components.PendingShareData
+import com.example.smarty.data.model.AIMemory
 import com.example.smarty.ui.components.ProcessingDotsIndicator
 import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.components.getNoteTypeIcon
@@ -153,6 +154,7 @@ fun InputStreamScreen(
     onInputAttachmentsChange: (List<Attachment>) -> Unit = {},
     onPlayYouTube: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    isMiniPlayerVisible: Boolean = false,  // Audio player visibility for gradient adjustment
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
     
@@ -200,11 +202,11 @@ fun InputStreamScreen(
     onCreateCategory: (String) -> Unit = {},
     onDeleteCategory: (Category) -> Unit = {},
     onCategoryClick: (Category) -> Unit = {},
+    onSyncCategoryCounts: () -> Unit = {},  // Sync category counts when entering stacks view
 
     // Settings props for Settings sheet
     providerConfigs: Map<AIProvider, AIProviderConfig> = emptyMap(),
     providerPriorityOrder: List<AIProvider> = emptyList(),
-    isPinConfigured: Boolean = false,
     onAddApiKey: (AIProvider, String) -> Unit = { _, _ -> },
     onRemoveApiKey: (AIProvider, String) -> Unit = { _, _ -> },
     onUpdateApiKey: (AIProvider, String, String) -> Unit = { _, _, _ -> },
@@ -212,9 +214,9 @@ fun InputStreamScreen(
     onSetSelectedModel: (AIProvider, String) -> Unit = { _, _ -> },
     onSetProviderPriority: (List<AIProvider>) -> Unit = {},
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit = { _, _, _ -> },
-    onRemovePin: () -> Unit = {},
-    tavilyApiKey: String? = null,
-    onSetTavilyApiKey: (String?) -> Unit = {},
+    tavilyApiKeys: List<String> = emptyList(),
+    onAddTavilyApiKey: (String) -> Unit = {},
+    onRemoveTavilyApiKey: (String) -> Unit = {},
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
@@ -230,10 +232,18 @@ fun InputStreamScreen(
     // Settings sub-sheet content
     aiConfigContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
     archiveContentForSettings: @Composable (onDismiss: () -> Unit) -> Unit = {},
-    backupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
-    pinSetupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
-    pinChangeContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
 
+    backupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
+    // AI Memory
+    aiMemories: List<AIMemory> = emptyList(),
+    onDeleteAIMemory: (AIMemory) -> Unit = {},
+    onClearAllAIMemories: () -> Unit = {},
+    // Memory sync
+    onSyncAIMemories: () -> Unit = {},
+    isMemorySyncInProgress: Boolean = false,
+    memorySyncResult: String? = null,
+    unreadForMemoryCount: Int = 0,
+    onClearMemorySyncResult: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -719,6 +729,11 @@ fun InputStreamScreen(
         showSettingsInline = false
     }
 
+    // Handle back button press - clear active category filter instead of closing app
+    BackHandler(enabled = activeCategoryFilter != null && !isSelectionMode && !showStacksInline && !showCalendarInline && !showArchiveInline && !showSettingsInline && !isChatMode) {
+        activeCategoryFilter = null
+    }
+
     // Add event dialog state for inline calendar
     var showAddEventDialog by remember { mutableStateOf(false) }
     var selectedDateForNewEvent by remember { mutableStateOf<java.util.Calendar?>(null) }
@@ -1146,7 +1161,8 @@ fun InputStreamScreen(
                             onCreateCategory = onCreateCategory,
                             onDeleteCategory = onDeleteCategory,
                             contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            onSyncCategoryCounts = onSyncCategoryCounts
                         )
                     }
                     "archive" -> {
@@ -1171,12 +1187,11 @@ fun InputStreamScreen(
                             onSetSelectedModel = onSetSelectedModel,
                             onSetProviderPriority = onSetProviderPriority,
                             onTestApiKey = onTestApiKey,
-                            isPinConfigured = isPinConfigured,
-                            onRemovePin = onRemovePin,
                             isDarkTheme = isDarkTheme,
                             onToggleTheme = onToggleTheme,
-                            tavilyApiKey = tavilyApiKey,
-                            onSetTavilyApiKey = onSetTavilyApiKey,
+                            tavilyApiKeys = tavilyApiKeys,
+                            onAddTavilyApiKey = onAddTavilyApiKey,
+                            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
                             cacheSizeBytes = cacheSizeBytes,
                             onClearCache = onClearCache,
                             isClearingCache = isClearingCache,
@@ -1191,9 +1206,18 @@ fun InputStreamScreen(
                             onSignOut = onSignOut,
                             aiConfigContent = aiConfigContent,
                             archiveContent = archiveContentForSettings,
+
                             backupContent = backupContent,
-                            pinSetupContent = pinSetupContent,
-                            pinChangeContent = pinChangeContent,
+                            // AI Memory
+                            aiMemories = aiMemories,
+                            onDeleteAIMemory = onDeleteAIMemory,
+                            onClearAllAIMemories = onClearAllAIMemories,
+                            // Memory sync
+                            onSyncAIMemories = onSyncAIMemories,
+                            isMemorySyncInProgress = isMemorySyncInProgress,
+                            memorySyncResult = memorySyncResult,
+                            unreadForMemoryCount = unreadForMemoryCount,
+                            onClearMemorySyncResult = onClearMemorySyncResult,
                             contentPadding = contentPaddingWithTop,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -1357,18 +1381,22 @@ fun InputStreamScreen(
 
 
             // Floating Input Field Container (Overlaying content)
+            // Additional bottom padding when mini player is visible to prevent overlap
+            val miniPlayerPadding = if (isMiniPlayerVisible) 72.dp else 0.dp
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(bottom = bottomContentPadding)
+                    .padding(bottom = bottomContentPadding + miniPlayerPadding)
                     .navigationBarsPadding()
             ) {
                 // Bottom Gradient Scrim (Hides scrolling text behind input)
+                // Extended height when mini player is visible
+                val gradientHeight = if (isMiniPlayerVisible) 280.dp else 200.dp
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp) // Height to cover input area + fade
+                        .height(gradientHeight) // Height to cover input area + fade + mini player
                         .align(Alignment.BottomCenter)
                         .background(
                             brush = Brush.verticalGradient(
@@ -1718,7 +1746,6 @@ fun InputStreamScreen(
             onDismiss = { showSettingsSheet = false },
             providerConfigs = providerConfigs,
             providerPriorityOrder = providerPriorityOrder,
-            isPinConfigured = isPinConfigured,
             isDarkTheme = isDarkTheme,
             onAddApiKey = onAddApiKey,
             onRemoveApiKey = onRemoveApiKey,
@@ -1727,10 +1754,10 @@ fun InputStreamScreen(
             onSetSelectedModel = onSetSelectedModel,
             onSetProviderPriority = onSetProviderPriority,
             onTestApiKey = onTestApiKey,
-            onRemovePin = onRemovePin,
             onToggleTheme = onToggleTheme,
-            tavilyApiKey = tavilyApiKey,
-            onSetTavilyApiKey = onSetTavilyApiKey,
+            tavilyApiKeys = tavilyApiKeys,
+            onAddTavilyApiKey = onAddTavilyApiKey,
+            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
             cacheSizeBytes = cacheSizeBytes,
             onClearCache = onClearCache,
             isClearingCache = isClearingCache,
@@ -1744,9 +1771,7 @@ fun InputStreamScreen(
             getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,
             archiveContent = archiveContentForSettings,
-            backupContent = backupContent,
-            pinSetupContent = pinSetupContent,
-            pinChangeContent = pinChangeContent
+            backupContent = backupContent
         )
     }
 

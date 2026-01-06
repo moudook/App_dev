@@ -634,7 +634,8 @@ private fun ActionCircle(
                         },
                         onTap = { onClick() }
                     )
-                },
+                }
+                .padding(8.dp), // Increase touch target while keeping visual size the same
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -834,8 +835,8 @@ private fun InputPill(
                             modifier = Modifier
                                 .size(32.dp)
                                 .scale(buttonScale)
-                                // Removed clip(CircleShape) and background(LocalAccentColor)
-                                // to create a standalone floating icon
+                                .clip(CircleShape)
+                                .background(LocalAccentColor.current)  // Solid background for visibility in dark mode
                                 .pointerInput(canSend) {
                                     if (canSend) {
                                         detectTapGestures(
@@ -847,15 +848,16 @@ private fun InputPill(
                                             onTap = { onSend() }
                                         )
                                     }
-                                },
+                                }
+                                .padding(8.dp), // Increase touch target while keeping visual size the same
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward, // Use ArrowForward (->)
                                 contentDescription = "Send",
-                                tint = LocalAccentColor.current.copy(alpha = flyAlpha), // Blue tint
+                                tint = Color.White.copy(alpha = flyAlpha), // White for contrast against accent background
                                 modifier = Modifier
-                                    .size(24.dp)
+                                    .size(20.dp)
                                     .graphicsLayer {
                                         translationX = flyX * density
                                         translationY = flyY * density

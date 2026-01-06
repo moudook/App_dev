@@ -35,20 +35,7 @@ class PlayAudioTool(
     argsSerializer = PlayAudioArgs.serializer(),
     resultSerializer = AudioPlaybackResult.serializer(),
     name = "play_audio",
-    description = """
-        MUST USE THIS TOOL when user says: "play", "play music", "play audio", "play song", "play podcast".
-        Searches and plays audio files attached to user's notes.
-
-        ROBUST SEARCH: Searches across filename, note title, tags, summary, category, and content.
-        Uses fuzzy matching - can find audio even with partial or similar names.
-
-        Required: query parameter with search term.
-        Examples:
-        - User says "play jazz" → query="jazz"
-        - User says "play my podcast" → query="podcast"
-        - User says "play pretty little baby" → query="pretty little baby"
-        - User says "play that song I tagged as workout" → query="workout"
-    """.trimIndent()
+    description = """ONLY use when user says "play" followed by audio name. Do NOT use otherwise.""".trimIndent()
 ) {
     companion object {
         private const val TAG = "PlayAudioTool"
@@ -173,6 +160,32 @@ class PlayAudioTool(
 
             // DIAGNOSTIC: Log note counts to debug audio search issues
             Log.i(TAG, "📊 NOTES DEBUG: raw=${rawNotes.size}, afterPrivacy=${allNotes.size}")
+
+            // 1. SPECIAL HANDLING: "Latest", "Last", "Recent"
+            // If user asks for "latest recording", skip search and play the newest one
+            val queryLower = args.query.lowercase()
+            val isRecencyRequest = queryLower.contains("latest") || 
+                                  queryLower.contains("last") || 
+                                  queryLower.contains("recent") ||
+                                  queryLower.contains("newest")
+
+            if (isRecencyRequest) {
+                 Log.d(TAG, "Recency request detected ('$queryLower') - finding newest audio")
+                 // Sort notes by update time (newest first)
+                 val sortedNotes = allNotes.sortedByDescending { it.updatedAt }
+                 val recentAudio = getAllAudioFiles(sortedNotes).firstOrNull()
+                 
+                 if (recentAudio != null) {
+                      Log.i(TAG, "✓ FOUND RECENT: Playing most recent audio: ${recentAudio.title}")
+                      onPlayAudio(recentAudio)
+                      return AudioPlaybackResult(
+                          success = true,
+                          action = "play",
+                          trackTitle = recentAudio.title,
+                          message = "Playing your latest audio: ${recentAudio.title}"
+                      )
+                 }
+            }
 
             // Step 1: Search only audio-type notes first (faster, more accurate)
             val audioNotes = allNotes.filter { note ->

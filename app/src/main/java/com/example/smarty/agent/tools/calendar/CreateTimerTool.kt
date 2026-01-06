@@ -36,11 +36,7 @@ class CreateTimerTool(
     argsSerializer = CreateTimerArgs.serializer(),
     resultSerializer = TimerOperationResult.serializer(),
     name = "create_timer",
-    description = """
-        Creates a timer or alarm that will play audio for 5 seconds when triggered.
-        Supports one-time timers ("in 5 minutes", "at 3 PM") and recurring alarms on specific days.
-        Use this when the user wants to set a reminder, alarm, or timer.
-    """.trimIndent()
+    description = """ONLY use when user says "set timer" or "set alarm". Do NOT use otherwise.""".trimIndent()
 ) {
     companion object {
         private const val TAG = "CreateTimerTool"

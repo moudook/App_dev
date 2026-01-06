@@ -230,6 +230,7 @@ class CogniViewModel(
             tavilySearchProvider = tavilySearchProvider,
             alarmScheduler = alarmScheduler,
             callbacks = agentCallbacks,
+            aiMemoryDao = database.aiMemoryDao(),  // For memory management tool
             rateLimiter = rateLimiter  // API budget management
         )
     }
@@ -277,7 +278,7 @@ class CogniViewModel(
 
     /** MentionResolver for resolving @mentions to notes */
     private val mentionResolver: MentionResolver by lazy {
-        MentionResolver(database.noteDao())
+        MentionResolver(database.noteDao(), database.categoryDao())
     }
 
     /** ThinkingModeProcessor for @thinking deep document analysis */
@@ -455,6 +456,245 @@ class CogniViewModel(
 
     // Calendar DAO for event management - lazy
     private val calendarDao by lazy { database.calendarDao() }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AI MEMORY - Stores learned user preferences and patterns
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // AI Memory DAO for accessing stored memories - lazy
+    private val aiMemoryDao by lazy { database.aiMemoryDao() }
+
+    // AI Memories StateFlow for UI observation
+    val aiMemories: StateFlow<List<com.example.smarty.data.model.AIMemory>> by lazy {
+        aiMemoryDao.getAllMemoriesFlow()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+
+    /**
+     * Delete a specific AI memory
+     */
+    fun deleteAIMemory(memory: com.example.smarty.data.model.AIMemory) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                aiMemoryDao.deleteMemory(memory)
+                Log.d(TAG, "Deleted AI memory: ${memory.id}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete AI memory: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Clear all AI memories
+     */
+    fun clearAllAIMemories() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                aiMemoryDao.clearAllMemories()
+                Log.d(TAG, "Cleared all AI memories")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear AI memories: ${e.message}")
+            }
+        }
+    }
+
+    // State for sync operation progress
+    private val _isMemorySyncInProgress = MutableStateFlow(false)
+    val isMemorySyncInProgress: StateFlow<Boolean> = _isMemorySyncInProgress.asStateFlow()
+
+    private val _memorySyncResult = MutableStateFlow<String?>(null)
+    val memorySyncResult: StateFlow<String?> = _memorySyncResult.asStateFlow()
+
+    /**
+     * Get count of notes that haven't been analyzed for memory
+     */
+    suspend fun getUnreadForMemoryCount(): Int {
+        return database.noteDao().getUnreadForMemoryCount()
+    }
+
+    /**
+     * Sync AI memories by analyzing notes that haven't been read for memory.
+     * This reads note content and uses AI to extract patterns, preferences, and facts.
+     */
+    fun syncAIMemoriesFromNotes() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (_isMemorySyncInProgress.value) {
+                Log.w(TAG, "Memory sync already in progress")
+                return@launch
+            }
+
+            _isMemorySyncInProgress.value = true
+            _memorySyncResult.value = null
+
+            try {
+                // Get notes that haven't been analyzed
+                val unreadNotes = database.noteDao().getNotesNotReadForMemory(50)
+                
+                if (unreadNotes.isEmpty()) {
+                    _memorySyncResult.value = "All notes have been analyzed"
+                    _isMemorySyncInProgress.value = false
+                    return@launch
+                }
+
+                Log.d(TAG, "Syncing memories from ${unreadNotes.size} unread notes")
+
+                var memoriesCreated = 0
+                var memoriesUpdated = 0
+
+                // Analyze patterns from all unread notes
+                val insights = analyzeNotesForMemory(unreadNotes)
+                
+                // Save each insight as a memory
+                for (insight in insights) {
+                    val created = saveInsightAsMemory(insight)
+                    if (created) memoriesCreated++ else memoriesUpdated++
+                }
+
+                // Mark all analyzed notes as read for memory
+                val noteIds = unreadNotes.map { it.id }
+                database.noteDao().markNotesAsReadForMemory(noteIds)
+
+                val resultMessage = "Analyzed ${unreadNotes.size} notes. Created $memoriesCreated new memories, updated $memoriesUpdated."
+                Log.d(TAG, resultMessage)
+                _memorySyncResult.value = resultMessage
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to sync memories: ${e.message}", e)
+                _memorySyncResult.value = "Failed: ${e.message}"
+            } finally {
+                _isMemorySyncInProgress.value = false
+            }
+        }
+    }
+
+    /**
+     * Analyze notes to extract patterns, preferences, and facts.
+     * This uses local pattern detection (no AI call) for efficiency.
+     */
+    private fun analyzeNotesForMemory(notes: List<com.example.smarty.data.model.Note>): List<MemoryInsight> {
+        val insights = mutableListOf<MemoryInsight>()
+
+        // Stop words to filter out common words
+        val stopWords = setOf(
+            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
+            "is", "it", "this", "that", "with", "from", "by", "as", "be", "was", "were",
+            "are", "been", "have", "has", "had", "do", "does", "did", "will", "would",
+            "could", "should", "may", "might", "must", "can", "my", "your", "his", "her",
+            "its", "our", "their", "i", "you", "he", "she", "we", "they", "what", "which",
+            "who", "when", "where", "why", "how", "all", "each", "every", "both", "few",
+            "more", "most", "other", "some", "such", "no", "not", "only", "own", "same",
+            "so", "than", "too", "very", "just", "also", "now", "here", "there", "note"
+        )
+
+        // 1. Topic Analysis - extract common themes
+        val wordFrequency = mutableMapOf<String, Int>()
+        notes.forEach { note ->
+            val text = "${note.title} ${note.content ?: ""}"
+            val words = text.lowercase()
+                .split(Regex("\\W+"))
+                .filter { it.length > 3 && it !in stopWords }
+            words.forEach { word ->
+                wordFrequency[word] = (wordFrequency[word] ?: 0) + 1
+            }
+        }
+
+        val topTopics = wordFrequency.entries
+            .filter { it.value >= 3 }
+            .sortedByDescending { it.value }
+            .take(5)
+
+        if (topTopics.isNotEmpty()) {
+            val topicString = topTopics.joinToString(", ") { it.key }
+            insights.add(MemoryInsight(
+                type = com.example.smarty.data.model.MemoryType.PATTERN,
+                content = "Key Interest: User frequently writes about $topicString. These appear to be core topics of interest.",
+                confidence = 0.8f
+            ))
+        }
+
+        // 2. Category Analysis
+        val categoryGroups = notes.filter { it.categoryName != null }.groupBy { it.categoryName }
+        if (categoryGroups.isNotEmpty()) {
+            val topCategory = categoryGroups.maxByOrNull { it.value.size }
+            if (topCategory != null && topCategory.value.size >= 2) {
+                insights.add(MemoryInsight(
+                    type = com.example.smarty.data.model.MemoryType.PREFERENCE,
+                    content = "Organization Preference: User actively maintains the '${topCategory.key}' category as a key knowledge base.",
+                    confidence = 0.7f
+                ))
+            }
+        }
+
+        // 3. Content Style Analysis
+        val bulletUsers = notes.count { note ->
+            note.content?.contains(Regex("^\\s*[-•*]\\s", RegexOption.MULTILINE)) == true ||
+            note.content?.contains(Regex("^\\s*\\d+\\.\\s", RegexOption.MULTILINE)) == true
+        }
+        if (bulletUsers > notes.size / 2) {
+            insights.add(MemoryInsight(
+                type = com.example.smarty.data.model.MemoryType.STYLE,
+                content = "Formatting Style: User structures information using bullet points and lists for clarity.",
+                confidence = 0.75f
+            ))
+        }
+
+        // 4. Note Type Analysis
+        val typeGroups = notes.groupBy { it.type }
+        val topType = typeGroups.maxByOrNull { it.value.size }
+        if (topType != null && topType.value.size >= 3) {
+            insights.add(MemoryInsight(
+                type = com.example.smarty.data.model.MemoryType.PATTERN,
+                content = "Usage Pattern: User relies heavily on ${topType.key.name.lowercase().replace("_", " ")} notes for capturing information.",
+                confidence = 0.7f
+            ))
+        }
+
+        return insights
+    }
+
+    /**
+     * Save an insight as an AI memory, checking for duplicates.
+     * Returns true if new memory was created, false if updated.
+     */
+    private suspend fun saveInsightAsMemory(insight: MemoryInsight): Boolean {
+        // Check if similar memory exists
+        val existing = aiMemoryDao.searchMemories(insight.content.take(30)).firstOrNull()
+
+        return if (existing != null) {
+            // Update existing memory confidence (reinforce)
+            val newConfidence = ((existing.confidence + insight.confidence) / 2).coerceIn(0.1f, 1.0f)
+            aiMemoryDao.updateConfidence(existing.id, newConfidence)
+            aiMemoryDao.incrementUsage(existing.id)
+            false // Updated
+        } else {
+            // Create new memory
+            val memory = com.example.smarty.data.model.AIMemory(
+                type = insight.type,
+                content = insight.content,
+                confidence = insight.confidence,
+                source = "Automatic analysis of note patterns"
+            )
+            aiMemoryDao.insertMemory(memory)
+            true // Created
+        }
+    }
+
+    /**
+     * Clear the sync result message
+     */
+    fun clearMemorySyncResult() {
+        _memorySyncResult.value = null
+    }
+
+    /**
+     * Data class for memory insights during analysis
+     */
+    private data class MemoryInsight(
+        val type: com.example.smarty.data.model.MemoryType,
+        val content: String,
+        val confidence: Float
+    )
+
 
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null
@@ -644,7 +884,6 @@ class CogniViewModel(
     val huggingFaceKeys: StateFlow<List<String>> = securePreferences.huggingFaceKeys
     val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = securePreferences.providerConfigs
     val providerPriorityOrder: StateFlow<List<AIProvider>> = securePreferences.providerPriorityOrder
-    val isPinSet: StateFlow<Boolean> = securePreferences.isPinSet
 
     fun setProviderPriority(priority: List<AIProvider>) {
         securePreferences.setProviderPriority(priority)
@@ -2275,9 +2514,12 @@ class CogniViewModel(
     /**
      * Process short PDFs (≤30 pages) using direct extraction.
      * This is the faster method for smaller documents.
+     * 
+     * Uses OCR fallback for scanned/image-based PDFs.
      */
     private suspend fun processShortPdf(note: Note, uri: Uri) {
-        val extractionResult = pdfExtractor.extractText(uri)
+        // Use OCR fallback for scanned PDFs
+        val extractionResult = pdfExtractor.extractTextWithOcrFallback(uri)
 
         when (extractionResult) {
             is PDFExtractionResult.Success -> {
@@ -2292,9 +2534,32 @@ class CogniViewModel(
 
                 val category = repository.getOrCreateCategory(documentResponse.category)
 
-                // Build comprehensive summary with key points
+                // Build comprehensive summary with key points and references
                 val fullSummary = buildString {
                     append(documentResponse.summary)
+                    
+                    // Add formulas if present
+                    documentResponse.references?.formulas?.takeIf { it.isNotEmpty() }?.let { formulas ->
+                        append("\n\n📐 Formulas:")
+                        formulas.forEach { formula ->
+                            append("\n  • $formula")
+                        }
+                    }
+                    
+                    // Add key terms if present
+                    documentResponse.references?.keyTerms?.takeIf { it.isNotEmpty() }?.let { terms ->
+                        append("\n\n📖 Key Terms:")
+                        terms.forEach { term ->
+                            append("\n  • ${term.term}: ${term.definition}")
+                        }
+                    }
+                    
+                    // Add recurring topics if present
+                    documentResponse.references?.recurringTopics?.takeIf { it.isNotEmpty() }?.let { topics ->
+                        append("\n\n🔄 Recurring Topics: ")
+                        append(topics.joinToString(", "))
+                    }
+                    
                     if (documentResponse.keyPoints.isNotEmpty()) {
                         append("\n\nKey Points:")
                         documentResponse.keyPoints.forEach { point ->
@@ -2558,10 +2823,33 @@ class CogniViewModel(
 
                 val category = repository.getOrCreateCategory(finalResponse.category)
 
-                // Build comprehensive summary with coverage info
+                // Build comprehensive summary with coverage info and references
                 val fullSummary = buildString {
                     append("📄 ${chunkedResult.totalPages} pages analyzed (${successfulChunks} sections)\n\n")
                     append(finalResponse.summary)
+                    
+                    // Add formulas if present
+                    finalResponse.references?.formulas?.takeIf { it.isNotEmpty() }?.let { formulas ->
+                        append("\n\n📐 Formulas:")
+                        formulas.forEach { formula ->
+                            append("\n  • $formula")
+                        }
+                    }
+                    
+                    // Add key terms if present
+                    finalResponse.references?.keyTerms?.takeIf { it.isNotEmpty() }?.let { terms ->
+                        append("\n\n📖 Key Terms:")
+                        terms.forEach { term ->
+                            append("\n  • ${term.term}: ${term.definition}")
+                        }
+                    }
+                    
+                    // Add recurring topics if present
+                    finalResponse.references?.recurringTopics?.takeIf { it.isNotEmpty() }?.let { topics ->
+                        append("\n\n🔄 Recurring Topics: ")
+                        append(topics.joinToString(", "))
+                    }
+                    
                     if (finalResponse.keyPoints.isNotEmpty()) {
                         append("\n\nKey Points:")
                         finalResponse.keyPoints.forEach { point ->
@@ -2740,13 +3028,29 @@ class CogniViewModel(
     // Rate Limit Stats (exposed for UI monitoring)
     fun getRateLimitStats() = rateLimiter.getUsageStats()
 
-    // Tavily Web Search API Management
+    // Tavily Web Search API Management (supports multiple keys)
     private val _tavilyApiKey = MutableStateFlow(securePreferences.getTavilyApiKey())
     val tavilyApiKey: StateFlow<String?> = _tavilyApiKey.asStateFlow()
+
+    private val _tavilyApiKeys = MutableStateFlow(securePreferences.getTavilyApiKeys())
+    val tavilyApiKeys: StateFlow<List<String>> = _tavilyApiKeys.asStateFlow()
 
     fun setTavilyApiKey(key: String?) {
         securePreferences.setTavilyApiKey(key)
         _tavilyApiKey.value = key
+        _tavilyApiKeys.value = securePreferences.getTavilyApiKeys()
+    }
+
+    fun addTavilyApiKey(key: String) {
+        securePreferences.addTavilyApiKey(key)
+        _tavilyApiKeys.value = securePreferences.getTavilyApiKeys()
+        _tavilyApiKey.value = securePreferences.getTavilyApiKey()
+    }
+
+    fun removeTavilyApiKey(key: String) {
+        securePreferences.removeTavilyApiKey(key)
+        _tavilyApiKeys.value = securePreferences.getTavilyApiKeys()
+        _tavilyApiKey.value = securePreferences.getTavilyApiKey()
     }
 
     // Shake Sensitivity Management
@@ -2784,6 +3088,12 @@ class CogniViewModel(
     // User Category Creation
     fun createUserCategory(name: String) {
         viewModelScope.launch {
+            // Validate category name: max 10 characters
+            if (name.length > 10) {
+                // Don't create category if it exceeds 10 characters
+                return@launch
+            }
+
             val category = Category(
                 name = name,
                 isAiGenerated = false,  // User-created category
@@ -2806,26 +3116,6 @@ class CogniViewModel(
         }
     }
 
-    // PIN Management
-    fun setPin(pin: String) {
-        securePreferences.setPin(pin)
-    }
-
-    fun verifyPin(pin: String): Boolean {
-        return securePreferences.verifyPin(pin)
-    }
-
-    fun changePin(oldPin: String, newPin: String): Boolean {
-        return securePreferences.changePin(oldPin, newPin)
-    }
-
-    fun clearPin() {
-        securePreferences.clearPin()
-    }
-
-    fun isPinConfigured(): Boolean {
-        return securePreferences.isPinConfigured()
-    }
 
     fun isFirstLaunch(): Boolean {
         return securePreferences.isFirstLaunch()
@@ -2956,6 +3246,7 @@ class CogniViewModel(
             telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
             phoneStateListener = object : PhoneStateListener() {
                 @Deprecated("Deprecated in Java")
+                @Suppress("OVERRIDE_DEPRECATION")
                 override fun onCallStateChanged(state: Int, phoneNumber: String?) {
                     when (state) {
                         TelephonyManager.CALL_STATE_RINGING,
@@ -3063,8 +3354,10 @@ class CogniViewModel(
 
                 val isMusicPlaying = audioManager?.isMusicActive == true
 
-                if (isMusicPlaying && !isAudioFocusLost) {
-                    // Music just started - pause Vosk
+                // BUG FIX: Don't treat in-app audio as lost audio focus
+                // Only set isAudioFocusLost if music is playing AND it's not us
+                if (isMusicPlaying && !isInAppAudioPlaying && !isAudioFocusLost) {
+                    // System music (not us) started - pause Vosk
                     Log.d(TAG, "System music started mid-session - pausing Vosk")
                     isAudioFocusLost = true
                     voskWakeWordManager?.stopListening()
@@ -3529,6 +3822,10 @@ class CogniViewModel(
                 if (title.contains(' ')) "@\"$title\"" else "@${title.replace(' ', '_')}"
             }
             is MentionSuggestion.TypeFilter -> "@${suggestion.keyword}"
+            is MentionSuggestion.CategorySuggestion -> {
+                val name = suggestion.category.name
+                if (name.contains(' ')) "@\"$name\"" else "@${name.replace(' ', '_')}"
+            }
             is MentionSuggestion.SpecialFilter -> "@${suggestion.filterName}"
             is MentionSuggestion.CommandSuggestion -> "@${suggestion.commandName}"
         }

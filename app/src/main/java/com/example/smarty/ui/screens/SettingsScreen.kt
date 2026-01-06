@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -81,7 +82,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 fun SettingsScreen(
     providerConfigs: Map<AIProvider, AIProviderConfig>,
     providerPriorityOrder: List<AIProvider>,
-    isPinConfigured: Boolean,
     isDarkTheme: Boolean,
     onBackClick: () -> Unit,
     onAddApiKey: (AIProvider, String) -> Unit,
@@ -91,16 +91,14 @@ fun SettingsScreen(
     onSetSelectedModel: (AIProvider, String) -> Unit,
     onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
-    onRemovePin: () -> Unit,
     onToggleTheme: (Boolean) -> Unit,
     // Tavily Web Search API
-    tavilyApiKey: String? = null,
-    onSetTavilyApiKey: (String?) -> Unit = {},
+    tavilyApiKeys: List<String> = emptyList(),
+    onAddTavilyApiKey: (String) -> Unit = {},
+    onRemoveTavilyApiKey: (String) -> Unit = {},
     // Embedded Content Slots
     archiveContent: @Composable (() -> Unit) -> Unit,
     backupContent: @Composable (() -> Unit) -> Unit,
-    pinSetupContent: @Composable (() -> Unit) -> Unit,
-    pinChangeContent: @Composable (() -> Unit) -> Unit,
     lastBackupTime: Long = 0L,
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
@@ -127,20 +125,22 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { AIModels.getModelsForProvider(it) },
-    onSignOut: () -> Unit = {}
+    onSignOut: () -> Unit = {},
+    // AI Memory
+    aiMemories: List<com.example.smarty.data.model.AIMemory> = emptyList(),
+    onDeleteAIMemory: (com.example.smarty.data.model.AIMemory) -> Unit = {},
+    onClearAllAIMemories: () -> Unit = {}
 ) {
-    var showRemovePinDialog by remember { mutableStateOf(false) }
     var showAIConfigSheet by remember { mutableStateOf(false) }
     val aiConfigSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    
+
     // Bottom Sheets for Sub-settings
     var showArchiveSheet by remember { mutableStateOf(false) }
     var showBackupSheet by remember { mutableStateOf(false) }
-    var showPinSetupSheet by remember { mutableStateOf(false) }
-    var showPinChangeSheet by remember { mutableStateOf(false) }
     var showAboutSheet by remember { mutableStateOf(false) }  // Newly added state
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
     var showVoiceFingerprintSheet by remember { mutableStateOf(false) }
+    var showAIMemorySheet by remember { mutableStateOf(false) }
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Local LLM connection state
@@ -153,15 +153,14 @@ fun SettingsScreen(
     // Intercept system back button
     // If any sheet is open, close it. Otherwise, navigate back.
     androidx.activity.compose.BackHandler(onBack = {
-        if (showArchiveSheet || showBackupSheet || showPinSetupSheet || showPinChangeSheet || showAboutSheet || showShakeSensitivitySheet || showVoiceFingerprintSheet || showAIConfigSheet) {
+        if (showArchiveSheet || showBackupSheet || showAboutSheet || showShakeSensitivitySheet || showVoiceFingerprintSheet || showAIConfigSheet || showAIMemorySheet) {
             showArchiveSheet = false
             showBackupSheet = false
-            showPinSetupSheet = false
-            showPinChangeSheet = false
             showAboutSheet = false
             showShakeSensitivitySheet = false
             showVoiceFingerprintSheet = false
             showAIConfigSheet = false
+            showAIMemorySheet = false
         } else {
             onBackClick()
         }
@@ -213,36 +212,11 @@ fun SettingsScreen(
                         else onRetrainVoice()
                     }
                 )
-            }
-
-            // ═══════════════════════════════════════════════════════════════════
-            // SECTION 2: SECURITY
-            // ═══════════════════════════════════════════════════════════════════
-            SettingsSection(
-                title = "Security",
-                icon = Icons.Default.Shield,
-                isExpanded = expandedSection == "security",
-                onToggle = { expandedSection = if (expandedSection == "security") null else "security" }
-            ) {
-                if (isPinConfigured) {
-                    SettingsRow(
-                        title = "Change PIN",
-                        subtitle = "Update security code",
-                        onClick = { showPinChangeSheet = true }
-                    )
-                    SettingsRow(
-                        title = "Remove PIN",
-                        subtitle = "Disable protection",
-                        onClick = { showRemovePinDialog = true },
-                        isDestructive = true
-                    )
-                } else {
-                    SettingsRow(
-                        title = "Set Up PIN",
-                        subtitle = "Protect your notes",
-                        onClick = { showPinSetupSheet = true }
-                    )
-                }
+                SettingsRow(
+                    title = "AI Memory",
+                    subtitle = if (aiMemories.isEmpty()) "No memories" else "${aiMemories.size} memories",
+                    onClick = { showAIMemorySheet = true }
+                )
             }
 
             // ═══════════════════════════════════════════════════════════════════
@@ -392,8 +366,9 @@ fun SettingsScreen(
             onSetSelectedModel = onSetSelectedModel,
             onSetProviderPriority = onSetProviderPriority,
             onTestApiKey = onTestApiKey,
-            tavilyApiKey = tavilyApiKey,
-            onSetTavilyApiKey = onSetTavilyApiKey,
+            tavilyApiKeys = tavilyApiKeys,
+            onAddTavilyApiKey = onAddTavilyApiKey,
+            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
             groqKeyUsageStats = groqKeyUsageStats,
             onRefreshModels = onRefreshModels,
             getAvailableModels = getAvailableModels,
@@ -478,102 +453,6 @@ fun SettingsScreen(
                 backupContent { showBackupSheet = false }
             }
         }
-    }
-
-    // Pin Setup Bottom Sheet
-    if (showPinSetupSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showPinSetupSheet = false },
-            sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = LocalShapes.current.bottomSheet,
-            dragHandle = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(32.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    )
-                }
-            }
-        ) {
-            HideSystemBars()
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(0.75f)  // Increased from 0.5f to show all buttons including 0
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                pinSetupContent { showPinSetupSheet = false }
-            }
-        }
-    }
-
-    // Pin Change Bottom Sheet
-    if (showPinChangeSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showPinChangeSheet = false },
-            sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = LocalShapes.current.bottomSheet,
-            dragHandle = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(32.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    )
-                }
-            }
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight(0.75f)  // Increased from 0.5f to show all buttons including 0
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                pinChangeContent { showPinChangeSheet = false }
-            }
-        }
-    }
-
-    // Remove PIN Dialog
-    if (showRemovePinDialog) {
-        AlertDialog(
-            onDismissRequest = { showRemovePinDialog = false },
-            title = { Text("Remove PIN?") },
-            text = { Text("Anyone with access to your device will be able to view your notes.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onRemovePin()
-                    showRemovePinDialog = false
-                }) {
-                    Text("Remove", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRemovePinDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            shape = LocalShapes.current.cardMedium
-        )
     }
 
     // Note: Delete Voice Fingerprint Dialog is now handled inside VoiceFingerprintSheetContent
@@ -691,7 +570,6 @@ fun SettingsScreen(
                                 "Privacy was non-negotiable.\n\n" +
                                 "There are multiple privacy modes. Full privacy means AI cannot see the note at all. Exclude from chat means the note stays hidden from AI context. Private calendar events are also invisible to AI.\n\n" +
                                 "I added shake-to-private mode. You can shake the device to toggle privacy. Sensitivity can be adjusted. There is visual feedback so you know when the mode changes.\n\n" +
-                                "The app supports PIN protection. You can use a 4-digit PIN or biometrics. You can change or remove it anytime.\n\n" +
                                 "I also added prompt injection protection. Content is sanitized across multiple languages. This runs on device. It prevents malicious note content from affecting the AI.\n\n" +
                                 "All data is stored locally on the device. I use a Room database for persistence. API keys are stored using Android's EncryptedSharedPreferences. Only API calls go out of the device.\n\n" +
                                 "For user experience, I added widgets. You can capture notes directly from the home screen. One tap and you are inside a new note.\n\n" +
@@ -798,132 +676,102 @@ fun SettingsScreen(
                     }
                 }
 
-                // Main Card with Control
+                // Main Card with Control - matching notecard aesthetic
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(0.dp)
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        // Semicircle sensitivity control
                         ShakeSensitivityControl(
                             sensitivity = shakeSensitivity,
-                            onSensitivityChange = onShakeSensitivityChange,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Hint text
-                        Text(
-                            text = when {
-                                shakeSensitivity < 0.3f -> "Low: Requires strong shake movement"
-                                shakeSensitivity < 0.7f -> "Medium: Balanced sensitivity"
-                                else -> "High: Light shake triggers mode switch"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            onSensitivityChange = onShakeSensitivityChange
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Preset Buttons
+                // Labels row matching notecard style
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Low preset
-                    Surface(
-                        onClick = { onShakeSensitivityChange(0.15f) },
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (shakeSensitivity < 0.3f) accentColor.copy(alpha = 0.15f) 
-                                else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "Low",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = if (shakeSensitivity < 0.3f) 
-                                        androidx.compose.ui.text.font.FontWeight.Bold 
-                                        else androidx.compose.ui.text.font.FontWeight.Medium
-                                ),
-                                color = if (shakeSensitivity < 0.3f) accentColor 
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    Column(horizontalAlignment = Alignment.Start) {
+                        Text(
+                            text = "Low",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Requires stronger shake",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     }
-                    
-                    // Medium preset (Baseline)
-                    Surface(
-                        onClick = { onShakeSensitivityChange(0.63f) },
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (shakeSensitivity in 0.3f..0.69f) accentColor.copy(alpha = 0.15f) 
-                                else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Text(
-                                text = "Medium",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = if (shakeSensitivity in 0.3f..0.69f) 
-                                        androidx.compose.ui.text.font.FontWeight.Bold 
-                                        else androidx.compose.ui.text.font.FontWeight.Medium
-                                ),
-                                color = if (shakeSensitivity in 0.3f..0.69f) accentColor 
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "(Default)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                    
-                    // High preset
-                    Surface(
-                        onClick = { onShakeSensitivityChange(0.85f) },
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (shakeSensitivity >= 0.7f) accentColor.copy(alpha = 0.15f) 
-                                else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "High",
-                                style = MaterialTheme.typography.titleSmall.copy(
-                                    fontWeight = if (shakeSensitivity >= 0.7f) 
-                                        androidx.compose.ui.text.font.FontWeight.Bold 
-                                        else androidx.compose.ui.text.font.FontWeight.Medium
-                                ),
-                                color = if (shakeSensitivity >= 0.7f) accentColor 
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "High",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Light shake triggers",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     }
                 }
+            }
+        }
+    }
+
+    // AI Memory Bottom Sheet
+    if (showAIMemorySheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAIMemorySheet = false },
+            sheetState = subSettingSheetState,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = LocalShapes.current.bottomSheet,
+            dragHandle = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    )
+                }
+            }
+        ) {
+            HideSystemBars()
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight(0.7f)
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                com.example.smarty.ui.screens.settings.AIMemorySettingsContent(
+                    memories = aiMemories,
+                    onDeleteMemory = onDeleteAIMemory,
+                    onClearAllMemories = onClearAllAIMemories,
+                    onDismiss = { showAIMemorySheet = false }
+                )
             }
         }
     }
@@ -1104,8 +952,9 @@ internal fun AIConfigBottomSheet(
     onSetSelectedModel: (AIProvider, String) -> Unit,
     onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
-    tavilyApiKey: String? = null,
-    onSetTavilyApiKey: (String?) -> Unit = {},
+    tavilyApiKeys: List<String> = emptyList(),
+    onAddTavilyApiKey: (String) -> Unit = {},
+    onRemoveTavilyApiKey: (String) -> Unit = {},
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     onRefreshModels: (AIProvider) -> Unit,
     getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
@@ -1278,8 +1127,11 @@ internal fun AIConfigBottomSheet(
                                     },
                                     onDragEnd = {
                                         // Calculate target position based on drag offset
-                                        val itemHeight = 120f // Approximate item height in pixels
+                                        // Use a more accurate height calculation - items are likely around 80-100dp
+                                        val itemHeight = 90f // Better estimate of item height in pixels
                                         val moveBy = (dragOffsetY / itemHeight).toInt()
+
+                                        // Calculate the target index based on how many positions the item was moved
                                         val targetIndex = (index + moveBy).coerceIn(0, localProviderOrder.size - 1)
 
                                         if (targetIndex != index) {
@@ -1371,8 +1223,9 @@ internal fun AIConfigBottomSheet(
             )
 
             TavilyApiSection(
-                apiKey = tavilyApiKey,
-                onSetApiKey = onSetTavilyApiKey
+                apiKeys = tavilyApiKeys,
+                onAddKey = onAddTavilyApiKey,
+                onRemoveKey = onRemoveTavilyApiKey
             )
 
             // Local LLM Server Section
@@ -1424,12 +1277,14 @@ internal fun AIConfigBottomSheet(
  */
 @Composable
 private fun TavilyApiSection(
-    apiKey: String?,
-    onSetApiKey: (String?) -> Unit
+    apiKeys: List<String>,
+    onAddKey: (String) -> Unit,
+    onRemoveKey: (String) -> Unit
 ) {
     var showKeyInput by remember { mutableStateOf(false) }
     var keyInput by remember { mutableStateOf("") }
-    var showKey by remember { mutableStateOf(false) }
+    // Map to track visibility state for each key
+    val showKeyMap = remember { mutableStateMapOf<String, Boolean>() }
     var showKeyWhileTyping by remember { mutableStateOf(false) }  // For masking input
     var isExpanded by remember { mutableStateOf(false) }
 
@@ -1460,7 +1315,7 @@ private fun TavilyApiSection(
                     Text(
                         text = "Tavily Web Search",
                         style = MaterialTheme.typography.titleSmall,
-                        color = if (apiKey != null) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (apiKeys.isNotEmpty()) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "Enable AI web search capabilities",
@@ -1471,7 +1326,7 @@ private fun TavilyApiSection(
             }
 
             // Status indicator
-            if (apiKey != null) {
+            if (apiKeys.isNotEmpty()) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Configured",
@@ -1492,57 +1347,64 @@ private fun TavilyApiSection(
             ) {
                 // Info text
                 Text(
-                    text = "Tavily provides real-time web search for AI. Get your free API key (1,000 requests/month) from tavily.com",
+                    text = "Tavily provides real-time web search for AI. Get your free API key (1,000 requests/month) from tavily.com. Add multiple keys for rotation.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
 
-                if (apiKey != null) {
-                    // Show existing key
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                LocalAccentColor.current,
-                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-                            ),
-                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (showKey) apiKey else maskApiKey(apiKey),
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = com.example.smarty.ui.theme.MonoFont
+                // List of keys
+                if (apiKeys.isNotEmpty()) {
+                    apiKeys.forEach { key ->
+                        val showKey = showKeyMap[key] ?: false
+                        
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    1.dp,
+                                    LocalAccentColor.current,
+                                    RoundedCornerShape(ComponentSpacing.inputCornerRadius)
                                 ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            IconButton(onClick = { showKey = !showKey }) {
-                                Icon(
-                                    imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (showKey) "Hide" else "Show",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
+                            shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
+                            color = MaterialTheme.colorScheme.surface
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (showKey) key else maskApiKey(key),
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = com.example.smarty.ui.theme.MonoFont
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
                                 )
-                            }
 
-                            IconButton(onClick = { onSetApiKey(null) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remove",
-                                    tint = SafetyOrange,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                IconButton(onClick = { showKeyMap[key] = !showKey }) {
+                                    Icon(
+                                        imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (showKey) "Hide" else "Show",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+
+                                IconButton(onClick = { onRemoveKey(key) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Remove",
+                                        tint = SafetyOrange,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
-                } else if (showKeyInput) {
+                }
+                
+                // Add new key input
+                if (showKeyInput) {
                     // Input for new key
                     Surface(
                         modifier = Modifier
@@ -1620,35 +1482,31 @@ private fun TavilyApiSection(
                                 Button(
                                     onClick = {
                                         if (keyInput.isNotBlank()) {
-                                            onSetApiKey(keyInput.trim())
+                                            onAddKey(keyInput.trim())
                                             keyInput = ""
                                             showKeyInput = false
                                         }
                                     },
-                                    enabled = keyInput.isNotBlank(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = LocalAccentColor.current,
-                                        contentColor = MaterialTheme.colorScheme.surface
-                                    )
+                                    enabled = keyInput.isNotBlank()
                                 ) {
-                                    Text("Save")
+                                    Text("Add Key")
                                 }
                             }
                         }
                     }
                 } else {
-                    // Add key button
+                    // Add Key Button
                     OutlinedButton(
                         onClick = { showKeyInput = true },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(ComponentSpacing.buttonCornerRadius)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = null,
-                            modifier = Modifier.size(ComponentSpacing.iconSize)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(ComponentSpacing.iconGap))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text("Add Tavily API Key")
                     }
                 }
@@ -1666,58 +1524,102 @@ private sealed class TestResult {
 }
 
 /**
- * Test connection to local LLM server by pinging the models endpoint
- * Supports both HTTP and HTTPS (with self-signed certificate trust)
+ * Test connection to local LLM server by pinging the health endpoint
+ * Uses OkHttp for reliable SSL handling with self-signed certificates
  */
 private suspend fun testLocalServer(ip: String, port: String, useHttps: Boolean): TestResult {
     return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val protocol = if (useHttps) "https" else "http"
-            val url = java.net.URL("$protocol://$ip:$port/v1/models")
+            val testUrl = "$protocol://$ip:$port/health"
+            
+            // Build appropriate OkHttp client
+            val client = if (useHttps) {
+                // Create trust-all SSL configuration for self-signed certs
+                val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(
+                    object : javax.net.ssl.X509TrustManager {
+                        @Throws(java.security.cert.CertificateException::class)
+                        override fun checkClientTrusted(
+                            chain: Array<java.security.cert.X509Certificate>,
+                            authType: String
+                        ) {
+                            // Trust all client certs
+                        }
 
-            val connection = if (useHttps) {
-                // For HTTPS with self-signed certificates, we need to trust all certs
-                // This is safe for local LAN connections only
-                val trustAllCerts = arrayOf<javax.net.ssl.TrustManager>(object : javax.net.ssl.X509TrustManager {
-                    override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-                    override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-                    override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
-                })
+                        @Throws(java.security.cert.CertificateException::class)
+                        override fun checkServerTrusted(
+                            chain: Array<java.security.cert.X509Certificate>,
+                            authType: String
+                        ) {
+                            // Trust all server certs - ONLY safe for local LAN!
+                        }
 
+                        override fun getAcceptedIssuers(): Array<java.security.cert.X509Certificate> = arrayOf()
+                    }
+                )
+
+                // Use TLSv1.2 and TLSv1.3 for maximum compatibility
                 val sslContext = javax.net.ssl.SSLContext.getInstance("TLS")
                 sslContext.init(null, trustAllCerts, java.security.SecureRandom())
+                
+                // Create socket factory that enables all TLS versions
+                val sslSocketFactory = sslContext.socketFactory
 
-                val httpsConnection = url.openConnection() as javax.net.ssl.HttpsURLConnection
-                httpsConnection.sslSocketFactory = sslContext.socketFactory
-                httpsConnection.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true }
-                httpsConnection
+                okhttp3.OkHttpClient.Builder()
+                    .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as javax.net.ssl.X509TrustManager)
+                    .hostnameVerifier { _, _ -> true } // Accept any hostname
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
             } else {
-                url.openConnection() as java.net.HttpURLConnection
+                // Plain HTTP - no SSL needed
+                okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .build()
             }
 
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
-            connection.setRequestProperty("Accept", "application/json")
+            val request = okhttp3.Request.Builder()
+                .url(testUrl)
+                .get()
+                .build()
 
-            val responseCode = connection.responseCode
-            connection.disconnect()
+            val response = client.newCall(request).execute()
+            val code = response.code
+            response.close()
 
-            if (responseCode in 200..299) {
+            // Any response means server is reachable
+            if (code in 200..299 || code in 400..499) {
                 TestResult.Success
             } else {
-                TestResult.Failure("Server returned code: $responseCode")
+                TestResult.Failure("Server returned: $code")
             }
         } catch (e: java.net.ConnectException) {
-            TestResult.Failure("Connection refused - server not running?")
+            TestResult.Failure("Connection refused - is server running?")
         } catch (e: java.net.SocketTimeoutException) {
-            TestResult.Failure("Connection timeout - check IP address")
+            TestResult.Failure("Timeout - check IP and firewall")
         } catch (e: java.net.UnknownHostException) {
             TestResult.Failure("Invalid IP address")
         } catch (e: javax.net.ssl.SSLHandshakeException) {
-            TestResult.Failure("SSL error - certificate issue")
+            // Log the actual error for debugging
+            android.util.Log.e("LocalServerTest", "SSL Handshake failed", e)
+            TestResult.Failure("SSL failed - ensure Caddy is running")
+        } catch (e: javax.net.ssl.SSLException) {
+            android.util.Log.e("LocalServerTest", "SSL Exception", e)
+            TestResult.Failure("SSL error - check port (8443 for HTTPS)")
         } catch (e: Exception) {
-            TestResult.Failure("Error: ${e.message ?: "Unknown error"}")
+            android.util.Log.e("LocalServerTest", "Connection error", e)
+            val msg = e.message?.lowercase() ?: ""
+            when {
+                msg.contains("ssl") || msg.contains("tls") -> 
+                    TestResult.Failure("SSL/TLS error - try HTTP mode")
+                msg.contains("certificate") -> 
+                    TestResult.Failure("Cert error - is Caddy running?")
+                msg.contains("reset") || msg.contains("closed") ->
+                    TestResult.Failure("Connection reset - wrong port?")
+                else -> 
+                    TestResult.Failure("Error: ${e.message?.take(50) ?: "Unknown"}")
+            }
         }
     }
 }

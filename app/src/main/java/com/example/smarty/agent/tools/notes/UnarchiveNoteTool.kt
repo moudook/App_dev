@@ -29,10 +29,8 @@ class UnarchiveNoteTool(
     resultSerializer = NoteOperationResult.serializer(),
     name = "unarchive_note",
     description = """
-        Unarchives a note (restores from archive).
-        Use when the user wants to restore an archived note.
-        Can specify by noteId or description.
-        Private notes cannot be unarchived by AI.
+        Restores a note from the Archive back to the main list.
+        Triggers: "Unarchive note X", "Bring back note Y", "Restore the note about Z".
     """.trimIndent()
 ) {
     override suspend fun execute(args: UnarchiveNoteArgs): NoteOperationResult {

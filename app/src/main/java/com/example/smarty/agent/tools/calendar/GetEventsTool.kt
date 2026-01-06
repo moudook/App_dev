@@ -75,11 +75,9 @@ class GetEventsTool(
     resultSerializer = GetEventsResult.serializer(),
     name = "get_events",
     description = """
-        Retrieves calendar events for the user.
-        Use this to check what's on the user's calendar or find specific events.
-        Time ranges: 'today', 'tomorrow', 'this_week', 'next_week', 'upcoming'
-        Can also search by title/description with the query parameter.
-        Note: Private events marked by user are never returned.
+        Retrieves upcoming calendar events, meetings, and appointments.
+        Triggers: "What's on my schedule?", "Do I have free time?", "When is my next meeting?".
+        Features: Filters by time range ('today', 'this_week') and returns titles/times/locations.
     """.trimIndent()
 ) {
     companion object {

@@ -71,10 +71,9 @@ class SmartSearchTool(
     resultSerializer = SmartSearchResult.serializer(),
     name = "smart_search",
     description = """
-        Advanced note search with relevance scoring and smart matching.
-        Features: fuzzy matching (typo-tolerant), time filtering (today/week/month), type filtering, relevance ranking.
-        Use for complex searches like "notes about meetings from last week" or "anything related to project X".
-        Returns scored results with match highlights.
+        Advanced semantic search with relevance scoring, time filtering, and match highlighting.
+        Triggers: "Find notes about X from last week", "Search for Y in Work category", "Most relevant notes about Z".
+        Features: Fuzzy matching, Recency boost, Category filtering.
     """.trimIndent()
 ) {
     override suspend fun execute(args: SmartSearchArgs): SmartSearchResult {

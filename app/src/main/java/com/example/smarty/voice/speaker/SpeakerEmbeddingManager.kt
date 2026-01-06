@@ -35,7 +35,8 @@ class SpeakerEmbeddingManager(private val context: Context) {
 
     companion object {
         private const val TAG = "SpeakerEmbedding"
-        private const val EMBEDDING_FILE = "speaker_embedding.json"
+        // Changed filename to v2 to force re-enrollment with new VAD-based algorithm
+        private const val EMBEDDING_FILE = "speaker_embedding_v2.json"
         private const val PREFS_NAME = "voice_enrollment_prefs"
         private const val KEY_IS_ENROLLED = "is_enrolled"
         private const val KEY_ENROLLMENT_DATE = "enrollment_date"
@@ -45,14 +46,17 @@ class SpeakerEmbeddingManager(private val context: Context) {
         // Verification threshold (0.0 to 1.0)
         // Higher = stricter (fewer false accepts, more false rejects)
         // Lower = more lenient (more false accepts, fewer false rejects)
-        // 0.78 provides stricter speaker discrimination to prevent false accepts
-        const val VERIFICATION_THRESHOLD = 0.90
+        // Reduced to 0.75 based on user testing (0.80 was too strict for some environments)
+        const val VERIFICATION_THRESHOLD = 0.75
 
         // Minimum samples required for enrollment
         const val MIN_ENROLLMENT_SAMPLES = 3
 
         // Embedding dimension (13 MFCC + 13 Delta + 13 Delta-Delta)
         const val EMBEDDING_DIM = 39
+
+        // Current version of embedding algorithm
+        private const val EMBEDDING_VERSION = 2
     }
 
     private val mfcc = MFCC()
@@ -63,36 +67,36 @@ class SpeakerEmbeddingManager(private val context: Context) {
 
     /**
      * Enrollment phrases for Hindi voice enrollment.
-     * Include wake word "Jadugar" for better voice training.
+     * Updated with diverse sentences to capture different vocal tones and variations.
      */
     val enrollmentPhrases = listOf(
         EnrollmentPhrase(
-            id = "offline",
-            hindi = "जादूगर, मेरा डाटा ऑफलाइन रहता है",
-            transliteration = "Jadugar, mera data offline rehta hai",
-            english = "Jadugar, my data stays offline",
-            purpose = "Wake word with natural sentence"
+            id = "news_tech",
+            hindi = "सैम ऑल्टमैन ने ग्लोबल DRAM सप्लाई का 60% खरीद लिया",
+            transliteration = "Sam Altman ne global DRAM supply ka 60% khareed liya",
+            english = "Sam Altman buys 60% of the global DRAM supply",
+            purpose = "Factual/News tone"
         ),
         EnrollmentPhrase(
-            id = "no_internet",
-            hindi = "इंटरनेट नहीं? जादूगर काम करता है",
-            transliteration = "Internet nahi? Jadugar kaam karta hai",
-            english = "No internet? Jadugar works",
-            purpose = "Question intonation with wake word"
+            id = "question_complex",
+            hindi = "तो जादूगर एजेंटिक काम में स्पीड कैसे लाएगा?",
+            transliteration = "Toh Jadugar agentic kaam mein speed kaise layega?",
+            english = "Then how will Jadugar achieve speed in agentic tasks?",
+            purpose = "Inquisitive/Complex tone"
         ),
         EnrollmentPhrase(
-            id = "control",
-            hindi = "लाइफ कंट्रोल एक साथ, बिल्कुल फ्री",
-            transliteration = "Life control ek saath, bilkul free",
-            english = "Life control together, completely free",
-            purpose = "Mixed language natural speech"
+            id = "trigger_direct",
+            hindi = "हे जादूगर, यह ट्रिगर वर्ड है",
+            transliteration = "Hey Jadugar, yeh trigger word hai",
+            english = "\"Hey Jadugar\" is the trigger word",
+            purpose = "Command/Direct tone"
         ),
         EnrollmentPhrase(
-            id = "understands",
-            hindi = "जादूगर समझता है मेरी बात",
-            transliteration = "Jadugar samjhta hai meri baat",
-            english = "Jadugar understands what I say",
-            purpose = "Wake word with personal context"
+            id = "comparison",
+            hindi = "औरों में और जादूगर में क्या फर्क है?",
+            transliteration = "Auron mein aur Jadugar mein kya fark hai?",
+            english = "What is the difference between others and Jadugar?",
+            purpose = "Comparative tone"
         )
     )
 
@@ -211,7 +215,7 @@ class SpeakerEmbeddingManager(private val context: Context) {
     suspend fun saveEmbedding(embedding: DoubleArray, quality: Float) = withContext(Dispatchers.IO) {
         try {
             val json = JSONObject().apply {
-                put("version", 1)
+                put("version", EMBEDDING_VERSION)
                 put("dimension", embedding.size)
                 put("quality", quality)
                 put("timestamp", System.currentTimeMillis())

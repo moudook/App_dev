@@ -25,9 +25,9 @@ class MarkStepCompleteTool(
     resultSerializer = MarkStepCompleteResult.serializer(),
     name = "mark_step_complete",
     description = """
-        Marks the current plan step as COMPLETED.
-        Call this tool IMMEDIATELY after successfully finishing a step in the plan.
-        Returns the NEXT step to execute, or indicates the plan is finished.
+        Marks the current step of an active plan as DONE.
+        Usage: Call this IMMEDIATELY after successfully completing a step in the execution plan.
+        Returns: The next step to execute or a completion message.
     """.trimIndent()
 ) {
     override suspend fun execute(args: MarkStepCompleteArgs): MarkStepCompleteResult {

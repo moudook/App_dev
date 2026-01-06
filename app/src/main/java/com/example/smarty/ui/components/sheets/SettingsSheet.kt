@@ -24,7 +24,6 @@ fun SettingsSheet(
     // All settings props
     providerConfigs: Map<AIProvider, AIProviderConfig>,
     providerPriorityOrder: List<AIProvider>,
-    isPinConfigured: Boolean,
     isDarkTheme: Boolean,
     onAddApiKey: (AIProvider, String) -> Unit,
     onRemoveApiKey: (AIProvider, String) -> Unit,
@@ -33,10 +32,10 @@ fun SettingsSheet(
     onSetSelectedModel: (AIProvider, String) -> Unit,
     onSetProviderPriority: (List<AIProvider>) -> Unit,
     onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
-    onRemovePin: () -> Unit,
     onToggleTheme: (Boolean) -> Unit,
-    tavilyApiKey: String?,
-    onSetTavilyApiKey: (String?) -> Unit,
+    tavilyApiKeys: List<String>,
+    onAddTavilyApiKey: (String) -> Unit,
+    onRemoveTavilyApiKey: (String) -> Unit,
     cacheSizeBytes: Long,
     onClearCache: () -> Unit,
     isClearingCache: Boolean,
@@ -51,9 +50,7 @@ fun SettingsSheet(
     onSignOut: () -> Unit,
     // Embedded content for sub-sheets
     archiveContent: @Composable (onDismiss: () -> Unit) -> Unit,
-    backupContent: @Composable (onDismiss: () -> Unit) -> Unit,
-    pinSetupContent: @Composable (onDismiss: () -> Unit) -> Unit,
-    pinChangeContent: @Composable (onDismiss: () -> Unit) -> Unit
+    backupContent: @Composable (onDismiss: () -> Unit) -> Unit
 ) {
     // Handle back button
     BackHandler(enabled = true) {
@@ -69,7 +66,6 @@ fun SettingsSheet(
         SettingsScreen(
             providerConfigs = providerConfigs,
             providerPriorityOrder = providerPriorityOrder,
-            isPinConfigured = isPinConfigured,
             isDarkTheme = isDarkTheme,
             onBackClick = onDismiss,
             onAddApiKey = onAddApiKey,
@@ -79,10 +75,10 @@ fun SettingsSheet(
             onSetSelectedModel = onSetSelectedModel,
             onSetProviderPriority = onSetProviderPriority,
             onTestApiKey = onTestApiKey,
-            onRemovePin = onRemovePin,
             onToggleTheme = onToggleTheme,
-            tavilyApiKey = tavilyApiKey,
-            onSetTavilyApiKey = onSetTavilyApiKey,
+            tavilyApiKeys = tavilyApiKeys,
+            onAddTavilyApiKey = onAddTavilyApiKey,
+            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
             cacheSizeBytes = cacheSizeBytes,
             onClearCache = onClearCache,
             isClearingCache = isClearingCache,
@@ -96,9 +92,7 @@ fun SettingsSheet(
             getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,
             archiveContent = archiveContent,
-            backupContent = backupContent,
-            pinSetupContent = pinSetupContent,
-            pinChangeContent = pinChangeContent
+            backupContent = backupContent
         )
     }
 }

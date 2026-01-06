@@ -37,23 +37,7 @@ class OpenAppTool(
     argsSerializer = OpenAppArgs.serializer(),
     resultSerializer = OpenAppResult.serializer(),
     name = "open_app",
-    description = """
-        Opens an installed Android app by name.
-        Use this when user wants to launch/open/start an application.
-
-        Examples:
-        - "open YouTube" -> appName="YouTube"
-        - "launch Instagram" -> appName="Instagram"
-        - "open the camera" -> appName="Camera"
-        - "start WhatsApp" -> appName="WhatsApp"
-        - "open settings" -> appName="Settings"
-
-        Supports common aliases like:
-        - "yt" for YouTube
-        - "ig" or "insta" for Instagram
-        - "fb" for Facebook
-        - "wa" for WhatsApp
-    """.trimIndent()
+    description = """ONLY use when user says "open [app name]". Do NOT use otherwise.""".trimIndent()
 ) {
     companion object {
         private const val TAG = "OpenAppTool"

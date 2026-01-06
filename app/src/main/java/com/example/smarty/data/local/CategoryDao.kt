@@ -24,6 +24,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) LIMIT 1")
     suspend fun getCategoryByName(name: String): Category?
 
+    @Query("SELECT * FROM categories WHERE name LIKE '%' || :query || '%' ORDER BY noteCount DESC")
+    suspend fun searchCategories(query: String): List<Category>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCategory(category: Category)
 

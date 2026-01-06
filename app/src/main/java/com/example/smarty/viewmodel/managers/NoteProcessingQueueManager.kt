@@ -48,8 +48,8 @@ class NoteProcessingQueueManager(
     companion object {
         private const val TAG = "NoteProcessingQueue"
 
-        // Timeout for stuck notes (90 seconds - increased from 30s for slow networks/models)
-        private const val PROCESSING_TIMEOUT_MS = 90_000L
+        // Timeout for stuck notes (5 minutes - increased for slow local LLMs)
+        private const val PROCESSING_TIMEOUT_MS = 300_000L
 
         // Check interval for queue processing (5 seconds)
         private const val QUEUE_CHECK_INTERVAL_MS = 5_000L

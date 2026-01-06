@@ -32,6 +32,8 @@ enum class MentionType {
     SINGLE_NOTE,
     /** Filter by note type, e.g., @audios, @documents */
     TYPE_FILTER,
+    /** Filter by category, e.g., @Work, @Personal */
+    CATEGORY,
     /** Special filter like @recent or @pinned */
     SPECIAL_FILTER,
     /** Command like @thinking for deep document analysis */
@@ -50,6 +52,8 @@ data class ResolvedMention(
     val notes: List<Note> = emptyList(),
     /** For TYPE_FILTER: which NoteType was requested */
     val noteType: NoteType? = null,
+    /** For CATEGORY: which Category was requested */
+    val category: Category? = null,
     /** For SPECIAL_FILTER: filter name (recent, pinned, all) */
     val specialFilter: String? = null
 )
@@ -66,6 +70,16 @@ sealed class MentionSuggestion {
      */
     data class NoteSuggestion(
         val note: Note,
+        val score: Double
+    ) : MentionSuggestion()
+
+    /**
+     * Suggestion for a category.
+     * @param category The matching category
+     * @param score Match score
+     */
+    data class CategorySuggestion(
+        val category: Category,
         val score: Double
     ) : MentionSuggestion()
 

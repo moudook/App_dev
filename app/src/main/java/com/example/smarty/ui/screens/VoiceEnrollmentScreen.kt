@@ -7,8 +7,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -111,20 +113,23 @@ fun VoiceEnrollmentScreen(
             )
         }
     ) { padding ->
+        // Main container with scrolling support for long text/small screens
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            
+
             // ═══════════════════════════════════════════════════════════════════
             // MAIN CARD (Stack Style)
             // ═══════════════════════════════════════════════════════════════════
+            // Uses fixed height instead of weight to allow scrolling
             Card(
                 modifier = Modifier
-                    .weight(1f)
+                    .height(320.dp)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(32.dp),
                 colors = CardDefaults.cardColors(
@@ -153,7 +158,7 @@ fun VoiceEnrollmentScreen(
             // ═══════════════════════════════════════════════════════════════════
             // INSTRUCTIONS & CONTROLS
             // ═══════════════════════════════════════════════════════════════════
-            
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Bottom,
@@ -174,7 +179,7 @@ fun VoiceEnrollmentScreen(
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(32.dp))
-                        
+
                         // Action Button
                         Button(
                             onClick = { enrollmentManager.startEnrollment() },
@@ -194,9 +199,10 @@ fun VoiceEnrollmentScreen(
                              color = accentColor
                          )
                          Spacer(modifier = Modifier.height(16.dp))
+                         // Uses headlineSmall to accommodate longer sentences better
                          Text(
                              text = if (isHindi) state.phrase.hindi else state.phrase.transliteration,
-                             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                              color = MaterialTheme.colorScheme.onBackground,
                              textAlign = TextAlign.Center
                          )
@@ -208,7 +214,7 @@ fun VoiceEnrollmentScreen(
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(40.dp))
-                        
+
                         // Floating Mic Button
                         Button(
                             onClick = { enrollmentManager.startRecording() },
@@ -226,7 +232,7 @@ fun VoiceEnrollmentScreen(
                     is VoiceEnrollmentManager.EnrollmentState.Recording -> {
                         Text(
                             text = if (isHindi) currentPhrase?.hindi ?: "" else currentPhrase?.transliteration ?: "",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onBackground,
                             textAlign = TextAlign.Center
                         )
@@ -239,7 +245,7 @@ fun VoiceEnrollmentScreen(
                         )
                         Spacer(modifier = Modifier.height(40.dp))
                         // Placeholder to keep layout stable
-                        Spacer(modifier = Modifier.height(80.dp)) 
+                        Spacer(modifier = Modifier.height(80.dp))
                     }
                     is VoiceEnrollmentManager.EnrollmentState.Processing,
                     is VoiceEnrollmentManager.EnrollmentState.Finalizing -> {

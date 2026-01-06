@@ -25,9 +25,9 @@ class ListCategoriesTool(
     resultSerializer = CategoryResult.serializer(),
     name = "list_categories",
     description = """
-        Lists all note categories with note counts.
-        Use to help users organize or find notes by category.
-        Private notes are not counted.
+        Lists all available note categories/folders and their note counts.
+        Triggers: "What folders do I have?", "Show my categories", "Where are my notes stored?".
+        Action: Returns list of categories and valid note counts (excludes private).
     """.trimIndent()
 ) {
     override suspend fun execute(args: ListCategoriesArgs): CategoryResult {

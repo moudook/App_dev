@@ -27,13 +27,13 @@ object HttpClientProvider {
     // ==================== Standardized Timeout Constants ====================
 
     /** Connection timeout - time to establish TCP connection */
-    const val CONNECT_TIMEOUT_SECONDS = 30L
+    const val CONNECT_TIMEOUT_SECONDS = 60L
 
-    /** Read timeout - time to wait for AI response (AI can be slow) */
-    const val READ_TIMEOUT_SECONDS = 90L
+    /** Read timeout - time to wait for AI response (local LLMs can be very slow) */
+    const val READ_TIMEOUT_SECONDS = 300L  // 5 minutes
 
     /** Write timeout - time to send request data */
-    const val WRITE_TIMEOUT_SECONDS = 60L
+    const val WRITE_TIMEOUT_SECONDS = 120L
 
     /** Quick operation timeouts for metadata fetches */
     const val QUICK_CONNECT_TIMEOUT_SECONDS = 3L
@@ -41,9 +41,9 @@ object HttpClientProvider {
     const val QUICK_WRITE_TIMEOUT_SECONDS = 5L
 
     /** Long-running operation timeouts for file downloads */
-    const val LONG_CONNECT_TIMEOUT_SECONDS = 60L
-    const val LONG_READ_TIMEOUT_SECONDS = 120L
-    const val LONG_WRITE_TIMEOUT_SECONDS = 120L
+    const val LONG_CONNECT_TIMEOUT_SECONDS = 120L
+    const val LONG_READ_TIMEOUT_SECONDS = 600L  // 10 minutes
+    const val LONG_WRITE_TIMEOUT_SECONDS = 300L
 
     /**
      * Default client for general API calls including AI providers.
@@ -126,14 +126,40 @@ object HttpClientProvider {
      *
      * DO NOT use for internet traffic!
      */
+    /**
+     * Client for local LAN server connections (USB tethering, WiFi).
+     * Trusts self-signed certificates for HTTPS connections.
+     *
+     * SECURITY: This client trusts ALL certificates. Only use for:
+     * - Local PC connections via private IP addresses
+     * - Self-signed certificates from Caddy reverse proxy
+     *
+     * DO NOT use for internet traffic!
+     */
     val localServer: OkHttpClient by lazy {
+        // Create a trust manager that does not validate certificate chains
+        val trustAllCerts = arrayOf<TrustManager>(
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+            }
+        )
+
+        // Install the all-trusting trust manager
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustAllCerts, SecureRandom())
+        
+        // Create an ssl socket factory with our all-trusting manager
+        val sslSocketFactory = sslContext.socketFactory
+
         OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
-            .sslSocketFactory(trustAllSslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-            .hostnameVerifier { _, _ -> true }
+            .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+            .hostnameVerifier { _, _ -> true } // Verify no hostnames
             .build()
     }
 }

@@ -802,6 +802,11 @@ For encrypted connections between your phone and PC:
 
 **Caddy** is a modern web server that automatically handles HTTPS/TLS encryption. It acts as a reverse proxy:
 
+### Recent Feature Highlights
+- **Strict Chat Mode**: By default, the AI is a pure chatbot. It will ONLY use tools (searching, notes, etc.) if you explicitly command it (e.g., "Search for...", "Create note...").
+- **Multiple Web Search Keys**: Add multiple Tavily API keys in Settings to rotate through them and avoid rate limits.
+- **Smart Context**: Automatically manages token usage to stay within local LLM limits (64K/128K).
+
 ```
 Phone (HTTPS:8443) -> Caddy -> llama-server (HTTP:8000 localhost)
      ^                              ^

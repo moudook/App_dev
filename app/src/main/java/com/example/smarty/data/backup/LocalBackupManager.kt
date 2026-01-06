@@ -518,7 +518,6 @@ class LocalBackupManager(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
-            isPinConfigured = securePreferences.isPinConfigured(),
             // Note: We don't backup API keys for security reasons
             encryptedGeminiKeys = null,
             encryptedHuggingFaceKeys = null,

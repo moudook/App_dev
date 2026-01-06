@@ -31,7 +31,7 @@ import com.example.smarty.data.model.NoteVersion
         ProviderUsage::class,       // Provider usage for rate limiting
         NoteVersion::class          // Note version history for git-like versioning
     ],
-    version = 24,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices, v22: processingStatus indices, v23: chunkAnalysesJson, v24: inlineImagesJson
+    version = 25,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices, v22: processingStatus indices, v23: chunkAnalysesJson, v24: inlineImagesJson, v25: isReadForMemory
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -267,7 +267,8 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_20_21,  // Performance: composite indices
                         Migrations.MIGRATION_21_22,  // Performance: processingStatus indices for queue
                         Migrations.MIGRATION_22_23,  // Feature: chunkAnalysesJson for per-page analyses
-                        Migrations.MIGRATION_23_24   // Feature: inlineImagesJson for image viewing in chat
+                        Migrations.MIGRATION_23_24,  // Feature: inlineImagesJson for image viewing in chat
+                        Migrations.MIGRATION_24_25   // Feature: isReadForMemory for AI memory learning
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

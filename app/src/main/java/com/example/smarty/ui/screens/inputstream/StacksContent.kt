@@ -36,7 +36,7 @@ import com.example.smarty.ui.theme.SafetyOrange
  *
  * This replaces the full-page overlay approach - stacks are shown in the same
  * layer as note cards, behind the gradient input field.
- * 
+ *
  * Fully functional: Create categories, filter notes by category, delete categories.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,11 +47,17 @@ fun StacksContent(
     onCreateCategory: (String) -> Unit,
     onDeleteCategory: (Category) -> Unit,
     contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSyncCategoryCounts: (() -> Unit)? = null  // Optional sync callback
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
-    
+
+    // Sync category counts when this view is opened
+    LaunchedEffect(Unit) {
+        onSyncCategoryCounts?.invoke()
+    }
+
     // Filter out empty categories
     val visibleCategories = remember(categories) {
         categories.filter { it.noteCount > 0 }
@@ -358,7 +364,7 @@ private fun CreateCategorySheet(
     onCreate: (String) -> Unit
 ) {
     var categoryName by remember { mutableStateOf("") }
-    val isValid = categoryName.isNotBlank() && categoryName.length <= 20
+    val isValid = categoryName.isNotBlank() && categoryName.length <= 10
     val shapes = LocalShapes.current
     val accentColor = LocalAccentColor.current
 
@@ -385,17 +391,23 @@ private fun CreateCategorySheet(
 
             OutlinedTextField(
                 value = categoryName,
-                onValueChange = { if (it.length <= 20) categoryName = it },
+                onValueChange = { newValue ->
+                    // Allow input but validate character count (max 10 characters)
+                    if (newValue.length <= 10) {
+                        categoryName = newValue
+                    }
+                },
                 label = { Text("Category name") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                isError = categoryName.length > 10
             )
 
             Text(
-                text = "${categoryName.length}/20 characters",
+                text = "${categoryName.length}/10 characters",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (categoryName.length > 10) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Row(

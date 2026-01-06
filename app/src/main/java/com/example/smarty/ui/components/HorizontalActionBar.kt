@@ -94,11 +94,18 @@ fun HorizontalActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             NavigationTab.entries.forEach { tab ->
+                // Determine selection based on current mode/state
                 val isSelected = when (tab) {
-                    NavigationTab.CHAT -> isChatMode
-                    NavigationTab.NOTES -> !isChatMode && selectedTab == NavigationTab.NOTES
-                    else -> selectedTab == tab
+                    NavigationTab.CHAT -> isChatMode && !isCalendarMode && !isStacksMode && !isArchiveMode && !isSettingsMode
+                    NavigationTab.CALENDAR -> isCalendarMode
+                    NavigationTab.STACKS -> isStacksMode
+                    NavigationTab.ARCHIVE -> isArchiveMode
+                    NavigationTab.SETTINGS -> isSettingsMode
+                    NavigationTab.NOTES -> !isChatMode && !isCalendarMode && !isStacksMode && !isArchiveMode && !isSettingsMode
                 }
+
+                // Override selection logic to use the selectedTab parameter for better state management
+                val isTabSelected = selectedTab == tab
 
                 // Special handling for each tab in its respective inline mode
                 val isHistoryChat = isHistoryMode && tab == NavigationTab.CHAT
@@ -129,7 +136,7 @@ fun HorizontalActionBar(
                 ActionPill(
                     icon = displayIcon,
                     label = displayLabel,
-                    isSelected = isSelected,
+                    isSelected = isTabSelected,
                     showLabel = showLabel,
                     accentColor = accentColor,
                     onClick = {

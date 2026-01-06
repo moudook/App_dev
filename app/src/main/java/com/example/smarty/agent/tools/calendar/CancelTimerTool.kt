@@ -26,9 +26,9 @@ class CancelTimerTool(
     resultSerializer = TimerOperationResult.serializer(),
     name = "cancel_timer",
     description = """
-        Cancels a scheduled timer or alarm.
-        Can cancel by timer ID or by name.
-        Use this when the user wants to cancel, stop, or remove a timer/alarm.
+        Stops and removes an active timer or scheduled alarm.
+        Triggers: "Cancel the timer", "Turn off the 7am alarm", "Stop the countdown".
+        Action: Finds and cancels the matching timer/alarm.
     """.trimIndent()
 ) {
     companion object {

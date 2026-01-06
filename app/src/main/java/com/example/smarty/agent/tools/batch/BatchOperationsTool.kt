@@ -72,11 +72,9 @@ class BatchOperationsTool(
     resultSerializer = BatchOperationResult.serializer(),
     name = "batch_notes",
     description = """
-        Performs batch operations on multiple notes matching a search query.
-        Operations: 'preview' (show matching notes), 'archive' (archive all matches), 'update_category' (move to category).
-        IMPORTANT: Always use preview first, then execute with confirmation.
-        For destructive operations, user confirmation is required.
-        Maximum 25 notes per operation for safety.
+        Performs bulk actions (Archive, Move Category) on multiple notes matching a query.
+        Triggers: "Archive all notes about X", "Move all todo notes to Work category".
+        SAFETY: Always run with 'execute=false' (preview) first, then ask for confirmation.
     """.trimIndent()
 ) {
     override suspend fun execute(args: BatchOperationArgs): BatchOperationResult {

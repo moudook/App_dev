@@ -36,18 +36,10 @@ class ViewImageTool(
     resultSerializer = ImageDisplayResult.serializer(),
     name = "view_image",
     description = """
-        MUST USE THIS TOOL when user says: "show the image", "open the photo", "view the picture", "display the screenshot".
-        Searches notes to find images and displays them inline in the chat.
-
-        ROBUST SEARCH: Searches across filename, note title, tags, summary, category, and content.
-        Uses fuzzy matching - can find images even with partial or similar names.
-
-        Required: query parameter with search term.
-        Examples:
-        - User says "show my beach photos" -> query="beach"
-        - User says "open the image in my vacation note" -> query="vacation"
-        - User says "view my screenshots" -> query="screenshots"
-        - User says "show the sunset picture" -> query="sunset"
+        Displays images, photos, or screenshots stored in the user's notes.
+        Triggers: "show me [image]", "view the [photo]", "display [screenshot]", "see the picture of [X]".
+        DO NOT use for: General questions ("What does a cat look like?") or finding images online.
+        ONLY use when the user EXPLICITLY asks to "show", "view", or "display" an existing image note.
     """.trimIndent()
 ) {
     companion object {

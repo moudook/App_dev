@@ -243,9 +243,6 @@ data class PreferencesBackup(
     @SerializedName("auto_backup_interval_days")
     val autoBackupIntervalDays: Int,
 
-    @SerializedName("is_pin_configured")
-    val isPinConfigured: Boolean,
-
     // Encrypted API keys (base64 encoded)
     @SerializedName("encrypted_gemini_keys")
     val encryptedGeminiKeys: List<String>? = null,

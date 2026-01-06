@@ -632,8 +632,6 @@ class AudioPlayerService : MediaSessionService() {
         try {
             val notificationManager = applicationContext.getSystemService(NotificationManager::class.java)
             notificationManager.cancel(NOTIFICATION_ID)
-            // Also cancel ALL notifications from this channel to be thorough
-            notificationManager.cancelAll()
         } catch (e: Exception) {
             Log.e(TAG, "Error canceling notification: ${e.message}")
         }
@@ -642,6 +640,7 @@ class AudioPlayerService : MediaSessionService() {
         releaseVisualizer()
         player?.stop()
         player?.clearMediaItems()
+        player?.release() // Fully release the player to free up audio resources
 
         // 5. Reset state synchronously to avoid race conditions
         currentTrack = null
