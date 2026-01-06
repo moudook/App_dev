@@ -434,7 +434,7 @@ interface NoteDao {
      */
     @Query("""
         SELECT * FROM notes 
-        WHERE isReadForMemory = 0 
+        WHERE (isReadForMemory = 0 OR isReadForMemory IS NULL)
         AND isArchived = 0 
         AND isFullPrivacy = 0 
         AND excludeFromAiChat = 0
@@ -457,8 +457,9 @@ interface NoteDao {
 
     /**
      * Get count of notes that haven't been analyzed for memory.
+     * Includes NULL values to handle notes created before the memory feature was added.
      */
-    @Query("SELECT COUNT(*) FROM notes WHERE isReadForMemory = 0 AND isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
+    @Query("SELECT COUNT(*) FROM notes WHERE (isReadForMemory = 0 OR isReadForMemory IS NULL) AND isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
     suspend fun getUnreadForMemoryCount(): Int
 
     /**
