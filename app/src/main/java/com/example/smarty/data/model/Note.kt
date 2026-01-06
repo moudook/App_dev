@@ -129,6 +129,7 @@ data class Note(
     val reminderText: String? = null, // Smart reminder text to show on card
     val reminderExpiresAt: Long? = null, // When reminder should stop showing (null = forever)
     val chunkAnalysesJson: String? = null, // JSON string of List<ChunkAnalysis> for per-page document analyses
+    @androidx.room.ColumnInfo(defaultValue = "0")
     val isReadForMemory: Boolean = false // Flag to track if note has been analyzed for AI memory learning
 ) : PrivacyAware {
     /**

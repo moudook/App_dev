@@ -506,10 +506,38 @@ class CogniViewModel(
     val memorySyncResult: StateFlow<String?> = _memorySyncResult.asStateFlow()
 
     /**
-     * Get count of notes that haven't been analyzed for memory
+     * Get count of notes that haven't been analyzed for memory.
+     * Also checks if reset is needed (no memories but notes marked as read).
      */
     suspend fun getUnreadForMemoryCount(): Int {
-        return database.noteDao().getUnreadForMemoryCount()
+        // First, check if we need to reset (no memories exist but notes might be marked as read)
+        val memoryCount = aiMemoryDao.getMemoryCount()
+        
+        if (memoryCount == 0) {
+            // No memories exist - ensure all eligible notes are available for sync
+            val noteDao = database.noteDao()
+            
+            // Get current counts for logging
+            val totalNotes = noteDao.getNoteCount()
+            val currentUnread = noteDao.getUnreadForMemoryCount()
+            
+            Log.d(TAG, "getUnreadForMemoryCount: $memoryCount memories, $totalNotes notes, $currentUnread currently unread")
+            
+            if (currentUnread == 0 && totalNotes > 0) {
+                // Notes exist but all marked as read, yet no memories - need to reset
+                Log.i(TAG, ">>> Resetting all notes for memory analysis (no memories but notes marked as read)")
+                noteDao.resetAllMemoryReadStatus()
+                
+                // Get new count after reset
+                val newCount = noteDao.getUnreadForMemoryCount()
+                Log.i(TAG, ">>> After reset: $newCount notes now eligible")
+                return newCount
+            }
+        }
+        
+        val count = database.noteDao().getUnreadForMemoryCount()
+        Log.d(TAG, "getUnreadForMemoryCount: $count notes eligible for memory sync")
+        return count
     }
 
     /**

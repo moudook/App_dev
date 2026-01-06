@@ -311,7 +311,9 @@ class MainActivity : ComponentActivity() {
                 var unreadForMemoryCount by remember { mutableIntStateOf(0) }
                 
                 // Load unread count when screen appears
+                // Add a small delay to ensure database callback (ensureMemoryReadFlagsReset) completes first
                 LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(500) // Wait for database callback to complete
                     unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
                 }
                 
@@ -320,6 +322,11 @@ class MainActivity : ComponentActivity() {
                     if (!isMemorySyncInProgress) {
                         unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
                     }
+                }
+                
+                // Also refresh count when notes change (in case notes are added/modified)
+                LaunchedEffect(notes) {
+                    unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
                 }
 
                 // Trigger audio playback when AI agent requests it

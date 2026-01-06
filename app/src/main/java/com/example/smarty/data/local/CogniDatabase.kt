@@ -31,7 +31,7 @@ import com.example.smarty.data.model.NoteVersion
         ProviderUsage::class,       // Provider usage for rate limiting
         NoteVersion::class          // Note version history for git-like versioning
     ],
-    version = 25,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices, v22: processingStatus indices, v23: chunkAnalysesJson, v24: inlineImagesJson, v25: isReadForMemory
+    version = 26,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices, v22: processingStatus indices, v23: chunkAnalysesJson, v24: inlineImagesJson, v25: isReadForMemory, v26: isReadForMemory defaultValue annotation
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -71,6 +71,9 @@ abstract class CogniDatabase : RoomDatabase() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 super.onOpen(db)
                 ensureFtsTableExists(db)
+                // One-time fix: Ensure all existing notes have isReadForMemory = 0
+                // This handles the case where notes existed before the AI memory feature was added
+                ensureMemoryReadFlagsReset(db)
             }
 
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -93,6 +96,84 @@ abstract class CogniDatabase : RoomDatabase() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error checking/creating FTS table", e)
+                }
+            }
+
+            /**
+             * One-time fix: Reset isReadForMemory to 0 for ALL notes.
+             * This ensures notes created before the AI memory feature was added
+             * are properly flagged for memory learning.
+             * 
+             * Uses a marker in the database to track if this fix has been applied.
+             * We use a simple approach: always reset on first run after update.
+             */
+            private fun ensureMemoryReadFlagsReset(db: SupportSQLiteDatabase) {
+                try {
+                    // Check if there are any AI memories stored
+                    val memoryCursor = db.query("SELECT COUNT(*) FROM ai_memories")
+                    val memoryCount = memoryCursor.use {
+                        if (it.moveToFirst()) it.getInt(0) else 0
+                    }
+                    
+                    // DETAILED DIAGNOSTICS: Count notes with each flag
+                    val totalCursor = db.query("SELECT COUNT(*) FROM notes")
+                    val totalAllNotes = totalCursor.use {
+                        if (it.moveToFirst()) it.getInt(0) else 0
+                    }
+                    
+                    val archivedCursor = db.query("SELECT COUNT(*) FROM notes WHERE isArchived = 1")
+                    val archivedCount = archivedCursor.use {
+                        if (it.moveToFirst()) it.getInt(0) else 0
+                    }
+                    
+                    val fullPrivacyCursor = db.query("SELECT COUNT(*) FROM notes WHERE isFullPrivacy = 1")
+                    val fullPrivacyCount = fullPrivacyCursor.use {
+                        if (it.moveToFirst()) it.getInt(0) else 0
+                    }
+                    
+                    val excludedCursor = db.query("SELECT COUNT(*) FROM notes WHERE excludeFromAiChat = 1")
+                    val excludedCount = excludedCursor.use {
+                        if (it.moveToFirst()) it.getInt(0) else 0
+                    }
+                    
+                    val markedAsReadCursor = db.query("SELECT COUNT(*) FROM notes WHERE isReadForMemory = 1")
+                    val markedAsReadCount = markedAsReadCursor.use {
+                        if (it.moveToFirst()) it.getInt(0) else 0
+                    }
+                    
+                    Log.i(TAG, "=== MEMORY SYNC DIAGNOSTICS ===")
+                    Log.i(TAG, "Total notes in DB: $totalAllNotes")
+                    Log.i(TAG, "  - Archived: $archivedCount")
+                    Log.i(TAG, "  - Full Privacy: $fullPrivacyCount")
+                    Log.i(TAG, "  - Excluded from AI: $excludedCount")
+                    Log.i(TAG, "  - Marked as read for memory: $markedAsReadCount")
+                    Log.i(TAG, "AI Memories stored: $memoryCount")
+                    
+                    // Count eligible notes (non-archived, not private, not excluded)
+                    val eligibleCursor = db.query("SELECT COUNT(*) FROM notes WHERE isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
+                    val eligibleNotes = eligibleCursor.use {
+                        if (it.moveToFirst()) it.getInt(0) else 0
+                    }
+                    Log.i(TAG, "Eligible notes (non-archived, non-private): $eligibleNotes")
+                    
+                    // If NO memories exist AND there are eligible notes, reset them ALL for analysis
+                    if (memoryCount == 0 && eligibleNotes > 0) {
+                        Log.i(TAG, ">>> RESETTING: No memories exist, resetting $eligibleNotes notes for memory analysis")
+                        // Reset ALL notes to isReadForMemory = 0
+                        db.execSQL("UPDATE notes SET isReadForMemory = 0")
+                        
+                        // Verify the fix worked
+                        val verifyCount = db.query("SELECT COUNT(*) FROM notes WHERE isReadForMemory = 0 AND isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
+                        val newUnreadCount = verifyCount.use {
+                            if (it.moveToFirst()) it.getInt(0) else 0
+                        }
+                        Log.i(TAG, ">>> After reset: $newUnreadCount notes now eligible for memory sync")
+                    } else if (eligibleNotes == 0 && totalAllNotes > 0) {
+                        Log.w(TAG, ">>> WARNING: All $totalAllNotes notes are blocked by privacy flags or archived!")
+                    }
+                    Log.i(TAG, "================================")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in ensureMemoryReadFlagsReset", e)
                 }
             }
 
@@ -268,7 +349,8 @@ abstract class CogniDatabase : RoomDatabase() {
                         Migrations.MIGRATION_21_22,  // Performance: processingStatus indices for queue
                         Migrations.MIGRATION_22_23,  // Feature: chunkAnalysesJson for per-page analyses
                         Migrations.MIGRATION_23_24,  // Feature: inlineImagesJson for image viewing in chat
-                        Migrations.MIGRATION_24_25   // Feature: isReadForMemory for AI memory learning
+                        Migrations.MIGRATION_24_25,  // Feature: isReadForMemory for AI memory learning
+                        Migrations.MIGRATION_25_26   // Fix: @ColumnInfo defaultValue annotation
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

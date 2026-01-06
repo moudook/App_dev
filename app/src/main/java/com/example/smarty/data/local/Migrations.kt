@@ -507,4 +507,17 @@ object Migrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_isReadForMemory ON notes(isReadForMemory)")
         }
     }
+
+    /**
+     * Migration 25 → 26: Schema hash update for @ColumnInfo(defaultValue).
+     * No actual schema change - the isReadForMemory column already exists with DEFAULT 0.
+     * This migration exists because adding @ColumnInfo(defaultValue = "0") annotation
+     * changes Room's identity hash, requiring a version bump.
+     */
+    val MIGRATION_25_26 = object : Migration(25, 26) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // No schema changes needed - column already has correct DEFAULT from migration 24→25
+            // This migration exists only to satisfy Room's schema hash verification
+        }
+    }
 }
