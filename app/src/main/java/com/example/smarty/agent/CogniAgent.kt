@@ -26,6 +26,7 @@ import com.example.smarty.agent.tools.external.SearchCitation
 import com.example.smarty.agent.tools.external.WebSearchTool
 import com.example.smarty.agent.tools.memory.ManageMemoryTool
 import com.example.smarty.agent.tools.memory.UserPatternsTool
+import com.example.smarty.agent.tools.memory.LearnFromNotesTool
 import com.example.smarty.agent.tools.notes.*
 import com.example.smarty.data.model.ThinkingModeContext
 import com.example.smarty.agent.tools.research.DeepResearchTool
@@ -289,6 +290,9 @@ interface AgentCallbacks {
     
     // Callback for status updates from internal planning system
     fun onPlanStatusChanged(status: String?)
+
+    // Callback to mark a note as analyzed for AI memory learning
+    suspend fun markNoteAsAnalyzedForMemory(noteId: String)
 }
 
 /**
@@ -507,6 +511,14 @@ Otherwise, just answer the question directly.
 
             // === MEMORY TOOLS ===
             tool(ManageMemoryTool(aiMemoryDao))
+            tool(LearnFromNotesTool(
+                aiMemoryDao = aiMemoryDao,
+                getActiveNotes = callbacks::getActiveNotes,
+                markNoteAsAnalyzed = { noteId ->
+                    // Mark note as analyzed in the database via callback
+                    callbacks.markNoteAsAnalyzedForMemory(noteId)
+                }
+            ))
         }
     }
 

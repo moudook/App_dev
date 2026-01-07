@@ -172,11 +172,25 @@ fun AIMemorySettingsContent(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
+                        
+                        // FIX: Null-State Conflation Prevention
+                        // Cross-reference memories.size with unreadNotesCount
+                        // Never say "All analyzed" if no memories exist - processing likely never ran!
+                        val statusText = when {
+                            // Case 1: Notes pending analysis
+                            unreadNotesCount > 0 -> "$unreadNotesCount notes not yet analyzed"
+                            
+                            // Case 2: No pending notes AND memories exist -> truly done
+                            memories.isNotEmpty() -> "All notes have been analyzed"
+                            
+                            // Case 3: No pending notes BUT no memories either
+                            // This is the FALSE POSITIVE case - processing never ran!
+                            // Allow sync to run the analysis
+                            else -> "Tap Sync to analyze your notes"
+                        }
+                        
                         Text(
-                            text = if (unreadNotesCount > 0) 
-                                "$unreadNotesCount notes not yet analyzed" 
-                            else 
-                                "All notes have been analyzed",
+                            text = statusText,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -184,9 +198,14 @@ fun AIMemorySettingsContent(
                     
                     Spacer(modifier = Modifier.width(12.dp))
                     
+                    // FIX: Enable button if either:
+                    // 1. There are unread notes, OR
+                    // 2. No memories exist (processing likely never ran)
+                    val shouldEnableSync = !isSyncing && (unreadNotesCount > 0 || memories.isEmpty())
+                    
                     Button(
                         onClick = onSyncMemories,
-                        enabled = !isSyncing && unreadNotesCount > 0,
+                        enabled = shouldEnableSync,
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         if (isSyncing) {

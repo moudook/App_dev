@@ -129,39 +129,86 @@ class LearnFromNotesTool(
         var memoriesUpdated = 0
 
         // ═══════════════════════════════════════════════════════════════
-        // PATTERN DETECTION
+        // ENHANCED PATTERN DETECTION
         // ═══════════════════════════════════════════════════════════════
 
-        // 1. Topic Analysis - extract common themes (without storing content)
-        val topicPatterns = analyzeTopics(visibleNotes)
-        topicPatterns.forEach { pattern ->
-            val created = savePatternAsMemory(pattern)
-            if (created) memoriesCreated++ else memoriesUpdated++
-            insights.add(pattern)
+        // Process each note individually to extract specific behavioral patterns
+        for (note in visibleNotes) {
+            val content = "${note.title} ${note.content ?: ""}".lowercase()
+
+            // 1. Extract travel-related information
+            val travelPatterns = extractTravelInformation(content, note.title)
+            travelPatterns.forEach { pattern ->
+                val learnedPattern = LearnedPattern(
+                    type = "fact",
+                    insight = pattern,
+                    confidence = 0.9f
+                )
+                val created = savePatternAsMemory(learnedPattern)
+                if (created) memoriesCreated++ else memoriesUpdated++
+                insights.add(learnedPattern)
+            }
+
+            // 2. Extract learning-related information
+            val learningPatterns = extractLearningInformation(content, note.title)
+            learningPatterns.forEach { pattern ->
+                val learnedPattern = LearnedPattern(
+                    type = "pattern",
+                    insight = pattern,
+                    confidence = 0.85f
+                )
+                val created = savePatternAsMemory(learnedPattern)
+                if (created) memoriesCreated++ else memoriesUpdated++
+                insights.add(learnedPattern)
+            }
+
+            // 3. Extract other behavioral patterns
+            val otherPatterns = extractOtherPatterns(content, note.title)
+            otherPatterns.forEach { pattern ->
+                val learnedPattern = LearnedPattern(
+                    type = "pattern",
+                    insight = pattern,
+                    confidence = 0.8f
+                )
+                val created = savePatternAsMemory(learnedPattern)
+                if (created) memoriesCreated++ else memoriesUpdated++
+                insights.add(learnedPattern)
+            }
         }
 
-        // 2. Time Pattern Analysis - when does user typically create notes?
-        val timePatterns = analyzeTimePatterns(visibleNotes)
-        timePatterns.forEach { pattern ->
-            val created = savePatternAsMemory(pattern)
-            if (created) memoriesCreated++ else memoriesUpdated++
-            insights.add(pattern)
-        }
+        // If no specific patterns were found, fall back to general analysis
+        if (insights.isEmpty()) {
+            // 1. Topic Analysis - extract common themes (without storing content)
+            val topicPatterns = analyzeTopics(visibleNotes)
+            topicPatterns.forEach { pattern ->
+                val created = savePatternAsMemory(pattern)
+                if (created) memoriesCreated++ else memoriesUpdated++
+                insights.add(pattern)
+            }
 
-        // 3. Content Style Analysis - bullet points, length preferences
-        val stylePatterns = analyzeContentStyle(visibleNotes)
-        stylePatterns.forEach { pattern ->
-            val created = savePatternAsMemory(pattern)
-            if (created) memoriesCreated++ else memoriesUpdated++
-            insights.add(pattern)
-        }
+            // 2. Time Pattern Analysis - when does user typically create notes?
+            val timePatterns = analyzeTimePatterns(visibleNotes)
+            timePatterns.forEach { pattern ->
+                val created = savePatternAsMemory(pattern)
+                if (created) memoriesCreated++ else memoriesUpdated++
+                insights.add(pattern)
+            }
 
-        // 4. Category Usage Analysis
-        val categoryPatterns = analyzeCategoryUsage(visibleNotes)
-        categoryPatterns.forEach { pattern ->
-            val created = savePatternAsMemory(pattern)
-            if (created) memoriesCreated++ else memoriesUpdated++
-            insights.add(pattern)
+            // 3. Content Style Analysis - bullet points, length preferences
+            val stylePatterns = analyzeContentStyle(visibleNotes)
+            stylePatterns.forEach { pattern ->
+                val created = savePatternAsMemory(pattern)
+                if (created) memoriesCreated++ else memoriesUpdated++
+                insights.add(pattern)
+            }
+
+            // 4. Category Usage Analysis
+            val categoryPatterns = analyzeCategoryUsage(visibleNotes)
+            categoryPatterns.forEach { pattern ->
+                val created = savePatternAsMemory(pattern)
+                if (created) memoriesCreated++ else memoriesUpdated++
+                insights.add(pattern)
+            }
         }
 
         // Mark analyzed notes
@@ -407,6 +454,178 @@ class LearnFromNotesTool(
             aiMemoryDao.insertMemory(memory)
             true  // Created
         }
+    }
+
+    /**
+     * Extract travel-related information from note content
+     */
+    private fun extractTravelInformation(content: String, title: String): List<String> {
+        val patterns = mutableListOf<String>()
+
+        // Look for travel-related keywords
+        val travelKeywords = listOf("travel", "trip", "journey", "flight", "ticket", "booking", "vacation", "destination")
+        val hasTravelKeywords = travelKeywords.any { content.contains(it) }
+
+        if (hasTravelKeywords) {
+            // Extract locations using regex patterns
+            val locationPattern = Regex("""(from|to|via|destination)\s+([a-zA-Z\s]+?)(?:\s+(?:on|at|date|time)|\s+|$)""")
+            val locationMatches = locationPattern.findAll(content)
+
+            val locations = locationMatches.map { it.groupValues[2].trim() }.distinct()
+
+            if (locations.count() >= 2) {
+                val fromLocation = locations.firstOrNull { !content.contains("to $it") && !content.contains("via $it") }
+                val toLocation = locations.firstOrNull { content.contains("to $it") }
+                val viaLocation = locations.firstOrNull { content.contains("via $it") }
+
+                val datePattern = Regex("""(on|date|at)\s+([a-zA-Z\s\d,]+?)(?:\s|$|\.|,)""")
+                val dateMatches = datePattern.find(content)
+                val date = dateMatches?.groupValues?.getOrNull(2)?.trim()
+
+                if (fromLocation != null && toLocation != null) {
+                    val viaPart = if (viaLocation != null) " via $viaLocation" else ""
+                    val datePart = if (date != null) " on $date" else ""
+                    patterns.add("User is traveling from $fromLocation to $toLocation$viaPart$datePart")
+                }
+            }
+        }
+
+        // Look for specific travel ticket patterns
+        val ticketPattern = Regex("""(flight|train|bus|ticket).*(?:from|departure).*?([a-zA-Z\s]+?)\s+(?:to|destination|arrival).*?([a-zA-Z\s]+?)(?:\s+(?:on|at|date)\s+([a-zA-Z\s\d,]+?))?(?:\s|$)""")
+        val ticketMatches = ticketPattern.find(content)
+        if (ticketMatches != null) {
+            val transportType = ticketMatches.groupValues[1]
+            val fromLocation = ticketMatches.groupValues[2].trim()
+            val toLocation = ticketMatches.groupValues[3].trim()
+            val date = ticketMatches.groupValues.getOrNull(4)?.trim()
+
+            val datePart = if (date != null) " on $date" else ""
+            patterns.add("User has a $transportType ticket from $fromLocation to $toLocation$datePart")
+        }
+
+        return patterns
+    }
+
+    /**
+     * Check if content contains personal information that should not be stored
+     */
+    private fun containsPersonalInfo(content: String): Boolean {
+        // Check for phone numbers (various formats)
+        val phonePattern = Regex("""(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}""")
+        if (phonePattern.containsMatchIn(content)) return true
+
+        // Check for email addresses
+        val emailPattern = Regex("""[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}""")
+        if (emailPattern.containsMatchIn(content)) return true
+
+        // Check for other sensitive patterns (can be extended)
+        val sensitiveKeywords = listOf("ssn", "social security", "credit card", "password", "pin", "id card")
+        return sensitiveKeywords.any { content.contains(it, ignoreCase = true) }
+    }
+
+    /**
+     * Extract learning-related information from note content
+     */
+    private fun extractLearningInformation(content: String, title: String): List<String> {
+        val patterns = mutableListOf<String>()
+
+        // Look for learning-related keywords
+        val learningKeywords = listOf("learning", "study", "course", "book", "subject", "topic", "tutorial", "education", "research", "study")
+        val hasLearningKeywords = learningKeywords.any { content.contains(it) || title.contains(it, ignoreCase = true) }
+
+        if (hasLearningKeywords) {
+            // Extract topics being learned
+            val topicPattern = Regex("""(?:learning|studying|reading about|interested in|book on|course on|subject|topic)\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z\s\d&-]+?)(?:\s+|\.|,|!|;|$)""")
+            val topicMatches = topicPattern.findAll(content)
+
+            val topics = topicMatches.map { it.groupValues[1].trim() }.distinct()
+
+            for (topic in topics) {
+                if (topic.length > 2 && !containsPersonalInfo(topic)) { // Avoid short words and personal info
+                    patterns.add("User is interested in $topic")
+                }
+            }
+
+            // Check for book titles
+            val bookPattern = Regex("""(?:reading|book|textbook)\s+(?:titled\s+|called\s+|about\s+)?["']?([a-zA-Z\s\d&-]+?)["']?(?:\s+by|\s+author|\s+written)?""")
+            val bookMatches = bookPattern.findAll(content)
+
+            val books = bookMatches.map { it.groupValues[1].trim() }.distinct()
+
+            for (book in books) {
+                if (book.length > 2 && !containsPersonalInfo(book)) {
+                    patterns.add("User is reading $book")
+                }
+            }
+        }
+
+        // Handle contact information separately
+        if (content.contains("contact", ignoreCase = true) || content.contains("phone", ignoreCase = true) ||
+            content.contains("number", ignoreCase = true) || title.contains("contact", ignoreCase = true)) {
+            val contactPattern = Regex("""(?:contact|phone|number)\s+(?:of|for)?\s*([a-zA-Z\s]+?)\s+(?:number|is)?\s*[:\-\s]*([+\d\s\-\(\)]+)""", RegexOption.IGNORE_CASE)
+            val contactMatches = contactPattern.findAll(content)
+
+            for (match in contactMatches) {
+                val personName = match.groupValues[1].trim()
+                if (personName.isNotEmpty() && !containsPersonalInfo(personName)) {
+                    patterns.add("User is saving contact information for $personName")
+                }
+            }
+
+            // Alternative pattern for contact info
+            val altContactPattern = Regex("""([a-zA-Z\s]+?)\s+(?:contact|phone|number)\s*[:\-\s]*\s*([+\d\s\-\(\)]+)""", RegexOption.IGNORE_CASE)
+            val altContactMatches = altContactPattern.findAll(content)
+
+            for (match in altContactMatches) {
+                val personName = match.groupValues[1].trim()
+                if (personName.isNotEmpty() && !containsPersonalInfo(personName)) {
+                    patterns.add("User is saving contact information for $personName")
+                }
+            }
+        }
+
+        // If the title suggests learning but no specific topic was found, use the title
+        if (!hasLearningKeywords && (title.contains("book", ignoreCase = true) ||
+                                   title.contains("course", ignoreCase = true) ||
+                                   title.contains("study", ignoreCase = true))) {
+            val extractedTopic = title.replace(Regex("""^(book|course|study)\s+"""), "").trim()
+            if (extractedTopic.isNotEmpty() && !containsPersonalInfo(extractedTopic)) {
+                patterns.add("User is interested in $extractedTopic")
+            }
+        }
+
+        return patterns
+    }
+
+    /**
+     * Extract other behavioral patterns from note content
+     */
+    private fun extractOtherPatterns(content: String, title: String): List<String> {
+        val patterns = mutableListOf<String>()
+
+        // Look for recurring activities or interests
+        val activityPattern = Regex("""(?:likes|enjoys|interested in|frequently does|often does|usually does)\s+([a-zA-Z\s]+?)(?:\s+|\.|,|!|;|$)""")
+        val activityMatches = activityPattern.findAll(content)
+
+        for (match in activityMatches) {
+            val activity = match.groupValues[1].trim()
+            if (activity.length > 3) {
+                patterns.add("User enjoys $activity")
+            }
+        }
+
+        // Look for preferences
+        val preferencePattern = Regex("""(?:prefers|likes|preferring)\s+([a-zA-Z\s]+?)(?:\s+|\.|,|!|;|$)""")
+        val preferenceMatches = preferencePattern.findAll(content)
+
+        for (match in preferenceMatches) {
+            val preference = match.groupValues[1].trim()
+            if (preference.length > 3) {
+                patterns.add("User prefers $preference")
+            }
+        }
+
+        return patterns
     }
 
     override fun toString(): String {

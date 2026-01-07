@@ -441,6 +441,15 @@ class CogniViewModel(
         override fun onPlanStatusChanged(status: String?) {
             _aiPlanStatus.value = status
         }
+
+        override suspend fun markNoteAsAnalyzedForMemory(noteId: String) {
+            try {
+                database.noteDao().markNoteAsReadForMemory(noteId)
+                Log.d(TAG, "Marked note $noteId as analyzed for AI memory")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to mark note $noteId as analyzed for AI memory: ${e.message}", e)
+            }
+        }
     }
 
     // Temporary storage for citations during agent execution
@@ -510,34 +519,26 @@ class CogniViewModel(
      * Also checks if reset is needed (no memories but notes marked as read).
      */
     suspend fun getUnreadForMemoryCount(): Int {
-        // First, check if we need to reset (no memories exist but notes might be marked as read)
+        val noteDao = database.noteDao()
+        val count = noteDao.getUnreadForMemoryCount()
+        
+        // If count is > 0, trust it
+        if (count > 0) return count
+            
+        // If count is 0, check for the "Null State" bug (User has notes, but 0 memories)
         val memoryCount = aiMemoryDao.getMemoryCount()
         
         if (memoryCount == 0) {
-            // No memories exist - ensure all eligible notes are available for sync
-            val noteDao = database.noteDao()
-            
-            // Get current counts for logging
             val totalNotes = noteDao.getNoteCount()
-            val currentUnread = noteDao.getUnreadForMemoryCount()
-            
-            Log.d(TAG, "getUnreadForMemoryCount: $memoryCount memories, $totalNotes notes, $currentUnread currently unread")
-            
-            if (currentUnread == 0 && totalNotes > 0) {
-                // Notes exist but all marked as read, yet no memories - need to reset
-                Log.i(TAG, ">>> Resetting all notes for memory analysis (no memories but notes marked as read)")
-                noteDao.resetAllMemoryReadStatus()
-                
-                // Get new count after reset
-                val newCount = noteDao.getUnreadForMemoryCount()
-                Log.i(TAG, ">>> After reset: $newCount notes now eligible")
-                return newCount
+            if (totalNotes > 0) {
+                Log.d(TAG, "Null State Detected: 0 memories, $totalNotes notes. Reporting all $totalNotes as unread.")
+                // Return total notes so UI shows "45 notes not yet analyzed"
+                // This enables the button. The Sync logic will then handle the reset.
+                return totalNotes 
             }
         }
         
-        val count = database.noteDao().getUnreadForMemoryCount()
-        Log.d(TAG, "getUnreadForMemoryCount: $count notes eligible for memory sync")
-        return count
+        return 0
     }
 
     /**
@@ -555,11 +556,32 @@ class CogniViewModel(
             _memorySyncResult.value = null
 
             try {
+                val noteDao = database.noteDao()
+                
                 // Get notes that haven't been analyzed
-                val unreadNotes = database.noteDao().getNotesNotReadForMemory(50)
+                var unreadNotes = noteDao.getNotesNotReadForMemory(50)
+                
+                // FALLBACK: If no unread notes found, but notes exist and no memories exist
+                // This handles the "Null-State Conflation" where flags are incorrectly set
+                if (unreadNotes.isEmpty()) {
+                    val totalNotes = noteDao.getNoteCount()
+                    val memoryCount = aiMemoryDao.getMemoryCount()
+                    
+                    Log.d(TAG, "Sync check: ${unreadNotes.size} unread, $totalNotes total, $memoryCount memories")
+                    
+                    if (totalNotes > 0 && memoryCount == 0) {
+                        // Notes exist but no memories - force reset and retry!
+                        Log.i(TAG, ">>> FALLBACK: Resetting all notes for memory analysis")
+                        noteDao.resetAllMemoryReadStatus()
+                        
+                        // Retry fetching notes
+                        unreadNotes = noteDao.getNotesNotReadForMemory(50)
+                        Log.i(TAG, ">>> After reset: found ${unreadNotes.size} notes to analyze")
+                    }
+                }
                 
                 if (unreadNotes.isEmpty()) {
-                    _memorySyncResult.value = "All notes have been analyzed"
+                    _memorySyncResult.value = "No notes available for analysis"
                     _isMemorySyncInProgress.value = false
                     return@launch
                 }
@@ -569,18 +591,21 @@ class CogniViewModel(
                 var memoriesCreated = 0
                 var memoriesUpdated = 0
 
-                // Analyze patterns from all unread notes
-                val insights = analyzeNotesForMemory(unreadNotes)
-                
-                // Save each insight as a memory
-                for (insight in insights) {
-                    val created = saveInsightAsMemory(insight)
-                    if (created) memoriesCreated++ else memoriesUpdated++
+                Log.d(TAG, "Using AI agent to analyze ${unreadNotes.size} notes for memory extraction")
+
+                // Process notes one by one using AI to extract meaningful behaviors
+                for (note in unreadNotes) {
+                    val aiExtractedMemories = extractMemoriesFromNoteWithAI(note)
+
+                    for (memory in aiExtractedMemories) {
+                        val created = saveInsightAsMemory(memory)
+                        if (created) memoriesCreated++ else memoriesUpdated++
+                    }
                 }
 
                 // Mark all analyzed notes as read for memory
                 val noteIds = unreadNotes.map { it.id }
-                database.noteDao().markNotesAsReadForMemory(noteIds)
+                noteDao.markNotesAsReadForMemory(noteIds)
 
                 val resultMessage = "Analyzed ${unreadNotes.size} notes. Created $memoriesCreated new memories, updated $memoriesUpdated."
                 Log.d(TAG, resultMessage)
@@ -596,88 +621,440 @@ class CogniViewModel(
     }
 
     /**
+     * Extract memories from a single note using AI with strict instructions.
+     * Only extracts meaningful behaviors, not summaries.
+     */
+    private suspend fun extractMemoriesFromNoteWithAI(note: Note): List<MemoryInsight> {
+        val insights = mutableListOf<MemoryInsight>()
+
+        // Create a specific prompt for the AI to extract only meaningful behaviors
+        val aiPrompt = """
+            Analyze this note to extract ONLY meaningful user behaviors, patterns, or preferences.
+            Do NOT provide summaries of the note content.
+            Do NOT describe what the note is about.
+            ONLY extract specific behavioral patterns that reflect the user's actions, interests, or habits.
+
+            The note title is: "${note.title}"
+            The note content is: "${note.content}"
+
+            Extract behaviors in this format only:
+            - If it's a travel plan: "User is traveling from X to Y via Z on date"
+            - If it's a learning topic: "User is interested in topic ABC"
+            - If it's saving contact info: "User is saving contact information for person name"
+            - If it's a preference: "User prefers X over Y"
+            - If it's a habit: "User frequently does X"
+
+            If there are multiple behaviors in the note, list them separately.
+            If there are no meaningful behaviors to extract, return an empty list.
+            Respond with only the behavioral patterns, nothing else.
+        """.trimIndent()
+
+        try {
+            // Use the AI agent to analyze the note with the specific prompt
+            val result = cogniAgent.run(aiPrompt)
+
+            val response = when (result) {
+                is AgentResult.Success -> result.response
+                is AgentResult.Error -> {
+                    Log.e(TAG, "AI agent returned error for note ${note.id}: ${result.message}")
+                    null
+                }
+                is AgentResult.NoProvider -> {
+                    Log.e(TAG, "No AI provider available for note ${note.id}")
+                    null
+                }
+            }
+
+            if (response != null) {
+                // Parse the AI response to extract behavioral patterns
+                val behaviorLines = response.split("\n").filter {
+                    it.trim().startsWith("-") ||
+                    it.trim().startsWith("User is") ||
+                    it.trim().startsWith("User prefers") ||
+                    it.trim().startsWith("User frequently")
+                }
+
+                for (behaviorLine in behaviorLines) {
+                    val cleanBehavior = behaviorLine.trim().removePrefix("-").trim()
+
+                    if (cleanBehavior.isNotEmpty() && cleanBehavior.startsWith("User ")) {
+                        // Determine the memory type based on the content
+                        val memoryType = when {
+                            cleanBehavior.contains("travel", ignoreCase = true) -> com.example.smarty.data.model.MemoryType.FACT
+                            cleanBehavior.contains("interested", ignoreCase = true) ||
+                            cleanBehavior.contains("reading", ignoreCase = true) -> com.example.smarty.data.model.MemoryType.PATTERN
+                            cleanBehavior.contains("contact", ignoreCase = true) -> com.example.smarty.data.model.MemoryType.FACT
+                            cleanBehavior.contains("prefers", ignoreCase = true) -> com.example.smarty.data.model.MemoryType.PREFERENCE
+                            else -> com.example.smarty.data.model.MemoryType.PATTERN
+                        }
+
+                        insights.add(MemoryInsight(
+                            type = memoryType,
+                            content = cleanBehavior,
+                            confidence = 0.8f // AI-generated content has good confidence
+                        ))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to extract memories from note ${note.id} using AI: ${e.message}", e)
+
+            // Fallback: Use local pattern extraction if AI fails
+            val fallbackInsights = extractSingleNotePatterns(note)
+            insights.addAll(fallbackInsights)
+        }
+
+        return insights
+    }
+
+    /**
+     * Extract patterns from a single note using local pattern matching (fallback)
+     */
+    private fun extractSingleNotePatterns(note: Note): List<MemoryInsight> {
+        val insights = mutableListOf<MemoryInsight>()
+        val content = "${note.title} ${note.content ?: ""}".lowercase()
+
+        // Extract travel-related information
+        val travelPatterns = extractTravelInformation(content, note.title)
+        insights.addAll(travelPatterns.map {
+            MemoryInsight(
+                type = com.example.smarty.data.model.MemoryType.FACT,
+                content = it,
+                confidence = 0.9f
+            )
+        })
+
+        // Extract learning-related information
+        val learningPatterns = extractLearningInformation(content, note.title)
+        insights.addAll(learningPatterns.map {
+            MemoryInsight(
+                type = com.example.smarty.data.model.MemoryType.PATTERN,
+                content = it,
+                confidence = 0.85f
+            )
+        })
+
+        // Extract other behavioral patterns
+        val otherPatterns = extractOtherPatterns(content, note.title)
+        insights.addAll(otherPatterns.map {
+            MemoryInsight(
+                type = com.example.smarty.data.model.MemoryType.PATTERN,
+                content = it,
+                confidence = 0.8f
+            )
+        })
+
+        return insights
+    }
+
+    /**
      * Analyze notes to extract patterns, preferences, and facts.
      * This uses local pattern detection (no AI call) for efficiency.
      */
     private fun analyzeNotesForMemory(notes: List<com.example.smarty.data.model.Note>): List<MemoryInsight> {
         val insights = mutableListOf<MemoryInsight>()
 
-        // Stop words to filter out common words
-        val stopWords = setOf(
-            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
-            "is", "it", "this", "that", "with", "from", "by", "as", "be", "was", "were",
-            "are", "been", "have", "has", "had", "do", "does", "did", "will", "would",
-            "could", "should", "may", "might", "must", "can", "my", "your", "his", "her",
-            "its", "our", "their", "i", "you", "he", "she", "we", "they", "what", "which",
-            "who", "when", "where", "why", "how", "all", "each", "every", "both", "few",
-            "more", "most", "other", "some", "such", "no", "not", "only", "own", "same",
-            "so", "than", "too", "very", "just", "also", "now", "here", "there", "note"
-        )
+        // Process each note individually to extract specific behavioral patterns
+        for (note in notes) {
+            val content = "${note.title} ${note.content ?: ""}".lowercase()
 
-        // 1. Topic Analysis - extract common themes
-        val wordFrequency = mutableMapOf<String, Int>()
-        notes.forEach { note ->
-            val text = "${note.title} ${note.content ?: ""}"
-            val words = text.lowercase()
-                .split(Regex("\\W+"))
-                .filter { it.length > 3 && it !in stopWords }
-            words.forEach { word ->
-                wordFrequency[word] = (wordFrequency[word] ?: 0) + 1
+            // Extract travel-related information
+            val travelPatterns = extractTravelInformation(content, note.title)
+            insights.addAll(travelPatterns.map {
+                MemoryInsight(
+                    type = com.example.smarty.data.model.MemoryType.FACT,
+                    content = it,
+                    confidence = 0.9f
+                )
+            })
+
+            // Extract learning-related information
+            val learningPatterns = extractLearningInformation(content, note.title)
+            insights.addAll(learningPatterns.map {
+                MemoryInsight(
+                    type = com.example.smarty.data.model.MemoryType.PATTERN,
+                    content = it,
+                    confidence = 0.85f
+                )
+            })
+
+            // Extract other behavioral patterns
+            val otherPatterns = extractOtherPatterns(content, note.title)
+            insights.addAll(otherPatterns.map {
+                MemoryInsight(
+                    type = com.example.smarty.data.model.MemoryType.PATTERN,
+                    content = it,
+                    confidence = 0.8f
+                )
+            })
+        }
+
+        // If no specific patterns were found, fall back to general analysis
+        if (insights.isEmpty()) {
+            // Stop words to filter out common words
+            val stopWords = setOf(
+                "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
+                "is", "it", "this", "that", "with", "from", "by", "as", "be", "was", "were",
+                "are", "been", "have", "has", "had", "do", "does", "did", "will", "would",
+                "could", "should", "may", "might", "must", "can", "my", "your", "his", "her",
+                "its", "our", "their", "i", "you", "he", "she", "we", "they", "what", "which",
+                "who", "when", "where", "why", "how", "all", "each", "every", "both", "few",
+                "more", "most", "other", "some", "such", "no", "not", "only", "own", "same",
+                "so", "than", "too", "very", "just", "also", "now", "here", "there", "note"
+            )
+
+            // 1. Topic Analysis - extract common themes
+            val wordFrequency = mutableMapOf<String, Int>()
+            notes.forEach { note ->
+                val text = "${note.title} ${note.content ?: ""}"
+                val words = text.lowercase()
+                    .split(Regex("\\W+"))
+                    .filter { it.length > 3 && it !in stopWords }
+                words.forEach { word ->
+                    wordFrequency[word] = (wordFrequency[word] ?: 0) + 1
+                }
             }
-        }
 
-        val topTopics = wordFrequency.entries
-            .filter { it.value >= 3 }
-            .sortedByDescending { it.value }
-            .take(5)
+            // Lower threshold to 2 to catch more topics
+            val topTopics = wordFrequency.entries
+                .filter { it.value >= 2 }
+                .sortedByDescending { it.value }
+                .take(5)
 
-        if (topTopics.isNotEmpty()) {
-            val topicString = topTopics.joinToString(", ") { it.key }
-            insights.add(MemoryInsight(
-                type = com.example.smarty.data.model.MemoryType.PATTERN,
-                content = "Key Interest: User frequently writes about $topicString. These appear to be core topics of interest.",
-                confidence = 0.8f
-            ))
-        }
-
-        // 2. Category Analysis
-        val categoryGroups = notes.filter { it.categoryName != null }.groupBy { it.categoryName }
-        if (categoryGroups.isNotEmpty()) {
-            val topCategory = categoryGroups.maxByOrNull { it.value.size }
-            if (topCategory != null && topCategory.value.size >= 2) {
+            if (topTopics.isNotEmpty()) {
+                val topicString = topTopics.joinToString(", ") { it.key }
                 insights.add(MemoryInsight(
-                    type = com.example.smarty.data.model.MemoryType.PREFERENCE,
-                    content = "Organization Preference: User actively maintains the '${topCategory.key}' category as a key knowledge base.",
+                    type = com.example.smarty.data.model.MemoryType.PATTERN,
+                    content = "Key Interest: User writes about $topicString.",
+                    confidence = 0.8f
+                ))
+            } else if (wordFrequency.isNotEmpty()) {
+                // Fallback: If no words >= 2, just take top 3 words anyway
+                val fallbackTopics = wordFrequency.entries
+                    .sortedByDescending { it.value }
+                    .take(3)
+                    .joinToString(", ") { it.key }
+
+                if (fallbackTopics.isNotEmpty()) {
+                    insights.add(MemoryInsight(
+                        type = com.example.smarty.data.model.MemoryType.PATTERN,
+                        content = "Topics: Notes mention $fallbackTopics.",
+                        confidence = 0.6f
+                    ))
+                }
+            }
+
+            // 2. Category Analysis (Threshold lowered to 1)
+            val categoryGroups = notes.filter { it.categoryName != null }.groupBy { it.categoryName }
+            if (categoryGroups.isNotEmpty()) {
+                val topCategory = categoryGroups.maxByOrNull { it.value.size }
+                if (topCategory != null) {
+                    insights.add(MemoryInsight(
+                        type = com.example.smarty.data.model.MemoryType.PREFERENCE,
+                        content = "Organization: User maintains a '${topCategory.key}' category.",
+                        confidence = 0.7f
+                    ))
+                }
+            }
+
+            // 3. Content Style Analysis
+            val bulletUsers = notes.count { note ->
+                note.content?.contains(Regex("^\\s*[-•*]\\s", RegexOption.MULTILINE)) == true ||
+                note.content?.contains(Regex("^\\s*\\d+\\.\\s", RegexOption.MULTILINE)) == true
+            }
+            if (bulletUsers > 0 && bulletUsers >= notes.size / 3) { // Lowered to 33%
+                insights.add(MemoryInsight(
+                    type = com.example.smarty.data.model.MemoryType.STYLE,
+                    content = "Formatting: User often uses bullet points or lists.",
+                    confidence = 0.75f
+                ))
+            }
+
+            // 4. Note Type Analysis (Threshold lowered to 1)
+            val typeGroups = notes.groupBy { it.type }
+            val topType = typeGroups.maxByOrNull { it.value.size }
+            if (topType != null) {
+                insights.add(MemoryInsight(
+                    type = com.example.smarty.data.model.MemoryType.PATTERN,
+                    content = "Usage: User primarily creates ${topType.key.name.lowercase().replace("_", " ")} notes.",
                     confidence = 0.7f
                 ))
             }
         }
 
-        // 3. Content Style Analysis
-        val bulletUsers = notes.count { note ->
-            note.content?.contains(Regex("^\\s*[-•*]\\s", RegexOption.MULTILINE)) == true ||
-            note.content?.contains(Regex("^\\s*\\d+\\.\\s", RegexOption.MULTILINE)) == true
-        }
-        if (bulletUsers > notes.size / 2) {
-            insights.add(MemoryInsight(
-                type = com.example.smarty.data.model.MemoryType.STYLE,
-                content = "Formatting Style: User structures information using bullet points and lists for clarity.",
-                confidence = 0.75f
-            ))
-        }
-
-        // 4. Note Type Analysis
-        val typeGroups = notes.groupBy { it.type }
-        val topType = typeGroups.maxByOrNull { it.value.size }
-        if (topType != null && topType.value.size >= 3) {
-            insights.add(MemoryInsight(
-                type = com.example.smarty.data.model.MemoryType.PATTERN,
-                content = "Usage Pattern: User relies heavily on ${topType.key.name.lowercase().replace("_", " ")} notes for capturing information.",
-                confidence = 0.7f
-            ))
-        }
-
         return insights
+    }
+
+    /**
+     * Extract travel-related information from note content
+     */
+    private fun extractTravelInformation(content: String, title: String): List<String> {
+        val patterns = mutableListOf<String>()
+
+        // Look for travel-related keywords
+        val travelKeywords = listOf("travel", "trip", "journey", "flight", "ticket", "booking", "vacation", "destination")
+        val hasTravelKeywords = travelKeywords.any { content.contains(it) }
+
+        if (hasTravelKeywords) {
+            // Extract locations using regex patterns
+            val locationPattern = Regex("""(from|to|via|destination)\s+([a-zA-Z\s]+?)(?:\s+(?:on|at|date|time)|\s+|$)""")
+            val locationMatches = locationPattern.findAll(content)
+
+            val locations = locationMatches.map { it.groupValues[2].trim() }.distinct()
+
+            if (locations.count() >= 2) {
+                val fromLocation = locations.firstOrNull { !content.contains("to $it") && !content.contains("via $it") }
+                val toLocation = locations.firstOrNull { content.contains("to $it") }
+                val viaLocation = locations.firstOrNull { content.contains("via $it") }
+
+                val datePattern = Regex("""(on|date|at)\s+([a-zA-Z\s\d,]+?)(?:\s|$|\.|,)""")
+                val dateMatches = datePattern.find(content)
+                val date = dateMatches?.groupValues?.getOrNull(2)?.trim()
+
+                if (fromLocation != null && toLocation != null) {
+                    val viaPart = if (viaLocation != null) " via $viaLocation" else ""
+                    val datePart = if (date != null) " on $date" else ""
+                    patterns.add("User is traveling from $fromLocation to $toLocation$viaPart$datePart")
+                }
+            }
+        }
+
+        // Look for specific travel ticket patterns
+        val ticketPattern = Regex("""(flight|train|bus|ticket).*(?:from|departure).*?([a-zA-Z\s]+?)\s+(?:to|destination|arrival).*?([a-zA-Z\s]+?)(?:\s+(?:on|at|date)\s+([a-zA-Z\s\d,]+?))?(?:\s|$)""")
+        val ticketMatches = ticketPattern.find(content)
+        if (ticketMatches != null) {
+            val transportType = ticketMatches.groupValues[1]
+            val fromLocation = ticketMatches.groupValues[2].trim()
+            val toLocation = ticketMatches.groupValues[3].trim()
+            val date = ticketMatches.groupValues.getOrNull(4)?.trim()
+
+            val datePart = if (date != null) " on $date" else ""
+            patterns.add("User has a $transportType ticket from $fromLocation to $toLocation$datePart")
+        }
+
+        return patterns
+    }
+
+    /**
+     * Check if content contains personal information that should not be stored
+     */
+    private fun containsPersonalInfo(content: String): Boolean {
+        // Check for phone numbers (various formats)
+        val phonePattern = Regex("""(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}""")
+        if (phonePattern.containsMatchIn(content)) return true
+
+        // Check for email addresses
+        val emailPattern = Regex("""[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}""")
+        if (emailPattern.containsMatchIn(content)) return true
+
+        // Check for other sensitive patterns (can be extended)
+        val sensitiveKeywords = listOf("ssn", "social security", "credit card", "password", "pin", "id card")
+        return sensitiveKeywords.any { content.contains(it, ignoreCase = true) }
+    }
+
+    /**
+     * Extract learning-related information from note content
+     */
+    private fun extractLearningInformation(content: String, title: String): List<String> {
+        val patterns = mutableListOf<String>()
+
+        // Look for learning-related keywords
+        val learningKeywords = listOf("learning", "study", "course", "book", "subject", "topic", "tutorial", "education", "research", "study")
+        val hasLearningKeywords = learningKeywords.any { content.contains(it) || title.contains(it, ignoreCase = true) }
+
+        if (hasLearningKeywords) {
+            // Extract topics being learned
+            val topicPattern = Regex("""(?:learning|studying|reading about|interested in|book on|course on|subject|topic)\s+(?:a\s+|an\s+|the\s+)?([a-zA-Z\s\d&-]+?)(?:\s+|\.|,|!|;|$)""")
+            val topicMatches = topicPattern.findAll(content)
+
+            val topics = topicMatches.map { it.groupValues[1].trim() }.distinct()
+
+            for (topic in topics) {
+                if (topic.length > 2 && !containsPersonalInfo(topic)) { // Avoid short words and personal info
+                    patterns.add("User is interested in $topic")
+                }
+            }
+
+            // Check for book titles
+            val bookPattern = Regex("""(?:reading|book|textbook)\s+(?:titled\s+|called\s+|about\s+)?["']?([a-zA-Z\s\d&-]+?)["']?(?:\s+by|\s+author|\s+written)?""")
+            val bookMatches = bookPattern.findAll(content)
+
+            val books = bookMatches.map { it.groupValues[1].trim() }.distinct()
+
+            for (book in books) {
+                if (book.length > 2 && !containsPersonalInfo(book)) {
+                    patterns.add("User is reading $book")
+                }
+            }
+        }
+
+        // Handle contact information separately
+        if (content.contains("contact", ignoreCase = true) || content.contains("phone", ignoreCase = true) ||
+            content.contains("number", ignoreCase = true) || title.contains("contact", ignoreCase = true)) {
+            val contactPattern = Regex("""(?:contact|phone|number)\s+(?:of|for)?\s*([a-zA-Z\s]+?)\s+(?:number|is)?\s*[:\-\s]*([+\d\s\-\(\)]+)""", RegexOption.IGNORE_CASE)
+            val contactMatches = contactPattern.findAll(content)
+
+            for (match in contactMatches) {
+                val personName = match.groupValues[1].trim()
+                if (personName.isNotEmpty() && !containsPersonalInfo(personName)) {
+                    patterns.add("User is saving contact information for $personName")
+                }
+            }
+
+            // Alternative pattern for contact info
+            val altContactPattern = Regex("""([a-zA-Z\s]+?)\s+(?:contact|phone|number)\s*[:\-\s]*\s*([+\d\s\-\(\)]+)""", RegexOption.IGNORE_CASE)
+            val altContactMatches = altContactPattern.findAll(content)
+
+            for (match in altContactMatches) {
+                val personName = match.groupValues[1].trim()
+                if (personName.isNotEmpty() && !containsPersonalInfo(personName)) {
+                    patterns.add("User is saving contact information for $personName")
+                }
+            }
+        }
+
+        // If the title suggests learning but no specific topic was found, use the title
+        if (!hasLearningKeywords && (title.contains("book", ignoreCase = true) ||
+                                   title.contains("course", ignoreCase = true) ||
+                                   title.contains("study", ignoreCase = true))) {
+            val extractedTopic = title.replace(Regex("""^(book|course|study)\s+"""), "").trim()
+            if (extractedTopic.isNotEmpty() && !containsPersonalInfo(extractedTopic)) {
+                patterns.add("User is interested in $extractedTopic")
+            }
+        }
+
+        return patterns
+    }
+
+    /**
+     * Extract other behavioral patterns from note content
+     */
+    private fun extractOtherPatterns(content: String, title: String): List<String> {
+        val patterns = mutableListOf<String>()
+
+        // Look for recurring activities or interests
+        val activityPattern = Regex("""(?:likes|enjoys|interested in|frequently does|often does|usually does)\s+([a-zA-Z\s]+?)(?:\s+|\.|,|!|;|$)""")
+        val activityMatches = activityPattern.findAll(content)
+
+        for (match in activityMatches) {
+            val activity = match.groupValues[1].trim()
+            if (activity.length > 3) {
+                patterns.add("User enjoys $activity")
+            }
+        }
+
+        // Look for preferences
+        val preferencePattern = Regex("""(?:prefers|likes|preferring)\s+([a-zA-Z\s]+?)(?:\s+|\.|,|!|;|$)""")
+        val preferenceMatches = preferencePattern.findAll(content)
+
+        for (match in preferenceMatches) {
+            val preference = match.groupValues[1].trim()
+            if (preference.length > 3) {
+                patterns.add("User prefers $preference")
+            }
+        }
+
+        return patterns
     }
 
     /**

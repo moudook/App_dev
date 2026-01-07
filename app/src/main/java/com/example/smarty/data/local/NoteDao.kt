@@ -35,6 +35,8 @@ interface NoteDao {
      */
     @Query("SELECT * FROM notes WHERE isArchived = 0 ORDER BY isPinned DESC, createdAt DESC")
     fun getAllNotes(): Flow<List<Note>>
+    
+
 
     @Query("SELECT * FROM notes WHERE categoryId = :categoryId AND isArchived = 0 ORDER BY isPinned DESC, createdAt DESC")
     fun getNotesByCategory(categoryId: String): Flow<List<Note>>
