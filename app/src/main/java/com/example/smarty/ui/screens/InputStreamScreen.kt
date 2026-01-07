@@ -223,9 +223,6 @@ fun InputStreamScreen(
     shakeSensitivity: Float = 0.63f,
     onShakeSensitivityChange: (Float) -> Unit = {},
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
-    isVoiceEnrolled: Boolean = false,
-    onDeleteVoiceFingerprint: () -> Unit = {},
-    onRetrainVoice: () -> Unit = {},
     onRefreshModels: (AIProvider) -> Unit = {},
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { emptyList() },
     onSignOut: () -> Unit = {},
@@ -1198,9 +1195,6 @@ fun InputStreamScreen(
                             shakeSensitivity = shakeSensitivity,
                             onShakeSensitivityChange = onShakeSensitivityChange,
                             groqKeyUsageStats = groqKeyUsageStats,
-                            isVoiceEnrolled = isVoiceEnrolled,
-                            onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
-                            onRetrainVoice = onRetrainVoice,
                             onRefreshModels = onRefreshModels,
                             getAvailableModels = getAvailableModels,
                             onSignOut = onSignOut,
@@ -1626,45 +1620,21 @@ fun InputStreamScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
-        AlertDialog(
-            onDismissRequest = {
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete Note?",
+            text = "This action cannot be undone. The note and all its todos will be permanently deleted.",
+            onConfirm = {
+                noteToDelete?.let { onDeleteNote(it.id) }
                 showDeleteDialog = false
                 noteToDeleteId = null
             },
-            title = {
-                Text(
-                    text = "Delete Note?",
-                    style = MaterialTheme.typography.headlineSmall
-                )
+            onDismiss = {
+                showDeleteDialog = false
+                noteToDeleteId = null
             },
-            text = {
-                Text(
-                    text = "This action cannot be undone. The note and all its todos will be permanently deleted.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        noteToDelete?.let { onDeleteNote(it.id) }
-                        showDeleteDialog = false
-                        noteToDeleteId = null
-                    }
-                ) {
-                    Text("Delete", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        noteToDeleteId = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            },
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(ComponentSpacing.cardCornerRadius)
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 
@@ -1764,9 +1734,6 @@ fun InputStreamScreen(
             shakeSensitivity = shakeSensitivity,
             onShakeSensitivityChange = onShakeSensitivityChange,
             groqKeyUsageStats = groqKeyUsageStats,
-            isVoiceEnrolled = isVoiceEnrolled,
-            onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
-            onRetrainVoice = onRetrainVoice,
             onRefreshModels = onRefreshModels,
             getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,

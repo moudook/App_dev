@@ -750,39 +750,17 @@ fun KnowledgeCardScreen(
 
     // Delete Confirmation Dialog
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = {
-                Text(
-                    text = "Delete Note?",
-                    style = MaterialTheme.typography.headlineSmall
-                )
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete Note?",
+            text = "This action cannot be undone.",
+            onConfirm = {
+                showDeleteDialog = false
+                onDeleteClick()
             },
-            text = {
-                Text(
-                    text = "This action cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        onDeleteClick()
-                    }
-                ) {
-                    Text(
-                        text = "Delete",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            },
-            shape = RoundedCornerShape(18.dp)
+            onDismiss = { showDeleteDialog = false },
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 
@@ -826,23 +804,18 @@ fun KnowledgeCardScreen(
 
     // Decompression Loading Dialog
     if (isDecompressing) {
-        AlertDialog(
-            onDismissRequest = { /* Can't dismiss while decompressing */ },
-            confirmButton = { },
-            title = {
-                Text(
-                    text = "Opening Document",
-                    style = MaterialTheme.typography.titleMedium
-                )
-            },
-            text = {
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Opening Document",
+            text = "",
+            customContent = {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
+                        strokeWidth = 2.dp,
+                        color = LocalAccentColor.current
                     )
                     Text(
                         text = "Decompressing file...",
@@ -850,7 +823,10 @@ fun KnowledgeCardScreen(
                     )
                 }
             },
-            shape = RoundedCornerShape(16.dp)
+            onConfirm = {},
+            onDismiss = {},
+            confirmText = "",
+            dismissText = ""
         )
     }
 
@@ -1801,18 +1777,10 @@ private fun VersionHistorySheet(
 
     // Restore Confirmation Dialog
     if (showRestoreDialog && selectedVersion != null) {
-        AlertDialog(
-            onDismissRequest = {
-                showRestoreDialog = false
-                selectedVersion = null
-            },
-            title = {
-                Text(
-                    text = "Restore Version?",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-            },
-            text = {
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Restore Version?",
+            text = "",
+            customContent = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         text = "This will restore the note to version ${selectedVersion!!.versionNumber}.",
@@ -1825,29 +1793,17 @@ private fun VersionHistorySheet(
                     )
                 }
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        selectedVersion?.let { onRestoreVersion(it.id) }
-                        showRestoreDialog = false
-                        selectedVersion = null
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Restore")
-                }
+            onConfirm = {
+                selectedVersion?.let { onRestoreVersion(it.id) }
+                showRestoreDialog = false
+                selectedVersion = null
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showRestoreDialog = false
-                        selectedVersion = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
+            onDismiss = {
+                showRestoreDialog = false
+                selectedVersion = null
             },
-            shape = RoundedCornerShape(18.dp)
+            confirmText = "Restore",
+            dismissText = "Cancel"
         )
     }
 }

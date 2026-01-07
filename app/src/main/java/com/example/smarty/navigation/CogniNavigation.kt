@@ -30,7 +30,6 @@ import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.screens.*
 import com.example.smarty.viewmodel.BackupViewModel
 import com.example.smarty.util.api.KeyUsageStats
-import com.example.smarty.voice.speaker.VoiceEnrollmentManager
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -49,7 +48,6 @@ private fun NavHostController.safePopBackStack(): Boolean {
 }
 
 sealed class Screen(val route: String) {
-    data object VoiceEnrollment : Screen("voice_enrollment")
     data object InputStream : Screen("input_stream")
     data object Stacks : Screen("stacks")
     data object CategoryNotes : Screen("category_notes")
@@ -200,10 +198,6 @@ fun CogniNavHost(
     getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { com.example.smarty.data.local.AIModels.getModelsForProvider(it) },
     // Screen change callback for shake detection
     onScreenChange: (String) -> Unit = {},
-    // Voice fingerprint management
-    isVoiceEnrolled: Boolean = false,
-    onDeleteVoiceFingerprint: () -> Unit = {},
-    onRetrainVoice: () -> Unit = {},
     // Local LLM Server (USB/WiFi)
     localServerIP: String = "",
     localServerPort: String = "8000",
@@ -378,9 +372,6 @@ fun CogniNavHost(
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
                 groqKeyUsageStats = groqKeyUsageStats,
-                isVoiceEnrolled = isVoiceEnrolled,
-                onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
-                onRetrainVoice = onRetrainVoice,
                 onRefreshModels = onRefreshModels,
                 getAvailableModels = getAvailableModels,
                 onSignOut = onSignOut,
@@ -539,10 +530,6 @@ fun CogniNavHost(
                 onShakeSensitivityChange = onShakeSensitivityChange,
                 // GROQ key usage stats
                 groqKeyUsageStats = groqKeyUsageStats,
-                // Voice fingerprint management
-                isVoiceEnrolled = isVoiceEnrolled,
-                onDeleteVoiceFingerprint = onDeleteVoiceFingerprint,
-                onRetrainVoice = onRetrainVoice,
                 // Local LLM Server (USB/WiFi)
                 localServerIP = localServerIP,
                 localServerPort = localServerPort,

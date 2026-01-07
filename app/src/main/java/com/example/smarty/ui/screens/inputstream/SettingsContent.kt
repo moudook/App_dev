@@ -73,10 +73,6 @@ fun SettingsContent(
     onShakeSensitivityChange: (Float) -> Unit,
     // Groq stats
     groqKeyUsageStats: List<KeyUsageStats>,
-    // Voice
-    isVoiceEnrolled: Boolean,
-    onDeleteVoiceFingerprint: () -> Unit,
-    onRetrainVoice: () -> Unit,
     // Models
     onRefreshModels: (AIProvider) -> Unit,
     getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
@@ -110,7 +106,6 @@ fun SettingsContent(
     var showArchiveSheet by remember { mutableStateOf(false) }
     var showBackupSheet by remember { mutableStateOf(false) }
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
-    var showVoiceFingerprintSheet by remember { mutableStateOf(false) }
     var showAIMemorySheet by remember { mutableStateOf(false) }
 
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -190,14 +185,6 @@ fun SettingsContent(
         // --- GROUP 1: PERSONALIZATION ---
         item {
             SettingsCard {
-                SettingsItem(
-                    icon = Icons.Outlined.Person,
-                    label = if (isVoiceEnrolled) "Voice ID" else "Set Up Voice ID",
-                    onClick = {
-                        if (isVoiceEnrolled) showVoiceFingerprintSheet = true
-                        else onRetrainVoice()
-                    }
-                )
                 SettingsItem(
                     icon = Icons.Outlined.Psychology,
                     label = "AI Memory",
@@ -343,23 +330,6 @@ fun SettingsContent(
         }
     }
 
-    // Voice Fingerprint Sheet
-    if (showVoiceFingerprintSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showVoiceFingerprintSheet = false },
-            sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = shapes.bottomSheet
-        ) {
-            com.example.smarty.ui.screens.settings.VoiceFingerprintSheetContent(
-                isVoiceEnrolled = isVoiceEnrolled,
-                onRetrainVoice = onRetrainVoice,
-                onDeleteVoice = onDeleteVoiceFingerprint,
-                onDismiss = { showVoiceFingerprintSheet = false }
-            )
-        }
-    }
 
     // AI Memory Sheet
     if (showAIMemorySheet) {

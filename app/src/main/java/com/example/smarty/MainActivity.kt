@@ -52,10 +52,7 @@ import com.example.smarty.viewmodel.AuthViewModel
 import com.example.smarty.viewmodel.AuthViewModelFactory
 import com.example.smarty.viewmodel.SharedContent
 import com.example.smarty.viewmodel.SharedFileInfo
-import com.example.smarty.ui.screens.VoiceEnrollmentScreen
 import com.example.smarty.ui.components.AttachmentOption
-import com.example.smarty.voice.speaker.SpeakerEmbeddingManager
-import com.example.smarty.voice.speaker.VoiceEnrollmentManager
 
 class MainActivity : ComponentActivity() {
     // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
@@ -67,14 +64,6 @@ class MainActivity : ComponentActivity() {
     }
     private val audioPlayerViewModel: AudioPlayerViewModel by viewModels()
 
-    // Voice enrollment manager for first-time setup
-    // FIX: Use lifecycleScope instead of custom scope to prevent Activity context leaks
-    private val speakerEmbeddingManager by lazy {
-        SpeakerEmbeddingManager(applicationContext)
-    }
-    private val voiceEnrollmentManager by lazy {
-        VoiceEnrollmentManager(applicationContext, lifecycleScope)
-    }
 
     // Track mic permission state for enrollment check
     private val _micPermissionGranted = mutableStateOf(false)
@@ -149,68 +138,8 @@ class MainActivity : ComponentActivity() {
                 // This prevents the login screen from flashing when sharing from other apps
                 var authStateLoaded by remember { mutableStateOf(firebaseCurrentUser != null) }
                 
-                // Voice enrollment state - show AFTER login, on first launch if not enrolled
-                var showVoiceEnrollment by remember { mutableStateOf(false) }
-
-                // Track voice enrollment status reactively (for settings UI)
-                var isVoiceEnrolled by remember { mutableStateOf(speakerEmbeddingManager.isEnrolled()) }
-
                 // Track mic permission state
                 val micPermissionGranted by _micPermissionGranted
-
-                // Wait for Firebase to load auth state (for cases where user wasn't logged in)
-                LaunchedEffect(currentUser) {
-                    // After first emission from Firebase, auth state is loaded
-                    authStateLoaded = true
-                }
-
-                // Check enrollment status AFTER user is logged in
-                // Voice enrollment should only show if:
-                // - User IS logged in
-                // - Not already enrolled
-                // - Hasn't skipped before
-                // - Has mic permission
-                LaunchedEffect(micPermissionGranted, currentUser, authStateLoaded) {
-                    // Only check when user is logged in
-                    if (authStateLoaded && currentUser != null) {
-                        val hasMicPermission = ContextCompat.checkSelfPermission(
-                            this@MainActivity,
-                            Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-
-                        val shouldShowEnrollment = !speakerEmbeddingManager.isEnrolled() &&
-                                !speakerEmbeddingManager.hasSkippedEnrollment() &&
-                                hasMicPermission &&
-                                !showVoiceEnrollment
-
-                        if (shouldShowEnrollment) {
-                            showVoiceEnrollment = true
-                        }
-                    }
-                }
-
-                // Pause wake word detection and shake gesture during voice enrollment
-                if (showVoiceEnrollment) {
-                    DisposableEffect(Unit) {
-                        // Mark mic as in use to prevent auto-restart on resume
-                        viewModel.setMicInUseByOther(true)
-                        // Stop wake word immediately when enrollment screen shows
-                        viewModel.stopWakeWordDetection()
-                        // Set screen to voice_enrollment so shake gesture is ignored
-                        viewModel.setCurrentScreen("voice_enrollment")
-                        android.util.Log.d("VoiceEnrollment", "Stopped wake word and shake for enrollment")
-
-                        onDispose {
-                            // Clear mic in use flag
-                            viewModel.setMicInUseByOther(false)
-                            // Resume when enrollment screen closes
-                            viewModel.restartWakeWordDetection()
-                            // Restore screen to input_stream
-                            viewModel.setCurrentScreen("input_stream")
-                            android.util.Log.d("VoiceEnrollment", "Resumed wake word and shake after enrollment")
-                        }
-                    }
-                }
 
                 val navController = rememberNavController()
                 val notes by viewModel.notes.collectAsState()
@@ -400,7 +329,6 @@ class MainActivity : ComponentActivity() {
                     val screenState = when {
                         !authStateLoaded -> "loading"
                         !isLoggedIn -> "login"
-                        showVoiceEnrollment -> "voice_enrollment"
                         else -> "main_app"
                     }
                     
@@ -434,23 +362,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             
-                            "voice_enrollment" -> {
-                                // VOICE ENROLLMENT AFTER SPLASH
-                                VoiceEnrollmentScreen(
-                                    enrollmentManager = voiceEnrollmentManager,
-                                    onEnrollmentComplete = {
-                                        showVoiceEnrollment = false
-                                        isVoiceEnrolled = true
-                                        // Clear cache so wake word uses new voice fingerprint
-                                        viewModel.clearSpeakerVerificationCache()
-                                    },
-                                    onSkip = {
-                                        // Remember that user skipped - don't show again on next launch
-                                        speakerEmbeddingManager.setEnrollmentSkipped(true)
-                                        showVoiceEnrollment = false
-                                    }
-                                )
-                            }
+                            
                             
                             "main_app" -> {
                                 // MAIN APP - User is logged in, splash done, enrollment done/skipped
@@ -733,24 +645,6 @@ class MainActivity : ComponentActivity() {
                                     // Track screen changes for shake gesture (only works on main screen)
                                     onScreenChange = { route ->
                                         viewModel.setCurrentScreen(route)
-                                    },
-                                    // Voice fingerprint management
-                                    isVoiceEnrolled = isVoiceEnrolled,
-                                    onDeleteVoiceFingerprint = {
-                                        lifecycleScope.launch {
-                                            speakerEmbeddingManager.deleteEnrollment()
-                                            // Clear skip flag so user can enroll again from first launch
-                                            speakerEmbeddingManager.setEnrollmentSkipped(false)
-                                            isVoiceEnrolled = false
-                                            // Clear wake word's cache so it stops verifying
-                                            viewModel.clearSpeakerVerificationCache()
-                                        }
-                                    },
-                                    onRetrainVoice = {
-                                        // Clear skip flag since user explicitly wants to enroll
-                                        speakerEmbeddingManager.setEnrollmentSkipped(false)
-                                        voiceEnrollmentManager.resetEnrollment()
-                                        showVoiceEnrollment = true
                                     },
                                     // Local LLM Server (USB/WiFi)
                                     localServerIP = localServerIP,

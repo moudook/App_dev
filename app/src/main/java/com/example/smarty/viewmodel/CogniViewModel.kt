@@ -3425,9 +3425,6 @@ class CogniViewModel(
      * Call this after voice fingerprint is deleted or retrained.
      * Forces the wake word detector to reload the embedding from disk.
      */
-    fun clearSpeakerVerificationCache() {
-        voskWakeWordManager?.clearSpeakerCache()
-    }
 
     /**
      * Mark mic as in use by voice enrollment or other features.

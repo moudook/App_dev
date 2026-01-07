@@ -36,10 +36,36 @@ fun AddEventDialog(
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
     val displayDate = remember(selectedDate) { dateFormat.format(selectedDate.time) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New Event") },
-        text = {
+    com.example.smarty.ui.components.common.LoumDialog(
+        title = "New Event",
+        onDismiss = onDismiss,
+        confirmText = "Add",
+        dismissText = "Cancel",
+        confirmEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                val startCal = (selectedDate.clone() as Calendar).apply {
+                    set(Calendar.HOUR_OF_DAY, if (isAllDay) 0 else startHour)
+                    set(Calendar.MINUTE, if (isAllDay) 0 else startMinute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                val endCal = (selectedDate.clone() as Calendar).apply {
+                    set(Calendar.HOUR_OF_DAY, if (isAllDay) 23 else endHour)
+                    set(Calendar.MINUTE, if (isAllDay) 59 else endMinute)
+                    set(Calendar.SECOND, if (isAllDay) 59 else 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                onConfirm(
+                    title,
+                    description.ifBlank { null },
+                    startCal.timeInMillis,
+                    endCal.timeInMillis,
+                    isAllDay
+                )
+            }
+        },
+        customContent = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,42 +180,6 @@ fun AddEventDialog(
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (title.isNotBlank()) {
-                        // Use the selected date, not today's date
-                        val startCal = (selectedDate.clone() as Calendar).apply {
-                            set(Calendar.HOUR_OF_DAY, if (isAllDay) 0 else startHour)
-                            set(Calendar.MINUTE, if (isAllDay) 0 else startMinute)
-                            set(Calendar.SECOND, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        val endCal = (selectedDate.clone() as Calendar).apply {
-                            set(Calendar.HOUR_OF_DAY, if (isAllDay) 23 else endHour)
-                            set(Calendar.MINUTE, if (isAllDay) 59 else endMinute)
-                            set(Calendar.SECOND, if (isAllDay) 59 else 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        onConfirm(
-                            title,
-                            description.ifBlank { null },
-                            startCal.timeInMillis,
-                            endCal.timeInMillis,
-                            isAllDay
-                        )
-                    }
-                },
-                enabled = title.isNotBlank()
-            ) {
-                Text("Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
     )

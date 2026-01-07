@@ -72,7 +72,7 @@ Loum is designed to be your **second brain** — a place where you can dump any 
 - **Privacy-first design**: Private notes are completely invisible to AI processing
 - **Multi-provider support**: Choose from multiple AI providers with automatic failover
 - **Offline-capable**: Core functionality works without internet; AI features gracefully degrade
-- **Advanced voice features**: Wake word detection and voice enrollment
+- **Advanced voice features**: Offline wake word detection and hands-free control
 - **Rich media support**: Audio player with waveform visualization, PDF text extraction, and more
 
 ---
@@ -178,7 +178,6 @@ Hands-free interaction and voice-powered input.
 |---------|-------------|
 | **Voice-to-Text** | Native speech recognition for note input |
 | **Wake Word Detection** | Offline wake word detection using Vosk |
-| **Speaker Identification** | Voice enrollment for personalized experience |
 | **Voice Notes** | Capture thoughts hands-free with voice commands |
 
 ---
@@ -339,7 +338,6 @@ Protect your sensitive information.
 | **Private Notes** | Exclude sensitive notes from AI context |
 | **PII Masking** | Automatic detection and masking of personal information |
 | **Content Security Filter** | Validates and sanitizes all content |
-| **Voice Fingerprinting** | Personalized voice recognition for enhanced privacy |
 
 ---
 
@@ -554,9 +552,9 @@ The **Vosk offline speech recognition model** is required for wake word detectio
 
 | Step | Command / Action |
 |------|------------------|
-| **Download** | [vosk-model-small-hi-0.22.zip](https://alphacephei.com/vosk/models/vosk-model-small-hi-0.22.zip) (~50MB) |
+| **Download** | [vosk-model-small-en-us-0.15.zip](https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip) (~40MB) |
 | **Extract** | Unzip the downloaded file |
-| **Place** | Copy the extracted `vosk-model-small-hi-0.22` folder to the location below |
+| **Place** | Copy the extracted `vosk-model-small-en-us-0.15` folder to the location below |
 
 #### Required Folder Structure
 
@@ -566,12 +564,13 @@ Smarty/
     src/
       main/
         assets/
-          vosk-model-small-hi-0.22/   <-- Place the entire folder here
+          vosk-model-small-en-us-0.15/   <-- Place the entire folder here
             am/                        # Acoustic model
             conf/                      # Configuration files
             graph/                     # Language model graph
-            ivector/                   # Speaker adaptation
+            ivector/                   # Optional speaker adaptation (not used)
             README                     # Model documentation
+            uuid                       # Required: Create a text file named 'uuid' with content '1.0'
 ```
 
 The app automatically loads the model from assets at runtime. No code changes needed.

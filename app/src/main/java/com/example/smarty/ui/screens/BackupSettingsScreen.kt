@@ -438,93 +438,56 @@ fun BackupSettingsScreen(
 
     // Restore confirmation dialog
     showRestoreConfirmDialog?.let { backup ->
-        AlertDialog(
-            onDismissRequest = { showRestoreConfirmDialog = null },
-            title = { Text("Restore Backup?") },
-            text = {
-                Text(
-                    "This will replace all current data with the backup from ${backup.displayDate}.\n\n" +
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Restore Backup?",
+            text = "This will replace all current data with the backup from ${backup.displayDate}.\n\n" +
                     "Notes: ${backup.noteCount}\n" +
                     "Categories: ${backup.categoryCount}\n\n" +
-                    "This action cannot be undone."
-                )
+                    "This action cannot be undone.",
+            onConfirm = {
+                onRestoreBackup(backup)
+                showRestoreConfirmDialog = null
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onRestoreBackup(backup)
-                        showRestoreConfirmDialog = null
-                    }
-                ) {
-                    Text("Restore", color = LocalAccentColor.current)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestoreConfirmDialog = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showRestoreConfirmDialog = null },
+            confirmText = "Restore",
+            dismissText = "Cancel"
         )
     }
 
     // Delete cloud backup confirmation dialog
     showDeleteConfirmDialog?.let { backup ->
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmDialog = null },
-            title = { Text("Delete Backup?") },
-            text = {
-                Text(
-                    "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
-                    "This action cannot be undone."
-                )
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete Backup?",
+            text = "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
+                    "This action cannot be undone.",
+            onConfirm = {
+                onDeleteBackup(backup)
+                showDeleteConfirmDialog = null
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteBackup(backup)
-                        showDeleteConfirmDialog = null
-                    }
-                ) {
-                    Text("Delete", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmDialog = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteConfirmDialog = null },
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 
     // Delete local backup confirmation dialog
     showDeleteLocalBackupDialog?.let { backup ->
-        AlertDialog(
-            onDismissRequest = { showDeleteLocalBackupDialog = null },
-            title = { Text("Delete Local Backup?") },
-            text = {
-                Text(
-                    "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete Local Backup?",
+            text = "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
                     "Size: ${backup.displaySize}\n" +
                     "Notes: ${backup.noteCount}\n" +
                     "Categories: ${backup.categoryCount}\n\n" +
-                    "This action cannot be undone."
-                )
+                    "This action cannot be undone.",
+            onConfirm = {
+                onDeleteLocalBackup(backup)
+                showDeleteLocalBackupDialog = null
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteLocalBackup(backup)
-                        showDeleteLocalBackupDialog = null
-                    }
-                ) {
-                    Text("Delete", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteLocalBackupDialog = null }) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteLocalBackupDialog = null },
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 }
@@ -946,10 +909,14 @@ private fun IntervalPickerDialog(
     onDismiss: () -> Unit,
     onSelectInterval: (Int) -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Backup Interval") },
-        text = {
+    com.example.smarty.ui.components.common.LoumDialog(
+        title = "Backup Interval",
+        onDismiss = onDismiss,
+        confirmText = "",
+        dismissText = "Cancel",
+        confirmEnabled = false,
+        onConfirm = {},
+        customContent = {
             Column {
                 AutoBackupConfig.INTERVAL_OPTIONS.forEach { days ->
                     Row(
@@ -979,11 +946,6 @@ private fun IntervalPickerDialog(
                         )
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
     )

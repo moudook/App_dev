@@ -2,7 +2,6 @@ package com.example.smarty.voice
 
 import android.content.Context
 import android.util.Log
-import com.example.smarty.voice.speaker.SpeakerEmbeddingManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,8 +49,6 @@ class VoskWakeWordManager(
     private val onWakeWordDetected: () -> Unit
 ) : RecognitionListener {
 
-    // Speaker verification manager
-    private val speakerEmbeddingManager = SpeakerEmbeddingManager(context)
 
     companion object {
         private const val TAG = "VoskWakeWord"
@@ -686,33 +683,11 @@ class VoskWakeWordManager(
 
     /**
      * Check if wake word detection is ready and operational.
-     * Use this before relying on wake word functionality.
      */
     fun isReady(): Boolean {
         return !isDestroyed && _isInitialized.value && isModelValid()
     }
 
-    /**
-     * Check if speaker is enrolled for voice verification.
-     */
-    fun isSpeakerEnrolled(): Boolean {
-        return speakerEmbeddingManager.isEnrolled()
-    }
-
-    /**
-     * Get the SpeakerEmbeddingManager for enrollment UI.
-     */
-    fun getSpeakerEmbeddingManager(): SpeakerEmbeddingManager {
-        return speakerEmbeddingManager
-    }
-
-    /**
-     * Clear the speaker verification cache.
-     * Call this after voice fingerprint is deleted or retrained from another component.
-     */
-    fun clearSpeakerCache() {
-        speakerEmbeddingManager.clearCache()
-    }
 
     /**
      * Clean up resources.
@@ -874,72 +849,20 @@ class VoskWakeWordManager(
                 Log.w(TAG, ">>> WAKE WORD DETECTED: '$text' <<<")
                 Log.w(TAG, "============================================")
 
-                // Verify speaker if enrolled
-                if (speakerEmbeddingManager.isEnrolled()) {
-                    Log.d(TAG, "Verifying speaker...")
-
-                    // Get recent audio samples from speech service
-                    val audioSamples = speechService?.getRecentAudioSamples()
-
-                    if (audioSamples != null && audioSamples.size > 16000) {  // Need at least 1 second
-                        scope.launch {
-                            try {
-                                val isVerified = speakerEmbeddingManager.quickVerify(audioSamples)
-
-                                if (isVerified) {
-                                    Log.i(TAG, "Speaker VERIFIED - triggering wake word")
-
-                                    // Clear verification buffer to prevent reusing old audio
-                                    speechService?.clearVerificationBuffer()
-
-                                    // Stop listening and trigger callback
-                                    stopListening()
-                                    if (!isDestroyed) {
-                                        try {
-                                            scope.launch(Dispatchers.Main) {
-                                                if (!isDestroyed) {
-                                                    onWakeWordDetected()
-                                                }
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
-                                        }
-                                    }
-                                } else {
-                                    Log.w(TAG, "Speaker NOT verified - ignoring wake word")
-                                    Log.d(TAG, "VOSK_SPEECH [REJECTED]: Speaker mismatch for \"$text\"")
-                                    // Reset flag to allow future detections
-                                    wakeWordTriggered = false
-                                }
-                            } catch (e: Exception) {
-                                // SECURITY FIX: On error, REJECT instead of allowing
-                                Log.e(TAG, "Speaker verification error - REJECTING: ${e.message}")
-                                Log.d(TAG, "VOSK_SPEECH [REJECTED]: Verification error for \"$text\"")
-                                wakeWordTriggered = false
+                // Trigger wake word callback immediately
+                Log.i(TAG, "Wake word triggered - launching callback")
+                
+                // Stop listening and trigger callback
+                stopListening()
+                if (!isDestroyed) {
+                    try {
+                        scope.launch(Dispatchers.Main) {
+                            if (!isDestroyed) {
+                                onWakeWordDetected()
                             }
                         }
-                    } else {
-                        // SECURITY FIX: Not enough audio samples - REJECT instead of allowing
-                        Log.w(TAG, "Not enough audio for verification - REJECTING")
-                        Log.d(TAG, "VOSK_SPEECH [REJECTED]: Insufficient audio for verification")
-                        wakeWordTriggered = false
-                    }
-                } else {
-                    // Not enrolled - allow wake word without verification
-                    Log.i(TAG, "No speaker enrolled - allowing wake word without verification")
-                    
-                    // Stop listening and trigger callback
-                    stopListening()
-                    if (!isDestroyed) {
-                        try {
-                            scope.launch(Dispatchers.Main) {
-                                if (!isDestroyed) {
-                                    onWakeWordDetected()
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
-                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
                     }
                 }
             }

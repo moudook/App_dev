@@ -504,12 +504,11 @@ fun AddEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        AlertDialog(
-            onDismissRequest = { showReminderMenu = false },
-            containerColor = SheetSurfaceDark,
-            titleContentColor = SheetWhite,
-            title = { Text("Reminder") },
-            text = {
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Reminder",
+            onDismiss = { showReminderMenu = false },
+            onConfirm = {},
+            customContent = {
                 Column {
                     reminderOptions.forEach { (minutes, label) ->
                         Row(
@@ -537,15 +536,8 @@ fun AddEventSheet(
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(
-                    onClick = { showReminderMenu = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetMutedText)
-                ) {
-                    Text("Cancel")
-                }
-            }
+            confirmText = "",
+            confirmEnabled = false // Hide/Disable confirm as selection closes it
         )
     }
 }

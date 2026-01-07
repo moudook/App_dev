@@ -143,29 +143,17 @@ fun ChatHistoryContent(
 
     // Delete Dialog
     sessionToDelete?.let { session ->
-        AlertDialog(
-            onDismissRequest = { sessionToDeleteId = null },
-            title = { Text("Delete chat?") },
-            text = { Text("This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDeleteSession(session.id)
-                        sessionToDeleteId = null
-                    }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete chat?",
+            text = "This action cannot be undone.",
+            onConfirm = {
+                onDeleteSession(session.id)
+                sessionToDeleteId = null
             },
-            dismissButton = {
-                TextButton(onClick = { sessionToDeleteId = null }) {
-                    Text("Cancel")
-                }
-            },
-            shape = RoundedCornerShape(20.dp),
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            onDismiss = { sessionToDeleteId = null },
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 }

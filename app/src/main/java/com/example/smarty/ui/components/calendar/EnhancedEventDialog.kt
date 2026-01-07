@@ -116,14 +116,63 @@ fun EnhancedEventDialog(
     val dialogTitle = if (isEditing) "Edit Event" else "New Event"
     val confirmText = if (isEditing) "Save" else "Add"
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = modifier,
-        title = { Text(dialogTitle) },
-        text = {
+    com.example.smarty.ui.components.common.LoumDialog(
+        title = dialogTitle,
+        onDismiss = onDismiss,
+        confirmText = confirmText,
+        dismissText = "Cancel",
+        confirmEnabled = title.isNotBlank(),
+        onConfirm = {
+            if (title.isNotBlank()) {
+                val finalStartTime = if (isAllDay) {
+                    Calendar.getInstance().apply {
+                        timeInMillis = startTime
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                } else {
+                    startTime
+                }
+
+                val finalEndTime = if (isAllDay) {
+                    Calendar.getInstance().apply {
+                        timeInMillis = startTime
+                        set(Calendar.HOUR_OF_DAY, 23)
+                        set(Calendar.MINUTE, 59)
+                        set(Calendar.SECOND, 59)
+                        set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                } else {
+                    endTime
+                }
+
+                val event = CalendarEvent(
+                    id = existingEvent?.id ?: java.util.UUID.randomUUID().toString(),
+                    title = title.trim(),
+                    description = description.ifBlank { null },
+                    location = location.ifBlank { null },
+                    startTime = finalStartTime,
+                    endTime = finalEndTime,
+                    isAllDay = isAllDay,
+                    color = selectedColor?.toArgb(),
+                    reminderMinutes = reminderMinutes,
+                    isRecurring = isRecurring,
+                    recurrenceRule = recurrenceRule.ifBlank { null },
+                    linkedNoteId = existingEvent?.linkedNoteId,
+                    isEventPrivate = existingEvent?.isEventPrivate ?: false,
+                    createdAt = existingEvent?.createdAt ?: System.currentTimeMillis(),
+                    updatedAt = System.currentTimeMillis()
+                )
+                onSave(event)
+            }
+        },
+        customContent = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .heightIn(max = 400.dp) // Limit height so it doesn't overflow screen
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -370,64 +419,6 @@ fun EnhancedEventDialog(
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (title.isNotBlank()) {
-                        val finalStartTime = if (isAllDay) {
-                            Calendar.getInstance().apply {
-                                timeInMillis = startTime
-                                set(Calendar.HOUR_OF_DAY, 0)
-                                set(Calendar.MINUTE, 0)
-                                set(Calendar.SECOND, 0)
-                                set(Calendar.MILLISECOND, 0)
-                            }.timeInMillis
-                        } else {
-                            startTime
-                        }
-
-                        val finalEndTime = if (isAllDay) {
-                            Calendar.getInstance().apply {
-                                timeInMillis = startTime
-                                set(Calendar.HOUR_OF_DAY, 23)
-                                set(Calendar.MINUTE, 59)
-                                set(Calendar.SECOND, 59)
-                                set(Calendar.MILLISECOND, 0)
-                            }.timeInMillis
-                        } else {
-                            endTime
-                        }
-
-                        val event = CalendarEvent(
-                            id = existingEvent?.id ?: java.util.UUID.randomUUID().toString(),
-                            title = title.trim(),
-                            description = description.ifBlank { null },
-                            location = location.ifBlank { null },
-                            startTime = finalStartTime,
-                            endTime = finalEndTime,
-                            isAllDay = isAllDay,
-                            color = selectedColor?.toArgb(),
-                            reminderMinutes = reminderMinutes,
-                            isRecurring = isRecurring,
-                            recurrenceRule = recurrenceRule.ifBlank { null },
-                            linkedNoteId = existingEvent?.linkedNoteId,
-                            isEventPrivate = existingEvent?.isEventPrivate ?: false,
-                            createdAt = existingEvent?.createdAt ?: System.currentTimeMillis(),
-                            updatedAt = System.currentTimeMillis()
-                        )
-                        onSave(event)
-                    }
-                },
-                enabled = title.isNotBlank()
-            ) {
-                Text(confirmText)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
             }
         }
     )

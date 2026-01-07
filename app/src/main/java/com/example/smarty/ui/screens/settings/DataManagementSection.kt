@@ -294,26 +294,17 @@ fun ClearCacheConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Clear Cache?") },
-        text = {
-            Text("This will clear ${formatCacheSize(cacheSizeBytes)} of cached data. Downloaded content may need to be fetched again.")
+    com.example.smarty.ui.components.common.LoumDialog(
+        title = "Clear Cache?",
+        text = "This will clear ${formatCacheSize(cacheSizeBytes)} of cached data. Downloaded content may need to be fetched again.",
+        onConfirm = {
+            onConfirm()
+            onDismiss()
         },
-        confirmButton = {
-            TextButton(onClick = {
-                onConfirm()
-                onDismiss()
-            }) {
-                Text("Clear", color = SafetyOrange)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-        shape = RoundedCornerShape(20.dp)
+        onDismiss = onDismiss,
+        confirmText = "Clear",
+        dismissText = "Cancel",
+        isDestructive = true
     )
 }
 

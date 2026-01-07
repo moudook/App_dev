@@ -53,6 +53,7 @@ val AcidGreen = Color(0xFFCCFF00)
 val AcidGreenDark = Color(0xFF9ECC00)
 val BrightOrange = Color(0xFFFF6B00)
 val SafetyOrange = Color(0xFFFF4D00)
+val MinimalRed = Color(0xFFE57373) // Minimal/Soft Red for less "poppy" alerts
 val NeonPurple = Color(0xFFBB86FC)
 
 // =============================================================================

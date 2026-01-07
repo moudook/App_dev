@@ -541,12 +541,11 @@ fun EditEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        AlertDialog(
-            onDismissRequest = { showReminderMenu = false },
-            containerColor = SheetSurfaceDark,
-            titleContentColor = SheetWhite,
-            title = { Text("Reminder") },
-            text = {
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Reminder",
+            onDismiss = { showReminderMenu = false },
+            onConfirm = {},
+            customContent = {
                 Column {
                     reminderOptions.forEach { (minutes, label) ->
                         Row(
@@ -574,63 +573,25 @@ fun EditEventSheet(
                     }
                 }
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(
-                    onClick = { showReminderMenu = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetMutedText)
-                ) {
-                    Text("Cancel")
-                }
-            }
+            confirmText = "",
+            confirmEnabled = false // Hide/Disable confirm as selection closes it
         )
     }
 
     // Delete Confirmation Dialog
     if (showDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirmation = false },
-            containerColor = SheetSurfaceDark,
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = SheetError
-                )
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete Event?",
+            text = "Are you sure you want to delete \"${event.title}\"? This action cannot be undone.",
+            onConfirm = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                showDeleteConfirmation = false
+                onDelete()
             },
-            title = {
-                Text(
-                    text = "Delete Event?",
-                    fontWeight = FontWeight.SemiBold,
-                    color = SheetWhite
-                )
-            },
-            text = {
-                Text(
-                    "Are you sure you want to delete \"${event.title}\"? This action cannot be undone.",
-                    color = SheetMutedText
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showDeleteConfirmation = false
-                        onDelete()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetError)
-                ) {
-                    Text("Delete", fontWeight = FontWeight.SemiBold)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showDeleteConfirmation = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetMutedText)
-                ) {
-                    Text("Cancel")
-                }
-            }
+            onDismiss = { showDeleteConfirmation = false },
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 }
@@ -762,12 +723,11 @@ private fun EditDarkTimePickerDialog(
     onConfirm: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = SheetSurfaceDark,
-        titleContentColor = SheetWhite,
-        title = { Text("Select time") },
-        text = {
+    com.example.smarty.ui.components.common.LoumDialog(
+        title = "Select time",
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+        customContent = {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -775,21 +735,7 @@ private fun EditDarkTimePickerDialog(
                 content()
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                colors = ButtonDefaults.textButtonColors(contentColor = SheetAccent)
-            ) {
-                Text("OK")
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = SheetMutedText)
-            ) {
-                Text("Cancel")
-            }
-        }
+        confirmText = "OK",
+        dismissText = "Cancel"
     )
 }

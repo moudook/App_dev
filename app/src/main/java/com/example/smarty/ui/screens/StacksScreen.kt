@@ -157,33 +157,21 @@ fun StacksScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && categoryToDelete != null) {
-        AlertDialog(
-            onDismissRequest = {
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete Category?",
+            text = "Are you sure you want to delete \"${categoryToDelete?.name}\"? Notes in this category will not be deleted.",
+            onConfirm = {
+                categoryToDelete?.let { onDeleteCategory(it) }
                 showDeleteDialog = false
                 categoryToDelete = null
             },
-            title = { Text("Delete Category?") },
-            text = {
-                Text("Are you sure you want to delete \"${categoryToDelete?.name}\"? Notes in this category will not be deleted.")
+            onDismiss = {
+                showDeleteDialog = false
+                categoryToDelete = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    categoryToDelete?.let { onDeleteCategory(it) }
-                    showDeleteDialog = false
-                    categoryToDelete = null
-                }) {
-                    Text("Delete", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDeleteDialog = false
-                    categoryToDelete = null
-                }) {
-                    Text("Cancel")
-                }
-            },
-            shape = LocalShapes.current.cardMedium
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 

@@ -110,45 +110,21 @@ fun ArchiveContent(
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
-        AlertDialog(
-            onDismissRequest = {
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Delete Permanently?",
+            text = "This note will be permanently deleted. This action cannot be undone.",
+            onConfirm = {
+                noteToDelete?.let { onDeleteNote(it.id) }
                 showDeleteDialog = false
                 noteToDelete = null
             },
-            title = {
-                Text(
-                    text = "Delete Permanently?",
-                    style = MaterialTheme.typography.headlineSmall
-                )
+            onDismiss = {
+                showDeleteDialog = false
+                noteToDelete = null
             },
-            text = {
-                Text(
-                    text = "This note will be permanently deleted. This action cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        noteToDelete?.let { onDeleteNote(it.id) }
-                        showDeleteDialog = false
-                        noteToDelete = null
-                    }
-                ) {
-                    Text("Delete", color = SafetyOrange)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        noteToDelete = null
-                    }
-                ) {
-                    Text("Cancel")
-                }
-            },
-            shape = RoundedCornerShape(ComponentSpacing.cardCornerRadius)
+            confirmText = "Delete",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 }

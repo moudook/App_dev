@@ -229,45 +229,33 @@ fun AIMemorySettingsContent(
 
     // Delete Single Memory Dialog
     if (memoryToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { memoryToDelete = null },
-            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Forget this insight?") },
-            text = { Text("The AI will stop using this behavioral pattern for personalization.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        memoryToDelete?.let { onDeleteMemory(it) }
-                        memoryToDelete = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Forget") }
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Forget this insight?",
+            text = "The AI will stop using this behavioral pattern for personalization.",
+            onConfirm = {
+                memoryToDelete?.let { onDeleteMemory(it) }
+                memoryToDelete = null
             },
-            dismissButton = {
-                TextButton(onClick = { memoryToDelete = null }) { Text("Cancel") }
-            }
+            onDismiss = { memoryToDelete = null },
+            confirmText = "Forget",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 
     // Clear All Dialog
     if (showClearAllDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearAllDialog = false },
-            icon = { Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Reset Personal Intelligence?") },
-            text = { Text("All ${memories.size} extracted insights will be deleted. This cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onClearAllMemories()
-                        showClearAllDialog = false
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Reset All") }
+        com.example.smarty.ui.components.common.LoumDialog(
+            title = "Reset Personal Intelligence?",
+            text = "All ${memories.size} extracted insights will be deleted. This cannot be undone.",
+            onConfirm = {
+                onClearAllMemories()
+                showClearAllDialog = false
             },
-            dismissButton = {
-                TextButton(onClick = { showClearAllDialog = false }) { Text("Cancel") }
-            }
+            onDismiss = { showClearAllDialog = false },
+            confirmText = "Reset All",
+            dismissText = "Cancel",
+            isDestructive = true
         )
     }
 }

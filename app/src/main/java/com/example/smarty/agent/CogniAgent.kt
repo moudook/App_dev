@@ -447,33 +447,34 @@ Otherwise, just answer the question directly.
 
     /**
      * Build the tool registry with all available tools.
-     * SLIM VERSION: Only essential tools to reduce token count for smaller models.
+     * FULL VERSION: All tools enabled for comprehensive AI capabilities.
      */
     private fun buildToolRegistry(): ToolRegistry {
         return ToolRegistry {
-            // === CORE NOTE TOOLS ===
+            // === NOTE TOOLS (9) ===
             tool(CreateNoteTool(repository, callbacks::processNoteWithAi))
             tool(SearchNotesTool(callbacks::getActiveNotes))
-            // tool(GetRecentNotesTool(callbacks::getActiveNotes))
-            // tool(UpdateNoteTool(repository))
-            // tool(DeleteNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
-            // tool(ArchiveNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
-            // tool(UnarchiveNoteTool(repository, callbacks::getArchivedNotes, callbacks::findNoteByDescription))
-            // tool(SummarizeNoteTool(repository))
+            tool(GetRecentNotesTool(callbacks::getActiveNotes))
+            tool(UpdateNoteTool(repository))
+            tool(DeleteNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
+            tool(ArchiveNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
+            tool(UnarchiveNoteTool(repository, callbacks::getArchivedNotes, callbacks::findNoteByDescription))
+            tool(SummarizeNoteTool(repository))
+            tool(SmartSearchTool(callbacks::getActiveNotes))
 
-            // === CORE TODO TOOLS ===
+            // === TODO TOOLS (3) ===
             tool(AddTodosTool(repository))
-            // tool(ToggleTodoTool(repository))
-            // tool(DeleteTodoTool(repository))
+            tool(ToggleTodoTool(repository))
+            tool(DeleteTodoTool(repository))
 
-            // === CATEGORY TOOLS (DISABLED) ===
-            // tool(ListCategoriesTool(callbacks::getCategories, callbacks::getActiveNotes))
-            // tool(GetCategoryNotesTool(callbacks::getActiveNotes))
-            // tool(SearchAudioNotesTool(callbacks::getActiveNotes))
-            // tool(SearchImageNotesTool(callbacks::getActiveNotes))
-            // tool(SearchDocumentNotesTool(callbacks::getActiveNotes))
+            // === CATEGORY TOOLS (5) ===
+            tool(ListCategoriesTool(callbacks::getCategories, callbacks::getActiveNotes))
+            tool(GetCategoryNotesTool(callbacks::getActiveNotes))
+            tool(SearchAudioNotesTool(callbacks::getActiveNotes))
+            tool(SearchImageNotesTool(callbacks::getActiveNotes))
+            tool(SearchDocumentNotesTool(callbacks::getActiveNotes))
 
-            // === CORE EXTERNAL TOOLS ===
+            // === EXTERNAL TOOLS (5) ===
             tool(WebSearchTool(
                 tavilySearchProvider = tavilySearchProvider,
                 getApiKey = callbacks::getTavilyApiKey,
@@ -488,28 +489,33 @@ Otherwise, just answer the question directly.
                 getActiveNotes = callbacks::getActiveNotes,
                 onPlayAudio = callbacks::requestAudioPlayback
             ))
-            // tool(ViewImageTool(...))
+            tool(ViewImageTool(
+                getActiveNotes = callbacks::getActiveNotes,
+                onDisplayImages = callbacks::onDisplayImages
+            ))
             tool(OpenAppTool(
                 context = context,
                 onLaunchApp = callbacks::launchApp
             ))
-            // tool(SaveScreenTool(...))
+            tool(SaveScreenTool(
+                repository = repository,
+                getScreenContext = callbacks::getScreenContext
+            ))
 
-            // === CORE CALENDAR TOOLS (DISABLED FOR REACTIVITY TEST) ===
-            // tool(CreateEventTool(repository))
-            // tool(DeleteEventTool(repository))
-            // tool(DeleteDayEventsTool(repository))
-            // tool(GetEventsTool(repository))
-            // tool(CreateTimerTool(alarmScheduler))
-            // tool(CancelTimerTool(alarmScheduler))
+            // === CALENDAR TOOLS (6) ===
+            tool(CreateEventTool(repository))
+            tool(DeleteEventTool(repository))
+            tool(DeleteDayEventsTool(repository))
+            tool(GetEventsTool(repository))
+            tool(CreateTimerTool(alarmScheduler))
+            tool(CancelTimerTool(alarmScheduler))
 
-            // === ADVANCED TOOLS (DISABLED FOR TOKEN SAVINGS) ===
-            // tool(SmartSearchTool(callbacks::getActiveNotes))
-            // tool(BatchOperationsTool(repository, callbacks::getActiveNotes))
-            // tool(DeepResearchTool(tavilySearchProvider, repository, callbacks::getTavilyApiKey))
-            // tool(UserPatternsTool(callbacks::getActiveNotes, callbacks::getCategories))
+            // === ADVANCED TOOLS (3) ===
+            tool(BatchOperationsTool(repository, callbacks::getActiveNotes))
+            tool(DeepResearchTool(tavilySearchProvider, repository, callbacks::getTavilyApiKey))
+            tool(UserPatternsTool(callbacks::getActiveNotes, callbacks::getCategories))
 
-            // === MEMORY TOOLS ===
+            // === MEMORY TOOLS (3) ===
             tool(ManageMemoryTool(aiMemoryDao))
             tool(LearnFromNotesTool(
                 aiMemoryDao = aiMemoryDao,

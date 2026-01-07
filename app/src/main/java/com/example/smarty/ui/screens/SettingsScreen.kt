@@ -53,7 +53,6 @@ import java.util.concurrent.TimeUnit
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.ProviderSection
 import com.example.smarty.ui.screens.settings.maskApiKey
-import com.example.smarty.ui.screens.settings.VoiceFingerprintSheetContent
 import com.example.smarty.ui.screens.settings.DataManagementSection
 import com.example.smarty.ui.screens.settings.formatCacheSize
 import com.example.smarty.util.api.ApiMetrics
@@ -111,10 +110,6 @@ fun SettingsScreen(
     onShakeSensitivityChange: (Float) -> Unit = {},
     // GROQ key usage stats
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
-    // Voice fingerprint management
-    isVoiceEnrolled: Boolean = false,
-    onDeleteVoiceFingerprint: () -> Unit = {},
-    onRetrainVoice: () -> Unit = {},
     // Local LLM Server (USB/WiFi)
     localServerIP: String = "",
     localServerPort: String = "8000",
@@ -145,7 +140,6 @@ fun SettingsScreen(
     var showBackupSheet by remember { mutableStateOf(false) }
     var showAboutSheet by remember { mutableStateOf(false) }  // Newly added state
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
-    var showVoiceFingerprintSheet by remember { mutableStateOf(false) }
     var showAIMemorySheet by remember { mutableStateOf(false) }
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -159,12 +153,11 @@ fun SettingsScreen(
     // Intercept system back button
     // If any sheet is open, close it. Otherwise, navigate back.
     androidx.activity.compose.BackHandler(onBack = {
-        if (showArchiveSheet || showBackupSheet || showAboutSheet || showShakeSensitivitySheet || showVoiceFingerprintSheet || showAIConfigSheet || showAIMemorySheet) {
+        if (showArchiveSheet || showBackupSheet || showAboutSheet || showShakeSensitivitySheet || showAIConfigSheet || showAIMemorySheet) {
             showArchiveSheet = false
             showBackupSheet = false
             showAboutSheet = false
             showShakeSensitivitySheet = false
-            showVoiceFingerprintSheet = false
             showAIConfigSheet = false
             showAIMemorySheet = false
         } else {
@@ -209,14 +202,6 @@ fun SettingsScreen(
                     title = "AI Providers",
                     subtitle = "Models & API keys",
                     onClick = { showAIConfigSheet = true }
-                )
-                SettingsRow(
-                    title = if (isVoiceEnrolled) "Voice ID" else "Set Up Voice ID",
-                    subtitle = if (isVoiceEnrolled) "Active" else "Not configured",
-                    onClick = {
-                        if (isVoiceEnrolled) showVoiceFingerprintSheet = true
-                        else onRetrainVoice()
-                    }
                 )
                 SettingsRow(
                     title = "AI Memory",
@@ -463,40 +448,6 @@ fun SettingsScreen(
 
     // Note: Delete Voice Fingerprint Dialog is now handled inside VoiceFingerprintSheetContent
 
-    // Voice Fingerprint Management Bottom Sheet
-    if (showVoiceFingerprintSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showVoiceFingerprintSheet = false },
-            sheetState = subSettingSheetState,
-            containerColor = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            shape = LocalShapes.current.bottomSheet,
-            dragHandle = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(32.dp)
-                            .height(4.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    )
-                }
-            }
-        ) {
-            HideSystemBars()
-            VoiceFingerprintSheetContent(
-                isVoiceEnrolled = isVoiceEnrolled,
-                onRetrainVoice = onRetrainVoice,
-                onDeleteVoice = onDeleteVoiceFingerprint,
-                onDismiss = { showVoiceFingerprintSheet = false }
-            )
-        }
-    }
 
     // About Bottom Sheet
     if (showAboutSheet) {
@@ -549,7 +500,7 @@ fun SettingsScreen(
                         .padding(bottom = 32.dp)
                 ) {
                     Text(
-                        text =  "Hello, I am Moudook.\n\n" +
+                    text =  "Hello, I am Moudook.\n\n" +
                                 "Loum is an AI-powered personal knowledge management app. I made this mainly for myself so I do not get fussed managing my notes and content. The idea is simple. Capture anything, and let the AI help later with organizing, searching, and recalling things when needed.\n\n" +
                                 "You can add many types of content. Text notes for brain dumps. Images. Videos, both YouTube and local. Documents like PDF, DOCX, XLSX, and PPTX. Website links with metadata. Audio files and voice notes. Code snippets. Twitter or X posts, Instagram posts, APK files, and archive files.\n\n" +
                                 "For organization, I added basic but useful things. You can pin notes so important ones stay on top. Notes get smart categories automatically. AI also generates tags for every note. If you do not want something but also do not want to delete it, you can archive it. There is also bulk selection so you can operate on many notes at once.\n\n" +
@@ -568,7 +519,6 @@ fun SettingsScreen(
                                 "Voice and audio were also important.\n\n" +
                                 "You can record voice notes instantly by tapping the mic. There is a real-time amplitude visualizer. Audio is saved in M4A format. You can record up to 10 minutes. You always get a confirmation before saving or canceling.\n\n" +
                                 "Speech-to-text uses Google Speech Recognition. A halftone shimmer shows when it is actively listening. Continuous recognition mode is also supported.\n\n" +
-                                "I also added wake word detection using Vosk. It runs on device. It works without internet. There is also a high sensitivity mode.\n\n" +
                                 "The music player has a living orb visualizer. It reacts to audio amplitude and frequency bands. There is a mini player and a full-screen mode. I tried to make it feel alive.\n\n" +
                                 "Calendar support is also there.\n\n" +
                                 "You can import events from Google Calendar. Exchange and other providers are supported. It syncs past 30 days and next 90 days. Events update automatically.\n\n" +
@@ -590,7 +540,7 @@ fun SettingsScreen(
                                 "The app is built to work on edge and low-end devices. Rendering quality adapts. Memory usage stays low. Background work is battery conscious.\n\n" +
                                 "Backup is simple.\n\n" +
                                 "You can export a full ZIP backup. It contains notes, categories, settings, chat history, AI memories, calendar events, and attachments. You can restore anytime. You can choose to merge or replace data. Integrity is preserved.\n\n" +
-                                "The app is built using Kotlin and Jetpack Compose. It follows Material Design 3. Room Database version is 19. Min SDK is 26. Target SDK is 36. WorkManager is used for background tasks. OkHttp handles networking. Vosk is used for offline speech. ExoPlayer handles media.\n\n" +
+                                "The app is built using Kotlin and Jetpack Compose. It follows Material Design 3. Room Database version is 19. Min SDK is 26. Target SDK is 36. WorkManager is used for background tasks. OkHttp handles networking. ExoPlayer handles media.\n\n" +
                                 "Your data stays on your device. Only AI and speech recognition APIs need internet.\n\n" +
                                 "I am still working on the UI and the agentic part. If you find any issues, please mention them on GitHub.\n\n" +
                                 "Thank you for using Loum.",
