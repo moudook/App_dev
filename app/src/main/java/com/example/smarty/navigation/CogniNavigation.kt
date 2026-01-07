@@ -429,7 +429,16 @@ fun CogniNavHost(
                         onBackClick = onDismiss,
                         isEmbedded = true
                     )
-                }
+                },
+                // AI Memory
+                aiMemories = aiMemories,
+                onDeleteAIMemory = onDeleteAIMemory,
+                onClearAllAIMemories = onClearAllAIMemories,
+                onSyncAIMemories = onSyncAIMemories,
+                isMemorySyncInProgress = isMemorySyncInProgress,
+                memorySyncResult = memorySyncResult,
+                unreadForMemoryCount = unreadForMemoryCount,
+                onClearMemorySyncResult = onClearMemorySyncResult
             )
         }
 

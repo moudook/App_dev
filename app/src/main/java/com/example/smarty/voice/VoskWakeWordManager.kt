@@ -20,12 +20,12 @@ import org.vosk.android.RecognitionListener
 import org.vosk.android.StorageService
 
 /**
- * Vosk-based wake word manager for fully offline Hindi wake word detection.
+ * Vosk-based wake word manager for fully offline Jarvis wake word detection.
  *
  * Architecture:
  * - Uses Vosk (open source, on-device) for wake word detection
- * - Hindi model: vosk-model-small-hi-0.22
- * - Wake word: "जादूगर" (Jaadoogar - Magician) - unique and distinctive
+ * - English model: vosk-model-small-en-us-0.15
+ * - Wake word: "Jarvis" - unique and distinctive
  * - When wake word is detected, stops listening and triggers callback
  * - Caller should then launch Google Speech Recognizer for full STT
  * - After STT completes, call restartListening() to resume wake word detection
@@ -40,7 +40,8 @@ import org.vosk.android.StorageService
  * - 100% open source (Apache 2.0)
  * - No API key required
  * - All processing on-device
- * - Model included in app
+ * - Model included in app: English (small) for storage efficiency
+ * - Wake word: "Jarvis" (English)
  * - Speaker verification ensures only enrolled user can trigger
  */
 class VoskWakeWordManager(
@@ -55,13 +56,12 @@ class VoskWakeWordManager(
     companion object {
         private const val TAG = "VoskWakeWord"
 
-        // Hindi model for better Hindi word recognition
-        private const val MODEL_PATH = "vosk-model-small-hi-0.22"
+        // English model is smaller (~15MB) than Hindi (~50MB) and more efficient for wake words
+        private const val MODEL_PATH = "vosk-model-small-en-us-0.15"
         private const val SAMPLE_RATE = 16000.0f
 
-        // Wake word: "जादूगर" (Jaadoogar) = Magician
-        // Very unique word, unlikely to trigger accidentally
-        private const val WAKE_WORD = "जादूगर"
+        // Wake word: "Jarvis"
+        private const val WAKE_WORD = "jarvis"
 
         // Audio gain multiplier for increased microphone sensitivity
         // 1.0 = normal, 2.0 = 2x louder, 3.0 = 3x louder
@@ -74,16 +74,15 @@ class VoskWakeWordManager(
         // We use full vocabulary mode and filter results for wake word.
         private val GRAMMAR: String? = null  // Full vocabulary - filter in software
 
-        // Pre-compiled wake word patterns for faster matching
-        // "जादूगर" (Jaadoogar) - Magician - unique Hindi word
-        // Reduced to essential patterns since Hindi model is accurate
+        // Pre-compiled wake word patterns for faster matching (all lowercase since text is lowercased before matching)
         private val WAKE_WORD_PATTERNS = setOf(
-            // Primary Hindi pattern
-            "जादूगर",
-
-            // Minor spelling variations
-            "जादुगर",
-            "जादू गर"
+            "jarvis",
+            " jarvis",
+            "jarvis ",
+            "jarvis.",
+            "jar vis",
+            "hey jarvis",
+            "ok jarvis"
         )
 
         // Model validity cache duration - must be in companion object for const
@@ -311,14 +310,14 @@ class VoskWakeWordManager(
             LibVosk.setLogLevel(LogLevel.INFO)
 
             val startTime = System.currentTimeMillis()
-            Log.i(TAG, "Unpacking Vosk Hindi model from assets: $MODEL_PATH")
+            Log.i(TAG, "Unpacking Vosk English model from assets: $MODEL_PATH")
 
             // StorageService.unpack already runs on background thread
             // Callbacks are invoked on main thread
             StorageService.unpack(
                 context,
                 MODEL_PATH,
-                "model-hi",  // Different folder name to avoid conflicts
+                "model-en",  // Folder name for English model
                 { loadedModel ->
                     // CRITICAL: Check if destroyed before proceeding with callback
                     // This handles the case where user closes app during model loading
@@ -332,7 +331,7 @@ class VoskWakeWordManager(
                     }
 
                     val elapsed = System.currentTimeMillis() - startTime
-                    Log.i(TAG, "Hindi model unpacked in ${elapsed}ms")
+                    Log.i(TAG, "English model unpacked in ${elapsed}ms")
                     model = loadedModel
                     isInitializing = false
                     setupRecognizer()
@@ -345,7 +344,7 @@ class VoskWakeWordManager(
                         return@unpack
                     }
 
-                    val errorMsg = "Failed to unpack Hindi model: ${exception.message}"
+                    val errorMsg = "Failed to unpack English model: ${exception.message}"
                     Log.e(TAG, errorMsg, exception)
                     _initError.value = errorMsg
                     isInitializing = false
@@ -391,7 +390,7 @@ class VoskWakeWordManager(
 
             _isInitialized.value = true
             _initError.value = null
-            Log.i(TAG, "Recognizer ready - listening for Hindi wake word '$WAKE_WORD' (Jaadoogar)")
+            Log.i(TAG, "Recognizer ready - listening for wake word '$WAKE_WORD'")
 
             // Auto-start if startListening was called before init completed
             // But only if not destroyed
@@ -461,7 +460,7 @@ class VoskWakeWordManager(
             speechService = HighSensitivitySpeechService(rec, SAMPLE_RATE, AUDIO_GAIN)
             speechService?.startListening(this@VoskWakeWordManager)
             _isListening.value = true
-            Log.i(TAG, "Started listening for Hindi wake word '$WAKE_WORD' with ${AUDIO_GAIN}x gain")
+            Log.i(TAG, "Started listening for wake word '$WAKE_WORD' with ${AUDIO_GAIN}x gain")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start speech service: ${e.message}", e)
             _initError.value = "Failed to start: ${e.message}"
@@ -926,10 +925,22 @@ class VoskWakeWordManager(
                         wakeWordTriggered = false
                     }
                 } else {
-                    // SECURITY FIX: Not enrolled - REJECT and require enrollment
-                    Log.w(TAG, "No speaker enrolled - REJECTING (enrollment required)")
-                    Log.d(TAG, "VOSK_SPEECH [REJECTED]: No voice enrollment found")
-                    wakeWordTriggered = false
+                    // Not enrolled - allow wake word without verification
+                    Log.i(TAG, "No speaker enrolled - allowing wake word without verification")
+                    
+                    // Stop listening and trigger callback
+                    stopListening()
+                    if (!isDestroyed) {
+                        try {
+                            scope.launch(Dispatchers.Main) {
+                                if (!isDestroyed) {
+                                    onWakeWordDetected()
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to launch wake word callback: ${e.message}")
+                        }
+                    }
                 }
             }
         } catch (e: Exception) {

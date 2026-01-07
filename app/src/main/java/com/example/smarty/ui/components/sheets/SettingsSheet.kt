@@ -48,6 +48,15 @@ fun SettingsSheet(
     onRefreshModels: (AIProvider) -> Unit,
     getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
     onSignOut: () -> Unit,
+    // AI Memory
+    aiMemories: List<com.example.smarty.data.model.AIMemory> = emptyList(),
+    onDeleteAIMemory: (com.example.smarty.data.model.AIMemory) -> Unit = {},
+    onClearAllAIMemories: () -> Unit = {},
+    onSyncAIMemories: () -> Unit = {},
+    isMemorySyncInProgress: Boolean = false,
+    memorySyncResult: String? = null,
+    unreadForMemoryCount: Int = 0,
+    onClearMemorySyncResult: () -> Unit = {},
     // Embedded content for sub-sheets
     archiveContent: @Composable (onDismiss: () -> Unit) -> Unit,
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
@@ -92,7 +101,16 @@ fun SettingsSheet(
             getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,
             archiveContent = archiveContent,
-            backupContent = backupContent
+            backupContent = backupContent,
+            // AI Memory
+            aiMemories = aiMemories,
+            onDeleteAIMemory = onDeleteAIMemory,
+            onClearAllAIMemories = onClearAllAIMemories,
+            onSyncAIMemories = onSyncAIMemories,
+            isMemorySyncInProgress = isMemorySyncInProgress,
+            memorySyncResult = memorySyncResult,
+            unreadForMemoryCount = unreadForMemoryCount,
+            onClearMemorySyncResult = onClearMemorySyncResult
         )
     }
 }

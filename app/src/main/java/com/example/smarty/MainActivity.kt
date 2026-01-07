@@ -308,25 +308,11 @@ class MainActivity : ComponentActivity() {
                 val aiMemories by viewModel.aiMemories.collectAsState()
                 val isMemorySyncInProgress by viewModel.isMemorySyncInProgress.collectAsState()
                 val memorySyncResult by viewModel.memorySyncResult.collectAsState()
-                var unreadForMemoryCount by remember { mutableIntStateOf(0) }
+                val unreadForMemoryCount by viewModel.unreadForMemoryCount.collectAsState()
                 
-                // Load unread count when screen appears
-                // Add a small delay to ensure database callback (ensureMemoryReadFlagsReset) completes first
-                LaunchedEffect(Unit) {
-                    kotlinx.coroutines.delay(500) // Wait for database callback to complete
-                    unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
-                }
-                
-                // Refresh count after sync completes
-                LaunchedEffect(isMemorySyncInProgress) {
-                    if (!isMemorySyncInProgress) {
-                        unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
-                    }
-                }
-                
-                // Also refresh count when notes change (in case notes are added/modified)
+                // Refresh count when notes change (in case notes are added/modified)
                 LaunchedEffect(notes) {
-                    unreadForMemoryCount = viewModel.getUnreadForMemoryCount()
+                    viewModel.refreshUnreadForMemoryCount()
                 }
 
                 // Trigger audio playback when AI agent requests it

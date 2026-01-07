@@ -464,6 +464,9 @@ interface NoteDao {
     @Query("SELECT COUNT(*) FROM notes WHERE (isReadForMemory = 0 OR isReadForMemory IS NULL) AND isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
     suspend fun getUnreadForMemoryCount(): Int
 
+    @Query("SELECT COUNT(*) FROM notes WHERE (isReadForMemory = 0 OR isReadForMemory IS NULL) AND isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
+    fun getUnreadForMemoryCountSync(): Int
+
     /**
      * Reset memory read status for all notes (for re-analysis).
      */

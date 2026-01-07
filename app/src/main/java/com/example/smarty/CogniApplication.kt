@@ -37,7 +37,7 @@ class CogniApplication : Application(), Configuration.Provider {
      */
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
-            .setMinimumLoggingLevel(Log.INFO)
+            .setMinimumLoggingLevel(Log.DEBUG) // Changed to DEBUG to see WorkManager logs
             .setMaxSchedulerLimit(20) // Limit concurrent jobs to prevent resource exhaustion
             .build()
 
@@ -68,6 +68,10 @@ class CogniApplication : Application(), Configuration.Provider {
         com.example.smarty.worker.DailyDigestWorker.createNotificationChannel(this)
         com.example.smarty.worker.DailyDigestWorker.schedule(this)
         Log.d(TAG, "Daily digest scheduled for 6:30 AM")
+
+        // Setup automated memory sync worker (daily)
+        com.example.smarty.worker.MemorySyncWorker.schedule(this)
+        Log.d(TAG, "Automated memory sync scheduled")
     }
 
     override fun onTerminate() {

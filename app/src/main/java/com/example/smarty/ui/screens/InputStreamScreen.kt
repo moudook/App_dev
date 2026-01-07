@@ -1771,7 +1771,16 @@ fun InputStreamScreen(
             getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,
             archiveContent = archiveContentForSettings,
-            backupContent = backupContent
+            backupContent = backupContent,
+            // AI Memory
+            aiMemories = aiMemories,
+            onDeleteAIMemory = onDeleteAIMemory,
+            onClearAllAIMemories = onClearAllAIMemories,
+            onSyncAIMemories = onSyncAIMemories,
+            isMemorySyncInProgress = isMemorySyncInProgress,
+            memorySyncResult = memorySyncResult,
+            unreadForMemoryCount = unreadForMemoryCount,
+            onClearMemorySyncResult = onClearMemorySyncResult
         )
     }
 

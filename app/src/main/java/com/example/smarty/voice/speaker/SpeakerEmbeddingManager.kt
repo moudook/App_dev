@@ -25,9 +25,9 @@ import kotlin.math.sqrt
  * - "Speaker Identification Using GMM with MFCC" (ResearchGate)
  * - "Voice Biometrics: The Essential Guide" (Phonexia)
  *
- * Enrollment phrases (phonetically balanced for Hindi):
+ * Enrollment phrases (optimized for "Jarvis" detection):
  * 1. Numbers: "एक दो तीन चार पाँच छह सात आठ नौ दस"
- * 2. Wake word phrase: "जादूगर सुनो"
+ * 2. Wake word phrase: "Jarvis, are you there?"
  * 3. Identity phrase: "यह मेरी आवाज़ है"
  * 4. Common phrase: "आज का दिन बहुत अच्छा है"
  */
@@ -66,8 +66,8 @@ class SpeakerEmbeddingManager(private val context: Context) {
     private var cachedEmbedding: DoubleArray? = null
 
     /**
-     * Enrollment phrases for Hindi voice enrollment.
-     * Updated with diverse sentences to capture different vocal tones and variations.
+     * Enrollment phrases for voice enrollment.
+     * Diversity ensures robustness across different tones.
      */
     val enrollmentPhrases = listOf(
         EnrollmentPhrase(
@@ -79,23 +79,23 @@ class SpeakerEmbeddingManager(private val context: Context) {
         ),
         EnrollmentPhrase(
             id = "question_complex",
-            hindi = "तो जादूगर एजेंटिक काम में स्पीड कैसे लाएगा?",
-            transliteration = "Toh Jadugar agentic kaam mein speed kaise layega?",
-            english = "Then how will Jadugar achieve speed in agentic tasks?",
+            hindi = "तो Jarvis काम में स्पीड कैसे लाएगा?",
+            transliteration = "Toh Jarvis kaam mein speed kaise layega?",
+            english = "Then how will Jarvis achieve speed in tasks?",
             purpose = "Inquisitive/Complex tone"
         ),
         EnrollmentPhrase(
             id = "trigger_direct",
-            hindi = "हे जादूगर, यह ट्रिगर वर्ड है",
-            transliteration = "Hey Jadugar, yeh trigger word hai",
-            english = "\"Hey Jadugar\" is the trigger word",
+            hindi = "हे Jarvis, यह ट्रिगर वर्ड है",
+            transliteration = "Hey Jarvis, yeh trigger word hai",
+            english = "\"Hey Jarvis\" is the trigger word",
             purpose = "Command/Direct tone"
         ),
         EnrollmentPhrase(
             id = "comparison",
-            hindi = "औरों में और जादूगर में क्या फर्क है?",
-            transliteration = "Auron mein aur Jadugar mein kya fark hai?",
-            english = "What is the difference between others and Jadugar?",
+            hindi = "औरों में और Jarvis में क्या फर्क है?",
+            transliteration = "Auron mein aur Jarvis mein kya fark hai?",
+            english = "What is the difference between others and Jarvis?",
             purpose = "Comparative tone"
         )
     )

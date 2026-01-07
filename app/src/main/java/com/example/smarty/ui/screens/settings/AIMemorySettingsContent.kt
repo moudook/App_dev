@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -21,16 +22,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.data.model.MemoryType
-import com.example.smarty.ui.LocalAccentColor
-import java.text.SimpleDateFormat
-import java.util.*
 
 /**
  * =============================================================================
@@ -50,7 +49,6 @@ fun AIMemorySettingsContent(
     onDeleteMemory: (AIMemory) -> Unit,
     onClearAllMemories: () -> Unit,
     onDismiss: () -> Unit,
-    // Sync functionality
     onSyncMemories: () -> Unit = {},
     isSyncing: Boolean = false,
     syncResult: String? = null,
@@ -60,284 +58,170 @@ fun AIMemorySettingsContent(
 ) {
     var showClearAllDialog by remember { mutableStateOf(false) }
     var memoryToDelete by remember { mutableStateOf<AIMemory?>(null) }
-    val accentColor = LocalAccentColor.current
-
+    
+    // Centralized Layout Container
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // 1. Centralized Minimalist Header
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            modifier = Modifier.size(64.dp)
         ) {
-            Column {
-                Text(
-                    text = "AI Memory",
-                    style = MaterialTheme.typography.headlineMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-                Text(
-                    text = "${memories.size} memories stored",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Clear All Button
-            if (memories.isNotEmpty()) {
-                FilledTonalButton(
-                    onClick = { showClearAllDialog = true },
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteForever,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Clear All")
-                }
-            }
-        }
-
-        // Info Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = accentColor.copy(alpha = 0.1f)
-            )
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.Top
-            ) {
+            Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Outlined.Psychology,
                     contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(24.dp)
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(32.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "What is AI Memory?",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "AI memories help personalize your experience. The AI learns your preferences, patterns, and style to provide better assistance. These are abstract insights only—no private note content is stored.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "Personal Intelligence",
+            style = MaterialTheme.typography.headlineSmall.copy(
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
+        )
+        
+        Text(
+            text = "${memories.size} insights extracted",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
 
-        // Sync Notes Button Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            )
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 2. Combined Sync & Status Action
+        // Minimalist pill that expands for sync status
+        Surface(
+            onClick = onSyncMemories,
+            enabled = !isSyncing,
+            shape = RoundedCornerShape(50), // Fully rounded pill
+            color = if (unreadNotesCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+            modifier = Modifier.height(48.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
+            Row(
+                modifier = Modifier.padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Learn from Notes",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        
-                        // FIX: Null-State Conflation Prevention
-                        // Cross-reference memories.size with unreadNotesCount
-                        // Never say "All analyzed" if no memories exist - processing likely never ran!
-                        val statusText = when {
-                            // Case 1: Notes pending analysis
-                            unreadNotesCount > 0 -> "$unreadNotesCount notes not yet analyzed"
-                            
-                            // Case 2: No pending notes AND memories exist -> truly done
-                            memories.isNotEmpty() -> "All notes have been analyzed"
-                            
-                            // Case 3: No pending notes BUT no memories either
-                            // This is the FALSE POSITIVE case - processing never ran!
-                            // Allow sync to run the analysis
-                            else -> "Tap Sync to analyze your notes"
-                        }
-                        
-                        Text(
-                            text = statusText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
-                    // FIX: Enable button if either:
-                    // 1. There are unread notes, OR
-                    // 2. No memories exist (processing likely never ran)
-                    val shouldEnableSync = !isSyncing && (unreadNotesCount > 0 || memories.isEmpty())
-                    
-                    Button(
-                        onClick = onSyncMemories,
-                        enabled = shouldEnableSync,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        if (isSyncing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Syncing...")
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Sync,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Sync")
-                        }
-                    }
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Analyzing Notes...",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (unreadNotesCount > 0) Icons.Default.CloudSync else Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (unreadNotesCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (unreadNotesCount > 0) "Sync $unreadNotesCount New Notes" else "Memory Up to Date",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (unreadNotesCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                
-                // Sync Result Message
-                AnimatedVisibility(
-                    visible = syncResult != null,
-                    enter = fadeIn() + slideInVertically(),
-                    exit = fadeOut() + slideOutVertically()
+            }
+        }
+        
+        // Sync Result Toast (Centralized)
+        AnimatedVisibility(
+            visible = syncResult != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut()
+        ) {
+            syncResult?.let { result ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .background(
+                            color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.8f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    syncResult?.let { result ->
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (result.startsWith("Failed")) 
-                                MaterialTheme.colorScheme.errorContainer
-                            else 
-                                MaterialTheme.colorScheme.tertiaryContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (result.startsWith("Failed")) 
-                                        Icons.Default.Error 
-                                    else 
-                                        Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = if (result.startsWith("Failed")) 
-                                        MaterialTheme.colorScheme.error
-                                    else 
-                                        MaterialTheme.colorScheme.tertiary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = result,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = onClearSyncResult,
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
+                    Text(
+                        text = result,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.inverseOnSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = onClearSyncResult,
+                        modifier = Modifier.size(16.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close, 
+                            null, 
+                            tint = MaterialTheme.colorScheme.inverseOnSurface
+                        )
                     }
                 }
             }
         }
 
-        // Memory List
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // 3. Centralized Memory List
         if (memories.isEmpty()) {
-            // Empty State
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 48.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.size(72.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Memory,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "No memories yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "The AI will learn from your conversations",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "No patterns detected yet.\nStart writing notes to build your profile.",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth()
             ) {
-                items(
-                    items = memories,
-                    key = { it.id }
-                ) { memory ->
-                    MemoryCard(
+                items(memories, key = { it.id }) { memory ->
+                    MemoryChip(
                         memory = memory,
                         onDelete = { memoryToDelete = memory }
                     )
                 }
-
+                
+                // Clear All at bottom of list
                 item {
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TextButton(
+                        onClick = { showClearAllDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Clear Learning Data",
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             }
         }
@@ -347,34 +231,20 @@ fun AIMemorySettingsContent(
     if (memoryToDelete != null) {
         AlertDialog(
             onDismissRequest = { memoryToDelete = null },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
-            },
-            title = { Text("Delete Memory?") },
-            text = {
-                Text("This will remove this memory. The AI may re-learn it from future conversations.")
-            },
+            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Forget this insight?") },
+            text = { Text("The AI will stop using this behavioral pattern for personalization.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         memoryToDelete?.let { onDeleteMemory(it) }
                         memoryToDelete = null
                     },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Delete")
-                }
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Forget") }
             },
             dismissButton = {
-                TextButton(onClick = { memoryToDelete = null }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { memoryToDelete = null }) { Text("Cancel") }
             }
         )
     }
@@ -383,186 +253,115 @@ fun AIMemorySettingsContent(
     if (showClearAllDialog) {
         AlertDialog(
             onDismissRequest = { showClearAllDialog = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.DeleteForever,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
-            },
-            title = { Text("Clear All Memories?") },
-            text = {
-                Text("This will delete all ${memories.size} memories. The AI will start learning about you from scratch.")
-            },
+            icon = { Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Reset Personal Intelligence?") },
+            text = { Text("All ${memories.size} extracted insights will be deleted. This cannot be undone.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         onClearAllMemories()
                         showClearAllDialog = false
                     },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Clear All")
-                }
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("Reset All") }
             },
             dismissButton = {
-                TextButton(onClick = { showClearAllDialog = false }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showClearAllDialog = false }) { Text("Cancel") }
             }
         )
     }
 }
 
 @Composable
-private fun MemoryCard(
+private fun MemoryChip(
     memory: AIMemory,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val (icon, iconColor) = when (memory.type) {
-        MemoryType.PREFERENCE -> Icons.Default.Tune to MaterialTheme.colorScheme.primary
-        MemoryType.PATTERN -> Icons.Default.Timeline to MaterialTheme.colorScheme.secondary
-        MemoryType.STYLE -> Icons.Default.Style to MaterialTheme.colorScheme.tertiary
-        MemoryType.FACT -> Icons.Default.Info to LocalAccentColor.current
+    var expanded by remember { mutableStateOf(false) }
+
+    // Dynamic coloring based strictly on Theme
+    val containerColor = when(memory.type) {
+        MemoryType.PREFERENCE -> MaterialTheme.colorScheme.primaryContainer
+        MemoryType.PATTERN -> MaterialTheme.colorScheme.tertiaryContainer
+        MemoryType.STYLE -> MaterialTheme.colorScheme.secondaryContainer
+        MemoryType.FACT -> MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    
+    val contentColor = when(memory.type) {
+        MemoryType.PREFERENCE -> MaterialTheme.colorScheme.onPrimaryContainer
+        MemoryType.PATTERN -> MaterialTheme.colorScheme.onTertiaryContainer
+        MemoryType.STYLE -> MaterialTheme.colorScheme.onSecondaryContainer
+        MemoryType.FACT -> MaterialTheme.colorScheme.onSurface
     }
 
-    val typeLabel = when (memory.type) {
-        MemoryType.PREFERENCE -> "Preference"
-        MemoryType.PATTERN -> "Pattern"
-        MemoryType.STYLE -> "Style"
-        MemoryType.FACT -> "Fact"
-    }
-
-    val dateFormatter = remember { SimpleDateFormat("MMM d", Locale.getDefault()) }
-    val formattedDate = remember(memory.lastUsedAt) {
-        dateFormatter.format(Date(memory.lastUsedAt))
-    }
-
-    Card(
+    Surface(
+        onClick = { expanded = !expanded },
         modifier = modifier
             .fillMaxWidth()
-            .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
-            ),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        elevation = CardDefaults.cardElevation(0.dp)
+            .animateContentSize(),
+        shape = RoundedCornerShape(16.dp), // Comfortable rounded corners
+        color = containerColor
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.Top
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            // Type Icon
-            Surface(
-                shape = CircleShape,
-                color = iconColor.copy(alpha = 0.15f),
-                modifier = Modifier.size(40.dp)
+            Row(
+                verticalAlignment = Alignment.Top
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = iconColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Content
-            Column(modifier = Modifier.weight(1f)) {
-                // Type Label + Date
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = iconColor.copy(alpha = 0.1f)
-                    ) {
-                        Text(
-                            text = typeLabel,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.SemiBold
-                            ),
-                            color = iconColor,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    Text(
-                        text = formattedDate,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Memory Content
-                Text(
-                    text = memory.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                // Confidence & Usage
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Confidence Badge
-                    val confidencePercent = (memory.confidence * 100).toInt()
-                    val confidenceColor = when {
-                        confidencePercent >= 80 -> MaterialTheme.colorScheme.primary
-                        confidencePercent >= 50 -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.error
-                    }
-                    Text(
-                        text = "${confidencePercent}% confident",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = confidenceColor.copy(alpha = 0.8f)
-                    )
-
-                    if (memory.usageCount > 1) {
-                        Text(
-                            text = "• Used ${memory.usageCount}x",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Delete Button
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(32.dp)
-            ) {
+                // Type Indicator (Small, centralized label)
                 Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Delete memory",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(18.dp)
+                    imageVector = when(memory.type) {
+                        MemoryType.PREFERENCE -> Icons.Default.Tune
+                        MemoryType.PATTERN -> Icons.Default.Timeline
+                        MemoryType.STYLE -> Icons.Default.Style
+                        MemoryType.FACT -> Icons.Default.Info
+                    },
+                    contentDescription = null,
+                    tint = contentColor.copy(alpha = 0.7f),
+                    modifier = Modifier.size(16.dp).offset(y = 2.dp)
                 )
+                
+                Spacer(modifier = Modifier.width(12.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = memory.content,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = contentColor,
+                        maxLines = if (expanded) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    
+                    if (expanded) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = memory.type.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contentColor.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+                
+                if (expanded) {
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(20.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Remove",
+                            tint = contentColor.copy(alpha = 0.5f)
+                        )
+                    }
+                }
             }
         }
     }
 }
+
+// Helper color import if needed
+// import androidx.compose.ui.graphics.Color
+// import androidx.compose.foundation.BorderStroke

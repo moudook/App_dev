@@ -541,6 +541,37 @@ Otherwise, just answer the question directly.
     }
 
     /**
+     * Build personalized context from AI memories.
+     * Fetches top recent and top most-used memories to provide user insights.
+     */
+    private suspend fun buildMemoryContext(): String {
+        return try {
+            // Fetch relevant memories
+            val recent = aiMemoryDao.getRecentMemories(7)
+            val topUsed = aiMemoryDao.getMostUsedMemories(7)
+
+            // Combine and deduplicate
+            val combined = (recent + topUsed).distinctBy { it.id }
+
+            if (combined.isEmpty()) return ""
+
+            buildString {
+                appendLine("\n<user_memory>")
+                appendLine("The following insights were learned from the user's notes and interactions:")
+                combined.forEach { memory ->
+                    appendLine("- [${memory.type}]: ${memory.content}")
+                    // Increment usage to maintain relevance tracking
+                    aiMemoryDao.incrementUsage(memory.id)
+                }
+                appendLine("</user_memory>")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error building memory context: ${e.message}")
+            ""
+        }
+    }
+
+    /**
      * Run the agent with a user message and conversation history.
      * Automatically tries all available providers/keys in priority order with failover.
      * Records success/failure with ProviderFailoverManager for circuit breaker pattern.
@@ -699,7 +730,8 @@ Otherwise, just answer the question directly.
 
         // Build full prompt with context, examples, history, thinking mode, mentions, and current message
         // BATCH-3C: Use masked query from optimizer for PII protection
-        val fullPrompt = buildContext() + historySection + thinkingContextSection + mentionContextSection + "USER: ${processed.maskedQuery}"
+        val memorySection = buildMemoryContext()
+        val fullPrompt = buildContext() + memorySection + historySection + thinkingContextSection + mentionContextSection + "USER: ${processed.maskedQuery}"
         val toolRegistry = buildToolRegistry()
 
         // BATCH-3C: Token estimation pre-check to prevent context window overflow
@@ -788,7 +820,7 @@ Otherwise, just answer the question directly.
                     Log.d(TAG, "Plan loop iteration $planLoopIterations")
                     
                     // Rebuild context with current plan state
-                    val currentPrompt = buildContext() + examplesSection + historySection + 
+                    val currentPrompt = buildContext() + memorySection + examplesSection + historySection + 
                         thinkingContextSection + mentionContextSection + 
                         "USER: ${processed.maskedQuery}"
                     

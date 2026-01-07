@@ -180,24 +180,36 @@ class AIService(private val securePreferences: SecurePreferences) {
         try {
             withTimeout(timeoutMs) {
                 val providers = orchestrator.getOrderedProviders()
+                val configs = orchestrator.getAllProviderConfigs()
 
                 for (provider in providers) {
-                    val keys = securePreferences.getProviderKeys(provider)
-                    if (keys.isEmpty()) continue
+                    val config = configs[provider]
+                    
+                    // Respect the user's "Enabled" setting
+                    if (!orchestrator.isProviderAvailable(config)) {
+                        continue
+                    }
 
                     val providerInstance = orchestrator.getProvider(provider)
                     val model = orchestrator.getModelForProvider(provider)
+                    
+                    val keys = config?.apiKeys ?: emptyList()
+                    val keyToUse = if (provider == AIProvider.LOCAL_PC) "local_pc_no_key" else keys.firstOrNull() ?: continue
+                    
+                    Log.i(TAG, "simpleChat: Attempting $provider with model $model")
 
                     val result = providerInstance.chat(
                         systemPrompt = systemPrompt,
                         userPrompt = userPrompt,
-                        apiKey = keys.first(),
+                        apiKey = keyToUse,
                         model = model
                     )
 
                     if (result != null) {
                         Log.d(TAG, "simpleChat succeeded with $provider")
                         return@withTimeout result
+                    } else {
+                        Log.w(TAG, "simpleChat: $provider returned null result")
                     }
                 }
 

@@ -34,11 +34,15 @@ class CreateNoteTool(
 ) {
     override suspend fun execute(args: CreateNoteArgs): NoteOperationResult {
         return try {
-            if (args.content.isBlank()) {
+            // Robust validation for content
+            val contentStr = args.content.trim()
+            if (contentStr.isBlank() || 
+                contentStr.equals("null", ignoreCase = true) || 
+                contentStr.equals("EMPTY_RESULT", ignoreCase = true)) {
                 return NoteOperationResult(
                     success = false,
-                    message = "Content cannot be empty",
-                    error = "Empty content"
+                    message = "I didn't find any meaningful content to save as a note.",
+                    error = "Null or empty content provided"
                 )
             }
 

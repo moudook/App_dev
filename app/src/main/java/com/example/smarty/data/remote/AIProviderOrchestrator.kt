@@ -116,8 +116,12 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
         val userPriority = ProviderPriorityResolver.getOrderedProviders(
             securePreferences.getProviderPriority()
         )
-        // Filter and reorder based on health status
-        return failoverManager.getOrderedHealthyProviders(userPriority)
+        // 1. Filter and reorder based on health status (circuit breaker)
+        val healthy = failoverManager.getOrderedHealthyProviders(userPriority)
+        
+        // 2. Filter by user's "Enabled" toggle and mandatory key presence
+        val configs = getAllProviderConfigs()
+        return healthy.filter { isProviderAvailable(configs[it]) }
     }
 
     /**

@@ -117,6 +117,10 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             // No-op for assist mode
         }
 
+        override suspend fun markNoteAsAnalyzedForMemory(noteId: String) {
+            // No-op for assist mode: memory analysis is handled by main app
+        }
+
         override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
             return notes.find { note ->
                 note.title.contains(description, ignoreCase = true) ||

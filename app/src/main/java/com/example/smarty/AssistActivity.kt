@@ -212,6 +212,11 @@ class AssistActivity : ComponentActivity() {
                 processingStatus = ProcessingStatus.COMPLETED
             ))
         }
+
+        override suspend fun markNoteAsAnalyzedForMemory(noteId: String) {
+            database.noteDao().markNoteAsReadForMemory(noteId)
+        }
+
         override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
             return notes.find { it.title.contains(description, ignoreCase = true) || it.content.contains(description, ignoreCase = true) }
         }

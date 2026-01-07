@@ -70,6 +70,7 @@ screenshot*.png
 # Speech Recognition Models (see README for download instructions)
 vosk-model-*/
 app/src/main/assets/vosk-model-*/
+!app/src/main/assets/vosk-model-*/uuid
 
 # Text-to-Speech Models (downloadable)
 app/src/main/assets/tts_models/
@@ -80,7 +81,7 @@ AUDIO_effects/
 
 for_my_reference/
 system-prompts-and-models-of-ai-tools-main/
-
+optimization-analysis-report/
 
 # LLM Server Binaries (Ignore all except startup scripts)
 LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/*
