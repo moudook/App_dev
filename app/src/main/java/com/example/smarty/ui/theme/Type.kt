@@ -8,7 +8,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
- * Cogni Typography System - Modern Soft Minimalist
+ * Jarvis Typography System - Modern Soft Minimalist
  *
  * Font: Inter (Geometric Sans-Serif)
  * - Headings: Bold/700, tight tracking (-0.02em)
@@ -53,7 +53,7 @@ val GoogleSans = FontFamily(
 val InterFont = GoogleSans  // Alias InterFont to GoogleSans to apply global change
 val MonoFont = FontFamily.Monospace   // For code/terminal elements
 
-val CogniTypography = Typography(
+val JarvisTypography = Typography(
     // Display styles - Hero/H1 (32sp)
     displayLarge = TextStyle(
         fontFamily = InterFont,

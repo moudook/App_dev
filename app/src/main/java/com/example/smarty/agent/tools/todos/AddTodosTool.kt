@@ -2,12 +2,12 @@ package com.example.smarty.agent.tools.todos
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
-import com.example.smarty.agent.tools.base.CogniToolUtils
+import com.example.smarty.agent.tools.base.JarvisToolUtils
 import com.example.smarty.agent.tools.base.TodoOperationResult
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withTodos
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -23,7 +23,7 @@ data class AddTodosArgs(
  * Respects PrivacyGuard - private notes cannot have todos added by AI.
  */
 class AddTodosTool(
-    private val repository: CogniRepository
+    private val repository: JarvisRepository
 ) : Tool<AddTodosArgs, TodoOperationResult>(
     argsSerializer = AddTodosArgs.serializer(),
     resultSerializer = TodoOperationResult.serializer(),
@@ -40,7 +40,7 @@ class AddTodosTool(
                 )
             }
 
-            val note = CogniToolUtils.getFreshAiAccessibleNote(repository, args.noteId)
+            val note = JarvisToolUtils.getFreshAiAccessibleNote(repository, args.noteId)
                 ?: return TodoOperationResult(
                     success = false,
                     message = "Note not found",  // SECURITY: Generic message - don't leak private note existence

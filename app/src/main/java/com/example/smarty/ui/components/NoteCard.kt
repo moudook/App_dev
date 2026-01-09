@@ -41,7 +41,7 @@ import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.getAttachmentCount
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.CogniEasing
+import com.example.smarty.ui.animation.JarvisEasing
 import com.example.smarty.ui.animation.animateCardTilt
 import com.example.smarty.ui.animation.animatedCardTransform
 import com.example.smarty.ui.animation.cardTilt3D

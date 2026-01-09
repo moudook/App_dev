@@ -49,7 +49,7 @@ import java.util.*
  * 
  * Design: Always-dark theme with Electric Blue accent (matches app theme)
  * - Deep dark background for immersive experience
- * - Electric Blue accent for selections (consistent with Cogni design)
+ * - Electric Blue accent for selections (consistent with Jarvis design)
  * - Dashed circles for today/weekends
  * - Gradient event cards
  * ═══════════════════════════════════════════════════════════════════════════════

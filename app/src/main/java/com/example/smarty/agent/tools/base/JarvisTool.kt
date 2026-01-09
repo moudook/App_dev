@@ -1,16 +1,16 @@
 package com.example.smarty.agent.tools.base
 
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.PrivacyGuard
 
 /**
- * Utility object for Cogni AI Agent tools with PrivacyGuard integration.
+ * Utility object for Jarvis AI Agent tools with PrivacyGuard integration.
  *
  * All tools that access notes should use these helper functions to ensure
  * privacy enforcement is consistent across the agent.
  */
-object CogniToolUtils {
+object JarvisToolUtils {
     /**
      * Get a fresh note from database with AI accessibility check.
      * Returns null if:
@@ -20,7 +20,7 @@ object CogniToolUtils {
      *
      * SECURITY: This is the ONLY way tools should access notes by ID.
      */
-    suspend fun getFreshAiAccessibleNote(repository: CogniRepository, noteId: String): Note? {
+    suspend fun getFreshAiAccessibleNote(repository: JarvisRepository, noteId: String): Note? {
         val freshNote = repository.getNoteById(noteId) ?: return null
         return if (PrivacyGuard.canAiProcess(freshNote)) freshNote else null
     }

@@ -3,7 +3,7 @@ package com.example.smarty.agent.tools.calendar
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -49,7 +49,7 @@ data class DeleteDayEventsResult(
  * PRIVACY: Only deletes non-private events. Private events are protected.
  */
 class DeleteDayEventsTool(
-    private val repository: CogniRepository
+    private val repository: JarvisRepository
 ) : Tool<DeleteDayEventsArgs, DeleteDayEventsResult>(
     argsSerializer = DeleteDayEventsArgs.serializer(),
     resultSerializer = DeleteDayEventsResult.serializer(),

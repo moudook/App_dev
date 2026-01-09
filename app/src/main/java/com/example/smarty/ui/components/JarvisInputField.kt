@@ -72,15 +72,16 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.MentionState
 import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.CogniEasing
-import com.example.smarty.ui.animation.CogniMotion
-import com.example.smarty.ui.theme.CogniShadow
+import com.example.smarty.ui.animation.JarvisEasing
+import com.example.smarty.ui.animation.JarvisMotion
+import com.example.smarty.ui.theme.JarvisShadow
 import com.example.smarty.ui.animation.halftoneShimmer
 import com.example.smarty.ui.animation.directionalShimmer
 import com.example.smarty.ui.animation.ShimmerDirection
@@ -130,7 +131,7 @@ private val HORIZONTAL_PADDING = 12.dp
  * REDESIGNED INPUT BLOCK
  * 
  * Design Principles:
- * - Comfortable, calm, low cognitive load
+ * - Comfortable, calm, low Jarvistive load
  * - Intentionally minimal
  * - Clear visual hierarchy: Circles (actions) vs Pill (input)
  * - Perfect circles, horizontal pill shape
@@ -145,7 +146,7 @@ private val HORIZONTAL_PADDING = 12.dp
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 @Composable
-fun CogniInputField(
+fun JarvisInputField(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
     onSubmit: () -> Unit,
@@ -164,7 +165,8 @@ fun CogniInputField(
     isChatMode: Boolean = false,
     isHistoryMode: Boolean = false, // New parameter
     chatPlaceholder: String = "Ask anything...",
-    aiPlanStatus: String? = null, // e.g. "Loum is planning..."
+    aiPlanStatus: String? = null, // e.g. "Jarvis is planning..."
+    currentTool: String? = null,
     isProcessing: Boolean = false,
     onOpenChatHistory: () -> Unit = {},
     onNewChat: () -> Unit = {}, // New parameter
@@ -430,6 +432,7 @@ fun CogniInputField(
             }
         }
 
+
         // ═══════════════════════════════════════════════════════════════════
         // @MENTION AUTOCOMPLETE DROPDOWN (Chat mode only, above input)
         // ═══════════════════════════════════════════════════════════════════
@@ -531,7 +534,7 @@ fun CogniInputField(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         scope.launch {
                             flyAnimation.snapTo(0f)
-                            flyAnimation.animateTo(1f, tween(300, easing = CogniEasing.appleEaseOut))
+                            flyAnimation.animateTo(1f, tween(300, easing = JarvisEasing.appleEaseOut))
                             delay(50)
                             flyAnimation.snapTo(0f)
                         }

@@ -3,7 +3,7 @@ package com.example.smarty.agent.tools
 import com.example.smarty.agent.tools.notes.CreateNoteArgs
 import com.example.smarty.agent.tools.notes.CreateNoteTool
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -24,7 +24,7 @@ import org.robolectric.RobolectricTestRunner
  */
 class CreateNoteToolTest {
 
-    private lateinit var repository: CogniRepository
+    private lateinit var repository: JarvisRepository
     private lateinit var createNoteTool: CreateNoteTool
     private var processedNote: Note? = null
 

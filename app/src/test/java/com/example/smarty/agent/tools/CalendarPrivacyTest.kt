@@ -2,7 +2,7 @@ package com.example.smarty.agent.tools
 
 import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -21,7 +21,7 @@ import org.junit.Test
 class CalendarPrivacyTest {
 
     private lateinit var calendarDao: CalendarDao
-    private lateinit var repository: CogniRepository
+    private lateinit var repository: JarvisRepository
     private lateinit var testEvents: List<CalendarEvent>
 
     private fun createEvent(
@@ -78,7 +78,7 @@ class CalendarPrivacyTest {
             testEvents.find { it.id == firstArg() }
         }
 
-        repository = CogniRepository(
+        repository = JarvisRepository(
             noteDao = mockk(relaxed = true),
             categoryDao = mockk(relaxed = true),
             calendarDao = calendarDao

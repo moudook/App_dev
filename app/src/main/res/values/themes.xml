@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.Smarty" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.Jarvis" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <!-- Gemini-Style Transparent Overlay - Crystal Clear Background -->
-    <style name="Theme.Smarty.Assistant" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.Jarvis.Assistant" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowContentOverlay">@null</item>
@@ -31,7 +31,7 @@
     </style>
 
     <!-- Legacy transparent theme (kept for backwards compat) -->
-    <style name="Theme.Smarty.Transparent" parent="Theme.Smarty.Assistant" />
+    <style name="Theme.Jarvis.Transparent" parent="Theme.Jarvis.Assistant" />
 
     <!-- Slide-up animation for assistant overlay -->
     <style name="AssistSlideAnimation">

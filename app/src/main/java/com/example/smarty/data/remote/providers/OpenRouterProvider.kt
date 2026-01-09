@@ -30,14 +30,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
  *
  * @property client OkHttp client for making requests
  * @property gson Gson instance for JSON serialization
- * @property appReferer The app's URL for attribution (e.g., "https://cogni.app")
- * @property appTitle The app's name for attribution (e.g., "Cogni")
+ * @property appReferer The app's URL for attribution (e.g., "https://Jarvis.app")
+ * @property appTitle The app's name for attribution (e.g., "Jarvis")
  */
 class OpenRouterProvider(
     private val client: OkHttpClient,
     private val gson: Gson,
-    private val appReferer: String = "https://cogni.app",
-    private val appTitle: String = "Cogni"
+    private val appReferer: String = "https://Jarvis.app",
+    private val appTitle: String = "Jarvis"
 ) : AIProviderContract {
 
     override val providerName: String = "OpenRouter"

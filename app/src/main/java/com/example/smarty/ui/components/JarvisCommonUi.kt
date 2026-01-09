@@ -30,10 +30,10 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ElectricBlue
 
 /**
- * Standard Primary Button for Smarty App
+ * Standard Primary Button for Jarvis App
  */
 @Composable
-fun CogniButton(
+fun JarvisButton(
     onClick: () -> Unit,
     text: String,
     modifier: Modifier = Modifier,
@@ -76,10 +76,10 @@ fun CogniButton(
 }
 
 /**
- * Standard Outlined Text Field for Smarty App
+ * Standard Outlined Text Field for Jarvis App
  */
 @Composable
-fun CogniOutlinedTextField(
+fun JarvisOutlinedTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
@@ -142,7 +142,7 @@ fun CogniOutlinedTextField(
  * (Simplified placeholder for visual consistency)
  */
 @Composable
-fun CogniGoogleButton(
+fun JarvisGoogleButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false

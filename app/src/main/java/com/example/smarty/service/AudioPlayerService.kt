@@ -42,7 +42,7 @@ class AudioPlayerService : MediaSessionService() {
 
     companion object {
         private const val TAG = "AudioPlayerService"
-        private const val NOTIFICATION_CHANNEL_ID = "cogni_audio_player"
+        private const val NOTIFICATION_CHANNEL_ID = "Jarvis_audio_player"
         private const val NOTIFICATION_ID = 1001
 
         // Action constants

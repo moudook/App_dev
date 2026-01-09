@@ -6,7 +6,7 @@ import android.os.Build
 import android.provider.OpenableColumns
 import com.example.smarty.BuildConfig
 import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.DriveService
 import com.google.gson.Gson
@@ -49,7 +49,7 @@ import java.util.zip.ZipOutputStream
  */
 class BackupManager(
     private val context: Context,
-    private val database: CogniDatabase,
+    private val database: JarvisDatabase,
     private val securePreferences: SecurePreferences,
     private val driveService: DriveService
 ) {
@@ -195,7 +195,7 @@ class BackupManager(
 
                 // Create ZIP file
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val zipFileName = "cogni_backup_$timestamp.zip"
+                val zipFileName = "Jarvis_backup_$timestamp.zip"
                 val zipFile = File(context.cacheDir, zipFileName)
 
                 createZipFile(tempDir, zipFile)

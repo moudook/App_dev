@@ -3,7 +3,7 @@ package com.example.smarty.viewmodel.managers
 import android.util.Log
 import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.model.CogniTimer
+import com.example.smarty.data.model.JarvisTimer
 import com.example.smarty.service.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -291,15 +291,15 @@ class CalendarManager(
     // ==================== Alarm/Reminder Operations ====================
 
     /**
-     * Schedule a reminder alarm for an event using CogniTimer.
+     * Schedule a reminder alarm for an event using JarvisTimer.
      * Creates a one-time timer that fires at the reminder time.
      */
     private fun scheduleReminder(event: CalendarEvent, minutesBefore: Int) {
         alarmScheduler?.let { scheduler ->
             val reminderTime = event.startTime - (minutesBefore * 60 * 1000L)
             if (reminderTime > System.currentTimeMillis()) {
-                // Create a CogniTimer for the event reminder
-                val timer = CogniTimer(
+                // Create a JarvisTimer for the event reminder
+                val timer = JarvisTimer(
                     id = "event_reminder_${event.id}",
                     name = "Reminder: ${event.title}",
                     triggerTime = reminderTime,

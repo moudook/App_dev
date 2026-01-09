@@ -140,7 +140,7 @@ fun ShareBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Save to Cogni",
+                    text = "Save to Jarvis",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                     ),

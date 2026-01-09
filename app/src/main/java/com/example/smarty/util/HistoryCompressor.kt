@@ -265,7 +265,7 @@ object HistoryCompressor {
                 } else {
                     val excerpt = extractKeyPoints(it.content)
                     if (excerpt.isNotBlank()) {
-                        summaryParts.add("Loum: $excerpt")
+                        summaryParts.add("Jarvis: $excerpt")
                     }
                 }
             }

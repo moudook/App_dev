@@ -41,7 +41,7 @@ class WebSearchTool(
     argsSerializer = WebSearchArgs.serializer(),
     resultSerializer = WebSearchResult.serializer(),
     name = "web_search",
-    description = """ONLY use when user says "search for". Do NOT use for questions.""".trimIndent()
+    description = """ONLY use for single web searches. For multiple searches or combined web/internal searches, use multi_query_search instead.""".trimIndent()
 ) {
     companion object {
         private const val TAG = "WebSearchTool"
@@ -50,7 +50,7 @@ class WebSearchTool(
 
         // AGENT-010: Rate limit tracking (resets on app restart)
         // NOTE: Persistence requires Context injection which WebSearchTool doesn't support.
-        // To add persistence, modify CogniAgent.buildToolRegistry() to inject SharedPreferences
+        // To add persistence, modify JarvisAgent.buildToolRegistry() to inject SharedPreferences
         // or create a singleton RateLimitTracker that can be initialized with Application context.
         private var dailyCallCount = 0
         private var lastResetDay = 0L

@@ -9,7 +9,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import com.example.smarty.BuildConfig
 import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -44,7 +44,7 @@ import java.util.zip.ZipOutputStream
  */
 class LocalBackupManager(
     private val context: Context,
-    private val database: CogniDatabase,
+    private val database: JarvisDatabase,
     private val securePreferences: SecurePreferences
 ) {
     private val gson: Gson = GsonBuilder()
@@ -188,7 +188,7 @@ class LocalBackupManager(
 
                 // Create ZIP file in local backups directory
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val zipFileName = "cogni_backup_$timestamp.zip"
+                val zipFileName = "Jarvis_backup_$timestamp.zip"
                 val zipFile = File(localBackupsDir, zipFileName)
 
                 createZipFile(tempDir, zipFile)
@@ -300,8 +300,8 @@ class LocalBackupManager(
         return Intent(Intent.ACTION_SEND).apply {
             type = "application/zip"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Cogni Backup - ${metadata.displayDate}")
-            putExtra(Intent.EXTRA_TEXT, "Cogni backup from ${metadata.displayDate}\n" +
+            putExtra(Intent.EXTRA_SUBJECT, "Jarvis Backup - ${metadata.displayDate}")
+            putExtra(Intent.EXTRA_TEXT, "Jarvis backup from ${metadata.displayDate}\n" +
                     "Contains ${metadata.noteCount} notes and ${metadata.categoryCount} categories")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }

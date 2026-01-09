@@ -87,7 +87,7 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
     // Track if playback was explicitly requested to prevent auto-hiding during state transitions
     private var isPlaybackRequested = false
 
-    // Track if paused due to speech recognition
+    // Track if paused due to speech reJarvistion
     private val _pausedDueToSpeech = MutableStateFlow(false)
 
     // Job for auto-hiding player after playback ends
@@ -171,20 +171,20 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
-     * Handle speech recognition state changes.
-     * Pauses audio when speech recognition starts and resumes when it stops.
+     * Handle speech reJarvistion state changes.
+     * Pauses audio when speech reJarvistion starts and resumes when it stops.
      */
     fun onSpeechListeningChanged(isListening: Boolean) {
         val currentState = AudioPlayerService.playerState.value
 
         if (isListening && currentState.isPlaying) {
-            // Speech recognition started while audio is playing - pause
-            Log.d(TAG, "Pausing audio for speech recognition")
+            // Speech reJarvistion started while audio is playing - pause
+            Log.d(TAG, "Pausing audio for speech reJarvistion")
             _pausedDueToSpeech.value = true
             AudioPlayerService.pause(getApplication())
         } else if (!isListening && _pausedDueToSpeech.value) {
-            // Speech recognition stopped and we previously paused - resume
-            Log.d(TAG, "Resuming audio after speech recognition")
+            // Speech reJarvistion stopped and we previously paused - resume
+            Log.d(TAG, "Resuming audio after speech reJarvistion")
             _pausedDueToSpeech.value = false
             AudioPlayerService.resume(getApplication())
         }

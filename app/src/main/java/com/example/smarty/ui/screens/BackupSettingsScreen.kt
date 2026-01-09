@@ -438,7 +438,7 @@ fun BackupSettingsScreen(
 
     // Restore confirmation dialog
     showRestoreConfirmDialog?.let { backup ->
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Restore Backup?",
             text = "This will replace all current data with the backup from ${backup.displayDate}.\n\n" +
                     "Notes: ${backup.noteCount}\n" +
@@ -456,7 +456,7 @@ fun BackupSettingsScreen(
 
     // Delete cloud backup confirmation dialog
     showDeleteConfirmDialog?.let { backup ->
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Backup?",
             text = "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
                     "This action cannot be undone.",
@@ -473,7 +473,7 @@ fun BackupSettingsScreen(
 
     // Delete local backup confirmation dialog
     showDeleteLocalBackupDialog?.let { backup ->
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Local Backup?",
             text = "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
                     "Size: ${backup.displaySize}\n" +
@@ -909,7 +909,7 @@ private fun IntervalPickerDialog(
     onDismiss: () -> Unit,
     onSelectInterval: (Int) -> Unit
 ) {
-    com.example.smarty.ui.components.common.LoumDialog(
+    com.example.smarty.ui.components.common.JarvisDialog(
         title = "Backup Interval",
         onDismiss = onDismiss,
         confirmText = "",

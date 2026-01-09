@@ -1,8 +1,9 @@
 #info
 # Ignore all markdown files globally
-.md
 *.md
-
+*.log
+build_*
+errors.txt
 # Keep README.md tracked
 !README.md
 
@@ -80,7 +81,7 @@ AUDIO_effects/
 
 
 for_my_reference/
-system-prompts-and-models-of-ai-tools-main/
+system-prompts-and-models-of-ai-tools-main
 optimization-analysis-report/
 
 # LLM Server Binaries (Ignore all except startup scripts)
@@ -123,7 +124,7 @@ tasks_and_issues.txt
 # Keep sherpa-onnx AAR for TTS
 !app/libs/sherpa-onnx.aar
 *.so
-*.log
+
 bin/
 gen/
 out/

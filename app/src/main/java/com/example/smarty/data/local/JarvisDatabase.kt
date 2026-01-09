@@ -35,7 +35,7 @@ import com.example.smarty.data.model.NoteVersion
     exportSchema = false
 )
 @TypeConverters(Converters::class)
-abstract class CogniDatabase : RoomDatabase() {
+abstract class JarvisDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun categoryDao(): CategoryDao
     abstract fun chatDao(): ChatDao
@@ -46,10 +46,10 @@ abstract class CogniDatabase : RoomDatabase() {
     abstract fun noteVersionDao(): NoteVersionDao
 
     companion object {
-        private const val TAG = "CogniDatabase"
+        private const val TAG = "JarvisDatabase"
 
         @Volatile
-        private var INSTANCE: CogniDatabase? = null
+        private var INSTANCE: JarvisDatabase? = null
 
         // Track which FTS version is available (null = not checked yet)
         @Volatile
@@ -317,12 +317,12 @@ abstract class CogniDatabase : RoomDatabase() {
             }
         }
 
-        fun getDatabase(context: Context): CogniDatabase {
+        fun getDatabase(context: Context): JarvisDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
-                    CogniDatabase::class.java,
-                    "cogni_database"
+                    JarvisDatabase::class.java,
+                    "Jarvis_database"
                 )
                     .addCallback(databaseCallback)
                     .addMigrations(

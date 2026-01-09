@@ -11,7 +11,7 @@ import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.cache.CacheManager
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.SearchHistoryManager
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.Attachment
@@ -37,8 +37,8 @@ import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.CogniAgent
-import com.example.smarty.agent.CogniAgentProvider
+import com.example.smarty.agent.JarvisAgent
+import com.example.smarty.agent.JarvisAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.data.model.InlineChatImage
 import com.example.smarty.data.remote.providers.TavilySearchProvider
@@ -49,7 +49,7 @@ import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import com.example.smarty.data.repository.ChatRepository
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.util.CompletionSoundManager
 import com.example.smarty.util.ContentTypeDetector
@@ -150,14 +150,14 @@ data class SharedContent(
     }
 }
 
-class CogniViewModel(
+class JarvisViewModel(
     application: Application,
     private val savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
     // SavedStateHandle keys for state preservation across process death (BUG-053)
     companion object {
-        private const val TAG = "CogniViewModel"
+        private const val TAG = "JarvisViewModel"
         private const val KEY_SELECTED_NOTE_ID = "selectedNoteId"
         private const val KEY_SELECTED_CATEGORY_ID = "selectedCategoryId"
         private const val KEY_IS_CHAT_MODE = "isChatMode"
@@ -180,9 +180,9 @@ class CogniViewModel(
     private val pdfExtractor: PDFTextExtractor by lazy { PDFTextExtractor(application) }
 
     // Repository needs to be initialized before agent - lazy to avoid blocking
-    private val database: CogniDatabase by lazy { CogniDatabase.getDatabase(application) }
-    private val repository: CogniRepository by lazy {
-        CogniRepository(
+    private val database: JarvisDatabase by lazy { JarvisDatabase.getDatabase(application) }
+    private val repository: JarvisRepository by lazy {
+        JarvisRepository(
             database.noteDao(),
             database.categoryDao(),
             database.calendarDao(),
@@ -220,11 +220,11 @@ class CogniViewModel(
     }
 
     // Koog-based AI Agent (GROQ-only with multi-key rotation) - lazy
-    private val agentProvider: CogniAgentProvider by lazy {
-        CogniAgentProvider(securePreferences, groqKeyManager)
+    private val agentProvider: JarvisAgentProvider by lazy {
+        JarvisAgentProvider(securePreferences, groqKeyManager)
     }
-    private val cogniAgent: CogniAgent by lazy {
-        CogniAgent(
+    private val JarvisAgent: JarvisAgent by lazy {
+        JarvisAgent(
             context = application,
             agentProvider = agentProvider,
             repository = repository,
@@ -306,6 +306,10 @@ class CogniViewModel(
     /** Current AI plan status (e.g., "Step 2/5: Searching for recipes...") */
     private val _aiPlanStatus = MutableStateFlow<String?>(null)
     val aiPlanStatus: StateFlow<String?> = _aiPlanStatus.asStateFlow()
+
+    /** Current tool being executed by the AI agent */
+    private val _currentToolName = MutableStateFlow<String?>(null)
+    val currentToolName: StateFlow<String?> = _currentToolName.asStateFlow()
 
     // GROQ key usage stats exposed for UI - lazy
     val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
@@ -401,11 +405,11 @@ class CogniViewModel(
         }
 
         override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
-            // No-op: Dynamic Island removed
+            _currentToolName.value = toolDisplayName
         }
 
         override fun onToolExecutionCompleted(toolName: String) {
-            // No-op: Dynamic Island removed
+            _currentToolName.value = null
         }
 
         override fun onCitationsFound(citations: List<com.example.smarty.agent.WebCitation>) {
@@ -428,7 +432,7 @@ class CogniViewModel(
         }
 
         override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
-            // CogniViewModel (main app) doesn't track screen context like AssistActivity
+            // JarvisViewModel (main app) doesn't track screen context like AssistActivity
             return null
         }
 
@@ -1124,7 +1128,7 @@ class CogniViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // Check FTS version - maintenance commands differ between FTS4 and FTS5
-                val ftsVersion = CogniDatabase.getFtsVersion()
+                val ftsVersion = JarvisDatabase.getFtsVersion()
                 if (ftsVersion == 0) {
                     Log.d(TAG, "FTS not available, skipping maintenance")
                     return@launch
@@ -3061,7 +3065,7 @@ class CogniViewModel(
      * When "hello reddit" is detected:
      * - Vosk stops listening (frees mic)
      * - wakeWordTriggered becomes true
-     * - MainActivity should launch Google Speech Recognizer
+     * - MainActivity should launch Google Speech ReJarviszer
      * - After STT completes, call restartWakeWordDetection()
      */
     fun initVoskWakeWord(context: Context) {
@@ -3370,7 +3374,7 @@ class CogniViewModel(
 
     /**
      * Restart wake word detection after Google STT completes.
-     * Call this from onActivityResult after speech recognition finishes.
+     * Call this from onActivityResult after speech reJarvistion finishes.
      *
      * PRIVACY: Only restarts if app is in foreground to prevent background mic access.
      * MED-007: Also respects privacy mode.
@@ -3716,7 +3720,7 @@ class CogniViewModel(
      *
      * ARCHITECTURE: Uses JetBrains Koog framework for agent orchestration:
      * - Koog handles the agent loop, tool execution, and multi-step reasoning
-     * - PrivacyGuard is enforced at the tool level via CogniToolBase
+     * - PrivacyGuard is enforced at the tool level via JarvisToolBase
      */
     fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
@@ -3824,7 +3828,7 @@ class CogniViewModel(
                 } else content
 
                 // Run Koog agent with tagged note context and thinking mode context
-                val result = cogniAgent.run(cleanedContent, conversationHistory, taggedNoteContext, thinkingModeContext)
+                val result = JarvisAgent.run(cleanedContent, conversationHistory, taggedNoteContext, thinkingModeContext)
 
                 when (result) {
                     is AgentResult.Success -> {
@@ -4177,17 +4181,17 @@ class CogniViewModel(
 }
 
 /**
- * Factory for CogniViewModel that provides SavedStateHandle for state preservation
+ * Factory for JarvisViewModel that provides SavedStateHandle for state preservation
  * across process death (BUG-053 fix).
  *
  * Usage in Activity:
  * ```
- * private val viewModel: CogniViewModel by viewModels {
- *     CogniViewModelFactory(application, this)
+ * private val viewModel: JarvisViewModel by viewModels {
+ *     JarvisViewModelFactory(application, this)
  * }
  * ```
  */
-class CogniViewModelFactory(
+class JarvisViewModelFactory(
     private val application: Application,
     owner: SavedStateRegistryOwner
 ) : AbstractSavedStateViewModelFactory(owner, null) {
@@ -4198,8 +4202,8 @@ class CogniViewModelFactory(
         modelClass: Class<T>,
         handle: SavedStateHandle
     ): T {
-        if (modelClass.isAssignableFrom(CogniViewModel::class.java)) {
-            return CogniViewModel(application, handle) as T
+        if (modelClass.isAssignableFrom(JarvisViewModel::class.java)) {
+            return JarvisViewModel(application, handle) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

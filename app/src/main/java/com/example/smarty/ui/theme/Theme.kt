@@ -199,7 +199,7 @@ enum class ThemeMode {
 }
 
 /**
- * Cogni Theme - Modern Soft Minimalist
+ * Jarvis Theme - Modern Soft Minimalist
  *
  * Design Archetype: "Clean Tech" / "Refined Bento-Grid"
  * - High readability, soft shadows, generous whitespace
@@ -209,7 +209,7 @@ enum class ThemeMode {
  * - System theme detection with manual override
  */
 @Composable
-fun CogniTheme(
+fun JarvisTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     isTransparent: Boolean = false, // Set to true for transparent overlays (e.g., AssistActivity)
     content: @Composable () -> Unit
@@ -273,12 +273,12 @@ fun CogniTheme(
 
     CompositionLocalProvider(
         LocalSpacing provides Spacing(),
-        LocalShapes provides CogniShapes(),
+        LocalShapes provides JarvisShapes(),
         LocalAccentColor provides animatedColorScheme.primary
     ) {
         MaterialTheme(
             colorScheme = animatedColorScheme,
-            typography = CogniTypography,
+            typography = JarvisTypography,
             content = content
         )
     }

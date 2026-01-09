@@ -2,7 +2,7 @@ package com.example.smarty.agent.tools.planning
 
 /**
  * Manager class to handle the creation, retrieval, and updating of ExecutionPlans.
- * Manually instantiated in CogniAgent to ensure session-scoped persistence.
+ * Manually instantiated in JarvisAgent to ensure session-scoped persistence.
  */
 class ExecutionPlanManager(
     private val onPlanStatusChange: ((String?) -> Unit)? = null

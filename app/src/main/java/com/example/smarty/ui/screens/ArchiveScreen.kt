@@ -16,7 +16,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.example.smarty.data.model.Note
-import com.example.smarty.ui.animation.CogniEasing
+import com.example.smarty.ui.animation.JarvisEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.theme.ComponentSpacing
@@ -138,7 +138,7 @@ fun ArchiveScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Permanently?",
             text = "This note will be permanently deleted. This action cannot be undone.",
             onConfirm = {
@@ -186,7 +186,7 @@ private fun ArchiveNoteItem(
     // Alpha animation
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
+        animationSpec = tween(200, easing = JarvisEasing.appleEaseOut),
         label = "itemAlpha"
     )
 

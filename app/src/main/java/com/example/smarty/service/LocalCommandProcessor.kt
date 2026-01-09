@@ -330,7 +330,7 @@ class LocalCommandProcessor(
 
         // Identity questions
         if (input in listOf("who are you", "what are you", "who is this", "what is this")) {
-            return "I'm Loum, your AI companion! I can help you with notes, todos, calendar, web search, and more. Just ask!"
+            return "I'm Jarvis, your AI companion! I can help you with notes, todos, calendar, web search, and more. Just ask!"
         }
 
         // Capability questions - CRITICAL: prevents tool usage for "what can you do"

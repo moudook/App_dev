@@ -21,7 +21,7 @@ class CacheManager private constructor(private val context: Context) {
     companion object {
         private const val TAG = "CacheManager"
         const val MAX_CACHE_SIZE_BYTES = 100L * 1024 * 1024  // 100 MB
-        const val CACHE_DIR_NAME = "cogni_cache"
+        const val CACHE_DIR_NAME = "Jarvis_cache"
 
         // Sub-directories
         const val THUMBNAILS_DIR = "thumbnails"

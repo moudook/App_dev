@@ -2,11 +2,11 @@ package com.example.smarty.agent.tools.todos
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
-import com.example.smarty.agent.tools.base.CogniToolUtils
+import com.example.smarty.agent.tools.base.JarvisToolUtils
 import com.example.smarty.agent.tools.base.TodoOperationResult
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withTodos
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -22,7 +22,7 @@ data class ToggleTodoArgs(
  * Respects PrivacyGuard - private notes' todos cannot be modified by AI.
  */
 class ToggleTodoTool(
-    private val repository: CogniRepository
+    private val repository: JarvisRepository
 ) : Tool<ToggleTodoArgs, TodoOperationResult>(
     argsSerializer = ToggleTodoArgs.serializer(),
     resultSerializer = TodoOperationResult.serializer(),
@@ -35,7 +35,7 @@ class ToggleTodoTool(
 ) {
     override suspend fun execute(args: ToggleTodoArgs): TodoOperationResult {
         return try {
-            val note = CogniToolUtils.getFreshAiAccessibleNote(repository, args.noteId)
+            val note = JarvisToolUtils.getFreshAiAccessibleNote(repository, args.noteId)
                 ?: return TodoOperationResult(
                     success = false,
                     message = "Note not found",  // SECURITY: Generic message - don't leak private note existence

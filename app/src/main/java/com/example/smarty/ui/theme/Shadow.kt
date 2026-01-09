@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
  * - Card: box-shadow: 0px 12px 24px -6px rgba(0,0,0,0.06), 0px 4px 8px -2px rgba(0,0,0,0.04)
  * - Active glow: box-shadow: 0px 4px 12px rgba(0,102,255,0.25)
  */
-object CogniShadow {
+object JarvisShadow {
     // Card shadow - soft floating effect
     val cardElevation: Dp = 8.dp
     val cardSpotColor: Color = Color(0x0F000000)    // ~6% opacity black
@@ -42,12 +42,12 @@ object CogniShadow {
  */
 fun Modifier.softCardShadow(
     shape: RoundedCornerShape = RoundedCornerShape(28.dp),
-    elevation: Dp = CogniShadow.cardElevation
+    elevation: Dp = JarvisShadow.cardElevation
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = CogniShadow.cardSpotColor,
-    ambientColor = CogniShadow.cardAmbientColor
+    spotColor = JarvisShadow.cardSpotColor,
+    ambientColor = JarvisShadow.cardAmbientColor
 )
 
 /**
@@ -55,12 +55,12 @@ fun Modifier.softCardShadow(
  */
 fun Modifier.elevatedShadow(
     shape: RoundedCornerShape = RoundedCornerShape(28.dp),
-    elevation: Dp = CogniShadow.elevatedElevation
+    elevation: Dp = JarvisShadow.elevatedElevation
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = CogniShadow.elevatedSpotColor,
-    ambientColor = CogniShadow.elevatedAmbientColor
+    spotColor = JarvisShadow.elevatedSpotColor,
+    ambientColor = JarvisShadow.elevatedAmbientColor
 )
 
 /**
@@ -69,11 +69,11 @@ fun Modifier.elevatedShadow(
  */
 fun Modifier.activeGlow(
     shape: RoundedCornerShape = RoundedCornerShape(12.dp),
-    elevation: Dp = CogniShadow.glowElevation
+    elevation: Dp = JarvisShadow.glowElevation
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = CogniShadow.glowColor,
+    spotColor = JarvisShadow.glowColor,
     ambientColor = Color.Transparent
 )
 
@@ -82,10 +82,10 @@ fun Modifier.activeGlow(
  */
 fun Modifier.subtleShadow(
     shape: RoundedCornerShape = RoundedCornerShape(8.dp),
-    elevation: Dp = CogniShadow.subtleElevation
+    elevation: Dp = JarvisShadow.subtleElevation
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = CogniShadow.subtleSpotColor,
+    spotColor = JarvisShadow.subtleSpotColor,
     ambientColor = Color.Transparent
 )

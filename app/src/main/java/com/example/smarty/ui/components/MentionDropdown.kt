@@ -61,7 +61,7 @@ import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.softCardShadow
 
-// Glassmorphism colors (matching CogniInputField)
+// Glassmorphism colors (matching JarvisInputField)
 private val DropdownGlassLight = Color(0xE6FFFFFF)  // White 90% opacity
 private val DropdownGlassDark = Color(0xE6181822)   // Dark 90% opacity
 private val DropdownBorderLight = Color(0x330066FF) // Blue border 20%

@@ -17,7 +17,7 @@ import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AIResponseParser
 import com.example.smarty.data.remote.AIService
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.DatabaseWriteBatcher
 import com.example.smarty.util.FileStorageHelper
@@ -49,7 +49,7 @@ import kotlinx.coroutines.sync.withLock
  * @property scope Coroutine scope for async operations
  */
 class NoteOperationsManager(
-    private val repository: CogniRepository,
+    private val repository: JarvisRepository,
     private val aiService: AIService,
     private val context: Context,
     private val scope: CoroutineScope,
@@ -575,7 +575,7 @@ class NoteOperationsManager(
      * 
      * MIXED CONTENT HANDLING:
      * - Extracts text from ALL attachment types (images, PDFs, documents)
-     * - Images: Uses OCR (ML Kit Text Recognition)
+     * - Images: Uses OCR (ML Kit Text ReJarvistion)
      * - PDFs: Uses text extraction, falls back to OCR for scanned PDFs
      * - Combines user text + extracted text from attachments
      * - Sends combined content to AI for analysis

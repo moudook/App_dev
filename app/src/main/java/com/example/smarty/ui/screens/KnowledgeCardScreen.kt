@@ -750,7 +750,7 @@ fun KnowledgeCardScreen(
 
     // Delete Confirmation Dialog
     if (showDeleteDialog) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Note?",
             text = "This action cannot be undone.",
             onConfirm = {
@@ -804,7 +804,7 @@ fun KnowledgeCardScreen(
 
     // Decompression Loading Dialog
     if (isDecompressing) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Opening Document",
             text = "",
             customContent = {
@@ -1777,7 +1777,7 @@ private fun VersionHistorySheet(
 
     // Restore Confirmation Dialog
     if (showRestoreDialog && selectedVersion != null) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Restore Version?",
             text = "",
             customContent = {

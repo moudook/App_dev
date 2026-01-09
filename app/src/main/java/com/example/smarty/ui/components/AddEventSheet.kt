@@ -59,7 +59,7 @@ import java.util.*
  * 
  * Design: Always-dark theme matching Calendar aesthetic
  * - Deep dark background for immersive experience
- * - Electric Blue accent (consistent with Cogni design)
+ * - Electric Blue accent (consistent with Jarvis design)
  * - Gradient accents and modern form fields
  * ═══════════════════════════════════════════════════════════════════════════════
  */
@@ -504,7 +504,7 @@ fun AddEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Reminder",
             onDismiss = { showReminderMenu = false },
             onConfirm = {},

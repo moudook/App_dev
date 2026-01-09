@@ -49,10 +49,10 @@ import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.CogniEasing
+import com.example.smarty.ui.animation.JarvisEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.data.model.ChatSession
-import com.example.smarty.ui.components.CogniInputField
+import com.example.smarty.ui.components.JarvisInputField
 import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.ui.components.AttachmentOption
@@ -143,6 +143,7 @@ fun InputStreamScreen(
     onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },  // Returns updated text
     // AI Planning Status (dynamic placeholder)
     aiPlanStatus: String? = null,
+    currentToolName: String? = null,
     // Pending chat text (for "Ask AI" from note card)
     pendingChatText: String? = null,
     onClearPendingChatText: () -> Unit = {},
@@ -560,7 +561,7 @@ fun InputStreamScreen(
         }
     }
 
-    // Auto-send in chat mode: 0.4s after speech recognition stops
+    // Auto-send in chat mode: 0.4s after speech reJarvistion stops
     LaunchedEffect(speechState.isListening, isChatMode) {
         if (!speechState.isListening && isChatMode && hadSpeechInput) {
             val currentText = chatModeTextValue.text
@@ -1034,7 +1035,7 @@ fun InputStreamScreen(
                         ) {
                             // Logo/Brand (Left)
                             Text(
-                                text = "Loum",
+                                text = "Jarvis",
                                 style = MaterialTheme.typography.headlineSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = (-0.5).sp
@@ -1331,12 +1332,14 @@ fun InputStreamScreen(
                                         onNoteClick = onNoteClick,
                                         onSendChatMessage = onSendChatMessage,
                                         contentPadding = contentPaddingWithTop,
+                                        currentToolName = currentToolName,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }
                             }
                         }
                     }
+
                     else -> {
                         // Notes mode content - extracted to NormalModeContent component
                         NormalModeContent(
@@ -1442,7 +1445,7 @@ fun InputStreamScreen(
                     // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
                     Box(contentAlignment = Alignment.Center) {
                         // The Actual Input Field with halftone shimmer inside
-                        CogniInputField(
+                        JarvisInputField(
                             value = textValue,
                             aiPlanStatus = aiPlanStatus,
                             onValueChange = { newTextValue ->
@@ -1581,6 +1584,7 @@ fun InputStreamScreen(
                             onStopVoiceInput = {
                                 speechState.stopListening()
                             },
+                            currentTool = currentToolName,
                             isAgentWorking = isChatProcessing,
                             autoSendActive = autoSendActive,
                             // Search filter parameters
@@ -1589,7 +1593,7 @@ fun InputStreamScreen(
                             onClearFilters = onClearFilters,
                             // Voice recording (hold mic to record, release to stop)
                             onStartRecording = {
-                                // Stop any active speech recognition before recording
+                                // Stop any active speech reJarvistion before recording
                                 if (speechState.isListening) {
                                     speechState.stopListening()
                                 }
@@ -1620,7 +1624,7 @@ fun InputStreamScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Note?",
             text = "This action cannot be undone. The note and all its todos will be permanently deleted.",
             onConfirm = {
@@ -1768,6 +1772,7 @@ fun InputStreamScreen(
     }
 }
 }
+
 
 /**
  * Displays a dropdown of recent search suggestions.

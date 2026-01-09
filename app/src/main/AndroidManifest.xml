@@ -57,7 +57,7 @@
     </queries>
 
     <application
-        android:name=".CogniApplication"
+        android:name=".JarvisApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -68,7 +68,7 @@
         android:supportsRtl="true"
         android:hardwareAccelerated="true"
         android:largeHeap="true"
-        android:theme="@style/Theme.Smarty">
+        android:theme="@style/Theme.Jarvis">
 
         <!-- FileProvider for sharing QR codes -->
         <provider
@@ -148,7 +148,7 @@
         <!-- Having both intent filters AND VoiceInteractionService caused duplicate windows. -->
         <activity
             android:name=".AssistActivity"
-            android:theme="@style/Theme.Smarty.Assistant"
+            android:theme="@style/Theme.Jarvis.Assistant"
             android:exported="true"
             android:launchMode="singleTask"
             android:taskAffinity=""

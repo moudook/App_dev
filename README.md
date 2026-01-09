@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Cogni_Icon.svg" width="120" height="120" alt="Loum Logo">
+  <img src="Cogni_Icon.svg" width="120" height="120" alt="Jarvis Logo">
 </p>
 
-<h1 align="center">Loum</h1>
+<h1 align="center">Jarvis</h1>
 
 <p align="center">
   <strong>Your AI-Powered Second Brain for Android</strong>
@@ -63,11 +63,11 @@
 
 ## Overview
 
-Loum is designed to be your **second brain** — a place where you can dump any content (links, images, documents, voice notes, thoughts) and have AI automatically categorize, summarize, and make it searchable through natural conversation. The app runs entirely on-device with optional cloud AI integration, ensuring your private notes stay private.
+Jarvis is designed to be your **second brain** — a place where you can dump any content (links, images, documents, voice notes, thoughts) and have AI automatically categorize, summarize, and make it searchable through natural conversation. The app runs entirely on-device with optional cloud AI integration, ensuring your private notes stay private.
 
-### Why Loum?
+### Why Jarvis?
 
-- **Zero-friction capture**: Share anything from any app, and Loum handles the rest
+- **Zero-friction capture**: Share anything from any app, and Jarvis handles the rest
 - **AI-powered intelligence**: Automatic categorization, smart summaries, and conversational search
 - **Privacy-first design**: Private notes are completely invisible to AI processing
 - **Multi-provider support**: Choose from multiple AI providers with automatic failover
@@ -462,7 +462,7 @@ Seamless sharing and deep linking.
 
 ## Architecture
 
-Loum follows a clean **MVVM architecture** with clear separation of concerns:
+Jarvis follows a clean **MVVM architecture** with clear separation of concerns:
 
 ```
 +-------------------------------------------------------------+
@@ -534,8 +534,8 @@ Loum follows a clean **MVVM architecture** with clear separation of concerns:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/Smarty.git
-cd Smarty
+git clone https://github.com/YOUR-USERNAME/Jarvis.git
+cd Jarvis
 ```
 
 ### 2. Download Vosk Speech Model (Required for Wake Word Detection)
@@ -559,7 +559,7 @@ The **Vosk offline speech recognition model** is required for wake word detectio
 #### Required Folder Structure
 
 ```
-Smarty/
+Jarvis/
   app/
     src/
       main/
@@ -594,7 +594,7 @@ You can use other Vosk models from [alphacephei.com/vosk/models](https://alphace
 
 1. Open Android Studio
 2. Select **File - Open**
-3. Navigate to the cloned `Smarty` folder
+3. Navigate to the cloned `Jarvis` folder
 4. Click **OK** and wait for Gradle sync
 
 ### 4. Build and Run
@@ -648,7 +648,7 @@ API keys can also be configured directly in the app **Settings** screen:
 ### Firebase Setup (Optional)
 
 1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Add an Android app with package name `com.example.smarty`
+2. Add an Android app with package name `com.example.Jarvis`
 3. Download `google-services.json` and place in `app/` folder
 4. Enable required services: Auth, Firestore, Crashlytics
 
@@ -666,7 +666,7 @@ API keys can also be configured directly in the app **Settings** screen:
 ### Creating a Note
 
 1. **Quick Input**: Tap the input field at the bottom, type or paste content
-2. **Share to Loum**: Share any content from another app, select Loum
+2. **Share to Jarvis**: Share any content from another app, select Jarvis
 3. **Voice Input**: Tap the microphone icon for speech-to-text
 4. **Widget**: Use the home screen widget for quick capture
 5. **Voice Notes**: Use the voice note widget for hands-free capture
@@ -700,7 +700,7 @@ API keys can also be configured directly in the app **Settings** screen:
 
 ## AI Providers
 
-Loum supports multiple AI providers with automatic fallback. Configure one or more in Settings.
+Jarvis supports multiple AI providers with automatic fallback. Configure one or more in Settings.
 
 | Provider | Model | Best For | Pricing |
 |----------|-------|----------|---------|
@@ -936,11 +936,11 @@ When you have a note with a document attached (PDF, etc.), use `@thinking` to ha
 
 ## Web Search Integration
 
-Loum's AI agent can search the web in real-time to answer questions beyond your personal notes, powered by the **Tavily API**.
+Jarvis's AI agent can search the web in real-time to answer questions beyond your personal notes, powered by the **Tavily API**.
 
 ### What is Web Search?
 
-When the AI agent doesn't have enough information in your notes to answer a question, it can automatically search the web and provide answers with **proper citations**. This makes Loum not just a second brain for your saved content, but also a gateway to current information from the internet.
+When the AI agent doesn't have enough information in your notes to answer a question, it can automatically search the web and provide answers with **proper citations**. This makes Jarvis not just a second brain for your saved content, but also a gateway to current information from the internet.
 
 ### Setup
 
@@ -952,7 +952,7 @@ When the AI agent doesn't have enough information in your notes to answer a ques
 | **Get API Key** | Navigate to your dashboard and copy your API key |
 | **Free Tier** | Tavily offers a generous free tier for personal use |
 
-#### 2. Configure in Loum
+#### 2. Configure in Jarvis
 
 **Option A: Environment Variable** (Recommended for developers)
 
@@ -964,7 +964,7 @@ TAVILY_API_KEY=your_tavily_api_key_here
 
 **Option B: In-App Settings**
 
-1. Open Loum - Tap **Settings**
+1. Open Jarvis - Tap **Settings**
 2. Scroll to **AI Providers** section
 3. Find **Tavily API Key** field
 4. Paste your API key
@@ -1060,7 +1060,7 @@ For current pricing and limits, visit [tavily.com/pricing](https://tavily.com/pr
 ### Test Structure
 
 ```
-app/src/test/java/com/example/smarty/
+app/src/test/java/com/example/Jarvis/
   AIResponseParserTest.kt        # AI response parsing
   ContentSecurityFilterTest.kt   # Security filter validation
   PrivacyGuardTest.kt            # Privacy feature tests
@@ -1093,7 +1093,7 @@ app/src/test/java/com/example/smarty/
 
 ```
 app/
-  src/main/java/com/example/smarty/
+  src/main/java/com/example/Jarvis/
     CogniApplication.kt          # Application class
     MainActivity.kt              # Main entry point
     
@@ -1325,8 +1325,8 @@ This project is licensed under the **Creative Commons Attribution 4.0 Internatio
 When using this software, include the following in your project:
 
 ```
-This project uses code from Loum/Smarty Project
-(https://github.com/YOUR-USERNAME/Smarty)
+This project uses code from Jarvis/Jarvis Project
+(https://github.com/YOUR-USERNAME/Jarvis)
 Licensed under CC BY 4.0
 ```
 
@@ -1337,8 +1337,8 @@ For the full license text, see [LICENSE](LICENSE) or visit:
 
 ## Contact
 
-- **Project**: [github.com/YOUR-USERNAME/Smarty](https://github.com/YOUR-USERNAME/Smarty)
-- **Issues**: [github.com/YOUR-USERNAME/Smarty/issues](https://github.com/YOUR-USERNAME/Smarty/issues)
+- **Project**: [github.com/YOUR-USERNAME/Jarvis](https://github.com/YOUR-USERNAME/Jarvis)
+- **Issues**: [github.com/YOUR-USERNAME/Jarvis/issues](https://github.com/YOUR-USERNAME/Jarvis/issues)
 
 ---
 

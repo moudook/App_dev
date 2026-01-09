@@ -5,7 +5,7 @@ import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.remote.AIService
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.ContentTypeDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +41,7 @@ import kotlinx.coroutines.flow.asSharedFlow
  */
 class NoteProcessingQueueManager(
     private val noteDao: NoteDao,
-    private val repository: CogniRepository,
+    private val repository: JarvisRepository,
     private val aiService: AIService,
     private val scope: CoroutineScope
 ) {

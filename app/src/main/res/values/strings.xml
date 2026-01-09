@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Loum</string>
+    <string name="app_name">Jarvis</string>
 
     <!-- Widget strings -->
     <string name="widget_description">Premium quick capture widget - Voice, Text, or Camera notes with one tap</string>

@@ -7,7 +7,7 @@ import androidx.room.Transaction
 import android.util.Log
 import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.local.CategoryDao
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.local.NoteVersionDao
 import com.example.smarty.data.model.NoteVersion
@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 
-class CogniRepository(
+class JarvisRepository(
     private val noteDao: NoteDao,
     private val categoryDao: CategoryDao,
     private val calendarDao: CalendarDao,  // Required for calendar functionality
@@ -71,7 +71,7 @@ class CogniRepository(
         if (sanitizedQuery.isBlank()) return emptyList()
 
         return try {
-            when (CogniDatabase.getFtsVersion()) {
+            when (JarvisDatabase.getFtsVersion()) {
                 5 -> {
                     Log.d(TAG, "Using FTS5 search")
                     noteDao.searchNotesFts(sanitizedQuery)
@@ -99,7 +99,7 @@ class CogniRepository(
         if (sanitizedQuery.isBlank()) return emptyList()
 
         return try {
-            when (CogniDatabase.getFtsVersion()) {
+            when (JarvisDatabase.getFtsVersion()) {
                 5 -> noteDao.searchNotesFtsWithType(sanitizedQuery, types)
                 4 -> noteDao.searchNotesFts4WithType(sanitizedQuery, types)
                 else -> noteDao.searchNotes(query, types, true).first()
@@ -120,7 +120,7 @@ class CogniRepository(
         }
 
         return try {
-            when (CogniDatabase.getFtsVersion()) {
+            when (JarvisDatabase.getFtsVersion()) {
                 5 -> noteDao.searchNotesFtsFlow(sanitizedQuery).distinctUntilChanged()
                 4 -> noteDao.searchNotesFts4Flow(sanitizedQuery).distinctUntilChanged()
                 else -> noteDao.searchNotes(query, emptyList(), false).distinctUntilChanged()
@@ -152,7 +152,7 @@ class CogniRepository(
     // =========================================================================
 
     companion object {
-        private const val TAG = "CogniRepository"
+        private const val TAG = "JarvisRepository"
 
         // Default paging configuration - 20 items per page, prefetch 2 pages
         private val DEFAULT_PAGING_CONFIG = PagingConfig(

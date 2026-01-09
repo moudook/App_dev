@@ -12,18 +12,18 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 
 /**
- * Unit tests for CogniAgentProvider.
+ * Unit tests for JarvisAgentProvider.
  * Verifies provider selection, executor creation, and custom base URL configuration.
  */
-class CogniAgentProviderTest {
+class JarvisAgentProviderTest {
 
     private lateinit var securePreferences: SecurePreferences
-    private lateinit var agentProvider: CogniAgentProvider
+    private lateinit var agentProvider: JarvisAgentProvider
 
     @Before
     fun setup() {
         securePreferences = mockk(relaxed = true)
-        agentProvider = CogniAgentProvider(securePreferences)
+        agentProvider = JarvisAgentProvider(securePreferences)
     }
 
     // =========================================================================
@@ -37,7 +37,7 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue(result is CogniAgentProvider.ExecutorResult.NoApiKey)
+        assertTrue(result is JarvisAgentProvider.ExecutorResult.NoApiKey)
     }
 
     @Test
@@ -48,7 +48,7 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue(result is CogniAgentProvider.ExecutorResult.NoApiKey)
+        assertTrue(result is JarvisAgentProvider.ExecutorResult.NoApiKey)
     }
 
     // =========================================================================
@@ -61,8 +61,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue(result is CogniAgentProvider.ExecutorResult.Success)
-        val success = result as CogniAgentProvider.ExecutorResult.Success
+        assertTrue(result is JarvisAgentProvider.ExecutorResult.Success)
+        val success = result as JarvisAgentProvider.ExecutorResult.Success
         assertEquals(AIProvider.GEMINI, success.provider)
         assertNotNull(success.executor)
         assertNotNull(success.model)
@@ -72,7 +72,7 @@ class CogniAgentProviderTest {
     fun `maps Gemini 2_5 Flash model correctly`() {
         setupProvider(AIProvider.GEMINI, "key", "gemini-2.5-flash")
 
-        val result = agentProvider.getExecutor() as CogniAgentProvider.ExecutorResult.Success
+        val result = agentProvider.getExecutor() as JarvisAgentProvider.ExecutorResult.Success
 
         // Model mapping is internal, but we verify execution doesn't fail
         assertNotNull(result.model)
@@ -88,8 +88,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue(result is CogniAgentProvider.ExecutorResult.Success)
-        val success = result as CogniAgentProvider.ExecutorResult.Success
+        assertTrue(result is JarvisAgentProvider.ExecutorResult.Success)
+        val success = result as JarvisAgentProvider.ExecutorResult.Success
         assertEquals(AIProvider.ANTHROPIC, success.provider)
     }
 
@@ -97,7 +97,7 @@ class CogniAgentProviderTest {
     fun `maps Claude 3 Opus model correctly`() {
         setupProvider(AIProvider.ANTHROPIC, "key", "claude-3-opus")
 
-        val result = agentProvider.getExecutor() as CogniAgentProvider.ExecutorResult.Success
+        val result = agentProvider.getExecutor() as JarvisAgentProvider.ExecutorResult.Success
 
         assertNotNull(result.model)
     }
@@ -112,8 +112,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue(result is CogniAgentProvider.ExecutorResult.Success)
-        val success = result as CogniAgentProvider.ExecutorResult.Success
+        assertTrue(result is JarvisAgentProvider.ExecutorResult.Success)
+        val success = result as JarvisAgentProvider.ExecutorResult.Success
         assertEquals(AIProvider.OPENAI, success.provider)
     }
 
@@ -121,7 +121,7 @@ class CogniAgentProviderTest {
     fun `maps GPT-4o-mini model correctly`() {
         setupProvider(AIProvider.OPENAI, "key", "gpt-4o-mini")
 
-        val result = agentProvider.getExecutor() as CogniAgentProvider.ExecutorResult.Success
+        val result = agentProvider.getExecutor() as JarvisAgentProvider.ExecutorResult.Success
 
         assertNotNull(result.model)
     }
@@ -136,8 +136,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue("Groq should create success result", result is CogniAgentProvider.ExecutorResult.Success)
-        val success = result as CogniAgentProvider.ExecutorResult.Success
+        assertTrue("Groq should create success result", result is JarvisAgentProvider.ExecutorResult.Success)
+        val success = result as JarvisAgentProvider.ExecutorResult.Success
         assertEquals(AIProvider.GROQ, success.provider)
         assertNotNull("Groq executor should not be null", success.executor)
     }
@@ -146,7 +146,7 @@ class CogniAgentProviderTest {
     fun `Groq uses OpenAI-compatible model`() {
         setupProvider(AIProvider.GROQ, "key", "mixtral-8x7b")
 
-        val result = agentProvider.getExecutor() as CogniAgentProvider.ExecutorResult.Success
+        val result = agentProvider.getExecutor() as JarvisAgentProvider.ExecutorResult.Success
 
         // Groq maps to OpenAI models for Koog compatibility
         assertNotNull(result.model)
@@ -162,8 +162,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue("DeepSeek should create success result", result is CogniAgentProvider.ExecutorResult.Success)
-        val success = result as CogniAgentProvider.ExecutorResult.Success
+        assertTrue("DeepSeek should create success result", result is JarvisAgentProvider.ExecutorResult.Success)
+        val success = result as JarvisAgentProvider.ExecutorResult.Success
         assertEquals(AIProvider.DEEPSEEK, success.provider)
     }
 
@@ -171,7 +171,7 @@ class CogniAgentProviderTest {
     fun `DeepSeek coder model mapped correctly`() {
         setupProvider(AIProvider.DEEPSEEK, "key", "deepseek-coder")
 
-        val result = agentProvider.getExecutor() as CogniAgentProvider.ExecutorResult.Success
+        val result = agentProvider.getExecutor() as JarvisAgentProvider.ExecutorResult.Success
 
         assertNotNull(result.model)
     }
@@ -186,8 +186,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue("OpenRouter should create success result", result is CogniAgentProvider.ExecutorResult.Success)
-        val success = result as CogniAgentProvider.ExecutorResult.Success
+        assertTrue("OpenRouter should create success result", result is JarvisAgentProvider.ExecutorResult.Success)
+        val success = result as JarvisAgentProvider.ExecutorResult.Success
         assertEquals(AIProvider.OPENROUTER, success.provider)
     }
 
@@ -202,8 +202,8 @@ class CogniAgentProviderTest {
         val result = agentProvider.getExecutor()
 
         // HuggingFace is now supported with OpenAI-compatible inference API
-        assertTrue("HuggingFace should be supported", result is CogniAgentProvider.ExecutorResult.Success)
-        assertEquals(AIProvider.HUGGINGFACE, (result as CogniAgentProvider.ExecutorResult.Success).provider)
+        assertTrue("HuggingFace should be supported", result is JarvisAgentProvider.ExecutorResult.Success)
+        assertEquals(AIProvider.HUGGINGFACE, (result as JarvisAgentProvider.ExecutorResult.Success).provider)
     }
 
     // =========================================================================
@@ -227,8 +227,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue(result is CogniAgentProvider.ExecutorResult.Success)
-        assertEquals(AIProvider.GEMINI, (result as CogniAgentProvider.ExecutorResult.Success).provider)
+        assertTrue(result is JarvisAgentProvider.ExecutorResult.Success)
+        assertEquals(AIProvider.GEMINI, (result as JarvisAgentProvider.ExecutorResult.Success).provider)
     }
 
     @Test
@@ -245,8 +245,8 @@ class CogniAgentProviderTest {
 
         val result = agentProvider.getExecutor()
 
-        assertTrue(result is CogniAgentProvider.ExecutorResult.Success)
-        assertEquals(AIProvider.GEMINI, (result as CogniAgentProvider.ExecutorResult.Success).provider)
+        assertTrue(result is JarvisAgentProvider.ExecutorResult.Success)
+        assertEquals(AIProvider.GEMINI, (result as JarvisAgentProvider.ExecutorResult.Success).provider)
     }
 
     // =========================================================================

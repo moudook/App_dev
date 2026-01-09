@@ -3,7 +3,7 @@ package com.example.smarty.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Cogni Color System - Modern Soft Minimalist
+ * Jarvis Color System - Modern Soft Minimalist
  *
  * Design Archetype: "Clean Tech" / "Refined Bento-Grid"
  * High readability, soft shadows, generous whitespace,

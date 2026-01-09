@@ -60,7 +60,7 @@ import androidx.compose.ui.zIndex
 import android.os.Build
 import com.example.smarty.data.model.Category
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.CogniShadow
+import com.example.smarty.ui.theme.JarvisShadow
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SafetyOrange
@@ -157,7 +157,7 @@ fun StacksScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && categoryToDelete != null) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Category?",
             text = "Are you sure you want to delete \"${categoryToDelete?.name}\"? Notes in this category will not be deleted.",
             onConfirm = {

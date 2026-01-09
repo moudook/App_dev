@@ -3,7 +3,7 @@ package com.example.smarty.worker
 import android.content.Context
 import android.util.Log
 import androidx.work.*
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.viewmodel.managers.MemorySyncManager
@@ -62,7 +62,7 @@ class MemorySyncWorker(
         Log.d(TAG, "Automated memory sync worker started")
 
         try {
-            val database = CogniDatabase.getDatabase(applicationContext)
+            val database = JarvisDatabase.getDatabase(applicationContext)
             val aiMemoryDao = database.aiMemoryDao()
             val securePreferences = SecurePreferences(applicationContext)
             val aiService = AIService(securePreferences)

@@ -179,7 +179,7 @@ fun StacksContent(
     
     // Delete confirmation dialog
     if (showDeleteDialog && categoryToDelete != null) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Category?",
             text = "Are you sure you want to delete \"${categoryToDelete?.name}\"? Notes in this category will not be deleted.",
             onConfirm = {

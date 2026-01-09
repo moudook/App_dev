@@ -5,7 +5,7 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.agent.tools.base.NoteOperationResult
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.ContentTypeDetector
 import kotlinx.serialization.Serializable
 
@@ -24,7 +24,7 @@ data class CreateNoteArgs(
  * The LLM can use this to save information as notes.
  */
 class CreateNoteTool(
-    private val repository: CogniRepository,
+    private val repository: JarvisRepository,
     private val onProcessNote: suspend (Note) -> Unit
 ) : Tool<CreateNoteArgs, NoteOperationResult>(
     argsSerializer = CreateNoteArgs.serializer(),

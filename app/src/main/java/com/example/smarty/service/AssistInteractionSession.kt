@@ -49,8 +49,8 @@ class AssistInteractionSession(context: Context) : VoiceInteractionSession(conte
         startAssistantActivity(intent)
 
         // CRITICAL: Delay hide() to give AssistActivity time to start and acquire
-        // speech recognition resources. If we hide() immediately, it may release
-        // system resources that AssistActivity needs for speech recognition.
+        // speech reJarvistion resources. If we hide() immediately, it may release
+        // system resources that AssistActivity needs for speech reJarvistion.
         // OPTIMIZED: Reduced from 500ms to 150ms - Activity starts quickly
         handler.postDelayed({
             Log.d(TAG, "Delayed hide() - giving AssistActivity time to initialize")

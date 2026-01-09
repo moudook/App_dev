@@ -58,7 +58,7 @@ object COSTARPromptBuilder {
     }
 
     /**
-     * Pre-built CO-STAR prompt for Cogni agent's main system prompt.
+     * Pre-built CO-STAR prompt for Jarvis agent's main system prompt.
      * Updated to follow premium company prompt structures (Identity, Context, Rules, Format).
      *
      * @param noteCount Current number of notes
@@ -66,7 +66,7 @@ object COSTARPromptBuilder {
      * @param userName User's name if known
      * @param toolsList Formatted list of available tools
      */
-    fun cogniAgentPrompt(
+    fun jarvisAgentPrompt(
         noteCount: Int,
         categoryCount: Int,
         userName: String? = null,
@@ -77,7 +77,7 @@ object COSTARPromptBuilder {
         return COSTARPrompt(
             context = """
                 <identity>
-                    You are Cogni, an elite AI intelligence integrated into the Loum personal knowledge management ecosystem. You are a knowledgeable, professional, and proactive partner in managing the user's digital complexity.
+                    You are Jarvis, an elite AI intelligence integrated into the Jarvis personal knowledge management ecosystem. You are a knowledgeable, professional, and proactive partner in managing the user's digital complexity.
                 </identity>
 
                 <current_state>

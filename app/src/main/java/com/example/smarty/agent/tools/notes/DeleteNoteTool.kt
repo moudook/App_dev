@@ -2,10 +2,10 @@ package com.example.smarty.agent.tools.notes
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
-import com.example.smarty.agent.tools.base.CogniToolUtils
+import com.example.smarty.agent.tools.base.JarvisToolUtils
 import com.example.smarty.agent.tools.base.NoteOperationResult
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -21,7 +21,7 @@ data class DeleteNoteArgs(
  * Respects PrivacyGuard - private notes cannot be deleted by AI.
  */
 class DeleteNoteTool(
-    private val repository: CogniRepository,
+    private val repository: JarvisRepository,
     private val getActiveNotes: () -> List<Note>,
     private val findNoteByDescription: suspend (String, List<Note>) -> Note?
 ) : Tool<DeleteNoteArgs, NoteOperationResult>(
@@ -37,11 +37,11 @@ class DeleteNoteTool(
     override suspend fun execute(args: DeleteNoteArgs): NoteOperationResult {
         return try {
             val noteToDelete = when {
-                args.noteId != null -> CogniToolUtils.getFreshAiAccessibleNote(repository, args.noteId)
+                args.noteId != null -> JarvisToolUtils.getFreshAiAccessibleNote(repository, args.noteId)
                 args.description != null -> {
-                    val notes = CogniToolUtils.filterNotesForAiModification(getActiveNotes())
+                    val notes = JarvisToolUtils.filterNotesForAiModification(getActiveNotes())
                     findNoteByDescription(args.description, notes)?.let {
-                        CogniToolUtils.getFreshAiAccessibleNote(repository, it.id)
+                        JarvisToolUtils.getFreshAiAccessibleNote(repository, it.id)
                     }
                 }
                 else -> null

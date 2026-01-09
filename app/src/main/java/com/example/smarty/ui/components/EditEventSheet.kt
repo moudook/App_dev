@@ -36,7 +36,7 @@ import java.util.*
  * 
  * Design: Always-dark theme matching Calendar aesthetic
  * - Deep dark background for immersive experience
- * - Electric Blue accent (consistent with Cogni design)
+ * - Electric Blue accent (consistent with Jarvis design)
  * - Pre-populated with existing event data
  * - Delete option with confirmation
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -541,7 +541,7 @@ fun EditEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Reminder",
             onDismiss = { showReminderMenu = false },
             onConfirm = {},
@@ -580,7 +580,7 @@ fun EditEventSheet(
 
     // Delete Confirmation Dialog
     if (showDeleteConfirmation) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete Event?",
             text = "Are you sure you want to delete \"${event.title}\"? This action cannot be undone.",
             onConfirm = {
@@ -723,7 +723,7 @@ private fun EditDarkTimePickerDialog(
     onConfirm: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    com.example.smarty.ui.components.common.LoumDialog(
+    com.example.smarty.ui.components.common.JarvisDialog(
         title = "Select time",
         onDismiss = onDismiss,
         onConfirm = onConfirm,

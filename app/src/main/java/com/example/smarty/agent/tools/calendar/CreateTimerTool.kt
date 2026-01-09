@@ -3,7 +3,7 @@ package com.example.smarty.agent.tools.calendar
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
-import com.example.smarty.data.model.CogniTimer
+import com.example.smarty.data.model.JarvisTimer
 import com.example.smarty.service.AlarmScheduler
 import com.google.gson.Gson
 import kotlinx.serialization.Serializable
@@ -82,7 +82,7 @@ class CreateTimerTool(
                 gson.toJson(args.repeatDays.map { it.lowercase() })
             } else null
 
-            val timer = CogniTimer(
+            val timer = JarvisTimer(
                 name = args.name,
                 triggerTime = triggerMillis,
                 repeatDays = repeatDaysJson,

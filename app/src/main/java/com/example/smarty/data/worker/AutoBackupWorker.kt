@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.work.*
 import com.example.smarty.data.backup.AutoBackupConfig
 import com.example.smarty.data.backup.BackupManager
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.DriveService
 import com.example.smarty.data.remote.GoogleAuthManager
@@ -28,7 +28,7 @@ class AutoBackupWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     companion object {
-        private const val WORK_NAME = "cogni_auto_backup"
+        private const val WORK_NAME = "Jarvis_auto_backup"
         private const val TAG = "AutoBackupWorker"
 
         /**
@@ -119,7 +119,7 @@ class AutoBackupWorker(
                 return Result.retry()
             }
 
-            val database = CogniDatabase.getDatabase(context)
+            val database = JarvisDatabase.getDatabase(context)
             val driveService = DriveService(context, authManager)
             val backupManager = BackupManager(
                 context = context,

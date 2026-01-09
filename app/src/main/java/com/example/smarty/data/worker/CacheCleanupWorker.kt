@@ -22,7 +22,7 @@ class CacheCleanupWorker(
 
     companion object {
         private const val TAG = "CacheCleanupWorker"
-        const val WORK_NAME = "cogni_cache_cleanup"
+        const val WORK_NAME = "Jarvis_cache_cleanup"
         const val MAX_CACHE_AGE_DAYS = 7L
 
         /**

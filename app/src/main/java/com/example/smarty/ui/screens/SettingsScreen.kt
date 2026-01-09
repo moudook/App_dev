@@ -327,7 +327,7 @@ fun SettingsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Loum v1.1.0",
+                    text = "Jarvis v1.1.0",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
@@ -482,7 +482,7 @@ fun SettingsScreen(
             ) {
                 // Fixed Header
                 Text(
-                    text = "About Loum",
+                    text = "About Jarvis",
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
@@ -501,7 +501,7 @@ fun SettingsScreen(
                 ) {
                     Text(
                     text =  "Hello, I am Moudook.\n\n" +
-                                "Loum is an AI-powered personal knowledge management app. I made this mainly for myself so I do not get fussed managing my notes and content. The idea is simple. Capture anything, and let the AI help later with organizing, searching, and recalling things when needed.\n\n" +
+                                "Jarvis is an AI-powered personal knowledge management app. I made this mainly for myself so I do not get fussed managing my notes and content. The idea is simple. Capture anything, and let the AI help later with organizing, searching, and recalling things when needed.\n\n" +
                                 "You can add many types of content. Text notes for brain dumps. Images. Videos, both YouTube and local. Documents like PDF, DOCX, XLSX, and PPTX. Website links with metadata. Audio files and voice notes. Code snippets. Twitter or X posts, Instagram posts, APK files, and archive files.\n\n" +
                                 "For organization, I added basic but useful things. You can pin notes so important ones stay on top. Notes get smart categories automatically. AI also generates tags for every note. If you do not want something but also do not want to delete it, you can archive it. There is also bulk selection so you can operate on many notes at once.\n\n" +
                                 "I also added note versioning. Every note has a Git-like history. Up to 10 versions are saved automatically. You can restore any older version instantly. You can also see what changed and when it changed.\n\n" +
@@ -530,7 +530,7 @@ fun SettingsScreen(
                                 "All data is stored locally on the device. I use a Room database for persistence. API keys are stored using Android's EncryptedSharedPreferences. Only API calls go out of the device.\n\n" +
                                 "For user experience, I added widgets. You can capture notes directly from the home screen. One tap and you are inside a new note.\n\n" +
                                 "App shortcuts are also there. Long press the app icon for quick actions like new note, search, or voice note. Recent notes also show up dynamically.\n\n" +
-                                "Sharing is deeply integrated. You can share content from any app into Loum. Content type is detected automatically. URL metadata is extracted. You can also bulk select and share multiple notes.\n\n" +
+                                "Sharing is deeply integrated. You can share content from any app into Jarvis. Content type is detected automatically. URL metadata is extracted. You can also bulk select and share multiple notes.\n\n" +
                                 "For UI, I avoided popups. I use slide-in panels instead. Animations are smooth and spring-based. Entry animations are staggered. Dark and light themes are supported. You can also customize accent colors.\n\n" +
                                 "There are many animations. Cloud-like startup animation. Living orb on the main screen. Chat personality animations. Shimmer effects for reminders. Halftone indicator for speech.\n\n" +
                                 "Performance was a big focus.\n\n" +
@@ -541,9 +541,9 @@ fun SettingsScreen(
                                 "Backup is simple.\n\n" +
                                 "You can export a full ZIP backup. It contains notes, categories, settings, chat history, AI memories, calendar events, and attachments. You can restore anytime. You can choose to merge or replace data. Integrity is preserved.\n\n" +
                                 "The app is built using Kotlin and Jetpack Compose. It follows Material Design 3. Room Database version is 19. Min SDK is 26. Target SDK is 36. WorkManager is used for background tasks. OkHttp handles networking. ExoPlayer handles media.\n\n" +
-                                "Your data stays on your device. Only AI and speech recognition APIs need internet.\n\n" +
+                                "Your data stays on your device. Only AI and Speech Recognition APIs need internet.\n\n" +
                                 "I am still working on the UI and the agentic part. If you find any issues, please mention them on GitHub.\n\n" +
-                                "Thank you for using Loum.",
+                                "Thank you for using Jarvis.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             lineHeight = androidx.compose.ui.unit.TextUnit(24f, androidx.compose.ui.unit.TextUnitType.Sp)
                         ),
@@ -2170,3 +2170,4 @@ private fun HideSystemBars() {
         }
     }
 }
+

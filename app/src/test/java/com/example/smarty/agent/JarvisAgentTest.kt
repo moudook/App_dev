@@ -7,7 +7,7 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.remote.providers.TavilySearchProvider
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.service.AlarmScheduler
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
@@ -20,21 +20,21 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 
 /**
- * Unit tests for CogniAgent.
+ * Unit tests for JarvisAgent.
  * Verifies agent initialization, tool registration, and result handling.
  *
  * Note: These tests mock the executor to avoid actual API calls.
  * Integration tests with real APIs should be run separately.
  */
-class CogniAgentTest {
+class JarvisAgentTest {
 
     private lateinit var context: Context
-    private lateinit var agentProvider: CogniAgentProvider
-    private lateinit var repository: CogniRepository
+    private lateinit var agentProvider: JarvisAgentProvider
+    private lateinit var repository: JarvisRepository
     private lateinit var tavilySearchProvider: TavilySearchProvider
     private lateinit var alarmScheduler: AlarmScheduler
     private lateinit var callbacks: AgentCallbacks
-    private lateinit var cogniAgent: CogniAgent
+    private lateinit var JarvisAgent: JarvisAgent
 
     @Before
     fun setup() {
@@ -51,7 +51,7 @@ class CogniAgentTest {
         every { callbacks.getCategories() } returns emptyList()
         every { callbacks.getTavilyApiKey() } returns null
 
-        cogniAgent = CogniAgent(
+        JarvisAgent = JarvisAgent(
             context = context,
             agentProvider = agentProvider,
             repository = repository,
@@ -69,14 +69,14 @@ class CogniAgentTest {
     fun `isReady returns true when provider is configured`() {
         every { agentProvider.hasConfiguredProvider() } returns true
 
-        assertTrue(cogniAgent.isReady())
+        assertTrue(JarvisAgent.isReady())
     }
 
     @Test
     fun `isReady returns false when no provider is configured`() {
         every { agentProvider.hasConfiguredProvider() } returns false
 
-        assertFalse(cogniAgent.isReady())
+        assertFalse(JarvisAgent.isReady())
     }
 
     // =========================================================================
@@ -87,14 +87,14 @@ class CogniAgentTest {
     fun `getCurrentProvider returns provider name when available`() {
         every { agentProvider.getCurrentProviderName() } returns "GEMINI"
 
-        assertEquals("GEMINI", cogniAgent.getCurrentProvider())
+        assertEquals("GEMINI", JarvisAgent.getCurrentProvider())
     }
 
     @Test
     fun `getCurrentProvider returns null when no provider`() {
         every { agentProvider.getCurrentProviderName() } returns null
 
-        assertNull(cogniAgent.getCurrentProvider())
+        assertNull(JarvisAgent.getCurrentProvider())
     }
 
     // =========================================================================
@@ -103,11 +103,11 @@ class CogniAgentTest {
 
     @Test
     fun `run returns NoProvider when no API key configured`() = runTest {
-        // CogniAgent.run() uses getAllAvailableExecutors(), not getExecutor()
+        // JarvisAgent.run() uses getAllAvailableExecutors(), not getExecutor()
         // When no executors are available, it returns NoProvider with the actual message
         every { agentProvider.getAllAvailableExecutors() } returns emptyList()
 
-        val result = cogniAgent.run("Hello")
+        val result = JarvisAgent.run("Hello")
 
         assertTrue(result is AgentResult.NoProvider)
         assertEquals(
@@ -126,7 +126,7 @@ class CogniAgentTest {
         // the agent returns NoProvider, not Error
         every { agentProvider.getAllAvailableExecutors() } returns emptyList()
 
-        val result = cogniAgent.run("Hello")
+        val result = JarvisAgent.run("Hello")
 
         // Verify it returns NoProvider when no executors available
         assertTrue(result is AgentResult.NoProvider)
@@ -299,8 +299,8 @@ class CogniAgentTest {
 
     @Test
     fun `getTimeoutForProvider returns shorter timeout for LOCAL_PC`() {
-        val localTimeout = CogniAgent.getTimeoutForProvider(AIProvider.LOCAL_PC)
-        val cloudTimeout = CogniAgent.getTimeoutForProvider(AIProvider.GEMINI)
+        val localTimeout = JarvisAgent.getTimeoutForProvider(AIProvider.LOCAL_PC)
+        val cloudTimeout = JarvisAgent.getTimeoutForProvider(AIProvider.GEMINI)
 
         assertTrue(
             "Local PC should have shorter timeout than cloud",
@@ -310,8 +310,8 @@ class CogniAgentTest {
 
     @Test
     fun `getTimeoutForProvider returns longer timeout for slow providers`() {
-        val anthropicTimeout = CogniAgent.getTimeoutForProvider(AIProvider.ANTHROPIC)
-        val geminiTimeout = CogniAgent.getTimeoutForProvider(AIProvider.GEMINI)
+        val anthropicTimeout = JarvisAgent.getTimeoutForProvider(AIProvider.ANTHROPIC)
+        val geminiTimeout = JarvisAgent.getTimeoutForProvider(AIProvider.GEMINI)
 
         assertTrue(
             "Anthropic should have longer timeout than Gemini",
@@ -423,7 +423,7 @@ class CogniAgentTest {
     fun `getTimeoutForProvider handles all AIProvider values`() {
         // Ensure getTimeoutForProvider doesn't crash for any provider
         AIProvider.entries.forEach { provider ->
-            val timeout = CogniAgent.getTimeoutForProvider(provider)
+            val timeout = JarvisAgent.getTimeoutForProvider(provider)
             assertTrue(
                 "Timeout for $provider should be positive",
                 timeout > 0

@@ -143,7 +143,7 @@ fun ChatHistoryContent(
 
     // Delete Dialog
     sessionToDelete?.let { session ->
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete chat?",
             text = "This action cannot be undone.",
             onConfirm = {

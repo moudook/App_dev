@@ -8,7 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import com.example.smarty.data.model.CogniTimer
+import com.example.smarty.data.model.JarvisTimer
 
 /**
  * Schedules and manages timers/alarms using AlarmManager.
@@ -42,7 +42,7 @@ class AlarmScheduler(private val context: Context) {
      * For one-time timers, schedules at the specified triggerTime.
      * For recurring alarms, schedules the next occurrence based on repeatDays.
      */
-    fun scheduleTimer(timer: CogniTimer) {
+    fun scheduleTimer(timer: JarvisTimer) {
         Log.d(TAG, "Scheduling timer: ${timer.name} at ${timer.triggerTime}")
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {

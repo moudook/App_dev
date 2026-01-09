@@ -7,7 +7,7 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.FileStorageHelper
@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Manages share flow state and operations.
- * Extracted from CogniViewModel for better separation of concerns.
+ * Extracted from JarvisViewModel for better separation of concerns.
  *
  * Responsibilities:
  * - Pending share state management
@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
  * - Related notes discovery
  */
 class ShareFlowManager(
-    private val repository: CogniRepository,
+    private val repository: JarvisRepository,
     private val context: Context,
     private val scope: CoroutineScope,
     private val getNotesSnapshot: () -> List<Note>

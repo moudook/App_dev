@@ -5,7 +5,7 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
 import com.example.smarty.data.cache.ToolResultCache
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -69,7 +69,7 @@ data class EventSummary(
  * PRIVACY: Only returns non-private events. Private events are never exposed to AI.
  */
 class GetEventsTool(
-    private val repository: CogniRepository
+    private val repository: JarvisRepository
 ) : Tool<GetEventsArgs, GetEventsResult>(
     argsSerializer = GetEventsArgs.serializer(),
     resultSerializer = GetEventsResult.serializer(),

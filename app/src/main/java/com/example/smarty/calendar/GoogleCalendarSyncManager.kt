@@ -10,7 +10,7 @@ import android.provider.CalendarContract
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +31,7 @@ import java.util.TimeZone
  */
 class GoogleCalendarSyncManager(
     private val context: Context,
-    private val repository: CogniRepository
+    private val repository: JarvisRepository
 ) {
     companion object {
         private const val TAG = "CalendarSync"

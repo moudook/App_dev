@@ -229,7 +229,7 @@ fun AIMemorySettingsContent(
 
     // Delete Single Memory Dialog
     if (memoryToDelete != null) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Forget this insight?",
             text = "The AI will stop using this behavioral pattern for personalization.",
             onConfirm = {
@@ -245,7 +245,7 @@ fun AIMemorySettingsContent(
 
     // Clear All Dialog
     if (showClearAllDialog) {
-        com.example.smarty.ui.components.common.LoumDialog(
+        com.example.smarty.ui.components.common.JarvisDialog(
             title = "Reset Personal Intelligence?",
             text = "All ${memories.size} extracted insights will be deleted. This cannot be undone.",
             onConfirm = {

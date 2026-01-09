@@ -177,16 +177,16 @@ class SpeechToTextState(
 
 /**
  * Find an external speech recognition service (NOT our own package).
- * This is critical when Smarty is set as the default assistant, because
- * the system's "default" recognizer would be Smarty itself, creating a loop.
+ * This is critical when Jarvis is set as the default assistant, because
+ * the system's "default" recognizer would be Jarvis itself, creating a loop.
  */
 private fun findExternalSpeechService(context: Context): android.content.ComponentName? {
     val pm = context.packageManager
     val myPackage = context.packageName
 
     // Query all services that can handle speech recognition
-    val recognizerIntent = Intent("android.speech.RecognitionService")
-    val services = pm.queryIntentServices(recognizerIntent, PackageManager.GET_META_DATA)
+    val RecognizerIntent = Intent("android.speech.recognitionService")
+    val services = pm.queryIntentServices(RecognizerIntent, PackageManager.GET_META_DATA)
 
     Log.d("SpeechToText", "Found ${services.size} speech recognition services")
 
@@ -230,8 +230,8 @@ fun rememberSpeechToText(
     val scope = rememberCoroutineScope()
 
     // Create SpeechRecognizer with EXTERNAL service to avoid loop
-    // When Smarty is the default assistant, the "default" recognizer is Smarty itself!
-    val speechRecognizer = remember {
+    // When Jarvis is the default assistant, the "default" recognizer is Jarvis itself!
+    val speechRecognizerInstance = remember {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
             val externalService = findExternalSpeechService(context)
             if (externalService != null) {
@@ -274,8 +274,8 @@ fun rememberSpeechToText(
     }
 
     // State holder
-    val state = remember(speechRecognizer, permissionLauncher) {
-        SpeechToTextState(context, speechRecognizer, permissionLauncher)
+    val state = remember(speechRecognizerInstance, permissionLauncher) {
+        SpeechToTextState(context, speechRecognizerInstance, permissionLauncher)
     }
 
     // Update state holder for permission callback and set up pending state tracking
@@ -296,7 +296,7 @@ fun rememberSpeechToText(
     }
 
     // Set up the listener
-    DisposableEffect(speechRecognizer) {
+    DisposableEffect(speechRecognizerInstance) {
         val listener = object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
                 Log.d("SpeechToText", "onReadyForSpeech - speech service is ready")
@@ -319,7 +319,7 @@ fun rememberSpeechToText(
 
             override fun onEndOfSpeech() {
                 Log.d("SpeechToText", "onEndOfSpeech - user stopped speaking")
-                // Recognition continues until final results.
+                // recognition continues until final results.
                 // We keep isListening = true so the UI continues to shimmer/show active state
                 // until onResults or onError is called.
             }
@@ -370,12 +370,12 @@ fun rememberSpeechToText(
             override fun onEvent(eventType: Int, params: Bundle?) {}
         }
 
-        speechRecognizer?.setRecognitionListener(listener)
+        speechRecognizerInstance?.setRecognitionListener(listener)
 
         onDispose {
             state.stopListening() // Ensure timeout is cancelled
             try {
-                speechRecognizer?.destroy()
+                speechRecognizerInstance?.destroy()
             } catch (e: Exception) {
                 // Ignore destroy errors
             }
@@ -384,4 +384,9 @@ fun rememberSpeechToText(
 
     return state
 }
+
+
+
+
+
 

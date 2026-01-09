@@ -38,16 +38,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.offset
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
-import com.example.smarty.navigation.CogniNavHost
+import com.example.smarty.navigation.JarvisNavHost
 import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
 import com.example.smarty.ui.components.audio.FullAudioPlayer
 
-import com.example.smarty.ui.theme.CogniTheme
+import com.example.smarty.ui.theme.JarvisTheme
 import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.service.AudioPlayerService
 import com.example.smarty.viewmodel.AudioPlayerViewModel
-import com.example.smarty.viewmodel.CogniViewModel
-import com.example.smarty.viewmodel.CogniViewModelFactory
+import com.example.smarty.viewmodel.JarvisViewModel
+import com.example.smarty.viewmodel.JarvisViewModelFactory
 import com.example.smarty.viewmodel.AuthViewModel
 import com.example.smarty.viewmodel.AuthViewModelFactory
 import com.example.smarty.viewmodel.SharedContent
@@ -56,8 +56,8 @@ import com.example.smarty.ui.components.AttachmentOption
 
 class MainActivity : ComponentActivity() {
     // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
-    private val viewModel: CogniViewModel by viewModels {
-        CogniViewModelFactory(application, this)
+    private val viewModel: JarvisViewModel by viewModels {
+        JarvisViewModelFactory(application, this)
     }
     private val authViewModel: AuthViewModel by viewModels {
         AuthViewModelFactory(application)
@@ -121,10 +121,10 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         setContent {
-            // Collect theme state at the top level for CogniTheme
+            // Collect theme state at the top level for JarvisTheme
             val isDarkThemeTop by viewModel.isDarkTheme.collectAsState()
 
-            CogniTheme(darkTheme = isDarkThemeTop) {
+            JarvisTheme(darkTheme = isDarkThemeTop) {
                 // NOTE: Splash animation is now integrated into LoginScreen
                 // No separate splash state needed
 
@@ -137,6 +137,16 @@ class MainActivity : ComponentActivity() {
                 // OPTIMIZATION: If Firebase already has a cached user, mark as loaded immediately
                 // This prevents the login screen from flashing when sharing from other apps
                 var authStateLoaded by remember { mutableStateOf(firebaseCurrentUser != null) }
+                
+                // CRITICAL FIX: When there's no cached user (fresh install/cleared data),
+                // we need to mark auth state as loaded after the ViewModel finishes checking.
+                // Without this, the app stays stuck on the loading indicator forever.
+                LaunchedEffect(currentUser) {
+                    // Once the auth flow emits (even if null), we know auth state is loaded
+                    if (!authStateLoaded) {
+                        authStateLoaded = true
+                    }
+                }
                 
                 // Track mic permission state
                 val micPermissionGranted by _micPermissionGranted
@@ -181,6 +191,7 @@ class MainActivity : ComponentActivity() {
                 
                 // AI Planning Status (Progress UI)
                 val aiPlanStatus by viewModel.aiPlanStatus.collectAsState()
+                val currentToolName by viewModel.currentToolName.collectAsState()
 
                 // AI exclusion state
                 val isAiExcluded by viewModel.pendingNoteAiExcluded.collectAsState()
@@ -268,11 +279,11 @@ class MainActivity : ComponentActivity() {
                     }
                 )
 
-                // CRITICAL: Stop speech recognition when app goes to background
+                // CRITICAL: Stop speech reJarvistion when app goes to background
                 // This prevents microphone access when app is minimized (privacy fix)
                 LaunchedEffect(isAppInForeground) {
                     if (!isAppInForeground && globalSpeechState.isListening) {
-                        android.util.Log.d("Privacy", "Stopping speech recognition - app went to background")
+                        android.util.Log.d("Privacy", "Stopping speech reJarvistion - app went to background")
                         globalSpeechState.stopListening()
                     }
                 }
@@ -290,7 +301,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // Sync mic state to ViewModel for contextual shake detection
-                // Also coordinate audio playback with speech recognition
+                // Also coordinate audio playback with speech reJarvistion
                 // Pause/resume wake word detection based on mic usage
                 // PRIVACY: Also check foreground state to prevent background mic access
                 LaunchedEffect(globalSpeechState.isListening, isAppInForeground) {
@@ -308,6 +319,21 @@ class MainActivity : ComponentActivity() {
                     } else {
                         // App is in background - don't restart wake word detection
                         android.util.Log.d("Privacy", "Mic released but app is in background - not restarting wake word")
+                    }
+                }
+
+                // FIX: Restart wake word when audio playback ends (Visualizer releases mic)
+                // When audio player stops, it releases the Visualizer which was holding the mic permission/stream
+                // We must explicitly restart Vosk to reclaim the mic for wake word detection
+                LaunchedEffect(audioUiState.playbackState) {
+                    val state = audioUiState.playbackState
+                    if (state == com.example.smarty.data.model.PlaybackState.ENDED || 
+                        state == com.example.smarty.data.model.PlaybackState.IDLE) {
+                        // Only restart if we are in foreground and not actively recording speech
+                        if (isAppInForeground && !globalSpeechState.isListening) {
+                            android.util.Log.d("WakeWord", "Audio playback ended ($state) - restarting wake word detection")
+                            viewModel.restartWakeWordDetection()
+                        }
                     }
                 }
 
@@ -367,7 +393,7 @@ class MainActivity : ComponentActivity() {
                             "main_app" -> {
                                 // MAIN APP - User is logged in, splash done, enrollment done/skipped
                                 Box(modifier = Modifier.fillMaxSize()) {
-                                    CogniNavHost(
+                                    JarvisNavHost(
                                         navController = navController,
                                         // Auth Guard - user is definitely logged in at this point
                                         isLoggedIn = true,
@@ -484,7 +510,7 @@ class MainActivity : ComponentActivity() {
                                         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                             type = "text/plain"
                                             putExtra(android.content.Intent.EXTRA_TEXT, shareText)
-                                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Shared from Loum")
+                                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Shared from Jarvis")
                                         }
                                         startActivity(android.content.Intent.createChooser(intent, "Share notes"))
                                     },
@@ -502,6 +528,7 @@ class MainActivity : ComponentActivity() {
                                     chatMessages = chatMessages,
                                     isChatProcessing = isChatProcessing,
                                     aiPlanStatus = aiPlanStatus,
+                                    currentToolName = currentToolName,
                                     onSendChatMessage = { content, attachments ->
                                         viewModel.sendChatMessage(content, attachments)
                                     },
@@ -707,12 +734,12 @@ class MainActivity : ComponentActivity() {
                                         onDismiss = { audioPlayerViewModel.collapseToMiniPlayer() }
                                     )
                                 }  // End if (isFullPlayerVisible)
-                            }  // End inner Box (CogniNavHost container)
+                            }  // End inner Box (JarvisNavHost container)
                         }  // End main_app case
                     }  // End when
                 }  // End Crossfade
             }  // End outer Box
-        }  // End CogniTheme
+        }  // End JarvisTheme
     }  // End setContent
 }  // End onCreate
 
@@ -897,7 +924,7 @@ class MainActivity : ComponentActivity() {
     private fun requestRequiredPermissions() {
         val permissionsToRequest = mutableListOf<String>()
 
-        // RECORD_AUDIO - Required for wake word detection and speech recognition
+        // RECORD_AUDIO - Required for wake word detection and speech reJarvistion
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)

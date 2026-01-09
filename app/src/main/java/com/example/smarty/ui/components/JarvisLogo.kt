@@ -25,11 +25,11 @@ import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
- * Cogni Logo component - renders the hand gesture logo
+ * Jarvis Logo component - renders the hand gesture logo
  * Falls back to a stylized text logo if image not available
  */
 @Composable
-fun CogniLogo(
+fun JarvisLogo(
     modifier: Modifier = Modifier,
     size: Dp = 32.dp,
     showShimmer: Boolean = false
@@ -68,10 +68,10 @@ fun CogniLogo(
         if (!imageLoadError) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data("file:///android_asset/Cogni_Icon.png")
+                    .data("file:///android_asset/Jarvis_Icon.png")
                     .crossfade(true)
                     .build(),
-                contentDescription = "Cogni Logo",
+                contentDescription = "Jarvis Logo",
                 modifier = Modifier.fillMaxSize(),
                 onError = { imageLoadError = true }
             )
@@ -372,7 +372,7 @@ fun DecompressionPlaceholder(
  * Compact header with logo + text for main screen
  */
 @Composable
-fun CogniHeader(
+fun JarvisHeader(
     modifier: Modifier = Modifier,
     showShimmer: Boolean = false
 ) {
@@ -381,13 +381,13 @@ fun CogniHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        CogniLogo(
+        JarvisLogo(
             size = 28.dp,
             showShimmer = false // Disabled per user request
         )
 
         Text(
-            text = "cogni_",
+            text = "Jarvis_",
             style = MaterialTheme.typography.titleLarge,
             color = LocalAccentColor.current
         )

@@ -15,7 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.work.*
 import com.example.smarty.MainActivity
 import com.example.smarty.R
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -122,7 +122,7 @@ class DailyDigestWorker(
     private suspend fun generateDigest(): DigestContent {
         // Use applicationContext to prevent context leaks
         val appContext = applicationContext
-        val database = CogniDatabase.getDatabase(appContext)
+        val database = JarvisDatabase.getDatabase(appContext)
         val noteDao = database.noteDao()
 
         // Get notes from the last 24 hours

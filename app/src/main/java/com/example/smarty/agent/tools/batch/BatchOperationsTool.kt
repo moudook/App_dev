@@ -3,7 +3,7 @@ package com.example.smarty.agent.tools.batch
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.toon.ToonManager
 import kotlinx.serialization.Serializable
@@ -65,7 +65,7 @@ data class BatchOperationResult(
  * - update_category: Move all matching notes to a category
  */
 class BatchOperationsTool(
-    private val repository: CogniRepository,
+    private val repository: JarvisRepository,
     private val getActiveNotes: () -> List<Note>
 ) : Tool<BatchOperationArgs, BatchOperationResult>(
     argsSerializer = BatchOperationArgs.serializer(),

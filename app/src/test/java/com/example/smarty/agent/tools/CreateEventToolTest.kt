@@ -3,7 +3,7 @@ package com.example.smarty.agent.tools
 import com.example.smarty.agent.tools.calendar.CreateEventArgs
 import com.example.smarty.agent.tools.calendar.CreateEventTool
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -19,7 +19,7 @@ import java.util.Calendar
  */
 class CreateEventToolTest {
 
-    private lateinit var repository: CogniRepository
+    private lateinit var repository: JarvisRepository
     private lateinit var tool: CreateEventTool
 
     @Before

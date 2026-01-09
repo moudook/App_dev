@@ -286,7 +286,7 @@ class SecurePreferences(private val context: Context) {
     private val encryptedPrefs: android.content.SharedPreferences by lazy {
         EncryptedSharedPreferences.create(
             context,
-            "cogni_secure_prefs",
+            "Jarvis_secure_prefs",
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM

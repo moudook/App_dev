@@ -10,25 +10,25 @@ import com.example.smarty.util.api.ApiMetrics
 import java.lang.ref.WeakReference
 
 /**
- * Application class for Cogni.
+ * Application class for Jarvis.
  *
  * Initializes global components:
  * - ResourceManager: Device capability detection and memory monitoring
  * - LazyDecompressor: On-demand decompression with intelligent caching
  * - WorkManager: Custom configuration to prevent memory leaks
  */
-class CogniApplication : Application(), Configuration.Provider {
+class JarvisApplication : Application(), Configuration.Provider {
 
     companion object {
-        private const val TAG = "CogniApplication"
+        private const val TAG = "JarvisApplication"
 
         // WeakReference to prevent memory leaks from static context references
-        private var applicationRef: WeakReference<CogniApplication>? = null
+        private var applicationRef: WeakReference<JarvisApplication>? = null
 
         /**
          * Get application instance safely (may be null if app terminated)
          */
-        fun getInstance(): CogniApplication? = applicationRef?.get()
+        fun getInstance(): JarvisApplication? = applicationRef?.get()
     }
 
     /**

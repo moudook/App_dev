@@ -3,7 +3,7 @@ package com.example.smarty.agent.tools.notes
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
-import com.example.smarty.agent.tools.base.CogniToolUtils
+import com.example.smarty.agent.tools.base.JarvisToolUtils
 import com.example.smarty.agent.tools.base.NoteInfo
 import com.example.smarty.agent.tools.base.NoteSearchResult
 import com.example.smarty.data.cache.ToolResultCache
@@ -47,7 +47,7 @@ class SearchNotesTool(
 
         return try {
             val allNotes = getActiveNotes()
-            val visibleNotes = CogniToolUtils.filterNotesForAi(allNotes)
+            val visibleNotes = JarvisToolUtils.filterNotesForAi(allNotes)
 
             Log.d(TAG, "Searching ${visibleNotes.size} notes for: '${args.query}'")
 

@@ -30,12 +30,12 @@ import java.util.concurrent.atomic.AtomicInteger
  * Supports provider priority fallback with circuit breaker pattern.
  * Integrates with GroqKeyManager for per-key rate limit tracking.
  */
-class CogniAgentProvider(
+class JarvisAgentProvider(
     private val securePreferences: SecurePreferences,
     private val groqKeyManager: GroqKeyManager? = null
 ) {
     companion object {
-        private const val TAG = "CogniAgentProvider"
+        private const val TAG = "JarvisAgentProvider"
         private const val LOCAL_PC_CONNECTION_TIMEOUT_MS = 3000 // 3 seconds timeout for connectivity check
     }
 

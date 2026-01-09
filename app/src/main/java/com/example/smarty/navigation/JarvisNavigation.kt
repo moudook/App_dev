@@ -42,7 +42,7 @@ private fun NavHostController.safePopBackStack(): Boolean {
             false
         }
     } catch (e: Exception) {
-        android.util.Log.w("CogniNavigation", "Safe pop failed: ${e.message}")
+        android.util.Log.w("JarvisNavigation", "Safe pop failed: ${e.message}")
         false
     }
 }
@@ -60,7 +60,7 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun CogniNavHost(
+fun JarvisNavHost(
     navController: NavHostController = rememberNavController(),
     notes: List<Note>,
     archivedNotes: List<Note>,
@@ -120,6 +120,7 @@ fun CogniNavHost(
     onEnterChatWithNoteReference: (String) -> Unit = {},  // @Mention: Enter chat with note pre-referenced
     // AI Planning Status
     aiPlanStatus: String? = null,
+    currentToolName: String? = null,
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
@@ -220,7 +221,7 @@ fun CogniNavHost(
     unreadForMemoryCount: Int = 0,
     onClearMemorySyncResult: () -> Unit = {}
 ) {
-    // NOTE: Login is now handled in MainActivity BEFORE CogniNavHost is rendered
+    // NOTE: Login is now handled in MainActivity BEFORE JarvisNavHost is rendered
     // When we get here, user is ALWAYS logged in
     val startDestination = Screen.InputStream.route
 
@@ -287,6 +288,7 @@ fun CogniNavHost(
                 onMentionSelected = onMentionSelected,
                 // AI Planning Status
                 aiPlanStatus = aiPlanStatus,
+                currentToolName = currentToolName,
                 // Pending chat text (for "Ask AI" from note card)
                 pendingChatText = pendingChatText,
                 onClearPendingChatText = onClearPendingChatText,

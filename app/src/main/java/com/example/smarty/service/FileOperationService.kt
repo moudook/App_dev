@@ -363,7 +363,7 @@ class FileOperationService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Loum")
+            .setContentTitle("Jarvis")
             .setContentText(message)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_LOW)

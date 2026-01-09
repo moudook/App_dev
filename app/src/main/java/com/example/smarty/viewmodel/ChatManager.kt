@@ -17,7 +17,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Manages chat mode state and session lifecycle.
- * Extracted from CogniViewModel for better separation of concerns.
+ * Extracted from JarvisViewModel for better separation of concerns.
  *
  * Responsibilities:
  * - Chat mode on/off state
@@ -272,7 +272,9 @@ class ChatManager(
     fun shouldSaveChat(hasApiKeys: Boolean): Boolean {
         if (_currentSessionId.value == null) return false
         if (!lastApiCallSuccessful) return false
-        if (!hasApiKeys) return false
+        // FIX: Don't check hasApiKeys here. If lastApiCallSuccessful is true, 
+        // it means we got a response (local LLM or cloud), so we should ALWAYS save it.
+        // if (!hasApiKeys) return false 
         return true
     }
 

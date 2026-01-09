@@ -31,7 +31,7 @@ import com.example.smarty.ui.theme.LocalSpacing
 
 /**
  * =============================================================================
- * COGNI CHIP COMPONENT
+ * Jarvis CHIP COMPONENT
  * =============================================================================
  *
  * A reusable chip component that consolidates chip-like UI elements across
@@ -48,7 +48,7 @@ import com.example.smarty.ui.theme.LocalSpacing
  */
 
 /**
- * Visual variants for CogniChip.
+ * Visual variants for JarvisChip.
  */
 enum class ChipVariant {
     /** Standard chip with subtle background */
@@ -65,7 +65,7 @@ enum class ChipVariant {
 }
 
 /**
- * Size options for CogniChip.
+ * Size options for JarvisChip.
  */
 enum class ChipSize {
     /** Compact chip for dense layouts */
@@ -114,7 +114,7 @@ private data class ChipColorConfig(
  * @param modifier Modifier for the chip container
  */
 @Composable
-fun CogniChip(
+fun JarvisChip(
     label: String,
     onClick: (() -> Unit)? = null,
     leadingIcon: ImageVector? = null,
@@ -316,14 +316,14 @@ fun CogniChip(
  * @param modifier Modifier for the chip
  */
 @Composable
-fun CogniFilterChip(
+fun JarvisFilterChip(
     label: String,
     isSelected: Boolean,
     onToggle: (Boolean) -> Unit,
     leadingIcon: ImageVector? = null,
     modifier: Modifier = Modifier
 ) {
-    CogniChip(
+    JarvisChip(
         label = label,
         onClick = { onToggle(!isSelected) },
         leadingIcon = leadingIcon,
@@ -343,13 +343,13 @@ fun CogniFilterChip(
  * @param modifier Modifier for the chip
  */
 @Composable
-fun CogniTagChip(
+fun JarvisTagChip(
     label: String,
     onRemove: (() -> Unit)? = null,
     removeIcon: ImageVector? = null,
     modifier: Modifier = Modifier
 ) {
-    CogniChip(
+    JarvisChip(
         label = label,
         trailingIcon = removeIcon,
         onTrailingClick = onRemove,

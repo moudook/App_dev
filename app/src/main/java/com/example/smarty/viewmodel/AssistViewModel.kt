@@ -8,12 +8,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.CogniAgent
-import com.example.smarty.agent.CogniAgentProvider
+import com.example.smarty.agent.JarvisAgent
+import com.example.smarty.agent.JarvisAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.WebCitation
 import com.example.smarty.data.model.InlineChatImage
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.AudioTrack
@@ -24,7 +24,7 @@ import com.example.smarty.data.model.Citation
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.api.GroqKeyManager
@@ -61,11 +61,11 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val securePreferences: SecurePreferences by lazy {
         SecurePreferences.getInstance(application)
     }
-    private val database: CogniDatabase by lazy {
-        CogniDatabase.getDatabase(application)
+    private val database: JarvisDatabase by lazy {
+        JarvisDatabase.getDatabase(application)
     }
-    private val repository: CogniRepository by lazy {
-        CogniRepository(
+    private val repository: JarvisRepository by lazy {
+        JarvisRepository(
             database.noteDao(),
             database.categoryDao(),
             database.calendarDao(),
@@ -88,8 +88,8 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val alarmScheduler: AlarmScheduler by lazy {
         AlarmScheduler.getInstance(application)
     }
-    private val agentProvider: CogniAgentProvider by lazy {
-        CogniAgentProvider(securePreferences, groqKeyManager)
+    private val agentProvider: JarvisAgentProvider by lazy {
+        JarvisAgentProvider(securePreferences, groqKeyManager)
     }
 
     // Notes state for agent callbacks (cached on first access)
@@ -182,8 +182,8 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private val cogniAgent: CogniAgent by lazy {
-        CogniAgent(
+    private val jarvisAgent: JarvisAgent by lazy {
+        JarvisAgent(
             context = application,
             agentProvider = agentProvider,
             repository = repository,
@@ -288,7 +288,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                     .takeLast(10) // Keep last 10 messages for context
 
                 // Get AI response using the run method
-                val result = cogniAgent.run(
+                val result = jarvisAgent.run(
                     userMessage = content,
                     conversationHistory = conversationHistory
                 )

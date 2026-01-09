@@ -21,7 +21,7 @@ import java.io.IOException
  * Higher values = more sensitive but also more noise
  */
 class HighSensitivitySpeechService(
-    private val recognizer: Recognizer,
+    private val Recognizer: Recognizer,
     private val sampleRate: Float,
     private val gainMultiplier: Float = 2.5f  // 2.5x amplification for better range
 ) {
@@ -40,7 +40,7 @@ class HighSensitivitySpeechService(
     }
 
     private var audioRecord: AudioRecord? = null
-    private var recognitionThread: Thread? = null
+    private var reJarvistionThread: Thread? = null
     private var listener: RecognitionListener? = null
 
     @Volatile
@@ -97,7 +97,7 @@ class HighSensitivitySpeechService(
             audioRecord = record
             isRunning = true
 
-            recognitionThread = Thread({
+            reJarvistionThread = Thread({
                 processAudio(actualBufferSize)
             }, "VoskHighSensitivity").apply {
                 start()
@@ -166,16 +166,16 @@ class HighSensitivitySpeechService(
                     // Convert to byte array for Vosk
                     val byteBuffer = shortsToBytes(amplifiedBuffer, readCount)
 
-                    // Feed to recognizer
-                    // CRASH FIX #3: Wrap recognizer calls in try-catch to handle closed recognizer
-                    // VoskWakeWordManager can close the recognizer while processAudio is still running
+                    // Feed to Recognizer
+                    // CRASH FIX #3: Wrap Recognizer calls in try-catch to handle closed Recognizer
+                    // VoskWakeWordManager can close the Recognizer while processAudio is still running
                     if (!isRunning) break
                     try {
-                        if (recognizer.acceptWaveForm(byteBuffer, byteBuffer.size)) {
-                            val result = recognizer.result
+                        if (Recognizer.acceptWaveForm(byteBuffer, byteBuffer.size)) {
+                            val result = Recognizer.result
                             listener?.onResult(result)
                         } else {
-                            val partial = recognizer.partialResult
+                            val partial = Recognizer.partialResult
                             listener?.onPartialResult(partial)
                         }
                     } catch (e: Exception) {
@@ -189,12 +189,12 @@ class HighSensitivitySpeechService(
             }
 
             // Get final result
-            // CRASH FIX #3: Wrap finalResult call in try-catch to handle closed recognizer
+            // CRASH FIX #3: Wrap finalResult call in try-catch to handle closed Recognizer
             try {
-                val finalResult = recognizer.finalResult
+                val finalResult = Recognizer.finalResult
                 listener?.onFinalResult(finalResult)
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to get final result - recognizer likely closed: ${e.message}")
+                Log.e(TAG, "Failed to get final result - Recognizer likely closed: ${e.message}")
             }
 
             // ISSUE #3 FIX: Notify listener if AudioRecord became invalid
@@ -275,24 +275,24 @@ class HighSensitivitySpeechService(
     fun stop() {
         isRunning = false
 
-        // ISSUE #6 FIX: Increased timeout from 500ms to 1000ms for safer recognizer access
-        // This ensures the processing thread completes before the recognizer is closed
+        // ISSUE #6 FIX: Increased timeout from 500ms to 1000ms for safer Recognizer access
+        // This ensures the processing thread completes before the Recognizer is closed
         try {
-            val thread = recognitionThread
+            val thread = reJarvistionThread
             if (thread != null && thread.isAlive) {
                 thread.join(1000)
                 // Warn if thread didn't stop in time - potential race condition
                 if (thread.isAlive) {
-                    Log.w(TAG, "Recognition thread didn't stop within 1000ms - forcing interrupt")
+                    Log.w(TAG, "ReJarvistion thread didn't stop within 1000ms - forcing interrupt")
                     thread.interrupt()
                     thread.join(200)  // Brief wait after interrupt
                 }
             }
         } catch (e: InterruptedException) {
-            Log.w(TAG, "Interrupted while waiting for recognition thread")
+            Log.w(TAG, "Interrupted while waiting for reJarvistion thread")
             Thread.currentThread().interrupt()
         }
-        recognitionThread = null
+        reJarvistionThread = null
 
         try {
             audioRecord?.stop()
@@ -319,3 +319,4 @@ class HighSensitivitySpeechService(
         listener = null
     }
 }
+

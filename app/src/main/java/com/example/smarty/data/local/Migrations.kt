@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Database migrations for Cogni app
+ * Database migrations for Jarvis app
  */
 object Migrations {
     /**

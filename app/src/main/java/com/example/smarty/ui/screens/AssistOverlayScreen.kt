@@ -86,7 +86,7 @@ fun AssistOverlayScreen(
     }
 
     // Speech recognizer
-    var speechRecognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    var speechRecognizerInstance by remember { mutableStateOf<SpeechRecognizer?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -94,7 +94,7 @@ fun AssistOverlayScreen(
         if (isGranted) {
             startSpeechRecognition(
                 context = context,
-                speechRecognizer = speechRecognizer,
+                speechRecognizerInstance = speechRecognizerInstance,
                 onResult = { text ->
                     viewModel.setListening(false)
                     if (text.isNotBlank()) viewModel.sendMessage(text)
@@ -107,9 +107,9 @@ fun AssistOverlayScreen(
 
     DisposableEffect(Unit) {
         if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            speechRecognizerInstance = SpeechRecognizer.createSpeechRecognizer(context)
         }
-        onDispose { speechRecognizer?.destroy() }
+        onDispose { speechRecognizerInstance?.destroy() }
     }
 
     // FULLY TRANSPARENT - no background color at all
@@ -183,12 +183,12 @@ fun AssistOverlayScreen(
                             ) == PackageManager.PERMISSION_GRANTED
                         ) {
                             if (isListening) {
-                                speechRecognizer?.stopListening()
+                                speechRecognizerInstance?.stopListening()
                                 viewModel.setListening(false)
                             } else {
                                 startSpeechRecognition(
                                     context = context,
-                                    speechRecognizer = speechRecognizer,
+                                    speechRecognizerInstance = speechRecognizerInstance,
                                     onResult = { text ->
                                         viewModel.setListening(false)
                                         if (text.isNotBlank()) viewModel.sendMessage(text)
@@ -334,7 +334,7 @@ private fun GlowingInputBar(
                     decorationBox = { innerTextField ->
                         if (text.isEmpty()) {
                             Text(
-                                text = if (isListening) "Listening..." else "Ask Loum",
+                                text = if (isListening) "Listening..." else "Ask Jarvis",
                                 color = if (isListening) GeminiBlue else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 fontSize = 16.sp
                             )
@@ -571,12 +571,12 @@ private fun ThinkingDots() {
 
 private fun startSpeechRecognition(
     context: android.content.Context,
-    speechRecognizer: SpeechRecognizer?,
+    speechRecognizerInstance: SpeechRecognizer?,
     onResult: (String) -> Unit,
     onListening: () -> Unit,
     onError: () -> Unit
 ) {
-    if (speechRecognizer == null) { onError(); return }
+    if (speechRecognizerInstance == null) { onError(); return }
 
     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -585,7 +585,7 @@ private fun startSpeechRecognition(
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
     }
 
-    speechRecognizer.setRecognitionListener(object : RecognitionListener {
+    speechRecognizerInstance.setRecognitionListener(object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) { onListening() }
         override fun onBeginningOfSpeech() {}
         override fun onRmsChanged(rmsdB: Float) {}
@@ -599,6 +599,9 @@ private fun startSpeechRecognition(
         override fun onEvent(eventType: Int, params: Bundle?) {}
     })
 
-    try { speechRecognizer.startListening(intent) }
+    try { speechRecognizerInstance.startListening(intent) }
     catch (e: Exception) { Log.e("Assist", "Speech start error: ${e.message}"); onError() }
 }
+
+
+

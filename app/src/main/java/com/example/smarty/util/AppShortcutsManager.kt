@@ -30,7 +30,7 @@ object AppShortcutsManager {
 
     /**
      * Initialize app shortcuts on startup.
-     * Call this in CogniApplication.onCreate()
+     * Call this in JarvisApplication.onCreate()
      */
     fun setupShortcuts(context: Context) {
         val shortcuts = listOf(

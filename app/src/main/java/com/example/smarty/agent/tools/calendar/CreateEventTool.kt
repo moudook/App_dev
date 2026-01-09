@@ -4,7 +4,7 @@ import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -38,7 +38,7 @@ data class CreateEventArgs(
  * BUG FIX (NEW-012/17): Added end time validation to prevent invalid events.
  */
 class CreateEventTool(
-    private val repository: CogniRepository
+    private val repository: JarvisRepository
 ) : Tool<CreateEventArgs, CalendarOperationResult>(
     argsSerializer = CreateEventArgs.serializer(),
     resultSerializer = CalendarOperationResult.serializer(),

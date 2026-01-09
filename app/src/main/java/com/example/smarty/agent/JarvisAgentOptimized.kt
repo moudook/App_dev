@@ -43,7 +43,7 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TaggedNoteContext
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.local.AIMemoryDao
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.HistoryCompressor
 import com.example.smarty.util.PIIMasker
@@ -75,32 +75,33 @@ data class WebCitation(
  * Provides structured error classification instead of fragile string matching.
  */
 sealed class ToolErrorType {
+    abstract val message: String
     /** Validation errors - invalid input format, missing required fields */
-    data class Validation(val message: String) : ToolErrorType()
+    data class Validation(override val message: String) : ToolErrorType()
 
     /** State errors - operation not allowed in current state */
-    data class InvalidState(val message: String) : ToolErrorType()
+    data class InvalidState(override val message: String) : ToolErrorType()
 
     /** Resource not found - note, event, category doesn't exist */
-    data class NotFound(val resource: String, val message: String) : ToolErrorType()
+    data class NotFound(val resource: String, override val message: String) : ToolErrorType()
 
     /** Permission denied - user lacks access to resource */
-    data class PermissionDenied(val message: String) : ToolErrorType()
+    data class PermissionDenied(override val message: String) : ToolErrorType()
 
     /** Parsing errors - failed to parse input data */
-    data class ParseError(val message: String) : ToolErrorType()
+    data class ParseError(override val message: String) : ToolErrorType()
 
     /** Network/API errors - external service failures */
-    data class NetworkError(val message: String) : ToolErrorType()
+    data class NetworkError(override val message: String) : ToolErrorType()
 
     /** Resource exhausted - rate limits, quotas exceeded */
-    data class ResourceExhausted(val message: String) : ToolErrorType()
+    data class ResourceExhausted(override val message: String) : ToolErrorType()
 
     /** Provider error - should trigger failover to next provider */
-    data class ProviderError(val message: String) : ToolErrorType()
+    data class ProviderError(override val message: String) : ToolErrorType()
 
     /** Unknown error - unclassified errors */
-    data class Unknown(val message: String) : ToolErrorType()
+    data class Unknown(override val message: String) : ToolErrorType()
 
     /**
      * Whether this error type should trigger provider failover.
@@ -126,6 +127,7 @@ sealed class ToolErrorType {
         is ResourceExhausted -> "Service temporarily unavailable: $message"
         is ProviderError -> "AI service error: $message"
         is Unknown -> message
+        else -> message
     }
 
     companion object {
@@ -287,7 +289,7 @@ interface AgentCallbacks {
 
     // Callback for ViewImageTool to display images inline in chat
     fun onDisplayImages(images: List<ImageDisplayItem>)
-    
+
     // Callback for status updates from internal planning system
     fun onPlanStatusChanged(status: String?)
 
@@ -296,7 +298,7 @@ interface AgentCallbacks {
 }
 
 /**
- * Main Cogni AI Agent wrapper using JetBrains Koog framework.
+ * Main Jarvis AI Agent wrapper using JetBrains Koog framework.
  *
  * This agent can:
  * - Create, search, update, delete, archive/unarchive notes
@@ -307,10 +309,10 @@ interface AgentCallbacks {
  *
  * All operations respect PrivacyGuard - private notes are invisible to AI.
  */
-class CogniAgent(
+class JarvisAgent(
     private val context: Context,  // For OpenAppTool
-    private val agentProvider: CogniAgentProvider,
-    private val repository: CogniRepository,
+    private val agentProvider: JarvisAgentProvider,
+    private val repository: JarvisRepository,
     private val tavilySearchProvider: TavilySearchProvider,
     private val alarmScheduler: AlarmScheduler,
     private val callbacks: AgentCallbacks,
@@ -318,16 +320,20 @@ class CogniAgent(
     private val rateLimiter: RateLimiter? = null  // Optional rate limiter
 ) {
     companion object {
-        private const val TAG = "CogniAgent"
+        private const val TAG = "JarvisAgent"
 
-        // Dynamic iteration limits based on task complexity
-        private const val MAX_ITERATIONS_SIMPLE = 100     // Simple queries, greetings (TESTING)
-        private const val MAX_ITERATIONS_STANDARD = 100   // Normal multi-step tasks (TESTING)
-        private const val MAX_ITERATIONS_COMPLEX = 100    // Long-horizon multi-step tasks (TESTING)
-        private const val MAX_ITERATIONS_RESEARCH = 100   // Complex research workflows (TESTING)
+        // INCREASED iteration limits to 50 for everything - MAXIMUM COMPLEXITY SUPPORT
+        private const val MAX_ITERATIONS_SIMPLE = 50     // Increased to 50 for all queries
+        private const val MAX_ITERATIONS_STANDARD = 50   // Increased to 50 for all queries
+        private const val MAX_ITERATIONS_COMPLEX = 50    // Increased to 50 for all queries
+        private const val MAX_ITERATIONS_RESEARCH = 50   // Increased to 50 for all queries
+
+        // INCREASED planning loop limit to 50 for maximum complex workflows
+        private const val MAX_PLAN_LOOP_ITERATIONS = 50  // Increased from 20 to 50
 
         // Rate limit constants
         private const val RATE_LIMIT_DAILY_THRESHOLD_MS = 30_000L  // If wait > 30s, it's daily limit
+
 
         // Provider-specific timeout constants (in milliseconds)
         // LOCAL_PC: Local LLMs can be slow, needs long timeout
@@ -439,9 +445,33 @@ class CogniAgent(
         optimizer
     }
     private val systemPrompt = """
-You are Loum, a text chatbot.
-ONLY use a tool if the user explicitly orders you to.
-Otherwise, just answer the question directly.
+You are Jarvis, an elite intelligent agent designed for high-performance assistance.
+
+**CORE IDENTITY:**
+- You are not just a chatbot; you are a proactive system controller.
+- You have direct access to the user's notes, calendar, device apps, and the web.
+- You value **precision**, **brevity**, and **action**.
+
+**OPERATIONAL HIERARCHY:**
+1.  **DIRECT RESPONSE**: If a query is simple (fact, math, greeting), answer IMMEDIATELY. **NO TOOLS**.
+    - Good: "2+2 is 4."
+    - Bad: [Calls Calculator Tool]
+2.  **CLARIFICATION**: If a request is vague ("do it", "send that"), ASK for context. NEVER guess.
+3.  **SEARCH STRATEGY**: 
+    -   **Internal First**: Check `search_notes` or `smart_search` if the query implies personal data.
+    -   **Web Second**: Use `web_search` only for real-time external info (stock prices, weather, live news).
+4.  **ACTION OVER PASSIVITY**: Don't say "I can add that to your calendar." Just DO IT (using `create_event`) and confirm.
+
+**TOOL PROTOCOLS:**
+-   **Calendar**: Use `create_event` for schedules. Use `create_timer` for countdowns. NEVER use notes for time-critical items.
+-   **Notes**: Use `create_note` for distinct knowledge, lists, or creative ideas.
+-   **Apps**: Use `open_app` to launch applications when explicitly asked.
+-   **Deep Research**: For complex topics, use `deep_research` to provide a comprehensive report.
+
+**CRITICAL RULES:**
+-   NEVER create a note for a meeting (Use `create_event`).
+-   NEVER create a note for a reminder (Use `create_timer` or `create_event`).
+-   Format responses with clean Markdown and bold key terms.
     """.trimIndent()
 
 
@@ -536,7 +566,7 @@ Otherwise, just answer the question directly.
         val activeNotes = callbacks.getActiveNotes()
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(activeNotes)
 
-        // Get current date AND time
+        // Get current time for context
         val now = java.time.LocalDateTime.now()
         val formatter = java.time.format.DateTimeFormatter.ofPattern("EEE, MMM d, yyyy | h:mm a")
         val formattedDateTime = now.format(formatter)
@@ -814,25 +844,25 @@ Otherwise, just answer the question directly.
                 // all steps are complete. Each iteration rebuilds context with
                 // the updated plan state.
                 // ═══════════════════════════════════════════════════════════════
-                
+
                 var currentResponse = ""
                 var planLoopIterations = 0
-                val maxPlanLoopIterations = 10 // Safety limit to prevent infinite loops
-                
+                val maxPlanLoopIterations = MAX_PLAN_LOOP_ITERATIONS // Increased from 10 to 20
+
                 val providerTimeout = getTimeoutForProvider(executorResult.provider)
-                
+
                 do {
                     planLoopIterations++
                     Log.d(TAG, "Plan loop iteration $planLoopIterations")
-                    
+
                     // Rebuild context with current plan state
-                    val currentPrompt = buildContext() + memorySection + examplesSection + historySection + 
-                        thinkingContextSection + mentionContextSection + 
+                    val currentPrompt = buildContext() + memorySection + examplesSection + historySection +
+                        thinkingContextSection + mentionContextSection +
                         "USER: ${processed.maskedQuery}"
-                    
+
                     // Rebuild tool registry (in case state changed)
                     val currentToolRegistry = buildToolRegistry()
-                    
+
                     val agent = AIAgent(
                         promptExecutor = executorResult.executor,
                         llmModel = executorResult.model,
@@ -840,37 +870,37 @@ Otherwise, just answer the question directly.
                         toolRegistry = currentToolRegistry,
                         maxIterations = maxIterations
                     )
-                    
+
                     // Execute agent
                     val response = withTimeout(providerTimeout) {
                         agent.run(currentPrompt)
                     }
-                    
+
                     currentResponse = response
                     Log.d(TAG, "Agent response (iter $planLoopIterations): ${response.take(100)}...")
-                    
+
                     // Check if there's still an active plan with pending steps
                     val activePlan = executionPlanManager.getActivePlan()
-                    val hasPendingSteps = activePlan != null && 
+                    val hasPendingSteps = activePlan != null &&
                         activePlan.status == PlanStatus.IN_PROGRESS &&
                         activePlan.getCurrentStep() != null
-                    
+
                     if (!hasPendingSteps) {
                         Log.d(TAG, "No more pending steps, exiting plan loop")
                         break
                     }
-                    
+
                     // Safety: Check for stuck state (same step for too many iterations)
                     if (planLoopIterations >= maxPlanLoopIterations) {
                         Log.w(TAG, "Plan loop reached max iterations ($maxPlanLoopIterations), breaking to prevent infinite loop")
                         break
                     }
-                    
+
                     // Small delay between iterations to prevent rate limiting
                     delay(100)
-                    
+
                 } while (true)
-                
+
                 // Clear the plan after completion
                 if (executionPlanManager.getActivePlan()?.status == PlanStatus.COMPLETED) {
                     executionPlanManager.clearPlan()
@@ -1017,6 +1047,7 @@ Otherwise, just answer the question directly.
         return AgentResult.Error("I couldn't complete your request. $errorSummary\n\nProviders will automatically retry after a cooldown period.")
     }
 
+
     /**
      * Check if the agent is ready to run (has configured provider).
      */
@@ -1038,7 +1069,7 @@ Otherwise, just answer the question directly.
         val researchKeywords = listOf(
             "research", "investigate", "find out", "learn about",
             "deep dive", "analyze", "comprehensive", "detailed analysis",
-            "explore", "study", "examine"
+            "explore", "study", "examine", "summarize"
         )
         if (researchKeywords.any { lowerMessage.contains(it) }) {
             return MAX_ITERATIONS_RESEARCH
@@ -1048,19 +1079,21 @@ Otherwise, just answer the question directly.
         val actionWords = listOf(
             "play", "create", "search", "find", "delete", "update",
             "schedule", "remind", "set", "check", "show", "list",
-            "tell", "give", "count", "how many"
+            "tell", "give", "count", "how many", "add", "save", 
+            "archive", "cancel", "read", "write", "open"
         )
         val actionCount = actionWords.count { lowerMessage.contains(it) }
 
-        // Long-horizon tasks (5+ actions or explicit sequence words)
+        // Long-horizon tasks (3+ actions or explicit sequence words)
         val longHorizonIndicators = listOf(
             "first ", "then ", "after that", "finally", "summary",
-            "everything", "all of"
+            "everything", "all of", "and then", "next", "later",
+            "and also", "followed by", "before", "after"
         )
-        val hasLongHorizon = longHorizonIndicators.count { lowerMessage.contains(it) } >= 2
+        val hasLongHorizon = longHorizonIndicators.count { lowerMessage.contains(it) } >= 1
 
-        if (actionCount >= 5 || hasLongHorizon) {
-            Log.d(TAG, "Long-horizon task detected: actionCount=$actionCount, hasLongHorizon=$hasLongHorizon")
+        if (actionCount >= 3 || hasLongHorizon) {
+            Log.d(TAG, "Complex multi-step task detected: actionCount=$actionCount, hasLongHorizon=$hasLongHorizon")
             return MAX_ITERATIONS_COMPLEX
         }
 
@@ -1068,7 +1101,8 @@ Otherwise, just answer the question directly.
         val multiStepIndicators = listOf(
             " and ", " then ", ", and", "multiple", "several",
             "all my", "every", "batch", "organize", "summarize all",
-            "also ", "check", "tell me", "give me", "show me"
+            "also ", "check", "tell me", "give me", "show me",
+            "find and", "search and", "create and", "add and"
         )
         if (multiStepIndicators.any { lowerMessage.contains(it) }) {
             return MAX_ITERATIONS_STANDARD
@@ -1082,7 +1116,8 @@ Otherwise, just answer the question directly.
         // Complex action keywords also get standard iterations
         val complexKeywords = listOf(
             "create", "update", "delete", "archive", "search",
-            "schedule", "remind", "timer", "alarm", "event"
+            "schedule", "remind", "timer", "alarm", "event",
+            "find my", "show all", "what was", "when did"
         )
         val complexCount = complexKeywords.count { lowerMessage.contains(it) }
         if (complexCount >= 2) {

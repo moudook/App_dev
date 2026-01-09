@@ -3,7 +3,7 @@ package com.example.smarty.agent.tools.calendar
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -20,7 +20,7 @@ data class DeleteEventArgs(
  * BUG FIX (AI-002): Added comprehensive logging for debugging.
  */
 class DeleteEventTool(
-    private val repository: CogniRepository
+    private val repository: JarvisRepository
 ) : Tool<DeleteEventArgs, CalendarOperationResult>(
     argsSerializer = DeleteEventArgs.serializer(),
     resultSerializer = CalendarOperationResult.serializer(),

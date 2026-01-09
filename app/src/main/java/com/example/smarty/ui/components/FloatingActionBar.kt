@@ -44,7 +44,7 @@ import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.Alpha
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ENHANCED GLASSMORPHISM COLORS (Matching CogniInputField)
+// ENHANCED GLASSMORPHISM COLORS (Matching JarvisInputField)
 // ═══════════════════════════════════════════════════════════════════════════════
 private val GlassBackgroundLight = Color(0xBBFFFFFF)  // White with 73% opacity
 private val GlassBackgroundDark = Color(0xB0181822)   // Dark with 69% opacity

@@ -27,7 +27,7 @@ import com.example.smarty.ui.utils.*
 
 /**
  * =============================================================================
- * COGNI UNIFIED EMPTY STATE COMPONENT
+ * Jarvis UNIFIED EMPTY STATE COMPONENT
  * =============================================================================
  *
  * Consolidates the 5 duplicated empty states into a single reusable component:
@@ -75,7 +75,7 @@ sealed class EmptyStateAnimation {
  * @param modifier Modifier for the container
  */
 @Composable
-fun CogniEmptyState(
+fun JarvisEmptyState(
     title: String,
     subtitle: String = "",
     hint: String? = null,

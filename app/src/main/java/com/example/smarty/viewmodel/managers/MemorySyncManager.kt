@@ -2,7 +2,7 @@ package com.example.smarty.viewmodel.managers
 
 import android.util.Log
 import com.example.smarty.data.local.AIMemoryDao
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.data.model.MemoryType
 import com.example.smarty.data.model.Note
@@ -36,7 +36,7 @@ import java.util.UUID
  * =============================================================================
  */
 class MemorySyncManager(
-    private val database: CogniDatabase,
+    private val database: JarvisDatabase,
     private val aiMemoryDao: AIMemoryDao,
     private val aiService: AIService
 ) {

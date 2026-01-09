@@ -31,7 +31,7 @@ import com.example.smarty.ui.theme.MinimalRed
  * @param isDestructive If true, styles the confirm button with a warning color.
  */
 @Composable
-fun LoumDialog(
+fun JarvisDialog(
     title: String,
     text: String = "",
     onConfirm: () -> Unit,

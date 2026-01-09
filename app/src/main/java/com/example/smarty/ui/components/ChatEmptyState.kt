@@ -126,7 +126,7 @@ fun ChatEmptyState(modifier: Modifier = Modifier) {
     val accentColor = if (isDark) Color(0xFFC2E8FF) else Color(0xFF007AFF) // SystemBlue for Light Mode visibility
 
     EmptyStateContainer(
-        title = "Focus",
+        title = "Jarvis",
         subtitle = "",
         hint = null,
         modifier = modifier
@@ -286,7 +286,7 @@ fun NotesEmptyState(modifier: Modifier = Modifier) {
         subtitle = "",
         hint = null,
     ) {
-        // ORIGINAL ANIMATION: Cognitive Alignment (Restored)
+        // ORIGINAL ANIMATION: Jarvistive Alignment (Restored)
         // LIFECYCLE AWARENESS: Check if animation should run
         val shouldAnimate = shouldAnimationRun()
 

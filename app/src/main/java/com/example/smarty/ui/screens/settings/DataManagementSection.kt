@@ -294,7 +294,7 @@ fun ClearCacheConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    com.example.smarty.ui.components.common.LoumDialog(
+    com.example.smarty.ui.components.common.JarvisDialog(
         title = "Clear Cache?",
         text = "This will clear ${formatCacheSize(cacheSizeBytes)} of cached data. Downloaded content may need to be fetched again.",
         onConfirm = {

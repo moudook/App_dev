@@ -116,7 +116,7 @@ fun EnhancedEventDialog(
     val dialogTitle = if (isEditing) "Edit Event" else "New Event"
     val confirmText = if (isEditing) "Save" else "Add"
 
-    com.example.smarty.ui.components.common.LoumDialog(
+    com.example.smarty.ui.components.common.JarvisDialog(
         title = dialogTitle,
         onDismiss = onDismiss,
         confirmText = confirmText,

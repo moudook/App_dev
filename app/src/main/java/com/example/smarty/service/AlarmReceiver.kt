@@ -36,7 +36,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_IS_RECURRING = "is_recurring"
         const val EXTRA_REPEAT_DAYS = "repeat_days"
 
-        private const val NOTIFICATION_CHANNEL_ID = "cogni_alarms"
+        private const val NOTIFICATION_CHANNEL_ID = "Jarvis_alarms"
         private const val NOTIFICATION_CHANNEL_NAME = "Timers & Alarms"
 
         // WakeLock timeout slightly longer than audio duration to ensure completion
@@ -62,7 +62,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val wakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
-            "Cogni:AlarmWakeLock"
+            "Jarvis:AlarmWakeLock"
         )
         wakeLock.acquire(WAKELOCK_TIMEOUT_MS)
 

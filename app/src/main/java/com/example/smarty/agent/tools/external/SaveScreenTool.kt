@@ -7,7 +7,7 @@ import com.example.smarty.agent.tools.base.NoteOperationResult
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.repository.CogniRepository
+import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
@@ -32,7 +32,7 @@ data class SaveScreenArgs(
  * additional user permission. This tool captures available context data.
  */
 class SaveScreenTool(
-    private val repository: CogniRepository,
+    private val repository: JarvisRepository,
     private val getScreenContext: () -> ScreenContext?
 ) : Tool<SaveScreenArgs, NoteOperationResult>(
     argsSerializer = SaveScreenArgs.serializer(),

@@ -36,7 +36,7 @@ fun AddEventDialog(
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
     val displayDate = remember(selectedDate) { dateFormat.format(selectedDate.time) }
 
-    com.example.smarty.ui.components.common.LoumDialog(
+    com.example.smarty.ui.components.common.JarvisDialog(
         title = "New Event",
         onDismiss = onDismiss,
         confirmText = "Add",

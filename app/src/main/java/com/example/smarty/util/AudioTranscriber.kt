@@ -45,7 +45,7 @@ import kotlin.math.max
  * We solve this by:
  * 1. Monitoring audio levels in real-time
  * 2. Detecting silence vs speech boundaries  
- * 3. Restarting recognizer when silence ends and speech resumes
+ * 3. Restarting Recognizer when silence ends and speech resumes
  * 4. Accumulating results until the ENTIRE audio is processed
  * 
  * Uses Signal Processing Theory:
@@ -82,7 +82,7 @@ object AudioTranscriber {
     
     /**
      * Transcribe an audio file using Google Speech Recognizer.
-     * Handles silence by restarting recognition automatically.
+     * Handles silence by restarting Recognition automatically.
      */
     suspend fun transcribeFromUri(
         context: Context,
@@ -94,7 +94,7 @@ object AudioTranscriber {
             return@withContext TranscriptionResult(
                 text = "",
                 success = false,
-                error = "Speech recognition not available",
+                error = "Speech Recognition not available",
                 processingTimeMs = System.currentTimeMillis() - startTime
             )
         }
@@ -437,7 +437,7 @@ object AudioTranscriber {
     
     /**
      * Transcribe a single segment using SpeechRecognizer.
-     * Plays audio through internal routing while recognizer listens.
+     * Plays audio through internal routing while Recognizer listens.
      */
     private suspend fun transcribeSegment(
         context: Context,
@@ -445,7 +445,7 @@ object AudioTranscriber {
         pcmData: ByteArray
     ): String = suspendCancellableCoroutine { continuation ->
         val handler = Handler(Looper.getMainLooper())
-        var recognizer: SpeechRecognizer? = null
+        var Recognizer: SpeechRecognizer? = null
         var audioTrack: AudioTrack? = null
         val result = StringBuilder()
         var isFinished = false
@@ -455,7 +455,7 @@ object AudioTranscriber {
                 isFinished = true
                 audioTrack?.stop()
                 audioTrack?.release()
-                recognizer?.destroy()
+                Recognizer?.destroy()
                 continuation.resume(text)
             }
         }
@@ -463,9 +463,9 @@ object AudioTranscriber {
         handler.post {
             try {
                 // Create Speech Recognizer
-                recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                Recognizer = SpeechRecognizer.createSpeechRecognizer(context)
                 
-                recognizer?.setRecognitionListener(object : RecognitionListener {
+                Recognizer?.setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         Log.d(TAG, "Recognizer ready, playing audio...")
                         
@@ -497,7 +497,7 @@ object AudioTranscriber {
                                     offset += chunkSize
                                 }
                                 
-                                // Wait a bit for recognizer to process final audio
+                                // Wait a bit for Recognizer to process final audio
                                 Thread.sleep(1000)
                                 
                             } catch (e: Exception) {
@@ -543,7 +543,7 @@ object AudioTranscriber {
                     putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
                 }
                 
-                recognizer?.startListening(intent)
+                Recognizer?.startListening(intent)
                 
                 // Timeout
                 handler.postDelayed({
@@ -554,7 +554,7 @@ object AudioTranscriber {
                 }, 30_000)
                 
             } catch (e: Exception) {
-                Log.e(TAG, "Error starting recognition: ${e.message}")
+                Log.e(TAG, "Error starting Recognition: ${e.message}")
                 finish("")
             }
         }
@@ -563,10 +563,13 @@ object AudioTranscriber {
             isFinished = true
             audioTrack?.stop()
             audioTrack?.release()
-            recognizer?.destroy()
+            Recognizer?.destroy()
         }
     }
     
     fun isFormatSupported(mimeType: String) = mimeType.startsWith("audio/")
     fun isAvailable(context: Context) = SpeechRecognizer.isRecognitionAvailable(context)
 }
+
+
+

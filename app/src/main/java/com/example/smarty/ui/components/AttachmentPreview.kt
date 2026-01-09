@@ -33,7 +33,7 @@ import coil.request.ImageRequest
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.AttachmentType
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.CogniEasing
+import com.example.smarty.ui.animation.JarvisEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
@@ -110,7 +110,7 @@ private fun AnimatedAttachmentChip(
 
     val entryAlpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(200, easing = CogniEasing.appleEaseOut),
+        animationSpec = tween(200, easing = JarvisEasing.appleEaseOut),
         label = "entryAlpha"
     )
 

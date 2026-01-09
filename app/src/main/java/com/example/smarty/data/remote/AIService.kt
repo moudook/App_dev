@@ -123,7 +123,7 @@ data class OpenAIMessageResponse(
  * - [AIProviderOrchestrator]: Provider management and key rotation
  * - [ContentAnalyzer]: Content and document analysis
  *
- * Note: Agent chat is now handled by CogniAgent using Koog framework.
+ * Note: Agent chat is now handled by JarvisAgent using Koog framework.
  *
  * @property securePreferences Secure storage for API keys and settings
  */

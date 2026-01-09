@@ -19,7 +19,7 @@ import com.example.smarty.ui.theme.*
  * Utility object providing icons and colors for different note types.
  *
  * Uses O(1) array lookup indexed by NoteType enum ordinal for efficient access.
- * Icons are chosen to be instantly recognizable and meaningful.
+ * Icons are chosen to be instantly reJarviszable and meaningful.
  * Colors are semantic and consistent with the app's design language.
  *
  * Usage:
@@ -42,7 +42,7 @@ object NoteCardIcons {
 
     /**
      * O(1) icon lookup array indexed by NoteType enum ordinal.
-     * Icons are Material Design icons chosen for instant recognition.
+     * Icons are Material Design icons chosen for instant reJarvistion.
      *
      * - BRAIN_DUMP: Create (pen) - writing thoughts
      * - YOUTUBE: PlayCircle - play button for video

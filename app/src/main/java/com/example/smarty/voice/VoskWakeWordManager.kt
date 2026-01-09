@@ -132,7 +132,7 @@ class VoskWakeWordManager(
 
     private var model: Model? = null
     private var speechService: HighSensitivitySpeechService? = null
-    private var recognizer: Recognizer? = null
+    private var Recognizer: Recognizer? = null
 
     // Flag to auto-start listening after initialization
     @Volatile
@@ -167,7 +167,7 @@ class VoskWakeWordManager(
     private val _initError = MutableStateFlow<String?>(null)
     val initError: StateFlow<String?> = _initError.asStateFlow()
 
-    // Model validity cache to avoid creating/destroying test recognizers repeatedly
+    // Model validity cache to avoid creating/destroying test Recognizers repeatedly
     @Volatile
     private var lastModelValidityCheck = 0L
     private var lastModelValidity = false
@@ -190,7 +190,7 @@ class VoskWakeWordManager(
      * Check if the native model is still valid.
      * After process death, native objects become invalid even though references exist.
      * This safely tests model validity without crashing.
-     * OPTIMIZED: Caches result for 5 seconds to avoid creating/destroying test recognizers.
+     * OPTIMIZED: Caches result for 5 seconds to avoid creating/destroying test Recognizers.
      */
     private fun isModelValid(): Boolean {
         val now = System.currentTimeMillis()
@@ -199,7 +199,7 @@ class VoskWakeWordManager(
         }
         val m = model ?: return false
         return try {
-            // Try to create a recognizer - if model is invalid, this will throw
+            // Try to create a Recognizer - if model is invalid, this will throw
             val testRecognizer = Recognizer(m, SAMPLE_RATE)
             testRecognizer.close()
             lastModelValidityCheck = now
@@ -227,11 +227,11 @@ class VoskWakeWordManager(
         } catch (_: Exception) {}
         speechService = null
 
-        // Close recognizer
+        // Close Recognizer
         try {
-            recognizer?.close()
+            Recognizer?.close()
         } catch (_: Exception) {}
-        recognizer = null
+        Recognizer = null
 
         // Close model
         try {
@@ -356,32 +356,32 @@ class VoskWakeWordManager(
     }
 
     /**
-     * Set up the recognizer.
+     * Set up the Recognizer.
      * Uses full vocabulary mode (no grammar restriction) for compatibility
      * with static graph models. Wake word filtering done in software.
      */
     private fun setupRecognizer() {
         // CRITICAL: Check if destroyed before setting up
         if (isDestroyed) {
-            Log.d(TAG, "Manager destroyed - aborting recognizer setup")
+            Log.d(TAG, "Manager destroyed - aborting Recognizer setup")
             return
         }
 
         try {
             val m = model
             if (m == null) {
-                Log.e(TAG, "Cannot setup recognizer - model is null")
+                Log.e(TAG, "Cannot setup Recognizer - model is null")
                 _initError.value = "Model not loaded"
                 return
             }
 
             // Use full vocabulary mode for maximum compatibility
             // Static graph models don't support grammar restriction
-            recognizer = if (GRAMMAR != null) {
-                Log.i(TAG, "Creating recognizer with grammar: $GRAMMAR")
+            Recognizer = if (GRAMMAR != null) {
+                Log.i(TAG, "Creating Recognizer with grammar: $GRAMMAR")
                 Recognizer(m, SAMPLE_RATE, GRAMMAR)
             } else {
-                Log.i(TAG, "Creating recognizer with full vocabulary (no grammar)")
+                Log.i(TAG, "Creating Recognizer with full vocabulary (no grammar)")
                 Recognizer(m, SAMPLE_RATE)
             }
 
@@ -397,7 +397,7 @@ class VoskWakeWordManager(
                 startListening()
             }
         } catch (e: Exception) {
-            val errorMsg = "Failed to create recognizer: ${e.message}"
+            val errorMsg = "Failed to create Recognizer: ${e.message}"
             Log.e(TAG, errorMsg, e)
             _initError.value = errorMsg
         }
@@ -439,9 +439,9 @@ class VoskWakeWordManager(
             return
         }
 
-        val rec = recognizer
+        val rec = Recognizer
         if (rec == null) {
-            Log.e(TAG, "Cannot start - recognizer is null, triggering re-init")
+            Log.e(TAG, "Cannot start - Recognizer is null, triggering re-init")
             invalidateStateInternal()
             shouldStartAfterInit = true
             initialize()
@@ -554,8 +554,8 @@ class VoskWakeWordManager(
      *
      * PROCESS DEATH SAFE: Validates model and re-initializes if needed.
      * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
-     * TOCTOU-SAFE: Wraps recognizer creation in try-catch to handle race conditions.
-     * DEBOUNCED: Prevents rapid consecutive calls from crashing the recognizer.
+     * TOCTOU-SAFE: Wraps Recognizer creation in try-catch to handle race conditions.
+     * DEBOUNCED: Prevents rapid consecutive calls from crashing the Recognizer.
      */
     fun restartListening() {
         // Check global pause flag first
@@ -628,10 +628,10 @@ class VoskWakeWordManager(
                     // Native resources should settle quickly after stop()
                     kotlinx.coroutines.delay(50)
 
-                    // Need to recreate recognizer after it's been used
-                    // Close old recognizer CAREFULLY - wait for it to be idle
-                    val oldRecognizer = recognizer
-                    recognizer = null
+                    // Need to recreate Recognizer after it's been used
+                    // Close old Recognizer CAREFULLY - wait for it to be idle
+                    val oldRecognizer = Recognizer
+                    Recognizer = null
 
                     if (oldRecognizer != null) {
                         try {
@@ -639,14 +639,14 @@ class VoskWakeWordManager(
                             kotlinx.coroutines.delay(50)
                             oldRecognizer.close()
                         } catch (e: Exception) {
-                            Log.w(TAG, "Error closing old recognizer: ${e.message}")
+                            Log.w(TAG, "Error closing old Recognizer: ${e.message}")
                             // Continue anyway - we'll create a new one
                         }
                     }
 
                     val m = model
                     if (m != null) {
-                        recognizer = try {
+                        Recognizer = try {
                             if (GRAMMAR != null) {
                                 Recognizer(m, SAMPLE_RATE, GRAMMAR)
                             } else {
@@ -714,14 +714,14 @@ class VoskWakeWordManager(
 
         // Clean up Vosk resources
         try {
-            recognizer?.close()
+            Recognizer?.close()
             model?.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error during cleanup: ${e.message}", e)
         }
 
         // Clear all references
-        recognizer = null
+        Recognizer = null
         model = null
 
         // Reset all state
@@ -755,8 +755,8 @@ class VoskWakeWordManager(
 
     override fun onError(exception: Exception?) {
         if (isDestroyed) return  // Ignore errors after destruction
-        Log.e(TAG, "Recognition error: ${exception?.message}", exception)
-        _initError.value = "Recognition error: ${exception?.message}"
+        Log.e(TAG, "ReJarvistion error: ${exception?.message}", exception)
+        _initError.value = "ReJarvistion error: ${exception?.message}"
 
         // ISSUE #3 FIX: Automatically recover from AudioRecord invalidation
         // When system takes the mic (phone call, etc.), we need to reinitialize
@@ -779,7 +779,7 @@ class VoskWakeWordManager(
 
     override fun onTimeout() {
         if (isDestroyed) return  // Ignore timeout after destruction
-        Log.d(TAG, "Recognition timeout - will restart")
+        Log.d(TAG, "ReJarvistion timeout - will restart")
         // Don't restart in onTimeout to avoid recursion - let caller handle
     }
 
@@ -803,7 +803,7 @@ class VoskWakeWordManager(
             if (text.isBlank()) return
 
             // =====================================================
-            // DEBUG LOGGING: Log ALL recognized speech to logcat
+            // DEBUG LOGGING: Log ALL reJarviszed speech to logcat
             // Filter in logcat using: VoskWakeWord or VOSK_SPEECH
             // =====================================================
             if (isPartial) {
@@ -872,3 +872,4 @@ class VoskWakeWordManager(
         }
     }
 }
+
