@@ -340,12 +340,12 @@ class LocalCommandProcessor(
             input == "help" || input == "?" || input.contains("how do i use")) {
             return """Here's what I can help with:
 
-📝 **Notes** - Create, search, and manage your notes
-✅ **Todos** - Add and track your tasks  
-📅 **Calendar** - Manage events and set timers
-🔍 **Web Search** - Find information online
-📱 **Apps** - Open apps on your device
-🎵 **Audio** - Play music from your notes
+ **Notes** - Create, search, and manage your notes
+ **Todos** - Add and track your tasks  
+ **Calendar** - Manage events and set timers
+ **Web Search** - Find information online
+ **Apps** - Open apps on your device
+ **Audio** - Play music from your notes
 
 Just tell me what you need!"""
         }

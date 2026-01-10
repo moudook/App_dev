@@ -37,7 +37,7 @@ import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.JarvisAgent
+import com.example.smarty.agent.JarvisAgentOptimized
 import com.example.smarty.agent.JarvisAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.data.model.InlineChatImage
@@ -223,8 +223,8 @@ class JarvisViewModel(
     private val agentProvider: JarvisAgentProvider by lazy {
         JarvisAgentProvider(securePreferences, groqKeyManager)
     }
-    private val JarvisAgent: JarvisAgent by lazy {
-        JarvisAgent(
+    private val JarvisAgent: JarvisAgentOptimized by lazy {
+        JarvisAgentOptimized(
             context = application,
             agentProvider = agentProvider,
             repository = repository,
@@ -364,11 +364,11 @@ class JarvisViewModel(
             val visibleNotes = PrivacyGuard.getAiVisibleNotes(rawNotes)
 
             // DIAGNOSTIC: Log note counts to help debug agent issues
-            Log.d(TAG, "📊 getActiveNotes callback: raw=${rawNotes.size}, visible=${visibleNotes.size}")
+            Log.d(TAG, " getActiveNotes callback: raw=${rawNotes.size}, visible=${visibleNotes.size}")
 
             // Warn if notes appear empty (potential StateFlow race condition)
             if (rawNotes.isEmpty()) {
-                Log.w(TAG, "⚠️ getActiveNotes: StateFlow returned EMPTY - may be cold start race condition")
+                Log.w(TAG, "️ getActiveNotes: StateFlow returned EMPTY - may be cold start race condition")
             }
 
             return visibleNotes
@@ -401,7 +401,7 @@ class JarvisViewModel(
 
             // Delegate to AudioPlaybackManager - single source of truth for pending audio state
             audioPlaybackManager.requestPlayback(track)
-            Log.d(TAG, "✓ pendingAudioPlayback set to: ${track.title}")
+            Log.d(TAG, " pendingAudioPlayback set to: ${track.title}")
         }
 
         override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
@@ -410,6 +410,10 @@ class JarvisViewModel(
 
         override fun onToolExecutionCompleted(toolName: String) {
             _currentToolName.value = null
+        }
+
+        override fun onStatusUpdate(status: String) {
+            _currentToolName.value = status
         }
 
         override fun onCitationsFound(citations: List<com.example.smarty.agent.WebCitation>) {
@@ -2408,7 +2412,7 @@ class JarvisViewModel(
                     
                     // Add formulas if present
                     documentResponse.references?.formulas?.takeIf { it.isNotEmpty() }?.let { formulas ->
-                        append("\n\n📐 Formulas:")
+                        append("\n\n Formulas:")
                         formulas.forEach { formula ->
                             append("\n  • $formula")
                         }
@@ -2416,7 +2420,7 @@ class JarvisViewModel(
                     
                     // Add key terms if present
                     documentResponse.references?.keyTerms?.takeIf { it.isNotEmpty() }?.let { terms ->
-                        append("\n\n📖 Key Terms:")
+                        append("\n\n Key Terms:")
                         terms.forEach { term ->
                             append("\n  • ${term.term}: ${term.definition}")
                         }
@@ -2424,7 +2428,7 @@ class JarvisViewModel(
                     
                     // Add recurring topics if present
                     documentResponse.references?.recurringTopics?.takeIf { it.isNotEmpty() }?.let { topics ->
-                        append("\n\n🔄 Recurring Topics: ")
+                        append("\n\n Recurring Topics: ")
                         append(topics.joinToString(", "))
                     }
                     
@@ -2437,7 +2441,7 @@ class JarvisViewModel(
                     if (documentResponse.actionItems.isNotEmpty()) {
                         append("\n\nAction Items:")
                         documentResponse.actionItems.forEach { item ->
-                            append("\n☐ $item")
+                            append("\n $item")
                         }
                     }
                 }
@@ -2484,7 +2488,7 @@ class JarvisViewModel(
                     val category = repository.getOrCreateCategory(documentResponse.category)
                     val updatedNote = note.copy(
                         title = documentResponse.title,
-                        summary = "📷 Image-based PDF (${extractionResult.pageCount} pages)\n\n${documentResponse.summary}",
+                        summary = " Image-based PDF (${extractionResult.pageCount} pages)\n\n${documentResponse.summary}",
                         whySaved = documentResponse.userRelevance ?: "Document saved for reference",
                         categoryId = category.id,
                         categoryName = category.name,
@@ -2558,7 +2562,7 @@ class JarvisViewModel(
 
                 // Show initial processing state to user
                 var currentNote = note.copy(
-                    summary = "📄 Processing ${chunkedResult.totalPages}-page document...\n\nAnalyzing section 1 of $totalChunks...",
+                    summary = " Processing ${chunkedResult.totalPages}-page document...\n\nAnalyzing section 1 of $totalChunks...",
                     processingStatus = ProcessingStatus.PROCESSING
                 )
                 repository.updateNote(currentNote)
@@ -2617,8 +2621,8 @@ class JarvisViewModel(
                         
                         // LIVE APPENDING: Update UI after each batch completes
                         val progressSummary = buildString {
-                            append("📄 Processing ${chunkedResult.totalPages}-page document...\n")
-                            append("✓ Completed $successfulChunks/$totalChunks sections (parallel processing)\n\n")
+                            append(" Processing ${chunkedResult.totalPages}-page document...\n")
+                            append(" Completed $successfulChunks/$totalChunks sections (parallel processing)\n\n")
 
                             // Show all processed chunk summaries accumulated so far
                             chunkSummaries.forEachIndexed { idx, summary ->
@@ -2693,12 +2697,12 @@ class JarvisViewModel(
 
                 // Build comprehensive summary with coverage info and references
                 val fullSummary = buildString {
-                    append("📄 ${chunkedResult.totalPages} pages analyzed (${successfulChunks} sections)\n\n")
+                    append(" ${chunkedResult.totalPages} pages analyzed (${successfulChunks} sections)\n\n")
                     append(finalResponse.summary)
                     
                     // Add formulas if present
                     finalResponse.references?.formulas?.takeIf { it.isNotEmpty() }?.let { formulas ->
-                        append("\n\n📐 Formulas:")
+                        append("\n\n Formulas:")
                         formulas.forEach { formula ->
                             append("\n  • $formula")
                         }
@@ -2706,7 +2710,7 @@ class JarvisViewModel(
                     
                     // Add key terms if present
                     finalResponse.references?.keyTerms?.takeIf { it.isNotEmpty() }?.let { terms ->
-                        append("\n\n📖 Key Terms:")
+                        append("\n\n Key Terms:")
                         terms.forEach { term ->
                             append("\n  • ${term.term}: ${term.definition}")
                         }
@@ -2714,7 +2718,7 @@ class JarvisViewModel(
                     
                     // Add recurring topics if present
                     finalResponse.references?.recurringTopics?.takeIf { it.isNotEmpty() }?.let { topics ->
-                        append("\n\n🔄 Recurring Topics: ")
+                        append("\n\n Recurring Topics: ")
                         append(topics.joinToString(", "))
                     }
                     
@@ -2727,11 +2731,11 @@ class JarvisViewModel(
                     if (finalResponse.actionItems.isNotEmpty()) {
                         append("\n\nAction Items:")
                         finalResponse.actionItems.forEach { item ->
-                            append("\n☐ $item")
+                            append("\n $item")
                         }
                     }
                     if (!chunkedResult.isComplete()) {
-                        append("\n\n⚠️ Note: Some pages could not be processed.")
+                        append("\n\n️ Note: Some pages could not be processed.")
                     }
                 }
 
@@ -2777,7 +2781,7 @@ class JarvisViewModel(
                     val category = repository.getOrCreateCategory(documentResponse.category)
                     val updatedNote = note.copy(
                         title = documentResponse.title,
-                        summary = "📷 Image-based PDF (${chunkedResult.pageCount} pages)\n\n${documentResponse.summary}",
+                        summary = " Image-based PDF (${chunkedResult.pageCount} pages)\n\n${documentResponse.summary}",
                         whySaved = documentResponse.userRelevance ?: "Document saved for reference",
                         categoryId = category.id,
                         categoryName = category.name,
@@ -3828,7 +3832,12 @@ class JarvisViewModel(
                 } else content
 
                 // Run Koog agent with tagged note context and thinking mode context
-                val result = JarvisAgent.run(cleanedContent, conversationHistory, taggedNoteContext, thinkingModeContext)
+                val result = JarvisAgent.run(
+                    userMessage = cleanedContent,
+                    conversationHistory = conversationHistory,
+                    taggedNoteContext = taggedNoteContext,
+                    thinkingModeContext = thinkingModeContext
+                )
 
                 when (result) {
                     is AgentResult.Success -> {

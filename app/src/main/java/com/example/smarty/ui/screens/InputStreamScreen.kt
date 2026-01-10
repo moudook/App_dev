@@ -1333,6 +1333,7 @@ fun InputStreamScreen(
                                         onSendChatMessage = onSendChatMessage,
                                         contentPadding = contentPaddingWithTop,
                                         currentToolName = currentToolName,
+                                        isChatProcessing = isChatProcessing,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }

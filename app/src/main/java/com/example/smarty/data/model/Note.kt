@@ -192,7 +192,7 @@ fun Note.getAttachments(): List<NoteAttachment> {
         GsonHolder.instance.fromJson(attachmentsJson, GsonHolder.attachmentListType) ?: emptyList()
     } catch (e: Exception) {
         // CRITICAL: Log JSON parsing failures - this can cause audio to be "invisible"
-        android.util.Log.e("Note", "⚠️ ATTACHMENT JSON PARSE FAILED for note ${id.take(8)}: ${e.message}")
+        android.util.Log.e("Note", "️ ATTACHMENT JSON PARSE FAILED for note ${id.take(8)}: ${e.message}")
         android.util.Log.d("Note", "Raw JSON: ${attachmentsJson?.take(200)}")
         emptyList()
     }

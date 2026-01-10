@@ -239,7 +239,7 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
         }
 
         // All providers failed - use smart fallback
-        Log.w(TAG, "⚠ All AI providers failed, using smart categorization")
+        Log.w(TAG, " All AI providers failed, using smart categorization")
         val fallbackResponse = AIResponseParser.smartFallbackCategorization(contentWithMetadata)
         // Cache fallback response too to avoid repeated failures
         AIResponseCache.put(cacheKey, fallbackResponse)
@@ -336,7 +336,7 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
         }
 
         // Fallback response when AI is unavailable
-        Log.w(TAG, "⚠ All providers failed for document analysis, using fallback")
+        Log.w(TAG, " All providers failed for document analysis, using fallback")
         return@withContext DocumentAnalysisResponse(
             title = fileName ?: "Document",
             summary = "Document saved. AI analysis unavailable - please configure API keys in settings.",

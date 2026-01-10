@@ -73,7 +73,7 @@ class PlayAudioTool(
 
         return try {
             if (args.query.isBlank()) {
-                Log.w(TAG, "✗ Query is blank, returning error")
+                Log.w(TAG, " Query is blank, returning error")
                 return AudioPlaybackResult(
                     success = false,
                     action = "play",
@@ -142,7 +142,7 @@ class PlayAudioTool(
 
                 val startPositionMs = parseTimeToMs(args.startTime)
                 Log.d(TAG, "Playing from note: ${track.title}, startPosition=${startPositionMs}ms")
-                Log.i(TAG, "✓ INVOKING onPlayAudio callback for: ${track.title}")
+                Log.i(TAG, " INVOKING onPlayAudio callback for: ${track.title}")
                 onPlayAudio(track)
 
                 return AudioPlaybackResult(
@@ -159,7 +159,7 @@ class PlayAudioTool(
             val allNotes = PrivacyGuard.getAiVisibleNotes(rawNotes)
 
             // DIAGNOSTIC: Log note counts to debug audio search issues
-            Log.i(TAG, "📊 NOTES DEBUG: raw=${rawNotes.size}, afterPrivacy=${allNotes.size}")
+            Log.i(TAG, " NOTES DEBUG: raw=${rawNotes.size}, afterPrivacy=${allNotes.size}")
 
             // 1. SPECIAL HANDLING: "Latest", "Last", "Recent"
             // If user asks for "latest recording", skip search and play the newest one
@@ -176,7 +176,7 @@ class PlayAudioTool(
                  val recentAudio = getAllAudioFiles(sortedNotes).firstOrNull()
                  
                  if (recentAudio != null) {
-                      Log.i(TAG, "✓ FOUND RECENT: Playing most recent audio: ${recentAudio.title}")
+                      Log.i(TAG, " FOUND RECENT: Playing most recent audio: ${recentAudio.title}")
                       onPlayAudio(recentAudio)
                       return AudioPlaybackResult(
                           success = true,
@@ -195,13 +195,13 @@ class PlayAudioTool(
 
                 // Log each note's audio detection for debugging
                 if (isAudioType || hasAudioAttachments || hasLegacyAudio) {
-                    Log.d(TAG, "🎵 Audio note found: id=${note.id.take(8)}, type=$isAudioType, attachments=$hasAudioAttachments, legacy=$hasLegacyAudio, title='${note.title.take(30)}'")
+                    Log.d(TAG, " Audio note found: id=${note.id.take(8)}, type=$isAudioType, attachments=$hasAudioAttachments, legacy=$hasLegacyAudio, title='${note.title.take(30)}'")
                 }
 
                 isAudioType || hasAudioAttachments || hasLegacyAudio
             }
 
-            Log.i(TAG, "📊 AUDIO FILTER: Found ${audioNotes.size} audio-categorized notes to search")
+            Log.i(TAG, " AUDIO FILTER: Found ${audioNotes.size} audio-categorized notes to search")
 
             // Try audio notes first
             var matchingAudio = findMatchingAudio(audioNotes, args.query)
@@ -214,7 +214,7 @@ class PlayAudioTool(
 
             if (matchingAudio != null) {
                 Log.d(TAG, "Found matching audio: ${matchingAudio.title}")
-                Log.i(TAG, "✓ INVOKING onPlayAudio callback for: ${matchingAudio.title}")
+                Log.i(TAG, " INVOKING onPlayAudio callback for: ${matchingAudio.title}")
                 onPlayAudio(matchingAudio)
 
                 return AudioPlaybackResult(
@@ -254,7 +254,7 @@ class PlayAudioTool(
                 if (wantsAnyAudio && allAudioFiles.isNotEmpty()) {
                     val firstTrack = allAudioFiles.first()
                     Log.d(TAG, "Playing first available audio: ${firstTrack.title}")
-                    Log.i(TAG, "✓ INVOKING onPlayAudio callback (fallback) for: ${firstTrack.title}")
+                    Log.i(TAG, " INVOKING onPlayAudio callback (fallback) for: ${firstTrack.title}")
                     onPlayAudio(firstTrack)
 
                     AudioPlaybackResult(
@@ -299,7 +299,7 @@ class PlayAudioTool(
     private fun findMatchingAudio(notes: List<Note>, query: String): AudioTrack? {
         // Clean the query by removing command words
         val cleanedQuery = cleanQuery(query)
-        Log.i(TAG, "🔍 SEARCH: query='$query' → cleaned='$cleanedQuery', searching ${notes.size} notes")
+        Log.i(TAG, " SEARCH: query='$query' → cleaned='$cleanedQuery', searching ${notes.size} notes")
 
         // Build a list of searchable audio items with ALL available metadata
         data class AudioItem(
@@ -374,12 +374,12 @@ class PlayAudioTool(
         }
 
         if (audioItems.isEmpty()) {
-            Log.w(TAG, "❌ NO AUDIO ITEMS found in ${notes.size} notes - check attachmentsJson/fileUri fields")
+            Log.w(TAG, " NO AUDIO ITEMS found in ${notes.size} notes - check attachmentsJson/fileUri fields")
             return null
         }
 
         // Log all found audio files for debugging
-        Log.i(TAG, "📊 AUDIO ITEMS: Found ${audioItems.size} audio files:")
+        Log.i(TAG, " AUDIO ITEMS: Found ${audioItems.size} audio files:")
         audioItems.forEachIndexed { index, item ->
             Log.d(TAG, "  [$index] '${item.fileName}' in note '${item.noteTitle.take(20)}'")
         }

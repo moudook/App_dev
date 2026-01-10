@@ -85,8 +85,8 @@ class ShareFlowManager(
 
                         // Build enhanced text with metadata AND full article content (Reader Mode)
                         enhancedText = buildString {
-                            append("📎 ${urlMetadata.title}\n")
-                            append("🔗 ${urlMetadata.domain ?: url}\n")
+                            append(" ${urlMetadata.title}\n")
+                            append(" ${urlMetadata.domain ?: url}\n")
                             urlMetadata.description?.let {
                                 append("\n$it\n")
                             }

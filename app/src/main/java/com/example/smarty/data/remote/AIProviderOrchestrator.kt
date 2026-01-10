@@ -227,7 +227,7 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
                 }
 
                 if (result != null && result.success) {
-                    Log.i(TAG, "✓ $provider SUCCESS ($keyLabel): category=${result.category}")
+                    Log.i(TAG, " $provider SUCCESS ($keyLabel): category=${result.category}")
                     ApiKeyRotator.markKeyAvailable(apiKey)
                     ApiMetrics.recordApiCall(true)
                     failoverManager.recordSuccess(provider)
@@ -331,7 +331,7 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
                 }
 
                 if (result != null && result.success) {
-                    Log.i(TAG, "✓ Document analysis SUCCESS via $provider: ${result.title}")
+                    Log.i(TAG, " Document analysis SUCCESS via $provider: ${result.title}")
                     failoverManager.recordSuccess(provider)
                     return result
                 }
@@ -414,7 +414,7 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
                 }
 
                 if (result != null) {
-                    Log.i(TAG, "✓ Normal chat SUCCESS via $provider ($keyLabel)")
+                    Log.i(TAG, " Normal chat SUCCESS via $provider ($keyLabel)")
                     failoverManager.recordSuccess(provider)
                     return result
                 }
@@ -482,7 +482,7 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
             }
 
             if (result != null) {
-                Log.i(TAG, "✓ Agent operation SUCCESS via $provider")
+                Log.i(TAG, " Agent operation SUCCESS via $provider")
                 failoverManager.recordSuccess(provider)
                 return result
             }

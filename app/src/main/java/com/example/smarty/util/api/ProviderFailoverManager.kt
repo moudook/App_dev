@@ -270,7 +270,7 @@ class ProviderFailoverManager private constructor() {
                     if (newValue <= 0) {
                         state.consecutiveFailures.set(0)
                         state.status = ProviderHealthStatus.HEALTHY
-                        Log.i(TAG, "✓ $provider fully recovered, circuit CLOSED")
+                        Log.i(TAG, " $provider fully recovered, circuit CLOSED")
                     }
                 }
                 ProviderHealthStatus.DEGRADED -> {
@@ -278,7 +278,7 @@ class ProviderFailoverManager private constructor() {
                     if (newValue <= 0) {
                         state.consecutiveFailures.set(0)
                         state.status = ProviderHealthStatus.HEALTHY
-                        Log.d(TAG, "✓ $provider back to HEALTHY")
+                        Log.d(TAG, " $provider back to HEALTHY")
                     }
                 }
                 else -> {
@@ -318,11 +318,11 @@ class ProviderFailoverManager private constructor() {
             state.status = when {
                 failureCount >= FAILURE_THRESHOLD_OPEN -> {
                     state.circuitOpenUntil = now + cooldown
-                    Log.w(TAG, "⚠ $provider circuit OPEN until ${cooldown/1000}s (${category.name})")
+                    Log.w(TAG, " $provider circuit OPEN until ${cooldown/1000}s (${category.name})")
                     ProviderHealthStatus.CIRCUIT_OPEN
                 }
                 failureCount >= FAILURE_THRESHOLD_DEGRADED -> {
-                    Log.w(TAG, "⚠ $provider DEGRADED ($failureCount failures)")
+                    Log.w(TAG, " $provider DEGRADED ($failureCount failures)")
                     ProviderHealthStatus.DEGRADED
                 }
                 else -> state.status
@@ -430,7 +430,7 @@ class ProviderFailoverManager private constructor() {
                         true
                     } else {
                         val remaining = (state.circuitOpenUntil - now) / 1000
-                        Log.d(TAG, "✗ $provider circuit open for ${remaining}s more")
+                        Log.d(TAG, " $provider circuit open for ${remaining}s more")
                         false
                     }
                 }

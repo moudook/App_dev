@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -54,6 +55,7 @@ fun ChatModeContent(
     onSendChatMessage: (String, List<com.example.smarty.data.model.Attachment>) -> Unit,
     contentPadding: PaddingValues,
     currentToolName: String? = null,
+    isChatProcessing: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val accentColor = LocalAccentColor.current
@@ -93,7 +95,7 @@ fun ChatModeContent(
                 // INLINE TOOL INDICATOR (ChatGPT-style)
                 // Appears as the last item in the chat while the agent is working
                 // ═══════════════════════════════════════════════════════════════════════════
-                if (!currentToolName.isNullOrBlank()) {
+                if (!currentToolName.isNullOrBlank() || isChatProcessing) {
                     item(key = "tool_indicator") {
                         val infiniteTransition = rememberInfiniteTransition(label = "tool_pulse")
                         val pulseAlpha by infiniteTransition.animateFloat(
@@ -106,53 +108,67 @@ fun ChatModeContent(
                             label = "pulse_alpha"
                         )
 
+                        val statusText = if (!currentToolName.isNullOrBlank()) {
+                            // Map tool names to friendly names and icons
+                            val icon = when {
+                                currentToolName.contains("knowledge", ignoreCase = true) -> ""
+                                currentToolName.contains("master", ignoreCase = true) -> ""
+                                currentToolName.contains("time", ignoreCase = true) -> ""
+                                currentToolName.contains("manager", ignoreCase = true) -> ""
+                                currentToolName.contains("system", ignoreCase = true) -> ""
+                                currentToolName.contains("interface", ignoreCase = true) -> ""
+                                currentToolName.contains("cognitive", ignoreCase = true) -> ""
+                                currentToolName.contains("core", ignoreCase = true) -> ""
+                                currentToolName.contains("orchestrator", ignoreCase = true) -> ""
+                                currentToolName.contains("search", ignoreCase = true) -> ""
+                                currentToolName.contains("research", ignoreCase = true) -> ""
+                                else -> "️"
+                            }
+                            "$icon $currentToolName..."
+                        } else {
+                            " Thinking..."
+                        }
+
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .animateItem(), // Smoothly animate entrance/exit
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(12.dp),
-                            tonalElevation = 1.dp
+                                .animateItem(),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, 
+                                accentColor.copy(alpha = 0.2f)
+                            )
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 // Pulsing dot indicator
                                 Box(
                                     modifier = Modifier
-                                        .size(8.dp)
+                                        .size(6.dp)
                                         .graphicsLayer { alpha = pulseAlpha }
                                         .clip(CircleShape)
                                         .background(accentColor)
                                 )
                                 
-                                // Tool name with icon prefix
-                                val toolIcon = when {
-                                    currentToolName.contains("search", ignoreCase = true) -> "🔍"
-                                    currentToolName.contains("note", ignoreCase = true) -> "📝"
-                                    currentToolName.contains("event", ignoreCase = true) ||
-                                    currentToolName.contains("calendar", ignoreCase = true) -> "📅"
-                                    currentToolName.contains("timer", ignoreCase = true) -> "⏱️"
-                                    currentToolName.contains("app", ignoreCase = true) -> "📱"
-                                    currentToolName.contains("audio", ignoreCase = true) ||
-                                    currentToolName.contains("play", ignoreCase = true) -> "🎵"
-                                    currentToolName.contains("image", ignoreCase = true) -> "🖼️"
-                                    currentToolName.contains("memory", ignoreCase = true) -> "🧠"
-                                    else -> "⚙️"
-                                }
-                                
                                 Text(
-                                    text = "$toolIcon ${currentToolName}",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 13.sp
+                                    text = statusText,
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
                                     ),
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    color = accentColor
                                 )
                             }
+                        }
+                        
+                        // Auto-scroll when tool indicator appears
+                        LaunchedEffect(Unit) {
+                            chatListState.animateScrollToItem(chatMessages.size)
                         }
                     }
                 }

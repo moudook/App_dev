@@ -498,7 +498,7 @@ class MainActivity : ComponentActivity() {
                                         // Create share intent with note titles and descriptions
                                         val shareText = notesToShare.joinToString("\n\n") { note ->
                                             buildString {
-                                                append("📝 ${note.title}")
+                                                append(" ${note.title}")
                                                 if (!note.summary.isNullOrBlank()) {
                                                     append("\n${note.summary}")
                                                 } else if (note.content.isNotBlank()) {

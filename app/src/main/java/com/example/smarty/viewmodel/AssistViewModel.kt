@@ -8,7 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.JarvisAgent
+import com.example.smarty.agent.JarvisAgentOptimized
 import com.example.smarty.agent.JarvisAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.WebCitation
@@ -180,10 +180,16 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         override fun onPlanStatusChanged(status: String?) {
             // Plan progress not displayed in assist mode
         }
+
+        override fun onStatusUpdate(status: String) {
+            // Update UI to show current status
+            _toolStatus.value = status
+            Log.d(TAG, "Status update: $status")
+        }
     }
 
-    private val jarvisAgent: JarvisAgent by lazy {
-        JarvisAgent(
+    private val jarvisAgent: JarvisAgentOptimized by lazy {
+        JarvisAgentOptimized(
             context = application,
             agentProvider = agentProvider,
             repository = repository,

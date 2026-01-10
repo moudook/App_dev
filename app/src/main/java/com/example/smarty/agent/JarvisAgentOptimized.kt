@@ -11,7 +11,13 @@ import com.example.smarty.agent.tools.calendar.CreateTimerTool
 import com.example.smarty.agent.tools.calendar.DeleteEventTool
 import com.example.smarty.agent.tools.calendar.DeleteDayEventsTool
 import com.example.smarty.agent.tools.calendar.GetEventsTool
+import com.example.smarty.agent.tools.consolidated.AgentOrchestratorTool
+import com.example.smarty.agent.tools.consolidated.CognitiveCoreTool
+import com.example.smarty.agent.tools.consolidated.KnowledgeMasterTool
+import com.example.smarty.agent.tools.consolidated.SystemInterfaceTool
+import com.example.smarty.agent.tools.consolidated.TimeManagerTool
 import com.example.smarty.agent.tools.categories.GetCategoryNotesTool
+import com.example.smarty.agent.tools.base.NotifyingTool
 import com.example.smarty.agent.tools.categories.ListCategoriesTool
 import com.example.smarty.agent.tools.categories.ListCategoriesArgs
 import com.example.smarty.agent.tools.categories.SearchAudioNotesTool
@@ -28,6 +34,7 @@ import com.example.smarty.agent.tools.memory.ManageMemoryTool
 import com.example.smarty.agent.tools.memory.UserPatternsTool
 import com.example.smarty.agent.tools.memory.LearnFromNotesTool
 import com.example.smarty.agent.tools.notes.*
+import com.example.smarty.agent.tools.notes.style.ReadAndAnalyzeStyleTool
 import com.example.smarty.data.model.ThinkingModeContext
 import com.example.smarty.agent.tools.research.DeepResearchTool
 import com.example.smarty.agent.prompts.ToolExampleStore
@@ -281,6 +288,7 @@ interface AgentCallbacks {
     fun requestAudioPlayback(track: AudioTrack)
     fun onToolExecutionStarted(toolName: String, toolDisplayName: String)
     fun onToolExecutionCompleted(toolName: String)
+    fun onStatusUpdate(status: String)
     fun onCitationsFound(citations: List<WebCitation>)
 
     // New callbacks for OpenApp and SaveScreen tools
@@ -309,7 +317,7 @@ interface AgentCallbacks {
  *
  * All operations respect PrivacyGuard - private notes are invisible to AI.
  */
-class JarvisAgent(
+class JarvisAgentOptimized(
     private val context: Context,  // For OpenAppTool
     private val agentProvider: JarvisAgentProvider,
     private val repository: JarvisRepository,
@@ -320,7 +328,7 @@ class JarvisAgent(
     private val rateLimiter: RateLimiter? = null  // Optional rate limiter
 ) {
     companion object {
-        private const val TAG = "JarvisAgent"
+        private const val TAG = "JarvisAgentOptimized"
 
         // INCREASED iteration limits to 50 for everything - MAXIMUM COMPLEXITY SUPPORT
         private const val MAX_ITERATIONS_SIMPLE = 50     // Increased to 50 for all queries
@@ -474,38 +482,65 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
 -   Format responses with clean Markdown and bold key terms.
     """.trimIndent()
 
-
     /**
      * Build the tool registry with all available tools.
      * FULL VERSION: All tools enabled for comprehensive AI capabilities.
+     * Wrapped with NotifyingTool for UI feedback.
      */
     private fun buildToolRegistry(): ToolRegistry {
         return ToolRegistry {
-            // === NOTE TOOLS (9) ===
-            tool(CreateNoteTool(repository, callbacks::processNoteWithAi))
-            tool(SearchNotesTool(callbacks::getActiveNotes))
-            tool(GetRecentNotesTool(callbacks::getActiveNotes))
-            tool(UpdateNoteTool(repository))
-            tool(DeleteNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
-            tool(ArchiveNoteTool(repository, callbacks::getActiveNotes, callbacks::findNoteByDescription))
-            tool(UnarchiveNoteTool(repository, callbacks::getArchivedNotes, callbacks::findNoteByDescription))
-            tool(SummarizeNoteTool(repository))
-            tool(SmartSearchTool(callbacks::getActiveNotes))
+            // === CONSOLIDATED TOOLS (5) ===
+            tool(NotifyingTool(KnowledgeMasterTool(
+                repository = repository,
+                onProcessNote = callbacks::processNoteWithAi,
+                getActiveNotes = callbacks::getActiveNotes,
+                getArchivedNotes = callbacks::getArchivedNotes,
+                getCategories = callbacks::getCategories,
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+            
+            tool(NotifyingTool(TimeManagerTool(
+                repository = repository,
+                alarmScheduler = alarmScheduler,
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+            
+            tool(NotifyingTool(SystemInterfaceTool(
+                context = context,
+                repository = repository,
+                onLaunchApp = callbacks::launchApp,
+                onPlayAudio = callbacks::requestAudioPlayback,
+                onDisplayImages = callbacks::onDisplayImages,
+                getScreenContext = callbacks::getScreenContext,
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+            
+            tool(NotifyingTool(CognitiveCoreTool(
+                aiMemoryDao = aiMemoryDao,
+                getActiveNotes = callbacks::getActiveNotes,
+                getCategories = callbacks::getCategories,
+                markNoteAsAnalyzed = { noteId ->
+                    callbacks.markNoteAsAnalyzedForMemory(noteId)
+                },
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+            
+            tool(NotifyingTool(AgentOrchestratorTool(
+                repository = repository,
+                tavilySearchProvider = tavilySearchProvider,
+                getActiveNotes = callbacks::getActiveNotes,
+                getTavilyApiKey = callbacks::getTavilyApiKey,
+                onCitationsFound = { citations ->
+                    val webCitations = citations.map { sc ->
+                        WebCitation(sc.title, sc.url, sc.snippet)
+                    }
+                    callbacks.onCitationsFound(webCitations)
+                },
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
 
-            // === TODO TOOLS (3) ===
-            tool(AddTodosTool(repository))
-            tool(ToggleTodoTool(repository))
-            tool(DeleteTodoTool(repository))
-
-            // === CATEGORY TOOLS (5) ===
-            tool(ListCategoriesTool(callbacks::getCategories, callbacks::getActiveNotes))
-            tool(GetCategoryNotesTool(callbacks::getActiveNotes))
-            tool(SearchAudioNotesTool(callbacks::getActiveNotes))
-            tool(SearchImageNotesTool(callbacks::getActiveNotes))
-            tool(SearchDocumentNotesTool(callbacks::getActiveNotes))
-
-            // === EXTERNAL TOOLS (5) ===
-            tool(WebSearchTool(
+            // === SEARCH TOOLS (KEPT) ===
+            tool(NotifyingTool(WebSearchTool(
                 tavilySearchProvider = tavilySearchProvider,
                 getApiKey = callbacks::getTavilyApiKey,
                 onCitationsFound = { searchCitations ->
@@ -514,47 +549,11 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                     }
                     callbacks.onCitationsFound(webCitations)
                 }
-            ))
-            tool(PlayAudioTool(
-                getActiveNotes = callbacks::getActiveNotes,
-                onPlayAudio = callbacks::requestAudioPlayback
-            ))
-            tool(ViewImageTool(
-                getActiveNotes = callbacks::getActiveNotes,
-                onDisplayImages = callbacks::onDisplayImages
-            ))
-            tool(OpenAppTool(
-                context = context,
-                onLaunchApp = callbacks::launchApp
-            ))
-            tool(SaveScreenTool(
-                repository = repository,
-                getScreenContext = callbacks::getScreenContext
-            ))
+            ), callbacks))
+            
+            tool(NotifyingTool(SmartSearchTool(callbacks::getActiveNotes), callbacks))
 
-            // === CALENDAR TOOLS (6) ===
-            tool(CreateEventTool(repository))
-            tool(DeleteEventTool(repository))
-            tool(DeleteDayEventsTool(repository))
-            tool(GetEventsTool(repository))
-            tool(CreateTimerTool(alarmScheduler))
-            tool(CancelTimerTool(alarmScheduler))
-
-            // === ADVANCED TOOLS (3) ===
-            tool(BatchOperationsTool(repository, callbacks::getActiveNotes))
-            tool(DeepResearchTool(tavilySearchProvider, repository, callbacks::getTavilyApiKey))
-            tool(UserPatternsTool(callbacks::getActiveNotes, callbacks::getCategories))
-
-            // === MEMORY TOOLS (3) ===
-            tool(ManageMemoryTool(aiMemoryDao))
-            tool(LearnFromNotesTool(
-                aiMemoryDao = aiMemoryDao,
-                getActiveNotes = callbacks::getActiveNotes,
-                markNoteAsAnalyzed = { noteId ->
-                    // Mark note as analyzed in the database via callback
-                    callbacks.markNoteAsAnalyzedForMemory(noteId)
-                }
-            ))
+            tool(NotifyingTool(ReadAndAnalyzeStyleTool(callbacks::getActiveNotes), callbacks))
         }
     }
 
@@ -907,7 +906,7 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                 }
 
                 // Record success with failover manager and rate limiter
-                Log.i(TAG, "✓ Success with ${executorResult.provider} ($keyLabel) after $planLoopIterations iterations")
+                Log.i(TAG, " Success with ${executorResult.provider} ($keyLabel) after $planLoopIterations iterations")
                 agentProvider.recordSuccess(executorResult.provider)
                 rateLimiter?.recordCall()
 
@@ -954,7 +953,7 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                         .trim()
 
                     if (conversationalResponse.isNotEmpty()) {
-                        Log.i(TAG, "✓ Conversational response from ${executorResult.provider} ($keyLabel)")
+                        Log.i(TAG, " Conversational response from ${executorResult.provider} ($keyLabel)")
                         agentProvider.recordSuccess(executorResult.provider)
 
                         // BATCH-3C: Post-process conversational response (unmask PII, cache)

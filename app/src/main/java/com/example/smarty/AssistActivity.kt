@@ -61,6 +61,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModelProvider
@@ -69,7 +75,7 @@ import com.example.smarty.viewmodel.AssistViewModel
 import com.example.smarty.viewmodel.AssistViewModelFactory
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.JarvisAgent
+import com.example.smarty.agent.JarvisAgentOptimized
 import com.example.smarty.agent.JarvisAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.WebCitation
@@ -238,6 +244,12 @@ class AssistActivity : ComponentActivity() {
             }
         }
 
+        override fun onStatusUpdate(status: String) {
+            runOnUiThread {
+                currentToolStatus.value = status
+            }
+        }
+
         override fun onCitationsFound(citations: List<WebCitation>) {
             runOnUiThread {
                 // Store citations for display in response
@@ -317,8 +329,8 @@ class AssistActivity : ComponentActivity() {
             pendingSavePageOriginalText = null
         }
 
-    private val jarvisAgent: JarvisAgent by lazy {
-        JarvisAgent(this, agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks, database.aiMemoryDao())
+    private val jarvisAgent: JarvisAgentOptimized by lazy {
+        JarvisAgentOptimized(this, agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks, database.aiMemoryDao())
     }
 
     private val localCommandProcessor: LocalCommandProcessor by lazy {
@@ -1136,13 +1148,16 @@ class AssistActivity : ComponentActivity() {
                         }.takeLast(10)
 
                         val result = withContext(Dispatchers.IO) {
-                            jarvisAgent.run(text, cleanHistory)
+                            jarvisAgent.run(
+                                userMessage = text,
+                                conversationHistory = cleanHistory
+                            )
                         }
 
                         val response = when (result) {
                             is AgentResult.Success -> result.response
                             is AgentResult.Error -> result.message
-                            is AgentResult.NoProvider -> "Please set up an AI provider in settings."
+                            is AgentResult.NoProvider -> result.message
                         }
                         viewModel.addMessage(ChatMessage(role = ChatRole.ASSISTANT, content = response, isError = result is AgentResult.Error))
                     }
@@ -1156,7 +1171,10 @@ class AssistActivity : ComponentActivity() {
                          }.takeLast(10)
 
                          val result = withContext(Dispatchers.IO) {
-                             jarvisAgent.run(text, cleanHistory)
+                             jarvisAgent.run(
+                                 userMessage = text,
+                                 conversationHistory = cleanHistory
+                             )
                          }
 
                          val response = when (result) {
@@ -1369,7 +1387,7 @@ class AssistActivity : ComponentActivity() {
 
             viewModel.addMessage(ChatMessage(
                 role = ChatRole.ASSISTANT,
-                content = "✓ Page saved with screenshot: **$title**"
+                content = " Page saved with screenshot: **$title**"
             ))
 
         } catch (e: Exception) {
@@ -1454,7 +1472,7 @@ class AssistActivity : ComponentActivity() {
 
             viewModel.addMessage(ChatMessage(
                 role = ChatRole.ASSISTANT,
-                content = "✓ Page saved: **$title**\n_(Screenshot unavailable - text context only)_"
+                content = " Page saved: **$title**\n_(Screenshot unavailable - text context only)_"
             ))
 
         } catch (e: Exception) {
@@ -1477,7 +1495,7 @@ class AssistActivity : ComponentActivity() {
     ): String {
         return buildString {
             if (hasScreenshot) {
-                appendLine("📸 **Screenshot captured**")
+                appendLine(" **Screenshot captured**")
                 appendLine()
             }
 
@@ -1896,8 +1914,12 @@ fun MinimalResponseList(
 ) {
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    LaunchedEffect(messages.size, toolStatus) {
+        if (messages.isNotEmpty() || toolStatus != null) {
+            listState.animateScrollToItem(
+                if (toolStatus != null) messages.size else messages.size - 1
+            )
+        }
     }
 
     LazyColumn(
@@ -1909,15 +1931,47 @@ fun MinimalResponseList(
         items(messages, key = { it.id }) { msg ->
             BubbleMessage(msg)
         }
-        if (isProcessing) {
+        
+        if (toolStatus != null) {
             item {
-                // Show tool status if available, otherwise show generic "Thinking..."
-                val statusText = toolStatus ?: "Thinking..."
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
+                Row(
+                    modifier = Modifier
+                        .padding(top = 4.dp, bottom = 8.dp)
+                        .background(
+                            color = GeminiColors.Blue.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_sparkle),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = GeminiColors.Blue
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = toolStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GeminiColors.Blue,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        } else if (isProcessing) {
+            item {
+                Row(
+                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Thinking...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontStyle = FontStyle.Italic
+                    )
+                }
             }
         }
     }

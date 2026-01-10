@@ -88,8 +88,8 @@ object SemanticSearchEngine {
         val querySoundex = queryTokens.map { soundex(it) }.filter { it.isNotEmpty() }
         val significantTokens = queryTokens.filter { it.length >= 3 }
 
-        Log.d(TAG, "🔍 Search query: '$query' → normalized: '$normalizedQuery'")
-        Log.d(TAG, "🔍 Tokens: $queryTokens, Significant tokens (3+ chars): $significantTokens")
+        Log.d(TAG, " Search query: '$query' → normalized: '$normalizedQuery'")
+        Log.d(TAG, " Tokens: $queryTokens, Significant tokens (3+ chars): $significantTokens")
 
         // OPTIMIZED: Early termination and result limiting for better performance
         val results = mutableListOf<SearchResult<T>>()
@@ -199,11 +199,11 @@ object SemanticSearchEngine {
                 val matchedWords = significantQueryTokens.count { qToken ->
                     textTokens.any { tToken -> tToken == qToken || tToken.contains(qToken) || qToken.contains(tToken) }
                 }
-                Log.d(TAG, "📝 Phrase check: '$text' → matched $matchedWords/${significantQueryTokens.size} words")
+                Log.d(TAG, " Phrase check: '$text' → matched $matchedWords/${significantQueryTokens.size} words")
                 if (matchedWords == significantQueryTokens.size) {
                     // All significant words found! This is a strong match
                     val phraseScore = 0.92
-                    Log.d(TAG, "✅ All significant words matched in '$text'! Score: $phraseScore")
+                    Log.d(TAG, " All significant words matched in '$text'! Score: $phraseScore")
                     if (phraseScore > bestScore) {
                         bestScore = phraseScore
                         bestMatchType = MatchType.CONTAINS

@@ -310,8 +310,8 @@ class ContentSecurityFilterTest {
 
     @Test
     fun `hasEmojis detects emojis`() {
-        assertTrue(ContentSecurityFilter.hasEmojis("Hello 😀"))
-        assertTrue(ContentSecurityFilter.hasEmojis("Check this out 🚀"))
+        assertTrue(ContentSecurityFilter.hasEmojis("Hello "))
+        assertTrue(ContentSecurityFilter.hasEmojis("Check this out "))
     }
 
     @Test
@@ -323,7 +323,7 @@ class ContentSecurityFilterTest {
     @Test
     fun `removeEmojis strips emojis`() {
         // Only emoticons in the defined ranges are stripped (not all emoji)
-        val content = "Hello 😀 World!"
+        val content = "Hello  World!"
         val result = ContentSecurityFilter.removeEmojis(content)
 
         assertEquals("Hello  World!", result)
@@ -331,18 +331,18 @@ class ContentSecurityFilterTest {
 
     @Test
     fun `sanitizeForChat removes emojis by default`() {
-        val content = "Hello 😀"
+        val content = "Hello "
         val result = ContentSecurityFilter.sanitizeForChat(content)
 
-        assertFalse(result.sanitizedContent.contains("😀"))
+        assertFalse(result.sanitizedContent.contains(""))
     }
 
     @Test
     fun `sanitize preserves emojis by default`() {
-        val content = "Hello 😀"
+        val content = "Hello "
         val result = ContentSecurityFilter.sanitize(content, removeEmojis = false)
 
-        assertTrue(result.sanitizedContent.contains("😀"))
+        assertTrue(result.sanitizedContent.contains(""))
     }
 
     // =========================================================================
