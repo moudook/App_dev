@@ -303,6 +303,9 @@ interface AgentCallbacks {
 
     // Callback to mark a note as analyzed for AI memory learning
     suspend fun markNoteAsAnalyzedForMemory(noteId: String)
+    
+    // NEW: Get audio files from device storage (MediaStore)
+    fun getDeviceAudio(): List<AudioTrack> = emptyList()  // Default empty for backward compatibility
 }
 
 /**
@@ -512,7 +515,8 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                 onPlayAudio = callbacks::requestAudioPlayback,
                 onDisplayImages = callbacks::onDisplayImages,
                 getScreenContext = callbacks::getScreenContext,
-                onStatusUpdate = callbacks::onStatusUpdate
+                onStatusUpdate = callbacks::onStatusUpdate,
+                getDeviceAudio = callbacks::getDeviceAudio  // NEW: Device storage audio
             ), callbacks))
             
             tool(NotifyingTool(CognitiveCoreTool(
@@ -621,7 +625,8 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
         userMessage: String,
         conversationHistory: List<Pair<String, String>> = emptyList(),
         taggedNoteContext: TaggedNoteContext? = null,
-        thinkingModeContext: ThinkingModeContext? = null
+        thinkingModeContext: ThinkingModeContext? = null,
+        isThinkingModeEnabled: Boolean = true // Default to true (standard behavior)
     ): AgentResult {
         Log.d(TAG, "Running agent with message: ${userMessage.take(50)}... (history: ${conversationHistory.size} messages)")
 
@@ -862,10 +867,18 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                     // Rebuild tool registry (in case state changed)
                     val currentToolRegistry = buildToolRegistry()
 
+                    // AGENT-010: Inject thinking mode instruction into system prompt
+                    val thinkingModeInstruction = if (isThinkingModeEnabled) {
+                        "\n\n**THINKING MODE: ON**\nFor complex queries, you MAY use <think>...</think> tags to show reasoning."
+                    } else {
+                        "\n\n**THINKING MODE: OFF**\nDirect response only. Do NOT use <think> tags. Do NOT show reasoning steps."
+                    }
+                    val finalSystemPrompt = systemPrompt + thinkingModeInstruction
+
                     val agent = AIAgent(
                         promptExecutor = executorResult.executor,
                         llmModel = executorResult.model,
-                        systemPrompt = systemPrompt,
+                        systemPrompt = finalSystemPrompt,
                         toolRegistry = currentToolRegistry,
                         maxIterations = maxIterations
                     )

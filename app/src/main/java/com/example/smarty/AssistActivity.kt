@@ -91,6 +91,7 @@ import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
+import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.service.AudioPlayerService
@@ -179,6 +180,8 @@ class AssistActivity : ComponentActivity() {
     }
     private val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler.getInstance(application) }
     private val agentProvider: JarvisAgentProvider by lazy { JarvisAgentProvider(securePreferences, groqKeyManager) }
+    // Device audio repository for MediaStore access
+    private val deviceAudioRepository: DeviceAudioRepository by lazy { DeviceAudioRepository(application) }
     
     // Notes cache
     private var cachedNotes: List<Note> = emptyList()
@@ -274,6 +277,16 @@ class AssistActivity : ComponentActivity() {
         override fun onPlanStatusChanged(status: String?) {
             // Plan progress not shown in overlay mode
         }
+
+        // NEW: Get audio files from device storage (MediaStore)
+        override fun getDeviceAudio(): List<AudioTrack> {
+            return try {
+                deviceAudioRepository.getAllAudio()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get device audio: ${e.message}")
+                emptyList()
+            }
+        }
     }
 
     // Screen context captured when assistant is triggered
@@ -334,7 +347,7 @@ class AssistActivity : ComponentActivity() {
     }
 
     private val localCommandProcessor: LocalCommandProcessor by lazy {
-        LocalCommandProcessor(this, { cachedNotes }, { playAudio(it) }, { launchApp(it) })
+        LocalCommandProcessor(this, { cachedNotes }, { playAudio(it) }, { launchApp(it) }, { deviceAudioRepository.getAllAudio() })
     }
 
     // Assist context from triggering app

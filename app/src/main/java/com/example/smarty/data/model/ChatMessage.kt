@@ -56,7 +56,8 @@ data class ChatMessage(
     val isError: Boolean = false,  // True when this message represents an API error
     val citations: List<Citation> = emptyList(),  // Sources from web research
     val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
-    val clarificationRequest: ClarificationRequest? = null  // Interactive clarification request
+    val clarificationRequest: ClarificationRequest? = null,  // Interactive clarification request
+    val thinkingContent: String? = null  // Reasoning process from thinking-enabled models (Falcon-H1R-7B)
 ) {
     /**
      * Check if this is a user message
@@ -97,4 +98,9 @@ data class ChatMessage(
      * Check if inline images are available to display
      */
     val hasInlineImages: Boolean get() = inlineImages.isNotEmpty()
+
+    /**
+     * Check if thinking/reasoning content is available
+     */
+    val hasThinking: Boolean get() = !thinkingContent.isNullOrBlank()
 }

@@ -70,7 +70,8 @@ class LocalCommandProcessor(
     private val context: Context,
     private val getNotes: () -> List<Note>,
     private val onPlayAudio: (AudioTrack) -> Unit,
-    private val onLaunchApp: (String) -> Unit
+    private val onLaunchApp: (String) -> Unit,
+    private val getDeviceAudio: () -> List<AudioTrack> = { emptyList() }  // NEW: Search device storage
 ) {
     companion object {
         private const val TAG = "LocalCommandProcessor"
@@ -970,7 +971,91 @@ Just tell me what you need!"""
 
         // Sort by score (highest first) and return best match
         val bestMatch = audioTracks.maxByOrNull { it.third }
-        return bestMatch?.let { (track, noteName, _) -> track to noteName }
+        if (bestMatch != null) {
+            return bestMatch.let { (track, noteName, _) -> track to noteName }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // DEVICE STORAGE AUDIO - Search if no note audio found
+        // ═══════════════════════════════════════════════════════════════
+        val deviceAudio = getDeviceAudio()
+        if (deviceAudio.isNotEmpty()) {
+            Log.d(TAG, "Searching ${deviceAudio.size} device audio files for: $query")
+            
+            val deviceMatches = deviceAudio.mapNotNull { track ->
+                val score = calculateDeviceAudioMatchScore(
+                    query = normalizedQuery,
+                    queryWords = queryWords,
+                    title = track.title,
+                    artist = track.artist,
+                    album = track.album,
+                    fileName = track.fileName
+                )
+                if (score > 0) Triple(track, "Device: ${track.artist ?: "Unknown"}", score) else null
+            }
+            
+            val bestDeviceMatch = deviceMatches.maxByOrNull { it.third }
+            if (bestDeviceMatch != null) {
+                Log.d(TAG, "Found device audio match: ${bestDeviceMatch.first.title} (score: ${bestDeviceMatch.third})")
+                return bestDeviceMatch.let { (track, source, _) -> track to source }
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Calculate match score for device audio (title, artist, album, filename).
+     */
+    private fun calculateDeviceAudioMatchScore(
+        query: String,
+        queryWords: List<String>,
+        title: String,
+        artist: String?,
+        album: String?,
+        fileName: String?
+    ): Float {
+        var score = 0f
+        val normalizedTitle = title.lowercase(Locale.getDefault())
+        val normalizedArtist = artist?.lowercase(Locale.getDefault()) ?: ""
+        val normalizedAlbum = album?.lowercase(Locale.getDefault()) ?: ""
+        val normalizedFileName = fileName?.lowercase(Locale.getDefault())?.substringBeforeLast(".") ?: ""
+
+        // Exact match in title (highest priority)
+        if (normalizedTitle.contains(query)) {
+            score += 10f
+        }
+
+        // Match in artist
+        if (normalizedArtist.contains(query)) {
+            score += 8f
+        }
+
+        // Match in album
+        if (normalizedAlbum.contains(query)) {
+            score += 6f
+        }
+
+        // Match in filename
+        if (normalizedFileName.contains(query)) {
+            score += 7f
+        }
+
+        // Word-level matching
+        for (word in queryWords) {
+            if (normalizedTitle.contains(word)) score += 3f
+            if (normalizedArtist.contains(word)) score += 2.5f
+            if (normalizedAlbum.contains(word)) score += 2f
+            if (normalizedFileName.contains(word)) score += 2f
+        }
+
+        // Fuzzy similarity for title
+        val titleSimilarity = calculateSimilarity(query, normalizedTitle)
+        if (titleSimilarity > 0.5f) {
+            score += titleSimilarity * 5f
+        }
+
+        return score
     }
 
     /**

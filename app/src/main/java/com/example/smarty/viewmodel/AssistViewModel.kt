@@ -24,6 +24,7 @@ import com.example.smarty.data.model.Citation
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
+import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.PrivacyGuard
@@ -87,6 +88,10 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     }
     private val alarmScheduler: AlarmScheduler by lazy {
         AlarmScheduler.getInstance(application)
+    }
+    // Device audio repository for MediaStore access
+    private val deviceAudioRepository: DeviceAudioRepository by lazy {
+        DeviceAudioRepository(application)
     }
     private val agentProvider: JarvisAgentProvider by lazy {
         JarvisAgentProvider(securePreferences, groqKeyManager)
@@ -185,6 +190,16 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             // Update UI to show current status
             _toolStatus.value = status
             Log.d(TAG, "Status update: $status")
+        }
+
+        // NEW: Get audio files from device storage (MediaStore)
+        override fun getDeviceAudio(): List<AudioTrack> {
+            return try {
+                deviceAudioRepository.getAllAudio()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get device audio: ${e.message}")
+                emptyList()
+            }
         }
     }
 

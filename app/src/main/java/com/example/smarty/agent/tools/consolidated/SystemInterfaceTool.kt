@@ -49,7 +49,9 @@ class SystemInterfaceTool(
     private val onPlayAudio: (AudioTrack) -> Unit,
     private val onDisplayImages: (List<ImageDisplayItem>) -> Unit,
     private val getScreenContext: () -> ScreenContext?,
-    private val onStatusUpdate: (String) -> Unit
+    private val onStatusUpdate: (String) -> Unit,
+    // NEW: Optional device audio provider for searching device music library
+    private val getDeviceAudio: () -> List<AudioTrack> = { emptyList() }
 ) : Tool<SystemInterfaceArgs, SystemResult>(
     argsSerializer = SystemInterfaceArgs.serializer(),
     resultSerializer = SystemResult.serializer(),
@@ -58,7 +60,7 @@ class SystemInterfaceTool(
         Handles interactions with the host OS, hardware, and apps.
         
         ACTIONS:
-        - play_media: Play audio file. usage: resource="filename.mp3"
+        - play_media: Play audio from device music library OR by filename. usage: resource="song name" or "filename.mp3"
         - display_media: Display image. usage: resource="filename.jpg"
         - launch_app: Open an application. usage: resource="AppName"
         - capture_screen: Capture and save screenshot. usage: (no resource needed)
@@ -93,15 +95,35 @@ class SystemInterfaceTool(
     }
 
     private fun playMedia(args: SystemInterfaceArgs): SystemResult {
-        val fileName = args.resource ?: return SystemResult(false, "Resource (filename) required for play_media")
+        val query = args.resource ?: return SystemResult(false, "Resource (filename or song name) required for play_media")
         
+        // First, try to find matching device audio (MediaStore)
+        val deviceAudio = getDeviceAudio()
+        if (deviceAudio.isNotEmpty()) {
+            val queryLower = query.lowercase().trim()
+            // Search by title, artist, or filename
+            val match = deviceAudio.firstOrNull { track ->
+                track.title.lowercase().contains(queryLower) ||
+                track.artist?.lowercase()?.contains(queryLower) == true ||
+                track.album?.lowercase()?.contains(queryLower) == true ||
+                track.fileName?.lowercase()?.contains(queryLower) == true
+            }
+            
+            if (match != null) {
+                onPlayAudio(match)
+                val artistInfo = match.artist?.let { " by $it" } ?: ""
+                return SystemResult(true, "Playing: ${match.title}$artistInfo")
+            }
+        }
+        
+        // Fallback: Create track from the query as-is (for direct file paths)
         val track = AudioTrack(
-            id = fileName.hashCode().toString(), 
-            title = fileName,
-            uri = fileName
+            id = query.hashCode().toString(), 
+            title = query,
+            uri = query
         )
         onPlayAudio(track)
-        return SystemResult(true, "Playing audio: $fileName")
+        return SystemResult(true, "Playing audio: $query")
     }
 
     private fun displayMedia(args: SystemInterfaceArgs): SystemResult {

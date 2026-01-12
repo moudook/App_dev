@@ -277,7 +277,7 @@ class CognitiveCoreTool(
         val patterns = mutableListOf<String>()
         val travelKeywords = listOf("travel", "trip", "flight", "booking", "vacation")
         if (travelKeywords.any { content.contains(it) }) {
-            val locationPattern = Regex("(to|visit)\\s+([a-z\\s]+?)(?:\\s+(?:on|at)|\\s+|\$)")
+            val locationPattern = Regex("(to|visit) \\s+([a-z\\s]+?)(?:\\s+(?:on|at)|\\s+|\$)")
             locationPattern.findAll(content).forEach {
                 val loc = it.groupValues[2].trim()
                 if (loc.length > 3) patterns.add("User is traveling to $loc")

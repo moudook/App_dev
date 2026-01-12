@@ -121,6 +121,9 @@ fun JarvisNavHost(
     // AI Planning Status
     aiPlanStatus: String? = null,
     currentToolName: String? = null,
+    // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
+    isThinkingModeEnabled: Boolean = true,
+    onToggleThinkingMode: () -> Unit = {},
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
@@ -289,6 +292,9 @@ fun JarvisNavHost(
                 // AI Planning Status
                 aiPlanStatus = aiPlanStatus,
                 currentToolName = currentToolName,
+                // Thinking mode toggle (Chat mode only)
+                isThinkingModeEnabled = isThinkingModeEnabled,
+                onToggleThinkingMode = onToggleThinkingMode,
                 // Pending chat text (for "Ask AI" from note card)
                 pendingChatText = pendingChatText,
                 onClearPendingChatText = onClearPendingChatText,

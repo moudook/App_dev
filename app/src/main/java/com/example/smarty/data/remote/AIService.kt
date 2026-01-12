@@ -94,7 +94,10 @@ data class OpenAIRequest(
     val messages: List<OpenAIMessage>,
     val temperature: Float = 0.4f,
     @SerializedName("max_tokens")
-    val maxTokens: Int = 300
+    val maxTokens: Int = 300,
+    @SerializedName("enable_thinking")
+    val enableThinking: Boolean? = null,  // For reasoning models like Falcon-H1R-7B
+    val stream: Boolean? = null  // Enable SSE streaming for real-time token output
 )
 
 data class OpenAIMessage(

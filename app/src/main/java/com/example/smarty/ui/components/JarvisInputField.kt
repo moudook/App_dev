@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -41,6 +42,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -194,7 +197,10 @@ fun JarvisInputField(
     onClearFilters: () -> Unit = {},
     // @Mention support (Chat mode only)
     mentionState: MentionState = MentionState(),
-    onMentionSelected: (MentionSuggestion) -> Unit = {}
+    onMentionSelected: (MentionSuggestion) -> Unit = {},
+    // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
+    isThinkingModeEnabled: Boolean = true,
+    onToggleThinkingMode: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -457,9 +463,23 @@ fun JarvisInputField(
         ) {
             if (isChatMode) {
                 // ═══════════════════════════════════════════════════════════════════
-                // CHAT MODE: [Input Pill] (Voice is trigger-only)
+                // CHAT MODE: [Thinking Toggle] [Input Pill]
                 // ═══════════════════════════════════════════════════════════════════
-                // No circles, just the pill below
+                
+                // Thinking Mode Toggle Button (for reasoning models like Falcon-H1R-7B)
+                ActionCircle(
+                    icon = if (isThinkingModeEnabled) Icons.Default.Psychology else Icons.Outlined.Bolt,
+                    contentDescription = if (isThinkingModeEnabled) 
+                        "Thinking mode ON - Tap to disable" 
+                    else 
+                        "Thinking mode OFF - Tap to enable",
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onToggleThinkingMode()
+                    },
+                    isActive = isThinkingModeEnabled,
+                    activeColor = LocalAccentColor.current
+                )
             } else {
                 // ═══════════════════════════════════════════════════════════════════
                 // NORMAL MODE: [Attach Circle] [Search Circle] [Input Pill]
@@ -736,6 +756,12 @@ private fun InputPill(
                 color = borderColor,
                 shape = RoundedCornerShape(PILL_CORNER_RADIUS)
             )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                focusRequester.requestFocus()
+            }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Shimmer overlay for voice/agent states

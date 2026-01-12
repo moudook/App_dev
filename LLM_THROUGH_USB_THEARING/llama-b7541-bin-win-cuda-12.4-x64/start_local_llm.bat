@@ -127,9 +127,9 @@ if !errorLevel! neq 0 (
 echo.
 
 :: Check if model exists
-if not exist "models\gemma-3-4b-it-IQ4_NL.gguf" (
+if not exist "models\Phi-4-mini-instruct-Q4_K_M.gguf" (
     echo [ERROR] Model file not found!
-    echo [ERROR] Expected: models\gemma-3-4b-it-IQ4_NL.gguf
+    echo [ERROR] Expected: models\Phi-4-mini-instruct-Q4_K_M.gguf
     echo.
     echo Download a GGUF model and place it in the 'models' folder.
     pause
@@ -137,7 +137,7 @@ if not exist "models\gemma-3-4b-it-IQ4_NL.gguf" (
 )
 
 echo [INFO] Starting LLM server...
-echo [INFO] Model: gemma-3-4b-it-IQ4_NL.gguf
+echo [INFO] Model: Phi-4-mini-instruct-Q4_K_M.gguf
 echo [INFO] Context: 65536 tokens (64K)
 echo [INFO] GPU Layers: 20 (RTX 2050)
 echo [INFO] Port: !SERVER_PORT!
@@ -151,7 +151,8 @@ echo ============================================================
 echo.
 
 .\llama-server.exe ^
-  --model models\gemma-3-4b-it-IQ4_NL.gguf ^
+  --model models\Phi-4-mini-instruct-Q4_K_M.gguf ^
+  --chat-template-file qwen3_chat_template.jinja ^
   --ctx-size 65536 ^
   --n-gpu-layers 20 ^
   --port !SERVER_PORT! ^

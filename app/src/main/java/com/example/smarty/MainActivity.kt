@@ -192,6 +192,9 @@ class MainActivity : ComponentActivity() {
                 // AI Planning Status (Progress UI)
                 val aiPlanStatus by viewModel.aiPlanStatus.collectAsState()
                 val currentToolName by viewModel.currentToolName.collectAsState()
+                
+                // Thinking mode toggle (Chat mode - for reasoning models like Falcon-H1R-7B)
+                val isThinkingModeEnabled by viewModel.isThinkingModeEnabled.collectAsState()
 
                 // AI exclusion state
                 val isAiExcluded by viewModel.pendingNoteAiExcluded.collectAsState()
@@ -529,6 +532,9 @@ class MainActivity : ComponentActivity() {
                                     isChatProcessing = isChatProcessing,
                                     aiPlanStatus = aiPlanStatus,
                                     currentToolName = currentToolName,
+                                    // Thinking mode toggle (Chat mode only)
+                                    isThinkingModeEnabled = isThinkingModeEnabled,
+                                    onToggleThinkingMode = { viewModel.toggleThinkingMode() },
                                     onSendChatMessage = { content, attachments ->
                                         viewModel.sendChatMessage(content, attachments)
                                     },

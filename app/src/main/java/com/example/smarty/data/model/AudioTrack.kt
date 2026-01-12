@@ -5,8 +5,16 @@ import kotlinx.parcelize.Parcelize
 import java.util.UUID
 
 /**
+ * Source of audio track - where it originated from
+ */
+enum class AudioSource {
+    NOTE_ATTACHMENT,   // Audio attached to a note (internal storage)
+    DEVICE_STORAGE     // Audio from device's shared storage (MediaStore)
+}
+
+/**
  * Represents an audio track for playback
- * Can be from a note attachment or a standalone audio note
+ * Can be from a note attachment, standalone audio note, or device storage
  */
 @Parcelize
 data class AudioTrack(
@@ -17,7 +25,11 @@ data class AudioTrack(
     val duration: Long = 0L,  // Duration in milliseconds
     val sourceNoteId: String? = null,  // If from a Note
     val sourceAttachmentId: String? = null,  // If from an Attachment
-    val mimeType: String? = null
+    val mimeType: String? = null,
+    // NEW: Fields for device storage audio (all have defaults for backward compatibility)
+    val source: AudioSource = AudioSource.NOTE_ATTACHMENT,
+    val artist: String? = null,
+    val album: String? = null
 ) : Parcelable
 
 /**

@@ -144,6 +144,9 @@ fun InputStreamScreen(
     // AI Planning Status (dynamic placeholder)
     aiPlanStatus: String? = null,
     currentToolName: String? = null,
+    // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
+    isThinkingModeEnabled: Boolean = true,
+    onToggleThinkingMode: () -> Unit = {},
     // Pending chat text (for "Ask AI" from note card)
     pendingChatText: String? = null,
     onClearPendingChatText: () -> Unit = {},
@@ -1613,7 +1616,10 @@ fun InputStreamScreen(
                                     text = updatedText,
                                     selection = androidx.compose.ui.text.TextRange(updatedText.length)
                                 )
-                            }
+                            },
+                            // Thinking mode toggle (Chat mode only)
+                            isThinkingModeEnabled = isThinkingModeEnabled,
+                            onToggleThinkingMode = onToggleThinkingMode
                         )
                     }
                 }

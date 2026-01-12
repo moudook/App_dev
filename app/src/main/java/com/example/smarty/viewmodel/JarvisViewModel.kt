@@ -49,6 +49,7 @@ import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import com.example.smarty.data.repository.ChatRepository
+import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.util.CompletionSoundManager
@@ -58,6 +59,7 @@ import com.example.smarty.viewmodel.managers.MemorySyncManager
 import com.example.smarty.util.FileStorageHelper
 import com.example.smarty.util.PDFTextExtractor
 import com.example.smarty.util.PDFExtractionResult
+import com.example.smarty.util.ThinkingParser
 import com.example.smarty.util.PDFChunkedResult
 import com.example.smarty.util.PDFChunk
 import com.example.smarty.util.ProcessingStrategy
@@ -204,6 +206,11 @@ class JarvisViewModel(
         AlarmScheduler.getInstance(application)
     }
 
+    // Device audio repository for MediaStore access - lazy to avoid blocking
+    private val deviceAudioRepository: DeviceAudioRepository by lazy {
+        DeviceAudioRepository(application)
+    }
+
     // Rate limiter for API call management (30 calls/min, 14.4k/day) - lazy
     private val rateLimiter: RateLimiter by lazy {
         RateLimiter.getInstance(application)
@@ -249,7 +256,8 @@ class JarvisViewModel(
             context = getApplication(),
             getNotes = { notes.value },
             onPlayAudio = { track -> playAudioTrack(track) },
-            onLaunchApp = { packageName -> launchApp(packageName) }
+            onLaunchApp = { packageName -> launchApp(packageName) },
+            getDeviceAudio = { deviceAudioRepository.getAllAudio() }  // NEW: Device storage search
         )
     }
 
@@ -323,6 +331,27 @@ class JarvisViewModel(
 
     private val _localServerUseHttps = MutableStateFlow(securePreferences.getLocalPCUseHttps())
     val localServerUseHttps: StateFlow<Boolean> = _localServerUseHttps.asStateFlow()
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // THINKING MODE - Control reasoning display for Falcon-H1R-7B model
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Thinking mode toggle state for reasoning models (Falcon-H1R-7B).
+     * When enabled, the model will show its reasoning process in <think> tags.
+     * When disabled, the model skips explicit thinking output for faster responses.
+     */
+    private val _isThinkingModeEnabled = MutableStateFlow(true)
+    val isThinkingModeEnabled: StateFlow<Boolean> = _isThinkingModeEnabled.asStateFlow()
+
+    /**
+     * Toggle thinking mode on/off.
+     * Used by UI toggle button to control reasoning display.
+     */
+    fun toggleThinkingMode() {
+        _isThinkingModeEnabled.value = !_isThinkingModeEnabled.value
+        Log.d(TAG, "Thinking mode ${if (_isThinkingModeEnabled.value) "enabled" else "disabled"}")
+    }
 
     fun setLocalServerIP(ip: String) {
         securePreferences.setLocalPCIP(ip)
@@ -459,6 +488,16 @@ class JarvisViewModel(
                 Log.d(TAG, "Marked note $noteId as analyzed for AI memory")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to mark note $noteId as analyzed for AI memory: ${e.message}", e)
+            }
+        }
+
+        // NEW: Get audio files from device storage (MediaStore)
+        override fun getDeviceAudio(): List<AudioTrack> {
+            return try {
+                deviceAudioRepository.getAllAudio()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to get device audio: ${e.message}")
+                emptyList()
             }
         }
     }
@@ -3830,13 +3869,22 @@ class JarvisViewModel(
                 val cleanedContent = if (parsedMentions.isNotEmpty()) {
                     MentionParser.cleanMessage(content, parsedMentions)
                 } else content
+                
+                // Apply thinking mode control: Add /no_think directive when thinking is disabled
+                // This instructs Falcon-H1R-7B (and similar Qwen-based models) to skip reasoning
+                val finalUserMessage = if (!_isThinkingModeEnabled.value) {
+                    "/no_think $cleanedContent"
+                } else {
+                    cleanedContent
+                }
 
                 // Run Koog agent with tagged note context and thinking mode context
                 val result = JarvisAgent.run(
-                    userMessage = cleanedContent,
+                    userMessage = finalUserMessage,
                     conversationHistory = conversationHistory,
                     taggedNoteContext = taggedNoteContext,
-                    thinkingModeContext = thinkingModeContext
+                    thinkingModeContext = thinkingModeContext,
+                    isThinkingModeEnabled = _isThinkingModeEnabled.value
                 )
 
                 when (result) {
@@ -3874,10 +3922,14 @@ class JarvisViewModel(
                         val inlineImages = pendingInlineImages.toList()
                         pendingInlineImages.clear()
 
-                        // Create assistant message from agent response
+                        // Parse thinking content from response (for reasoning models like Falcon-H1R-7B)
+                        val parsedThinking = ThinkingParser.parse(cleanedResponse)
+                        
+                        // Create assistant message with thinking content extracted
                         val assistantMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
-                            content = cleanedResponse,
+                            content = parsedThinking.answer,  // Display only the answer
+                            thinkingContent = parsedThinking.thinking,  // Store thinking separately
                             isAudioRelated = isAudioQuery,
                             suggestions = suggestions,
                             isError = false,

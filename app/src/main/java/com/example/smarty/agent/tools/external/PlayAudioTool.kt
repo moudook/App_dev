@@ -4,6 +4,7 @@ import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import android.util.Log
 import com.example.smarty.agent.tools.base.AudioPlaybackResult
+import com.example.smarty.data.model.AudioSource
 import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.getAttachments
@@ -25,17 +26,20 @@ data class PlayAudioArgs(
 )
 
 /**
- * Tool for requesting audio playback from notes.
- * Searches note attachments to find audio files and plays them via the audio service.
+ * Tool for requesting audio playback from notes OR device storage.
+ * Searches note attachments first, then falls back to device music library.
+ * Uses zero-copy content:// URIs for playback without duplicating files.
  */
 class PlayAudioTool(
     private val getActiveNotes: () -> List<Note>,
-    private val onPlayAudio: (AudioTrack) -> Unit
+    private val onPlayAudio: (AudioTrack) -> Unit,
+    // NEW: Optional device audio provider - defaults to empty for backward compatibility
+    private val getDeviceAudio: () -> List<AudioTrack> = { emptyList() }
 ) : Tool<PlayAudioArgs, AudioPlaybackResult>(
     argsSerializer = PlayAudioArgs.serializer(),
     resultSerializer = AudioPlaybackResult.serializer(),
     name = "play_audio",
-    description = """ONLY use when user says "play" followed by audio name. Do NOT use otherwise.""".trimIndent()
+    description = """Play audio from notes OR device music library. Use when user says "play" followed by song/audio name.""".trimIndent()
 ) {
     companion object {
         private const val TAG = "PlayAudioTool"
@@ -223,6 +227,28 @@ class PlayAudioTool(
                     trackTitle = matchingAudio.title,
                     message = "Playing"  // Keep brief
                 )
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // Step 3: NEW - Search device storage (MediaStore) as fallback
+            // ═══════════════════════════════════════════════════════════════
+            val deviceAudio = getDeviceAudio()
+            if (deviceAudio.isNotEmpty()) {
+                Log.d(TAG, "Searching ${deviceAudio.size} device audio files...")
+                val deviceMatch = findMatchingDeviceAudio(deviceAudio, args.query)
+                
+                if (deviceMatch != null) {
+                    Log.d(TAG, "Found device audio: ${deviceMatch.title} by ${deviceMatch.artist}")
+                    Log.i(TAG, " INVOKING onPlayAudio callback for device audio: ${deviceMatch.title}")
+                    onPlayAudio(deviceMatch)
+
+                    return AudioPlaybackResult(
+                        success = true,
+                        action = "play",
+                        trackTitle = deviceMatch.title,
+                        message = "Playing from device library"
+                    )
+                }
             }
 
             // No audio found - but let's check if there's ANY audio at all
@@ -591,5 +617,75 @@ class PlayAudioTool(
         }
 
         return 0L
+    }
+
+    /**
+     * Search device audio files using fuzzy matching.
+     * Searches title, artist, album, and filename.
+     */
+    private fun findMatchingDeviceAudio(deviceAudio: List<AudioTrack>, query: String): AudioTrack? {
+        val cleanedQuery = cleanQuery(query)
+        if (cleanedQuery.isBlank()) return null
+
+        Log.d(TAG, "Searching device audio for: '$cleanedQuery'")
+
+        // Build searchable items with all metadata
+        data class DeviceAudioItem(
+            val track: AudioTrack,
+            val title: String,
+            val artist: String,
+            val album: String,
+            val fileName: String
+        )
+
+        val searchItems = deviceAudio.map { track ->
+            DeviceAudioItem(
+                track = track,
+                title = track.title,
+                artist = track.artist ?: "",
+                album = track.album ?: "",
+                fileName = track.fileName ?: ""
+            )
+        }
+
+        // Use semantic search engine (same as note audio)
+        val results = SemanticSearchEngine.search(
+            query = cleanedQuery,
+            items = searchItems,
+            textExtractor = { item ->
+                listOf(
+                    item.title,        // Primary: song title
+                    item.artist,       // Secondary: artist name
+                    item.album,        // Tertiary: album name
+                    item.fileName      // Quaternary: filename
+                ).filter { it.isNotBlank() }
+            },
+            minScore = 0.25  // Slightly higher threshold for device audio
+        )
+
+        if (results.isNotEmpty()) {
+            val best = results.first()
+            Log.d(TAG, "Device audio match: '${best.item.title}' by ${best.item.artist} (score: ${String.format("%.2f", best.score)})")
+            return best.item.track
+        }
+
+        // Simpler fallback: contains matching
+        val queryWords = cleanedQuery.split(Regex("\\s+")).filter { it.length >= 2 }
+        val fallback = searchItems.firstOrNull { item ->
+            queryWords.any { word ->
+                item.title.lowercase().contains(word) ||
+                item.artist.lowercase().contains(word) ||
+                item.album.lowercase().contains(word) ||
+                item.fileName.lowercase().contains(word)
+            }
+        }
+
+        if (fallback != null) {
+            Log.d(TAG, "Device audio fallback match: '${fallback.title}'")
+            return fallback.track
+        }
+
+        Log.d(TAG, "No device audio match found for: '$cleanedQuery'")
+        return null
     }
 }
