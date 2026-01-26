@@ -7,6 +7,7 @@ import com.example.smarty.data.model.NoteChunk
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ResolvedMention
 import com.example.smarty.data.model.TaggedNoteContext
+import com.example.smarty.viewmodel.managers.MentionFeatureManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -25,7 +26,7 @@ import kotlinx.coroutines.withContext
  * - Max 20 chunks safety limit
  */
 class NoteContextBuilder(
-    private val mentionResolver: MentionResolver
+    private val mentionManager: MentionFeatureManager
 ) {
     companion object {
         private const val TAG = "NoteContextBuilder"
@@ -52,7 +53,7 @@ class NoteContextBuilder(
         val uniqueNotes = resolvedMentions
             .flatMap { it.notes }
             .distinctBy { it.id }
-            .filter { mentionResolver.hasReadableContent(it.type) }
+            .filter { mentionManager.hasReadableContent(it.type) }
 
         Log.d(TAG, "Building context for ${uniqueNotes.size} unique notes")
 
@@ -345,7 +346,7 @@ class NoteContextBuilder(
      */
     private fun extractReadableContent(note: Note): String {
         // Skip binary content types
-        if (!mentionResolver.hasReadableContent(note.type)) {
+        if (!mentionManager.hasReadableContent(note.type)) {
             return ""
         }
 

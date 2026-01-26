@@ -657,4 +657,37 @@ class JarvisRepository(
         return calendarDao.getEventsForDay(startMillis, endMillis)
             .filter { !it.isEventPrivate }
     }
+
+    // =========================================================================
+    // MEMORY LEARNING SUPPORT
+    // =========================================================================
+
+    /**
+     * Mark a note as read/analyzed for memory learning.
+     */
+    suspend fun markNoteAsReadForMemory(noteId: String) {
+        noteDao.markNoteAsReadForMemory(noteId)
+    }
+
+    /**
+     * Get all categories synchronously (blocking).
+     * Use sparingly - prefer Flow-based getAllCategories() for reactive updates.
+     */
+    fun getAllCategoriesSync(): List<Category> {
+        return kotlinx.coroutines.runBlocking {
+            categoryDao.getAllCategories().first()
+        }
+    }
+
+    /**
+     * Optimize the FTS search index.
+     * This is a maintenance operation that should be called periodically.
+     */
+    suspend fun optimizeSearchIndex() {
+        try {
+            noteDao.optimizeFtsIndex()
+        } catch (e: Exception) {
+            Log.w(TAG, "FTS optimization not available: ${e.message}")
+        }
+    }
 }

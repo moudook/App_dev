@@ -71,6 +71,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.viewmodel.AssistViewModel
 import com.example.smarty.viewmodel.AssistViewModelFactory
 import com.example.smarty.agent.AgentCallbacks
@@ -82,12 +83,18 @@ import com.example.smarty.agent.WebCitation
 import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.AudioTrack
+import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.data.model.Note
+import com.example.smarty.data.model.getTodos
+import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
+import com.example.smarty.data.model.TodoItem
+import com.example.smarty.data.model.MemoryType
+import com.example.smarty.data.model.PlaybackState
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
@@ -186,6 +193,10 @@ class AssistActivity : ComponentActivity() {
     // Notes cache
     private var cachedNotes: List<Note> = emptyList()
     private var cachedCategories: List<Category> = emptyList()
+    
+    // Audio player fields
+    private var audioPlayer: AudioPlayerService? = null
+    private var currentPlayingTrack: AudioTrack? = null
 
     // Tool status for UI feedback
     private var currentToolStatus = mutableStateOf<String?>(null)
@@ -265,7 +276,7 @@ class AssistActivity : ComponentActivity() {
             this@AssistActivity.launchApp(packageName)
         }
 
-        override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
+        override fun getScreenContext(): ScreenContext? {
             return capturedScreenContext
         }
 
@@ -287,10 +298,465 @@ class AssistActivity : ComponentActivity() {
                 emptyList()
             }
         }
+
+        // HYBRID-CONTROL: Internal app navigation - Not supported in AssistActivity
+        override fun navigateTo(screen: String) {
+            Log.w(TAG, "Navigation not supported in AssistActivity overlay: $screen")
+        }
+
+        override fun getCurrentScreen(): String = "AssistOverlay"
+
+        override fun getSystemStatus(): Map<String, String> = mapOf(
+            "mode" to "AssistOverlay",
+            "theme" to if (securePreferences.isDarkTheme.value) "dark" else "light"
+        )
+
+        // HYBRID-CONTROL: Note Operations - Stub implementations (limited functionality in overlay)
+        override fun addNote(content: String, category: String?) {
+            lifecycleScope.launch {
+                val cat = category?.let { repository.getOrCreateCategory(it) }
+                val note = Note(
+                    id = java.util.UUID.randomUUID().toString(),
+                    title = content.take(50),
+                    content = content,
+                    categoryId = cat?.id,
+                    categoryName = cat?.name,
+                    type = com.example.smarty.data.model.NoteType.BRAIN_DUMP
+                )
+                repository.insertNote(note)
+            }
+        }
+
+        override fun updateNote(noteId: String, title: String?, content: String?) {
+            lifecycleScope.launch {
+                val note = repository.getNoteById(noteId)
+                note?.let {
+                    repository.updateNote(it.copy(
+                        title = title ?: it.title,
+                        content = content ?: it.content
+                    ))
+                }
+            }
+        }
+
+        override fun deleteNoteById(noteId: String) {
+            lifecycleScope.launch { database.noteDao().deleteNoteById(noteId) }
+        }
+
+        override fun archiveNote(noteId: String) {
+            lifecycleScope.launch { repository.archiveNote(noteId) }
+        }
+
+        override fun unarchiveNote(noteId: String) {
+            lifecycleScope.launch { repository.unarchiveNote(noteId) }
+        }
+
+        override fun summarizeNote(noteId: String) {
+            Log.w(TAG, "Summarize not supported in AssistActivity")
+        }
+
+        override suspend fun onCreateCategory(name: String): Category {
+            return repository.getOrCreateCategory(name)
+        }
+
+        override suspend fun getCategoryStats(): List<com.example.smarty.viewmodel.managers.CategoryStatInfo> {
+            val categories = repository.getAllCategories().first()
+            val notes = database.noteDao().getAllNotesOnce()
+            return categories.map { cat ->
+                com.example.smarty.viewmodel.managers.CategoryStatInfo(
+                    name = cat.name,
+                    count = notes.count { it.categoryId == cat.id }
+                )
+            }
+        }
+
+        // HYBRID-CONTROL: App Settings - Stub implementations
+        override fun toggleTheme(isDark: Boolean) {
+            securePreferences.setDarkTheme(isDark)
+        }
+
+        override fun clearCache() {
+            Log.w(TAG, "Cache clear not supported in AssistActivity")
+        }
+
+        override fun syncMemory() {
+            Log.w(TAG, "Memory sync not supported in AssistActivity")
+        }
+
+        override fun backupData() {
+            Log.w(TAG, "Backup not supported in AssistActivity")
+        }
+
+        override fun setPrivacyMode(mode: String) {
+            Log.w(TAG, "Privacy mode not supported in AssistActivity")
+        }
+
+        // HYBRID-CONTROL: Cognitive Operations - Stub implementations
+        override suspend fun storeMemory(content: String, scope: String?) {
+            database.aiMemoryDao().insertMemory(com.example.smarty.data.model.AIMemory(
+                id = java.util.UUID.randomUUID().toString(),
+                content = content,
+                type = when (scope) {
+                    "preference" -> MemoryType.PREFERENCE
+                    "pattern" -> MemoryType.PATTERN
+                    "style" -> MemoryType.STYLE
+                    "fact" -> MemoryType.FACT
+                    else -> MemoryType.FACT
+                },
+                confidence = 1.0f,
+                createdAt = System.currentTimeMillis(),
+                usageCount = 0
+            ))
+        }
+
+        override suspend fun updateMemory(id: String, content: String?, type: String?, confidence: Float?): Boolean {
+            val memory = database.aiMemoryDao().getMemoryById(id) ?: return false
+            database.aiMemoryDao().updateMemory(memory.copy(
+                content = content ?: memory.content,
+                type = type?.let { 
+                    when (it) {
+                        "preference" -> MemoryType.PREFERENCE
+                        "pattern" -> MemoryType.PATTERN
+                        "style" -> MemoryType.STYLE
+                        "fact" -> MemoryType.FACT
+                        else -> MemoryType.FACT
+                    }
+                } ?: memory.type,
+                confidence = confidence ?: memory.confidence
+            ))
+            return true
+        }
+
+        override suspend fun deleteMemory(id: String): Boolean {
+            database.aiMemoryDao().deleteMemoryById(id)
+            return true
+        }
+
+        override suspend fun retrieveMemories(query: String?, limit: Int): List<com.example.smarty.data.model.AIMemory> {
+            return if (query != null) {
+                database.aiMemoryDao().searchMemories("%$query%")
+            } else {
+                database.aiMemoryDao().getRecentMemories(limit)
+            }
+        }
+
+        override fun consolidateMemories() {
+            Log.w(TAG, "Consolidate not supported in AssistActivity")
+        }
+
+        override fun getMemoryStats(): Map<String, Any> = emptyMap()
+
+        override suspend fun analyzePatterns(): com.example.smarty.viewmodel.managers.UserPatternsReport {
+            return com.example.smarty.viewmodel.managers.UserPatternsReport(
+                summary = "Limited in overlay mode",
+                topCategories = emptyList(),
+                activityTrend = com.example.smarty.viewmodel.managers.ActivityTrend(0, null),
+                frequentTopics = emptyList(),
+                suggestions = emptyList()
+            )
+        }
+
+        override suspend fun learnFromNotes(maxNotes: Int): com.example.smarty.viewmodel.managers.LearningReport {
+            return com.example.smarty.viewmodel.managers.LearningReport(
+                notesAnalyzed = 0,
+                newInsightsFound = 0,
+                insights = emptyList()
+            )
+        }
+
+        // HYBRID-CONTROL: Search Operations - Basic implementations
+        override suspend fun searchNotes(
+            query: String,
+            category: String?,
+            noteType: String?,
+            timeRange: String,
+            limit: Int
+        ): List<com.example.smarty.viewmodel.managers.SearchResultItem> {
+            val filtered = cachedNotes.filter { note ->
+                val matchesQuery = query.isBlank() ||
+                    note.title.contains(query, ignoreCase = true) ||
+                    note.content.contains(query, ignoreCase = true)
+                val matchesCategory = category == null || note.categoryName == category
+                matchesQuery && matchesCategory
+            }.take(limit)
+
+            return filtered.map { note ->
+                com.example.smarty.viewmodel.managers.SearchResultItem(
+                    note = note,
+                    score = 1.0f,
+                    highlight = note.content.take(100)
+                )
+            }
+        }
+
+        override suspend fun advancedSearch(
+            query: String,
+            algorithm: String,
+            limit: Int,
+            minScore: Double
+        ): List<com.example.smarty.viewmodel.managers.SearchResultItem> {
+            return searchNotes(query, null, null, "all", limit)
+        }
+
+        override fun analyzeQuery(query: String): com.example.smarty.viewmodel.managers.SearchQueryAnalysis {
+            return com.example.smarty.viewmodel.managers.SearchQueryAnalysis(
+                originalQuery = query,
+                parsedKeywords = query.split(" "),
+                detectedIntent = "search",
+                complexity = 1,
+                suggestedStrategy = "basic"
+            )
+        }
+
+        override suspend fun performRecall(query: String, minScore: Double): List<com.example.smarty.viewmodel.managers.RecallResult> {
+            return emptyList()
+        }
+
+        // HYBRID-CONTROL: Intent Bridge
+        override fun shareContent(text: String, title: String?) {
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_TEXT, text)
+                title?.let { putExtra(android.content.Intent.EXTRA_SUBJECT, it) }
+            }
+            startActivity(android.content.Intent.createChooser(intent, "Share via"))
+        }
+
+        // HYBRID-CONTROL: System Lookups
+        override fun findPackageName(appName: String): String? {
+            // Simple mapping for common apps
+            return when (appName.lowercase()) {
+                "chrome", "google chrome" -> "com.android.chrome"
+                "firefox" -> "org.mozilla.firefox"
+                "youtube" -> "com.google.android.youtube"
+                "gmail" -> "com.google.android.gm"
+                "maps", "google maps" -> "com.google.android.apps.maps"
+                "drive", "google drive" -> "com.google.android.apps.docs"
+                "photos", "google photos" -> "com.google.android.apps.photos"
+                "calendar", "google calendar" -> "com.google.android.calendar"
+                "camera" -> "com.android.camera2"
+                "gallery" -> "com.android.gallery3d"
+                "settings" -> "com.android.settings"
+                "phone" -> "com.android.dialer"
+                "messages" -> "com.android.messaging"
+                "whatsapp" -> "com.whatsapp"
+                "telegram" -> "org.telegram.messenger"
+                "instagram" -> "com.instagram.android"
+                "twitter" -> "com.twitter.android"
+                "facebook" -> "com.facebook.katana"
+                "spotify" -> "com.spotify.client"
+                "netflix" -> "com.netflix.mediaclient"
+                else -> null
+            }
+        }
+
+        override fun findMatchingAudio(query: String): AudioTrack? {
+            return try {
+                deviceAudioRepository.getAllAudio().find {
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.artist?.contains(query, ignoreCase = true) == true
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        // HYBRID-CONTROL: Audio Playback Control - Stub implementations
+        override fun pauseAudioPlayback() { AudioPlayerService.pause(applicationContext) }
+        override fun resumeAudioPlayback() { AudioPlayerService.resume(applicationContext) }
+        override fun stopAudioPlayback() { AudioPlayerService.stop(applicationContext) }
+        override fun seekAudioTo(positionMs: Long) { AudioPlayerService.seekTo(applicationContext, positionMs) }
+        override fun toggleAudioPlayback() {
+            val state = AudioPlayerService.playerState.value
+            if (state.playbackState == PlaybackState.PLAYING) {
+                AudioPlayerService.pause(applicationContext)
+            } else if (state.currentTrack != null) {
+                AudioPlayerService.resume(applicationContext)
+            }
+        }
+        override fun getCurrentAudioTrack(): AudioTrack? = AudioPlayerService.playerState.value.currentTrack
+        override fun getCurrentAudioPosition(): Long = AudioPlayerService.playerState.value.currentPosition
+        override fun getAudioDuration(): Long = AudioPlayerService.playerState.value.duration
+        override fun isAudioPlaying(): Boolean = AudioPlayerService.playerState.value.playbackState == PlaybackState.PLAYING
+
+        // HYBRID-CONTROL: Time Operations - Stub implementations
+        override fun addCalendarEvent(
+            title: String,
+            startTimeStr: String,
+            endTimeStr: String?,
+            description: String?,
+            location: String?,
+            isPrivate: Boolean
+        ) {
+            lifecycleScope.launch {
+                val startTime = parseDateTime(startTimeStr) ?: return@launch
+                val endTime = endTimeStr?.let { parseDateTime(it) } ?: (startTime + 3600000L)
+                repository.insertCalendarEvent(
+                    CalendarEvent(
+                        id = java.util.UUID.randomUUID().toString(),
+                        title = title,
+                        description = description,
+                        startTime = startTime,
+                        endTime = endTime,
+                        location = location,
+                        isEventPrivate = isPrivate
+                    )
+                )
+            }
+        }
+
+        override fun deleteCalendarEvent(eventId: String) {
+            lifecycleScope.launch { repository.deleteCalendarEvent(eventId) }
+        }
+
+        override suspend fun queryCalendarEvents(query: String?): List<CalendarEvent> {
+            return if (query.isNullOrBlank()) {
+                val calendar = java.util.Calendar.getInstance()
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                calendar.set(java.util.Calendar.MINUTE, 0)
+                calendar.set(java.util.Calendar.SECOND, 0)
+                calendar.set(java.util.Calendar.MILLISECOND, 0)
+                val dayStart = calendar.timeInMillis
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+                val dayEnd = calendar.timeInMillis
+                database.calendarDao().getTodayEvents(dayStart, dayEnd)
+            } else {
+                database.calendarDao().getAllEventsOnce().filter {
+                    it.title.contains(query, ignoreCase = true) ||
+                    it.description?.contains(query, ignoreCase = true) == true ||
+                    it.location?.contains(query, ignoreCase = true) == true
+                }
+            }
+        }
+
+        override fun bulkDeleteEvents(eventIds: List<String>) {
+            lifecycleScope.launch {
+                eventIds.forEach { repository.deleteCalendarEvent(it) }
+            }
+        }
+
+        override fun setTimer(name: String, timeStr: String, isAlarm: Boolean) {
+            val triggerTime = parseDateTime(timeStr) ?: return
+            val timer = com.example.smarty.data.model.JarvisTimer(
+                id = java.util.UUID.randomUUID().toString(),
+                name = name,
+                triggerTime = triggerTime,
+                isAlarm = isAlarm,
+                isActive = true
+            )
+            alarmScheduler.scheduleTimer(timer)
+        }
+
+        override fun cancelTimer(timerId: String) {
+            alarmScheduler.cancelTimer(timerId)
+        }
+
+        override fun addTodoToNote(noteId: String, text: String) {
+            lifecycleScope.launch {
+                val note = repository.getNoteById(noteId) ?: return@launch
+                val todos = note.getTodos().toMutableList()
+                todos.add(com.example.smarty.data.model.TodoItem(text = text, isCompleted = false))
+                repository.updateNote(note.withTodos(todos))
+            }
+        }
+
+        // HYBRID-CONTROL: Orchestration
+        override fun bulkArchiveNotes(noteIds: List<String>) {
+            lifecycleScope.launch {
+                noteIds.forEach { repository.archiveNote(it) }
+            }
+        }
+
+        override fun bulkDeleteNotes(noteIds: List<String>) {
+            lifecycleScope.launch {
+                noteIds.forEach { database.noteDao().deleteNoteById(it) }
+            }
+        }
+
+        override fun bulkMoveToCategory(noteIds: List<String>, categoryName: String) {
+            lifecycleScope.launch {
+                val category = repository.getOrCreateCategory(categoryName)
+                noteIds.forEach { id ->
+                    val note = repository.getNoteById(id)
+                    note?.let {
+                        repository.updateNote(it.copy(
+                            categoryId = category.id,
+                            categoryName = category.name
+                        ))
+                    }
+                }
+            }
+        }
+
+        override fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int) {
+            Log.w(TAG, "Deep research not supported in AssistActivity")
+        }
+
+        // HYBRID-CONTROL: Specialized Analytics
+        override fun onAnalyzeStyle(limit: Int): com.example.smarty.viewmodel.managers.StyleAnalysisReport {
+            return com.example.smarty.viewmodel.managers.StyleAnalysisReport(
+                totalNotesAnalyzed = 0,
+                writingPatterns = emptyList(),
+                summary = "Limited in overlay mode"
+            )
+        }
+
+        override suspend fun onWebSearch(
+            query: String,
+            maxResults: Int,
+            topic: String,
+            onCitationsFound: (List<com.example.smarty.agent.WebCitation>) -> Unit
+        ): com.example.smarty.agent.tools.base.WebSearchResult {
+            val apiKey = getTavilyApiKey() ?: return com.example.smarty.agent.tools.base.WebSearchResult(
+                success = false,
+                query = query,
+                reason = "No API key",
+                error = "No API key"
+            )
+            return try {
+                val results = tavilySearchProvider.search(query, apiKey, maxResults, topic)
+                val citations = results.results.map {
+                    com.example.smarty.agent.WebCitation(
+                        title = it.title,
+                        url = it.url,
+                        snippet = it.snippet
+                    )
+                }
+                onCitationsFound(citations)
+                com.example.smarty.agent.tools.base.WebSearchResult(
+                    success = true,
+                    query = query,
+                    reason = "Search successful",
+                    results = results.results.map {
+                        com.example.smarty.agent.tools.base.WebResult(
+                            title = it.title,
+                            url = it.url,
+                            snippet = it.snippet
+                        )
+                    }
+                )
+            } catch (e: Exception) {
+                com.example.smarty.agent.tools.base.WebSearchResult(
+                    success = false,
+                    query = query,
+                    reason = "Search failed",
+                    error = e.message
+                )
+            }
+        }
+    }
+
+    private fun parseDateTime(timeStr: String): Long? {
+        return try {
+            // Simple time parsing - you can enhance this
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).parse(timeStr)?.time
+        } catch (e: Exception) {
+            null
+        }
     }
 
     // Screen context captured when assistant is triggered
-    private var capturedScreenContext: com.example.smarty.agent.tools.external.ScreenContext? = null
+    private var capturedScreenContext: ScreenContext? = null
 
     // MediaProjection for screen capture
     private lateinit var mediaProjectionManager: MediaProjectionManager
@@ -343,11 +809,33 @@ class AssistActivity : ComponentActivity() {
         }
 
     private val jarvisAgent: JarvisAgentOptimized by lazy {
-        JarvisAgentOptimized(this, agentProvider, repository, tavilySearchProvider, alarmScheduler, agentCallbacks, database.aiMemoryDao())
+        JarvisAgentOptimized(
+            context = this,
+            agentProvider = agentProvider,
+            repository = repository,
+            tavilySearchProvider = tavilySearchProvider,
+            alarmScheduler = alarmScheduler,
+            callbacks = agentCallbacks,
+            aiMemoryDao = database.aiMemoryDao(),
+            executionPlanManager = com.example.smarty.viewmodel.managers.ExecutionPlanManager(),
+            rateLimiter = null // Rate limiter optional for assist mode
+        )
     }
 
     private val localCommandProcessor: LocalCommandProcessor by lazy {
-        LocalCommandProcessor(this, { cachedNotes }, { playAudio(it) }, { launchApp(it) }, { deviceAudioRepository.getAllAudio() })
+        LocalCommandProcessor(
+            context = this,
+            getNotes = { cachedNotes },
+            systemFeatureManager = com.example.smarty.viewmodel.managers.SystemFeatureManager(
+                context = this,
+                scope = lifecycleScope,
+                audioManager = null, // AudioManager not needed for assist overlay
+                securePreferences = securePreferences,
+                deviceAudioRepository = deviceAudioRepository,
+                onNavigateRequest = { /* No navigation in assist mode */ }
+            ),
+            getDeviceAudio = { deviceAudioRepository.getAllAudio() }
+        )
     }
 
     // Assist context from triggering app
@@ -439,7 +927,7 @@ class AssistActivity : ComponentActivity() {
             )
 
             // Capture screen context for SaveScreenTool
-            capturedScreenContext = com.example.smarty.agent.tools.external.ScreenContext(
+            capturedScreenContext = ScreenContext(
                 selectedText = selectedText,
                 referringApp = if (referringPackage.isNotBlank()) {
                     try {
@@ -1503,7 +1991,7 @@ class AssistActivity : ComponentActivity() {
      * Build note content from screen context.
      */
     private fun buildScreenCaptureContent(
-        screenContext: com.example.smarty.agent.tools.external.ScreenContext?,
+        screenContext: ScreenContext?,
         hasScreenshot: Boolean
     ): String {
         return buildString {
@@ -1549,7 +2037,7 @@ class AssistActivity : ComponentActivity() {
      */
     private suspend fun generateTitle(
         titleHint: String?,
-        screenContext: com.example.smarty.agent.tools.external.ScreenContext?
+        screenContext: com.example.smarty.agent.models.ScreenContext?
     ): String {
         val appName = screenContext?.referringApp ?: "Screen"
 

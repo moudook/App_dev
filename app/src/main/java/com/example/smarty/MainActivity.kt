@@ -252,7 +252,10 @@ class MainActivity : ComponentActivity() {
                 val isMemorySyncInProgress by viewModel.isMemorySyncInProgress.collectAsState()
                 val memorySyncResult by viewModel.memorySyncResult.collectAsState()
                 val unreadForMemoryCount by viewModel.unreadForMemoryCount.collectAsState()
-                
+
+                // AI Navigation state
+                val navigationRequest by viewModel.navigationRequest.collectAsState()
+
                 // Refresh count when notes change (in case notes are added/modified)
                 LaunchedEffect(notes) {
                     viewModel.refreshUnreadForMemoryCount()
@@ -709,6 +712,10 @@ class MainActivity : ComponentActivity() {
                                     unreadForMemoryCount = unreadForMemoryCount,
                                     onClearMemorySyncResult = {
                                         viewModel.clearMemorySyncResult()
+                                    },
+                                    navigationRequest = navigationRequest,
+                                    onClearNavigationRequest = {
+                                        viewModel.clearNavigationRequest()
                                     },
                                     modifier = Modifier.fillMaxSize()
                                 )

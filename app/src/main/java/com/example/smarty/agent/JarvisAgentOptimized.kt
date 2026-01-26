@@ -4,43 +4,12 @@ import android.content.Context
 import android.util.Log
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
-import com.example.smarty.agent.tools.batch.BatchOperationsTool
-import com.example.smarty.agent.tools.calendar.CancelTimerTool
-import com.example.smarty.agent.tools.calendar.CreateEventTool
-import com.example.smarty.agent.tools.calendar.CreateTimerTool
-import com.example.smarty.agent.tools.calendar.DeleteEventTool
-import com.example.smarty.agent.tools.calendar.DeleteDayEventsTool
-import com.example.smarty.agent.tools.calendar.GetEventsTool
-import com.example.smarty.agent.tools.consolidated.AgentOrchestratorTool
-import com.example.smarty.agent.tools.consolidated.CognitiveCoreTool
-import com.example.smarty.agent.tools.consolidated.KnowledgeMasterTool
-import com.example.smarty.agent.tools.consolidated.SystemInterfaceTool
-import com.example.smarty.agent.tools.consolidated.TimeManagerTool
-import com.example.smarty.agent.tools.categories.GetCategoryNotesTool
+import com.example.smarty.agent.models.ScreenContext
+import com.example.smarty.agent.tools.consolidated.*
 import com.example.smarty.agent.tools.base.NotifyingTool
-import com.example.smarty.agent.tools.categories.ListCategoriesTool
-import com.example.smarty.agent.tools.categories.ListCategoriesArgs
-import com.example.smarty.agent.tools.categories.SearchAudioNotesTool
-import com.example.smarty.agent.tools.categories.SearchImageNotesTool
-import com.example.smarty.agent.tools.categories.SearchDocumentNotesTool
-import com.example.smarty.agent.tools.external.OpenAppTool
-import com.example.smarty.agent.tools.external.PlayAudioTool
-import com.example.smarty.agent.tools.external.SaveScreenTool
-import com.example.smarty.agent.tools.external.ViewImageTool
-import com.example.smarty.agent.tools.external.ScreenContext
-import com.example.smarty.agent.tools.external.SearchCitation
-import com.example.smarty.agent.tools.external.WebSearchTool
-import com.example.smarty.agent.tools.memory.ManageMemoryTool
-import com.example.smarty.agent.tools.memory.UserPatternsTool
-import com.example.smarty.agent.tools.memory.LearnFromNotesTool
-import com.example.smarty.agent.tools.notes.*
-import com.example.smarty.agent.tools.notes.style.ReadAndAnalyzeStyleTool
+import com.example.smarty.viewmodel.managers.*
 import com.example.smarty.data.model.ThinkingModeContext
-import com.example.smarty.agent.tools.research.DeepResearchTool
 import com.example.smarty.agent.prompts.ToolExampleStore
-import com.example.smarty.agent.tools.todos.AddTodosTool
-import com.example.smarty.agent.tools.todos.DeleteTodoTool
-import com.example.smarty.agent.tools.todos.ToggleTodoTool
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.Category
@@ -60,12 +29,6 @@ import com.example.smarty.util.api.RateLimiter
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
-import com.example.smarty.agent.tools.planning.CreatePlanTool
-import com.example.smarty.agent.tools.planning.CancelPlanTool
-import com.example.smarty.agent.tools.planning.MarkStepCompleteTool
-import com.example.smarty.agent.tools.planning.ExecutionPlanManager
-import com.example.smarty.agent.tools.planning.PlanStatus
-import com.example.smarty.agent.tools.planning.StepStatus
 
 
 /**
@@ -303,9 +266,91 @@ interface AgentCallbacks {
 
     // Callback to mark a note as analyzed for AI memory learning
     suspend fun markNoteAsAnalyzedForMemory(noteId: String)
-    
+
     // NEW: Get audio files from device storage (MediaStore)
     fun getDeviceAudio(): List<AudioTrack> = emptyList()  // Default empty for backward compatibility
+
+    // HYBRID-CONTROL: Internal app navigation
+    fun navigateTo(screen: String)
+    fun getCurrentScreen(): String = "unknown"
+    fun getSystemStatus(): Map<String, String> = emptyMap()
+
+    // HYBRID-CONTROL: Note Operations (Delegated to NoteOperationsManager)
+    fun addNote(content: String, category: String? = null)
+    fun updateNote(noteId: String, title: String? = null, content: String? = null)
+    fun deleteNoteById(noteId: String)
+    fun archiveNote(noteId: String)
+    fun unarchiveNote(noteId: String)
+    fun summarizeNote(noteId: String)
+    suspend fun onCreateCategory(name: String): Category
+    suspend fun getCategoryStats(): List<com.example.smarty.viewmodel.managers.CategoryStatInfo>
+
+    // HYBRID-CONTROL: App Settings
+    fun toggleTheme(isDark: Boolean)
+    fun clearCache()
+    fun syncMemory()
+    fun backupData()
+    fun setPrivacyMode(mode: String)
+
+    // HYBRID-CONTROL: Cognitive Operations
+    suspend fun storeMemory(content: String, scope: String? = null)
+    suspend fun updateMemory(id: String, content: String? = null, type: String? = null, confidence: Float? = null): Boolean
+    suspend fun deleteMemory(id: String): Boolean
+    suspend fun retrieveMemories(query: String?, limit: Int = 10): List<com.example.smarty.data.model.AIMemory>
+    fun consolidateMemories()
+    fun getMemoryStats(): Map<String, Any> = emptyMap()
+    suspend fun analyzePatterns(): com.example.smarty.viewmodel.managers.UserPatternsReport
+    suspend fun learnFromNotes(maxNotes: Int = 20): com.example.smarty.viewmodel.managers.LearningReport
+
+    // HYBRID-CONTROL: Search Operations
+    suspend fun searchNotes(query: String, category: String? = null, noteType: String? = null, timeRange: String = "all", limit: Int = 10): List<com.example.smarty.viewmodel.managers.SearchResultItem>
+    suspend fun advancedSearch(query: String, algorithm: String = "hybrid", limit: Int = 10, minScore: Double = 0.3): List<com.example.smarty.viewmodel.managers.SearchResultItem>
+    fun analyzeQuery(query: String): com.example.smarty.viewmodel.managers.SearchQueryAnalysis
+    suspend fun performRecall(query: String, minScore: Double = 0.3): List<com.example.smarty.viewmodel.managers.RecallResult>
+
+    // HYBRID-CONTROL: Intent Bridge (Cross-app communication)
+    fun shareContent(text: String, title: String? = null)
+
+    // HYBRID-CONTROL: System Lookups
+    fun findPackageName(appName: String): String?
+    fun findMatchingAudio(query: String): AudioTrack?
+
+    // HYBRID-CONTROL: Audio Playback Control (NEW)
+    fun pauseAudioPlayback()
+    fun resumeAudioPlayback()
+    fun stopAudioPlayback()
+    fun seekAudioTo(positionMs: Long)
+    fun toggleAudioPlayback()
+    fun getCurrentAudioTrack(): AudioTrack?
+    fun getCurrentAudioPosition(): Long
+    fun getAudioDuration(): Long
+    fun isAudioPlaying(): Boolean
+
+    // HYBRID-CONTROL: Time Operations (Delegated to Managers)
+    fun addCalendarEvent(
+        title: String,
+        startTimeStr: String,
+        endTimeStr: String?,
+        description: String?,
+        location: String?,
+        isPrivate: Boolean
+    )
+    fun deleteCalendarEvent(eventId: String)
+    suspend fun queryCalendarEvents(query: String?): List<com.example.smarty.data.model.CalendarEvent>
+    fun bulkDeleteEvents(eventIds: List<String>)
+    fun setTimer(name: String, timeStr: String, isAlarm: Boolean)
+    fun cancelTimer(timerId: String)
+    fun addTodoToNote(noteId: String, text: String)
+
+    // HYBRID-CONTROL: Orchestration (Bulk actions & Workflows)
+    fun bulkArchiveNotes(noteIds: List<String>)
+    fun bulkDeleteNotes(noteIds: List<String>)
+    fun bulkMoveToCategory(noteIds: List<String>, categoryName: String)
+    fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int)
+
+    // HYBRID-CONTROL: Specialized Analytics
+    fun onAnalyzeStyle(limit: Int): com.example.smarty.viewmodel.managers.StyleAnalysisReport
+    suspend fun onWebSearch(query: String, maxResults: Int, topic: String, onCitationsFound: (List<WebCitation>) -> Unit): com.example.smarty.agent.tools.base.WebSearchResult
 }
 
 /**
@@ -327,8 +372,9 @@ class JarvisAgentOptimized(
     private val tavilySearchProvider: TavilySearchProvider,
     private val alarmScheduler: AlarmScheduler,
     private val callbacks: AgentCallbacks,
-    private val aiMemoryDao: AIMemoryDao,  // For memory management tool
-    private val rateLimiter: RateLimiter? = null  // Optional rate limiter
+    private val aiMemoryDao: AIMemoryDao,
+    private val executionPlanManager: ExecutionPlanManager,
+    private val rateLimiter: RateLimiter? = null
 ) {
     companion object {
         private const val TAG = "JarvisAgentOptimized"
@@ -419,13 +465,6 @@ class JarvisAgentOptimized(
     private val toolExampleStore = ToolExampleStore()
 
     /**
-     * NEW: Planning Manager for multi-step task orchestration.
-     */
-    private val executionPlanManager = ExecutionPlanManager { status ->
-        callbacks.onPlanStatusChanged(status)
-    }
-
-    /**
      * BATCH-3C: Agent Optimizer for comprehensive query optimization.
      * Integrates PII masking, history compression, semantic caching, and few-shot examples.
      *
@@ -465,23 +504,29 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
 
 **OPERATIONAL HIERARCHY:**
 1.  **DIRECT RESPONSE**: If a query is simple (fact, math, greeting), answer IMMEDIATELY. **NO TOOLS**.
-    - Good: "2+2 is 4."
-    - Bad: [Calls Calculator Tool]
 2.  **CLARIFICATION**: If a request is vague ("do it", "send that"), ASK for context. NEVER guess.
-3.  **SEARCH STRATEGY**: 
-    -   **Internal First**: Check `search_notes` or `smart_search` if the query implies personal data.
-    -   **Web Second**: Use `web_search` only for real-time external info (stock prices, weather, live news).
-4.  **ACTION OVER PASSIVITY**: Don't say "I can add that to your calendar." Just DO IT (using `create_event`) and confirm.
+3.  **UI & NAVIGATION**: You have "eyes" on the app. If the user asks for a screen, use `system_interface` with action='navigate'.
+4.  **MAINTENANCE**: If the system status indicates low storage or unread memories, suggest using `app_controller`.
+5.  **SEARCH STRATEGY**:
+    -   **SEARCH STRATEGY**:
+    -   **Primary**: Use `universal_search` (scope='both') for most queries. It handles internal notes and web search simultaneously.
+    -   **Internal Only**: Use `universal_search` (scope='internal') or `knowledge_master` (intent='retrieve_notes') to find notes.
+    -   **Web Only**: Use `universal_search` (scope='web') for real-time external info.
+6.  **ACTION OVER PASSIVITY**: Don't just say you can do it; use the tool and confirm.
 
 **TOOL PROTOCOLS:**
--   **Calendar**: Use `create_event` for schedules. Use `create_timer` for countdowns. NEVER use notes for time-critical items.
--   **Notes**: Use `create_note` for distinct knowledge, lists, or creative ideas.
--   **Apps**: Use `open_app` to launch applications when explicitly asked.
--   **Deep Research**: For complex topics, use `deep_research` to provide a comprehensive report.
+-   **Search**: Use `universal_search` as your default information gathering tool. It combines web, internal, and semantic recall.
+-   **Knowledge**: Use `knowledge_master` for specific note CRUD: create, update, delete, archive/unarchive, and summarization.
+-   **Bulk Actions**: Use `batch_notes` for operations affecting multiple notes (archive all, delete all, move category).
+-   **Navigation**: Use `system_interface(action='navigate')` for: 'input_stream', 'stacks', 'calendar', 'settings', 'archive'.
+-   **Settings**: Use `app_controller` for: 'toggle_theme', 'clear_cache', 'sync_memory', 'backup_data'.
+-   **Temporal**: Use `time_manager` for ALL todos, calendar events, and timers.
+-   **Orchestration**: Use `agent_orchestrator` for 'batch_operation' or 'deep_research' workflows.
 
 **CRITICAL RULES:**
--   NEVER create a note for a meeting (Use `create_event`).
--   NEVER create a note for a reminder (Use `create_timer` or `create_event`).
+-   ALWAYS preview batch actions with `execute=false` before proceeding.
+-   NEVER create a note for a meeting (Use `time_manager` -> 'manage_event').
+-   NEVER create a note for a reminder (Use `time_manager` -> 'manage_timer').
 -   Format responses with clean Markdown and bold key terms.
     """.trimIndent()
 
@@ -492,72 +537,119 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
      */
     private fun buildToolRegistry(): ToolRegistry {
         return ToolRegistry {
-            // === CONSOLIDATED TOOLS (5) ===
+            // === CONSOLIDATED TOOLS (6) ===
             tool(NotifyingTool(KnowledgeMasterTool(
-                repository = repository,
-                onProcessNote = callbacks::processNoteWithAi,
-                getActiveNotes = callbacks::getActiveNotes,
-                getArchivedNotes = callbacks::getArchivedNotes,
-                getCategories = callbacks::getCategories,
+                onAddNote = callbacks::addNote,
+                onUpdateNote = callbacks::updateNote,
+                onDeleteNote = callbacks::deleteNoteById,
+                onArchiveNote = callbacks::archiveNote,
+                onUnarchiveNote = callbacks::unarchiveNote,
+                onSummarizeNote = callbacks::summarizeNote,
+                onSearchNotes = { query, category, noteType, timeRange, limit ->
+                    callbacks.searchNotes(query ?: "", category, noteType, timeRange, limit)
+                },
+                onCreateCategory = callbacks::onCreateCategory,
+                onGetCategoryStats = callbacks::getCategoryStats,
                 onStatusUpdate = callbacks::onStatusUpdate
             ), callbacks))
-            
+
+            tool(NotifyingTool(BatchOperationsTool(
+                onSearchNotes = { query, category, noteType, timeRange, limit ->
+                    callbacks.searchNotes(query ?: "", category, noteType, timeRange, limit)
+                },
+                onBulkArchive = callbacks::bulkArchiveNotes,
+                onBulkDelete = callbacks::bulkDeleteNotes,
+                onBulkMove = callbacks::bulkMoveToCategory,
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+
+            tool(NotifyingTool(AppControllerTool(
+                onToggleTheme = callbacks::toggleTheme,
+                onClearCache = callbacks::clearCache,
+                onSyncMemory = callbacks::syncMemory,
+                onBackupData = callbacks::backupData,
+                onSetPrivacyMode = callbacks::setPrivacyMode,
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+
             tool(NotifyingTool(TimeManagerTool(
-                repository = repository,
-                alarmScheduler = alarmScheduler,
+                onAddTodo = callbacks::addTodoToNote,
+                onAddEvent = callbacks::addCalendarEvent,
+                onDeleteEvent = callbacks::deleteCalendarEvent,
+                onBulkDeleteEvents = callbacks::bulkDeleteEvents,
+                onQueryEvents = callbacks::queryCalendarEvents,
+                onSetTimer = callbacks::setTimer,
+                onCancelTimer = callbacks::cancelTimer,
                 onStatusUpdate = callbacks::onStatusUpdate
             ), callbacks))
-            
+
             tool(NotifyingTool(SystemInterfaceTool(
-                context = context,
-                repository = repository,
                 onLaunchApp = callbacks::launchApp,
+                onFindPackage = callbacks::findPackageName,
                 onPlayAudio = callbacks::requestAudioPlayback,
+                onFindAudio = callbacks::findMatchingAudio,
                 onDisplayImages = callbacks::onDisplayImages,
                 getScreenContext = callbacks::getScreenContext,
                 onStatusUpdate = callbacks::onStatusUpdate,
-                getDeviceAudio = callbacks::getDeviceAudio  // NEW: Device storage audio
+                onNavigate = callbacks::navigateTo,
+                onShare = callbacks::shareContent
             ), callbacks))
-            
+
+            tool(NotifyingTool(AudioControlTool(
+                onPlay = callbacks::requestAudioPlayback,
+                onPause = callbacks::pauseAudioPlayback,
+                onResume = callbacks::resumeAudioPlayback,
+                onStop = callbacks::stopAudioPlayback,
+                onSeek = callbacks::seekAudioTo,
+                onToggle = callbacks::toggleAudioPlayback,
+                onFindAudio = callbacks::findMatchingAudio,
+                getCurrentTrack = callbacks::getCurrentAudioTrack,
+                getCurrentPosition = callbacks::getCurrentAudioPosition,
+                getDuration = callbacks::getAudioDuration,
+                isPlaying = callbacks::isAudioPlaying,
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+
             tool(NotifyingTool(CognitiveCoreTool(
-                aiMemoryDao = aiMemoryDao,
-                getActiveNotes = callbacks::getActiveNotes,
-                getCategories = callbacks::getCategories,
-                markNoteAsAnalyzed = { noteId ->
-                    callbacks.markNoteAsAnalyzedForMemory(noteId)
-                },
+                onStoreMemory = callbacks::storeMemory,
+                onRetrieveMemories = callbacks::retrieveMemories,
+                onGetMemoryStats = callbacks::getMemoryStats,
+                onConsolidate = callbacks::consolidateMemories,
+                onSyncMemory = callbacks::syncMemory,
                 onStatusUpdate = callbacks::onStatusUpdate
             ), callbacks))
-            
+
             tool(NotifyingTool(AgentOrchestratorTool(
-                repository = repository,
-                tavilySearchProvider = tavilySearchProvider,
-                getActiveNotes = callbacks::getActiveNotes,
-                getTavilyApiKey = callbacks::getTavilyApiKey,
-                onCitationsFound = { citations ->
-                    val webCitations = citations.map { sc ->
-                        WebCitation(sc.title, sc.url, sc.snippet)
-                    }
-                    callbacks.onCitationsFound(webCitations)
+                onSearchNotes = { query, category, noteType, timeRange, limit ->
+                    callbacks.searchNotes(query ?: "", category, noteType, timeRange, limit)
                 },
+                getTavilyApiKey = callbacks::getTavilyApiKey,
+                onBulkArchive = callbacks::bulkArchiveNotes,
+                onBulkDelete = callbacks::bulkDeleteNotes,
+                onDeepResearch = callbacks::onDeepResearch,
                 onStatusUpdate = callbacks::onStatusUpdate
             ), callbacks))
 
-            // === SEARCH TOOLS (KEPT) ===
-            tool(NotifyingTool(WebSearchTool(
-                tavilySearchProvider = tavilySearchProvider,
-                getApiKey = callbacks::getTavilyApiKey,
-                onCitationsFound = { searchCitations ->
-                    val webCitations = searchCitations.map { sc ->
-                        WebCitation(sc.title, sc.url, sc.snippet)
-                    }
-                    callbacks.onCitationsFound(webCitations)
-                }
+            // === SEARCH TOOLS (CONSOLIDATED) ===
+            tool(NotifyingTool(UniversalSearchTool(
+                onSearchInternal = callbacks::searchNotes,
+                onAdvancedSearch = callbacks::advancedSearch,
+                onWebSearch = callbacks::onWebSearch,
+                onAnalyzeQuery = callbacks::analyzeQuery,
+                onRecall = callbacks::performRecall,
+                onCitationsFound = callbacks::onCitationsFound,
+                onStatusUpdate = callbacks::onStatusUpdate
             ), callbacks))
-            
-            tool(NotifyingTool(SmartSearchTool(callbacks::getActiveNotes), callbacks))
 
-            tool(NotifyingTool(ReadAndAnalyzeStyleTool(callbacks::getActiveNotes), callbacks))
+            tool(NotifyingTool(ReadAndAnalyzeStyleTool(
+                onAnalyzeStyle = callbacks::onAnalyzeStyle,
+                onStatusUpdate = callbacks::onStatusUpdate
+            ), callbacks))
+
+            // === PLANNING TOOLS ===
+            tool(NotifyingTool(CreatePlanTool(executionPlanManager), callbacks))
+            tool(NotifyingTool(MarkStepCompleteTool(executionPlanManager), callbacks))
+            tool(NotifyingTool(CancelPlanTool(executionPlanManager), callbacks))
         }
     }
 
@@ -568,6 +660,8 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
     private fun buildContext(): String {
         val activeNotes = callbacks.getActiveNotes()
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(activeNotes)
+        val currentScreen = callbacks.getCurrentScreen()
+        val systemStatus = callbacks.getSystemStatus()
 
         // Get current time for context
         val now = java.time.LocalDateTime.now()
@@ -575,7 +669,11 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
         val formattedDateTime = now.format(formatter)
 
         return buildString {
-            appendLine("Current Time: $formattedDateTime | Notes: ${visibleNotes.size}")
+            appendLine("Current Time: $formattedDateTime | Notes: ${visibleNotes.size} | Screen: $currentScreen")
+            if (systemStatus.isNotEmpty()) {
+                val statusStr = systemStatus.entries.joinToString(" | ") { "${it.key}: ${it.value}" }
+                appendLine("System: $statusStr")
+            }
         }
     }
 

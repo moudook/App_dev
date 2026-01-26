@@ -191,12 +191,16 @@ object AIModels {
     // HuggingFace models - Using freely available models that work with Inference API
     // Note: Many popular models are gated and require license acceptance + PRO subscription
     val HUGGINGFACE_MODELS = listOf(
+        "openai/gpt-oss-20b" to "GPT-OSS 20B (Strong Reasoning)",
+        "meta-llama/Meta-Llama-3.1-70B-Instruct" to "Llama 3.1 70B (High Capability)",
+        "Qwen/Qwen2.5-72B-Instruct" to "Qwen 2.5 72B (Best for Code/Complex)",
+        "mistralai/Mixtral-8x7B-Instruct-v0.1" to "Mixtral 8x7B (MoE)",
+        "microsoft/Phi-4" to "Phi-4 (Microsoft)",
+        "deepseek-ai/DeepSeek-R1" to "DeepSeek R1 (Thinking)",
         "microsoft/Phi-3-mini-4k-instruct" to "Phi-3 Mini 4K (Recommended)",
-        "google/flan-t5-large" to "Flan-T5 Large (Fast)",
         "google/flan-t5-xl" to "Flan-T5 XL (Better Quality)",
         "Qwen/Qwen2.5-1.5B-Instruct" to "Qwen 2.5 1.5B Instruct",
-        "tiiuae/falcon-7b-instruct" to "Falcon 7B Instruct",
-        "bigscience/bloom-560m" to "BLOOM 560M (Lightweight)"
+        "tiiuae/falcon-7b-instruct" to "Falcon 7B Instruct"
     )
     const val HUGGINGFACE_DEFAULT = "microsoft/Phi-3-mini-4k-instruct"
 
@@ -382,6 +386,7 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_PROVIDER_PRIORITY = "provider_priority"
         private const val KEY_GROQ_DYNAMIC_MODELS = "groq_dynamic_models"
         private const val KEY_DARK_THEME = "dark_theme"
+        private const val KEY_SOUND_ENABLED = "sound_enabled"
         // Backup settings
         private const val KEY_GOOGLE_ACCOUNT_EMAIL = "google_account_email"
         private const val KEY_LAST_BACKUP_TIME = "last_backup_time"
@@ -461,6 +466,10 @@ class SecurePreferences(private val context: Context) {
         val sensitivity = getShakeSensitivity()
         return (1600 - sensitivity * 1200).toInt()
     }
+
+    // Sound Settings
+    fun isSoundEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_SOUND_ENABLED, true)
+    fun setSoundEnabled(enabled: Boolean) = encryptedPrefs.edit().putBoolean(KEY_SOUND_ENABLED, enabled).apply()
 
     // Multi-provider API Key Management
     fun getProviderKeys(provider: AIProvider): List<String> {

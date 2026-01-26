@@ -86,8 +86,7 @@ optimization-analysis-report/
 
 # LLM Server Binaries (Ignore all except startup scripts)
 LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/
-!LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/start_local_llm_secure.bat
-!LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/start_local_llm.bat
+
 
 
 # ============================================

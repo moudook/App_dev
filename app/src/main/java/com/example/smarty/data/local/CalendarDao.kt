@@ -29,6 +29,9 @@ interface CalendarDao {
     @Query("DELETE FROM calendar_events WHERE id = :id")
     suspend fun deleteEventById(id: String)
 
+    @Query("DELETE FROM calendar_events WHERE id IN (:ids)")
+    suspend fun deleteEventsByIds(ids: List<String>)
+
     // =========================================================================
     // DATE RANGE QUERIES
     // =========================================================================

@@ -136,7 +136,7 @@ echo ============================================================
 echo.
 
 :: Start llama-server in background (localhost only for security)
-start /B "LLM Server" cmd /c ".\llama-server.exe --model models\Phi-4-mini-instruct-Q4_K_M.gguf --chat-template-file qwen3_chat_template.jinja --ctx-size 32768 --n-gpu-layers 20 --port !SERVER_PORT! --host 127.0.0.1 --parallel 2 --cont-batching"
+start /B "LLM Server" cmd /c ".\llama-server.exe --model models\Phi-4-mini-instruct-Q4_K_M.gguf --chat-template-file qwen3_chat_template.jinja --ctx-size 8192 --n-gpu-layers 20 --port !SERVER_PORT! --host 127.0.0.1 --parallel 2 --cont-batching"
 
 :: Wait for server to start
 timeout /t 3 /nobreak >nul

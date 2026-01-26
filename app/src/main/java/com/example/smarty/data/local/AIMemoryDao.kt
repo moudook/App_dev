@@ -252,4 +252,10 @@ interface AIMemoryDao {
         )
     """)
     suspend fun memoryExists(content: String, type: MemoryType): Boolean
+
+    /**
+     * Get count of memories by type.
+     */
+    @Query("SELECT COUNT(*) FROM ai_memories WHERE type = :type")
+    suspend fun getMemoryCountByType(type: MemoryType): Int
 }

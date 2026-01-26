@@ -222,11 +222,35 @@ fun JarvisNavHost(
     isMemorySyncInProgress: Boolean = false,
     memorySyncResult: String? = null,
     unreadForMemoryCount: Int = 0,
-    onClearMemorySyncResult: () -> Unit = {}
+    onClearMemorySyncResult: () -> Unit = {},
+    // AI Navigation
+    navigationRequest: String? = null,
+    onClearNavigationRequest: () -> Unit = {}
 ) {
     // NOTE: Login is now handled in MainActivity BEFORE JarvisNavHost is rendered
     // When we get here, user is ALWAYS logged in
     val startDestination = Screen.InputStream.route
+
+    // Handle AI-triggered navigation requests
+    androidx.compose.runtime.LaunchedEffect(navigationRequest) {
+        navigationRequest?.let { target ->
+            val route = when (target.lowercase()) {
+                "input_stream", "main", "home" -> Screen.InputStream.route
+                "stacks", "categories" -> Screen.Stacks.route
+                "settings", "config" -> Screen.Settings.route
+                "calendar", "events" -> Screen.Calendar.route
+                "archive" -> Screen.Archive.route
+                "backup" -> Screen.BackupSettings.route
+                else -> null
+            }
+
+            route?.let {
+                android.util.Log.i("JarvisNavigation", "AI navigating to: $it")
+                navController.navigate(it)
+                onClearNavigationRequest()
+            }
+        }
+    }
 
     // Track navigation changes and notify ViewModel
     androidx.compose.runtime.LaunchedEffect(navController) {

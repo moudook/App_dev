@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
+import java.text.SimpleDateFormat
+import java.util.Locale
+
 /**
  * Manages calendar event operations.
  *
@@ -288,7 +291,112 @@ class CalendarManager(
         }
     }
 
+    /**
+     * Parse natural language date/time strings into Unix timestamps.
+     * Supports: "tomorrow at 10am", "in 5 minutes", "2026-01-27 14:00", etc.
+     */
+    fun parseDateTime(input: String): Long? {
+        val calendar = Calendar.getInstance()
+        val inputLower = input.lowercase().trim()
+
+        if (inputLower.startsWith("tomorrow")) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+            val timeStr = inputLower.removePrefix("tomorrow").trim()
+            if (timeStr.isNotEmpty()) {
+                val timeParsed = parseTimeFromString(timeStr)
+                if (timeParsed != null) {
+                    calendar.set(Calendar.HOUR_OF_DAY, timeParsed.first)
+                    calendar.set(Calendar.MINUTE, timeParsed.second)
+                }
+            }
+            calendar.set(Calendar.SECOND, 0)
+            calendar.set(Calendar.MILLISECOND, 0)
+            return calendar.timeInMillis
+        } else if (inputLower.startsWith("in ")) {
+            val remaining = inputLower.removePrefix("in ")
+            val numberMatch = Regex("""(\d+)\s*(hour|minute|min|hr|day)s?""").find(remaining)
+            if (numberMatch != null) {
+                val amount = numberMatch.groupValues[1].toIntOrNull() ?: 0
+                val unit = numberMatch.groupValues[2]
+                when {
+                    unit.startsWith("hour") || unit.startsWith("hr") -> calendar.add(Calendar.HOUR, amount)
+                    unit.startsWith("min") -> calendar.add(Calendar.MINUTE, amount)
+                    unit.startsWith("day") -> calendar.add(Calendar.DAY_OF_YEAR, amount)
+                }
+                return calendar.timeInMillis
+            }
+        }
+
+        val formats = listOf(
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault()),
+            SimpleDateFormat("h:mm a", Locale.getDefault()),
+            SimpleDateFormat("HH:mm", Locale.getDefault())
+        )
+
+        for (format in formats) {
+            try {
+                val date = format.parse(input)
+                if (date != null) {
+                    if (input.contains(":")) {
+                        val tempCal = Calendar.getInstance()
+                        tempCal.time = date
+                        calendar.set(Calendar.HOUR_OF_DAY, tempCal.get(Calendar.HOUR_OF_DAY))
+                        calendar.set(Calendar.MINUTE, tempCal.get(Calendar.MINUTE))
+                        calendar.set(Calendar.SECOND, 0)
+                        if (calendar.timeInMillis <= System.currentTimeMillis()) {
+                            calendar.add(Calendar.DAY_OF_YEAR, 1)
+                        }
+                        return calendar.timeInMillis
+                    }
+                    return date.time
+                }
+            } catch (e: Exception) { }
+        }
+
+        return null
+    }
+
+    private fun parseTimeFromString(input: String): Pair<Int, Int>? {
+        val cleanInput = input.removePrefix("at").trim()
+        val timeRegex = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm)?""", RegexOption.IGNORE_CASE)
+        val match = timeRegex.find(cleanInput) ?: return Pair(9, 0)
+
+        var hour = match.groupValues[1].toIntOrNull() ?: 9
+        val minute = match.groupValues[2].toIntOrNull() ?: 0
+        val period = match.groupValues[3].lowercase()
+
+        if (period == "pm" && hour != 12) hour += 12
+        else if (period == "am" && hour == 12) hour = 0
+
+        return Pair(hour, minute)
+    }
+
     // ==================== Alarm/Reminder Operations ====================
+
+    /**
+     * Schedule a timer or alarm.
+     */
+    fun setTimer(name: String, triggerTime: Long, isAlarm: Boolean) {
+        alarmScheduler?.let { scheduler ->
+            val timer = JarvisTimer(
+                name = name,
+                triggerTime = triggerTime,
+                isAlarm = isAlarm,
+                isActive = true
+            )
+            scheduler.scheduleTimer(timer)
+            Log.d(TAG, "Scheduled ${if (isAlarm) "alarm" else "timer"}: $name at $triggerTime")
+        }
+    }
+
+    /**
+     * Cancel an active timer or alarm.
+     */
+    fun cancelTimer(timerId: String) {
+        alarmScheduler?.cancelTimer(timerId)
+        Log.d(TAG, "Cancelled timer: $timerId")
+    }
 
     /**
      * Schedule a reminder alarm for an event using JarvisTimer.
@@ -316,6 +424,40 @@ class CalendarManager(
      */
     private fun cancelReminder(eventId: String) {
         alarmScheduler?.cancelTimer("event_reminder_$eventId")
+    }
+
+    /**
+     * Search for events by query text.
+     */
+    suspend fun searchEvents(query: String): List<CalendarEvent> {
+        return try {
+            val allEvents = calendarDao.getAllEventsOnce()
+            allEvents.filter {
+                it.title.contains(query, ignoreCase = true) ||
+                it.description?.contains(query, ignoreCase = true) == true ||
+                it.location?.contains(query, ignoreCase = true) == true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error searching events: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Bulk delete calendar events by IDs.
+     */
+    fun bulkDeleteEvents(eventIds: List<String>) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                eventIds.forEach { eventId ->
+                    cancelReminder(eventId)
+                    calendarDao.deleteEventById(eventId)
+                }
+                Log.d(TAG, "Bulk deleted ${eventIds.size} calendar events")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error bulk deleting events: ${e.message}", e)
+            }
+        }
     }
 
     // ==================== Utility Functions ====================

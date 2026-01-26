@@ -2,24 +2,17 @@ package com.example.smarty.agent.tools.consolidated
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import com.example.smarty.agent.ImageDisplayItem
-import com.example.smarty.agent.tools.base.AudioPlaybackResult
-import com.example.smarty.agent.tools.base.ImageDisplayResult
-import com.example.smarty.agent.tools.external.ScreenContext
+import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.data.model.AudioTrack
-import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
 
 @Serializable
 data class SystemInterfaceArgs(
-    @property:LLMDescription("The action to perform: 'play_media', 'display_media', 'launch_app', 'capture_screen'")
+    @property:LLMDescription("The action to perform: 'play_media', 'display_media', 'launch_app', 'capture_screen', 'navigate', 'share'")
     val action: String,
-    @property:LLMDescription("The resource to act on: file path, URL, or app name")
+    @property:LLMDescription("The resource or destination: file path, app name, screen name, or content to share")
     val resource: String? = null,
     @property:LLMDescription("Optional parameters for the action")
     val parameters: SystemParameters? = null
@@ -28,7 +21,8 @@ data class SystemInterfaceArgs(
 @Serializable
 data class SystemParameters(
     val loop: Boolean? = null,
-    val timestamp: Int? = null
+    val timestamp: Int? = null,
+    val title: String? = null // Used for 'share' action as subject
 )
 
 @Serializable
@@ -42,132 +36,87 @@ data class SystemResult(
     }
 }
 
+/**
+ * Hybridized System Interface Tool.
+ * 100% logic-free. Delegates to SystemFeatureManager.
+ */
 class SystemInterfaceTool(
-    private val context: Context,
-    private val repository: JarvisRepository,
     private val onLaunchApp: (String) -> Unit,
+    private val onFindPackage: (String) -> String?,
     private val onPlayAudio: (AudioTrack) -> Unit,
+    private val onFindAudio: (String) -> AudioTrack?,
     private val onDisplayImages: (List<ImageDisplayItem>) -> Unit,
     private val getScreenContext: () -> ScreenContext?,
-    private val onStatusUpdate: (String) -> Unit,
-    // NEW: Optional device audio provider for searching device music library
-    private val getDeviceAudio: () -> List<AudioTrack> = { emptyList() }
+    private val onNavigate: (String) -> Unit,
+    private val onShare: (String, String?) -> Unit,
+    private val onStatusUpdate: (String) -> Unit
 ) : Tool<SystemInterfaceArgs, SystemResult>(
     argsSerializer = SystemInterfaceArgs.serializer(),
     resultSerializer = SystemResult.serializer(),
     name = "system_interface",
     description = """
         Handles interactions with the host OS, hardware, and apps.
-        
+
         ACTIONS:
-        - play_media: Play audio from device music library OR by filename. usage: resource="song name" or "filename.mp3"
-        - display_media: Display image. usage: resource="filename.jpg"
-        - launch_app: Open an application. usage: resource="AppName"
-        - capture_screen: Capture and save screenshot. usage: (no resource needed)
+        - play_media: Play audio by name or filename.
+        - display_media: Display image by filename.
+        - launch_app: Open an application by name.
+        - capture_screen: Capture and save screenshot.
+        - navigate: Go to a specific screen in THIS app.
+        - share: Send text content to other apps.
     """.trimIndent()
 ) {
-    private val systemJson = Json { encodeDefaults = false }
-
     override suspend fun execute(args: SystemInterfaceArgs): SystemResult {
         return try {
             when (args.action) {
                 "play_media" -> {
-                    onStatusUpdate("Playing audio...")
-                    playMedia(args)
+                    val query = args.resource ?: return SystemResult(false, "Resource required")
+                    onStatusUpdate("Finding audio...")
+                    val match = onFindAudio(query)
+                    if (match != null) {
+                        onPlayAudio(match)
+                        SystemResult(true, "Playing: ${match.title}")
+                    } else {
+                        // Fallback: direct URI
+                        onPlayAudio(AudioTrack(id = query.hashCode().toString(), title = query, uri = query))
+                        SystemResult(true, "Playing audio: $query")
+                    }
                 }
                 "display_media" -> {
-                    onStatusUpdate("Opening image...")
-                    displayMedia(args)
+                    val fileName = args.resource ?: return SystemResult(false, "Filename required")
+                    onDisplayImages(listOf(ImageDisplayItem(uri = fileName, fileName = fileName, noteTitle = "Image")))
+                    SystemResult(true, "Displaying image")
                 }
                 "launch_app" -> {
-                    onStatusUpdate("Launching ${args.resource}...")
-                    launchApp(args)
+                    val appName = args.resource ?: return SystemResult(false, "App name required")
+                    onStatusUpdate("Finding $appName...")
+                    val packageName = onFindPackage(appName)
+                    if (packageName != null) {
+                        onLaunchApp(packageName)
+                        SystemResult(true, "Launching $appName ($packageName)")
+                    } else {
+                        SystemResult(false, "App '$appName' not found")
+                    }
                 }
                 "capture_screen" -> {
-                    onStatusUpdate("Capturing screen...")
-                    captureScreen(args)
+                    onStatusUpdate("Capturing...")
+                    val ctx = getScreenContext() ?: return SystemResult(false, "Capture failed")
+                    SystemResult(true, "Screen captured", ctx.referringApp)
                 }
-                else -> SystemResult(false, "Unknown action: ${args.action}")
+                "navigate" -> {
+                    val dest = args.resource ?: return SystemResult(false, "Destination required")
+                    onNavigate(dest)
+                    SystemResult(true, "Navigating to $dest")
+                }
+                "share" -> {
+                    val content = args.resource ?: return SystemResult(false, "Content required")
+                    onShare(content, args.parameters?.title)
+                    SystemResult(true, "Shared content")
+                }
+                else -> SystemResult(false, "Unknown action")
             }
         } catch (e: Exception) {
             SystemResult(false, "Error: ${e.message}")
         }
-    }
-
-    private fun playMedia(args: SystemInterfaceArgs): SystemResult {
-        val query = args.resource ?: return SystemResult(false, "Resource (filename or song name) required for play_media")
-        
-        // First, try to find matching device audio (MediaStore)
-        val deviceAudio = getDeviceAudio()
-        if (deviceAudio.isNotEmpty()) {
-            val queryLower = query.lowercase().trim()
-            // Search by title, artist, or filename
-            val match = deviceAudio.firstOrNull { track ->
-                track.title.lowercase().contains(queryLower) ||
-                track.artist?.lowercase()?.contains(queryLower) == true ||
-                track.album?.lowercase()?.contains(queryLower) == true ||
-                track.fileName?.lowercase()?.contains(queryLower) == true
-            }
-            
-            if (match != null) {
-                onPlayAudio(match)
-                val artistInfo = match.artist?.let { " by $it" } ?: ""
-                return SystemResult(true, "Playing: ${match.title}$artistInfo")
-            }
-        }
-        
-        // Fallback: Create track from the query as-is (for direct file paths)
-        val track = AudioTrack(
-            id = query.hashCode().toString(), 
-            title = query,
-            uri = query
-        )
-        onPlayAudio(track)
-        return SystemResult(true, "Playing audio: $query")
-    }
-
-    private fun displayMedia(args: SystemInterfaceArgs): SystemResult {
-        val fileName = args.resource ?: return SystemResult(false, "Resource (filename) required for display_media")
-        val item = ImageDisplayItem(
-            uri = fileName, 
-            fileName = fileName,
-            noteTitle = "Image"
-        )
-        onDisplayImages(listOf(item))
-        return SystemResult(true, "Displaying image: $fileName")
-    }
-
-    private fun launchApp(args: SystemInterfaceArgs): SystemResult {
-        val appName = args.resource ?: return SystemResult(false, "Resource (app name) required for launch_app")
-        
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
-        
-        var bestMatch = packages.find { pkg ->
-            pkg.applicationInfo?.let { pm.getApplicationLabel(it).toString().equals(appName, ignoreCase = true) } ?: false
-        }
-
-        if (bestMatch == null) {
-            bestMatch = packages.find { pkg ->
-                pkg.applicationInfo?.let { pm.getApplicationLabel(it).toString().contains(appName, ignoreCase = true) } ?: false
-            }
-        }
-
-        if (bestMatch != null) {
-            val packageName = bestMatch.packageName
-            onLaunchApp(packageName)
-            return SystemResult(true, "Launching $appName ($packageName)")
-        }
-
-        return SystemResult(false, "App '$appName' not found")
-    }
-
-    private suspend fun captureScreen(args: SystemInterfaceArgs): SystemResult {
-        val screenContext = getScreenContext()
-        if (screenContext == null) {
-            return SystemResult(false, "Screen capture not available")
-        }
-        
-        return SystemResult(true, "Screen captured (context: ${screenContext.referringApp})")
     }
 }

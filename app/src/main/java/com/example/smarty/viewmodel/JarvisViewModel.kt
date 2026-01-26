@@ -35,6 +35,7 @@ import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AIService
+import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
 import com.example.smarty.agent.JarvisAgentOptimized
@@ -48,6 +49,7 @@ import com.example.smarty.ui.components.PendingShareData
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.runBlocking
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.JarvisRepository
@@ -65,9 +67,9 @@ import com.example.smarty.util.PDFChunk
 import com.example.smarty.util.ProcessingStrategy
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.mention.MentionParser
-import com.example.smarty.util.mention.MentionResolver
 import com.example.smarty.util.mention.NoteContextBuilder
 import com.example.smarty.util.mention.ThinkingModeProcessor
+import com.example.smarty.viewmodel.managers.*
 import com.example.smarty.data.remote.DocumentAnalysisResponse
 import com.example.smarty.util.ShakeDetector
 import com.example.smarty.util.NetworkMonitor
@@ -226,6 +228,79 @@ class JarvisViewModel(
         CompletionSoundManager.getInstance(application)
     }
 
+    // Cache manager for memory management
+    private val cacheManager: com.example.smarty.data.cache.CacheManager by lazy {
+        com.example.smarty.data.cache.CacheManager.getInstance(application)
+    }
+
+    // System Feature Manager - Hybridized action layer for UI, Local Commands, and AI
+    private val systemFeatureManager: SystemFeatureManager by lazy {
+        SystemFeatureManager(
+            context = application,
+            scope = viewModelScope,
+            audioManager = audioPlaybackManager,
+            securePreferences = securePreferences,
+            deviceAudioRepository = deviceAudioRepository,
+            onNavigateRequest = { screen -> navigateTo(screen) }
+        )
+    }
+
+    // Settings Feature Manager - Centralized preferences and keys
+    private val settingsFeatureManager: SettingsFeatureManager by lazy {
+        SettingsFeatureManager(securePreferences, aiService, rateLimiter, viewModelScope)
+    }
+
+    // Search Feature Manager - Centralized retrieval for UI and AI
+    private val searchFeatureManager: com.example.smarty.viewmodel.managers.SearchFeatureManager by lazy {
+        com.example.smarty.viewmodel.managers.SearchFeatureManager(
+            repository = repository,
+            allNotes = _allNotesForAgent,
+            searchHistoryManager = SearchHistoryManager(application),
+            tavilySearchProvider = tavilySearchProvider
+        )
+    }
+
+    // Style Feature Manager - Analyzes user writing patterns
+    private val styleFeatureManager: com.example.smarty.viewmodel.managers.StyleFeatureManager by lazy {
+        com.example.smarty.viewmodel.managers.StyleFeatureManager()
+    }
+
+    // Workflow Manager - Handles multi-step agentic tasks
+    private val workflowManager: com.example.smarty.viewmodel.managers.WorkflowManager by lazy {
+        com.example.smarty.viewmodel.managers.WorkflowManager(
+            repository = repository,
+            tavilySearchProvider = tavilySearchProvider,
+            scope = viewModelScope,
+            onStatusUpdate = { status -> _currentToolName.value = status }
+        )
+    }
+
+    // Memory Sync Manager - handles behavior extraction from notes
+    private val memorySyncManager by lazy {
+        MemorySyncManager(
+            database = database,
+            aiMemoryDao = database.aiMemoryDao(),
+            aiService = aiService
+        )
+    }
+
+    // Memory Feature Manager - Centralized long-term memory
+    private val memoryFeatureManager: com.example.smarty.viewmodel.managers.MemoryFeatureManager by lazy {
+        com.example.smarty.viewmodel.managers.MemoryFeatureManager(
+            aiMemoryDao = database.aiMemoryDao(),
+            syncManager = memorySyncManager,
+            scope = viewModelScope
+        )
+    }
+
+    // Execution Plan Manager - Shared between UI and AI Agent
+    private val executionPlanManager: com.example.smarty.viewmodel.managers.ExecutionPlanManager by lazy {
+        com.example.smarty.viewmodel.managers.ExecutionPlanManager()
+    }
+
+    /** Expose reactive plan state to UI */
+    val activeExecutionPlan: StateFlow<com.example.smarty.viewmodel.managers.ExecutionPlan?> = executionPlanManager.activePlan
+
     // Koog-based AI Agent (GROQ-only with multi-key rotation) - lazy
     private val agentProvider: JarvisAgentProvider by lazy {
         JarvisAgentProvider(securePreferences, groqKeyManager)
@@ -238,8 +313,9 @@ class JarvisViewModel(
             tavilySearchProvider = tavilySearchProvider,
             alarmScheduler = alarmScheduler,
             callbacks = agentCallbacks,
-            aiMemoryDao = database.aiMemoryDao(),  // For memory management tool
-            rateLimiter = rateLimiter  // API budget management
+            aiMemoryDao = database.aiMemoryDao(),
+            executionPlanManager = executionPlanManager, // HYBRID: Shared state machine
+            rateLimiter = rateLimiter
         )
     }
 
@@ -255,9 +331,8 @@ class JarvisViewModel(
         LocalCommandProcessor(
             context = getApplication(),
             getNotes = { notes.value },
-            onPlayAudio = { track -> playAudioTrack(track) },
-            onLaunchApp = { packageName -> launchApp(packageName) },
-            getDeviceAudio = { deviceAudioRepository.getAllAudio() }  // NEW: Device storage search
+            systemFeatureManager = systemFeatureManager,
+            getDeviceAudio = { systemFeatureManager.getDeviceAudio() }
         )
     }
 
@@ -285,9 +360,9 @@ class JarvisViewModel(
     // @MENTION SYSTEM - Note tagging/reference in chat
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /** MentionResolver for resolving @mentions to notes */
-    private val mentionResolver: MentionResolver by lazy {
-        MentionResolver(database.noteDao(), database.categoryDao())
+    /** MentionFeatureManager for resolving @mentions to notes */
+    private val mentionManager: MentionFeatureManager by lazy {
+        MentionFeatureManager(repository)
     }
 
     /** ThinkingModeProcessor for @thinking deep document analysis */
@@ -297,7 +372,7 @@ class JarvisViewModel(
 
     /** NoteContextBuilder for building AI context from mentions */
     private val noteContextBuilder: NoteContextBuilder by lazy {
-        NoteContextBuilder(mentionResolver)
+        NoteContextBuilder(mentionManager)
     }
 
     /** Current mention state for autocomplete dropdown */
@@ -319,18 +394,39 @@ class JarvisViewModel(
     private val _currentToolName = MutableStateFlow<String?>(null)
     val currentToolName: StateFlow<String?> = _currentToolName.asStateFlow()
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // AI NAVIGATION CONTROL
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** AI-triggered navigation request. Observed by UI to perform navigation. */
+    private val _navigationRequest = MutableStateFlow<String?>(null)
+    val navigationRequest: StateFlow<String?> = _navigationRequest.asStateFlow()
+
+    /**
+     * Request navigation to a specific screen.
+     * Called by AI tools or internal logic.
+     */
+    fun navigateTo(screen: String) {
+        viewModelScope.launch {
+            _navigationRequest.value = screen
+            Log.d(TAG, "AI requested navigation to: $screen")
+        }
+    }
+
+    /**
+     * Clear the current navigation request after it has been handled by the UI.
+     */
+    fun clearNavigationRequest() {
+        _navigationRequest.value = null
+    }
+
     // GROQ key usage stats exposed for UI - lazy
     val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
 
     // Local LLM Server IP/Port/HTTPS state (USB/WiFi connectivity)
-    private val _localServerIP = MutableStateFlow(securePreferences.getLocalPCIP())
-    val localServerIP: StateFlow<String> = _localServerIP.asStateFlow()
-
-    private val _localServerPort = MutableStateFlow(securePreferences.getLocalPCPort())
-    val localServerPort: StateFlow<String> = _localServerPort.asStateFlow()
-
-    private val _localServerUseHttps = MutableStateFlow(securePreferences.getLocalPCUseHttps())
-    val localServerUseHttps: StateFlow<Boolean> = _localServerUseHttps.asStateFlow()
+    val localServerIP: StateFlow<String> = settingsFeatureManager.localServerIP
+    val localServerPort: StateFlow<String> = settingsFeatureManager.localServerPort
+    val localServerUseHttps: StateFlow<Boolean> = settingsFeatureManager.localServerUseHttps
 
     // ═══════════════════════════════════════════════════════════════════════════
     // THINKING MODE - Control reasoning display for Falcon-H1R-7B model
@@ -353,36 +449,87 @@ class JarvisViewModel(
         Log.d(TAG, "Thinking mode ${if (_isThinkingModeEnabled.value) "enabled" else "disabled"}")
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PROACTIVE INTELLIGENCE - Monitor system state and suggest AI actions
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private val _proactiveSuggestion = MutableStateFlow<String?>(null)
+    val proactiveSuggestion: StateFlow<String?> = _proactiveSuggestion.asStateFlow()
+
+    /**
+     * Monitor system state for proactive AI engagement opportunities.
+     */
+    private fun startProactiveMonitoring() {
+        viewModelScope.launch {
+            while (isActive) {
+                val unreadCount = unreadForMemoryCount.value
+                val cacheSize = _cacheSizeBytes.value
+                val memoryCount = aiMemories.value.size
+
+                val suggestion = when {
+                    unreadCount > 15 -> "You have $unreadCount unread notes. Should I analyze them to update your AI memory?"
+                    cacheSize > 500 * 1024 * 1024 -> "Your app cache is getting large (${ContentTypeDetector.formatFileSize(cacheSize)}). Want me to clear it?"
+                    memoryCount > 100 -> "Your AI memory is quite detailed. Should I consolidate it to keep things organized?"
+                    else -> null
+                }
+
+                if (_proactiveSuggestion.value != suggestion) {
+                    _proactiveSuggestion.value = suggestion
+                    if (suggestion != null) Log.i(TAG, "Proactive suggestion ready: $suggestion")
+                }
+
+                delay(300_000) // Check every 5 minutes
+            }
+        }
+    }
+
+    /**
+     * Accept a proactive suggestion and run it through the AI agent.
+     */
+    fun acceptSuggestion() {
+        val suggestion = _proactiveSuggestion.value ?: return
+        _proactiveSuggestion.value = null
+        dispatchQuery(suggestion)
+    }
+
+    fun dismissSuggestion() {
+        _proactiveSuggestion.value = null
+    }
+
     fun setLocalServerIP(ip: String) {
-        securePreferences.setLocalPCIP(ip)
-        _localServerIP.value = ip
+        settingsFeatureManager.setLocalServerIP(ip)
         Log.d(TAG, "Local server IP set to: $ip")
     }
 
     fun setLocalServerPort(port: String) {
-        securePreferences.setLocalPCPort(port)
-        _localServerPort.value = port
+        settingsFeatureManager.setLocalServerPort(port)
         Log.d(TAG, "Local server port set to: $port")
     }
 
     fun setLocalServerUseHttps(useHttps: Boolean) {
-        securePreferences.setLocalPCUseHttps(useHttps)
-        _localServerUseHttps.value = useHttps
+        settingsFeatureManager.setLocalServerUseHttps(useHttps)
         Log.d(TAG, "Local server HTTPS set to: $useHttps")
     }
 
     /**
      * UNFILTERED notes source for AI agent.
-     * BUG FIX: Agent was using `notes.value` which is filtered by current UI state.
-     * This caused audio search to fail when user had filters/category selected.
-     * This StateFlow observes ALL notes from repository without any UI filtering.
-     *
-     * CRITICAL FIX: Use SharingStarted.Eagerly to ensure notes are ALWAYS available.
-     * Previous issue: WhileSubscribed(5000) caused empty list on cold start or
-     * when no UI component was actively collecting, breaking audio playback.
+     * Delegated to NoteOperationsManager for centralized data flow.
      */
-    private val _allNotesForAgent: StateFlow<List<Note>> = repository.getAllNotes()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val _allNotesForAgent: StateFlow<List<Note>> by lazy {
+        noteOperationsManager.getAllNotes()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SCREEN CONTEXT - Track active item being viewed (e.g., a specific note)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private val _activeNoteId = MutableStateFlow<String?>(null)
+    val activeNoteId: StateFlow<String?> = _activeNoteId.asStateFlow()
+
+    fun setActiveNote(noteId: String?) {
+        _activeNoteId.value = noteId
+    }
 
     // Agent callbacks for Koog tools that need ViewModel state
     // SECURITY: Pre-filter notes at callback level for defense-in-depth
@@ -404,33 +551,27 @@ class JarvisViewModel(
         }
         override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value)
         override fun getCategories(): List<Category> = categories.value
-        override fun getTavilyApiKey(): String? = securePreferences.getTavilyApiKey()
+        override fun getTavilyApiKey(): String? = settingsFeatureManager.getTavilyApiKeySync()
         // BATCH-3C: OpenAI API key for AgentOptimizer semantic cache (embeddings)
-        override fun getOpenAiApiKey(): String? = securePreferences.getProviderKeys(AIProvider.OPENAI).firstOrNull()
+        override fun getOpenAiApiKey(): String? = settingsFeatureManager.getProviderKeys(AIProvider.OPENAI).firstOrNull()
         // Gemini API key for AgentOptimizer semantic cache fallback
-        override fun getGeminiApiKey(): String? = securePreferences.getProviderKeys(AIProvider.GEMINI).firstOrNull()
+        override fun getGeminiApiKey(): String? = settingsFeatureManager.getProviderKeys(AIProvider.GEMINI).firstOrNull()
 
         override suspend fun processNoteWithAi(note: Note) {
-            simulateAiProcessing(note)
+            noteOperationsManager.processNoteWithAi(note)
         }
 
-
-
         override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
-            // Simple fuzzy matching
-            return notes.find { note ->
-                note.title.contains(description, ignoreCase = true) ||
-                note.content.contains(description, ignoreCase = true)
-            }
+            return noteOperationsManager.findNoteByDescription(description, notes)
         }
 
         override fun requestAudioPlayback(track: AudioTrack) {
             // BUG FIX (ISSUE 3): Add logging to verify tool callback execution
             Log.i(TAG, "▶ requestAudioPlayback CALLBACK INVOKED: track='${track.title}', uri=${track.uri}")
 
-            // Delegate to AudioPlaybackManager - single source of truth for pending audio state
-            audioPlaybackManager.requestPlayback(track)
-            Log.d(TAG, " pendingAudioPlayback set to: ${track.title}")
+            // Use hybridized system feature manager
+            systemFeatureManager.playAudio(track)
+            Log.d(TAG, " audio playback triggered via systemFeatureManager")
         }
 
         override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
@@ -452,21 +593,26 @@ class JarvisViewModel(
         }
 
         override fun launchApp(packageName: String) {
-            // Launch app via package manager
-            try {
-                val intent = application.packageManager.getLaunchIntentForPackage(packageName)
-                intent?.let {
-                    it.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    application.startActivity(it)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to launch app: $packageName", e)
-            }
+            // Use hybridized system feature manager
+            systemFeatureManager.launchApp(packageName)
         }
 
-        override fun getScreenContext(): com.example.smarty.agent.tools.external.ScreenContext? {
-            // JarvisViewModel (main app) doesn't track screen context like AssistActivity
-            return null
+        override fun getScreenContext(): ScreenContext? {
+            val activeId = _activeNoteId.value ?: return null
+            val note = _allNotesForAgent.value.find { it.id == activeId } ?: return null
+
+            return ScreenContext(
+                selectedText = null, // Could be populated if we track UI selection
+                referringApp = application.packageName,
+                capturedAt = System.currentTimeMillis(),
+                contextData = mapOf(
+                    "active_note_id" to note.id,
+                    "active_note_title" to note.title,
+                    "active_note_content" to (note.content ?: ""),
+                    "active_note_type" to note.type.name,
+                    "current_screen" to _currentScreen.value
+                )
+            )
         }
 
         override fun onDisplayImages(images: List<ImageDisplayItem>) {
@@ -483,22 +629,302 @@ class JarvisViewModel(
         }
 
         override suspend fun markNoteAsAnalyzedForMemory(noteId: String) {
-            try {
-                database.noteDao().markNoteAsReadForMemory(noteId)
-                Log.d(TAG, "Marked note $noteId as analyzed for AI memory")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to mark note $noteId as analyzed for AI memory: ${e.message}", e)
-            }
+            noteOperationsManager.markNoteAsAnalyzedForMemory(noteId)
+            Log.d(TAG, "Marked note $noteId as analyzed for AI memory via manager")
         }
 
         // NEW: Get audio files from device storage (MediaStore)
         override fun getDeviceAudio(): List<AudioTrack> {
-            return try {
-                deviceAudioRepository.getAllAudio()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to get device audio: ${e.message}")
-                emptyList()
+            return systemFeatureManager.getDeviceAudio()
+        }
+
+        // HYBRID-CONTROL: Internal app navigation
+        override fun navigateTo(screen: String) {
+            this@JarvisViewModel.navigateTo(screen)
+        }
+
+        override fun getCurrentScreen(): String {
+            return _currentScreen.value
+        }
+
+        override fun getSystemStatus(): Map<String, String> {
+            return systemFeatureManager.getSystemStatus(
+                isDarkTheme = isDarkTheme.value,
+                connectionStatus = connectionStatus.value.name,
+                cacheSize = ContentTypeDetector.formatFileSize(_cacheSizeBytes.value),
+                unreadMemoryCount = unreadForMemoryCount.value
+            )
+        }
+
+        override fun addNote(content: String, category: String?) {
+            viewModelScope.launch {
+                // Use NoteOperationsManager for consistent processing (OCR, AI analysis)
+                noteOperationsManager.addNote(
+                    content = content,
+                    type = com.example.smarty.data.model.NoteType.BRAIN_DUMP,
+                    excludeFromAiChat = false,
+                    initialCategory = category
+                )
             }
+        }
+
+        override fun updateNote(noteId: String, title: String?, content: String?) {
+            viewModelScope.launch {
+                noteOperationsManager.updateNote(
+                    noteId = noteId,
+                    newTitle = title,
+                    newContent = content,
+                    activeNotes = notes.value,
+                    archivedNotes = archivedNotes.value
+                )
+            }
+        }
+
+        override fun deleteNoteById(noteId: String) {
+            viewModelScope.launch {
+                noteOperationsManager.deleteNoteById(
+                    noteId = noteId,
+                    activeNotes = notes.value,
+                    archivedNotes = archivedNotes.value
+                )
+            }
+        }
+
+        override fun archiveNote(noteId: String) {
+            noteOperationsManager.archiveNote(noteId)
+        }
+
+        override fun unarchiveNote(noteId: String) {
+            noteOperationsManager.unarchiveNote(noteId)
+        }
+
+        override fun summarizeNote(noteId: String) {
+            noteOperationsManager.summarizeNote(noteId, notes.value, archivedNotes.value)
+        }
+
+        override suspend fun onCreateCategory(name: String): Category {
+            return noteOperationsManager.getOrCreateCategory(name)
+        }
+
+        override suspend fun getCategoryStats(): List<com.example.smarty.viewmodel.managers.CategoryStatInfo> {
+            return noteOperationsManager.getCategoryStats(categories.value, notes.value)
+        }
+
+        override fun toggleTheme(isDark: Boolean) {
+            systemFeatureManager.toggleTheme(isDark)
+        }
+
+        override fun clearCache() {
+            systemFeatureManager.clearCache()
+        }
+
+        override fun syncMemory() {
+            memoryFeatureManager.syncFromNotes()
+        }
+
+        override suspend fun storeMemory(content: String, scope: String?) {
+            memoryFeatureManager.storeMemory(content, scope)
+        }
+
+        override suspend fun updateMemory(id: String, content: String?, type: String?, confidence: Float?): Boolean {
+            return memoryFeatureManager.updateMemory(id, content, type, confidence)
+        }
+
+        override suspend fun deleteMemory(id: String): Boolean {
+            return memoryFeatureManager.deleteMemory(id)
+        }
+
+        override suspend fun retrieveMemories(query: String?, limit: Int): List<com.example.smarty.data.model.AIMemory> {
+            return memoryFeatureManager.retrieveMemories(query, limit)
+        }
+
+        override suspend fun analyzePatterns(): com.example.smarty.viewmodel.managers.UserPatternsReport {
+            return memoryFeatureManager.analyzePatterns(notes.value, noteOperationsManager.getAllCategoriesSync())
+        }
+
+        override suspend fun learnFromNotes(maxNotes: Int): com.example.smarty.viewmodel.managers.LearningReport {
+            return memoryFeatureManager.learnFromNotes(notes.value, maxNotes)
+        }
+
+        override fun backupData() {
+            systemFeatureManager.backupData()
+        }
+
+        override fun setPrivacyMode(mode: String) {
+            systemFeatureManager.setPrivacyMode(mode)
+        }
+
+        override fun consolidateMemories() {
+            memoryFeatureManager.consolidateMemories()
+        }
+
+        override fun getMemoryStats(): Map<String, Any> {
+            // Delegate to manager but run blocking for simplicity in the callback if needed
+            // However, getMemoryStats is not suspend in the interface, but it IS in the manager
+            // Let's check the interface definition in JarvisAgentOptimized.kt again
+            return runBlocking { memoryFeatureManager.getMemoryStats() }
+        }
+
+        override suspend fun searchNotes(
+            query: String,
+            category: String?,
+            noteType: String?,
+            timeRange: String,
+            limit: Int
+        ): List<com.example.smarty.viewmodel.managers.SearchResultItem> {
+            return searchFeatureManager.search(query, category, noteType, timeRange, emptySet(), limit)
+        }
+
+        override suspend fun advancedSearch(
+            query: String,
+            algorithm: String,
+            limit: Int,
+            minScore: Double
+        ): List<com.example.smarty.viewmodel.managers.SearchResultItem> {
+            return searchFeatureManager.advancedSearch(query, algorithm, limit, minScore)
+        }
+
+        override fun analyzeQuery(query: String): com.example.smarty.viewmodel.managers.SearchQueryAnalysis {
+            return searchFeatureManager.analyzeQuery(query)
+        }
+
+        override suspend fun performRecall(query: String, minScore: Double): List<com.example.smarty.viewmodel.managers.RecallResult> {
+            return searchFeatureManager.performRecall(query, minScore)
+        }
+
+        override fun shareContent(text: String, title: String?) {
+            systemFeatureManager.shareContent(text, title)
+        }
+
+        override fun findPackageName(appName: String): String? {
+            return systemFeatureManager.findPackageName(appName)
+        }
+
+        override fun findMatchingAudio(query: String): AudioTrack? {
+            return audioFeatureManager.findAudioTrack(query)
+        }
+
+        override fun pauseAudioPlayback() {
+            audioFeatureManager.pause()
+        }
+
+        override fun resumeAudioPlayback() {
+            audioFeatureManager.resume()
+        }
+
+        override fun stopAudioPlayback() {
+            audioFeatureManager.stop()
+        }
+
+        override fun seekAudioTo(positionMs: Long) {
+            audioFeatureManager.seekTo(positionMs)
+        }
+
+        override fun toggleAudioPlayback() {
+            audioFeatureManager.togglePlayPause()
+        }
+
+        override fun getCurrentAudioTrack(): AudioTrack? {
+            return audioFeatureManager.getCurrentTrack()
+        }
+
+        override fun getCurrentAudioPosition(): Long {
+            return audioFeatureManager.getCurrentPosition()
+        }
+
+        override fun getAudioDuration(): Long {
+            return audioFeatureManager.getDuration()
+        }
+
+        override fun isAudioPlaying(): Boolean {
+            return audioFeatureManager.isPlaying()
+        }
+
+        override fun addCalendarEvent(
+            title: String,
+            startTimeStr: String,
+            endTimeStr: String?,
+            description: String?,
+            location: String?,
+            isPrivate: Boolean
+        ) {
+            val startMillis = calendarManager.parseDateTime(startTimeStr) ?: return
+            val endMillis = endTimeStr?.let { calendarManager.parseDateTime(it) }
+                ?: (startMillis + 3600000L) // 1 hour default
+
+            calendarManager.addCalendarEvent(
+                title = title,
+                description = description,
+                startTime = startMillis,
+                endTime = endMillis,
+                location = location,
+                isPrivate = isPrivate
+            )
+        }
+
+        override fun deleteCalendarEvent(eventId: String) {
+            calendarManager.deleteCalendarEvent(eventId)
+        }
+
+        override suspend fun queryCalendarEvents(query: String?): List<com.example.smarty.data.model.CalendarEvent> {
+            return if (query.isNullOrBlank()) {
+                calendarManager.getTodayEvents()
+            } else {
+                calendarManager.searchEvents(query)
+            }
+        }
+
+        override fun bulkDeleteEvents(eventIds: List<String>) {
+            calendarManager.bulkDeleteEvents(eventIds)
+        }
+
+        override fun setTimer(name: String, timeStr: String, isAlarm: Boolean) {
+            val triggerTime = calendarManager.parseDateTime(timeStr) ?: return
+            calendarManager.setTimer(name, triggerTime, isAlarm)
+        }
+
+        override fun cancelTimer(timerId: String) {
+            calendarManager.cancelTimer(timerId)
+        }
+
+        override fun addTodoToNote(noteId: String, text: String) {
+            viewModelScope.launch {
+                noteOperationsManager.addTodoToNote(noteId, text)
+            }
+        }
+
+        override fun bulkArchiveNotes(noteIds: List<String>) {
+            noteOperationsManager.bulkArchiveNotes(noteIds)
+        }
+
+        override fun bulkDeleteNotes(noteIds: List<String>) {
+            noteOperationsManager.bulkDeleteNotes(noteIds, notes.value, archivedNotes.value)
+        }
+
+        override fun bulkMoveToCategory(noteIds: List<String>, categoryName: String) {
+            noteOperationsManager.bulkMoveToCategory(noteIds, categoryName)
+        }
+
+        override fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int) {
+            workflowManager.performDeepResearch(topic, apiKey, focusAreas, searchDepth)
+        }
+
+        override fun onAnalyzeStyle(limit: Int): com.example.smarty.viewmodel.managers.StyleAnalysisReport {
+            return styleFeatureManager.analyzeStyle(notes.value, limit)
+        }
+
+        override suspend fun onWebSearch(
+            query: String,
+            maxResults: Int,
+            topic: String,
+            onCitationsFound: (List<com.example.smarty.agent.WebCitation>) -> Unit
+        ): com.example.smarty.agent.tools.base.WebSearchResult {
+            val apiKey = settingsFeatureManager.getTavilyApiKeySync() ?: return com.example.smarty.agent.tools.base.WebSearchResult(
+                success = false,
+                query = query,
+                reason = "Web search not configured"
+            )
+            return searchFeatureManager.performWebSearch(query, apiKey, maxResults, topic, onCitationsFound)
         }
     }
 
@@ -520,35 +946,19 @@ class JarvisViewModel(
     // AI MEMORY - Stores learned user preferences and patterns
     // ═══════════════════════════════════════════════════════════════════════════
 
-    // AI Memory DAO for accessing stored memories - lazy
-    private val aiMemoryDao by lazy { database.aiMemoryDao() }
+    // Memory managers initialized above in lazy properties (lines 273-289)
 
-    // Memory Sync Manager - handles behavior extraction from notes
-    private val memorySyncManager by lazy {
-        MemorySyncManager(
-            database = database,
-            aiMemoryDao = aiMemoryDao,
-            aiService = aiService
-        )
-    }
-
-    // AI Memories StateFlow for UI observation
+    // AI Memories StateFlow for UI observation - Observed through manager
     val aiMemories: StateFlow<List<com.example.smarty.data.model.AIMemory>> by lazy {
-        aiMemoryDao.getAllMemoriesFlow()
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        memoryFeatureManager.allMemories
     }
 
     /**
      * Delete a specific AI memory
      */
     fun deleteAIMemory(memory: com.example.smarty.data.model.AIMemory) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                aiMemoryDao.deleteMemory(memory)
-                Log.d(TAG, "Deleted AI memory: ${memory.id}")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to delete AI memory: ${e.message}")
-            }
+        viewModelScope.launch {
+            memoryFeatureManager.deleteMemory(memory.id)
         }
     }
 
@@ -556,13 +966,8 @@ class JarvisViewModel(
      * Clear all AI memories
      */
     fun clearAllAIMemories() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                aiMemoryDao.clearAllMemories()
-                Log.d(TAG, "Cleared all AI memories")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clear AI memories: ${e.message}")
-            }
+        viewModelScope.launch {
+            memoryFeatureManager.clearAllMemories()
         }
     }
 
@@ -633,7 +1038,7 @@ class JarvisViewModel(
     private val chatManager = ChatManager(chatRepository, viewModelScope)
 
     // Share Flow Manager - handles share interception and processing
-    private val shareFlowManager = ShareFlowManager(
+    private val shareFlowManager = com.example.smarty.viewmodel.managers.ShareFlowManager(
         repository = repository,
         context = application,
         scope = viewModelScope,
@@ -678,6 +1083,15 @@ class JarvisViewModel(
     private val audioPlaybackManager by lazy {
         com.example.smarty.viewmodel.managers.AudioPlaybackManager(
             context = getApplication(),
+            scope = viewModelScope
+        )
+    }
+
+    // Audio Feature Manager - hybridized audio control for UI and AI agent
+    private val audioFeatureManager by lazy {
+        com.example.smarty.viewmodel.managers.AudioFeatureManager(
+            audioPlaybackManager = audioPlaybackManager,
+            deviceAudioRepository = deviceAudioRepository,
             scope = viewModelScope
         )
     }
@@ -767,14 +1181,10 @@ class JarvisViewModel(
     fun refreshNotes() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            try {
-                // Force reload from database
-                repository.refreshNotes()
-                // Brief delay for visual feedback
-                kotlinx.coroutines.delay(500)
-            } finally {
-                _isRefreshing.value = false
-            }
+            noteOperationsManager.refreshNotes()
+            // Brief delay for visual feedback
+            kotlinx.coroutines.delay(500)
+            _isRefreshing.value = false
         }
     }
     fun clearInput() {
@@ -790,18 +1200,17 @@ class JarvisViewModel(
 
 
 
-    // Expose secure preferences state for UI
-    val geminiKeys: StateFlow<List<String>> = securePreferences.geminiKeys
-    val huggingFaceKeys: StateFlow<List<String>> = securePreferences.huggingFaceKeys
-    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = securePreferences.providerConfigs
-    val providerPriorityOrder: StateFlow<List<AIProvider>> = securePreferences.providerPriorityOrder
+    // Expose settings state for UI
+    val geminiKeys: StateFlow<List<String>> = settingsFeatureManager.geminiKeys
+    val huggingFaceKeys: StateFlow<List<String>> = settingsFeatureManager.huggingFaceKeys
+    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = settingsFeatureManager.providerConfigs
+    val providerPriorityOrder: StateFlow<List<AIProvider>> = settingsFeatureManager.providerPriorityOrder
 
     fun setProviderPriority(priority: List<AIProvider>) {
-        securePreferences.setProviderPriority(priority)
+        settingsFeatureManager.setProviderPriority(priority)
     }
 
     // Cache management
-    private val cacheManager = CacheManager.getInstance(application)
     private val _cacheSizeBytes = MutableStateFlow(0L)
     val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
     private val _isClearingCache = MutableStateFlow(false)
@@ -816,22 +1225,38 @@ class JarvisViewModel(
         audioPlaybackManager.clearPendingAudioPlayback()
     }
 
-    // ==================== Audio Playback Control (delegated to AudioPlaybackManager) ====================
+    // ==================== Audio Playback Control (delegated to AudioFeatureManager) ====================
 
     /** Start playing an audio track directly */
-    fun playAudioTrack(track: AudioTrack) = audioPlaybackManager.play(track)
+    fun playAudioTrack(track: AudioTrack) = audioFeatureManager.play(track)
 
     /** Pause the current playback */
-    fun pauseAudioPlayback() = audioPlaybackManager.pause()
+    fun pauseAudioPlayback() = audioFeatureManager.pause()
 
     /** Resume the paused playback */
-    fun resumeAudioPlayback() = audioPlaybackManager.resume()
+    fun resumeAudioPlayback() = audioFeatureManager.resume()
 
     /** Stop playback completely */
-    fun stopAudioPlayback() = audioPlaybackManager.stop()
+    fun stopAudioPlayback() = audioFeatureManager.stop()
 
     /** Seek to a specific position */
-    fun seekAudioTo(position: Long) = audioPlaybackManager.seekTo(position)
+    fun seekAudioTo(position: Long) = audioFeatureManager.seekTo(position)
+
+    /** Toggle between play and pause */
+    fun toggleAudioPlayback() = audioFeatureManager.togglePlayPause()
+
+    /** Get the currently playing track */
+    fun getCurrentAudioTrack(): AudioTrack? = audioFeatureManager.getCurrentTrack()
+
+    /** Get current playback position in milliseconds */
+    fun getCurrentAudioPosition(): Long = audioFeatureManager.getCurrentPosition()
+
+    /** Get total duration of current track in milliseconds */
+    fun getAudioDuration(): Long = audioFeatureManager.getDuration()
+
+    /** Check if audio is currently playing */
+    fun isAudioPlaying(): Boolean = audioFeatureManager.isPlaying()
+
 
     /** Toggle play/pause state */
     fun toggleAudioPlayPause() = audioPlaybackManager.togglePlayPause()
@@ -859,41 +1284,34 @@ class JarvisViewModel(
     private val _selectedFilters = MutableStateFlow<Set<AttachmentOption>>(emptySet())
     val selectedFilters: StateFlow<Set<AttachmentOption>> = _selectedFilters.asStateFlow()
 
-    // Search History Manager for recent search suggestions
-    private val searchHistoryManager by lazy {
-        SearchHistoryManager(getApplication())
-    }
-
     // Expose recent searches state for UI
-    val recentSearches: StateFlow<List<String>> by lazy { searchHistoryManager.recentSearches }
+    val recentSearches: StateFlow<List<String>> = searchFeatureManager.recentSearches
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
     }
 
     /**
-     * Record a search query in history when search is executed.
-     * Only records queries with at least 2 characters.
+     * RECORD SEARCH - Delegated to SearchFeatureManager.
      */
     fun recordSearch(query: String) {
         if (query.length >= 2) {
-            searchHistoryManager.addSearch(query)
+            searchFeatureManager.addSearchHistory(query)
         }
     }
 
     /**
-     * Clear all search history.
+     * CLEAR SEARCH HISTORY - Delegated to SearchFeatureManager.
      */
     fun clearSearchHistory() {
-        searchHistoryManager.clearHistory()
+        searchFeatureManager.clearSearchHistory()
     }
 
     /**
-     * Get filtered search suggestions based on current query.
-     * Returns recent searches that contain the query string.
+     * GET SEARCH SUGGESTIONS - Delegated to SearchFeatureManager.
      */
     fun getSearchSuggestions(query: String): List<String> {
-        return searchHistoryManager.getFilteredSuggestions(query)
+        return searchFeatureManager.getHistorySuggestions(query)
     }
 
     fun onFilterToggle(option: AttachmentOption) {
@@ -921,15 +1339,12 @@ class JarvisViewModel(
     }.flatMapLatest { (query, filters, category) ->
         val effectiveQuery = query.trim()
         
-        // Step 1: Fetch candidates from DB
-        // We do NOT filter by type in DB anymore because we need to check ALL attachments
-        // and support "AND" logic (intersection), which SQL "IN" clause doesn't support easily.
+        // Step 1: Fetch candidates from DB via SearchFeatureManager
         val candidatesFlow = if (effectiveQuery.isEmpty()) {
-            if (category != null) repository.getNotesByCategory(category.id)
-            else repository.getAllNotes()
+            if (category != null) searchFeatureManager.getNotesByCategory(category.id)
+            else searchFeatureManager.getAllNotesFlow()
         } else {
-            // Pass empty list to searchNotes so it ignores type filtering
-            repository.searchNotes(effectiveQuery, emptyList())
+            searchFeatureManager.searchNotesFlow(effectiveQuery)
         }
         
         // Step 2: Apply Intersection Filter (AND Logic) in Memory
@@ -947,54 +1362,14 @@ class JarvisViewModel(
             } else {
                 limitedList.filter { note ->
                     // Note must satisfy ALL selected filters
-                    filters.all { filter -> noteMatchesFilter(note, filter) }
+                    // Delegate to SearchFeatureManager for logic parity with AI Agent
+                    filters.all { filter -> searchFeatureManager.noteMatchesFilter(note, filter) }
                 }
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /**
-     * Check if a note contains content matching the specific filter.
-     * Checks both primary note type and all attachments.
-     */
-    private fun noteMatchesFilter(note: Note, filter: AttachmentOption): Boolean {
-        // 1. Check primary type
-        if (typeMatchesFilter(note.type, filter)) return true
-        
-        // 2. Check source URL for Link/Website
-        if (filter == AttachmentOption.LINK && (note.sourceUrl != null || note.type == NoteType.WEBSITE || note.type == NoteType.YOUTUBE)) return true
-
-        // 3. Check all attachments
-        val attachments = note.getAttachments()
-        return attachments.any { attachment ->
-             mimeTypeMatchesFilter(attachment.mimeType, filter)
-        }
-    }
-
-    private fun typeMatchesFilter(type: NoteType, filter: AttachmentOption): Boolean {
-        return when (filter) {
-            AttachmentOption.IMAGE -> type == NoteType.IMAGE || type == NoteType.INSTAGRAM
-            AttachmentOption.VIDEO -> type == NoteType.VIDEO || type == NoteType.YOUTUBE
-            AttachmentOption.AUDIO -> type == NoteType.AUDIO
-            AttachmentOption.DOCUMENT -> type == NoteType.DOCUMENT || type == NoteType.SPREADSHEET || type == NoteType.PRESENTATION
-            AttachmentOption.FILE -> type == NoteType.FILE || type == NoteType.ARCHIVE || type == NoteType.APK || type == NoteType.CODE
-            AttachmentOption.LINK -> type == NoteType.WEBSITE || type == NoteType.TWITTER
-        }
-    }
-
-    private fun mimeTypeMatchesFilter(mimeType: String, filter: AttachmentOption): Boolean {
-        return when (filter) {
-            AttachmentOption.IMAGE -> mimeType.startsWith("image/")
-            AttachmentOption.VIDEO -> mimeType.startsWith("video/")
-            AttachmentOption.AUDIO -> mimeType.startsWith("audio/")
-            AttachmentOption.DOCUMENT -> mimeType.contains("pdf") || mimeType.contains("word") || mimeType.contains("excel") || mimeType.contains("powerpoint") || mimeType.contains("text/")
-            AttachmentOption.FILE -> true // Broad catch-all for files if explicitly tagged, but usually specific mimes
-            AttachmentOption.LINK -> false // Links don't have mime types in attachments usually
-        }
-    }
-
-
-    val categories = repository.getAllCategories()
+    val categories = noteOperationsManager.getAllCategories()
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -1015,7 +1390,7 @@ class JarvisViewModel(
     val selectedNote: StateFlow<Note?> = _selectedNoteId
         .flatMapLatest { noteId ->
             if (noteId != null) {
-                repository.getNoteByIdFlow(noteId)
+                noteOperationsManager.getNoteByIdFlow(noteId)
             } else {
                 flowOf(null)
             }
@@ -1107,6 +1482,9 @@ class JarvisViewModel(
 
         // Schedule FTS maintenance (weekly optimization)
         scheduleFtsMaintenance()
+
+        // Start proactive system monitoring for AI engagement
+        startProactiveMonitoring()
     }
 
     // Track if deferred initialization has been done
@@ -1123,7 +1501,7 @@ class JarvisViewModel(
         categorySyncDone = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                repository.syncAllCategoryCounts()
+                noteOperationsManager.syncCategoryCounts()
                 Log.d(TAG, "Deferred category sync complete")
             } catch (e: Exception) {
                 Log.w(TAG, "Category sync failed: ${e.message}")
@@ -1161,42 +1539,10 @@ class JarvisViewModel(
 
     /**
      * Schedule FTS index maintenance.
-     * Runs optimization once per week to maintain search performance.
-     * Non-blocking - runs in background IO thread.
-     *
-     * NOTE: 'optimize' is FTS5-specific. FTS4 only supports 'rebuild'.
-     * If FTS is not available (version 0), skip maintenance entirely.
+     * Delegates to NoteOperationsManager for centralized maintenance logic.
      */
     private fun scheduleFtsMaintenance() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // Check FTS version - maintenance commands differ between FTS4 and FTS5
-                val ftsVersion = JarvisDatabase.getFtsVersion()
-                if (ftsVersion == 0) {
-                    Log.d(TAG, "FTS not available, skipping maintenance")
-                    return@launch
-                }
-
-                val lastMaintenance = securePreferences.getLastFtsMaintenance()
-                val oneWeekAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
-
-                if (lastMaintenance < oneWeekAgo) {
-                    Log.d(TAG, "Running FTS$ftsVersion maintenance...")
-                    if (ftsVersion == 5) {
-                        // FTS5 supports 'optimize' for better performance
-                        database.noteDao().optimizeFtsIndex()
-                        Log.i(TAG, "FTS5 index optimized")
-                    } else {
-                        // FTS4 only supports 'rebuild' - skip for weekly maintenance
-                        // (rebuild is expensive, only use if index is corrupted)
-                        Log.d(TAG, "FTS4 detected - skipping optimization (no optimize command)")
-                    }
-                    securePreferences.setLastFtsMaintenance(System.currentTimeMillis())
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "FTS maintenance failed", e)
-            }
-        }
+        noteOperationsManager.optimizeSearchIndex()
     }
 
     /**
@@ -1216,7 +1562,7 @@ class JarvisViewModel(
             // Restore selected note by ID - just set the ID, the reactive Flow will fetch the note
             savedStateHandle.get<String>(KEY_SELECTED_NOTE_ID)?.let { noteId ->
                 restoreWithRetry("note") {
-                    val noteExists = repository.getNoteById(noteId) != null
+                    val noteExists = noteOperationsManager.getNoteById(noteId) != null
                     if (noteExists) {
                         _selectedNoteId.value = noteId
                         Log.d(TAG, "Restored selectedNoteId: $noteId")
@@ -1231,7 +1577,7 @@ class JarvisViewModel(
             // Restore selected category by ID with retry
             savedStateHandle.get<String>(KEY_SELECTED_CATEGORY_ID)?.let { categoryId ->
                 restoreWithRetry("category") {
-                    val category = repository.getCategoryById(categoryId)
+                    val category = noteOperationsManager.getCategoryById(categoryId)
                     if (category != null) {
                         _selectedCategory.value = category
                         Log.d(TAG, "Restored selectedCategory: ${category.id}")
@@ -1297,9 +1643,7 @@ class JarvisViewModel(
 
     // Public sync function for manual recalculation
     fun syncCategoryCounts() {
-        viewModelScope.launch {
-            repository.syncAllCategoryCounts()
-        }
+        noteOperationsManager.syncCategoryCounts()
     }
 
     fun selectNote(note: Note?) {
@@ -1337,243 +1681,31 @@ class JarvisViewModel(
         sourceUrl: String? = null,
         excludeFromAiChat: Boolean = false
     ) {
-        viewModelScope.launch {
-            try {
-                val detectedType = if (type == NoteType.BRAIN_DUMP) detectContentType(content) else type
-                val shouldProcess = shouldAnalyze(detectedType)
-
-                val note = Note(
-                    title = extractTitle(content, detectedType),
-                    content = content,
-                    type = detectedType,
-                    sourceUrl = sourceUrl ?: if (detectedType != NoteType.BRAIN_DUMP && content.startsWith("http")) content else null,
-                    processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
-                    excludeFromAiChat = excludeFromAiChat
-                )
-                repository.insertNote(note)
-                Log.d(TAG, "Text note inserted: ${note.id}")
-
-                // Refresh home screen widget
-                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-
-                try {
-                    if (shouldProcess) {
-                        simulateAiProcessing(note)
-                    } else {
-                        // Just categorize without AI analysis
-                        storeWithoutAnalysis(note)
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "AI processing failed for text note: ${e.message}", e)
-                    storeWithoutAnalysis(note)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Text note creation failed: ${e.message}", e)
-            }
-        }
+        noteOperationsManager.addNote(content, type, sourceUrl, excludeFromAiChat)
     }
 
     fun addNoteFromShare(sharedContent: SharedContent) {
-        viewModelScope.launch {
-            val note = when {
-                // File shared
-                sharedContent.fileUri != null -> {
-                    val type = detectTypeFromMime(sharedContent.mimeType)
-                    val shouldProcess = shouldAnalyze(type)
-
-                    Note(
-                        title = sharedContent.fileName ?: getDefaultTitle(type),
-                        content = buildFileDescription(sharedContent),
-                        fileUri = sharedContent.fileUri,
-                        fileName = sharedContent.fileName,
-                        fileMimeType = sharedContent.mimeType,
-                        fileSize = sharedContent.fileSize,
-                        imageUri = if (type == NoteType.IMAGE) sharedContent.fileUri else null,
-                        type = type,
-                        processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED
-                    )
-                }
-                // Text/link shared
-                sharedContent.text != null -> {
-                    val type = detectContentType(sharedContent.text)
-                    Note(
-                        title = extractTitle(sharedContent.text, type),
-                        content = sharedContent.text,
-                        sourceUrl = if (type != NoteType.BRAIN_DUMP && sharedContent.text.contains("://"))
-                            extractUrl(sharedContent.text) else null,
-                        type = type,
-                        processingStatus = ProcessingStatus.PROCESSING // Text/links always get analyzed
-                    )
-                }
-                else -> return@launch
-            }
-
-            repository.insertNote(note)
-
-            // Refresh home screen widget
-            QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-
-            if (shouldAnalyze(note.type)) {
-                simulateAiProcessing(note)
-            } else {
-                storeWithoutAnalysis(note)
-            }
-        }
+        // Convert to manager's SharedContent format
+        val managerContent = com.example.smarty.viewmodel.managers.SharedContent(
+            text = sharedContent.text,
+            fileUri = sharedContent.fileUri,
+            fileName = sharedContent.fileName,
+            mimeType = sharedContent.mimeType,
+            fileSize = sharedContent.fileSize
+        )
+        noteOperationsManager.addNoteFromShare(managerContent)
     }
 
     /**
      * Add note with attachments from the input field
-     * Handles both text content and file attachments
-     * Groups multiple attachments into a SINGLE note with attachmentsJson
-     *
-     * @param content Text content of the note
-     * @param attachments List of file attachments
-     * @param excludeFromAiChat Whether to exclude this note from AI chat context
      */
     fun addNoteWithAttachments(
         content: String,
         attachments: List<Attachment>,
         excludeFromAiChat: Boolean = _pendingNoteAiExcluded.value
     ) {
-        viewModelScope.launch {
-            try {
-                // Capture the AI exclusion state
-                val aiExcluded = excludeFromAiChat
-
-                when {
-                    // Attachments present (with or without text) - create SINGLE grouped note
-                    attachments.isNotEmpty() -> {
-                        // 1. OPTIMISTIC UPDATE: Insert PENDING note immediately with original attachments
-                        // This triggers the UI shimmer instantly while we do heavy compression in background
-                        val primaryOriginal = attachments[0]
-                        val type = detectTypeFromMime(primaryOriginal.mimeType)
-
-                        val title = when {
-                            content.isNotBlank() -> extractTitle(content, type)
-                            attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
-                            else -> primaryOriginal.fileName
-                        }
-
-                        val tempAttachments = attachments.map {
-                            NoteAttachment(
-                                uri = it.uri.toString(),
-                                fileName = it.fileName,
-                                mimeType = it.mimeType,
-                                fileSize = it.fileSize
-                            )
-                        }
-
-                        val initialContent = if (content.isNotBlank()) {
-                            content
-                        } else {
-                            buildMultipleAttachmentsDescription(tempAttachments)
-                        }
-
-                        // Create and INSERT PENDING note instantly
-                        val initialNote = Note(
-                            title = title,
-                            content = initialContent,
-                            fileUri = primaryOriginal.uri.toString(),
-                            fileName = primaryOriginal.fileName,
-                            fileMimeType = primaryOriginal.mimeType,
-                            fileSize = primaryOriginal.fileSize,
-                            imageUri = if (type == NoteType.IMAGE) primaryOriginal.uri.toString() else null,
-                            type = type,
-                            processingStatus = ProcessingStatus.PENDING, // Triggers shimmer
-                            excludeFromAiChat = aiExcluded
-                        ).withAttachments(tempAttachments)
-
-                        // Insert immediately to update UI
-                        repository.insertNote(initialNote)
-                        Log.d(TAG, "Note inserted with PENDING status: ${initialNote.id}")
-
-                        // Refresh home screen widget
-                        QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-
-                        // 2. BACKGROUND WORK: Copy and compress all attachments
-                        // Wrapped in try-catch to ensure note is completed even if attachment processing fails
-                        var processedAttachments = tempAttachments
-                        var primary = primaryOriginal
-
-                        try {
-                            // OPTIMIZATION: Parallel processing with async - 60-70% faster for 3+ files
-                            val processedResults = kotlinx.coroutines.coroutineScope {
-                                attachments.mapIndexed { index, attachment ->
-                                    async(Dispatchers.IO) {
-                                        val copied = copyAttachmentToStorage(attachment)
-                                        index to NoteAttachment(
-                                            uri = copied.uri.toString(),
-                                            fileName = copied.fileName,
-                                            mimeType = copied.mimeType,
-                                            fileSize = copied.fileSize
-                                        )
-                                    }
-                                }.awaitAll()
-                            }.sortedBy { it.first }
-
-                            processedAttachments = processedResults.map { it.second }
-                            val primaryProcessed = processedResults.firstOrNull()?.second
-                            if (primaryProcessed != null) {
-                                primary = Attachment(
-                                    uri = android.net.Uri.parse(primaryProcessed.uri),
-                                    fileName = primaryProcessed.fileName,
-                                    mimeType = primaryProcessed.mimeType,
-                                    fileSize = primaryProcessed.fileSize
-                                )
-                            }
-                        } catch (e: Exception) {
-                            // Attachment processing failed - continue with original attachments
-                            Log.e(TAG, "Attachment processing failed, using originals: ${e.message}", e)
-                        }
-
-                        // 3. UPDATE: Update note with optimized files and correct status
-                        val shouldProcess = shouldAnalyze(type)
-
-                        val finalContent = if (content.isNotBlank()) {
-                            content
-                        } else {
-                            buildMultipleAttachmentsDescription(processedAttachments)
-                        }
-
-                        val updatedNote = initialNote.copy(
-                            content = finalContent,
-                            fileUri = primary.uri.toString(),
-                            fileName = primary.fileName,
-                            fileSize = primary.fileSize,
-                            fileMimeType = primary.mimeType,
-                            imageUri = if (type == NoteType.IMAGE) primary.uri.toString() else null,
-                            processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED
-                        ).withAttachments(processedAttachments)
-
-                        repository.updateNote(updatedNote)
-                        Log.d(TAG, "Note updated to ${updatedNote.processingStatus}: ${updatedNote.id}")
-
-                        // AI processing wrapped in try-catch to ensure note is completed
-                        try {
-                            if (shouldProcess) {
-                                simulateAiProcessing(updatedNote)
-                            } else {
-                                storeWithoutAnalysis(updatedNote)
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "AI processing failed, completing note without AI: ${e.message}", e)
-                            // Mark note as completed without AI processing
-                            storeWithoutAnalysis(updatedNote)
-                        }
-                    }
-
-                    // Just text, no attachments
-                    content.isNotBlank() -> {
-                        addNote(content, excludeFromAiChat = aiExcluded)
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Note creation failed: ${e.message}", e)
-            } finally {
-                // Always reset pending note state after submission
-                resetPendingNoteState()
-            }
-        }
+        noteOperationsManager.addNoteWithAttachments(content, attachments, excludeFromAiChat)
+        resetPendingNoteState()
     }
 
     /**
@@ -1808,7 +1940,7 @@ class JarvisViewModel(
         attachments.forEachIndexed { index, attachment ->
             sb.append("${index + 1}. ${attachment.fileName}")
             if (attachment.fileSize > 0) {
-                sb.append(" (${formatFileSize(attachment.fileSize)})")
+                sb.append(" (${ContentTypeDetector.formatFileSize(attachment.fileSize)})")
             }
             if (index < attachments.lastIndex) sb.append('\n')
         }
@@ -1831,7 +1963,7 @@ class JarvisViewModel(
             if (compressed != null) {
                 // Log compression savings
                 if (compressed.isCompressed) {
-                    Log.i(TAG, "Attachment compressed: ${attachment.fileName} saved ${formatSize(compressed.savedBytes)} " +
+                    Log.i(TAG, "Attachment compressed: ${attachment.fileName} saved ${ContentTypeDetector.formatFileSize(compressed.savedBytes)} " +
                             "(${String.format("%.1f", compressed.compressionRatio)}% reduction)")
                 }
                 attachment.copy(
@@ -1860,96 +1992,31 @@ class JarvisViewModel(
         sb.append("Type: ").append(attachment.mimeType)
         if (attachment.fileSize > 0) {
             sb.append('\n')
-            sb.append("Size: ").append(formatFileSize(attachment.fileSize))
+            sb.append("Size: ").append(ContentTypeDetector.formatFileSize(attachment.fileSize))
         }
         return sb.toString()
     }
 
     /**
-     * Store file without AI analysis - just put in appropriate category
+     * Store file without AI analysis - just put in appropriate category.
+     * Delegates 100% of logic to NoteOperationsManager.
      */
     private suspend fun storeWithoutAnalysis(note: Note) {
-        val categoryName = getStorageCategoryName(note.type)
-        val category = repository.getOrCreateCategory(categoryName)
-
-        val updatedNote = note.copy(
-            categoryId = category.id,
-            categoryName = category.name,
-            summary = null, // No AI summary
-            whySaved = null, // No AI insight
-            processingStatus = ProcessingStatus.COMPLETED,
-            updatedAt = System.currentTimeMillis()
-        )
-        repository.updateNote(updatedNote)
-        syncSelectedNoteIfNeeded(updatedNote)
+        noteOperationsManager.storeWithoutAnalysis(note)
     }
 
-    // Delegate to ContentTypeDetector for O(1) storage category lookup
-    private fun getStorageCategoryName(type: NoteType): String =
-        ContentTypeDetector.getStorageCategoryName(type)
-
-    fun archiveNote(noteId: String) {
-        viewModelScope.launch {
-            try {
-                noteOperationMutex.withLock {
-                    repository.archiveNote(noteId)
-                }
-                // Refresh home screen widget
-                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Error archiving note: ${e.message}", e)
-            }
-        }
-    }
-
-    fun unarchiveNote(noteId: String) {
-        viewModelScope.launch {
-            try {
-                noteOperationMutex.withLock {
-                    repository.unarchiveNote(noteId)
-                }
-                // Refresh home screen widget
-                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Error unarchiving note: ${e.message}", e)
-            }
-        }
-    }
-
-    // Bulk operations with undo support (Phase 4)
+    // Bulk operations with undo support
     fun archiveNotes(noteIds: List<String>) {
         if (noteIds.isEmpty()) return
-        viewModelScope.launch {
-            try {
-                noteOperationMutex.withLock {
-                    repository.archiveNotes(noteIds)
-                }
-                // Store for undo
-                _lastArchivedNoteIds.value = noteIds
-                // Refresh home screen widget
-                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Error bulk archiving notes: ${e.message}", e)
-            }
-        }
+        noteOperationsManager.bulkArchiveNotes(noteIds)
+        _lastArchivedNoteIds.value = noteIds
     }
 
     fun undoArchive() {
         val ids = _lastArchivedNoteIds.value
         if (ids.isEmpty()) return
-        viewModelScope.launch {
-            try {
-                noteOperationMutex.withLock {
-                    repository.unarchiveNotes(ids)
-                }
-                // Clear undo state
-                _lastArchivedNoteIds.value = emptyList()
-                // Refresh home screen widget
-                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Error undoing archive: ${e.message}", e)
-            }
-        }
+        noteOperationsManager.bulkUnarchiveNotes(ids)
+        _lastArchivedNoteIds.value = emptyList()
     }
 
     fun clearUndoState() {
@@ -1957,78 +2024,42 @@ class JarvisViewModel(
     }
 
     // Archived notes for archive screen
-    val archivedNotes = repository.getArchivedNotes()
+    val archivedNotes = noteOperationsManager.getArchivedNotes()
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun deleteNote(note: Note) {
-        viewModelScope.launch {
-            try {
-                noteOperationMutex.withLock {
-                    // Clean up attachment files (only deletes app's copies, not original files)
-                    val context = getApplication<Application>()
-                    note.getAllAttachmentUris().forEach { uri ->
-                        FileStorageHelper.deleteFile(context, uri)
-                    }
-                    // Then delete database record
-                    repository.deleteNote(note)
-                }
-                // Refresh home screen widget
-                QuickNoteWidgetProvider.updateAllWidgets(getApplication())
-            } catch (e: Exception) {
-                Log.e(TAG, "Error deleting note: ${e.message}", e)
-            }
-        }
+        noteOperationsManager.deleteNote(note)
     }
 
     fun deleteNoteById(noteId: String) {
         viewModelScope.launch {
-            try {
-                // Search in both active notes and archived notes
-                val note = notes.value.find { it.id == noteId }
-                    ?: archivedNotes.value.find { it.id == noteId }
-                note?.let { deleteNote(it) }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error deleting note by ID: ${e.message}", e)
-            }
+            noteOperationsManager.deleteNoteById(noteId, notes.value, archivedNotes.value)
         }
+    }
+
+    fun archiveNote(noteId: String) {
+        noteOperationsManager.archiveNote(noteId)
+    }
+
+    fun unarchiveNote(noteId: String) {
+        noteOperationsManager.unarchiveNote(noteId)
     }
 
     /**
-     * Update todos for a note - with callback for completion.
-     * BUG FIX: Use fresh note from database, not stale StateFlow cache.
+     * Update todos for a note.
      */
     fun updateNoteTodos(noteId: String, todos: List<TodoItem>, onComplete: (() -> Unit)? = null) {
-        viewModelScope.launch {
-            try {
-                noteOperationMutex.withLock {
-                    // BUG FIX: Get fresh note from database, not stale StateFlow
-                    val note = repository.getNoteById(noteId)
-                    note?.let {
-                        val updatedNote = it.withTodos(todos)
-                        repository.updateNote(updatedNote)
-                        Log.d(TAG, "Todos saved for note $noteId: ${todos.size} items")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error updating note todos: ${e.message}", e)
-            } finally {
-                // Always call completion callback on main thread
-                onComplete?.invoke()
-            }
-        }
+        noteOperationsManager.updateNoteTodos(noteId, todos, notes.value, archivedNotes.value)
+        onComplete?.invoke()
     }
 
     fun updateNoteCategory(noteId: String, categoryId: String, categoryName: String) {
-        viewModelScope.launch {
-            repository.updateNoteCategory(noteId, categoryId, categoryName)
-        }
+        noteOperationsManager.updateNoteCategory(noteId, categoryId, categoryName)
     }
 
     fun markNoteAsViewed(noteId: String) {
-        viewModelScope.launch {
-            repository.updateNoteViewedStatus(noteId, true)
-        }
+        noteOperationsManager.markNoteAsViewed(noteId)
     }
 
     // =========================================================================
@@ -2036,24 +2067,15 @@ class JarvisViewModel(
     // =========================================================================
 
     fun pinNote(noteId: String) {
-        viewModelScope.launch {
-            repository.pinNote(noteId)
-            Log.d(TAG, "Note pinned: $noteId")
-        }
+        noteOperationsManager.pinNote(noteId)
     }
 
     fun unpinNote(noteId: String) {
-        viewModelScope.launch {
-            repository.unpinNote(noteId)
-            Log.d(TAG, "Note unpinned: $noteId")
-        }
+        noteOperationsManager.unpinNote(noteId)
     }
 
     fun toggleNotePin(noteId: String) {
-        viewModelScope.launch {
-            repository.toggleNotePin(noteId)
-            Log.d(TAG, "Note pin toggled: $noteId")
-        }
+        noteOperationsManager.toggleNotePin(noteId)
     }
 
     // =========================================================================
@@ -2061,18 +2083,11 @@ class JarvisViewModel(
     // =========================================================================
 
     fun setNoteReminder(noteId: String, reminderText: String, durationMs: Long? = null) {
-        viewModelScope.launch {
-            val expiresAt = durationMs?.let { System.currentTimeMillis() + it }
-            repository.setNoteReminder(noteId, reminderText, expiresAt)
-            Log.d(TAG, "Reminder set for note: $noteId, expires: $expiresAt")
-        }
+        noteOperationsManager.setNoteReminder(noteId, reminderText, durationMs)
     }
 
     fun clearNoteReminder(noteId: String) {
-        viewModelScope.launch {
-            repository.clearNoteReminder(noteId)
-            Log.d(TAG, "Reminder cleared for note: $noteId")
-        }
+        noteOperationsManager.clearNoteReminder(noteId)
     }
 
     // =========================================================================
@@ -2088,7 +2103,7 @@ class JarvisViewModel(
      */
     fun loadNoteVersions(noteId: String) {
         viewModelScope.launch {
-            val versions = repository.getNoteVersionsOnce(noteId)
+            val versions = noteOperationsManager.getNoteVersions(noteId)
             _selectedNoteVersions.value = versions
         }
     }
@@ -2096,98 +2111,52 @@ class JarvisViewModel(
     /**
      * Get version history for a note
      */
-    fun getNoteVersions(noteId: String) = repository.getNoteVersions(noteId)
+    fun getNoteVersions(noteId: String) = noteOperationsManager.getNoteVersionsFlow(noteId)
 
     /**
      * Get version history as one-shot query
      */
-    suspend fun getNoteVersionsOnce(noteId: String) = repository.getNoteVersionsOnce(noteId)
+    suspend fun getNoteVersionsOnce(noteId: String) = noteOperationsManager.getNoteVersions(noteId)
 
     /**
      * Restore a note to a previous version
      */
     fun restoreNoteVersion(noteId: String, versionId: String, onComplete: ((Boolean) -> Unit)? = null) {
         viewModelScope.launch {
-            val success = repository.restoreNoteVersion(noteId, versionId)
+            val success = noteOperationsManager.restoreNoteVersion(noteId, versionId)
             if (success) {
-                // Note: selectedNote is reactive and will auto-update from database
-                // Reload versions to show the new version created by restoration
                 loadNoteVersions(noteId)
-                Log.d(TAG, "Note restored to version: $versionId")
-            } else {
-                Log.e(TAG, "Failed to restore note to version: $versionId")
             }
             onComplete?.invoke(success)
         }
     }
 
     /**
-     * Get version count for a note
-     */
-    suspend fun getNoteVersionCount(noteId: String) = repository.getNoteVersionCount(noteId)
-
-    /**
      * Edit a note's title, content, and optionally attachments.
-     * Called when user edits a note from the detail view.
-     * Automatically saves a version snapshot before updating.
      */
     fun editNote(noteId: String, newTitle: String, newContent: String, newSummary: String?, newWhySaved: String?, newAttachments: List<NoteAttachment>? = null) {
-        viewModelScope.launch {
-            try {
-                noteOperationMutex.withLock {
-                    val note = repository.getNoteById(noteId)
-                    note?.let {
-                        var updatedNote = it.copy(
-                            title = newTitle,
-                            content = newContent,
-                            summary = newSummary,
-                            whySaved = newWhySaved,
-                            updatedAt = System.currentTimeMillis()
-                        )
-
-                        // Update attachments if provided
-                        if (newAttachments != null) {
-                            // Update the full JSON list
-                            updatedNote = updatedNote.withAttachments(newAttachments)
-
-                            // Sync legacy primary file fields with the first attachment
-                            val primary = newAttachments.firstOrNull()
-                            if (primary != null) {
-                                updatedNote = updatedNote.copy(
-                                    fileUri = primary.uri,
-                                    fileName = primary.fileName,
-                                    fileMimeType = primary.mimeType,
-                                    fileSize = primary.fileSize,
-                                    // Only update imageUri if it matches the primary and is an image
-                                    imageUri = if (primary.mimeType.startsWith("image/")) primary.uri else null
-                                )
-                            } else {
-                                // No attachments left - clear legacy fields
-                                updatedNote = updatedNote.copy(
-                                    fileUri = null,
-                                    fileName = null,
-                                    fileMimeType = null,
-                                    fileSize = null,
-                                    imageUri = null
-                                )
-                            }
-                        }
-
-                        // Use updateNoteWithVersion to save version history
-                        repository.updateNoteWithVersion(updatedNote, "User edit")
-                        // Note: selectedNote is reactive and will auto-update from database
-                        Log.d(TAG, "Note edited with version: $noteId")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error editing note: ${e.message}", e)
-            }
-        }
+        noteOperationsManager.editNote(noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments)
     }
 
     // Share interception for bottom sheet (delegated to ShareFlowManager)
     fun interceptShareForPreview(sharedContent: SharedContent) {
-        shareFlowManager.interceptShareForPreview(sharedContent)
+        // Convert from viewmodel.SharedContent to managers.SharedContent
+        val managerSharedContent = com.example.smarty.viewmodel.managers.SharedContent(
+            text = sharedContent.text,
+            fileUri = sharedContent.fileUri,
+            fileName = sharedContent.fileName,
+            mimeType = sharedContent.mimeType,
+            fileSize = sharedContent.fileSize,
+            files = sharedContent.files.map { file ->
+                com.example.smarty.viewmodel.managers.SharedFileInfo(
+                    fileUri = file.fileUri,
+                    fileName = file.fileName,
+                    mimeType = file.mimeType,
+                    fileSize = file.fileSize
+                )
+            }
+        )
+        shareFlowManager.interceptShareForPreview(managerSharedContent)
     }
 
     fun confirmShare(selectedCategory: String?, aiInstructions: String) {
@@ -2197,693 +2166,22 @@ class JarvisViewModel(
                 aiInstructions = aiInstructions,
                 callback = object : ShareFlowManager.ShareConfirmCallback {
                     override suspend fun processNoteWithAi(note: Note) {
-                        simulateAiProcessing(note)
+                        noteOperationsManager.processNoteWithAi(note)
                     }
                 }
             )
         }
-    }
-
-    /**
-     * Save note in full privacy mode - no AI processing at all
-     */
-    private suspend fun saveNoteWithoutAiProcessing(note: Note) {
-        val category = repository.getOrCreateCategory("Private Notes")
-        val savedNote = note.copy(
-            isFullPrivacy = true,
-            excludeFromAiChat = true,
-            categoryId = category.id,
-            categoryName = category.name,
-            processingStatus = ProcessingStatus.COMPLETED,
-            summary = null,  // No AI summary
-            whySaved = null,  // No AI insight
-            updatedAt = System.currentTimeMillis()
-        )
-        repository.updateNote(savedNote)
     }
 
     fun cancelShare() {
         shareFlowManager.cancelShare()
     }
 
-    // Delegate file size formatting to ContentTypeDetector
-    private fun formatSize(bytes: Long): String = ContentTypeDetector.formatSize(bytes)
-
-    /**
-     * Generate a title for a note based on content and type.
-     * Uses content preview for short content, or truncates long content.
-     */
-    private fun generateTitle(content: String, type: NoteType): String {
-        return when {
-            content.isNotBlank() && content.length > 30 -> content.take(30) + "..."
-            content.isNotBlank() -> content
-            else -> ContentTypeDetector.getDefaultTitle(type)
-        }
-    }
-
-    // Delegate URL extraction to ContentTypeDetector
-    private fun extractUrl(text: String): String? = ContentTypeDetector.extractUrl(text)
-
-    // Delegate MIME type detection to ContentTypeDetector
-    private fun detectTypeFromMime(mimeType: String?): NoteType =
-        ContentTypeDetector.detectTypeFromMime(mimeType)
-
-    // Delegate default title lookup to ContentTypeDetector
-    private fun getDefaultTitle(type: NoteType): String = ContentTypeDetector.getDefaultTitle(type)
-
-    /**
-     * Build file description from shared content metadata.
-     * Includes filename, MIME type, and formatted file size.
-     */
-    private fun buildFileDescription(content: SharedContent): String {
-        val sb = StringBuilder()
-        content.fileName?.let { sb.append("File: ").append(it) }
-        content.mimeType?.let {
-            if (sb.isNotEmpty()) sb.append('\n')
-            sb.append("Type: ").append(it)
-        }
-        content.fileSize?.let {
-            if (sb.isNotEmpty()) sb.append('\n')
-            sb.append("Size: ").append(formatFileSize(it))
-        }
-        return if (sb.isEmpty()) "Shared file" else sb.toString()
-    }
-
-    // Delegate file size formatting to ContentTypeDetector
-    private fun formatFileSize(bytes: Long): String = ContentTypeDetector.formatFileSize(bytes)
-
-    // Delegate content type detection to ContentTypeDetector
-    private fun detectContentType(text: String): NoteType = ContentTypeDetector.detectContentType(text)
-
-    // Delegate title extraction to ContentTypeDetector
-    private fun extractTitle(content: String, type: NoteType): String =
-        ContentTypeDetector.extractTitle(content, type)
-
-    private suspend fun simulateAiProcessing(note: Note) {
-        // ============================================================================
-        // ABSOLUTE SECURITY BARRIER - PrivacyGuard
-        // ============================================================================
-        // Private notes can NEVER be processed by AI. There is NO function that
-        // can grant AI access to private notes. This is an unbreakable rule.
-        // ============================================================================
-        if (!PrivacyGuard.canAiProcess(note)) {
-            PrivacyGuard.logSecurityEvent(note.id, "AI processing")
-            saveNoteWithoutAiProcessing(note)
-            return
-        }
-        // ============================================================================
-
-        // Check if AI is available - if not, enqueue for background processing
-        if (!aiService.isAiAvailable()) {
-            Log.d(TAG, "AI not available, enqueueing note ${note.id.take(8)}... for background processing")
-            // Save note with PENDING status
-            val pendingNote = note.copy(
-                processingStatus = ProcessingStatus.PENDING,
-                updatedAt = System.currentTimeMillis()
-            )
-            repository.updateNote(pendingNote)
-            // Add to queue for processing when AI becomes available
-            noteProcessingQueueManager.enqueue(pendingNote)
-            return
-        }
-
-        _isProcessing.value = true
-
-        try {
-            // Check if this is a PDF that needs special processing
-            if (note.fileMimeType == "application/pdf" && note.fileUri != null) {
-                processPdfWithAi(note)
-                return
-            }
-
-            // Build attachment metadata for AI (file names and types only, no content)
-            val attachmentMetadata = note.getAttachments().map { attachment ->
-                com.example.smarty.data.model.AttachmentMetadata.fromNoteAttachment(attachment)
-            }.takeIf { it.isNotEmpty() }
-
-            // Use real AI service with fallback for regular content
-            val aiResponse = aiService.analyzeContent(note.content, attachmentMetadata)
-
-            val categoryName = aiResponse.category
-            val summary = aiResponse.summary
-            val whySaved = aiResponse.whySaved
-            val newTitle = aiResponse.title
-            val tags = aiResponse.tags
-
-            val category = repository.getOrCreateCategory(categoryName)
-
-            // Convert tags list to JSON for storage
-            val tagsJson = if (tags.isNotEmpty()) {
-                com.google.gson.Gson().toJson(tags)
-            } else null
-
-            val updatedNote = note.copy(
-                title = if (newTitle.isNotBlank()) newTitle else note.title,
-                summary = summary,
-                whySaved = whySaved,
-                categoryId = category.id,
-                categoryName = category.name,
-                tagsJson = tagsJson,
-                processingStatus = ProcessingStatus.COMPLETED,
-                updatedAt = System.currentTimeMillis()
-            )
-            repository.updateNote(updatedNote)
-            syncSelectedNoteIfNeeded(updatedNote)
-        } catch (e: Exception) {
-            Log.e(TAG, "AI processing error for note ${note.id}: ${e.message}", e)
-            // On error, enqueue for retry instead of giving up immediately
-            val pendingNote = note.copy(
-                processingStatus = ProcessingStatus.PENDING,
-                updatedAt = System.currentTimeMillis()
-            )
-            repository.updateNote(pendingNote)
-            noteProcessingQueueManager.enqueue(pendingNote)
-        } finally {
-            _isProcessing.value = false
-        }
-    }
-
-    /**
-     * Process PDF documents with AI analysis
-     * Extracts text from PDF and sends to AI for comprehensive summarization
-     * 
-     * For long documents (>30 pages), uses chunked extraction with map-reduce summarization.
-     * For shorter documents, uses direct extraction for speed.
-     *
-     * SECURITY: Private PDFs are NEVER processed - uses PrivacyGuard
-     */
-    private suspend fun processPdfWithAi(note: Note) {
-        // ============================================================================
-        // ABSOLUTE SECURITY BARRIER - Private PDFs are NEVER processed by AI
-        // ============================================================================
-        if (!PrivacyGuard.canAiProcess(note)) {
-            PrivacyGuard.logSecurityEvent(note.id, "PDF AI processing")
-            saveNoteWithoutAiProcessing(note)
-            _isProcessing.value = false
-            return
-        }
-        // ============================================================================
-
-        Log.i(TAG, "Processing PDF document: ${note.fileName}")
-
-        try {
-            val uri = Uri.parse(note.fileUri)
-            
-            // Check document length to determine processing strategy
-            val strategy = pdfExtractor.getProcessingStrategy(uri)
-            Log.i(TAG, "PDF processing strategy: $strategy")
-            
-            when (strategy) {
-                ProcessingStrategy.CHUNKED, ProcessingStrategy.CHUNKED_HIERARCHICAL -> {
-                    // Long document - use chunked extraction with map-reduce
-                    processLongPdfWithChunks(note, uri)
-                }
-                ProcessingStrategy.DIRECT -> {
-                    // Short document - use direct extraction
-                    processShortPdf(note, uri)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error processing PDF: ${e.message}", e)
-
-            val category = repository.getOrCreateCategory("Documents")
-            val updatedNote = note.copy(
-                summary = "Error processing PDF",
-                whySaved = "Document saved",
-                categoryId = category.id,
-                categoryName = category.name,
-                processingStatus = ProcessingStatus.FAILED,
-                updatedAt = System.currentTimeMillis()
-            )
-            repository.updateNote(updatedNote)
-            syncSelectedNoteIfNeeded(updatedNote)
-        } finally {
-            _isProcessing.value = false
-        }
-    }
-
-    /**
-     * Process short PDFs (≤30 pages) using direct extraction.
-     * This is the faster method for smaller documents.
-     * 
-     * Uses OCR fallback for scanned/image-based PDFs.
-     */
-    private suspend fun processShortPdf(note: Note, uri: Uri) {
-        // Use OCR fallback for scanned PDFs
-        val extractionResult = pdfExtractor.extractTextWithOcrFallback(uri)
-
-        when (extractionResult) {
-            is PDFExtractionResult.Success -> {
-                Log.i(TAG, "PDF text extracted: ${extractionResult.characterCount} chars from ${extractionResult.pageCount} pages")
-
-                // Use document analysis for comprehensive summarization
-                val documentResponse = aiService.analyzeDocument(
-                    documentText = extractionResult.text,
-                    fileName = note.fileName,
-                    userContext = null
-                )
-
-                val category = repository.getOrCreateCategory(documentResponse.category)
-
-                // Build comprehensive summary with key points and references
-                val fullSummary = buildString {
-                    append(documentResponse.summary)
-                    
-                    // Add formulas if present
-                    documentResponse.references?.formulas?.takeIf { it.isNotEmpty() }?.let { formulas ->
-                        append("\n\n Formulas:")
-                        formulas.forEach { formula ->
-                            append("\n  • $formula")
-                        }
-                    }
-                    
-                    // Add key terms if present
-                    documentResponse.references?.keyTerms?.takeIf { it.isNotEmpty() }?.let { terms ->
-                        append("\n\n Key Terms:")
-                        terms.forEach { term ->
-                            append("\n  • ${term.term}: ${term.definition}")
-                        }
-                    }
-                    
-                    // Add recurring topics if present
-                    documentResponse.references?.recurringTopics?.takeIf { it.isNotEmpty() }?.let { topics ->
-                        append("\n\n Recurring Topics: ")
-                        append(topics.joinToString(", "))
-                    }
-                    
-                    if (documentResponse.keyPoints.isNotEmpty()) {
-                        append("\n\nKey Points:")
-                        documentResponse.keyPoints.forEach { point ->
-                            append("\n• $point")
-                        }
-                    }
-                    if (documentResponse.actionItems.isNotEmpty()) {
-                        append("\n\nAction Items:")
-                        documentResponse.actionItems.forEach { item ->
-                            append("\n $item")
-                        }
-                    }
-                }
-
-                val updatedNote = note.copy(
-                    title = documentResponse.title,
-                    summary = fullSummary,
-                    whySaved = documentResponse.userRelevance,
-                    categoryId = category.id,
-                    categoryName = category.name,
-                    processingStatus = ProcessingStatus.COMPLETED,
-                    updatedAt = System.currentTimeMillis()
-                )
-                repository.updateNote(updatedNote)
-                syncSelectedNoteIfNeeded(updatedNote)
-                Log.i(TAG, "PDF processed successfully: ${documentResponse.title}")
-            }
-
-            is PDFExtractionResult.Empty -> {
-                Log.w(TAG, "PDF has no extractable text: ${extractionResult.message}")
-
-                // Use PDF metadata (title, filename, page count) for AI categorization
-                // This allows meaningful categorization even for image-based PDFs
-                val pdfInfo = pdfExtractor.getPDFInfo(uri)
-                val metadataDescription = buildString {
-                    append("PDF Document: ${note.fileName ?: "Unknown"}\n")
-                    pdfInfo?.let { info ->
-                        info.title?.let { append("Title: $it\n") }
-                        info.author?.let { append("Author: $it\n") }
-                        info.subject?.let { append("Subject: $it\n") }
-                    }
-                    append("Pages: ${extractionResult.pageCount}\n")
-                    append("Note: This is an image-based/scanned PDF - text content not extractable.")
-                }
-
-                try {
-                    // Let AI categorize based on metadata
-                    val documentResponse = aiService.analyzeDocument(
-                        documentText = metadataDescription,
-                        fileName = note.fileName,
-                        userContext = "This PDF has no extractable text (likely scanned/image-based). Categorize based on the title, filename, and metadata provided."
-                    )
-
-                    val category = repository.getOrCreateCategory(documentResponse.category)
-                    val updatedNote = note.copy(
-                        title = documentResponse.title,
-                        summary = " Image-based PDF (${extractionResult.pageCount} pages)\n\n${documentResponse.summary}",
-                        whySaved = documentResponse.userRelevance ?: "Document saved for reference",
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.COMPLETED,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    repository.updateNote(updatedNote)
-                    syncSelectedNoteIfNeeded(updatedNote)
-                    Log.i(TAG, "Image-based PDF categorized via metadata: ${documentResponse.title}")
-                } catch (e: Exception) {
-                    Log.w(TAG, "AI categorization failed for image PDF, using defaults: ${e.message}")
-                    // Fallback if AI fails
-                    val category = repository.getOrCreateCategory("Documents")
-                    val updatedNote = note.copy(
-                        summary = "Image-based PDF (${extractionResult.pageCount} pages). Text extraction not available for scanned documents.",
-                        whySaved = "Document saved for reference",
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.COMPLETED,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    repository.updateNote(updatedNote)
-                    syncSelectedNoteIfNeeded(updatedNote)
-                }
-            }
-
-            is PDFExtractionResult.Error -> {
-                Log.e(TAG, "PDF extraction failed: ${extractionResult.message}")
-
-                val category = repository.getOrCreateCategory("Documents")
-                val updatedNote = note.copy(
-                    summary = "PDF could not be analyzed: ${extractionResult.message}",
-                    whySaved = "Document saved",
-                    categoryId = category.id,
-                    categoryName = category.name,
-                    processingStatus = ProcessingStatus.FAILED,
-                    updatedAt = System.currentTimeMillis()
-                )
-                repository.updateNote(updatedNote)
-                syncSelectedNoteIfNeeded(updatedNote)
-            }
-        }
-    }
-
-    /**
-     * Process long PDFs (>30 pages) using chunked extraction with map-reduce summarization.
-     *
-     * This method:
-     * 1. Extracts text in chunks (5 pages per chunk with 10% overlap)
-     * 2. Summarizes each chunk independently (Map phase) - with LIVE UI updates
-     * 3. Combines chunk summaries using iterative refinement (Reduce phase)
-     *
-     * LIVE APPENDING: Updates the note after each chunk is processed, giving
-     * users real-time feedback as the document is analyzed section by section.
-     *
-     * Model-agnostic: Works with any configured AI provider.
-     * Memory-efficient: Processes page-by-page, never loads entire document.
-     */
-    private suspend fun processLongPdfWithChunks(note: Note, uri: Uri) {
-        val chunkedResult = pdfExtractor.extractTextChunked(uri)
-
-        when (chunkedResult) {
-            is PDFChunkedResult.Success -> {
-                Log.i(TAG, "PDF chunked extraction: ${chunkedResult.chunkCount} chunks from ${chunkedResult.pagesProcessed}/${chunkedResult.totalPages} pages")
-
-                // Phase 1: MAP - Summarize each chunk independently with LIVE updates
-                val chunkSummaries = mutableListOf<String>()
-                val chunkAnalysesList = mutableListOf<ChunkAnalysis>()
-                var successfulChunks = 0
-                val totalChunks = chunkedResult.chunkCount
-
-                // Show initial processing state to user
-                var currentNote = note.copy(
-                    summary = " Processing ${chunkedResult.totalPages}-page document...\n\nAnalyzing section 1 of $totalChunks...",
-                    processingStatus = ProcessingStatus.PROCESSING
-                )
-                repository.updateNote(currentNote)
-                syncSelectedNoteIfNeeded(currentNote)
-
-                // PARALLEL PROCESSING: Process chunks in batches of 2 (matching server's --parallel 2)
-                val parallelBatchSize = 2
-                val chunkBatches = chunkedResult.chunks.chunked(parallelBatchSize)
-                
-                for (batch in chunkBatches) {
-                    try {
-                        Log.d(TAG, "Processing batch of ${batch.size} chunks in parallel")
-                        
-                        // Process batch in parallel using coroutineScope
-                        val batchResults = coroutineScope {
-                            batch.map { chunk ->
-                                async {
-                                    try {
-                                        Log.d(TAG, "Summarizing chunk ${chunk.index + 1}/$totalChunks (pages ${chunk.startPage}-${chunk.endPage})")
-                                        
-                                        val chunkResponse = aiService.analyzeDocument(
-                                            documentText = chunk.toPromptContext(),
-                                            fileName = "${note.fileName} - Pages ${chunk.startPage}-${chunk.endPage}",
-                                            userContext = "This is part ${chunk.index + 1} of $totalChunks from a larger document. Summarize the key points concisely."
-                                        )
-                                        
-                                        // Return result with chunk info
-                                        Triple(chunk, chunkResponse, null as Exception?)
-                                    } catch (e: Exception) {
-                                        Log.w(TAG, "Failed to summarize chunk ${chunk.index}: ${e.message}")
-                                        Triple(chunk, null, e)
-                                    }
-                                }
-                            }.awaitAll()
-                        }
-                        
-                        // Process results from this batch (in order by chunk index)
-                        for ((chunk, chunkResponse, error) in batchResults.sortedBy { it.first.index }) {
-                            if (chunkResponse != null) {
-                                val pageRange = "${chunk.startPage}-${chunk.endPage}"
-                                val chunkSummary = chunkResponse.summary.trim()
-                                chunkSummaries.add("[Pages $pageRange] $chunkSummary")
-                                
-                                // Store for toggle feature
-                                chunkAnalysesList.add(
-                                    ChunkAnalysis(
-                                        index = chunk.index,
-                                        totalChunks = totalChunks,
-                                        pageRange = pageRange,
-                                        summary = chunkSummary
-                                    )
-                                )
-                                successfulChunks++
-                            }
-                        }
-                        
-                        // LIVE APPENDING: Update UI after each batch completes
-                        val progressSummary = buildString {
-                            append(" Processing ${chunkedResult.totalPages}-page document...\n")
-                            append(" Completed $successfulChunks/$totalChunks sections (parallel processing)\n\n")
-
-                            // Show all processed chunk summaries accumulated so far
-                            chunkSummaries.forEachIndexed { idx, summary ->
-                                append(summary)
-                                if (idx < chunkSummaries.lastIndex) append("\n\n")
-                            }
-
-                            // Show what's being processed next (if not last batch)
-                            val lastProcessedIndex = batch.maxOfOrNull { it.index } ?: 0
-                            if (lastProcessedIndex + 1 < totalChunks) {
-                                val nextBatchStart = lastProcessedIndex + 2
-                                val nextBatchEnd = minOf(lastProcessedIndex + 1 + parallelBatchSize, totalChunks)
-                                append("\n\nAnalyzing sections $nextBatchStart-$nextBatchEnd of $totalChunks...")
-                            } else {
-                                append("\n\nGenerating final summary...")
-                            }
-                        }
-
-                        // Update note - preserve all fields from currentNote, only change summary
-                        currentNote = currentNote.copy(
-                            summary = progressSummary,
-                            chunkAnalysesJson = com.google.gson.Gson().toJson(chunkAnalysesList)
-                        )
-                        repository.updateNote(currentNote)
-                        syncSelectedNoteIfNeeded(currentNote)
-                        Log.d(TAG, "Live update: batch completed, ${successfulChunks} chunks processed so far")
-
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Batch processing error: ${e.message}")
-                        // Continue with other batches - partial summary is better than none
-                    }
-                }
-
-                if (chunkSummaries.isEmpty()) {
-                    // All chunks failed - fall back to error state
-                    handlePdfExtractionError(note, "Failed to analyze document content")
-                    return
-                }
-
-                Log.i(TAG, "MAP phase complete: $successfulChunks/$totalChunks chunks summarized")
-
-                // Phase 2: REDUCE - Combine chunk summaries into final summary
-                val combinedSummaries = chunkSummaries.joinToString("\n\n")
-                
-                // If combined summaries fit in context, use single final summarization
-                // Otherwise, we'd need hierarchical reduction (for very long docs)
-                val finalResponse = try {
-                    aiService.analyzeDocument(
-                        documentText = combinedSummaries,
-                        fileName = note.fileName,
-                        userContext = """
-                            This is a comprehensive summary of a ${chunkedResult.totalPages}-page document.
-                            The document was analyzed in ${chunkedResult.chunkCount} sections.
-                            Please synthesize these section summaries into a cohesive final summary.
-                            Identify the main themes, key findings, and important action items.
-                        """.trimIndent()
-                    )
-                } catch (e: Exception) {
-                    Log.w(TAG, "Final synthesis failed, using combined summaries: ${e.message}")
-                    // Fallback: use combined chunk summaries directly
-                    DocumentAnalysisResponse(
-                        title = note.fileName ?: "Document",
-                        summary = combinedSummaries,
-                        category = "Documents",
-                        keyPoints = emptyList(),
-                        actionItems = emptyList(),
-                        userRelevance = "Comprehensive ${chunkedResult.totalPages}-page document"
-                    )
-                }
-
-                val category = repository.getOrCreateCategory(finalResponse.category)
-
-                // Build comprehensive summary with coverage info and references
-                val fullSummary = buildString {
-                    append(" ${chunkedResult.totalPages} pages analyzed (${successfulChunks} sections)\n\n")
-                    append(finalResponse.summary)
-                    
-                    // Add formulas if present
-                    finalResponse.references?.formulas?.takeIf { it.isNotEmpty() }?.let { formulas ->
-                        append("\n\n Formulas:")
-                        formulas.forEach { formula ->
-                            append("\n  • $formula")
-                        }
-                    }
-                    
-                    // Add key terms if present
-                    finalResponse.references?.keyTerms?.takeIf { it.isNotEmpty() }?.let { terms ->
-                        append("\n\n Key Terms:")
-                        terms.forEach { term ->
-                            append("\n  • ${term.term}: ${term.definition}")
-                        }
-                    }
-                    
-                    // Add recurring topics if present
-                    finalResponse.references?.recurringTopics?.takeIf { it.isNotEmpty() }?.let { topics ->
-                        append("\n\n Recurring Topics: ")
-                        append(topics.joinToString(", "))
-                    }
-                    
-                    if (finalResponse.keyPoints.isNotEmpty()) {
-                        append("\n\nKey Points:")
-                        finalResponse.keyPoints.forEach { point ->
-                            append("\n• $point")
-                        }
-                    }
-                    if (finalResponse.actionItems.isNotEmpty()) {
-                        append("\n\nAction Items:")
-                        finalResponse.actionItems.forEach { item ->
-                            append("\n $item")
-                        }
-                    }
-                    if (!chunkedResult.isComplete()) {
-                        append("\n\n️ Note: Some pages could not be processed.")
-                    }
-                }
-
-                // Preserve chunk analyses from processing phase for toggle feature
-                val updatedNote = currentNote.copy(
-                    title = finalResponse.title,
-                    summary = fullSummary,
-                    whySaved = finalResponse.userRelevance,
-                    categoryId = category.id,
-                    categoryName = category.name,
-                    processingStatus = ProcessingStatus.COMPLETED,
-                    updatedAt = System.currentTimeMillis()
-                    // chunkAnalysesJson is already set in currentNote from processing loop
-                )
-                repository.updateNote(updatedNote)
-                syncSelectedNoteIfNeeded(updatedNote)
-                Log.i(TAG, "Long PDF processed successfully: ${finalResponse.title} (${chunkedResult.totalPages} pages, ${chunkAnalysesList.size} chunk analyses saved)")
-            }
-
-            is PDFChunkedResult.Empty -> {
-                Log.w(TAG, "PDF has no extractable text: ${chunkedResult.message}")
-
-                // Use PDF metadata for AI categorization (same as processShortPdf)
-                val pdfInfo = pdfExtractor.getPDFInfo(uri)
-                val metadataDescription = buildString {
-                    append("PDF Document: ${note.fileName ?: "Unknown"}\n")
-                    pdfInfo?.let { info ->
-                        info.title?.let { append("Title: $it\n") }
-                        info.author?.let { append("Author: $it\n") }
-                        info.subject?.let { append("Subject: $it\n") }
-                    }
-                    append("Pages: ${chunkedResult.pageCount}\n")
-                    append("Note: This is an image-based/scanned PDF - text content not extractable.")
-                }
-
-                try {
-                    val documentResponse = aiService.analyzeDocument(
-                        documentText = metadataDescription,
-                        fileName = note.fileName,
-                        userContext = "This PDF has no extractable text (likely scanned/image-based). Categorize based on the title, filename, and metadata provided."
-                    )
-
-                    val category = repository.getOrCreateCategory(documentResponse.category)
-                    val updatedNote = note.copy(
-                        title = documentResponse.title,
-                        summary = " Image-based PDF (${chunkedResult.pageCount} pages)\n\n${documentResponse.summary}",
-                        whySaved = documentResponse.userRelevance ?: "Document saved for reference",
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.COMPLETED,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    repository.updateNote(updatedNote)
-                    syncSelectedNoteIfNeeded(updatedNote)
-                    Log.i(TAG, "Image-based PDF categorized via metadata: ${documentResponse.title}")
-                } catch (e: Exception) {
-                    Log.w(TAG, "AI categorization failed for image PDF: ${e.message}")
-                    val category = repository.getOrCreateCategory("Documents")
-                    val updatedNote = note.copy(
-                        summary = "Image-based PDF (${chunkedResult.pageCount} pages). Text extraction not available.",
-                        whySaved = "Document saved for reference",
-                        categoryId = category.id,
-                        categoryName = category.name,
-                        processingStatus = ProcessingStatus.COMPLETED,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                    repository.updateNote(updatedNote)
-                    syncSelectedNoteIfNeeded(updatedNote)
-                }
-            }
-
-            is PDFChunkedResult.Error -> {
-                handlePdfExtractionError(note, chunkedResult.message)
-            }
-        }
-    }
-
-    /**
-     * Handle PDF extraction errors consistently.
-     */
-    private suspend fun handlePdfExtractionError(note: Note, errorMessage: String) {
-        Log.e(TAG, "PDF extraction failed: $errorMessage")
-
-        val category = repository.getOrCreateCategory("Documents")
-        val updatedNote = note.copy(
-            summary = "PDF could not be analyzed: $errorMessage",
-            whySaved = "Document saved",
-            categoryId = category.id,
-            categoryName = category.name,
-            processingStatus = ProcessingStatus.FAILED,
-            updatedAt = System.currentTimeMillis()
-        )
-        repository.updateNote(updatedNote)
-        syncSelectedNoteIfNeeded(updatedNote)
-    }
-
-    /**
-     * Generate a mock AI response for offline fallback.
-     * Delegates to ContentTypeDetector for efficient pattern matching.
-     *
-     * @param note The note to generate a response for
-     * @return Triple of (category tag, summary, intent)
-     */
-    private fun generateMockAiResponse(note: Note): Triple<String, String, String> =
-        ContentTypeDetector.generateMockAiResponse(note.type, note.content)
+    // Helper methods delegated to NoteOperationsManager or ContentTypeDetector
 
     // API Key Management
     fun addApiKey(provider: AIProvider, apiKey: String) {
-        securePreferences.addProviderKey(provider, apiKey)
+        settingsFeatureManager.addProviderKey(provider, apiKey)
         // Sync GROQ keys with manager for usage tracking
         if (provider == AIProvider.GROQ) {
             viewModelScope.launch { agentProvider.syncGroqKeys() }
@@ -2893,7 +2191,7 @@ class JarvisViewModel(
     }
 
     fun removeApiKey(provider: AIProvider, apiKey: String) {
-        securePreferences.removeProviderKey(provider, apiKey)
+        settingsFeatureManager.removeProviderKey(provider, apiKey)
         // Sync GROQ keys with manager for usage tracking
         if (provider == AIProvider.GROQ) {
             viewModelScope.launch { agentProvider.syncGroqKeys() }
@@ -2901,7 +2199,7 @@ class JarvisViewModel(
     }
 
     fun updateApiKey(provider: AIProvider, oldKey: String, newKey: String) {
-        securePreferences.updateProviderKey(provider, oldKey, newKey)
+        settingsFeatureManager.updateProviderKey(provider, oldKey, newKey)
         // Sync GROQ keys with manager for usage tracking
         if (provider == AIProvider.GROQ) {
             viewModelScope.launch { agentProvider.syncGroqKeys() }
@@ -2911,7 +2209,7 @@ class JarvisViewModel(
     }
 
     fun setProviderEnabled(provider: AIProvider, enabled: Boolean) {
-        securePreferences.setProviderEnabled(provider, enabled)
+        settingsFeatureManager.setProviderEnabled(provider, enabled)
         // If provider was enabled, trigger queue processing
         if (enabled) {
             noteProcessingQueueManager.onProviderAvailable()
@@ -2919,121 +2217,81 @@ class JarvisViewModel(
     }
 
     fun setSelectedModel(provider: AIProvider, model: String) {
-        securePreferences.setSelectedModel(provider, model)
+        settingsFeatureManager.setSelectedModel(provider, model)
     }
 
     fun testApiKey(provider: AIProvider, apiKey: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val isValid = aiService.testApiKey(provider, apiKey)
+            val isValid = settingsFeatureManager.testApiKey(provider, apiKey)
             onResult(isValid)
         }
     }
 
     // Theme Management
-    val isDarkTheme: StateFlow<Boolean> = securePreferences.isDarkTheme
+    val isDarkTheme: StateFlow<Boolean> = settingsFeatureManager.isDarkTheme
 
     fun setDarkTheme(isDark: Boolean) {
-        securePreferences.setDarkTheme(isDark)
+        settingsFeatureManager.setDarkTheme(isDark)
     }
 
     // Rate Limit Stats (exposed for UI monitoring)
-    fun getRateLimitStats() = rateLimiter.getUsageStats()
+    fun getRateLimitStats() = settingsFeatureManager.getRateLimitStats()
 
     // Tavily Web Search API Management (supports multiple keys)
-    private val _tavilyApiKey = MutableStateFlow(securePreferences.getTavilyApiKey())
-    val tavilyApiKey: StateFlow<String?> = _tavilyApiKey.asStateFlow()
-
-    private val _tavilyApiKeys = MutableStateFlow(securePreferences.getTavilyApiKeys())
-    val tavilyApiKeys: StateFlow<List<String>> = _tavilyApiKeys.asStateFlow()
+    val tavilyApiKey: StateFlow<String?> = settingsFeatureManager.tavilyApiKey
+    val tavilyApiKeys: StateFlow<List<String>> = settingsFeatureManager.tavilyApiKeys
 
     fun setTavilyApiKey(key: String?) {
-        securePreferences.setTavilyApiKey(key)
-        _tavilyApiKey.value = key
-        _tavilyApiKeys.value = securePreferences.getTavilyApiKeys()
+        settingsFeatureManager.setTavilyApiKey(key)
     }
 
     fun addTavilyApiKey(key: String) {
-        securePreferences.addTavilyApiKey(key)
-        _tavilyApiKeys.value = securePreferences.getTavilyApiKeys()
-        _tavilyApiKey.value = securePreferences.getTavilyApiKey()
+        settingsFeatureManager.addTavilyApiKey(key)
     }
 
     fun removeTavilyApiKey(key: String) {
-        securePreferences.removeTavilyApiKey(key)
-        _tavilyApiKeys.value = securePreferences.getTavilyApiKeys()
-        _tavilyApiKey.value = securePreferences.getTavilyApiKey()
+        settingsFeatureManager.removeTavilyApiKey(key)
     }
 
     // Shake Sensitivity Management
-    private val _shakeSensitivity = MutableStateFlow(securePreferences.getShakeSensitivity())
-    val shakeSensitivity: StateFlow<Float> = _shakeSensitivity.asStateFlow()
+    val shakeSensitivity: StateFlow<Float> = settingsFeatureManager.shakeSensitivity
 
     fun setShakeSensitivity(value: Float) {
-        val clamped = value.coerceIn(0f, 1f)
-        securePreferences.setShakeSensitivity(clamped)
-        _shakeSensitivity.value = clamped
+        settingsFeatureManager.setShakeSensitivity(value)
     }
 
     // Cache Management
     fun refreshCacheSize() {
         viewModelScope.launch(Dispatchers.IO) {
-            _cacheSizeBytes.value = cacheManager.getCacheSize()
+            _cacheSizeBytes.value = systemFeatureManager.getCacheSize()
         }
     }
 
     fun clearCache() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _isClearingCache.value = true
-            try {
-                cacheManager.clearCache()
-                _cacheSizeBytes.value = 0L
-                Log.d(TAG, "Cache cleared successfully")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clear cache: ${e.message}")
-            } finally {
-                _isClearingCache.value = false
-            }
+        _isClearingCache.value = true
+        systemFeatureManager.clearCache { newSize ->
+            _cacheSizeBytes.value = newSize
+            _isClearingCache.value = false
         }
     }
 
     // User Category Creation
     fun createUserCategory(name: String) {
-        viewModelScope.launch {
-            // Validate category name: max 10 characters
-            if (name.length > 10) {
-                // Don't create category if it exceeds 10 characters
-                return@launch
-            }
-
-            val category = Category(
-                name = name,
-                isAiGenerated = false,  // User-created category
-                noteCount = 0
-            )
-            repository.insertCategory(category)
-        }
+        noteOperationsManager.createUserCategory(name)
     }
 
     // Delete Category (BUG-028: Proper cascade cleanup)
     fun deleteCategory(category: Category) {
-        viewModelScope.launch {
-            try {
-                // Use atomic cleanup method that handles all notes via SQL UPDATE
-                // This is more reliable than filtering from StateFlow which may be stale
-                repository.deleteCategoryWithCleanup(category)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to delete category: ${category.name}", e)
-            }
-        }
+        noteOperationsManager.deleteCategory(category)
     }
 
 
     fun isFirstLaunch(): Boolean {
-        return securePreferences.isFirstLaunch()
+        return settingsFeatureManager.isFirstLaunch()
     }
 
     fun setFirstLaunchComplete() {
-        securePreferences.setFirstLaunchComplete()
+        settingsFeatureManager.setFirstLaunchComplete()
     }
 
     // ==================== Chat Mode & Agent Functionality ====================
@@ -3092,7 +2350,7 @@ class JarvisViewModel(
         shakeDetector = ShakeDetector(
             context = context,
             onShakeDetected = { handleShake() },
-            getThreshold = { securePreferences.getShakeThreshold() }
+            getThreshold = { settingsFeatureManager.getShakeThreshold() }
         )
         Log.d(TAG, "Shake detector initialized with contextual handler")
     }
@@ -3691,7 +2949,7 @@ class JarvisViewModel(
 
             if (detection.isTypingMention && !detection.isEmailPattern) {
                 // User is typing a mention - get suggestions
-                val suggestions = mentionResolver.getSuggestions(detection.query)
+                val suggestions = mentionManager.getSuggestions(detection.query)
                 _mentionState.value = MentionState(
                     isActive = true,
                     query = detection.query,
@@ -3759,13 +3017,11 @@ class JarvisViewModel(
     }
 
     /**
-     * Send a message in chat mode using the Koog-based AI agent.
-     *
-     * ARCHITECTURE: Uses JetBrains Koog framework for agent orchestration:
-     * - Koog handles the agent loop, tool execution, and multi-step reasoning
-     * - PrivacyGuard is enforced at the tool level via JarvisToolBase
+     * UNIVERSAL ACTION DISPATCHER
+     * The primary entry point for all user intent.
+     * Hybridizes fast-path rule execution with deep-path agentic reasoning.
      */
-    fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
+    fun dispatchQuery(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
 
         // Ensure GROQ keys are synced before first AI request
@@ -3784,14 +3040,11 @@ class JarvisViewModel(
             val userMessage = chatManager.addUserMessage(content, attachments)
 
             try {
-                // ═══════════════════════════════════════════════════════════════
-                // LOCAL COMMAND PROCESSING - Handle hardcoded commands without AI
-                // Commands like "open youtube", "play music" execute immediately
-                // ═══════════════════════════════════════════════════════════════
+                // 1. FAST-PATH: Check Local Command Processor (0ms latency, offline)
                 val commandResult = localCommandProcessor.process(content)
                 when (commandResult) {
-                    is CommandResult.Handled -> {
-                        Log.d(TAG, "Local command handled: ${commandResult.response}")
+                    is com.example.smarty.service.CommandResult.Handled -> {
+                        Log.i(TAG, "Query handled by FAST-PATH: $content")
                         val assistantMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
                             content = commandResult.response
@@ -3800,200 +3053,136 @@ class JarvisViewModel(
                         chatManager.saveMessagePair(
                             userMessage = userMessage,
                             assistantMessage = assistantMessage,
-                            hasApiKeys = securePreferences.hasAnyApiKeys()
+                            hasApiKeys = settingsFeatureManager.hasAnyApiKeys()
                         )
-                        return@launch // Command handled locally, no AI needed
+                        return@launch // Handled locally
                     }
-                    is CommandResult.HandledAndPassToLLM -> {
-                        // Execute local action first (e.g., play audio)
-                        Log.d(TAG, "Local command handled AND passing to LLM: ${commandResult.response}")
+                    is com.example.smarty.service.CommandResult.HandledAndPassToLLM -> {
+                        Log.i(TAG, "FAST-PATH executed action, but passing to REASONING-PATH for additional intent")
                         val localMessage = ChatMessage(
                             role = ChatRole.ASSISTANT,
                             content = commandResult.response
                         )
                         chatManager.addAssistantMessage(localMessage)
-                        // Continue to AI processing below for additional tasks
                     }
-                    is CommandResult.SavePageRequest -> {
-                        // Save page not supported in main chat, pass to AI
-                        Log.d(TAG, "Save page request in main chat - passing to AI")
-                    }
-                    is CommandResult.PassToLLM -> {
-                        // Continue to AI processing below
-                        Log.d(TAG, "Command not local, passing to AI agent")
-                    }
+                    else -> Log.d(TAG, "Query falling back to REASONING-PATH: $content")
                 }
 
-                // Build conversation history for agent memory
-                val conversationHistory = chatManager.chatMessages.value
-                    .filter { it.role != ChatRole.SYSTEM } // Exclude system messages
-                    .map { msg ->
-                        val role = when (msg.role) {
-                            ChatRole.USER -> "User"
-                            ChatRole.ASSISTANT -> "Assistant"
-                            else -> "System"
-                        }
-                        Pair(role, msg.content)
-                    }
-
-                // Clear pending citations before running agent
-                pendingCitations.clear()
-
-                // ═══════════════════════════════════════════════════════════════
-                // Reset mention state when message is sent (hide suggestions)
-                // ═══════════════════════════════════════════════════════════════
-                _mentionState.value = MentionState()
-
-                // ═══════════════════════════════════════════════════════════════
-                // @MENTION PROCESSING - Parse and resolve note references
-                // ═══════════════════════════════════════════════════════════════
-                val parsedMentions = MentionParser.parseAllMentions(content)
-                val taggedNoteContext = if (parsedMentions.isNotEmpty()) {
-                    Log.d(TAG, "Found ${parsedMentions.size} @mentions in message")
-                    val resolvedMentions = mentionResolver.resolveMentions(parsedMentions)
-                    val context = noteContextBuilder.buildContext(resolvedMentions)
-                    Log.d(TAG, "Built context: ${context.noteCount} notes, ${context.totalChars} chars, chunking=${context.needsChunking}")
-                    context
-                } else null
-
-                // ═══════════════════════════════════════════════════════════════
-                // @THINKING MODE - Deep document analysis
-                // ═══════════════════════════════════════════════════════════════
-                val thinkingModeContext = if (thinkingModeProcessor.hasThinkingCommand(content) && taggedNoteContext != null) {
-                    Log.d(TAG, "@thinking command detected - initiating deep document analysis")
-                    val referencedNotes = taggedNoteContext.resolvedMentions.flatMap { it.notes }
-                    thinkingModeProcessor.processThinkingMode(content, referencedNotes)
-                } else null
-
-                // Clean content: remove @mentions from the user prompt
-                val cleanedContent = if (parsedMentions.isNotEmpty()) {
-                    MentionParser.cleanMessage(content, parsedMentions)
-                } else content
-                
-                // Apply thinking mode control: Add /no_think directive when thinking is disabled
-                // This instructs Falcon-H1R-7B (and similar Qwen-based models) to skip reasoning
-                val finalUserMessage = if (!_isThinkingModeEnabled.value) {
-                    "/no_think $cleanedContent"
-                } else {
-                    cleanedContent
-                }
-
-                // Run Koog agent with tagged note context and thinking mode context
-                val result = JarvisAgent.run(
-                    userMessage = finalUserMessage,
-                    conversationHistory = conversationHistory,
-                    taggedNoteContext = taggedNoteContext,
-                    thinkingModeContext = thinkingModeContext,
-                    isThinkingModeEnabled = _isThinkingModeEnabled.value
-                )
-
-                when (result) {
-                    is AgentResult.Success -> {
-                        Log.d(TAG, "Agent completed successfully via ${result.provider}")
-
-                        // Filter out internal planning text - users should only see final results
-                        val filteredResponse = filterPlanningText(result.response)
-                        
-                        // Skip this message entirely if it's purely planning text
-                        if (filteredResponse == null) {
-                            Log.d(TAG, "Skipping planning-only message")
-                            return@launch // Don't add a chat bubble for planning steps
-                        }
-
-                        // Detect if this was an audio-related query
-                        val isAudioQuery = content.lowercase().let {
-                            it.contains("play") || it.contains("music") || it.contains("audio") ||
-                            it.contains("song") || it.contains("podcast") || it.contains("listen")
-                        }
-
-                        // Extract suggestions from TOON format: {suggestions:["a","b"]}
-                        val (responseWithoutSuggestions, suggestions) = extractSuggestionsFromResponse(filteredResponse)
-                        
-                        // Extract clarification request from TOON format
-                        val (cleanedResponse, clarificationRequest) = extractClarificationFromResponse(responseWithoutSuggestions)
-
-                        // Convert WebCitation to Citation for the message
-                        val citations = pendingCitations.map { wc ->
-                            Citation(title = wc.title, url = wc.url, snippet = wc.snippet)
-                        }
-                        pendingCitations.clear()
-
-                        // Get inline images from ViewImageTool
-                        val inlineImages = pendingInlineImages.toList()
-                        pendingInlineImages.clear()
-
-                        // Parse thinking content from response (for reasoning models like Falcon-H1R-7B)
-                        val parsedThinking = ThinkingParser.parse(cleanedResponse)
-                        
-                        // Create assistant message with thinking content extracted
-                        val assistantMessage = ChatMessage(
-                            role = ChatRole.ASSISTANT,
-                            content = parsedThinking.answer,  // Display only the answer
-                            thinkingContent = parsedThinking.thinking,  // Store thinking separately
-                            isAudioRelated = isAudioQuery,
-                            suggestions = suggestions,
-                            isError = false,
-                            citations = citations,
-                            inlineImages = inlineImages,
-                            clarificationRequest = clarificationRequest
-                        )
-
-                        chatManager.addAssistantMessage(assistantMessage)
-
-                        chatManager.markApiCallSuccessful()
-                        chatManager.saveMessagePair(
-                            userMessage = userMessage,
-                            assistantMessage = assistantMessage,
-                            hasApiKeys = securePreferences.hasAnyApiKeys()
-                        )
-
-                        // Play completion sound (not for voice assistant mode)
-                        // Check if NOT triggered by wake word to avoid playing in AI assistant mode
-                        if (!_wakeWordTriggered.value) {
-                            completionSoundManager.playAgentCompletionSound(
-                                isAppInForeground = _isAppInForeground.value
-                            )
-                        }
-                    }
-
-
-                    is AgentResult.Error -> {
-                        Log.e(TAG, "Agent error: ${result.message}")
-
-                        val errorMessage = ChatMessage(
-                            role = ChatRole.ASSISTANT,
-                            content = result.message,
-                            isError = true,  // Mark as error - no suggestions will show
-                            suggestions = emptyList()
-                        )
-                        chatManager.addAssistantMessage(errorMessage)
-                    }
-
-                    is AgentResult.NoProvider -> {
-                        Log.w(TAG, "No provider configured: ${result.message}")
-
-                        val noKeyMessage = ChatMessage(
-                            role = ChatRole.ASSISTANT,
-                            content = "Please configure an AI provider API key in Settings to use chat."
-                        )
-                        chatManager.addAssistantMessage(noKeyMessage)
-                    }
-                }
+                // 2. REASONING-PATH: AI Agent processing for complex intent
+                processReasoningPath(content, userMessage)
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error processing chat message: ${e.message}", e)
-
-
-
-                val errorMessage = ChatMessage(
-                    role = ChatRole.ASSISTANT,
-                    content = "I encountered an error processing your request. Please try again."
-                )
-                chatManager.addAssistantMessage(errorMessage)
+                Log.e(TAG, "Error in universal dispatcher: ${e.message}", e)
+                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "I encountered an error: ${e.message}"))
             } finally {
                 chatManager.setProcessing(false)
             }
         }
+    }
+
+    /**
+     * Internal implementation of the agentic reasoning path.
+     */
+    private suspend fun processReasoningPath(content: String, userMessage: ChatMessage) {
+        // Build conversation history for agent memory
+        val conversationHistory = chatManager.chatMessages.value
+            .filter { it.role != ChatRole.SYSTEM }
+            .map { msg ->
+                val role = when (msg.role) {
+                    ChatRole.USER -> "User"
+                    ChatRole.ASSISTANT -> "Assistant"
+                    else -> "System"
+                }
+                Pair(role, msg.content)
+            }
+
+        // Clear pending citations before running agent
+        pendingCitations.clear()
+
+        // Reset mention state
+        _mentionState.value = MentionState()
+
+        // Parse @mentions
+        val parsedMentions = MentionParser.parseAllMentions(content)
+        val taggedNoteContext = if (parsedMentions.isNotEmpty()) {
+            val resolvedMentions = mentionManager.resolveMentions(parsedMentions)
+            noteContextBuilder.buildContext(resolvedMentions)
+        } else null
+
+        // @THINKING deep analysis
+        val thinkingModeContext = if (thinkingModeProcessor.hasThinkingCommand(content) && taggedNoteContext != null) {
+            thinkingModeProcessor.processThinkingMode(content, taggedNoteContext.resolvedMentions.flatMap { it.notes })
+        } else null
+
+        // Prepare final prompt
+        val cleanedContent = if (parsedMentions.isNotEmpty()) MentionParser.cleanMessage(content, parsedMentions) else content
+        val finalUserMessage = if (!_isThinkingModeEnabled.value) "/no_think $cleanedContent" else cleanedContent
+
+        // Execute Agent
+        val result = JarvisAgent.run(
+            userMessage = finalUserMessage,
+            conversationHistory = conversationHistory,
+            taggedNoteContext = taggedNoteContext,
+            thinkingModeContext = thinkingModeContext,
+            isThinkingModeEnabled = _isThinkingModeEnabled.value
+        )
+
+        handleAgentResult(result, userMessage)
+    }
+
+    private suspend fun handleAgentResult(result: AgentResult, userMessage: ChatMessage) {
+        when (result) {
+            is AgentResult.Success -> {
+                Log.d(TAG, "Agent completed successfully via ${result.provider}")
+
+                val filteredResponse = filterPlanningText(result.response) ?: return
+                val (responseWithoutSuggestions, suggestions) = extractSuggestionsFromResponse(filteredResponse)
+                val (cleanedResponse, clarificationRequest) = extractClarificationFromResponse(responseWithoutSuggestions)
+
+                // Citations and Images
+                val citations = pendingCitations.map { wc -> Citation(title = wc.title, url = wc.url, snippet = wc.snippet) }
+                pendingCitations.clear()
+                val inlineImages = pendingInlineImages.toList()
+                pendingInlineImages.clear()
+
+                // Thinking Content
+                val parsedThinking = ThinkingParser.parse(cleanedResponse)
+
+                val assistantMessage = ChatMessage(
+                    role = ChatRole.ASSISTANT,
+                    content = parsedThinking.answer,
+                    thinkingContent = parsedThinking.thinking,
+                    suggestions = suggestions,
+                    citations = citations,
+                    inlineImages = inlineImages,
+                    clarificationRequest = clarificationRequest
+                )
+
+                chatManager.addAssistantMessage(assistantMessage)
+                chatManager.saveMessagePair(
+                    userMessage = userMessage,
+                    assistantMessage = assistantMessage,
+                    hasApiKeys = true
+                )
+
+                if (settingsFeatureManager.isSoundEnabled() && !_wakeWordTriggered.value) {
+                    completionSoundManager.playAgentCompletionSound(isAppInForeground = _isAppInForeground.value)
+                }
+            }
+            is AgentResult.Error -> {
+                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "Error: ${result.message}", isError = true))
+            }
+            is AgentResult.NoProvider -> {
+                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "Please configure an AI provider API key in Settings."))
+            }
+        }
+    }
+
+    /**
+     * Send a message in chat mode using the Koog-based AI agent.
+     */
+    fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
+        dispatchQuery(content, attachments)
     }
 
     // ==================== Calendar Operations (delegated to CalendarManager) ====================
@@ -4053,57 +3242,14 @@ class JarvisViewModel(
     // ==================== Dynamic Model Management ====================
 
     fun getAvailableModels(provider: AIProvider): List<Pair<String, String>> {
-        return securePreferences.getAvailableModels(provider)
+        return settingsFeatureManager.getAvailableModels(provider)
     }
 
     fun refreshGroqModels() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val apiKey = securePreferences.getProviderKeys(AIProvider.GROQ).firstOrNull()
-            if (apiKey.isNullOrBlank()) return@launch
-
-            try {
-                val request = okhttp3.Request.Builder()
-                    .url("https://api.groq.com/openai/v1/models")
-                    .addHeader("Authorization", "Bearer $apiKey")
-                    .build()
-
-                OkHttpClient().newCall(request).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val body = response.body?.string() ?: return@use
-                        val json = org.json.JSONObject(body)
-                        val data = json.getJSONArray("data")
-                        val models = mutableListOf<Pair<String, String>>()
-
-                        for (i in 0 until data.length()) {
-                            val item = data.getJSONObject(i)
-                            val id = item.getString("id")
-                            // Basic formatting for display name
-                            val name = when {
-                                id.contains("llama-4-scout") -> "Llama 4 Scout 17B (Dynamic)"
-                                id.contains("llama-4") -> "Llama 4 (Dynamic)"
-                                id.contains("llama-3.3") -> "Llama 3.3 (Dynamic)"
-                                id.contains("llama-3.1") -> "Llama 3.1 (Dynamic)"
-                                id.contains("mixtral") -> "Mixtral (Dynamic)"
-                                id.contains("gemma") -> "Gemma (Dynamic)"
-                                else -> id
-                            }
-                            models.add(id to name)
-                        }
-                        
-                        // Sort by name for better UX
-                        models.sortBy { it.second }
-
-                        if (models.isNotEmpty()) {
-                            securePreferences.setDynamicModels(AIProvider.GROQ, models)
-                            // Force refresh of provider configs flow
-                            securePreferences.setProviderEnabled(AIProvider.GROQ, securePreferences.isProviderEnabled(AIProvider.GROQ))
-                        }
-                    } else {
-                        Log.e(TAG, "Groq models fetch failed: ${response.code}")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error fetching Groq models", e)
+        settingsFeatureManager.refreshGroqModels { success ->
+            if (success) {
+                // Trigger queue processing - provider config changed
+                noteProcessingQueueManager.onProviderAvailable()
             }
         }
     }
@@ -4135,7 +3281,7 @@ class JarvisViewModel(
 
         // Clear in-memory caches to reduce memory footprint
         AIResponseCache.clear()
-        cacheManager.clearTemporaryData()
+        systemFeatureManager.clearTemporaryData()
 
         // Image loading is handled by Coil which auto-pauses when lifecycle not active
         // Database access remains active for scheduled backups

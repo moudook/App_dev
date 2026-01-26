@@ -3,17 +3,8 @@ package com.example.smarty.agent.tools.consolidated
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.remote.providers.TavilySearchProvider
-import com.example.smarty.data.repository.JarvisRepository
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.UUID
 
 @Serializable
 data class AgentOrchestratorArgs(
@@ -27,9 +18,9 @@ data class AgentOrchestratorArgs(
 data class OrchestratorParameters(
     // Batch params
     val target_type: String? = null, // notes, todos
-    val criteria: String? = null, // e.g., "created_before_2023", "contains_x" (basic filtering supported)
+    val criteria: String? = null, // e.g., "keyword:meeting", "contains_x"
     val actions: List<String>? = null, // archive, delete
-    
+
     // Research params
     val research_query: String? = null,
     val focus_areas: List<String>? = null,
@@ -47,12 +38,16 @@ data class OrchestratorResult(
     }
 }
 
+/**
+ * Hybridized Orchestrator Tool.
+ * 100% logic-free. Delegates all execution to centralized managers via callbacks.
+ */
 class AgentOrchestratorTool(
-    private val repository: JarvisRepository,
-    private val tavilySearchProvider: TavilySearchProvider,
-    private val getActiveNotes: () -> List<Note>,
+    private val onSearchNotes: suspend (String?, String?, String?, String, Int) -> List<com.example.smarty.viewmodel.managers.SearchResultItem>,
     private val getTavilyApiKey: () -> String?,
-    private val onCitationsFound: (List<com.example.smarty.agent.tools.external.SearchCitation>) -> Unit,
+    private val onBulkArchive: (List<String>) -> Unit,
+    private val onBulkDelete: (List<String>) -> Unit,
+    private val onDeepResearch: (String, String, List<String>?, Int) -> Unit,
     private val onStatusUpdate: (String) -> Unit
 ) : Tool<AgentOrchestratorArgs, OrchestratorResult>(
     argsSerializer = AgentOrchestratorArgs.serializer(),
@@ -60,14 +55,12 @@ class AgentOrchestratorTool(
     name = "agent_orchestrator",
     description = """
         Handles complex, multi-step workflows.
-        
+
         WORKFLOWS:
         - batch_operation: Perform actions on multiple items. usage: workflow="batch_operation", parameters={target_type="notes", criteria="keyword:meeting", actions=["archive"]}
         - deep_research: Conduct multi-step web research and save report. usage: workflow="deep_research", parameters={research_query="Quantum Computing", focus_areas=["History", "Future"], search_depth=3}
     """.trimIndent()
 ) {
-    private val orchestratorJson = Json { encodeDefaults = false }
-
     override suspend fun execute(args: AgentOrchestratorArgs): OrchestratorResult {
         return try {
             when (args.workflow) {
@@ -76,7 +69,7 @@ class AgentOrchestratorTool(
                     executeBatchOperation(args.parameters)
                 }
                 "deep_research" -> {
-                    onStatusUpdate("Searching the web...")
+                    onStatusUpdate("Initiating research...")
                     executeDeepResearch(args.parameters)
                 }
                 else -> OrchestratorResult(false, "Unknown workflow: ${args.workflow}")
@@ -87,97 +80,45 @@ class AgentOrchestratorTool(
     }
 
     private suspend fun executeBatchOperation(params: OrchestratorParameters): OrchestratorResult {
-        val targetType = params.target_type ?: return OrchestratorResult(false, "target_type required for batch_operation")
-        val actions = params.actions ?: return OrchestratorResult(false, "actions required for batch_operation")
+        val targetType = params.target_type ?: return OrchestratorResult(false, "target_type required")
+        val actions = params.actions ?: return OrchestratorResult(false, "actions required")
         val criteria = params.criteria
 
         if (targetType != "notes") {
-             return OrchestratorResult(false, "Only 'notes' target_type supported in consolidation for now")
+            return OrchestratorResult(false, "Only 'notes' target_type supported currently")
         }
 
-        var notes = getActiveNotes()
+        // Use central search manager for filtering logic
+        val query = if (criteria?.startsWith("keyword:") == true) {
+            criteria.removePrefix("keyword:").trim()
+        } else criteria
 
-        // Apply criteria (simplified)
-        if (criteria != null) {
-            if (criteria.startsWith("keyword:")) {
-                val keyword = criteria.removePrefix("keyword:").trim()
-                notes = notes.filter { it.title.contains(keyword, true) || it.content.contains(keyword, true) }
-            }
-            // Add more criteria parsing as needed
+        val results = onSearchNotes(query, null, null, "all", 50)
+
+        if (results.isEmpty()) {
+            return OrchestratorResult(true, "No items found matching criteria.")
         }
 
-        var successCount = 0
-        var failCount = 0
+        val noteIds = results.map { it.note.id }
 
-        notes.forEach { note ->
-            try {
-                actions.forEach { action ->
-                    when (action) {
-                        "archive" -> {
-                             // Assuming we handle archiving via repo if supported, or generic update
-                             // Since I don't have direct archive method on repo exposed in my snippets, 
-                             // I'll update processingStatus if that's how it's done, or skip if unsure.
-                             // Actually, typical implementation is updateNote with isArchived=true (if field exists) 
-                             // or verify how ArchiveNoteTool works.
-                             // Let's assume we skip archive for now to avoid breaking if field missing.
-                             // Wait, I saw `ArchiveNoteTool` earlier but didn't read it fully. 
-                             // Let's assume delete is safer to implement for now.
-                        }
-                        "delete" -> {
-                            repository.deleteNote(note)
-                        }
-                    }
-                }
-                successCount++
-            } catch (e: Exception) {
-                failCount++
+        // HYBRIDIZED: Delegate to Manager-bound callbacks
+        actions.forEach { action ->
+            when (action.lowercase()) {
+                "archive" -> onBulkArchive(noteIds)
+                "delete" -> onBulkDelete(noteIds)
             }
         }
 
-        return OrchestratorResult(true, "Batch operation complete. Success: $successCount, Failed: $failCount")
+        return OrchestratorResult(true, "Batch operation initiated for ${results.size} items.")
     }
 
-    private suspend fun executeDeepResearch(params: OrchestratorParameters): OrchestratorResult {
+    private fun executeDeepResearch(params: OrchestratorParameters): OrchestratorResult {
         val topic = params.research_query ?: return OrchestratorResult(false, "research_query required")
-        val apiKey = getTavilyApiKey() ?: return OrchestratorResult(false, "Tavily API key not configured")
-        
-        val findings = mutableListOf<String>()
-        val sources = mutableSetOf<String>()
-        
-        // Generate queries (Simplified logic)
-        val queries = mutableListOf(topic)
-        params.focus_areas?.forEach { queries.add("$topic $it") }
-        
-        queries.take(params.search_depth).forEach { query ->
-             try {
-                 val result = tavilySearchProvider.search(apiKey, query)
-                 if (result.success) {
-                     findings.add("Query: $query\nResult: ${result.answer ?: result.results.firstOrNull()?.snippet ?: "No summary"}")
-                     result.results.forEach { sources.add(it.url) }
-                 }
-             } catch (e: Exception) {
-                 // Ignore individual failures
-             }
-        }
-        
-        if (findings.isEmpty()) {
-            return OrchestratorResult(false, "No research findings found")
-        }
+        val apiKey = getTavilyApiKey() ?: return OrchestratorResult(false, "Web search not configured")
 
-        // Synthesize (Simplified)
-        val synthesis = findings.joinToString("\n\n")
-        
-        // Save Note
-        val note = Note(
-            id = UUID.randomUUID().toString(),
-            title = "Research: $topic",
-            content = "# Research on $topic\n\n$synthesis\n\n## Sources\n${sources.joinToString("\n") { "- $it" }}",
-            type = NoteType.DOCUMENT,
-            isAiCreated = true,
-            processingStatus = ProcessingStatus.COMPLETED
-        )
-        repository.insertNote(note)
+        // HYBRIDIZED: Delegate to WorkflowManager via callback
+        onDeepResearch(topic, apiKey, params.focus_areas, params.search_depth)
 
-        return OrchestratorResult(true, "Research completed and saved as '${note.title}'", orchestratorJson.encodeToString(mapOf("noteId" to note.id)))
+        return OrchestratorResult(true, "Deep research initiated for topic: $topic. I will notify you when the report is ready.")
     }
 }

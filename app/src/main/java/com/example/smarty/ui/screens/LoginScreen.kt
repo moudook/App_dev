@@ -45,6 +45,7 @@ import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.viewmodel.AuthViewModel
 import com.example.smarty.viewmodel.AuthViewModelFactory
+import com.example.smarty.viewmodel.managers.AuthFeatureManager
 import kotlinx.coroutines.delay
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -80,7 +81,7 @@ fun LoginScreen(
     }
 
     LaunchedEffect(authState) {
-        if (authState == AuthViewModel.AuthState.SUCCESS) {
+        if (authState == AuthFeatureManager.AuthState.SUCCESS) {
             onLoginSuccess()
         }
     }

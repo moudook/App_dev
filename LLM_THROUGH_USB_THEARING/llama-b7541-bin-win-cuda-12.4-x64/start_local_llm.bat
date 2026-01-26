@@ -138,7 +138,7 @@ if not exist "models\Phi-4-mini-instruct-Q4_K_M.gguf" (
 
 echo [INFO] Starting LLM server...
 echo [INFO] Model: Phi-4-mini-instruct-Q4_K_M.gguf
-echo [INFO] Context: 65536 tokens (64K)
+echo [INFO] Context: 8192 tokens (8K)
 echo [INFO] GPU Layers: 20 (RTX 2050)
 echo [INFO] Port: !SERVER_PORT!
 echo [INFO] Host: 0.0.0.0 (accepting connections from any device)
@@ -153,7 +153,7 @@ echo.
 .\llama-server.exe ^
   --model models\Phi-4-mini-instruct-Q4_K_M.gguf ^
   --chat-template-file qwen3_chat_template.jinja ^
-  --ctx-size 65536 ^
+  --ctx-size 8192 ^
   --n-gpu-layers 20 ^
   --port !SERVER_PORT! ^
   --host 0.0.0.0 ^
