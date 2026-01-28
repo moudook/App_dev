@@ -34,7 +34,7 @@ class ChatManager(
     }
 
     // Chat mode state
-    private val _isChatMode = MutableStateFlow(false)
+    private val _isChatMode = MutableStateFlow(true)
     val isChatMode: StateFlow<Boolean> = _isChatMode.asStateFlow()
 
     // Chat messages (in-memory for current session)

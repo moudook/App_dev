@@ -144,14 +144,6 @@ fun ChatMessageItem(
             Column(
                 modifier = Modifier.padding(horizontal = ComponentSpacing.bubblePadding, vertical = ComponentSpacing.bubblePaddingVertical)
             ) {
-                // Thinking Section (for AI messages with reasoning)
-                if (!isUser && message.hasThinking) {
-                    ThinkingSection(
-                        thinkingContent = message.thinkingContent!!,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                }
-
                 // Message content
                 if (isUser) {
                     Text(

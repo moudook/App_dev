@@ -966,10 +966,246 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                     val currentToolRegistry = buildToolRegistry()
 
                     // AGENT-010: Inject thinking mode instruction into system prompt
+                    // When THINKING MODE is ON, use iterative planning loop with STRICT no-action guidelines
                     val thinkingModeInstruction = if (isThinkingModeEnabled) {
-                        "\n\n**THINKING MODE: ON**\nFor complex queries, you MAY use <think>...</think> tags to show reasoning."
+                        """
+
+<deep_thinking_mode>
+<mode_status>ACTIVE - Iteration ${planLoopIterations} of 5</mode_status>
+
+<critical_rules>
+You are operating in Deep Thinking Mode. This mode exists to ensure thorough analysis before action.
+
+ABSOLUTE CONSTRAINTS:
+- You MUST NOT execute any actions, modifications, or changes
+- You MUST NOT use any tools that alter state - only read-only information gathering
+- You MUST NOT provide final answers or solutions until Iteration 5
+- You MUST focus exclusively on understanding, research, and planning
+
+YOUR SINGULAR FOCUS THIS ITERATION:
+Think deeply. Analyze thoroughly. Plan carefully. Do not act.
+</critical_rules>
+
+<iteration_${planLoopIterations}_instructions>
+${when (planLoopIterations) {
+    1 -> """
+ITERATION 1: DEEP UNDERSTANDING
+
+Your objective is to fully comprehend what the user is asking before doing anything else.
+
+Think through these questions:
+- What exactly is the user trying to accomplish?
+- What are the explicit requirements stated?
+- What are the implicit requirements not stated but necessary?
+- What assumptions am I making? Are they valid?
+- What information do I need that I don't have?
+- What could go wrong if I misunderstand this request?
+
+Structure your response:
+
+## My Understanding
+[Restate the request in your own words to confirm understanding]
+
+## Explicit Requirements
+[List what was directly stated]
+
+## Implicit Requirements
+[List what is necessary but wasn't explicitly mentioned]
+
+## Open Questions
+[List what you need to investigate or clarify]
+
+## Assumptions Being Made
+[List any assumptions and flag uncertain ones]
+
+End with: "Proceeding to information gathering..."
+"""
+    2 -> """
+ITERATION 2: THOROUGH RESEARCH
+
+Your objective is to gather all relevant information needed to solve this problem well.
+
+For each open question from Iteration 1:
+- What facts do I need to know?
+- What context is relevant?
+- What constraints exist?
+- What dependencies must be considered?
+- What has worked in similar situations?
+- What pitfalls should be avoided?
+
+Structure your response:
+
+## Research Findings
+
+### [Topic 1]
+**Context:** [Relevant background]
+**Key Facts:** [Important information discovered]
+**Implications:** [What this means for the solution]
+
+### [Topic 2]
+[Same structure...]
+
+## Constraints Identified
+[List technical, practical, or other limitations]
+
+## Dependencies Discovered
+[List things that must happen first or are interconnected]
+
+## Potential Pitfalls
+[List common mistakes or issues to avoid]
+
+End with: "Proceeding to approach analysis..."
+"""
+    3 -> """
+ITERATION 3: APPROACH ENUMERATION
+
+Your objective is to identify ALL viable approaches, not just the first one that comes to mind.
+
+Force yourself to consider at least 3 different approaches:
+- The obvious approach - what comes to mind first
+- The alternative approach - a different way entirely
+- The unconventional approach - thinking outside the box
+
+For each approach, honestly evaluate:
+- What are the genuine benefits?
+- What are the real drawbacks?
+- How complex is implementation?
+- How maintainable is this long-term?
+- What could go wrong?
+
+Structure your response:
+
+## Approach Analysis
+
+### Approach A: [Descriptive Name]
+**Strategy:** [Brief description of the approach]
+**Benefits:**
+- [Genuine advantage 1]
+- [Genuine advantage 2]
+**Drawbacks:**
+- [Real limitation 1]
+- [Real limitation 2]
+**Complexity:** [Low/Medium/High with justification]
+**Risk Level:** [Low/Medium/High with explanation]
+
+### Approach B: [Descriptive Name]
+[Same structure...]
+
+### Approach C: [Descriptive Name]
+[Same structure...]
+
+## Comparative Analysis
+[Direct comparison: which approach wins on which criteria?]
+
+## Preliminary Recommendation
+[Which approach appears best and why - but remain open to revision]
+
+End with: "Proceeding to detailed planning..."
+"""
+    4 -> """
+ITERATION 4: DETAILED PLANNING
+
+Your objective is to create a concrete, actionable implementation plan for the chosen approach.
+
+Think through execution details:
+- What are the exact steps in order?
+- What does each step produce?
+- What does each step depend on?
+- Where could each step fail?
+- How would you verify each step succeeded?
+
+Structure your response:
+
+## Implementation Plan
+
+### Step 1: [Action Title]
+**Action:** [Specific description of what to do]
+**Prerequisites:** [What must be true before starting]
+**Expected Output:** [What this step produces]
+**Verification:** [How to confirm success]
+**If This Fails:** [Contingency plan]
+
+### Step 2: [Action Title]
+[Same structure...]
+
+[Continue for all steps...]
+
+## Critical Path
+[Which steps are blocking? What's the minimum viable path?]
+
+## Risk Mitigation Matrix
+| Risk | Probability | Impact | Mitigation Strategy |
+|------|-------------|--------|---------------------|
+| [Risk 1] | [H/M/L] | [H/M/L] | [How to prevent or handle] |
+| [Risk 2] | ... | ... | ... |
+
+## Verification Checklist
+- [ ] [Requirement 1 will be satisfied by Step X]
+- [ ] [Requirement 2 will be satisfied by Step Y]
+...
+
+## Remaining Concerns
+[Any lingering doubts or areas needing attention]
+
+End with: "Proceeding to final synthesis..."
+"""
+    else -> """
+ITERATION 5: FINAL SYNTHESIS
+
+Your objective is to deliver a complete, polished, actionable plan to the user.
+
+This is your FINAL output. Synthesize everything from previous iterations into a clear, professional response that the user can act on.
+
+Structure your response:
+
+## Summary
+[2-3 sentences: What will be done and why this approach]
+
+## Recommended Solution
+[Clear, confident description of the chosen approach]
+
+## Implementation Steps
+
+**1. [Step Title]**
+[Clear, actionable description with enough detail to execute]
+
+**2. [Step Title]**
+[Continue for each step...]
+
+## Key Considerations
+- [Important point the user should keep in mind]
+- [Another important consideration]
+- [Technical or practical note]
+
+## Potential Challenges
+- **[Challenge 1]:** [How to handle it]
+- **[Challenge 2]:** [How to handle it]
+
+## Success Criteria
+[How will the user know this worked?]
+
+## Next Steps
+[What should the user do right now to begin?]
+
+---
+*This plan was developed through 5 iterations of deep analysis. Ready for your approval to proceed.*
+"""
+}}
+</iteration_${planLoopIterations}_instructions>
+
+<response_style>
+- Write with confidence and clarity
+- Use precise, professional language
+- Structure information for easy scanning
+- Be thorough but not verbose
+- Avoid filler phrases, apologies, or hedging
+- Focus on actionable insights
+- Present information as knowledge, not discovery
+</response_style>
+</deep_thinking_mode>
+"""
                     } else {
-                        "\n\n**THINKING MODE: OFF**\nDirect response only. Do NOT use <think> tags. Do NOT show reasoning steps."
+                        "\n\n<flash_mode>Direct execution mode. Respond efficiently and take action immediately. Keep responses concise and focused on completing the task.</flash_mode>"
                     }
                     val finalSystemPrompt = systemPrompt + thinkingModeInstruction
 
@@ -989,6 +1225,19 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                     currentResponse = response
                     Log.d(TAG, "Agent response (iter $planLoopIterations): ${response.take(100)}...")
 
+                    // DEEP THINKING MODE: Force 5 iterations for comprehensive planning
+                    if (isThinkingModeEnabled) {
+                        if (planLoopIterations >= 5) {
+                            Log.d(TAG, "Deep thinking mode: Completed all 5 planning iterations")
+                            break
+                        }
+                        // Continue to next iteration for deep thinking
+                        Log.d(TAG, "Deep thinking mode: Iteration $planLoopIterations complete, continuing...")
+                        delay(200) // Slightly longer delay for thinking mode
+                        continue
+                    }
+
+                    // FLASH MODE: Normal plan-based exit logic
                     // Check if there's still an active plan with pending steps
                     val activePlan = executionPlanManager.getActivePlan()
                     val hasPendingSteps = activePlan != null &&
@@ -996,7 +1245,7 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                         activePlan.getCurrentStep() != null
 
                     if (!hasPendingSteps) {
-                        Log.d(TAG, "No more pending steps, exiting plan loop")
+                        Log.d(TAG, "Flash mode: No pending steps, exiting plan loop")
                         break
                     }
 

@@ -794,7 +794,18 @@ private fun InputPill(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Text input area
-                Box(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusRequester.requestFocus()
+                        },
+                    contentAlignment = Alignment.CenterStart
+                ) {
                     var lineCount by remember { mutableIntStateOf(1) }
 
                     BasicTextField(

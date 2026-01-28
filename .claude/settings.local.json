@@ -142,7 +142,8 @@
       "Bash(./gradlew clean assembleDebug:*)",
       "Bash(\"/c/Users/gbust/AppData/Local/Android/Sdk/platform-tools/adb.exe\" devices)",
       "Bash(\"/c/Users/gbust/AppData/Local/Android/Sdk/platform-tools/adb.exe\" install -r /c/Users/gbust/Smarty/app/build/outputs/apk/debug/app-debug.apk)",
-      "Bash(./gradlew.bat compileDebugKotlin:*)"
+      "Bash(./gradlew.bat compileDebugKotlin:*)",
+      "Bash(git clean:*)"
     ],
     "deny": []
   },

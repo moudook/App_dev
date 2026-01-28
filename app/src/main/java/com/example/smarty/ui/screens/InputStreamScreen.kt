@@ -317,7 +317,7 @@ fun InputStreamScreen(
     // ═══════════════════════════════════════════════════════════════════════════
     // CENTRALIZED UI: Bottom Sheet States
     // ═══════════════════════════════════════════════════════════════════════════
-    var selectedTab by remember { mutableStateOf(NavigationTab.NOTES) }
+    var selectedTab by remember { mutableStateOf(NavigationTab.CHAT) }
 
     var showCalendarSheet by remember { mutableStateOf(false) }
     val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1016,57 +1016,26 @@ fun InputStreamScreen(
                             .fillMaxWidth()
                             .background(
                                 brush = Brush.verticalGradient(
-                                    colorStops = arrayOf(
-                                        0.0f to MaterialTheme.colorScheme.background,
-                                        0.3f to MaterialTheme.colorScheme.background,
-                                        0.5f to MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
-                                        0.7f to MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
-                                        0.85f to MaterialTheme.colorScheme.background.copy(alpha = 0.3f),
-                                        1.0f to Color.Transparent
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.background,
+                                        MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
+                                        Color.Transparent
                                     )
                                 )
                             )
                     ) {
-                        // Minimal Header Row: Logo | Status | Theme Toggle
+                        // Minimal Header Row: Status Indicator Only
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
-                                .padding(top = 2.dp)
-                                .height(40.dp)
-                                .padding(horizontal = 20.dp)
+                                .padding(top = 4.dp)
+                                .height(32.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            // Logo/Brand (Left)
-                            Text(
-                                text = "Jarvis",
-                                style = MaterialTheme.typography.headlineSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = (-0.5).sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.align(Alignment.CenterStart)
-                            )
-
-                            // Connection Status (Center)
                             ConnectionStatusIndicator(
-                                status = connectionStatus,
-                                modifier = Modifier.align(Alignment.Center)
+                                status = connectionStatus
                             )
-
-                            // Theme Toggle - Always Visible (AI is in the action bar below)
-                            IconButton(
-                                onClick = { onToggleTheme(!isDarkTheme) },
-                                modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .size(40.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                    contentDescription = if (isDarkTheme) "Switch to Light Mode" else "Switch to Dark Mode",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                            }
                         }
 
                         // Horizontal Action Bar - All features accessible here
@@ -1089,13 +1058,18 @@ fun InputStreamScreen(
                             archiveCount = archivedNotes.size
                         )
 
-                        // Category filter chip
-                        AnimatedCategoryFilterChip(
-                            categoryName = activeCategoryFilter?.name,
-                            noteCount = displayedNotes.size,
-                            onClear = { activeCategoryFilter = null },
-                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                        )
+                        // Category filter chip - centered
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AnimatedCategoryFilterChip(
+                                categoryName = activeCategoryFilter?.name,
+                                noteCount = displayedNotes.size,
+                                onClear = { activeCategoryFilter = null },
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                            )
+                        }
                     } // End Column
                 }
             }
@@ -1137,18 +1111,26 @@ fun InputStreamScreen(
             }
 
             // Animated content switching between notes, chat, and calendar
-            AnimatedContent(
-                targetState = contentMode,
-                transitionSpec = {
-                    fadeIn(tween(240)) togetherWith fadeOut(tween(160))
-                },
-                label = "contentModeTransition",
-                modifier = Modifier.fillMaxSize()
-            ) { mode ->
-                val contentPaddingWithTop = PaddingValues(
-                    top = ComponentSpacing.listContentPadding + topPadding, // Start content below header
-                    bottom = 140.dp + bottomContentPadding // Extra padding for floating input
-                )
+            // Wrapped in Box for centered layout
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                AnimatedContent(
+                    targetState = contentMode,
+                    transitionSpec = {
+                        fadeIn(tween(240)) togetherWith fadeOut(tween(160))
+                    },
+                    label = "contentModeTransition",
+                    modifier = Modifier
+                        .widthIn(max = 640.dp) // Optimized max width for readability and focus
+                        .fillMaxSize()
+                        .align(Alignment.TopCenter) // Explicitly center content area
+                ) { mode ->
+                    val contentPaddingWithTop = PaddingValues(
+                        top = ComponentSpacing.listContentPadding + topPadding, // Start content below header
+                        bottom = 140.dp + bottomContentPadding // Extra padding for floating input
+                    )
 
                 when (mode) {
                     "stacks" -> {
@@ -1378,6 +1360,7 @@ fun InputStreamScreen(
                     }
                 }
             }
+            } // Close Box wrapper for centered content
 
 
 
@@ -1403,7 +1386,7 @@ fun InputStreamScreen(
                             brush = Brush.verticalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
                                     MaterialTheme.colorScheme.background
                                 )
                             )
@@ -1413,12 +1396,15 @@ fun InputStreamScreen(
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
+                        .widthIn(max = 540.dp) // Slightly tighter max width for better centering
+                        .fillMaxWidth()
                         .padding(
                             start = ComponentSpacing.screenPadding,
                             end = ComponentSpacing.screenPadding,
-                            bottom = ComponentSpacing.screenPadding,
+                            bottom = ComponentSpacing.screenPadding * 2f,
                             top = 0.dp
-                        )
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     // Search suggestions dropdown (BATCH 5C)
                     // Shows when in search mode with empty query and recent searches available

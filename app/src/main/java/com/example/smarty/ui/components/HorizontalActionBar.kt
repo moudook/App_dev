@@ -1,19 +1,12 @@
 package com.example.smarty.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
@@ -24,45 +17,38 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.IconSize
-import com.example.smarty.ui.theme.AnimationDuration
-import com.example.smarty.ui.theme.Alpha
+import kotlin.math.*
 
 /**
  * Navigation tabs for the centralized UI.
+ * Icons redesigned for uniqueness and resource optimization.
  */
 enum class NavigationTab(
     val icon: ImageVector,
     val label: String,
     val opensSheet: Boolean = false
 ) {
-    NOTES(Icons.AutoMirrored.Rounded.StickyNote2, "Note"),
-    CHAT(Icons.Rounded.AutoAwesome, "Chat"),
-    CALENDAR(Icons.Rounded.CalendarMonth, "Calendar", opensSheet = true),
-    STACKS(Icons.Rounded.GridView, "Stacks", opensSheet = true),
-    ARCHIVE(Icons.Rounded.Archive, "Archive", opensSheet = true),
-    SETTINGS(Icons.Rounded.Settings, "Settings", opensSheet = true)
+    CHAT(Icons.Rounded.Psychology, "Chat"),           // Brain - AI thinking
+    NOTES(Icons.Rounded.EditNote, "Note"),            // Edit note - writing
+    CALENDAR(Icons.Rounded.EventNote, "Calendar", opensSheet = true),  // Event note
+    STACKS(Icons.Rounded.Layers, "Stacks", opensSheet = true),         // Layers - stacked items
+    ARCHIVE(Icons.Rounded.Inventory2, "Archive", opensSheet = true),   // Box - stored items
+    SETTINGS(Icons.Rounded.Tune, "Settings", opensSheet = true)        // Sliders - tuning
 }
 
 /**
- * Horizontal Action Bar - Redesigned with "Autumn Sky" aesthetics.
- * 
- * Theme:
- * - Fluid animations
- * - Gradient highlights (Blue to Warm Gold)
- * - Glass-like, floated integration
- * - Premium typography and spacing
+ * Horizontal Action Bar - Redesigned with a semi-circular rotary dial.
  */
 @Composable
 fun HorizontalActionBar(
@@ -80,171 +66,224 @@ fun HorizontalActionBar(
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
 
-    Surface(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),    
-        color = Color.Transparent
+            .height(110.dp), // Increased height for the dial arc
+        contentAlignment = Alignment.BottomCenter
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            NavigationTab.entries.forEach { tab ->
-                // Determine selection based on current mode/state
-                val isSelected = when (tab) {
-                    NavigationTab.CHAT -> isChatMode && !isCalendarMode && !isStacksMode && !isArchiveMode && !isSettingsMode
-                    NavigationTab.CALENDAR -> isCalendarMode
-                    NavigationTab.STACKS -> isStacksMode
-                    NavigationTab.ARCHIVE -> isArchiveMode
-                    NavigationTab.SETTINGS -> isSettingsMode
-                    NavigationTab.NOTES -> !isChatMode && !isCalendarMode && !isStacksMode && !isArchiveMode && !isSettingsMode
-                }
-
-                // Override selection logic to use the selectedTab parameter for better state management
-                val isTabSelected = selectedTab == tab
-
-                // Special handling for each tab in its respective inline mode
-                val isHistoryChat = isHistoryMode && tab == NavigationTab.CHAT
-                val isCalendarActive = isCalendarMode && tab == NavigationTab.CALENDAR
-                val isStacksActive = isStacksMode && tab == NavigationTab.STACKS
-                val isArchiveActive = isArchiveMode && tab == NavigationTab.ARCHIVE
-                val isSettingsActive = isSettingsMode && tab == NavigationTab.SETTINGS
-                
-                val displayIcon = when {
-                    isHistoryChat -> Icons.Outlined.History
-                    isCalendarActive -> Icons.Rounded.CalendarMonth
-                    isStacksActive -> Icons.Filled.Folder
-                    isArchiveActive -> Icons.Filled.Archive
-                    isSettingsActive -> Icons.Filled.Settings
-                    else -> tab.icon
-                }
-                val displayLabel = when {
-                    isHistoryChat -> "History"
-                    isCalendarActive -> "Calendar"
-                    isStacksActive -> "Stacks"
-                    isArchiveActive -> "Archive"
-                    isSettingsActive -> "Settings"
-                    else -> tab.label
-                }
-                val showLabel = isHistoryChat || isCalendarActive || isStacksActive || 
-                               isArchiveActive || isSettingsActive
-
-                ActionPill(
-                    icon = displayIcon,
-                    label = displayLabel,
-                    isSelected = isTabSelected,
-                    showLabel = showLabel,
-                    accentColor = accentColor,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onTabSelected(tab)
-                    }
-                )
-            }
-        }
+        RotaryNavigationDial(
+            selectedTab = selectedTab,
+            onTabSelected = onTabSelected,
+            isHistoryMode = isHistoryMode,
+            isCalendarMode = isCalendarMode,
+            isStacksMode = isStacksMode,
+            isArchiveMode = isArchiveMode,
+            isSettingsMode = isSettingsMode,
+            accentColor = accentColor,
+            haptic = haptic
+        )
     }
 }
 
 /**
- * Individual action pill.
- * Adapts to show label for specific states (like History).
+ * Semi-circular convex rotary dial for navigation.
  */
 @Composable
-private fun ActionPill(
-    icon: ImageVector,
-    label: String,
-    isSelected: Boolean,
-    showLabel: Boolean = false,
+private fun RotaryNavigationDial(
+    selectedTab: NavigationTab,
+    onTabSelected: (NavigationTab) -> Unit,
+    isHistoryMode: Boolean,
+    isCalendarMode: Boolean,
+    isStacksMode: Boolean,
+    isArchiveMode: Boolean,
+    isSettingsMode: Boolean,
     accentColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    
-    // Animate background color - Matches "Saved Audio" Pill Blue
-    val targetBgColor = if (isSelected) {
-        if (isDark) Color(0xFF004F70) else Color(0xFFC4E7FF)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-    }
-    
-    val backgroundColor by animateColorAsState(
-        targetValue = targetBgColor,
-        animationSpec = tween(AnimationDuration.standard),
-        label = "pillBg"
-    )
+    val tabs = NavigationTab.entries
+    val tabCount = tabs.size
 
-    // Animate icon/text color
-    val targetContentColor = if (isSelected) {
-        if (isDark) Color(0xFFC2E8FF) else Color(0xFF004C6D)
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-    }
-    
-    val contentColor by animateColorAsState(
-        targetValue = targetContentColor,
-        animationSpec = tween(AnimationDuration.standard),
-        label = "pillContent"
-    )
+    // Each tab gets an "ideal" angle on the semi-circle (180 degrees)
+    // Angles in radians: 0 is right, PI is left.
+    // We want the semi-circle to be convex (bulging upwards or downwards?)
+    // "Bottom half of a circle" means it arches UPWARDS from the bottom.
+    // So angles from PI to 2*PI (or -PI to 0).
+    // Let's use 0 to PI and rotate/offset as needed.
 
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.05f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "pillScale"
-    )
-    
-    Surface(
-        color = backgroundColor,
-        shape = RoundedCornerShape(50),
-        modifier = modifier
-            .scale(scale)
-            .height(30.dp) // Maintain consistent height
-            .animateContentSize() // Smooth expansion
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = if (showLabel) 12.dp else 0.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            // Icon centering logic: 
-            // If explicit label shown, use standard spacing.
-            // If no label (icon only), ensure it's a 30dp square for alignment.
-            
-            Box(
-                modifier = Modifier
-                    .size(if (showLabel) 20.dp else 30.dp), // layout size
-                contentAlignment = Alignment.Center
-            ) {
-                 Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = contentColor,
-                    modifier = Modifier.size(20.dp)
-                )
+    val selectedIndex = tabs.indexOf(selectedTab)
+
+    val scope = rememberCoroutineScope()
+    val rotation = remember { Animatable(selectedIndex.toFloat()) }
+    var lastVelocity by remember { mutableFloatStateOf(0f) }
+
+    // Sync virtual index when selectedTab changes externally (e.g. from clicking an icon)
+    LaunchedEffect(selectedTab) {
+        val targetIndex = tabs.indexOf(selectedTab).toFloat()
+        val currentVirtual = rotation.value
+
+        // Find the shortest path in a circular list of size tabCount
+        val diff = (targetIndex - (currentVirtual % tabCount + tabCount) % tabCount).let {
+            val half = tabCount / 2f
+            when {
+                it > half -> it - tabCount
+                it < -half -> it + tabCount
+                else -> it
             }
-            
-            if (showLabel) {
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = contentColor
+        }
+
+        if (abs(diff) > 0.001f) {
+            rotation.animateTo(
+                targetValue = currentVirtual + diff,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessLow
                 )
+            )
+        }
+    }
+
+    val density = LocalDensity.current
+    val radiusPx = with(density) { 160.dp.toPx() } // Arc radius
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(110.dp)
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        lastVelocity = 0f
+                        scope.launch { rotation.stop() }
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        // Map pixels to index units
+                        val delta = dragAmount / 150f
+                        lastVelocity = delta
+                        scope.launch {
+                            rotation.snapTo(rotation.value + delta)
+                        }
+                    },
+                    onDragEnd = {
+                        scope.launch {
+                            // Fling animation with decay (velocity scaled from per-event to per-second)
+                            rotation.animateDecay(
+                                initialVelocity = lastVelocity * 80f,
+                                animationSpec = exponentialDecay(frictionMultiplier = 1f)
+                            )
+
+                            // Snap to the nearest tab after decay settles
+                            val finalVirtualIndex = rotation.value
+                            val targetIndex = finalVirtualIndex.roundToInt()
+
+                            rotation.animateTo(
+                                targetValue = targetIndex.toFloat(),
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                )
+                            )
+
+                            // Update selection
+                            val finalIndex = ((targetIndex % tabCount) + tabCount) % tabCount
+                            onTabSelected(tabs[finalIndex])
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    }
+                )
+            },
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        // Draw the semi-circular background/arc
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val canvasWidth = size.width
+            val centerX = canvasWidth / 2f
+            val centerY = -radiusPx + 40f // Center is above the screen
+
+            // Subtle gradient arc bulging DOWNWARD
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        accentColor.copy(alpha = 0.08f),
+                        Color.Transparent
+                    ),
+                    center = androidx.compose.ui.geometry.Offset(centerX, centerY),
+                    radius = radiusPx + 20f
+                ),
+                center = androidx.compose.ui.geometry.Offset(centerX, centerY),
+                radius = radiusPx + 20f
+            )
+        }
+
+        // Position icons along the arc
+        tabs.forEachIndexed { index, tab ->
+            // Calculate the shortest circular distance for this icon to the current focal point
+            val rawOffset = (index - rotation.value)
+            val positionOffset = ((rawOffset + tabCount / 2f) % tabCount + tabCount) % tabCount - tabCount / 2f
+
+            // Map positionOffset to an angle
+            val angleStep = PI / 8.0
+            val angle = PI / 2.0 + (positionOffset * angleStep)
+
+            val isCenter = index == selectedIndex
+
+            // Visual properties based on position
+            val distanceFromCenter = abs(positionOffset)
+
+            // Refined transitions:
+            // Scale goes from 1.2 at center to 0.6 at edges
+            val scale = (1.2f - (distanceFromCenter * 0.2f)).coerceIn(0.4f, 1.2f)
+
+            // Opacity: Fade out completely by the time we reach the wrapping point (3.0)
+            // We use a slightly steeper curve to ensure it's gone before the jump
+            val opacity = (1f - (distanceFromCenter / 2.8f)).coerceIn(0f, 1f)
+
+            // Only show if it's within visible range
+            if (opacity > 0.01f) {
+                val icon = when {
+                    tab == NavigationTab.CHAT && isHistoryMode -> Icons.Outlined.History
+                    tab == NavigationTab.CALENDAR && isCalendarMode -> Icons.Filled.EventNote
+                    tab == NavigationTab.STACKS && isStacksMode -> Icons.Filled.Layers
+                    tab == NavigationTab.ARCHIVE && isArchiveMode -> Icons.Filled.Inventory2
+                    tab == NavigationTab.SETTINGS && isSettingsMode -> Icons.Filled.Tune
+                    else -> tab.icon
+                }
+
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            val x = (radiusPx * cos(angle)).toInt()
+                            val y = (radiusPx * sin(angle) - radiusPx - 24.dp.toPx()).toInt()
+                            IntOffset(x, y)
+                        }
+                        .graphicsLayer {
+                            this.alpha = opacity
+                            this.scaleX = scale
+                            this.scaleY = scale
+                        }
+                        .clip(CircleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (!isCenter) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onTabSelected(tab)
+                            }
+                        }
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = tab.label,
+                        tint = if (isCenter) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f * opacity),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
     }
 }
+

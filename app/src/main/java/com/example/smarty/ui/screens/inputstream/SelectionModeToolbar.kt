@@ -1,5 +1,10 @@
 package com.example.smarty.ui.screens.inputstream
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
@@ -14,7 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
 
 /**
@@ -38,76 +45,87 @@ fun SelectionModeToolbar(
     val hasSelection = selectedCount > 0
 
     TopAppBar(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         title = { /* Empty - no text displayed */ },
         actions = {
-            // Select All button
-            IconButton(onClick = onSelectAll) {
-                Icon(
-                    imageVector = Icons.Default.DoneAll,
-                    contentDescription = "Select all",
-                    tint = LocalAccentColor.current
-                )
-            }
-
-            // Pin button
-            IconButton(
-                onClick = onPinSelected,
-                enabled = hasSelection
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.PushPin,
-                    contentDescription = "Pin selected",
-                    tint = if (hasSelection)
-                        LocalAccentColor.current
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                Row(
+                    modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Select All button
+                    IconButton(onClick = onSelectAll) {
+                        Icon(
+                            imageVector = Icons.Default.DoneAll,
+                            contentDescription = "Select all",
+                            tint = LocalAccentColor.current
+                        )
+                    }
 
-            // Share button
-            IconButton(
-                onClick = onShareSelected,
-                enabled = hasSelection
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Share,
-                    contentDescription = "Share selected",
-                    tint = if (hasSelection)
-                        LocalAccentColor.current
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                    // Pin button
+                    IconButton(
+                        onClick = onPinSelected,
+                        enabled = hasSelection
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "Pin selected",
+                            tint = if (hasSelection)
+                                LocalAccentColor.current
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-            // Archive button
-            IconButton(
-                onClick = onArchiveSelected,
-                enabled = hasSelection
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Archive,
-                    contentDescription = "Archive selected",
-                    tint = if (hasSelection)
-                        LocalAccentColor.current
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+                    // Share button
+                    IconButton(
+                        onClick = onShareSelected,
+                        enabled = hasSelection
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share selected",
+                            tint = if (hasSelection)
+                                LocalAccentColor.current
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
-            // Delete button
-            IconButton(
-                onClick = onDeleteSelected,
-                enabled = hasSelection
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete selected",
-                    tint = if (hasSelection)
-                        MaterialTheme.colorScheme.error
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    // Archive button
+                    IconButton(
+                        onClick = onArchiveSelected,
+                        enabled = hasSelection
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Archive,
+                            contentDescription = "Archive selected",
+                            tint = if (hasSelection)
+                                LocalAccentColor.current
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Delete button
+                    IconButton(
+                        onClick = onDeleteSelected,
+                        enabled = hasSelection
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete selected",
+                            tint = if (hasSelection)
+                                MaterialTheme.colorScheme.error
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
