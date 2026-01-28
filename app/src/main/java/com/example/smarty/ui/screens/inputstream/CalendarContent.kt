@@ -1,51 +1,71 @@
 package com.example.smarty.ui.screens.inputstream
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.ui.LocalAccentColor
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Inline calendar content that displays in the main content area.
+ * Reimagined Calendar - Anthropic Style
  *
- * This replaces the bottom sheet approach - calendar is shown in the same
- * layer as note cards, behind the gradient input field.
- * 
- * Similar structure to ChatHistoryContent for consistency.
+ * Design Philosophy:
+ * - Warm, minimal, and focused
+ * - Horizontal week scroll (not overwhelming grid)
+ * - Today is prominent but not flashy
+ * - Events feel like gentle reminders, not demands
+ * - Weekends subtly differentiated (softer tone)
+ * - Inline event creation (no separate dialogs)
+ * - Clean typography, no visual noise
  */
-
-// Design System Colors for Calendar
-private val CalendarAccent = Color(0xFF2979FF)
-private val CalendarAccentLight = Color(0xFF5C9AFF)
 
 @Composable
 fun CalendarContent(
@@ -54,144 +74,184 @@ fun CalendarContent(
     onAddEvent: (Calendar) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
     contentPadding: PaddingValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Direct event creation callback - enables inline creation (bypasses dialog)
+    onCreateEvent: ((
+        title: String,
+        description: String?,
+        startTime: Long,
+        endTime: Long,
+        isAllDay: Boolean
+    ) -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
-    
-    // Calendar state
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    // State
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
-    var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
+    val today = remember { Calendar.getInstance() }
+
+    // Inline event creation state
+    var isCreatingEvent by remember { mutableStateOf(false) }
+    var newEventTitle by remember { mutableStateOf("") }
+    var newEventIsAllDay by remember { mutableStateOf(false) }
+    var selectedStartHour by remember { mutableIntStateOf(9) }
+    var selectedEndHour by remember { mutableIntStateOf(10) }
+
+    // Generate a 3-week window centered on current week
+    val weekDays = remember(selectedDate) {
+        generateWeekWindow(selectedDate)
+    }
 
     // Filter events for selected date
     val selectedDateEvents = remember(events, selectedDate) {
-        val dayStart = selectedDate.clone() as Calendar
-        dayStart.set(Calendar.HOUR_OF_DAY, 0)
-        dayStart.set(Calendar.MINUTE, 0)
-        dayStart.set(Calendar.SECOND, 0)
-        dayStart.set(Calendar.MILLISECOND, 0)
-
-        val dayEnd = dayStart.clone() as Calendar
-        dayEnd.add(Calendar.DAY_OF_MONTH, 1)
-
-        events.filter { event ->
-            event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
-        }.sortedBy { it.startTime }
+        filterEventsForDate(events, selectedDate)
     }
 
-    // Events for month (for indicators)
-    val monthEventDays = remember(events, currentMonth) {
-        val start = currentMonth.clone() as Calendar
-        start.set(Calendar.DAY_OF_MONTH, 1)
-        start.set(Calendar.HOUR_OF_DAY, 0)
-        start.set(Calendar.MINUTE, 0)
-
-        val end = start.clone() as Calendar
-        end.add(Calendar.MONTH, 1)
-
-        events.filter { it.startTime >= start.timeInMillis && it.startTime < end.timeInMillis }
-            .map { event ->
-                val cal = Calendar.getInstance().apply { timeInMillis = event.startTime }
-                cal.get(Calendar.DAY_OF_MONTH)
-            }.toSet()
+    // Events map for week indicators
+    val eventDaysInWindow = remember(events, weekDays) {
+        val daySet = mutableSetOf<Int>()
+        weekDays.filterNotNull().forEach { day ->
+            val hasEvent = events.any { event ->
+                isSameDay(day, event.startTime)
+            }
+            if (hasEvent) {
+                daySet.add(day.get(Calendar.DAY_OF_YEAR) * 1000 + day.get(Calendar.YEAR))
+            }
+        }
+        daySet
     }
 
-    // Generate month days
-    val daysInMonth = remember(currentMonth) {
-        generateMonthDays(currentMonth)
-    }
-
-    val today = remember { Calendar.getInstance() }
-    val monthFormat = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
-
-    // Theme-aware colors
-    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
+    // Theme colors
+    val surfaceColor = MaterialTheme.colorScheme.surface
     val textPrimary = MaterialTheme.colorScheme.onBackground
     val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    // Week list state for auto-scrolling to today
+    val weekListState = rememberLazyListState()
+
+    // Track if selected date is today (for showing "return to today" button)
+    val isViewingToday = remember(selectedDate, today) {
+        isSameDay(selectedDate, today)
+    }
+
+    // Coroutine scope for scroll actions
+    val scope = rememberCoroutineScope()
+
+    // Auto-scroll to center today on first load
+    LaunchedEffect(Unit) {
+        weekListState.scrollToItem(7) // Center of 21 days
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        // Month Header with Navigation
+        // Compact Month Label
         item {
+            val monthFormat = remember { SimpleDateFormat("MMMM", Locale.getDefault()) }
+            val yearFormat = remember { SimpleDateFormat("yyyy", Locale.getDefault()) }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Bottom
             ) {
-                Text(
-                    text = monthFormat.format(currentMonth.time),
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = textPrimary
-                )
+                Column {
+                    Text(
+                        text = monthFormat.format(selectedDate.time),
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.5).sp
+                        ),
+                        color = textPrimary
+                    )
+                    Text(
+                        text = yearFormat.format(selectedDate.time),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = textMuted.copy(alpha = 0.6f)
+                    )
+                }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Previous Month
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            currentMonth = (currentMonth.clone() as Calendar).apply {
-                                add(Calendar.MONTH, -1)
-                            }
-                        },
-                        shape = CircleShape,
-                        color = surfaceColor,
-                        modifier = Modifier.size(36.dp)
+                // Action buttons row
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Return to Today button - appears when not viewing today
+                    AnimatedVisibility(
+                        visible = !isViewingToday,
+                        enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.8f)
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack, // Creative: Back
-                                contentDescription = "Previous",
-                                tint = textPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                selectedDate = Calendar.getInstance()
+                                // Scroll back to center (today)
+                                scope.launch {
+                                    weekListState.animateScrollToItem(7)
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Today,
+                                    contentDescription = "Return to today",
+                                    tint = accentColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Today",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.SemiBold
+                                    ),
+                                    color = accentColor
+                                )
+                            }
                         }
                     }
 
-                    // Next Month
+                    // Add event button - toggles inline creation
                     Surface(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            currentMonth = (currentMonth.clone() as Calendar).apply {
-                                add(Calendar.MONTH, 1)
+                            if (onCreateEvent != null) {
+                                isCreatingEvent = !isCreatingEvent
+                                if (!isCreatingEvent) {
+                                    // Reset state when closing
+                                    newEventTitle = ""
+                                    newEventIsAllDay = false
+                                    selectedStartHour = 9
+                                    selectedEndHour = 10
+                                    keyboardController?.hide()
+                                }
+                            } else {
+                                // Fallback to old dialog method
+                                onAddEvent(selectedDate)
                             }
                         },
                         shape = CircleShape,
-                        color = surfaceColor,
-                        modifier = Modifier.size(36.dp)
+                        color = if (isCreatingEvent) textMuted.copy(alpha = 0.3f) else accentColor,
+                        modifier = Modifier.size(44.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowForward, // Creative: Forward
-                                contentDescription = "Next",
-                                tint = textPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-
-                    // Add Event Button
-                    Surface(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onAddEvent(selectedDate)
-                        },
-                        shape = CircleShape,
-                        color = CalendarAccent,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(
-                                Icons.Default.AutoAwesome, // Creative: Burst
-                                contentDescription = "Add Event",
+                                if (isCreatingEvent) Icons.Rounded.Close else Icons.Rounded.Add,
+                                contentDescription = if (isCreatingEvent) "Cancel" else "Add event",
                                 tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
@@ -199,310 +259,617 @@ fun CalendarContent(
             }
         }
 
-        // Day Headers
+        // Horizontal Week Scroll
         item {
+            HorizontalWeekStrip(
+                days = weekDays,
+                selectedDate = selectedDate,
+                today = today,
+                eventDays = eventDaysInWindow,
+                onDaySelected = { day ->
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    selectedDate = day
+                },
+                accentColor = accentColor,
+                listState = weekListState
+            )
+        }
+
+        // Selected Date Context
+        item {
+            val dateFormat = remember { SimpleDateFormat("EEEE", Locale.getDefault()) }
+            val isToday = isSameDay(selectedDate, today)
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN").forEach { day ->
+                Text(
+                    text = if (isToday) "Today" else dateFormat.format(selectedDate.time),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = if (isToday) accentColor else textPrimary
+                )
+
+                if (selectedDateEvents.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = day,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.sp
-                        ),
-                        color = textMuted,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center
+                        text = "${selectedDateEvents.size} ${if (selectedDateEvents.size == 1) "event" else "events"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = textMuted
                     )
                 }
             }
         }
 
-        // Calendar Grid
+        // Inline Event Creation Card
         item {
-            Column(
+            AnimatedVisibility(
+                visible = isCreatingEvent && onCreateEvent != null,
+                enter = expandVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeIn(),
+                exit = shrinkVertically(animationSpec = spring(dampingRatio = 0.8f)) + fadeOut()
+            ) {
+                InlineEventCreator(
+                    title = newEventTitle,
+                    onTitleChange = { newEventTitle = it },
+                    isAllDay = newEventIsAllDay,
+                    onAllDayChange = { newEventIsAllDay = it },
+                    startHour = selectedStartHour,
+                    onStartHourChange = { selectedStartHour = it },
+                    endHour = selectedEndHour,
+                    onEndHourChange = { selectedEndHour = it },
+                    accentColor = accentColor,
+                    onSave = {
+                        if (newEventTitle.isNotBlank() && onCreateEvent != null) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+
+                            val startCal = selectedDate.clone() as Calendar
+                            startCal.set(Calendar.HOUR_OF_DAY, if (newEventIsAllDay) 0 else selectedStartHour)
+                            startCal.set(Calendar.MINUTE, 0)
+                            startCal.set(Calendar.SECOND, 0)
+                            startCal.set(Calendar.MILLISECOND, 0)
+
+                            val endCal = selectedDate.clone() as Calendar
+                            endCal.set(Calendar.HOUR_OF_DAY, if (newEventIsAllDay) 23 else selectedEndHour)
+                            endCal.set(Calendar.MINUTE, if (newEventIsAllDay) 59 else 0)
+                            endCal.set(Calendar.SECOND, if (newEventIsAllDay) 59 else 0)
+                            endCal.set(Calendar.MILLISECOND, 0)
+
+                            onCreateEvent(
+                                newEventTitle,
+                                null, // description
+                                startCal.timeInMillis,
+                                endCal.timeInMillis,
+                                newEventIsAllDay
+                            )
+
+                            // Reset and close
+                            newEventTitle = ""
+                            newEventIsAllDay = false
+                            selectedStartHour = 9
+                            selectedEndHour = 10
+                            isCreatingEvent = false
+                            keyboardController?.hide()
+                        }
+                    },
+                    onCancel = {
+                        newEventTitle = ""
+                        isCreatingEvent = false
+                        keyboardController?.hide()
+                    }
+                )
+            }
+        }
+
+        // Events or Empty State
+        if (selectedDateEvents.isEmpty() && !isCreatingEvent) {
+            item {
+                EmptyDayState(
+                    isToday = isSameDay(selectedDate, today),
+                    onAddEvent = {
+                        if (onCreateEvent != null) {
+                            isCreatingEvent = true
+                        } else {
+                            onAddEvent(selectedDate)
+                        }
+                    },
+                    accentColor = accentColor
+                )
+            }
+        } else if (selectedDateEvents.isNotEmpty()) {
+            itemsIndexed(selectedDateEvents, key = { _, event -> event.id }) { index, event ->
+                EventCard(
+                    event = event,
+                    onClick = { onEventClick(event) },
+                    accentColor = accentColor,
+                    index = index
+                )
+            }
+        }
+
+        // Bottom Spacer
+        item {
+            Spacer(modifier = Modifier.height(120.dp))
+        }
+    }
+}
+
+/**
+ * Inline event creator - warm, minimal, in-context
+ */
+@Composable
+private fun InlineEventCreator(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    isAllDay: Boolean,
+    onAllDayChange: (Boolean) -> Unit,
+    startHour: Int,
+    onStartHourChange: (Int) -> Unit,
+    endHour: Int,
+    onEndHourChange: (Int) -> Unit,
+    accentColor: Color,
+    onSave: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Auto-focus title field
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = surfaceColor,
+        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Title input - clean, borderless
+            BasicTextField(
+                value = title,
+                onValueChange = onTitleChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                daysInMonth.chunked(7).forEach { week ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        week.forEach { day ->
-                            val cellModifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(1f)
-                                .padding(2.dp)
-
-                            if (day != null) {
-                                val isSelected = day.get(Calendar.DAY_OF_MONTH) == selectedDate.get(Calendar.DAY_OF_MONTH) &&
-                                               day.get(Calendar.MONTH) == selectedDate.get(Calendar.MONTH) &&
-                                               day.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR)
-                                val isToday = day.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
-                                             day.get(Calendar.YEAR) == today.get(Calendar.YEAR)
-                                val isWeekend = day.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
-                                               day.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
-                                val hasEvents = monthEventDays.contains(day.get(Calendar.DAY_OF_MONTH))
-                                val isCurrentMonth = day.get(Calendar.MONTH) == currentMonth.get(Calendar.MONTH)
-
-                                InlineDayCell(
-                                    day = day.get(Calendar.DAY_OF_MONTH),
-                                    isSelected = isSelected,
-                                    isToday = isToday,
-                                    isWeekend = isWeekend,
-                                    hasEvents = hasEvents,
-                                    isCurrentMonth = isCurrentMonth,
-                                    onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedDate = day
-                                    },
-                                    modifier = cellModifier
+                    .focusRequester(focusRequester),
+                textStyle = TextStyle(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = textPrimary
+                ),
+                cursorBrush = SolidColor(accentColor),
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (title.isNotBlank()) onSave()
+                    }
+                ),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (title.isEmpty()) {
+                            Text(
+                                text = "What's happening?",
+                                style = TextStyle(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = textMuted.copy(alpha = 0.5f)
                                 )
-                            } else {
-                                Spacer(modifier = cellModifier)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Selected Date Header
-        item {
-            val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
-            Text(
-                text = dateFormat.format(selectedDate.time),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.SemiBold
-                ),
-                color = textPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            )
-        }
-
-        // Events for Selected Date
-        if (selectedDateEvents.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.HourglassEmpty, // Creative: Waiting
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = textMuted.copy(alpha = 0.4f)
-                        )
-                        Text(
-                            text = "No events yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = textMuted.copy(alpha = 0.6f)
-                        )
-                        Text(
-                            text = "Tap + to add one",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = CalendarAccent.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-            }
-        } else {
-            items(selectedDateEvents, key = { it.id }) { event ->
-                InlineEventCard(
-                    event = event,
-                    onClick = { onEventClick(event) }
-                )
-            }
-        }
-
-        // Bottom Spacer for input field
-        item {
-            Spacer(modifier = Modifier.height(100.dp))
-        }
-    }
-}
-
-@Composable
-private fun InlineDayCell(
-    day: Int,
-    isSelected: Boolean,
-    isToday: Boolean,
-    isWeekend: Boolean,
-    hasEvents: Boolean,
-    isCurrentMonth: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val primaryText = MaterialTheme.colorScheme.onBackground
-    val mutedText = MaterialTheme.colorScheme.onSurfaceVariant
-
-    val textColor = when {
-        isSelected -> MaterialTheme.colorScheme.onPrimary
-        !isCurrentMonth -> mutedText.copy(alpha = 0.3f)
-        isToday -> CalendarAccent
-        isWeekend -> mutedText
-        else -> primaryText.copy(alpha = 0.9f)
-    }
-
-    Box(
-        modifier = modifier
-            .clip(CircleShape)
-            .then(
-                when {
-                    isSelected -> Modifier.background(CalendarAccent)
-                    isToday || (isWeekend && isCurrentMonth) -> Modifier.drawBehind {
-                        drawCircle(
-                            color = mutedText.copy(alpha = 0.5f),
-                            style = Stroke(
-                                width = 2f,
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f)
                             )
-                        )
+                        }
+                        innerTextField()
                     }
-                    else -> Modifier
                 }
             )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = day.toString(),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
-                ),
-                color = textColor
-            )
 
-            // Event indicator
-            if (hasEvents && !isSelected) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(CalendarAccent)
+            // Time options row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // All day chip
+                TimeChip(
+                    label = "All day",
+                    isSelected = isAllDay,
+                    onClick = { onAllDayChange(!isAllDay) },
+                    accentColor = accentColor
                 )
+
+                // Time range (only if not all day)
+                AnimatedVisibility(
+                    visible = !isAllDay,
+                    enter = fadeIn() + expandHorizontally(),
+                    exit = fadeOut() + shrinkHorizontally()
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Start hour selector
+                        HourChip(
+                            hour = startHour,
+                            onHourChange = { newHour ->
+                                onStartHourChange(newHour)
+                                // Auto-adjust end if needed
+                                if (newHour >= endHour) {
+                                    onEndHourChange((newHour + 1) % 24)
+                                }
+                            },
+                            accentColor = accentColor
+                        )
+
+                        Text(
+                            text = "→",
+                            color = textMuted.copy(alpha = 0.4f),
+                            fontSize = 14.sp
+                        )
+
+                        // End hour selector
+                        HourChip(
+                            hour = endHour,
+                            onHourChange = onEndHourChange,
+                            accentColor = accentColor
+                        )
+                    }
+                }
+            }
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Cancel (text only)
+                TextButton(
+                    onClick = onCancel,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = textMuted
+                    )
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.Medium)
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Save button
+                Button(
+                    onClick = onSave,
+                    enabled = title.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = Color.White,
+                        disabledContainerColor = textMuted.copy(alpha = 0.2f),
+                        disabledContentColor = textMuted.copy(alpha = 0.5f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    Text("Save", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
 }
 
+/**
+ * Time selection chip
+ */
 @Composable
-private fun InlineEventCard(
-    event: CalendarEvent,
+private fun TimeChip(
+    label: String,
+    isSelected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    accentColor: Color
 ) {
-    val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
-    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
-    val bgColor = MaterialTheme.colorScheme.background
-    val textPrimary = MaterialTheme.colorScheme.onBackground
     val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
         onClick = onClick,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(20.dp),
-        color = Color.Transparent
+        shape = RoundedCornerShape(10.dp),
+        color = if (isSelected) accentColor.copy(alpha = 0.15f) else Color.Transparent,
+        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(
+            1.dp, textMuted.copy(alpha = 0.2f)
+        )
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+            ),
+            color = if (isSelected) accentColor else textMuted
+        )
+    }
+}
+
+/**
+ * Hour selector chip with tap-to-cycle and long-press-to-pick behavior
+ */
+@Composable
+private fun HourChip(
+    hour: Int,
+    onHourChange: (Int) -> Unit,
+    accentColor: Color
+) {
+    val haptic = LocalHapticFeedback.current
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
+    val amPm = if (hour < 12) "AM" else "PM"
+
+    // State for showing the hour picker
+    var showHourPicker by remember { mutableStateOf(false) }
+
+    Box {
+        Surface(
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onHourChange((hour + 1) % 24)
+                        },
+                        onLongPress = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showHourPicker = true
+                        }
+                    )
+                },
+            shape = RoundedCornerShape(10.dp),
+            color = if (showHourPicker) accentColor.copy(alpha = 0.15f)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$displayHour",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = textPrimary
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                    text = amPm,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textMuted.copy(alpha = 0.6f)
+                )
+            }
+        }
+
+        // Time picker matching app's Jarvis dialog style
+        if (showHourPicker) {
+            JarvisTimePicker(
+                selectedHour = hour,
+                onHourSelected = { h ->
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onHourChange(h)
+                    showHourPicker = false
+                },
+                onDismiss = { showHourPicker = false },
+                accentColor = accentColor
+            )
+        }
+    }
+}
+
+/**
+ * Jarvis-Style Time Picker
+ * Theme-aware design that adapts to light/dark mode:
+ * - Uses MaterialTheme colors for automatic theming
+ * - Super-rounded corners (32dp)
+ * - Premium fintech/bento-grid feel
+ * - Accent color highlights
+ */
+@Composable
+private fun JarvisTimePicker(
+    selectedHour: Int,
+    onHourSelected: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    accentColor: Color
+) {
+    // Theme-aware colors - adapts to light/dark mode
+    val surfaceBg = MaterialTheme.colorScheme.surface
+    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    // Current selection display
+    val displayHour = if (selectedHour == 0) 12 else if (selectedHour > 12) selectedHour - 12 else selectedHour
+    val isPM = selectedHour >= 12
+
+    // LazyColumn state for scrolling
+    val listState = rememberLazyListState()
+
+    // Scroll to selected hour on open
+    LaunchedEffect(selectedHour) {
+        val targetIndex = if (selectedHour >= 12) selectedHour - 12 else selectedHour
+        listState.animateScrollToItem((targetIndex - 2).coerceAtLeast(0))
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Box(
             modifier = Modifier
+                .padding(24.dp)
                 .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
                 .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            surfaceColor,
-                            CalendarAccent.copy(alpha = 0.2f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(20.dp)
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(surfaceVariant, surfaceBg)
+                    )
                 )
-                .padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.padding(24.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    // Time Pill
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = bgColor.copy(alpha = 0.6f)
-                    ) {
-                        val timeText = if (event.isAllDay) "All Day" else {
-                            "${timeFormat.format(Date(event.startTime))} - ${timeFormat.format(Date(event.endTime))}"
-                        }
-                        Text(
-                            text = timeText,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = textPrimary.copy(alpha = 0.8f),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Title
+                // Header with current time
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = event.title,
+                        text = "Select time",
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold
                         ),
-                        color = textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        color = textPrimary
                     )
 
-                    // Location
-                    event.location?.let { location ->
-                        if (location.isNotBlank()) {
-                            Text(
-                                text = location,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = textMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                    // Current selection badge
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = accentColor.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "$displayHour:00 ${if (isPM) "PM" else "AM"}",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = accentColor,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // AM/PM Toggle - pill style matching app theme
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = surfaceBg
+                ) {
+                    Row(modifier = Modifier.padding(4.dp)) {
+                        // AM
+                        Surface(
+                            onClick = {
+                                // Convert current hour to AM
+                                val newHour = if (selectedHour >= 12) selectedHour - 12 else selectedHour
+                                onHourSelected(newHour)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (!isPM) accentColor else Color.Transparent
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "AM",
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = if (!isPM) MaterialTheme.colorScheme.onPrimary else textMuted
+                                )
+                            }
+                        }
+
+                        // PM
+                        Surface(
+                            onClick = {
+                                // Convert current hour to PM
+                                val newHour = if (selectedHour < 12) selectedHour + 12 else selectedHour
+                                onHourSelected(newHour)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isPM) accentColor else Color.Transparent
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "PM",
+                                    style = MaterialTheme.typography.labelLarge.copy(
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    color = if (isPM) MaterialTheme.colorScheme.onPrimary else textMuted
+                                )
+                            }
                         }
                     }
                 }
 
-                // Icon
-                Box(
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Hours list - scrollable
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    CalendarAccent,
-                                    CalendarAccentLight
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = if (event.isRecurring) Icons.Default.AllInclusive else Icons.Default.Timeline, // Creative: Loop/Journey
-                        contentDescription = if (event.isRecurring) "Repeating" else null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                    // 12 hours (display as 12, 1, 2, ... 11)
+                    val hours = listOf(12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)
+                    items(hours.size) { index ->
+                        val displayH = hours[index]
+                        // Convert to 24h based on current AM/PM
+                        val hour24 = when {
+                            displayH == 12 && !isPM -> 0
+                            displayH == 12 && isPM -> 12
+                            isPM -> displayH + 12
+                            else -> displayH
+                        }
+                        val isSelected = hour24 == selectedHour
+
+                        JarvisTimeItem(
+                            displayHour = displayH,
+                            isSelected = isSelected,
+                            accentColor = accentColor,
+                            textPrimary = textPrimary,
+                            textMuted = textMuted,
+                            onClick = { onHourSelected(hour24) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Done button
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = accentColor,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    contentPadding = PaddingValues(vertical = 14.dp)
+                ) {
+                    Text(
+                        text = "Done",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        )
                     )
                 }
             }
@@ -510,33 +877,471 @@ private fun InlineEventCard(
     }
 }
 
-private fun generateMonthDays(month: Calendar): List<Calendar?> {
-    val days = mutableListOf<Calendar?>()
-    val calendar = month.clone() as Calendar
-    calendar.set(Calendar.DAY_OF_MONTH, 1)
+/**
+ * Individual hour item in the Jarvis-style picker - theme-aware
+ */
+@Composable
+private fun JarvisTimeItem(
+    displayHour: Int,
+    isSelected: Boolean,
+    accentColor: Color,
+    textPrimary: Color,
+    textMuted: Color,
+    onClick: () -> Unit
+) {
+    val bgColor by animateColorAsState(
+        targetValue = if (isSelected) accentColor.copy(alpha = 0.15f) else Color.Transparent,
+        label = "bgColor"
+    )
 
-    // Adjust for Monday start
-    val firstDayOfWeek = when (calendar.get(Calendar.DAY_OF_WEEK)) {
-        Calendar.SUNDAY -> 6
-        else -> calendar.get(Calendar.DAY_OF_WEEK) - 2
+    val textColor by animateColorAsState(
+        targetValue = if (isSelected) accentColor else textPrimary,
+        label = "textColor"
+    )
+
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = bgColor
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$displayHour:00",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                ),
+                color = textColor
+            )
+
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(accentColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
     }
-    
-    repeat(firstDayOfWeek) {
-        days.add(null)
+}
+
+/**
+ * Horizontal scrolling week strip - core navigation
+ */
+@Composable
+private fun HorizontalWeekStrip(
+    days: List<Calendar?>,
+    selectedDate: Calendar,
+    today: Calendar,
+    eventDays: Set<Int>,
+    onDaySelected: (Calendar) -> Unit,
+    accentColor: Color,
+    listState: androidx.compose.foundation.lazy.LazyListState = rememberLazyListState()
+) {
+    LazyRow(
+        state = listState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(0.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp)
+    ) {
+        items(days.filterNotNull()) { day ->
+            val isSelected = isSameDay(day, selectedDate)
+            val isToday = isSameDay(day, today)
+            val isWeekend = day.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
+                           day.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY
+            val hasEvents = eventDays.contains(
+                day.get(Calendar.DAY_OF_YEAR) * 1000 + day.get(Calendar.YEAR)
+            )
+
+            DayPill(
+                day = day,
+                isSelected = isSelected,
+                isToday = isToday,
+                isWeekend = isWeekend,
+                hasEvents = hasEvents,
+                onClick = { onDaySelected(day) },
+                accentColor = accentColor
+            )
+        }
+    }
+}
+
+/**
+ * Individual day pill - tactile and readable
+ */
+@Composable
+private fun DayPill(
+    day: Calendar,
+    isSelected: Boolean,
+    isToday: Boolean,
+    isWeekend: Boolean,
+    hasEvents: Boolean,
+    onClick: () -> Unit,
+    accentColor: Color
+) {
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    val dayFormat = remember { SimpleDateFormat("EEE", Locale.getDefault()) }
+
+    // Animation
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f),
+        label = "scale"
+    )
+
+    val bgColor by animateColorAsState(
+        targetValue = when {
+            isSelected -> accentColor
+            isToday -> accentColor.copy(alpha = 0.12f)
+            else -> Color.Transparent
+        },
+        label = "bgColor"
+    )
+
+    val textColor = when {
+        isSelected -> Color.White
+        isToday -> accentColor
+        isWeekend -> textMuted.copy(alpha = 0.5f)
+        else -> textPrimary.copy(alpha = 0.85f)
     }
 
-    // Add all days of the month
-    val daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-    repeat(daysInMonth) { dayIndex ->
-        val day = month.clone() as Calendar
-        day.set(Calendar.DAY_OF_MONTH, dayIndex + 1)
+    val dayLabelColor = when {
+        isSelected -> Color.White.copy(alpha = 0.8f)
+        isToday -> accentColor.copy(alpha = 0.7f)
+        isWeekend -> textMuted.copy(alpha = 0.35f)
+        else -> textMuted.copy(alpha = 0.5f)
+    }
+
+    Column(
+        modifier = Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .padding(horizontal = 4.dp)
+            .width(52.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .then(
+                if (isToday && !isSelected) {
+                    Modifier.border(
+                        width = 1.5.dp,
+                        color = accentColor.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                } else Modifier
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Day name
+        Text(
+            text = dayFormat.format(day.time).uppercase().take(3),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.5.sp,
+                fontSize = 10.sp
+            ),
+            color = dayLabelColor
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Day number
+        Text(
+            text = day.get(Calendar.DAY_OF_MONTH).toString(),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium
+            ),
+            color = textColor
+        )
+
+        // Event indicator dot
+        Spacer(modifier = Modifier.height(4.dp))
+        Box(
+            modifier = Modifier
+                .size(5.dp)
+                .alpha(if (hasEvents && !isSelected) 1f else 0f)
+                .clip(CircleShape)
+                .background(if (isToday) accentColor else textMuted.copy(alpha = 0.4f))
+        )
+    }
+}
+
+/**
+ * Empty state - warm and inviting
+ */
+@Composable
+private fun EmptyDayState(
+    isToday: Boolean,
+    onAddEvent: () -> Unit,
+    accentColor: Color
+) {
+    val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.WbSunny,
+            contentDescription = null,
+            modifier = Modifier
+                .size(48.dp)
+                .alpha(0.4f),
+            tint = if (isToday) accentColor else textMuted
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = if (isToday) "Nothing planned" else "Free day",
+            style = MaterialTheme.typography.bodyLarge,
+            color = textMuted.copy(alpha = 0.7f)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Tap + to add something",
+            style = MaterialTheme.typography.bodySmall,
+            color = accentColor.copy(alpha = 0.6f),
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onAddEvent
+            )
+        )
+    }
+}
+
+/**
+ * Event card - clean, scannable, purposeful
+ */
+@Composable
+private fun EventCard(
+    event: CalendarEvent,
+    onClick: () -> Unit,
+    accentColor: Color,
+    index: Int
+) {
+    val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
+
+    // Determine if happening now
+    val now = System.currentTimeMillis()
+    val isHappeningNow = now >= event.startTime && now <= event.endTime
+
+    // Choose icon based on event type
+    val eventIcon = selectEventIcon(event)
+
+    // Stagger animation
+    var appeared by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(index * 50L)
+        appeared = true
+    }
+
+    val alpha by animateFloatAsState(
+        targetValue = if (appeared) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.8f),
+        label = "alpha"
+    )
+
+    val offsetY by animateFloatAsState(
+        targetValue = if (appeared) 0f else 20f,
+        animationSpec = spring(dampingRatio = 0.8f),
+        label = "offsetY"
+    )
+
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .graphicsLayer {
+                this.alpha = alpha
+                translationY = offsetY
+            },
+        shape = RoundedCornerShape(20.dp),
+        color = if (isHappeningNow) accentColor.copy(alpha = 0.08f) else surfaceColor,
+        border = if (isHappeningNow) {
+            androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
+        } else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Icon indicator
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isHappeningNow) accentColor.copy(alpha = 0.15f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = eventIcon,
+                    contentDescription = null,
+                    tint = if (isHappeningNow) accentColor else textMuted,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            // Center: Content
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = event.title,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    color = textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val timeText = when {
+                        event.isAllDay -> "All day"
+                        isHappeningNow -> "Now"
+                        else -> timeFormat.format(Date(event.startTime))
+                    }
+
+                    Text(
+                        text = timeText,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = if (isHappeningNow) FontWeight.Medium else FontWeight.Normal
+                        ),
+                        color = if (isHappeningNow) accentColor else textMuted
+                    )
+
+                    event.location?.takeIf { it.isNotBlank() }?.let { location ->
+                        Text(
+                            text = " · ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textMuted.copy(alpha = 0.5f)
+                        )
+                        Text(
+                            text = location,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textMuted.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            if (event.isRecurring) {
+                Icon(
+                    imageVector = Icons.Outlined.Loop,
+                    contentDescription = "Repeating",
+                    tint = textMuted.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Select appropriate icon based on event content
+ */
+private fun selectEventIcon(event: CalendarEvent): ImageVector {
+    val title = event.title.lowercase()
+    val location = event.location?.lowercase() ?: ""
+
+    return when {
+        title.contains("meet") || title.contains("call") || title.contains("sync") -> Icons.Outlined.Groups
+        title.contains("deadline") || title.contains("due") -> Icons.Outlined.Flag
+        title.contains("gym") || title.contains("workout") || title.contains("run") ||
+        title.contains("exercise") -> Icons.Outlined.FitnessCenter
+        title.contains("lunch") || title.contains("dinner") || title.contains("breakfast") ||
+        title.contains("coffee") -> Icons.Outlined.Restaurant
+        title.contains("flight") || title.contains("trip") || title.contains("travel") -> Icons.Outlined.Flight
+        title.contains("doctor") || title.contains("appointment") || title.contains("dentist") -> Icons.Outlined.LocalHospital
+        title.contains("birthday") || title.contains("party") || title.contains("celebration") -> Icons.Outlined.Celebration
+        title.contains("study") || title.contains("class") || title.contains("lecture") -> Icons.Outlined.School
+        title.contains("remind") -> Icons.Outlined.NotificationsActive
+        location.isNotBlank() -> Icons.Outlined.Place
+        event.isAllDay -> Icons.Outlined.CalendarToday
+        event.isRecurring -> Icons.Outlined.EventRepeat
+        else -> Icons.Outlined.Schedule
+    }
+}
+
+// ============ Helper Functions ============
+
+private fun generateWeekWindow(centerDate: Calendar): List<Calendar?> {
+    val days = mutableListOf<Calendar>()
+    val start = centerDate.clone() as Calendar
+    start.add(Calendar.DAY_OF_MONTH, -10)
+
+    repeat(21) { i ->
+        val day = start.clone() as Calendar
+        day.add(Calendar.DAY_OF_MONTH, i)
         days.add(day)
     }
 
-    // Pad to complete the last week
-    while (days.size % 7 != 0) {
-        days.add(null)
-    }
-
     return days
+}
+
+private fun filterEventsForDate(events: List<CalendarEvent>, date: Calendar): List<CalendarEvent> {
+    val dayStart = date.clone() as Calendar
+    dayStart.set(Calendar.HOUR_OF_DAY, 0)
+    dayStart.set(Calendar.MINUTE, 0)
+    dayStart.set(Calendar.SECOND, 0)
+    dayStart.set(Calendar.MILLISECOND, 0)
+
+    val dayEnd = dayStart.clone() as Calendar
+    dayEnd.add(Calendar.DAY_OF_MONTH, 1)
+
+    return events.filter { event ->
+        event.startTime < dayEnd.timeInMillis && event.endTime >= dayStart.timeInMillis
+    }.sortedBy { it.startTime }
+}
+
+private fun isSameDay(cal1: Calendar, cal2: Calendar): Boolean {
+    return cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR) &&
+           cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR)
+}
+
+private fun isSameDay(cal: Calendar, timestamp: Long): Boolean {
+    val other = Calendar.getInstance().apply { timeInMillis = timestamp }
+    return isSameDay(cal, other)
 }

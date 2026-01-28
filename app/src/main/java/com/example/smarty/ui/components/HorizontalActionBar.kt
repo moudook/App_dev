@@ -146,12 +146,12 @@ private fun RotaryNavigationDial(
 
     val density = LocalDensity.current
     
-    // Dynamic Radius Calculation (Linear increase with velocity)
-    // Base radius 160.dp, increases up to +30.dp based on rotation speed
+    // Dynamic Radius Calculation (Logarithmic increase with velocity)
+    // Base radius 160.dp, increases up to +60.dp based on rotation speed
+    // Higher sensitivity (0.5f) and larger max range to make the transition visually striking
     val currentVelocity = rotation.velocity
     val velocityFactor = abs(currentVelocity)
-    // Linear scaling: velocity * multiplier, capped at max
-    val dynamicRadiusAdd = (velocityFactor * 6f).coerceAtMost(30f).dp
+    val dynamicRadiusAdd = 60.dp * (1f - exp(-velocityFactor * 0.5f))
     val radiusPx = with(density) { (160.dp + dynamicRadiusAdd).toPx() }
 
     Box(

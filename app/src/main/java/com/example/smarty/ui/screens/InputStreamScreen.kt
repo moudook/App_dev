@@ -1205,13 +1205,15 @@ fun InputStreamScreen(
                             events = calendarEvents,
                             onEventClick = onEventClick,
                             onAddEvent = { selectedDate ->
-                                // Show inline add event dialog with selected date
+                                // Fallback if onCreateEvent not provided
                                 selectedDateForNewEvent = selectedDate
                                 showAddEventDialog = true
                             },
                             onDeleteEvent = onDeleteCalendarEvent,
                             contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            // Enable inline event creation (no popup)
+                            onCreateEvent = onCreateCalendarEvent
                         )
                     }
                     "chat" -> {
