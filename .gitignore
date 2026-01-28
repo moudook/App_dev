@@ -60,6 +60,7 @@ instructions.txt
 # Screenshot patterns (general)
 thread-*.png
 screenshot*.png
+*.png
 
 # ============================================
 # PROJECT-SPECIFIC DIRECTORIES

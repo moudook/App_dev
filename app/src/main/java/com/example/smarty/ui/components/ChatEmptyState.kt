@@ -122,115 +122,13 @@ private fun EmptyStateContainer(
  */
 @Composable
 fun ChatEmptyState(modifier: Modifier = Modifier) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val accentColor = if (isDark) Color(0xFFC2E8FF) else Color(0xFF007AFF) // SystemBlue for Light Mode visibility
-
     EmptyStateContainer(
         title = "Jarvis",
         subtitle = "",
         hint = null,
         modifier = modifier
     ) {
-        // LIFECYCLE AWARENESS: Check if animation should run
-        val shouldAnimate = shouldAnimationRun()
-
-        // Lifecycle-aware transition
-        val infiniteTransition = if (shouldAnimate) {
-            rememberInfiniteTransition(label = "cloud_breath")
-        } else null
-
-        val breathPhase by if (infiniteTransition != null) {
-            infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = TWO_PI_F,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(4000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "breath"
-            )
-        } else {
-            remember { mutableStateOf(0f) }
-        }
-
-        // Pre-compute all wave values - returns static when paused
-        val waveState by remember {
-            derivedStateOf {
-                if (!shouldAnimate) {
-                    ChatWaveState.DEFAULT
-                } else {
-                    val auraWave = fastSin(breathPhase)
-                    val cloudWave = fastSin(breathPhase + PI_F * 0.25f)
-                    val coreWave = fastSin(breathPhase)
-                    val beat = (coreWave + 1f) * 0.5f
-                    val floatY = 5f * fastSin(breathPhase * 0.5f)
-                    ChatWaveState(
-                        auraScale = 2.2f + auraWave * 0.1f,
-                        auraAlpha = (0.2f + auraWave * 0.05f).coerceIn(0f, 1f),
-                        cloudScale = 1.5f + cloudWave * 0.15f,
-                        cloudAlpha = (0.4f + cloudWave * 0.1f).coerceIn(0f, 1f),
-                        coreScale = 0.8f + beat * 0.2f,
-                        coreAlpha = (0.8f + beat * 0.2f).coerceIn(0f, 1f),
-                        floatY = floatY
-                    )
-                }
-            }
-        }
-
-        // Pre-computed brushes with FIXED maximum radius
-        val density = LocalDensity.current
-        val baseSizePx = remember(density) { with(density) { 50.dp.toPx() } }
-        val maxAuraRadius = baseSizePx * 2.4f
-
-        val auraBrush = remember(accentColor, maxAuraRadius) {
-            Brush.radialGradient(
-                colors = listOf(accentColor.copy(alpha = 0.5f), Color.Transparent),
-                radius = maxAuraRadius
-            )
-        }
-
-        val cloudBrush = remember(accentColor, baseSizePx) {
-            Brush.radialGradient(
-                colors = listOf(accentColor, accentColor.copy(alpha = 0.2f), Color.Transparent),
-                radius = baseSizePx * 1.8f
-            )
-        }
-
-        val coreBrush = remember(accentColor, baseSizePx) {
-            Brush.radialGradient(
-                colors = listOf(accentColor, accentColor.copy(alpha = 0.5f), Color.Transparent),
-                radius = baseSizePx * 1.1f
-            )
-        }
-
-        Canvas(modifier = Modifier.size(160.dp)) {
-            val center = this.center
-            val state = waveState
-
-            // 1. AURA LAYER - Outermost glow
-            drawCircle(
-                brush = auraBrush,
-                radius = baseSizePx * state.auraScale,
-                center = center,
-                alpha = state.auraAlpha
-            )
-
-            // 2. CLOUD LAYER - Middle ethereal layer
-            drawCircle(
-                brush = cloudBrush,
-                radius = baseSizePx * state.cloudScale,
-                center = center,
-                alpha = state.cloudAlpha
-            )
-
-            // 3. CORE LAYER - Inner soul with subtle float
-            drawCircle(
-                brush = coreBrush,
-                radius = baseSizePx * state.coreScale,
-                center = Offset(center.x, center.y + state.floatY),
-                alpha = state.coreAlpha
-            )
-        }
+        // Minimal empty state - no cloud animation
     }
 }
 
@@ -278,115 +176,12 @@ private data class ChatWaveState(
  */
 @Composable
 fun NotesEmptyState(modifier: Modifier = Modifier) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val accentColor = if (isDark) Color(0xFFC2E8FF) else Color(0xFF007AFF) // SystemBlue for Light Mode visibility
-
     EmptyStateContainer(
         title = "Hello, Moudook!",
         subtitle = "",
         hint = null,
     ) {
-        // ORIGINAL ANIMATION: Jarvistive Alignment (Restored)
-        // LIFECYCLE AWARENESS: Check if animation should run
-        val shouldAnimate = shouldAnimationRun()
-
-        // Lifecycle-aware transition
-        val infiniteTransition = if (shouldAnimate) {
-            rememberInfiniteTransition(label = "cloud_breath")
-        } else null
-
-        val breathPhase by if (infiniteTransition != null) {
-            infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = TWO_PI_F,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(4000, easing = LinearEasing),
-                    repeatMode = RepeatMode.Restart
-                ),
-                label = "breath"
-            )
-        } else {
-            remember { mutableStateOf(0f) }
-        }
-
-        // OPTIMIZATION: Pre-compute all wave values - returns static when paused
-        val waveState by remember {
-            derivedStateOf {
-                if (!shouldAnimate) {
-                    NotesWaveState.DEFAULT
-                } else {
-                    val auraWave = fastSin(breathPhase)
-                    val cloudWave = fastSin(breathPhase + PI_F * 0.25f)
-                    val coreWave = fastSin(breathPhase)
-                    val beat = (coreWave + 1f) * 0.5f
-                    val floatY = 5f * fastSin(breathPhase * 0.5f)
-                    NotesWaveState(
-                        auraScale = 2.2f + auraWave * 0.1f,
-                        auraAlpha = (0.2f + auraWave * 0.05f).coerceIn(0f, 1f),
-                        cloudScale = 1.5f + cloudWave * 0.15f,
-                        cloudAlpha = (0.4f + cloudWave * 0.1f).coerceIn(0f, 1f),
-                        coreScale = 0.8f + beat * 0.2f,
-                        coreAlpha = (0.8f + beat * 0.2f).coerceIn(0f, 1f),
-                        floatY = floatY
-                    )
-                }
-            }
-        }
-
-        // Pre-computed brushes with FIXED maximum radius
-        val density = LocalDensity.current
-        val baseSizePx = remember(density) { with(density) { 50.dp.toPx() } }
-        val maxAuraRadius = baseSizePx * 2.4f
-
-        val auraBrush = remember(accentColor, maxAuraRadius) {
-            Brush.radialGradient(
-                colors = listOf(accentColor.copy(alpha = 0.5f), Color.Transparent),
-                radius = maxAuraRadius
-            )
-        }
-
-        val cloudBrush = remember(accentColor, baseSizePx) {
-            Brush.radialGradient(
-                colors = listOf(accentColor, accentColor.copy(alpha = 0.2f), Color.Transparent),
-                radius = baseSizePx * 1.8f
-            )
-        }
-
-        val coreBrush = remember(accentColor, baseSizePx) {
-            Brush.radialGradient(
-                colors = listOf(accentColor, accentColor.copy(alpha = 0.5f), Color.Transparent),
-                radius = baseSizePx * 1.1f
-            )
-        }
-
-        Canvas(modifier = Modifier.size(160.dp)) {
-            val center = this.center
-            val state = waveState
-
-            // 1. AURA LAYER - Outermost glow
-            drawCircle(
-                brush = auraBrush,
-                radius = baseSizePx * state.auraScale,
-                center = center,
-                alpha = state.auraAlpha
-            )
-
-            // 2. CLOUD LAYER - Middle ethereal layer
-            drawCircle(
-                brush = cloudBrush,
-                radius = baseSizePx * state.cloudScale,
-                center = center,
-                alpha = state.cloudAlpha
-            )
-
-            // 3. CORE LAYER - Inner soul with subtle float
-            drawCircle(
-                brush = coreBrush,
-                radius = baseSizePx * state.coreScale,
-                center = Offset(center.x, center.y + state.floatY),
-                alpha = state.coreAlpha
-            )
-        }
+        // Minimal empty state - no cloud animation
     }
 }
 

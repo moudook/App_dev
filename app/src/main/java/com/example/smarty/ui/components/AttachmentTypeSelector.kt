@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,12 +29,12 @@ enum class AttachmentOption(
     val label: String,
     val icon: ImageVector
 ) {
-    IMAGE("Photo", Icons.Default.Image),
-    VIDEO("Video", Icons.Default.Videocam),
-    DOCUMENT("Doc", Icons.AutoMirrored.Filled.Article),
-    AUDIO("Audio", Icons.Default.Mic),
-    FILE("File", Icons.Default.Folder),
-    LINK("Link", Icons.Default.Link)
+    IMAGE("Photo", Icons.Default.BurstMode),        // Creative: Burst
+    VIDEO("Video", Icons.Default.SlowMotionVideo),  // Creative: Cinema
+    DOCUMENT("Doc", Icons.Default.Source),          // Creative: Source
+    AUDIO("Audio", Icons.Default.SpatialAudio),     // Creative: Spatial
+    FILE("File", Icons.Default.Attachment),         // Creative: Connection
+    LINK("Link", Icons.Default.Link)                // Creative: Link
 }
 
 /**

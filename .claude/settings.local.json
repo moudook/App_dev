@@ -143,7 +143,22 @@
       "Bash(\"/c/Users/gbust/AppData/Local/Android/Sdk/platform-tools/adb.exe\" devices)",
       "Bash(\"/c/Users/gbust/AppData/Local/Android/Sdk/platform-tools/adb.exe\" install -r /c/Users/gbust/Smarty/app/build/outputs/apk/debug/app-debug.apk)",
       "Bash(./gradlew.bat compileDebugKotlin:*)",
-      "Bash(git clean:*)"
+      "Bash(git clean:*)",
+      "Bash(Select-Object:*)",
+      "WebFetch(domain:fonts.google.com)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(dir /s /b:*)",
+      "WebFetch(domain:lottiefiles.com)",
+      "WebFetch(domain:www.nngroup.com)",
+      "WebFetch(domain:dribbble.com)",
+      "WebFetch(domain:www.smashingmagazine.com)",
+      "WebFetch(domain:uxdesign.cc)",
+      "WebFetch(domain:material.io)",
+      "WebFetch(domain:m2.material.io)",
+      "WebFetch(domain:bootcamp.uxdesign.cc)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.interaction-design.org)"
     ],
     "deny": []
   },

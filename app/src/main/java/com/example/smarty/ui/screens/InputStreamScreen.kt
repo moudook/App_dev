@@ -933,11 +933,6 @@ fun InputStreamScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background) // Base background
     ) {
-        // Dynamic Mesh Spill Background (header gradient)
-        MeshSpillEffect()
-
-
-        
         Scaffold(
         modifier = Modifier.imePadding(), // This handles keyboard
         snackbarHost = {
@@ -1819,86 +1814,5 @@ private fun SearchSuggestionsDropdown(
                 )
             }
     }
-    }
-}
-
-/**
- * Mesh Spill Effect: A subtle, cloud-like gradient background for both top and bottom.
- * Replicates the "ChatGPT" look with overlapping radial gradients.
- */
-@Composable
-internal fun MeshSpillEffect(modifier: Modifier = Modifier) {
-    val accentColor = LocalAccentColor.current
-    // Use Canvas to draw blurred circles at the top and bottom
-    androidx.compose.foundation.Canvas(
-        modifier = modifier
-            .fillMaxSize()
-            .graphicsLayer { alpha = 0.85f } // Slight transparency adjustment
-    ) {
-        // ══════════════════════════════════════════════════════════════
-        // TOP CIRCLES
-        // ══════════════════════════════════════════════════════════════
-        // Circle 1: Top Left - Larger, more diffuse with smooth multi-stop gradient
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.0f to accentColor.copy(alpha = 0.12f),
-                    0.2f to accentColor.copy(alpha = 0.10f),
-                    0.4f to accentColor.copy(alpha = 0.07f),
-                    0.6f to accentColor.copy(alpha = 0.04f),
-                    0.8f to accentColor.copy(alpha = 0.01f),
-                    1.0f to Color.Transparent
-                ),
-                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.2f, y = 0f),
-                radius = size.width * 1.0f
-            )
-        )
-        // Circle 2: Top Right - Softer highlight with smooth fade
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.0f to accentColor.copy(alpha = 0.10f),
-                    0.25f to accentColor.copy(alpha = 0.07f),
-                    0.5f to accentColor.copy(alpha = 0.04f),
-                    0.75f to accentColor.copy(alpha = 0.015f),
-                    1.0f to Color.Transparent
-                ),
-                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.8f, y = size.height * 0.1f),
-                radius = size.width * 0.9f
-            )
-        )
-
-        // ══════════════════════════════════════════════════════════════
-        // BOTTOM CIRCLES (Mirrored)
-        // ══════════════════════════════════════════════════════════════
-        // Circle 3: Bottom Right - Larger, more diffuse
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.0f to accentColor.copy(alpha = 0.12f),
-                    0.2f to accentColor.copy(alpha = 0.10f),
-                    0.4f to accentColor.copy(alpha = 0.07f),
-                    0.6f to accentColor.copy(alpha = 0.04f),
-                    0.8f to accentColor.copy(alpha = 0.01f),
-                    1.0f to Color.Transparent
-                ),
-                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.8f, y = size.height),
-                radius = size.width * 1.0f
-            )
-        )
-        // Circle 4: Bottom Left - Softer highlight with smooth fade
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.0f to accentColor.copy(alpha = 0.10f),
-                    0.25f to accentColor.copy(alpha = 0.07f),
-                    0.5f to accentColor.copy(alpha = 0.04f),
-                    0.75f to accentColor.copy(alpha = 0.015f),
-                    1.0f to Color.Transparent
-                ),
-                center = androidx.compose.ui.geometry.Offset(x = size.width * 0.2f, y = size.height * 0.9f),
-                radius = size.width * 0.9f
-            )
-        )
     }
 }

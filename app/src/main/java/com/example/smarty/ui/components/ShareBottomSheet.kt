@@ -151,7 +151,7 @@ fun ShareBottomSheet(
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
                         contentDescription = "Cancel",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
@@ -323,7 +323,7 @@ fun ShareBottomSheet(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Save,
+                        imageVector = Icons.Default.BookmarkAdded, // Creative: Keep
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
@@ -403,15 +403,15 @@ private fun SharePreviewCard(pendingShare: PendingShareData) {
 
 private fun getTypeIcon(type: NoteType): ImageVector {
     return when (type) {
-        NoteType.IMAGE -> Icons.Default.Photo
-        NoteType.VIDEO -> Icons.Default.Videocam
-        NoteType.AUDIO -> Icons.Default.MusicNote
-        NoteType.DOCUMENT -> Icons.AutoMirrored.Filled.Article
-        NoteType.YOUTUBE -> Icons.Default.PlayCircle
-        NoteType.WEBSITE -> Icons.Default.Link
-        NoteType.CODE -> Icons.Default.Code
-        NoteType.ARCHIVE -> Icons.Default.FolderZip
-        else -> Icons.Default.AttachFile
+        NoteType.IMAGE -> Icons.Default.BurstMode        // Creative: Burst
+        NoteType.VIDEO -> Icons.Default.SlowMotionVideo  // Creative: Cinema
+        NoteType.AUDIO -> Icons.Default.SpatialAudio     // Creative: Spatial
+        NoteType.DOCUMENT -> Icons.Default.Source        // Creative: Source
+        NoteType.YOUTUBE -> Icons.Default.SmartDisplay   // Creative: Display
+        NoteType.WEBSITE -> Icons.Default.Explore        // Creative: Compass
+        NoteType.CODE -> Icons.Default.DataObject        // Creative: Object
+        NoteType.ARCHIVE -> Icons.Default.AllInbox       // Creative: Vault
+        else -> Icons.Default.Attachment                 // Creative: Connection
     }
 }
 

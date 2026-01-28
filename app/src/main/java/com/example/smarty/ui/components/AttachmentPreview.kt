@@ -12,7 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -162,7 +162,7 @@ private fun AnimatedAttachmentChip(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.PlayCircle,
+                                imageVector = Icons.Default.SmartDisplay, // Creative: Display
                                 contentDescription = "Video",
                                 tint = MaterialTheme.colorScheme.surface,
                                 modifier = Modifier.size(32.dp)
@@ -196,7 +196,7 @@ private fun AnimatedAttachmentChip(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.MusicNote, // Or PlayArrow if playing
+                                imageVector = Icons.Default.SpatialAudio, // Creative: Spatial
                                 contentDescription = "Play",
                                 tint = androidx.compose.ui.graphics.Color.White,
                                 modifier = Modifier.fillMaxSize()
@@ -300,7 +300,7 @@ private fun AnimatedAttachmentChip(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
                     contentDescription = "Remove",
                     tint = MaterialTheme.colorScheme.surface,
                     modifier = Modifier.size(16.dp)
@@ -315,15 +315,15 @@ private fun AnimatedAttachmentChip(
  */
 private fun getAttachmentIcon(type: AttachmentType): ImageVector {
     return when (type) {
-        AttachmentType.IMAGE -> Icons.Default.Photo
-        AttachmentType.VIDEO -> Icons.Default.Videocam
-        AttachmentType.AUDIO -> Icons.Default.MusicNote
-        AttachmentType.DOCUMENT -> Icons.AutoMirrored.Filled.Article
-        AttachmentType.SPREADSHEET -> Icons.Default.TableChart
-        AttachmentType.PRESENTATION -> Icons.Default.Slideshow
-        AttachmentType.APK -> Icons.Default.Android
-        AttachmentType.ARCHIVE -> Icons.Default.FolderZip
-        AttachmentType.FILE -> Icons.Default.AttachFile
+        AttachmentType.IMAGE -> Icons.Default.BurstMode        // Creative: Burst
+        AttachmentType.VIDEO -> Icons.Default.SlowMotionVideo  // Creative: Cinema
+        AttachmentType.AUDIO -> Icons.Default.SpatialAudio     // Creative: Spatial
+        AttachmentType.DOCUMENT -> Icons.Default.Source        // Creative: Source
+        AttachmentType.SPREADSHEET -> Icons.Default.ViewKanban // Creative: Structured
+        AttachmentType.PRESENTATION -> Icons.Default.CoPresent // Creative: Sharing
+        AttachmentType.APK -> Icons.Default.SmartToy           // Creative: Bot
+        AttachmentType.ARCHIVE -> Icons.Default.AllInbox       // Creative: Vault
+        AttachmentType.FILE -> Icons.Default.Attachment        // Creative: Connection
     }
 }
 

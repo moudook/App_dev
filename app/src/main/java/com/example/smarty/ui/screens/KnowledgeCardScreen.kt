@@ -163,8 +163,6 @@ fun KnowledgeCardScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        MeshSpillEffect()
-        
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -231,7 +229,7 @@ fun KnowledgeCardScreen(
                         if (isEditing || note.summary != null) {
                             SectionCard(
                                 title = if (isEditing) "" else if (showChunkAnalyses) "Per-Page Analysis" else summaryTitle,
-                                icon = Icons.Outlined.Psychology,
+                                icon = Icons.Outlined.AutoAwesome, // Creative: Sparkles/Insight
                                 inlineLayout = isInlineMode && !hasChunks,
                                 onIconClick = if (hasChunks && !isEditing) {
                                     { showChunkAnalyses = !showChunkAnalyses }
@@ -312,7 +310,7 @@ fun KnowledgeCardScreen(
                                                     ) {
                                                         Box(contentAlignment = Alignment.Center) {
                                                             Icon(
-                                                                imageVector = Icons.Outlined.Psychology,
+                                                                imageVector = Icons.Outlined.AutoAwesome, // Creative: Sparkles
                                                                 contentDescription = null,
                                                                 tint = LocalAccentColor.current,
                                                                 modifier = Modifier.size(18.dp)
@@ -386,7 +384,7 @@ fun KnowledgeCardScreen(
                              // Fallback only if not editing and no summary
                              SectionCard(
                                 title = "",
-                                icon = Icons.Outlined.Psychology
+                                icon = Icons.Outlined.AutoAwesome // Creative: Sparkles
                             ) {
                                 Text(
                                     text = "No summary available for this item.",
@@ -402,7 +400,7 @@ fun KnowledgeCardScreen(
                             val isWhySavedInline = !isEditing
                             SectionCard(
                                 title = "",
-                                icon = Icons.Outlined.BookmarkBorder,
+                                icon = Icons.Outlined.StarBorder, // Creative: Star/Importance
                                 accentColor = LocalAccentColor.current,
                                 inlineLayout = isWhySavedInline
                             ) {
@@ -445,7 +443,7 @@ fun KnowledgeCardScreen(
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         Icon(
-                                                            imageVector = Icons.Outlined.BookmarkBorder,
+                                                            imageVector = Icons.Outlined.StarBorder, // Creative: Star
                                                             contentDescription = null,
                                                             tint = LocalAccentColor.current,
                                                             modifier = Modifier.size(18.dp)
@@ -527,7 +525,7 @@ fun KnowledgeCardScreen(
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Icon(
-                                        imageVector = Icons.Outlined.AttachFile,
+                                        imageVector = Icons.Outlined.Link, // Creative: Connection
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                                         modifier = Modifier.size(48.dp)
@@ -585,7 +583,7 @@ fun KnowledgeCardScreen(
                         // Original Content
                         SectionCard(
                             title = "",
-                            icon = Icons.AutoMirrored.Outlined.Article,
+                            icon = Icons.Outlined.Source, // Creative: Source/Origin
                             forceVertical = true
                         ) {
                             if (isEditing) {
@@ -1599,7 +1597,7 @@ private fun EditNoteSheet(
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Close,
+                                        imageVector = Icons.Default.HighlightOff,
                                         contentDescription = "Remove attachment",
                                         tint = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.size(18.dp)
@@ -1734,7 +1732,7 @@ private fun VersionHistorySheet(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Info,
+                            imageVector = Icons.Default.AutoStories,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.size(48.dp)

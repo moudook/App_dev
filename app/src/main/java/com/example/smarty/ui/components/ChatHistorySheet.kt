@@ -9,9 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.ChatBubble
-import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -192,10 +191,10 @@ private fun ChatSessionItem(
                 // Smart Icon Logic
                 val icon = when {
                     isNewChat -> Icons.Rounded.AutoAwesome // Sparkle for new/AI start
-                    isSelected -> Icons.Rounded.ChatBubble
-                    else -> Icons.Rounded.ChatBubbleOutline
+                    isSelected -> Icons.Rounded.AutoAwesome // Active AI
+                    else -> Icons.Outlined.Psychology // Brain for history
                 }
-                
+
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
@@ -260,7 +259,7 @@ private fun ChatSessionItem(
                 contentAlignment = Alignment.Center
             ) {
                  Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = Icons.Default.Whatshot, // Metaphor: Fire
                     contentDescription = "Delete",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.size(14.dp)

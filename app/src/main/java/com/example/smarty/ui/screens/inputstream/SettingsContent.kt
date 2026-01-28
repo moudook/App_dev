@@ -139,14 +139,14 @@ fun SettingsContent(
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = accentColor.copy(alpha = 0.1f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
+                            color = Color(0xFF2196F3).copy(alpha = 0.1f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2196F3).copy(alpha = 0.3f))
                         ) {
                             Text(
                                 text = "ACTIVE",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = accentColor
+                                color = Color(0xFF2196F3)
                             )
                         }
                     }
@@ -186,16 +186,20 @@ fun SettingsContent(
         item {
             SettingsCard {
                 SettingsItem(
-                    icon = Icons.Outlined.Psychology,
+                    icon = Icons.Filled.AutoAwesome, // Metaphor: Constellation/Sparkles
                     label = "AI Memory",
                     value = if (aiMemories.isEmpty()) null else "${aiMemories.size}",
-                    onClick = { showAIMemorySheet = true }
+                    onClick = { showAIMemorySheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                  SettingsItem(
-                    icon = Icons.Outlined.Payments, // Using Payments for "Subscription & Billing" lookalike or Data
+                    icon = Icons.Filled.Anchor, // Metaphor: Anchor (Security/Grounding)
                     label = "Backup & Sync",
                     onClick = { showBackupSheet = true },
-                    showDivider = false
+                    showDivider = false,
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
             }
         }
@@ -204,24 +208,30 @@ fun SettingsContent(
         item {
             SettingsCard {
                 SettingsSwitch(
-                    icon = Icons.Outlined.DarkMode,
+                    icon = Icons.Filled.Contrast, // Metaphor: Eclipse (Light/Dark interplay)
                     label = "Dark Mode",
                     checked = isDarkTheme,
-                    onCheckedChange = onToggleTheme
+                    onCheckedChange = onToggleTheme,
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                 SettingsItem(
-                    icon = Icons.Outlined.Archive,
+                    icon = Icons.Filled.AllInbox, // Metaphor: Vault (Secure storage)
                     label = "Archives",
-                    onClick = { showArchiveSheet = true }
+                    onClick = { showArchiveSheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                  SettingsItem(
-                    icon = Icons.Outlined.Vibration,
+                    icon = Icons.Filled.Waves, // Metaphor: Seismograph (Motion)
                     label = "Shake Sensitivity",
                     value = if (shakeSensitivity < 0.3f) "Low" else if (shakeSensitivity < 0.7f) "Med" else "High",
-                    onClick = { showShakeSensitivitySheet = true }
+                    onClick = { showShakeSensitivitySheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                 SettingsItem(
-                    icon = Icons.Outlined.Assistant,
+                    icon = Icons.Filled.Explore, // Metaphor: Compass (Navigation/Guide)
                     label = "Default Assistant",
                     onClick = {
                          try {
@@ -234,27 +244,31 @@ fun SettingsContent(
                             } catch (_: Exception) {}
                         }
                     },
-                    showDivider = false
+                    showDivider = false,
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
             }
         }
-        
+
         // --- GROUP 3: SYSTEM ---
         item {
             SettingsCard {
                 SettingsItem(
-                    icon = Icons.Outlined.CleaningServices,
+                    icon = Icons.Filled.Whatshot, // Metaphor: Fire (Purge/Cleanse)
                     label = "Clear Cache",
                     value = formatCacheSize(cacheSizeBytes),
                     onClick = onClearCache,
-                    enabled = !isClearingCache && cacheSizeBytes > 0
+                    enabled = !isClearingCache && cacheSizeBytes > 0,
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                  SettingsItem(
-                    icon = Icons.AutoMirrored.Outlined.Logout,
+                    icon = Icons.Filled.NoAccounts, // Metaphor: Ghost (Leaving the body/machine)
                     label = "Sign Out",
                     onClick = onSignOut,
                     textColor = MaterialTheme.colorScheme.error,
-                    iconColor = MaterialTheme.colorScheme.error,
+                    iconColor = MaterialTheme.colorScheme.error, // Keep red for destructive
                     showChevron = false,
                     showDivider = false
                 )
@@ -375,13 +389,13 @@ fun SettingsContent(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.1f)),
+                        .background(Color(0xFF2196F3).copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Vibration,
                         contentDescription = null,
-                        tint = accentColor,
+                        tint = Color(0xFF2196F3),
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -497,6 +511,7 @@ private fun SettingsItem(
     value: String? = null,
     textColor: Color = MaterialTheme.colorScheme.onSurface,
     iconColor: Color = MaterialTheme.colorScheme.onSurface,
+    containerColor: Color = Color.Transparent, // Default to transparent if not specified
     showChevron: Boolean = true,
     showDivider: Boolean = false,
     enabled: Boolean = true
@@ -506,15 +521,24 @@ private fun SettingsItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(enabled = enabled, onClick = onClick)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp), // Slightly adjusted vertical padding
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (enabled) iconColor else iconColor.copy(alpha = 0.4f),
-                modifier = Modifier.size(24.dp)
-            )
+            // Creative Icon Container using Squircle (RoundedCorner)
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp)) // Modern squircle shape
+                    .background(if (enabled && containerColor != Color.Transparent) containerColor else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (enabled) iconColor else iconColor.copy(alpha = 0.4f),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
             
             Spacer(modifier = Modifier.width(16.dp))
             
@@ -547,7 +571,7 @@ private fun SettingsItem(
         }
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(start = 56.dp, end = 20.dp),
+                modifier = Modifier.padding(start = 78.dp, end = 20.dp), // Adjusted start padding for larger icon
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
             )
         }
@@ -560,6 +584,8 @@ private fun SettingsSwitch(
     label: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    iconColor: Color = MaterialTheme.colorScheme.onSurface,
+    containerColor: Color = Color.Transparent,
     showDivider: Boolean = false
 ) {
     val accentColor = LocalAccentColor.current
@@ -572,12 +598,21 @@ private fun SettingsSwitch(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(24.dp)
-            )
+             // Creative Icon Container
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (containerColor != Color.Transparent) containerColor else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
             
             Spacer(modifier = Modifier.width(16.dp))
             
@@ -595,7 +630,7 @@ private fun SettingsSwitch(
                 onCheckedChange = onCheckedChange,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
-                    checkedTrackColor = accentColor,
+                    checkedTrackColor = iconColor,
                     uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     uncheckedBorderColor = Color.Transparent
@@ -605,7 +640,7 @@ private fun SettingsSwitch(
         }
         if (showDivider) {
             HorizontalDivider(
-                modifier = Modifier.padding(start = 56.dp, end = 20.dp),
+                modifier = Modifier.padding(start = 78.dp, end = 20.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
             )
         }

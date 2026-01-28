@@ -18,15 +18,17 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.FileCopy
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.ContentPasteGo
+import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Launch
 import androidx.compose.ui.zIndex
 import androidx.compose.material3.HorizontalDivider
 import com.example.smarty.ui.theme.softCardShadow
@@ -419,7 +421,7 @@ fun ChatMessageItem(
 
                 // Right side: Copy button (always on right edge)
                 Icon(
-                    imageVector = if (showCopied) Icons.Default.Check else Icons.Outlined.ContentCopy,
+                    imageVector = if (showCopied) Icons.Default.Verified else Icons.Default.FileCopy, // Creative: Verified/Copy
                     contentDescription = "Copy",
                     modifier = Modifier
                         .size(IconSize.small)
@@ -466,7 +468,7 @@ private fun CitationsInline(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.AutoAwesome,
+                imageVector = Icons.Default.AutoStories, // Creative: Magic Book/Sources
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(14.dp)
@@ -651,7 +653,7 @@ private fun SourceCard(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                    imageVector = Icons.AutoMirrored.Filled.Launch,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.size(16.dp)
@@ -672,7 +674,7 @@ private fun SourceCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Link,
+                            imageVector = Icons.Default.Language, // Creative: Web/Globe
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(12.dp)
@@ -723,10 +725,10 @@ private fun ActionResultChip(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = if (success) Icons.Default.Check else Icons.Default.Error,
+                    imageVector = if (success) Icons.Default.Verified else Icons.Default.GppBad, // Creative: Success/Warning
                     contentDescription = null,
                     modifier = Modifier.size(IconSize.micro),
-                    tint = if (success) Color(0xFF2E7D32) else Color(0xFFC62828)
+                    tint = if (success) Color(0xFF2E7D32) else androidx.compose.ui.graphics.Color(0xFFFF4D00)
                 )
             }
         }
@@ -1013,7 +1015,7 @@ private fun ClarificationBubble(
                                     }
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Check,
+                                        imageVector = Icons.AutoMirrored.Filled.Send, // Creative: Submit
                                         contentDescription = "Submit",
                                         tint = accentColor
                                     )

@@ -17,10 +17,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.AlternateEmail
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -163,7 +164,7 @@ fun LoginScreen(
                         onValueChange = { email = it; viewModel.clearError() },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Email") },
-                        leadingIcon = { Icon(Icons.Default.Email, null) },
+                        leadingIcon = { Icon(Icons.Default.AlternateEmail, null) },
                         singleLine = true,
                         enabled = !isLoading,
                         isError = error != null,
@@ -187,7 +188,7 @@ fun LoginScreen(
                         onValueChange = { password = it; viewModel.clearError() },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Password") },
-                        leadingIcon = { Icon(Icons.Default.Lock, null) },
+                        leadingIcon = { Icon(Icons.Default.VpnKey, null) },
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Icon(

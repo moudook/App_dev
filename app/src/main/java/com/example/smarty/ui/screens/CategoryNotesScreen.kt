@@ -10,9 +10,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.QrCode2
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -82,7 +82,7 @@ fun CategoryNotesScreen(
                     // QR Code button
                     IconButton(onClick = { showQRDialog = true }) {
                         Icon(
-                            imageVector = Icons.Default.QrCode2,
+                            imageVector = Icons.Default.QrCodeScanner, // Creative: Scan
                             contentDescription = "Show QR Code",
                             tint = LocalAccentColor.current
                         )
@@ -101,7 +101,7 @@ fun CategoryNotesScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Share,
+                            imageVector = Icons.Default.RocketLaunch, // Creative: Launch
                             contentDescription = "Share Category"
                         )
                     }
@@ -268,7 +268,7 @@ private fun QRCodeDialog(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Share,
+                            imageVector = Icons.Default.RocketLaunch, // Creative: Launch
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )

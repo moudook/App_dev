@@ -21,10 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Topic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -114,7 +112,7 @@ fun StacksScreen(
                 contentColor = MaterialTheme.colorScheme.surface
             ) {
                 Icon(
-                    imageVector = Icons.Default.Add,
+                    imageVector = Icons.Default.AutoAwesome,
                     contentDescription = "Create Category"
                 )
             }
@@ -295,7 +293,7 @@ private fun CategoryCard(
 
                 // Icon (Top Right)
                 Icon(
-                    imageVector = Icons.Default.Folder, // Or a decorative quote icon if preferred
+                    imageVector = Icons.Default.Topic, // Creative: Topic
                     contentDescription = null,
                     tint = textColor.copy(alpha = 0.8f),
                     modifier = Modifier.size(22.dp)

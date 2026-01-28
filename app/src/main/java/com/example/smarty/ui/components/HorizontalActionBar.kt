@@ -28,23 +28,24 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
+import kotlinx.coroutines.launch
 import kotlin.math.*
 
 /**
  * Navigation tabs for the centralized UI.
- * Icons redesigned for uniqueness and resource optimization.
+ * Icons designed with psychological metaphors to trigger creativity.
  */
 enum class NavigationTab(
     val icon: ImageVector,
     val label: String,
     val opensSheet: Boolean = false
 ) {
-    CHAT(Icons.Rounded.Psychology, "Chat"),           // Brain - AI thinking
-    NOTES(Icons.Rounded.EditNote, "Note"),            // Edit note - writing
-    CALENDAR(Icons.Rounded.EventNote, "Calendar", opensSheet = true),  // Event note
-    STACKS(Icons.Rounded.Layers, "Stacks", opensSheet = true),         // Layers - stacked items
-    ARCHIVE(Icons.Rounded.Inventory2, "Archive", opensSheet = true),   // Box - stored items
-    SETTINGS(Icons.Rounded.Tune, "Settings", opensSheet = true)        // Sliders - tuning
+    CHAT(Icons.Outlined.Psychology, "Chat"),           // Brain - AI intelligence & thinking
+    NOTES(Icons.Outlined.Create, "Note"),              // Creation - artistic expression
+    CALENDAR(Icons.Outlined.Explore, "Calendar", opensSheet = true),  // Compass - journey through time
+    STACKS(Icons.Outlined.Hub, "Stacks", opensSheet = true),          // Hub - interconnected ideas
+    ARCHIVE(Icons.Outlined.AutoStories, "Archive", opensSheet = true), // Stories - collected memories
+    SETTINGS(Icons.Outlined.DisplaySettings, "Settings", opensSheet = true) // Display with controls - system tuning
 }
 
 /**
@@ -144,7 +145,14 @@ private fun RotaryNavigationDial(
     }
 
     val density = LocalDensity.current
-    val radiusPx = with(density) { 160.dp.toPx() } // Arc radius
+    
+    // Dynamic Radius Calculation (Logarithmic increase with velocity)
+    // Base radius 160.dp, increases up to +30.dp based on rotation speed
+    val currentVelocity = rotation.velocity
+    val velocityFactor = abs(currentVelocity)
+    // Formula: 30 * (1 - e^(-0.2 * v)) -> Asymptotic approach to max
+    val dynamicRadiusAdd = 30.dp * (1f - exp(-velocityFactor * 0.2f))
+    val radiusPx = with(density) { (160.dp + dynamicRadiusAdd).toPx() }
 
     Box(
         modifier = Modifier
@@ -184,6 +192,9 @@ private fun RotaryNavigationDial(
                                     stiffness = Spring.StiffnessLow
                                 )
                             )
+                            
+                            // Ensure precise landing for selection
+                            rotation.snapTo(targetIndex.toFloat())
 
                             // Update selection
                             val finalIndex = ((targetIndex % tabCount) + tabCount) % tabCount
@@ -243,10 +254,12 @@ private fun RotaryNavigationDial(
             if (opacity > 0.01f) {
                 val icon = when {
                     tab == NavigationTab.CHAT && isHistoryMode -> Icons.Outlined.History
-                    tab == NavigationTab.CALENDAR && isCalendarMode -> Icons.Filled.EventNote
-                    tab == NavigationTab.STACKS && isStacksMode -> Icons.Filled.Layers
-                    tab == NavigationTab.ARCHIVE && isArchiveMode -> Icons.Filled.Inventory2
-                    tab == NavigationTab.SETTINGS && isSettingsMode -> Icons.Filled.Tune
+                    tab == NavigationTab.CHAT && selectedTab == NavigationTab.CHAT -> Icons.Filled.Psychology
+                    tab == NavigationTab.NOTES && selectedTab == NavigationTab.NOTES -> Icons.Filled.Create
+                    tab == NavigationTab.CALENDAR && (isCalendarMode || selectedTab == NavigationTab.CALENDAR) -> Icons.Filled.Explore
+                    tab == NavigationTab.STACKS && (isStacksMode || selectedTab == NavigationTab.STACKS) -> Icons.Filled.Hub
+                    tab == NavigationTab.ARCHIVE && (isArchiveMode || selectedTab == NavigationTab.ARCHIVE) -> Icons.Filled.AutoStories
+                    tab == NavigationTab.SETTINGS && (isSettingsMode || selectedTab == NavigationTab.SETTINGS) -> Icons.Filled.DisplaySettings
                     else -> tab.icon
                 }
 
@@ -257,6 +270,7 @@ private fun RotaryNavigationDial(
                             val y = (radiusPx * sin(angle) - radiusPx - 24.dp.toPx()).toInt()
                             IntOffset(x, y)
                         }
+
                         .graphicsLayer {
                             this.alpha = opacity
                             this.scaleX = scale

@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,7 +27,7 @@ import com.example.smarty.ui.theme.SafetyOrange
  *
  * This replaces the full-page overlay approach - archive is shown in the same
  * layer as note cards, behind the gradient input field.
- * 
+ *
  * Fully functional: Delete notes permanently, unarchive notes (restore to main).
  * Uses swipe gestures on NoteCard: swipe right = delete, swipe left = unarchive.
  */
@@ -67,7 +67,7 @@ fun ArchiveContent(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Archive,
+                            imageVector = Icons.Default.Inventory2, // Creative: Vault
                             contentDescription = null,
                             modifier = Modifier.size(56.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)

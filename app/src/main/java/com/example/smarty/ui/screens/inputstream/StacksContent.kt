@@ -11,8 +11,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -96,7 +96,7 @@ fun StacksContent(
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
-                                Icons.Default.Add,
+                                Icons.Default.AutoAwesome, // Creative: Burst
                                 contentDescription = "Create Category",
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
@@ -120,7 +120,7 @@ fun StacksContent(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Folder,
+                                imageVector = Icons.Default.Category, // Creative: Topic
                                 contentDescription = null,
                                 modifier = Modifier.size(56.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -313,7 +313,7 @@ private fun InlineCategoryCard(
                 }
                 
                 Icon(
-                    imageVector = Icons.Default.Folder,
+                    imageVector = Icons.Default.Category, // Creative: Topic
                     contentDescription = null,
                     tint = textColor.copy(alpha = 0.6f),
                     modifier = Modifier.size(18.dp)

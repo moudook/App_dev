@@ -29,22 +29,15 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -304,7 +297,7 @@ fun JarvisInputField(
                 contentAlignment = Alignment.Center
             ) {
                 Surface(
-                    modifier = Modifier.clickable { 
+                    modifier = Modifier.clickable {
                         if (isHistoryMode) onNewChat() else onOpenChatHistory()
                     },
                     shape = CircleShape,
@@ -315,7 +308,7 @@ fun JarvisInputField(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = if (isHistoryMode) Icons.Default.Add else Icons.Default.ChatBubble,
+                            imageVector = if (isHistoryMode) Icons.Default.AutoAwesome else Icons.Default.AutoAwesome, // Sparkles for AI
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(14.dp)
@@ -468,10 +461,10 @@ fun JarvisInputField(
                 
                 // Thinking Mode Toggle Button (for reasoning models like Falcon-H1R-7B)
                 ActionCircle(
-                    icon = if (isThinkingModeEnabled) Icons.Default.Psychology else Icons.Outlined.Bolt,
-                    contentDescription = if (isThinkingModeEnabled) 
-                        "Thinking mode ON - Tap to disable" 
-                    else 
+                    icon = if (isThinkingModeEnabled) Icons.Default.Lightbulb else Icons.Outlined.Bolt,
+                    contentDescription = if (isThinkingModeEnabled)
+                        "Thinking mode ON - Tap to disable"
+                    else
                         "Thinking mode OFF - Tap to enable",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -487,7 +480,7 @@ fun JarvisInputField(
                 
                 // File Attachment Circle
                 ActionCircle(
-                    icon = Icons.Default.Add,
+                    icon = Icons.Default.AttachFile, // Metaphor: Connection
                     contentDescription = "Attach File",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -508,7 +501,7 @@ fun JarvisInputField(
 
                 // Search Circle
                 ActionCircle(
-                    icon = Icons.Default.Search,
+                    icon = Icons.Default.TravelExplore, // Metaphor: Compass
                     contentDescription = "Search",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -893,7 +886,7 @@ private fun InputPill(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward, // Use ArrowForward (->)
+                                imageVector = Icons.Filled.RocketLaunch, // Creative: Launch
                                 contentDescription = "Send",
                                 tint = Color.White.copy(alpha = flyAlpha), // White for contrast against accent background
                                 modifier = Modifier

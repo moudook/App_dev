@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -72,7 +72,7 @@ fun DataManagementSection(
         DataManagementRow(
             title = "Backup & Sync",
             subtitle = formatBackupTime(lastBackupTime),
-            icon = Icons.Default.CloudUpload,
+            icon = Icons.Default.Anchor, // Creative: Anchor
             onClick = onBackupClick
         )
 
@@ -80,7 +80,7 @@ fun DataManagementSection(
         DataManagementRow(
             title = "Google Calendar Sync",
             subtitle = formatCalendarSyncTime(lastCalendarSyncTime),
-            icon = Icons.Default.CalendarMonth,
+            icon = Icons.Default.Event, // Creative: Event
             onClick = onCalendarSync
         )
 
@@ -88,7 +88,7 @@ fun DataManagementSection(
         DataManagementRow(
             title = "Archive",
             subtitle = "View archived notes",
-            icon = Icons.Default.Archive,
+            icon = Icons.Default.AllInbox, // Creative: Vault/Inbox
             onClick = onArchiveClick
         )
 
@@ -104,7 +104,7 @@ fun DataManagementSection(
             DataManagementRow(
                 title = "Export Data",
                 subtitle = "Export all notes and settings",
-                icon = Icons.Default.Download,
+                icon = Icons.Default.Output, // Creative: Output
                 onClick = onExportClick
             )
         }
@@ -170,7 +170,7 @@ private fun DataManagementRow(
             }
 
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.TrendingFlat,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(20.dp)
@@ -209,7 +209,7 @@ private fun ClearCacheRow(
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
-                    imageVector = Icons.Default.DeleteSweep,
+                    imageVector = Icons.Default.Whatshot, // Creative: Fire
                     contentDescription = null,
                     tint = if (enabled) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.size(20.dp)
@@ -238,7 +238,7 @@ private fun ClearCacheRow(
                 )
             } else {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Filled.TrendingFlat,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.size(20.dp)
@@ -360,7 +360,7 @@ fun BackupOptionsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
+                        imageVector = Icons.Default.Verified,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(24.dp)

@@ -253,7 +253,7 @@ fun ProviderSection(
                             elevation = ButtonDefaults.buttonElevation(0.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Add,
+                                imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -370,7 +370,7 @@ private fun ModelSelector(
                         leadingIcon = {
                             if (modelId == selectedModel) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
+                                    imageVector = Icons.Default.Verified,
                                     contentDescription = null,
                                     tint = LocalAccentColor.current,
                                     modifier = Modifier.size(18.dp)
@@ -491,7 +491,7 @@ fun ApiKeyItem(
                             )
                         } else {
                             Icon(
-                                imageVector = Icons.Default.PlayArrow,
+                                imageVector = Icons.Default.Science, // Creative: Experiment/Test
                                 contentDescription = "Test",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
@@ -503,7 +503,7 @@ fun ApiKeyItem(
                     if (!isEditing) {
                         IconButton(onClick = onStartEdit, modifier = Modifier.size(32.dp)) {
                             Icon(
-                                imageVector = Icons.Default.Edit,
+                                imageVector = Icons.Default.DesignServices, // Creative: Design/Edit
                                 contentDescription = "Edit",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
@@ -514,7 +514,7 @@ fun ApiKeyItem(
                     // Delete button
                     IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.Delete,
+                            imageVector = Icons.Default.Whatshot, // Creative: Fire/Delete
                             contentDescription = "Remove",
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                             modifier = Modifier.size(16.dp)
@@ -564,7 +564,7 @@ private fun KeyHealthBadge(status: KeyHealthStatus) {
     val (color, icon, text) = when (status) {
         KeyHealthStatus.HEALTHY -> Triple(
             LocalAccentColor.current,
-            Icons.Default.CheckCircle,
+            Icons.Default.Verified,
             "OK"
         )
         KeyHealthStatus.RATE_LIMITED -> Triple(
@@ -579,7 +579,7 @@ private fun KeyHealthBadge(status: KeyHealthStatus) {
         )
         KeyHealthStatus.ERROR -> Triple(
             SafetyOrange,
-            Icons.Default.Error,
+            Icons.Default.Shield, // Creative: Shield/Protection
             "Error"
         )
         KeyHealthStatus.COOLDOWN -> Triple(
@@ -725,7 +725,7 @@ private fun ApiKeyEditMode(
         )
         IconButton(onClick = onSaveEdit) {
             Icon(
-                imageVector = Icons.Default.Check,
+                imageVector = Icons.Default.Verified,
                 contentDescription = "Save",
                 tint = LocalAccentColor.current,
                 modifier = Modifier.size(18.dp)
@@ -733,7 +733,7 @@ private fun ApiKeyEditMode(
         }
         IconButton(onClick = onCancelEdit) {
             Icon(
-                imageVector = Icons.Default.Close,
+                imageVector = Icons.Default.HighlightOff,
                 contentDescription = "Cancel",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
@@ -783,7 +783,7 @@ private fun TestResultIndicator(isValid: Boolean) {
         modifier = Modifier.padding(top = 4.dp)
     ) {
         Icon(
-            imageVector = if (isValid) Icons.Default.CheckCircle else Icons.Default.Error,
+            imageVector = if (isValid) Icons.Default.Verified else Icons.Default.GppBad,
             contentDescription = null,
             tint = if (isValid) LocalAccentColor.current else SafetyOrange,
             modifier = Modifier.size(14.dp)

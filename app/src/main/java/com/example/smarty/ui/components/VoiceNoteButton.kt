@@ -24,10 +24,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -131,7 +131,7 @@ private fun MicButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Default.Mic,
+            imageVector = Icons.Default.GraphicEq, // Creative: Voice Wave
             contentDescription = "Record voice note",
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.size(24.dp)
@@ -190,7 +190,7 @@ private fun RecordingInterface(
                 modifier = Modifier.size(40.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
                     contentDescription = "Cancel recording",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -234,7 +234,7 @@ private fun RecordingInterface(
                     .background(MaterialTheme.colorScheme.primary)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Check,
+                    imageVector = Icons.Default.Verified, // Creative: Verified
                     contentDescription = "Stop and save recording",
                     tint = MaterialTheme.colorScheme.onPrimary
                 )
@@ -353,7 +353,7 @@ fun VoiceRecordingOverlay(
                         .background(MaterialTheme.colorScheme.errorContainer)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
                         contentDescription = "Cancel",
                         tint = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.size(28.dp)
@@ -391,9 +391,9 @@ fun VoiceRecordingOverlay(
                 ) {
                     Icon(
                         imageVector = if (state is VoiceNoteRecorder.RecordingState.Recording) {
-                            Icons.Default.Stop
+                            Icons.Default.StopCircle // Creative: Stop
                         } else {
-                            Icons.Default.Mic
+                            Icons.Default.GraphicEq // Creative: Mic
                         },
                         contentDescription = if (state is VoiceNoteRecorder.RecordingState.Recording) {
                             "Stop recording"
@@ -422,7 +422,7 @@ fun VoiceRecordingOverlay(
                             .background(MaterialTheme.colorScheme.primaryContainer)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Check,
+                            imageVector = Icons.Default.Verified, // Creative: Verified
                             contentDescription = "Save recording",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(28.dp)
@@ -497,7 +497,7 @@ private fun LargeAmplitudeVisualizer(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Mic,
+                imageVector = Icons.Default.GraphicEq, // Creative: Mic
                 contentDescription = null,
                 tint = if (isRecording) {
                     MaterialTheme.colorScheme.error

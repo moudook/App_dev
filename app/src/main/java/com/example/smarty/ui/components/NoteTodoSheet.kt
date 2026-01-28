@@ -135,7 +135,7 @@ fun NoteTodoSheet(
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Close,
+                            imageVector = Icons.Default.HighlightOff,
                             contentDescription = "Close",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
@@ -349,7 +349,7 @@ fun NoteTodoSheet(
                             }
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Add,
+                                imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = "Add",
                                 tint = LocalAccentColor.current
                             )
@@ -442,7 +442,7 @@ private fun TodoItemRow(
         ) {
             // Animated checkmark
             Icon(
-                imageVector = Icons.Default.Check,
+                imageVector = Icons.Default.Verified,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.surface,
                 modifier = Modifier
@@ -482,7 +482,7 @@ private fun TodoItemRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Close,
+                imageVector = Icons.Default.Whatshot,
                 contentDescription = "Remove task",
                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)

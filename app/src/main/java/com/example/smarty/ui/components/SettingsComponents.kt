@@ -145,7 +145,7 @@ fun CategoryActionsMenu(
                 )
             }
         )
-        
+
         DropdownMenuItem(
             text = { Text("Edit") },
             onClick = {
@@ -154,21 +154,21 @@ fun CategoryActionsMenu(
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Default.Edit,
+                    imageVector = Icons.Default.DesignServices, // Creative: Design
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         )
-        
+
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-        
+
         DropdownMenuItem(
-            text = { 
+            text = {
                 Text(
                     "Delete",
                     color = MaterialTheme.colorScheme.error
-                ) 
+                )
             },
             onClick = {
                 onDelete()
@@ -176,7 +176,7 @@ fun CategoryActionsMenu(
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Default.DeleteForever,
+                    imageVector = Icons.Default.Whatshot, // Creative: Fire
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error
                 )

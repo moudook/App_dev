@@ -296,7 +296,7 @@ fun EditEventSheet(
 
                 // All Day Toggle
                 EditDarkFormRow(
-                    icon = Icons.Default.WbSunny,
+                    icon = Icons.Default.WbSunny, // Creative: Sun
                     title = "All day",
                     trailing = {
                         Switch(
@@ -317,7 +317,7 @@ fun EditEventSheet(
 
                 // Date Selection
                 EditDarkFormRow(
-                    icon = Icons.Default.CalendarToday,
+                    icon = Icons.Default.DateRange, // Creative: Range
                     title = "Date",
                     value = dateFormat.format(selectedDate.time),
                     onClick = { showDatePicker = true }
@@ -331,14 +331,14 @@ fun EditEventSheet(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         EditDarkFormRow(
-                            icon = Icons.Default.Schedule,
+                            icon = Icons.Default.HourglassTop, // Creative: Time/Start
                             title = "Start time",
                             value = startTimeDisplay,
                             onClick = { showStartTimePicker = true }
                         )
 
                         EditDarkFormRow(
-                            icon = Icons.Default.Schedule,
+                            icon = Icons.Default.HourglassBottom, // Creative: Time/End
                             title = "End time",
                             value = endTimeDisplay,
                             onClick = { showEndTimePicker = true }
@@ -348,14 +348,14 @@ fun EditEventSheet(
 
                 // Location field
                 EditDarkFormRow(
-                    icon = Icons.Default.LocationOn,
+                    icon = Icons.Default.Explore, // Creative: Compass
                     title = if (location.isBlank()) "Add location" else location,
                     onClick = { /* Could expand to full input */ }
                 )
 
                 // Reminder Selection
                 EditDarkFormRow(
-                    icon = Icons.Default.Notifications,
+                    icon = Icons.Default.TipsAndUpdates, // Creative: Insight/Reminder
                     title = "Reminder",
                     value = reminderOptions.find { it.first == selectedReminder }?.second ?: "None",
                     onClick = { showReminderMenu = true }
@@ -363,7 +363,7 @@ fun EditEventSheet(
 
                 // Privacy Toggle
                 EditDarkFormRow(
-                    icon = Icons.Default.Lock,
+                    icon = Icons.Default.Lock, // Creative: Lock
                     title = "Private event",
                     subtitle = "Hidden from AI assistant",
                     trailing = {
@@ -404,7 +404,7 @@ fun EditEventSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Delete,
+                            imageVector = Icons.Default.Whatshot, // Creative: Fire
                             contentDescription = null,
                             tint = SheetError,
                             modifier = Modifier.size(20.dp)
@@ -564,7 +564,7 @@ fun EditEventSheet(
                             Text(label, color = SheetWhite)
                             if (selectedReminder == minutes) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
+                                    imageVector = Icons.Default.Verified, // Creative: Verified
                                     contentDescription = "Selected",
                                     tint = SheetAccent
                                 )

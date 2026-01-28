@@ -9,8 +9,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoGraph
+import androidx.compose.material.icons.filled.DesignServices
+import androidx.compose.material.icons.filled.Explore
+import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -162,22 +169,22 @@ fun getDefaultSuggestions(isPrivateMode: Boolean = false): List<QuickReplySugges
         hour in 5..11 -> QuickReplySuggestion("What's on my calendar today?", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR)
         hour in 12..17 -> QuickReplySuggestion("What's left today?", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR)
         hour in 18..21 -> QuickReplySuggestion("Plan for tomorrow", Icons.Default.DateRange, SuggestionCategory.CALENDAR)
-        else -> QuickReplySuggestion("Quick note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS)
+        else -> QuickReplySuggestion("Quick note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS)
     }
 
     return if (isPrivateMode) {
         // In private mode, don't suggest actions that could reveal note content
         listOf(
             timeAwareSuggestion,
-            QuickReplySuggestion("Create a new note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS)
+            QuickReplySuggestion("Create a new note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS)
             // Intentionally omit "Summarize my notes" and "Find notes about..." in private mode
         )
     } else {
         listOf(
             timeAwareSuggestion,
-            QuickReplySuggestion("Summarize my recent notes", Icons.Default.Summarize, SuggestionCategory.NOTES),
-            QuickReplySuggestion("Create a new note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS),
-            QuickReplySuggestion("Find notes about...", Icons.Default.Search, SuggestionCategory.SEARCH)
+            QuickReplySuggestion("Summarize my recent notes", Icons.Default.AutoGraph, SuggestionCategory.NOTES), // Creative: Graph/Insights
+            QuickReplySuggestion("Create a new note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS),
+            QuickReplySuggestion("Find notes about...", Icons.Default.Explore, SuggestionCategory.SEARCH) // Creative: Explore
         )
     }
 }
@@ -200,20 +207,20 @@ fun getContextualSuggestions(lastMessage: String?, isPrivateMode: Boolean = fals
             if (isPrivateMode) {
                 // In private mode, don't suggest viewing/editing potentially private notes
                 listOf(
-                    QuickReplySuggestion("Create another note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS),
+                    QuickReplySuggestion("Create another note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS),
                     QuickReplySuggestion("Thanks!", category = SuggestionCategory.GENERAL)
                 )
             } else {
                 listOf(
                     QuickReplySuggestion("Show me that note", Icons.Default.Visibility, SuggestionCategory.NOTES),
-                    QuickReplySuggestion("Edit the note", Icons.Default.Edit, SuggestionCategory.ACTIONS),
-                    QuickReplySuggestion("Create another note", Icons.AutoMirrored.Filled.NoteAdd, SuggestionCategory.ACTIONS)
+                    QuickReplySuggestion("Edit the note", Icons.Default.DesignServices, SuggestionCategory.ACTIONS), // Creative: Design
+                    QuickReplySuggestion("Create another note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS)
                 )
             }
         }
         lowercaseMessage.contains("calendar") || lowercaseMessage.contains("event") -> listOf(
             QuickReplySuggestion("Show tomorrow", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR),
-            QuickReplySuggestion("Add a new event", Icons.Default.Add, SuggestionCategory.ACTIONS),
+            QuickReplySuggestion("Add a new event", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS),
             QuickReplySuggestion("This week's schedule", Icons.Default.DateRange, SuggestionCategory.CALENDAR)
         )
         lowercaseMessage.contains("search") || lowercaseMessage.contains("found") -> {
@@ -224,8 +231,8 @@ fun getContextualSuggestions(lastMessage: String?, isPrivateMode: Boolean = fals
                 )
             } else {
                 listOf(
-                    QuickReplySuggestion("Search for more", Icons.Default.Search, SuggestionCategory.SEARCH),
-                    QuickReplySuggestion("Save as note", Icons.Default.Save, SuggestionCategory.ACTIONS)
+                    QuickReplySuggestion("Search for more", Icons.Default.Explore, SuggestionCategory.SEARCH), // Creative: Explore
+                    QuickReplySuggestion("Save as note", Icons.Default.BookmarkBorder, SuggestionCategory.ACTIONS) // Creative: Bookmark
                 )
             }
         }

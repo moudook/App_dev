@@ -32,8 +32,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -497,7 +497,7 @@ private fun PdfViewerContent(
             ) {
                 IconButton(onClick = onDismiss) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Default.HighlightOff,
                         contentDescription = "Close",
                         tint = contentColor
                     )
@@ -635,7 +635,7 @@ private fun TextViewerContent(
             ) {
                 IconButton(onClick = onDismiss) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Default.HighlightOff,
                         contentDescription = "Close"
                     )
                 }
@@ -705,7 +705,7 @@ private fun UnsupportedDocumentContent(
         ) {
             IconButton(onClick = onDismiss) {
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = Icons.Default.HighlightOff,
                     contentDescription = "Close"
                 )
             }

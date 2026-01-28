@@ -13,7 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -534,7 +534,7 @@ private fun GoogleAccountCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Person,
+                        imageVector = Icons.Default.Face,
                         contentDescription = null,
                         tint = LocalAccentColor.current
                     )
@@ -618,7 +618,7 @@ private fun BackupStatusCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Backup,
+                    imageVector = Icons.Default.CloudSync,
                     contentDescription = null,
                     tint = LocalAccentColor.current,
                     modifier = Modifier.size(24.dp)
@@ -658,7 +658,7 @@ private fun BackupStatusCard(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CloudUpload,
+                            imageVector = Icons.Default.RocketLaunch,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -689,7 +689,7 @@ private fun BackupStatusCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = Icons.Default.Verified,
                             contentDescription = null,
                             tint = LocalAccentColor.current
                         )
@@ -708,7 +708,7 @@ private fun BackupStatusCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Error,
+                            imageVector = Icons.Default.GppBad,
                             contentDescription = null,
                             tint = SafetyOrange
                         )
@@ -797,7 +797,7 @@ private fun AutoBackupCard(
                         }
 
                         Icon(
-                            imageVector = Icons.Default.ChevronRight,
+                            imageVector = Icons.AutoMirrored.Filled.TrendingFlat,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -833,7 +833,7 @@ private fun BackupListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Cloud,
+                    imageVector = Icons.Default.CloudQueue,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
@@ -972,7 +972,7 @@ private fun LocalBackupCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.FolderZip,
+                    imageVector = Icons.Default.Inventory, // Creative: Inventory/Zip
                     contentDescription = null,
                     tint = LocalAccentColor.current,
                     modifier = Modifier.size(24.dp)
@@ -1007,7 +1007,7 @@ private fun LocalBackupCard(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Archive,
+                            imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -1038,7 +1038,7 @@ private fun LocalBackupCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = Icons.Default.Verified,
                             contentDescription = null,
                             tint = LocalAccentColor.current
                         )
@@ -1057,7 +1057,7 @@ private fun LocalBackupCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Error,
+                            imageVector = Icons.Default.GppBad,
                             contentDescription = null,
                             tint = SafetyOrange
                         )
@@ -1096,7 +1096,7 @@ private fun LocalBackupListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.FolderZip,
+                    imageVector = Icons.Default.Inventory, // Creative: Inventory
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
@@ -1133,7 +1133,7 @@ private fun LocalBackupListItem(
             ) {
                 TextButton(onClick = onDelete) {
                     Icon(
-                        imageVector = Icons.Default.Delete,
+                        imageVector = Icons.Default.Whatshot,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                         tint = SafetyOrange
@@ -1149,7 +1149,7 @@ private fun LocalBackupListItem(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Share,
+                        imageVector = Icons.Default.RocketLaunch, // Creative: Launch/Share
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )

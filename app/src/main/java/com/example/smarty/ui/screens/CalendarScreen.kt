@@ -222,21 +222,21 @@ fun CalendarScreen(
                             }
                             SyncStatus.Success -> {
                                 Icon(
-                                    imageVector = Icons.Default.CloudDone,
+                                    imageVector = Icons.Default.Verified, // Creative: Done
                                     contentDescription = "Sync completed",
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             SyncStatus.Error -> {
                                 Icon(
-                                    imageVector = Icons.Default.CloudOff,
+                                    imageVector = Icons.Default.ErrorOutline, // Creative: Alert
                                     contentDescription = "Sync failed",
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             SyncStatus.Idle -> {
                                 Icon(
-                                    imageVector = Icons.Default.Sync,
+                                    imageVector = Icons.Default.AllInclusive, // Creative: Loop
                                     contentDescription = "Sync calendar",
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -257,7 +257,7 @@ fun CalendarScreen(
                         modifier = Modifier.size(44.dp)
                     ) {
                         Icon(
-                            Icons.Default.Add,
+                            Icons.Default.AutoAwesome, // Creative: Burst
                             contentDescription = "Add Event",
                             modifier = Modifier.size(20.dp)
                         )
@@ -639,7 +639,7 @@ private fun PremiumEventCard(
                         // Recurring indicator
                         if (event.isRecurring) {
                             Icon(
-                                imageVector = Icons.Default.Repeat,
+                                imageVector = Icons.Default.AllInclusive, // Creative: Loop
                                 contentDescription = "Recurring event",
                                 modifier = Modifier.size(14.dp),
                                 tint = CalendarAccent
@@ -677,7 +677,7 @@ private fun PremiumEventCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isHappening) Icons.Default.PlayArrow else if (event.isRecurring) Icons.Default.Repeat else Icons.Default.Event,
+                        imageVector = if (isHappening) Icons.Default.SlowMotionVideo else if (event.isRecurring) Icons.Default.AllInclusive else Icons.Default.Timeline, // Creative: Cinema/Loop/Journey
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
@@ -710,7 +710,7 @@ private fun PremiumEmptyState(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.EventBusy,
+            imageVector = Icons.Default.HourglassEmpty, // Creative: Waiting
             contentDescription = null,
             modifier = Modifier.size(56.dp),
             tint = mutedText.copy(alpha = 0.4f)

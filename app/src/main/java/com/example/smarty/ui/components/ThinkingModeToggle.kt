@@ -2,7 +2,7 @@ package com.example.smarty.ui.components
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +35,7 @@ fun ThinkingModeToggle(
     ) {
         Icon(
             imageVector = if (isEnabled) {
-                Icons.Default.Psychology  // Brain icon - thinking mode ON
+                Icons.Filled.Lightbulb  // Lightbulb - Creative Insight
             } else {
                 Icons.Outlined.Bolt  // Lightning icon - fast mode (thinking OFF)
             },

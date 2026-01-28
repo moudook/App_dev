@@ -13,7 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.HighlightOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -279,7 +279,7 @@ private fun InlineSessionItem(
 
                 // Delete Action - Minimal, borderless
                 Icon(
-                    imageVector = Icons.Outlined.Close,
+                    imageVector = Icons.Outlined.HighlightOff,
                     contentDescription = "Delete",
                     tint = if (isSelected) contentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier

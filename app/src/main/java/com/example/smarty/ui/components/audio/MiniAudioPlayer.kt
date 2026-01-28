@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
@@ -165,7 +167,7 @@ fun MiniAudioPlayer(
                     )
                 ) {
                     Icon(
-                        imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, // Creative: Minimalist
                         contentDescription = if (state.isPlaying) "Pause" else "Play",
                         modifier = Modifier.size(IconSize.large)
                     )
@@ -179,7 +181,7 @@ fun MiniAudioPlayer(
                     modifier = Modifier.size(IconSize.huge)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
                         contentDescription = "Close",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
                         modifier = Modifier.size(IconSize.medium)

@@ -211,7 +211,7 @@ class JarvisAgentProvider(
         return ExecutorResult.Success(
             executor = createCustomOpenAIExecutor(
                 apiKey = apiKey,
-                baseUrl = "https://api-inference.huggingface.co/v1"
+                baseUrl = "https://router.huggingface.co/v1"
             ),
             model = model,
             provider = AIProvider.HUGGINGFACE,

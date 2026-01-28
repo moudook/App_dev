@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -200,13 +201,19 @@ fun SettingsScreen(
             ) {
                 SettingsRow(
                     title = "AI Providers",
+                    icon = Icons.Filled.AutoAwesome,
                     subtitle = "Models & API keys",
-                    onClick = { showAIConfigSheet = true }
+                    onClick = { showAIConfigSheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                 SettingsRow(
                     title = "AI Memory",
+                    icon = Icons.Filled.AutoAwesome,
                     subtitle = if (aiMemories.isEmpty()) "No memories" else "${aiMemories.size} memories",
-                    onClick = { showAIMemorySheet = true }
+                    onClick = { showAIMemorySheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
             }
 
@@ -215,36 +222,48 @@ fun SettingsScreen(
             // ═══════════════════════════════════════════════════════════════════
             SettingsSection(
                 title = "Data",
-                icon = Icons.Default.Storage,
+                icon = Icons.Default.Hub,
                 isExpanded = expandedSection == "data",
                 onToggle = { expandedSection = if (expandedSection == "data") null else "data" }
             ) {
                 SettingsRow(
                     title = "Backup & Sync",
+                    icon = Icons.Filled.Anchor,
                     subtitle = if (lastBackupTime > 0) {
                         val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
                         "Last: ${sdf.format(java.util.Date(lastBackupTime))}"
                     } else "Not backed up",
-                    onClick = { showBackupSheet = true }
+                    onClick = { showBackupSheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                 SettingsRow(
                     title = "Google Calendar Sync",
+                    icon = Icons.Filled.AllInclusive,
                     subtitle = if (lastCalendarSyncTime > 0) {
                         val sdf = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
                         "Last sync: ${sdf.format(java.util.Date(lastCalendarSyncTime))}"
                     } else "Not synced",
-                    onClick = onCalendarSync
+                    onClick = onCalendarSync,
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                 SettingsRow(
                     title = "Archive",
+                    icon = Icons.Filled.AllInbox,
                     subtitle = "View archived notes",
-                    onClick = { showArchiveSheet = true }
+                    onClick = { showArchiveSheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                 SettingsRow(
                     title = "Clear Cache",
+                    icon = Icons.Filled.Whatshot,
                     subtitle = formatCacheSize(cacheSizeBytes),
                     onClick = onClearCache,
-                    enabled = !isClearingCache && cacheSizeBytes > 0
+                    enabled = !isClearingCache && cacheSizeBytes > 0,
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
             }
 
@@ -253,23 +272,27 @@ fun SettingsScreen(
             // ═══════════════════════════════════════════════════════════════════
             SettingsSection(
                 title = "Preferences",
-                icon = Icons.Default.Tune,
+                icon = Icons.Default.Equalizer,
                 isExpanded = expandedSection == "prefs",
                 onToggle = { expandedSection = if (expandedSection == "prefs") null else "prefs" }
             ) {
                 SettingsRow(
                     title = "Shake Sensitivity",
+                    icon = Icons.Filled.Waves,
                     subtitle = when {
                         shakeSensitivity < 0.3f -> "Low"
                         shakeSensitivity < 0.7f -> "Medium"
                         else -> "High"
                     },
-                    onClick = { showShakeSensitivitySheet = true }
+                    onClick = { showShakeSensitivitySheet = true },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
                 // Assistant Settings
                 val context = LocalContext.current
                 SettingsRow(
                     title = "Default Assistant",
+                    icon = Icons.Filled.Explore,
                     subtitle = "Set as device assistant",
                     onClick = {
                         try {
@@ -285,7 +308,9 @@ fun SettingsScreen(
                                 android.util.Log.e("Settings", "Could not open settings: ${e2.message}")
                             }
                         }
-                    }
+                    },
+                    iconColor = Color(0xFF2196F3), // Blue
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
                 )
             }
 
@@ -303,7 +328,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        imageVector = Icons.Filled.NoAccounts,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(24.dp)
@@ -623,7 +648,7 @@ fun SettingsScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.Vibration,
+                                imageVector = Icons.Default.Sensors,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(24.dp)
@@ -814,7 +839,7 @@ private fun SettingsItem(
                 )
             } else if (showArrow) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Filled.TrendingFlat,
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.3f),
                     modifier = Modifier.size(24.dp)
@@ -992,7 +1017,7 @@ internal fun AIConfigBottomSheet(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.SmartToy, // AI Icon
+                                imageVector = Icons.Default.AutoAwesome, // AI Icon
                                 contentDescription = null,
                                 tint = LocalAccentColor.current,
                                 modifier = Modifier.size(24.dp)
@@ -1216,7 +1241,7 @@ internal fun AIConfigBottomSheet(
                 modifier = Modifier.padding(vertical = 8.dp)
             ) {
                 Icon(
-                    imageVector = if (hasAnyKeys) Icons.Default.CheckCircle else Icons.Default.Warning,
+                    imageVector = if (hasAnyKeys) Icons.Default.Verified else Icons.Default.ReportProblem,
                     contentDescription = null,
                     tint = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
@@ -1290,7 +1315,7 @@ private fun TavilyApiSection(
             // Status indicator
             if (apiKeys.isNotEmpty()) {
                 Icon(
-                    imageVector = Icons.Default.CheckCircle,
+                    imageVector = Icons.Default.Verified,
                     contentDescription = "Configured",
                     tint = LocalAccentColor.current,
                     modifier = Modifier.size(20.dp)
@@ -1354,7 +1379,7 @@ private fun TavilyApiSection(
 
                                 IconButton(onClick = { onRemoveKey(key) }) {
                                     Icon(
-                                        imageVector = Icons.Default.Delete,
+                                        imageVector = Icons.Default.Whatshot,
                                         contentDescription = "Remove",
                                         tint = SafetyOrange,
                                         modifier = Modifier.size(18.dp)
@@ -1464,7 +1489,7 @@ private fun TavilyApiSection(
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Add,
+                            imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -1681,7 +1706,7 @@ private fun LocalServerSection(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
-                        imageVector = Icons.Default.Dns,
+                        imageVector = Icons.Default.Lan,
                         contentDescription = "Configured",
                         tint = LocalAccentColor.current,
                         modifier = Modifier.size(20.dp)
@@ -1872,7 +1897,7 @@ private fun LocalServerSection(
                             }
                             testResult is TestResult.Success -> {
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
+                                    imageVector = Icons.Default.Verified,
                                     contentDescription = "Success",
                                     tint = SystemGreen,
                                     modifier = Modifier.size(16.dp)
@@ -1886,7 +1911,7 @@ private fun LocalServerSection(
                             }
                             testResult is TestResult.Failure -> {
                                 Icon(
-                                    imageVector = Icons.Default.Warning,
+                                    imageVector = Icons.Default.ReportProblem,
                                     contentDescription = "Failed",
                                     tint = SafetyOrange,
                                     modifier = Modifier.size(16.dp)
@@ -1993,7 +2018,7 @@ private fun SettingsSection(
     onToggle: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val accentColor = LocalAccentColor.current
+    val accentColor = Color(0xFF2196F3) // Enforce Blue for settings
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 180f else 0f,
         animationSpec = tween(200),
@@ -2068,10 +2093,13 @@ private fun SettingsSection(
 @Composable
 private fun SettingsRow(
     title: String,
+    icon: ImageVector,
     subtitle: String? = null,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    isDestructive: Boolean = false
+    isDestructive: Boolean = false,
+    iconColor: Color = Color(0xFF2196F3),
+    containerColor: Color = Color.Transparent
 ) {
     val contentColor = when {
         !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
@@ -2092,24 +2120,54 @@ private fun SettingsRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = contentColor
-                )
-                subtitle?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                            alpha = if (enabled) 0.7f else 0.4f
-                        )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                // Leading Icon with Squircle shape
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (isDestructive) MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                            else if (containerColor != Color.Transparent) containerColor
+                            else iconColor.copy(alpha = 0.1f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (isDestructive) MaterialTheme.colorScheme.error else iconColor,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = contentColor
+                    )
+                    subtitle?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                alpha = if (enabled) 0.7f else 0.4f
+                            )
+                        )
+                    }
+                }
             }
+
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.TrendingFlat,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(20.dp)
@@ -2124,8 +2182,11 @@ private fun SettingsRow(
 @Composable
 private fun SettingsToggleRow(
     title: String,
+    icon: ImageVector,
     isChecked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    iconColor: Color = Color(0xFF2196F3),
+    containerColor: Color = Color.Transparent
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -2138,18 +2199,48 @@ private fun SettingsToggleRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                // Leading Icon with Squircle shape
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (containerColor != Color.Transparent) containerColor else iconColor.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
             Switch(
                 checked = isChecked,
                 onCheckedChange = onCheckedChange,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = LocalAccentColor.current,
-                    checkedTrackColor = LocalAccentColor.current.copy(alpha = 0.3f)
-                )
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = iconColor,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    uncheckedBorderColor = Color.Transparent
+                ),
+                modifier = Modifier.scale(0.8f)
             )
         }
     }

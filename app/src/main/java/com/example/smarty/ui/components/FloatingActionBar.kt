@@ -12,17 +12,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.BookmarkAdded
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.AllInbox
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.DesignServices
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -87,7 +84,7 @@ fun FloatingActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             FloatingActionPill(
-                icon = if (isEditing) Icons.Default.Check else Icons.Outlined.Edit,
+                icon = if (isEditing) Icons.Default.Verified else Icons.Default.DesignServices, // Creative: Design
                 onClick = onEdit,
                 tint = if (isEditing) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -96,7 +93,7 @@ fun FloatingActionBar(
                 Spacer(modifier = Modifier.width(24.dp))
 
                 FloatingActionPill(
-                    icon = Icons.Outlined.Archive,
+                    icon = Icons.Default.AllInbox, // Creative: Vault
                     onClick = onArchive,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -104,7 +101,7 @@ fun FloatingActionBar(
                 Spacer(modifier = Modifier.width(24.dp))
 
                 FloatingActionPill(
-                    icon = Icons.Outlined.Delete,
+                    icon = Icons.Default.Whatshot, // Creative: Fire
                     onClick = onDelete,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -217,7 +214,7 @@ fun SelectionFloatingBar(
             // Actions
             IconButton(onClick = onPin, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.PushPin,
+                    imageVector = Icons.Default.BookmarkAdded,
                     contentDescription = "Pin",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -225,7 +222,7 @@ fun SelectionFloatingBar(
 
             IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.Share,
+                    imageVector = Icons.Default.RocketLaunch, // Creative: Launch
                     contentDescription = "Share",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -233,7 +230,7 @@ fun SelectionFloatingBar(
 
             IconButton(onClick = onArchive, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.Archive,
+                    imageVector = Icons.Default.AllInbox, // Creative: Vault
                     contentDescription = "Archive",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -241,7 +238,7 @@ fun SelectionFloatingBar(
 
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
+                    imageVector = Icons.Default.Whatshot, // Creative: Fire
                     contentDescription = "Delete",
                     tint = SafetyOrange
                 )

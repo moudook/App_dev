@@ -326,7 +326,7 @@ fun AddEventSheet(
 
                 // All Day Toggle
                 DarkFormRow(
-                    icon = Icons.Default.WbSunny,
+                    icon = Icons.Default.WbSunny, // Creative: Sun
                     title = "All day",
                     trailing = {
                         Switch(
@@ -347,7 +347,7 @@ fun AddEventSheet(
 
                 // Date Selection
                 DarkFormRow(
-                    icon = Icons.Default.CalendarToday,
+                    icon = Icons.Default.DateRange, // Creative: Range
                     title = "Date",
                     value = dateFormat.format(selectedDate.time),
                     onClick = { showDatePicker = true }
@@ -361,14 +361,14 @@ fun AddEventSheet(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         DarkFormRow(
-                            icon = Icons.Default.Schedule,
+                            icon = Icons.Default.HourglassTop, // Creative: Time/Start
                             title = "Start time",
                             value = startTimeDisplay,
                             onClick = { showStartTimePicker = true }
                         )
 
                         DarkFormRow(
-                            icon = Icons.Default.Schedule,
+                            icon = Icons.Default.HourglassBottom, // Creative: Time/End
                             title = "End time",
                             value = endTimeDisplay,
                             onClick = { showEndTimePicker = true }
@@ -378,14 +378,14 @@ fun AddEventSheet(
 
                 // Location field
                 DarkFormRow(
-                    icon = Icons.Default.LocationOn,
+                    icon = Icons.Default.Explore, // Creative: Compass
                     title = if (location.isBlank()) "Add location" else location,
                     onClick = { /* Could expand to full input */ }
                 )
 
                 // Reminder Selection
                 DarkFormRow(
-                    icon = Icons.Default.Notifications,
+                    icon = Icons.Default.TipsAndUpdates, // Creative: Insight/Reminder
                     title = "Reminder",
                     value = reminderOptions.find { it.first == selectedReminder }?.second ?: "None",
                     onClick = { showReminderMenu = true }
@@ -393,7 +393,7 @@ fun AddEventSheet(
 
                 // Privacy Toggle
                 DarkFormRow(
-                    icon = Icons.Default.Lock,
+                    icon = Icons.Default.Lock, // Creative: Lock/Security
                     title = "Private event",
                     subtitle = "Hidden from AI assistant",
                     trailing = {
@@ -527,7 +527,7 @@ fun AddEventSheet(
                             Text(label, color = SheetWhite)
                             if (selectedReminder == minutes) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
+                                    imageVector = Icons.Default.Verified, // Creative: Verified
                                     contentDescription = "Selected",
                                     tint = SheetAccent
                                 )

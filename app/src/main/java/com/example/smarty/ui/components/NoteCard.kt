@@ -12,8 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -123,7 +123,7 @@ fun NoteCard(
         if (swipeAlpha > 0f) {
             val isSwipeRight = swipeOffset.value > 0
             val color = if (isSwipeRight) (if (isArchiveView) MaterialTheme.colorScheme.error else SystemGray) else (if (isArchiveView) SystemBlue else SystemBlue)
-            val icon = if (isSwipeRight) (if (isArchiveView) Icons.Default.Delete else Icons.Default.Archive) else (if (isArchiveView) Icons.Default.Unarchive else Icons.Default.Checklist)
+            val icon = if (isSwipeRight) (if (isArchiveView) Icons.Default.Whatshot else Icons.Default.AllInbox) else (if (isArchiveView) Icons.Default.Unarchive else Icons.Default.Verified)
 
             Box(
                 modifier = Modifier
@@ -260,7 +260,7 @@ fun NoteCard(
                         note.categoryName?.let { category ->
                             NoteCardPill(
                                 text = category,
-                                icon = Icons.Outlined.Folder, // Use Folder icon for category
+                                icon = Icons.AutoMirrored.Filled.Label, // Creative: Tag/Label
                                 backgroundColor = Color(0xFFE3E8EF), // Light Grey/Blue
                                 contentColor = Color(0xFF1D2939),
                                 darkBackgroundColor = Color(0xFF344054),
@@ -287,7 +287,7 @@ fun NoteCard(
                         if (hasAudio) {
                             NoteCardPill(
                                 text = "SAVED AUDIO",
-                                icon = Icons.Default.Mic,
+                                icon = Icons.Default.GraphicEq, // Creative: Waveform
                                 backgroundColor = Color(0xFFC4E7FF), // Light Cyan
                                 contentColor = Color(0xFF004C6D),
                                 darkBackgroundColor = Color(0xFF004F70),
@@ -299,7 +299,7 @@ fun NoteCard(
 
                 // 3. Edit Icon (Bottom Right)
                 Icon(
-                    imageVector = Icons.Outlined.Edit,
+                    imageVector = Icons.Default.DesignServices, // Creative: Design/Edit
                     contentDescription = "Edit",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier

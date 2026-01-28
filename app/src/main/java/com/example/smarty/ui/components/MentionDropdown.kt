@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Code
@@ -31,11 +33,8 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Web
 import androidx.compose.material3.Icon
@@ -239,7 +238,7 @@ private fun NoteSuggestionContent(
         // Match score indicator (subtle)
         if (suggestion.score >= 0.8) {
             Icon(
-                imageVector = Icons.Default.Star,
+                imageVector = Icons.Default.AutoAwesome,
                 contentDescription = "High match",
                 tint = Color(0xFFFFD700).copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
@@ -298,7 +297,7 @@ private fun CategorySuggestionContent(
         // Match score indicator (subtle)
         if (suggestion.score >= 0.8) {
             Icon(
-                imageVector = Icons.Default.Star,
+                imageVector = Icons.Default.AutoAwesome,
                 contentDescription = "High match",
                 tint = Color(0xFFFFD700).copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
@@ -508,7 +507,7 @@ private fun CountBadge(
 private fun getSpecialFilterIcon(filterName: String): ImageVector {
     return when (filterName.lowercase()) {
         "recent" -> Icons.Default.History
-        "pinned", "starred", "favorites" -> Icons.Default.PushPin
+        "pinned", "starred", "favorites" -> Icons.Default.Bookmark
         "all" -> Icons.Default.FilterList
         else -> Icons.Default.FilterList
     }

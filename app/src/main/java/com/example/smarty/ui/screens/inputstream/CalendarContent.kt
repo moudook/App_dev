@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -144,7 +146,7 @@ fun CalendarContent(
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
-                                Icons.Default.ChevronLeft,
+                                Icons.AutoMirrored.Filled.ArrowBack, // Creative: Back
                                 contentDescription = "Previous",
                                 tint = textPrimary,
                                 modifier = Modifier.size(20.dp)
@@ -166,7 +168,7 @@ fun CalendarContent(
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
-                                Icons.Default.ChevronRight,
+                                Icons.AutoMirrored.Filled.ArrowForward, // Creative: Forward
                                 contentDescription = "Next",
                                 tint = textPrimary,
                                 modifier = Modifier.size(20.dp)
@@ -186,7 +188,7 @@ fun CalendarContent(
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
-                                Icons.Default.Add,
+                                Icons.Default.AutoAwesome, // Creative: Burst
                                 contentDescription = "Add Event",
                                 tint = Color.White,
                                 modifier = Modifier.size(20.dp)
@@ -298,7 +300,7 @@ fun CalendarContent(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.EventBusy,
+                            imageVector = Icons.Default.HourglassEmpty, // Creative: Waiting
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = textMuted.copy(alpha = 0.4f)
@@ -497,7 +499,7 @@ private fun InlineEventCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (event.isRecurring) Icons.Default.Repeat else Icons.Default.Event,
+                        imageVector = if (event.isRecurring) Icons.Default.AllInclusive else Icons.Default.Timeline, // Creative: Loop/Journey
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)

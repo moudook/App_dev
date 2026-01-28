@@ -37,7 +37,7 @@ class HuggingFaceProvider(
 
     companion object {
         private const val TAG = "HuggingFaceProvider"
-        private const val BASE_URL = "https://api-inference.huggingface.co/models"
+        private const val BASE_URL = "https://router.huggingface.co/models"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 

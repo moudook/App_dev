@@ -89,12 +89,12 @@ private fun ThemeToggleRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = if (isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(24.dp)
-                )
+                    Icon(
+                        imageVector = Icons.Default.Palette, // Creative: Palette/Theme
+                        contentDescription = null,
+                        tint = accentColor,
+                        modifier = Modifier.size(24.dp)
+                    )
                 Column {
                     Text(
                         text = "Theme",
@@ -185,7 +185,7 @@ private fun ColorCircle(
     ) {
         if (isSelected) {
             Icon(
-                imageVector = Icons.Default.Check,
+                imageVector = Icons.Default.Verified, // Creative: Verified/Selected
                 contentDescription = "Selected",
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)

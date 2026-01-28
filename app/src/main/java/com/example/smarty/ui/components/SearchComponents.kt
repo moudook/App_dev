@@ -3,7 +3,7 @@ package com.example.smarty.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.ExploreOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -77,7 +77,7 @@ fun SearchEmptyState(
     ) {
         // Animated search icon
         Icon(
-            imageVector = Icons.Default.SearchOff,
+            imageVector = Icons.Default.ExploreOff,
             contentDescription = null,
             tint = accentColor.copy(alpha = iconAlpha),
             modifier = Modifier

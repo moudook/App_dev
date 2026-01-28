@@ -3,6 +3,10 @@ package com.example.smarty.ui.components
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.outlined.Tag
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.StickyNote2
@@ -62,21 +66,21 @@ object NoteCardIcons {
      */
     private val NOTE_TYPE_ICONS: Array<ImageVector> by lazy {
         arrayOf(
-            Icons.Outlined.EditNote,         // BRAIN_DUMP - "Note"
-            Icons.Outlined.PlayCircle,       // YOUTUBE - "Yt" (Clean Play Circle)
-            Icons.Outlined.Language,         // WEBSITE - "Link" (Globe/Web)
-            Icons.Outlined.Photo,            // IMAGE - "Img" (Single image frame)
-            Icons.Outlined.Close,            // TWITTER - "X" (Literal X using Close icon)
-            Icons.Outlined.CameraAlt,       // INSTAGRAM - "IG" (Camera)
-            Icons.AutoMirrored.Outlined.Article, // DOCUMENT - "Doc" (Article/Document)
-            Icons.Outlined.TableChart,      // SPREADSHEET - "Excel" (Table grid)
-            Icons.Outlined.Slideshow,       // PRESENTATION - "PPT" (Slides)
-            Icons.Outlined.Videocam,        // VIDEO - "Vid" (Video camera)
-            Icons.Outlined.Mic,             // AUDIO - "Aud" (Microphone)
-            Icons.Outlined.Terminal,        // CODE - "Code" (Terminal/Code)
-            Icons.Outlined.FolderZip,       // ARCHIVE - "Zip" (Compressed folder)
-            Icons.Outlined.Android,         // APK - "APK" (Android robot)
-            Icons.Outlined.AttachFile       // FILE - "File" (Attachment)
+            Icons.Outlined.AutoAwesome,      // BRAIN_DUMP - "Idea/Spark" (Creative Burst)
+            Icons.Outlined.SmartDisplay,     // YOUTUBE - "Screen" (Modern Display)
+            Icons.Outlined.Explore,          // WEBSITE - "Explore" (Compass/Navigation)
+            Icons.Outlined.BurstMode,        // IMAGE - "Burst" (Capture moments)
+            Icons.Outlined.Tag,              // TWITTER - "Hashtag" (Platform Icon)
+            Icons.Outlined.FilterVintage,    // INSTAGRAM - "Vintage" (Artistic Filters)
+            Icons.Outlined.Source,           // DOCUMENT - "Source" (Origin/Knowledge)
+            Icons.Outlined.ViewKanban,       // SPREADSHEET - "Board" (Structured Data)
+            Icons.Outlined.CoPresent,        // PRESENTATION - "Present" (Sharing ideas)
+            Icons.Outlined.SlowMotionVideo,  // VIDEO - "Cinema" (Motion)
+            Icons.Outlined.SpatialAudio,     // AUDIO - "Spatial" (Immersive Sound)
+            Icons.Outlined.DataObject,       // CODE - "Object" (Abstract Structure)
+            Icons.Outlined.AllInbox,         // ARCHIVE - "Vault" (Secure Storage)
+            Icons.Outlined.Android,          // APK - "Droid" (Standard but iconic)
+            Icons.Outlined.Attachment        // FILE - "Link" (Connection)
         )
     }
 
@@ -148,24 +152,24 @@ object NoteCardIcons {
      */
     private val CATEGORY_ICONS: Map<String, ImageVector> by lazy {
         mapOf(
-            "Learn" to Icons.Default.School,
-            "Read" to Icons.Default.Book,
-            "Watch" to Icons.Default.PlayCircle,
-            "Idea" to Icons.Default.Lightbulb,
-            "Todo" to Icons.Default.Checklist,
-            "Buy" to Icons.Default.ShoppingCart,
-            "Meet" to Icons.Default.People,
-            "Code" to Icons.Default.Code,
-            "Quote" to Icons.Default.FormatQuote,
-            "Inspo" to Icons.Default.AutoAwesome,
-            "Recipe" to Icons.Default.Restaurant,
-            "Health" to Icons.Default.FitnessCenter,
-            "Finance" to Icons.Default.AccountBalance,
-            "Work" to Icons.Default.Work,
-            "Play" to Icons.Default.SportsEsports,
-            "Note" to Icons.AutoMirrored.Filled.StickyNote2,
-            "Legal" to Icons.Default.Gavel,
-            "Private Notes" to Icons.Default.Lock
+            "Learn" to Icons.Default.School,             // School - classical learning
+            "Read" to Icons.Default.AutoStories,            // AutoStories - magic book
+            "Watch" to Icons.Default.TheaterComedy,      // Theater - entertainment/drama
+            "Idea" to Icons.Default.EmojiObjects,        // EmojiObjects - bright ideas
+            "Todo" to Icons.Default.Verified,             // Verified - completed task
+            "Buy" to Icons.Default.Loyalty,              // Loyalty - brand/shopping
+            "Meet" to Icons.Default.Handshake,           // Handshake - collaboration
+            "Code" to Icons.Default.DataObject,          // DataObject - structure/code
+            "Quote" to Icons.Default.FormatQuote,        // Quote - citation
+            "Inspo" to Icons.Default.WbSunny,            // Sunny - illumination/inspiration
+            "Recipe" to Icons.Default.RestaurantMenu,    // Menu - culinary arts
+            "Health" to Icons.Default.Spa,               // Spa - wellness/balance
+            "Finance" to Icons.Default.AccountBalanceWallet, // Wallet - wealth
+            "Work" to Icons.Default.BusinessCenter,      // Briefcase - professional
+            "Play" to Icons.Default.SportsEsports,       // Gamepad - gaming/fun
+            "Note" to Icons.Default.DesignServices,            // DesignServices - creative writing
+            "Legal" to Icons.Default.Gavel,              // Gavel - justice
+            "Private Notes" to Icons.Default.PrivacyTip  // PrivacyTip - secret
         )
     }
 
@@ -176,7 +180,7 @@ object NoteCardIcons {
      * @return Material Design icon for the category, or folder icon if unknown
      */
     fun getCategoryIcon(category: String): ImageVector =
-        CATEGORY_ICONS[category] ?: Icons.Default.Folder
+        CATEGORY_ICONS[category] ?: Icons.Default.FolderSpecial // Special folder for unknown
 
     // ==================== Action Icons ====================
 
@@ -185,23 +189,23 @@ object NoteCardIcons {
      * Centralized here for consistency.
      */
     object Actions {
-        val Archive = Icons.Default.Archive
-        val Unarchive = Icons.Default.Unarchive
-        val Delete = Icons.Default.Delete
-        val Edit = Icons.Default.Edit
-        val Share = Icons.Default.Share
-        val Copy = Icons.Default.ContentCopy
-        val Todo = Icons.Default.Checklist
-        val Search = Icons.Default.Search
-        val Add = Icons.Default.Add
-        val Settings = Icons.Default.Settings
+        val Archive = Icons.Default.AllInbox             // Vault/Inbox
+        val Unarchive = Icons.Default.Unarchive          // Unarchive
+        val Delete = Icons.Default.Whatshot             // Fire - creative destruction
+        val Edit = Icons.Default.DesignServices         // Design - creative refinement
+        val Share = Icons.Default.RocketLaunch          // Rocket - launching to others
+        val Copy = Icons.Default.FileCopy            // Copy
+        val Todo = Icons.Default.Verified                // Task check
+        val Search = Icons.Default.Explore              // Compass - exploration
+        val Add = Icons.Default.AutoAwesome             // Spark - creative addition
+        val Settings = Icons.Default.SettingsSuggest    // Suggested settings
         val Back = Icons.AutoMirrored.Filled.ArrowBack
-        val Close = Icons.Default.Close
-        val Done = Icons.Default.Done
+        val Close = Icons.Default.HighlightOff
+        val Done = Icons.Default.Verified
         val ExpandMore = Icons.Default.ExpandMore
         val ExpandLess = Icons.Default.ExpandLess
-        val MoreVert = Icons.Default.MoreVert
-        val Lock = Icons.Default.Lock
+        val MoreVert = Icons.Default.MoreVert           // Vertical dots
+        val Lock = Icons.Default.Lock                   // Lock
         val LockOpen = Icons.Default.LockOpen
         val Visibility = Icons.Default.Visibility
         val VisibilityOff = Icons.Default.VisibilityOff

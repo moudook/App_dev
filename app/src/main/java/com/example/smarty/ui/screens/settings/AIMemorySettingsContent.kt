@@ -16,6 +16,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoGraph
+import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.*
@@ -76,7 +84,7 @@ fun AIMemorySettingsContent(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Outlined.Psychology,
+                    imageVector = Icons.Default.Psychology, // Creative: Brain
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(32.dp)
@@ -132,7 +140,7 @@ fun AIMemorySettingsContent(
                     )
                 } else {
                     Icon(
-                        imageVector = if (unreadNotesCount > 0) Icons.Default.CloudSync else Icons.Default.CheckCircle,
+                        imageVector = if (unreadNotesCount > 0) Icons.Default.CloudSync else Icons.Default.Verified,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                         tint = if (unreadNotesCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -175,8 +183,8 @@ fun AIMemorySettingsContent(
                         modifier = Modifier.size(16.dp)
                     ) {
                         Icon(
-                            Icons.Default.Close, 
-                            null, 
+                            Icons.Default.HighlightOff,
+                            null,
                             tint = MaterialTheme.colorScheme.inverseOnSurface
                         )
                     }
@@ -300,10 +308,10 @@ private fun MemoryChip(
                 // Type Indicator (Small, centralized label)
                 Icon(
                     imageVector = when(memory.type) {
-                        MemoryType.PREFERENCE -> Icons.Default.Tune
-                        MemoryType.PATTERN -> Icons.Default.Timeline
-                        MemoryType.STYLE -> Icons.Default.Style
-                        MemoryType.FACT -> Icons.Default.Info
+                        MemoryType.PREFERENCE -> Icons.Default.Favorite // Creative: Heart
+                        MemoryType.PATTERN -> Icons.Default.AutoGraph // Creative: Graph/Pattern
+                        MemoryType.STYLE -> Icons.Default.Palette // Creative: Art
+                        MemoryType.FACT -> Icons.Default.Lightbulb // Creative: Idea
                     },
                     contentDescription = null,
                     tint = contentColor.copy(alpha = 0.7f),
@@ -339,7 +347,7 @@ private fun MemoryChip(
                         modifier = Modifier.size(20.dp)
                     ) {
                         Icon(
-                            Icons.Default.Close,
+                            Icons.Default.Whatshot, // Creative: Fire/Delete
                             contentDescription = "Remove",
                             tint = contentColor.copy(alpha = 0.5f)
                         )

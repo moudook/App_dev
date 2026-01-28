@@ -4,7 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -75,7 +75,7 @@ fun CategoryFilterChip(
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Icon(
-                        imageVector = Icons.Default.Close,
+                        imageVector = Icons.Default.HighlightOff,
                         contentDescription = "Clear filter",
                         tint = accentColor,
                         modifier = Modifier.size(14.dp)

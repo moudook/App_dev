@@ -109,7 +109,7 @@ fun CalendarEventCard(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
+                    imageVector = Icons.Default.Whatshot, // Creative: Fire
                     contentDescription = "Delete",
                     tint = Color.White,
                     modifier = Modifier
@@ -205,7 +205,7 @@ fun CalendarEventCard(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.LocationOn,
+                                    imageVector = Icons.Default.Explore, // Creative: Compass
                                     contentDescription = null,
                                     modifier = Modifier.size(14.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -240,7 +240,7 @@ fun CalendarEventCard(
                     // Privacy indicator
                     if (event.isEventPrivate) {
                         Icon(
-                            imageVector = Icons.Default.Lock,
+                            imageVector = Icons.Default.Lock, // Creative: Lock
                             contentDescription = "Private",
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -250,7 +250,7 @@ fun CalendarEventCard(
                     // Reminder indicator
                     event.reminderMinutes?.let {
                         Icon(
-                            imageVector = Icons.Default.Notifications,
+                            imageVector = Icons.Default.TipsAndUpdates, // Creative: Insight/Reminder
                             contentDescription = "Has reminder",
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -260,7 +260,7 @@ fun CalendarEventCard(
                     // Recurring indicator
                     if (event.isRecurring) {
                         Icon(
-                            imageVector = Icons.Default.Repeat,
+                            imageVector = Icons.Default.AllInclusive, // Creative: Loop
                             contentDescription = "Recurring",
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -338,7 +338,7 @@ private fun TimeRow(event: CalendarEvent) {
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Icon(
-            imageVector = if (event.isAllDay) Icons.Default.WbSunny else Icons.Default.Schedule,
+            imageVector = if (event.isAllDay) Icons.Default.WbSunny else Icons.Default.HourglassBottom, // Creative: Sun / Time
             contentDescription = null,
             modifier = Modifier.size(14.dp),
             tint = if (isHappening) LocalAccentColor.current
