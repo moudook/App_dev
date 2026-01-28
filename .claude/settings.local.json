@@ -158,7 +158,9 @@
       "WebFetch(domain:bootcamp.uxdesign.cc)",
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:en.wikipedia.org)",
-      "WebFetch(domain:www.interaction-design.org)"
+      "WebFetch(domain:www.interaction-design.org)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:claude.ai)"
     ],
     "deny": []
   },

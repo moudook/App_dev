@@ -88,7 +88,7 @@ fun SearchEmptyState(
         
         // Main message
         Text(
-            text = "No notes matching",
+            text = "No matches",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -108,7 +108,7 @@ fun SearchEmptyState(
         
         // Suggestions
         Text(
-            text = "Try different keywords or check spelling",
+            text = "Try different keywords",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )

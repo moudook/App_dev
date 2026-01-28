@@ -114,7 +114,7 @@ fun ChatHistoryContent(
                         contentAlignment = Alignment.Center
                     ) {
                          Text(
-                            text = "No past conversations",
+                            text = "No conversations yet",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -145,7 +145,7 @@ fun ChatHistoryContent(
     sessionToDelete?.let { session ->
         com.example.smarty.ui.components.common.JarvisDialog(
             title = "Delete chat?",
-            text = "This action cannot be undone.",
+            text = "This cannot be undone.",
             onConfirm = {
                 onDeleteSession(session.id)
                 sessionToDeleteId = null

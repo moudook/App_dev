@@ -73,12 +73,12 @@ fun ArchiveContent(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
                         Text(
-                            text = "Archive is empty",
+                            text = "Nothing archived yet",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                         Text(
-                            text = "Swipe notes left to archive them",
+                            text = "Swipe left on notes to archive",
                             style = MaterialTheme.typography.bodySmall,
                             color = accentColor.copy(alpha = 0.7f)
                         )
@@ -111,8 +111,8 @@ fun ArchiveContent(
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Delete Permanently?",
-            text = "This note will be permanently deleted. This action cannot be undone.",
+            title = "Delete permanently?",
+            text = "This note will be permanently deleted. This cannot be undone.",
             onConfirm = {
                 noteToDelete?.let { onDeleteNote(it.id) }
                 showDeleteDialog = false

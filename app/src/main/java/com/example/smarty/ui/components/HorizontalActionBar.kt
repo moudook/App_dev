@@ -41,7 +41,7 @@ enum class NavigationTab(
     val opensSheet: Boolean = false
 ) {
     CHAT(Icons.Outlined.Psychology, "Chat"),           // Brain - AI intelligence & thinking
-    NOTES(Icons.Outlined.Create, "Note"),              // Creation - artistic expression
+    NOTES(Icons.Outlined.Create, "Notes"),             // Creation - artistic expression
     CALENDAR(Icons.Outlined.Explore, "Calendar", opensSheet = true),  // Compass - journey through time
     STACKS(Icons.Outlined.Hub, "Stacks", opensSheet = true),          // Hub - interconnected ideas
     ARCHIVE(Icons.Outlined.AutoStories, "Archive", opensSheet = true), // Stories - collected memories
@@ -146,12 +146,12 @@ private fun RotaryNavigationDial(
 
     val density = LocalDensity.current
     
-    // Dynamic Radius Calculation (Logarithmic increase with velocity)
+    // Dynamic Radius Calculation (Linear increase with velocity)
     // Base radius 160.dp, increases up to +30.dp based on rotation speed
     val currentVelocity = rotation.velocity
     val velocityFactor = abs(currentVelocity)
-    // Formula: 30 * (1 - e^(-0.2 * v)) -> Asymptotic approach to max
-    val dynamicRadiusAdd = 30.dp * (1f - exp(-velocityFactor * 0.2f))
+    // Linear scaling: velocity * multiplier, capped at max
+    val dynamicRadiusAdd = (velocityFactor * 6f).coerceAtMost(30f).dp
     val radiusPx = with(density) { (160.dp + dynamicRadiusAdd).toPx() }
 
     Box(

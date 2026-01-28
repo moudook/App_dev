@@ -132,7 +132,7 @@ fun SettingsContent(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "AI Intelligence",
+                            text = "AI Status",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -143,7 +143,7 @@ fun SettingsContent(
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2196F3).copy(alpha = 0.3f))
                         ) {
                             Text(
-                                text = "ACTIVE",
+                                text = "Active",
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                 color = Color(0xFF2196F3)
@@ -153,7 +153,7 @@ fun SettingsContent(
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Configure your AI models and voice settings to unlock full potential.",
+                        text = "Adjust your AI and voice settings.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -187,7 +187,7 @@ fun SettingsContent(
             SettingsCard {
                 SettingsItem(
                     icon = Icons.Filled.AutoAwesome, // Metaphor: Constellation/Sparkles
-                    label = "AI Memory",
+                    label = "Memory",
                     value = if (aiMemories.isEmpty()) null else "${aiMemories.size}",
                     onClick = { showAIMemorySheet = true },
                     iconColor = Color(0xFF2196F3), // Blue
@@ -195,7 +195,7 @@ fun SettingsContent(
                 )
                  SettingsItem(
                     icon = Icons.Filled.Anchor, // Metaphor: Anchor (Security/Grounding)
-                    label = "Backup & Sync",
+                    label = "Backup",
                     onClick = { showBackupSheet = true },
                     showDivider = false,
                     iconColor = Color(0xFF2196F3), // Blue
@@ -224,7 +224,7 @@ fun SettingsContent(
                 )
                  SettingsItem(
                     icon = Icons.Filled.Waves, // Metaphor: Seismograph (Motion)
-                    label = "Shake Sensitivity",
+                    label = "Shake sensitivity",
                     value = if (shakeSensitivity < 0.3f) "Low" else if (shakeSensitivity < 0.7f) "Med" else "High",
                     onClick = { showShakeSensitivitySheet = true },
                     iconColor = Color(0xFF2196F3), // Blue
@@ -403,7 +403,7 @@ fun SettingsContent(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Shake Sensitivity",
+                    text = "Shake sensitivity",
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold
                     ),
@@ -413,7 +413,7 @@ fun SettingsContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Adjust how sensitive the shake gesture is",
+                    text = "Adjust shake gesture",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -457,7 +457,7 @@ fun SettingsContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Requires stronger shake",
+                            text = "Less sensitive",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
@@ -469,7 +469,7 @@ fun SettingsContent(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Light shake triggers",
+                            text = "More sensitive",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )

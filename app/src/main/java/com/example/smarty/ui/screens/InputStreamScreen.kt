@@ -349,21 +349,23 @@ fun InputStreamScreen(
     // Chat history inline view state (shows history in main area instead of bottom sheet)
     var showChatHistoryInline by remember { mutableStateOf(false) }
 
-    // Reset history view when entering chat mode (e.g., via shake gesture)
-    // This ensures shake always opens chat messages, not history
+    // Reset ALL inline views when entering/exiting chat mode (e.g., via shake gesture)
+    // FIX: Shake on Settings/Stacks/Archive/Calendar now properly switches to Chat
+    // FIX: Shake from Chat goes back to Notes (not previous tab)
     LaunchedEffect(isChatMode) {
         if (isChatMode) {
-            // Entering chat mode - always show chat messages, not history
+            // Entering chat mode - close ALL inline views so wheel updates correctly
             showChatHistoryInline = false
-            // Also close calendar inline view when entering chat mode
             showCalendarInline = false
-        }
-    }
-
-    // Reset inline views when exiting chat mode
-    LaunchedEffect(isChatMode) {
-        if (!isChatMode) {
+            showStacksInline = false
+            showArchiveInline = false
+            showSettingsInline = false
+            // Reset selectedTab to NOTES so exiting chat returns to notes view
+            selectedTab = NavigationTab.NOTES
+        } else {
+            // Exiting chat mode - reset to notes view
             showChatHistoryInline = false
+            selectedTab = NavigationTab.NOTES
         }
     }
 

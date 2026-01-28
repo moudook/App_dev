@@ -64,16 +64,16 @@ class WorkflowManager(
         scope.launch {
             try {
                 if (topic.isBlank()) {
-                    onStatusUpdate("Error: Research topic cannot be empty")
+                    onStatusUpdate("Please enter a topic")
                     return@launch
                 }
 
                 if (apiKey.isBlank()) {
-                    onStatusUpdate("Error: API key is required for web search")
+                    onStatusUpdate("API key needed for web search")
                     return@launch
                 }
 
-                onStatusUpdate("Starting research on: $topic")
+                onStatusUpdate("Researching $topic...")
                 Log.i(TAG, "Deep research initiated: $topic (depth: $searchDepth)")
 
                 // Generate diverse queries for comprehensive research
@@ -125,7 +125,7 @@ class WorkflowManager(
 
                 if (findings.isEmpty()) {
                     Log.w(TAG, "No findings for research topic: $topic")
-                    onStatusUpdate("Research found no results.")
+                    onStatusUpdate("No results found")
                     return@launch
                 }
 
@@ -166,7 +166,7 @@ class WorkflowManager(
 
             } catch (e: Exception) {
                 Log.e(TAG, "Deep research failed", e)
-                onStatusUpdate("Research failed: ${e.message}")
+                onStatusUpdate("Research failed. Try again?")
             }
         }
     }
@@ -203,7 +203,7 @@ class WorkflowManager(
                 onProgress(index + 1, noteIds.size)
             }
 
-            onStatusUpdate("Batch processing complete: $successCount/${noteIds.size} succeeded")
+            onStatusUpdate("Done: $successCount of ${noteIds.size}")
         } catch (e: Exception) {
             Log.e(TAG, "Batch processing failed: ${e.message}")
             onStatusUpdate("Batch processing error: ${e.message}")

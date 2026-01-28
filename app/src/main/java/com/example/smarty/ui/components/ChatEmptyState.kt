@@ -113,490 +113,1133 @@ private fun EmptyStateContainer(
 }
 
 /**
- * Chat Empty State: Uses same cloud breathing animation as Notes page
- * for consistency and reduced resource usage.
+ * Chat Empty State: "Warm Companion" Animation
  *
- * OPTIMIZATION: Shares same animation style as NotesEmptyState
- * - Single animation type across app = less code, less memory
- * - LIFECYCLE AWARE: Pauses when app backgrounded
+ * Design Philosophy (Inspired by Anthropic/Claude):
+ * - Soft, organic blob shape (approachable, not robotic)
+ * - Gentle breathing motion (calm, alive, trustworthy)
+ * - Warm radial glow (welcoming, friendly)
+ * - Subtle floating particles (thoughts, not aggressive)
+ * - Rounded, soft aesthetics (no sharp edges)
+ *
+ * Key principles:
+ * - Warmth over coldness
+ * - Organic over mechanical
+ * - Calm over intense
+ * - Friendly over intimidating
+ *
+ * LIFECYCLE AWARE: Pauses when app backgrounded
  */
 @Composable
 fun ChatEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
         title = "Jarvis",
-        subtitle = "",
-        hint = null,
+        subtitle = "Here to help",
+        hint = "What can I help with?",
         modifier = modifier
     ) {
-        // Minimal empty state - no cloud animation
+        WarmCompanionAnimation()
     }
 }
 
-/** Pre-computed wave state for ChatEmptyState (same as NotesEmptyState) */
-private data class ChatWaveState(
-    val auraScale: Float,
-    val auraAlpha: Float,
-    val cloudScale: Float,
-    val cloudAlpha: Float,
-    val coreScale: Float,
-    val coreAlpha: Float,
-    val floatY: Float
-) {
-    companion object {
-        /** Default static state when animation is paused */
-        val DEFAULT = ChatWaveState(
-            auraScale = 2.2f,
-            auraAlpha = 0.2f,
-            cloudScale = 1.5f,
-            cloudAlpha = 0.4f,
-            coreScale = 0.8f,
-            coreAlpha = 0.8f,
-            floatY = 0f
+/**
+ * Warm Companion Animation - Soft organic blob with gentle breathing
+ *
+ * Inspired by Anthropic's design philosophy:
+ * - Warm, approachable colors
+ * - Organic, soft shapes (no sharp edges)
+ * - Calm, slow breathing motion
+ * - Gentle floating effect
+ * - Subtle warmth glow
+ */
+@Composable
+private fun WarmCompanionAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "warm_companion")
+    } else null
+
+    // Gentle breathing - slow and calm (inhale/exhale)
+    val breathe by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.92f,
+            targetValue = 1.08f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = EaseInOutSine), // Slow, calming
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "breathe"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    // Gentle vertical float (hovering peacefully)
+    val floatY by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = -6f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(5000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "float_y"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Soft wobble for organic feel
+    val wobble by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(8000, easing = LinearEasing)
+            ),
+            label = "wobble"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Warmth glow pulse (subtle)
+    val warmGlow by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 0.9f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "warm_glow"
+        )
+    } else {
+        remember { mutableStateOf(0.75f) }
+    }
+
+    // Gentle thought particles phase
+    val thoughtPhase by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(10000, easing = LinearEasing)
+            ),
+            label = "thought_phase"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    val density = LocalDensity.current
+
+    val companionConfig = remember(density, accentColor) {
+        with(density) {
+            WarmCompanionConfig(
+                // Main blob dimensions
+                coreRadius = 35.dp.toPx(),
+
+                // Colors - warm and friendly
+                coreColor = accentColor.copy(alpha = 0.7f),
+                innerGlowColor = accentColor.copy(alpha = 0.9f),
+                outerGlowColor = accentColor.copy(alpha = 0.2f),
+                warmthColor = accentColor.copy(alpha = 0.15f),
+                highlightColor = Color.White.copy(alpha = 0.4f),
+                thoughtColor = accentColor.copy(alpha = 0.4f),
+
+                // Soft thought particles (not aggressive, just gentle presence)
+                thoughts = listOf(
+                    ThoughtParticle(angle = 0.3f, distance = 55f, size = 4f, speed = 0.8f),
+                    ThoughtParticle(angle = 1.8f, distance = 60f, size = 3f, speed = 0.6f),
+                    ThoughtParticle(angle = 3.5f, distance = 50f, size = 3.5f, speed = 0.7f),
+                    ThoughtParticle(angle = 5.0f, distance = 58f, size = 3f, speed = 0.5f)
+                )
+            )
+        }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f + floatY
+        val cfg = companionConfig
+
+        // Layer 1: Outer warmth glow (large, soft, welcoming)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.warmthColor.copy(alpha = 0.3f * warmGlow),
+                    cfg.warmthColor.copy(alpha = 0.1f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 3f
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 3f
+        )
+
+        // Layer 2: Soft thought particles floating around (gentle, not orbiting aggressively)
+        cfg.thoughts.forEach { thought ->
+            val phase = thoughtPhase * thought.speed + thought.angle
+            val gentleWobble = fastSin(phase) * 8f
+            val x = cx + kotlin.math.cos(thought.angle + phase * 0.1f) * thought.distance + gentleWobble
+            val y = cy + kotlin.math.sin(thought.angle + phase * 0.1f) * thought.distance
+
+            // Soft fade in/out
+            val alpha = 0.3f + 0.2f * fastSin(phase * 2)
+
+            drawCircle(
+                color = cfg.thoughtColor.copy(alpha = alpha.coerceIn(0.15f, 0.5f)),
+                center = Offset(x, y),
+                radius = thought.size
+            )
+        }
+
+        // Layer 3: Middle glow ring (soft aura)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.outerGlowColor.copy(alpha = 0.4f * warmGlow),
+                    cfg.outerGlowColor.copy(alpha = 0.1f),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 1.8f * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 1.8f * breathe
+        )
+
+        // Layer 4: Main organic blob (soft, rounded, friendly)
+        // Use subtle wobble to make it feel organic, not perfectly circular
+        val wobbleX = fastSin(wobble) * 0.03f
+        val wobbleY = fastSin(wobble * 1.3f) * 0.03f
+
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.innerGlowColor,
+                    cfg.coreColor,
+                    cfg.coreColor.copy(alpha = 0.8f)
+                ),
+                center = Offset(cx - 5f, cy - 5f), // Slightly offset for depth
+                radius = cfg.coreRadius * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * breathe * (1f + wobbleX)
+        )
+
+        // Layer 5: Soft highlight (friendly shine, like a friendly face)
+        drawCircle(
+            color = cfg.highlightColor.copy(alpha = 0.5f * warmGlow),
+            center = Offset(cx - cfg.coreRadius * 0.3f, cy - cfg.coreRadius * 0.3f),
+            radius = cfg.coreRadius * 0.35f * breathe
+        )
+
+        // Layer 6: Secondary subtle highlight
+        drawCircle(
+            color = cfg.highlightColor.copy(alpha = 0.2f),
+            center = Offset(cx - cfg.coreRadius * 0.15f, cy - cfg.coreRadius * 0.5f),
+            radius = cfg.coreRadius * 0.15f * breathe
+        )
+
+        // Layer 7: Gentle inner warmth (center feels alive)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.15f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 0.6f * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 0.6f * breathe
         )
     }
 }
 
+/** Configuration for Warm Companion animation */
+private data class WarmCompanionConfig(
+    val coreRadius: Float,
+    val coreColor: Color,
+    val innerGlowColor: Color,
+    val outerGlowColor: Color,
+    val warmthColor: Color,
+    val highlightColor: Color,
+    val thoughtColor: Color,
+    val thoughts: List<ThoughtParticle>
+)
+
+/** Gentle thought particle */
+private data class ThoughtParticle(
+    val angle: Float,
+    val distance: Float,
+    val size: Float,
+    val speed: Float
+)
+
 /**
- * Notes Empty State: "Spark of Idea"
- * Represents the creation of a new thought.
- */
-/**
- * Front Page / Notes Animation: "Spark of Idea" (Cloud Breath)
+ * Notes Empty State: "Gentle Pages" Animation
  *
- * Design Concept:
- * - "Cloud Theme": A smaller version of the main startup animation.
- * - Features the "Living Orb" logic with breathing concentric gradients.
- * - Represents a new idea forming from the ether.
+ * Design Philosophy (Anthropic-inspired):
+ * - Soft, layered circles representing stacked pages
+ * - Gentle breathing and floating motion
+ * - Warm glow emanating from center
+ * - No mechanical elements (no pen, no sparkles)
+ * - Calm, inviting, creativity-inspiring
  *
- * OPTIMIZATION v2.0:
- * - LIFECYCLE AWARE: Pauses when app backgrounded, stops when not visible
- * - Pre-computed brushes with fixed maximum radius
- * - Uses fastSin for all wave calculations
- * - Zero-allocation draw loop
+ * LIFECYCLE AWARE: Pauses when app backgrounded
  */
 @Composable
 fun NotesEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "Hello, Moudook!",
-        subtitle = "",
-        hint = null,
+        title = "Notes",
+        subtitle = "Capture your thoughts",
+        hint = "Tap + to create your first note",
     ) {
-        // Minimal empty state - no cloud animation
+        GentlePagesAnimation()
     }
 }
 
-/** Pre-computed wave state for NotesEmptyState (batched calculation) */
-private data class NotesWaveState(
-    val auraScale: Float,
-    val auraAlpha: Float,
-    val cloudScale: Float,
-    val cloudAlpha: Float,
-    val coreScale: Float,
-    val coreAlpha: Float,
-    val floatY: Float
-) {
-    companion object {
-        /** Default static state when animation is paused */
-        val DEFAULT = NotesWaveState(
-            auraScale = 2.2f,
-            auraAlpha = 0.2f,
-            cloudScale = 1.5f,
-            cloudAlpha = 0.4f,
-            coreScale = 0.8f,
-            coreAlpha = 0.8f,
-            floatY = 0f
+/**
+ * Gentle Pages Animation - Soft layered circles with breathing motion
+ */
+@Composable
+private fun GentlePagesAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "gentle_pages")
+    } else null
+
+    // Gentle breathing
+    val breathe by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4500, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "breathe"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    // Gentle float
+    val floatY by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = -5f,
+            targetValue = 5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(5500, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "float_y"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Warmth glow
+    val warmGlow by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 0.9f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3500, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "warm_glow"
+        )
+    } else {
+        remember { mutableStateOf(0.75f) }
+    }
+
+    // Layer offset phase
+    val layerPhase by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(8000, easing = LinearEasing)
+            ),
+            label = "layer_phase"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    val density = LocalDensity.current
+
+    val pagesConfig = remember(density, accentColor) {
+        with(density) {
+            GentlePagesConfig(
+                coreRadius = 28.dp.toPx(),
+                layerSpacing = 12.dp.toPx(),
+                coreColor = accentColor.copy(alpha = 0.75f),
+                layer1Color = accentColor.copy(alpha = 0.35f),
+                layer2Color = accentColor.copy(alpha = 0.2f),
+                layer3Color = accentColor.copy(alpha = 0.1f),
+                glowColor = accentColor.copy(alpha = 0.2f),
+                highlightColor = Color.White.copy(alpha = 0.4f)
+            )
+        }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f + floatY
+        val cfg = pagesConfig
+
+        // Layer 1: Outer warmth glow
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.glowColor.copy(alpha = 0.3f * warmGlow),
+                    cfg.glowColor.copy(alpha = 0.1f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 3.5f
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 3.5f
+        )
+
+        // Layer 2: Third layer (outermost page) - gentle offset
+        val layer3Offset = fastSin(layerPhase) * 3f
+        drawCircle(
+            color = cfg.layer3Color,
+            center = Offset(cx + layer3Offset, cy - cfg.layerSpacing * 2 + floatY * 0.3f),
+            radius = cfg.coreRadius * 1.15f * breathe
+        )
+
+        // Layer 3: Second layer - slight offset
+        val layer2Offset = fastSin(layerPhase + 1f) * 2f
+        drawCircle(
+            color = cfg.layer2Color,
+            center = Offset(cx + layer2Offset, cy - cfg.layerSpacing + floatY * 0.15f),
+            radius = cfg.coreRadius * 1.08f * breathe
+        )
+
+        // Layer 4: First layer (behind core)
+        val layer1Offset = fastSin(layerPhase + 2f) * 1.5f
+        drawCircle(
+            color = cfg.layer1Color,
+            center = Offset(cx + layer1Offset, cy - cfg.layerSpacing * 0.4f),
+            radius = cfg.coreRadius * 1.02f * breathe
+        )
+
+        // Layer 5: Core orb
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.coreColor.copy(alpha = 0.9f),
+                    cfg.coreColor,
+                    cfg.coreColor.copy(alpha = 0.7f)
+                ),
+                center = Offset(cx - 4f, cy - 4f),
+                radius = cfg.coreRadius * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * breathe
+        )
+
+        // Layer 6: Soft highlight
+        drawCircle(
+            color = cfg.highlightColor.copy(alpha = 0.5f * warmGlow),
+            center = Offset(cx - cfg.coreRadius * 0.25f, cy - cfg.coreRadius * 0.25f),
+            radius = cfg.coreRadius * 0.3f * breathe
+        )
+
+        // Layer 7: Inner warmth
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.12f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 0.5f * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 0.5f * breathe
         )
     }
 }
 
+/** Configuration for Gentle Pages animation */
+private data class GentlePagesConfig(
+    val coreRadius: Float,
+    val layerSpacing: Float,
+    val coreColor: Color,
+    val layer1Color: Color,
+    val layer2Color: Color,
+    val layer3Color: Color,
+    val glowColor: Color,
+    val highlightColor: Color
+)
+
 /**
- * Archive Empty State: "Clean Slate"
- * Represents stored/archived items in a clean stack.
- * Features a parallax levitation effect where layers float with independent rhythm,
- * creating a deep 3D sensation.
- */
-/**
- * Archive Block Animation: "Clean Slate"
+ * Archive Empty State: "Safe Haven" Animation
  *
- * Design Concept:
- * - "Levitating Layers": Floating cards with parallax depth.
- * - Represents the depth of stored history.
- * - Smooth, slow harmonic motion.
+ * Design Philosophy (Anthropic-inspired):
+ * - Soft concentric rings representing layers of protection
+ * - Gentle breathing pulse emanating outward
+ * - Warm, nurturing glow (safety, not coldness)
+ * - No mechanical elements (no chest, no lock)
+ * - Peaceful, secure, trustworthy feeling
  *
- * OPTIMIZATION v2.0:
- * - LIFECYCLE AWARE: Pauses when app backgrounded, stops when not visible
- * - Pre-computed layer properties
- * - Only yFloat varies per frame (computed via fastSin)
- * - Zero per-frame allocations
+ * LIFECYCLE AWARE: Pauses when app backgrounded
  */
 @Composable
 fun ArchiveEmptyState(modifier: Modifier = Modifier) {
-    val accentColor = LocalAccentColor.current
-
     EmptyStateContainer(
-        title = "Clean Slate",
-        subtitle = "Your archive is currently empty.",
-        hint = "Notes you're done with will live here.",
+        title = "Archive",
+        subtitle = "Saved for later",
+        hint = "Archived notes will appear here",
         modifier = modifier
     ) {
-        // LIFECYCLE AWARENESS
-        val shouldAnimate = shouldAnimationRun()
-
-        val infiniteTransition = if (shouldAnimate) {
-            rememberInfiniteTransition(label = "archive_layers")
-        } else null
-
-        val t by if (infiniteTransition != null) {
-            infiniteTransition.animateFloat(
-                initialValue = 0f,
-                targetValue = TWO_PI_F,
-                animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing)),
-                label = "t"
-            )
-        } else {
-            remember { mutableStateOf(0f) }
-        }
-
-        // Pre-compute static layer properties
-        val density = LocalDensity.current
-        val layerConfig = remember(density, accentColor) {
-            with(density) {
-                val cardWidth = 50.dp.toPx()
-                val cardHeight = 70.dp.toPx()
-                val baseAmplitude = 5.dp.toPx()
-                val stackStep = 12.dp.toPx()
-                val cornerRadiusPx = 12.dp.toPx()
-                val strokeWidth = 1.dp.toPx()
-
-                ArchiveLayerConfig(
-                    cardWidth = cardWidth,
-                    cardHeight = cardHeight,
-                    cornerRadius = CornerRadius(cornerRadiusPx),
-                    cardSize = Size(cardWidth, cardHeight),
-                    strokeWidth = strokeWidth,
-                    borderColor = Color.White.copy(alpha = 0.3f),
-                    layers = (0 until 4).map { i ->
-                        val reverseI = 3 - i
-                        ArchiveLayer(
-                            amplitude = baseAmplitude * (0.5f + i * 0.15f),
-                            phase = i * 0.5f,
-                            scale = 0.8f + i * 0.05f,
-                            color = accentColor.copy(alpha = 0.3f + i * 0.2f),
-                            stackOffset = reverseI * stackStep,
-                            isTopLayer = (i == 3)
-                        )
-                    }
-                )
-            }
-        }
-
-        // Derive yFloats - returns static zeros when paused
-        val yFloats by remember {
-            derivedStateOf {
-                if (!shouldAnimate) {
-                    listOf(0f, 0f, 0f, 0f)
-                } else {
-                    layerConfig.layers.map { layer ->
-                        fastSin(t + layer.phase) * layer.amplitude
-                    }
-                }
-            }
-        }
-
-        Canvas(modifier = Modifier.size(140.dp)) {
-            val cx = size.width * 0.5f
-            val cy = size.height * 0.5f
-            val halfWidth = layerConfig.cardWidth * 0.5f
-            val halfHeight = layerConfig.cardHeight * 0.5f
-
-            layerConfig.layers.forEachIndexed { i, layer ->
-                val yFloat = yFloats[i]
-
-                withTransform({
-                    translate(left = cx, top = cy - layer.stackOffset + yFloat)
-                    scale(layer.scale, layer.scale)
-                    translate(left = -cx, top = -cy)
-                }) {
-                    val topLeft = Offset(cx - halfWidth, cy - halfHeight)
-
-                    drawRoundRect(
-                        color = layer.color,
-                        topLeft = topLeft,
-                        size = layerConfig.cardSize,
-                        cornerRadius = layerConfig.cornerRadius
-                    )
-
-                    if (layer.isTopLayer) {
-                        drawRoundRect(
-                            color = layerConfig.borderColor,
-                            topLeft = topLeft,
-                            size = layerConfig.cardSize,
-                            cornerRadius = layerConfig.cornerRadius,
-                            style = Stroke(width = layerConfig.strokeWidth)
-                        )
-                    }
-                }
-            }
-        }
+        SafeHavenAnimation()
     }
 }
 
-/** Pre-computed configuration for ArchiveEmptyState layers */
-private data class ArchiveLayerConfig(
-    val cardWidth: Float,
-    val cardHeight: Float,
-    val cornerRadius: CornerRadius,
-    val cardSize: Size,
-    val strokeWidth: Float,
-    val borderColor: Color,
-    val layers: List<ArchiveLayer>
-)
-
-/** Pre-computed properties for a single archive layer */
-private data class ArchiveLayer(
-    val amplitude: Float,
-    val phase: Float,
-    val scale: Float,
-    val color: Color,
-    val stackOffset: Float,
-    val isTopLayer: Boolean
-)
-
 /**
- * Stacks Empty State: "Organized Grid"
- * Represents structure and categorization.
+ * Safe Haven Animation - Soft concentric rings with gentle pulse
  */
+@Composable
+private fun SafeHavenAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "safe_haven")
+    } else null
+
+    // Gentle breathing
+    val breathe by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.93f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "breathe"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    // Gentle float
+    val floatY by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = -4f,
+            targetValue = 4f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(5000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "float_y"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Ring pulse (ripple effect)
+    val ringPulse by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(6000, easing = EaseInOutSine)
+            ),
+            label = "ring_pulse"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Warmth glow
+    val warmGlow by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 0.9f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "warm_glow"
+        )
+    } else {
+        remember { mutableStateOf(0.75f) }
+    }
+
+    val density = LocalDensity.current
+
+    val havenConfig = remember(density, accentColor) {
+        with(density) {
+            SafeHavenConfig(
+                coreRadius = 25.dp.toPx(),
+                ringSpacing = 18.dp.toPx(),
+                coreColor = accentColor.copy(alpha = 0.7f),
+                ring1Color = accentColor.copy(alpha = 0.25f),
+                ring2Color = accentColor.copy(alpha = 0.15f),
+                ring3Color = accentColor.copy(alpha = 0.08f),
+                glowColor = accentColor.copy(alpha = 0.2f),
+                highlightColor = Color.White.copy(alpha = 0.4f)
+            )
+        }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f + floatY
+        val cfg = havenConfig
+
+        // Layer 1: Outer warmth glow
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.glowColor.copy(alpha = 0.25f * warmGlow),
+                    cfg.glowColor.copy(alpha = 0.08f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 4f
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 4f
+        )
+
+        // Layer 2: Third ring (outermost) - pulsing outward
+        val ring3Scale = 1f + ringPulse * 0.15f
+        val ring3Alpha = (1f - ringPulse) * 0.5f
+        drawCircle(
+            color = cfg.ring3Color.copy(alpha = ring3Alpha.coerceIn(0.02f, 0.12f)),
+            center = Offset(cx, cy),
+            radius = (cfg.coreRadius + cfg.ringSpacing * 3) * breathe * ring3Scale,
+            style = Stroke(width = 3f)
+        )
+
+        // Layer 3: Second ring
+        val ring2Scale = 1f + ((ringPulse + 0.33f) % 1f) * 0.12f
+        val ring2Alpha = (1f - ((ringPulse + 0.33f) % 1f)) * 0.6f
+        drawCircle(
+            color = cfg.ring2Color.copy(alpha = ring2Alpha.coerceIn(0.05f, 0.2f)),
+            center = Offset(cx, cy),
+            radius = (cfg.coreRadius + cfg.ringSpacing * 2) * breathe * ring2Scale,
+            style = Stroke(width = 3.5f)
+        )
+
+        // Layer 4: First ring (closest to core)
+        val ring1Scale = 1f + ((ringPulse + 0.66f) % 1f) * 0.1f
+        val ring1Alpha = (1f - ((ringPulse + 0.66f) % 1f)) * 0.7f
+        drawCircle(
+            color = cfg.ring1Color.copy(alpha = ring1Alpha.coerceIn(0.1f, 0.3f)),
+            center = Offset(cx, cy),
+            radius = (cfg.coreRadius + cfg.ringSpacing) * breathe * ring1Scale,
+            style = Stroke(width = 4f)
+        )
+
+        // Layer 5: Core orb (center of safety)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.coreColor.copy(alpha = 0.9f),
+                    cfg.coreColor,
+                    cfg.coreColor.copy(alpha = 0.7f)
+                ),
+                center = Offset(cx - 4f, cy - 4f),
+                radius = cfg.coreRadius * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * breathe
+        )
+
+        // Layer 6: Soft highlight
+        drawCircle(
+            color = cfg.highlightColor.copy(alpha = 0.5f * warmGlow),
+            center = Offset(cx - cfg.coreRadius * 0.3f, cy - cfg.coreRadius * 0.3f),
+            radius = cfg.coreRadius * 0.3f * breathe
+        )
+
+        // Layer 7: Inner warmth
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.15f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 0.5f * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 0.5f * breathe
+        )
+    }
+}
+
+/** Configuration for Safe Haven animation */
+private data class SafeHavenConfig(
+    val coreRadius: Float,
+    val ringSpacing: Float,
+    val coreColor: Color,
+    val ring1Color: Color,
+    val ring2Color: Color,
+    val ring3Color: Color,
+    val glowColor: Color,
+    val highlightColor: Color
+)
+
 /**
- * Note Categorization Animation: "Organized Grid" (Stacks)
+ * Stacks Empty State: "Gathering Place" Animation
  *
- * Design Concept:
- * - "Structure": A rhythmic grid pulse.
- * - Represents the AI automatically organizing chaotic notes into structured stacks.
- * - Inverse pulsing for a dynamic "checking" feel.
+ * Design Philosophy (Anthropic-inspired):
+ * - Multiple soft orbs gently floating together
+ * - Represents ideas coming together organically
+ * - No mechanical connections or lines
+ * - Warm, collaborative, inviting feel
+ * - Gentle breathing and drifting motion
  *
- * OPTIMIZATION v2.0:
- * - LIFECYCLE AWARE: Pauses when app backgrounded, stops when not visible
- * - Pre-computed grid layout
- * - derivedStateOf for pulse alpha values
+ * LIFECYCLE AWARE: Pauses when app backgrounded
  */
 @Composable
 fun StacksEmptyState(modifier: Modifier = Modifier) {
-    val accentColor = LocalAccentColor.current
-
     EmptyStateContainer(
-        title = "Your Knowledge",
-        subtitle = "Organized automatically.",
-        hint = "AI will create Stacks for you as you add notes.",
+        title = "Stacks",
+        subtitle = "Your collections",
+        hint = "AI will organize your notes into smart stacks",
         modifier = modifier
     ) {
-        // LIFECYCLE AWARENESS
-        val shouldAnimate = shouldAnimationRun()
-
-        val infiniteTransition = if (shouldAnimate) {
-            rememberInfiniteTransition(label = "grid_pulse")
-        } else null
-
-        val pulse by if (infiniteTransition != null) {
-            infiniteTransition.animateFloat(
-                initialValue = 0.3f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Reverse),
-                label = "pulse"
-            )
-        } else {
-            remember { mutableStateOf(0.65f) } // Static middle value when paused
-        }
-
-        // Derive alpha values - static when paused
-        val alphas by remember {
-            derivedStateOf {
-                Pair(pulse, (1.3f - pulse).coerceIn(0f, 1f))
-            }
-        }
-
-        // Pre-compute grid layout
-        val density = LocalDensity.current
-        val gridConfig = remember(density) {
-            with(density) {
-                val gap = 8.dp.toPx()
-                val boxSize = 30.dp.toPx()
-                val totalSize = boxSize * 2 + gap
-                val cornerRadius = CornerRadius(6.dp.toPx())
-                val boxSizeObj = Size(boxSize, boxSize)
-
-                StacksGridConfig(
-                    boxSize = boxSize,
-                    boxSizeObj = boxSizeObj,
-                    gap = gap,
-                    totalSize = totalSize,
-                    cornerRadius = cornerRadius
-                )
-            }
-        }
-
-        // Pre-compute colors
-        val primaryColor = remember(accentColor, alphas.first) {
-            accentColor.copy(alpha = alphas.first)
-        }
-        val inverseColor = remember(accentColor, alphas.second) {
-            accentColor.copy(alpha = alphas.second)
-        }
-
-        Canvas(modifier = Modifier.size(120.dp)) {
-            val startX = (size.width - gridConfig.totalSize) * 0.5f
-            val startY = (size.height - gridConfig.totalSize) * 0.5f
-            val offsetRight = gridConfig.boxSize + gridConfig.gap
-            val offsetDown = gridConfig.boxSize + gridConfig.gap
-
-            // 2x2 Grid - Checkerboard pulse pattern
-            drawRoundRect(
-                color = primaryColor,
-                topLeft = Offset(startX, startY),
-                size = gridConfig.boxSizeObj,
-                cornerRadius = gridConfig.cornerRadius
-            )
-            drawRoundRect(
-                color = inverseColor,
-                topLeft = Offset(startX + offsetRight, startY),
-                size = gridConfig.boxSizeObj,
-                cornerRadius = gridConfig.cornerRadius
-            )
-            drawRoundRect(
-                color = inverseColor,
-                topLeft = Offset(startX, startY + offsetDown),
-                size = gridConfig.boxSizeObj,
-                cornerRadius = gridConfig.cornerRadius
-            )
-            drawRoundRect(
-                color = primaryColor,
-                topLeft = Offset(startX + offsetRight, startY + offsetDown),
-                size = gridConfig.boxSizeObj,
-                cornerRadius = gridConfig.cornerRadius
-            )
-        }
+        GatheringPlaceAnimation()
     }
 }
 
-/** Pre-computed grid configuration for StacksEmptyState */
-private data class StacksGridConfig(
-    val boxSize: Float,
-    val boxSizeObj: Size,
-    val gap: Float,
-    val totalSize: Float,
-    val cornerRadius: CornerRadius
+/**
+ * Gathering Place Animation - Soft orbs floating together
+ */
+@Composable
+private fun GatheringPlaceAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "gathering_place")
+    } else null
+
+    // Gentle breathing
+    val breathe by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4500, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "breathe"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    // Gentle overall float
+    val floatY by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = -4f,
+            targetValue = 4f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(5000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "float_y"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Drift phase for individual orbs
+    val driftPhase by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(10000, easing = LinearEasing)
+            ),
+            label = "drift_phase"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Warmth glow
+    val warmGlow by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 0.9f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3500, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "warm_glow"
+        )
+    } else {
+        remember { mutableStateOf(0.75f) }
+    }
+
+    val density = LocalDensity.current
+
+    val gatherConfig = remember(density, accentColor) {
+        with(density) {
+            GatheringPlaceConfig(
+                mainOrbRadius = 22.dp.toPx(),
+                smallOrbRadius = 14.dp.toPx(),
+                tinyOrbRadius = 8.dp.toPx(),
+                mainColor = accentColor.copy(alpha = 0.75f),
+                secondaryColor = accentColor.copy(alpha = 0.5f),
+                tertiaryColor = accentColor.copy(alpha = 0.35f),
+                glowColor = accentColor.copy(alpha = 0.2f),
+                highlightColor = Color.White.copy(alpha = 0.4f),
+                // Companion orbs around the main one
+                companions = listOf(
+                    CompanionOrb(baseX = -32f, baseY = -18f, driftRadius = 6f, driftSpeed = 0.8f, size = 0.9f),
+                    CompanionOrb(baseX = 28f, baseY = -22f, driftRadius = 5f, driftSpeed = -0.7f, size = 0.75f),
+                    CompanionOrb(baseX = 35f, baseY = 15f, driftRadius = 7f, driftSpeed = 0.6f, size = 0.85f),
+                    CompanionOrb(baseX = -25f, baseY = 25f, driftRadius = 5f, driftSpeed = -0.9f, size = 0.7f),
+                    CompanionOrb(baseX = 5f, baseY = -38f, driftRadius = 4f, driftSpeed = 0.5f, size = 0.6f)
+                )
+            )
+        }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f + floatY
+        val cfg = gatherConfig
+
+        // Layer 1: Outer warmth glow
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.glowColor.copy(alpha = 0.3f * warmGlow),
+                    cfg.glowColor.copy(alpha = 0.1f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.mainOrbRadius * 4f
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.mainOrbRadius * 4f
+        )
+
+        // Layer 2: Companion orbs (gentle drifting)
+        cfg.companions.forEach { companion ->
+            val driftX = fastSin(driftPhase * companion.driftSpeed) * companion.driftRadius
+            val driftY = fastSin(driftPhase * companion.driftSpeed + 1.5f) * companion.driftRadius * 0.7f
+            val orbX = cx + companion.baseX + driftX
+            val orbY = cy + companion.baseY + driftY
+
+            val orbRadius = cfg.smallOrbRadius * companion.size * breathe
+
+            // Orb glow
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        cfg.tertiaryColor.copy(alpha = 0.4f),
+                        cfg.tertiaryColor.copy(alpha = 0.1f),
+                        Color.Transparent
+                    ),
+                    center = Offset(orbX, orbY),
+                    radius = orbRadius * 1.8f
+                ),
+                center = Offset(orbX, orbY),
+                radius = orbRadius * 1.8f
+            )
+
+            // Orb core
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        cfg.secondaryColor.copy(alpha = 0.8f),
+                        cfg.secondaryColor,
+                        cfg.secondaryColor.copy(alpha = 0.6f)
+                    ),
+                    center = Offset(orbX - 2f, orbY - 2f),
+                    radius = orbRadius
+                ),
+                center = Offset(orbX, orbY),
+                radius = orbRadius
+            )
+
+            // Tiny highlight
+            drawCircle(
+                color = cfg.highlightColor.copy(alpha = 0.3f),
+                center = Offset(orbX - orbRadius * 0.2f, orbY - orbRadius * 0.2f),
+                radius = orbRadius * 0.25f
+            )
+        }
+
+        // Layer 3: Main central orb
+        val mainRadius = cfg.mainOrbRadius * breathe
+
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.mainColor.copy(alpha = 0.9f),
+                    cfg.mainColor,
+                    cfg.mainColor.copy(alpha = 0.7f)
+                ),
+                center = Offset(cx - 5f, cy - 5f),
+                radius = mainRadius
+            ),
+            center = Offset(cx, cy),
+            radius = mainRadius
+        )
+
+        // Layer 4: Main highlight
+        drawCircle(
+            color = cfg.highlightColor.copy(alpha = 0.5f * warmGlow),
+            center = Offset(cx - mainRadius * 0.3f, cy - mainRadius * 0.3f),
+            radius = mainRadius * 0.3f
+        )
+
+        // Layer 5: Inner warmth
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.12f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = mainRadius * 0.5f
+            ),
+            center = Offset(cx, cy),
+            radius = mainRadius * 0.5f
+        )
+    }
+}
+
+/** Configuration for Gathering Place animation */
+private data class GatheringPlaceConfig(
+    val mainOrbRadius: Float,
+    val smallOrbRadius: Float,
+    val tinyOrbRadius: Float,
+    val mainColor: Color,
+    val secondaryColor: Color,
+    val tertiaryColor: Color,
+    val glowColor: Color,
+    val highlightColor: Color,
+    val companions: List<CompanionOrb>
+)
+
+/** Companion orb drifting around */
+private data class CompanionOrb(
+    val baseX: Float,
+    val baseY: Float,
+    val driftRadius: Float,
+    val driftSpeed: Float,
+    val size: Float
 )
 
 /**
- * Category Animation: "Folder Hover"
+ * Category Empty State: "Quiet Space" Animation
  *
- * Design Concept:
- * - "Expectancy": A gentle hover animation.
- * - Represents an empty container waiting to be filled with brilliance.
+ * Design Philosophy (Anthropic-inspired):
+ * - Single soft orb with gentle halo
+ * - Represents a calm, waiting space
+ * - No complex elements (no flowers, no particles)
+ * - Minimalist, peaceful, inviting
+ * - Soft breathing and subtle glow
  *
- * OPTIMIZATION v2.0:
- * - LIFECYCLE AWARE: Pauses when app backgrounded, stops when not visible
- * - Pre-computed folder geometry
- * - Single translate transform (minimal GPU overhead)
+ * LIFECYCLE AWARE: Pauses when app backgrounded
  */
 @Composable
 fun CategoryEmptyState(categoryName: String, modifier: Modifier = Modifier) {
-    val accentColor = LocalAccentColor.current
-
     EmptyStateContainer(
         title = categoryName,
-        subtitle = "Waiting for your brilliance.",
-        hint = "Add notes to populate this stack.",
+        subtitle = "Focused notes",
+        hint = "Add notes to this category",
         modifier = modifier
     ) {
-        // LIFECYCLE AWARENESS
-        val shouldAnimate = shouldAnimationRun()
-
-        val infiniteTransition = if (shouldAnimate) {
-            rememberInfiniteTransition(label = "folder_hover")
-        } else null
-
-        val hover by if (infiniteTransition != null) {
-            infiniteTransition.animateFloat(
-                initialValue = -5f,
-                targetValue = 5f,
-                animationSpec = infiniteRepeatable(tween(2500, easing = EaseInOutSine), RepeatMode.Reverse),
-                label = "hover"
-            )
-        } else {
-            remember { mutableStateOf(0f) } // Static when paused
-        }
-
-        // Pre-compute folder geometry and colors
-        val density = LocalDensity.current
-        val folderConfig = remember(density, accentColor) {
-            with(density) {
-                val folderSize = 60.dp.toPx()
-                val halfFolder = folderSize * 0.5f
-                val thirdFolder = folderSize / 3f
-
-                FolderConfig(
-                    folderSize = folderSize,
-                    halfFolder = halfFolder,
-                    thirdFolder = thirdFolder,
-                    bodyCorner = CornerRadius(8.dp.toPx()),
-                    tabCorner = CornerRadius(4.dp.toPx()),
-                    bodySize = Size(folderSize, folderSize * 0.7f),
-                    tabSize = Size(folderSize * 0.4f, 20f),
-                    lineWidth = 3.dp.toPx(),
-                    bodyColor = accentColor.copy(alpha = 0.15f),
-                    tabColor = accentColor.copy(alpha = 0.25f),
-                    lineColor = accentColor.copy(alpha = 0.3f)
-                )
-            }
-        }
-
-        Canvas(modifier = Modifier.size(100.dp)) {
-            val cx = size.width * 0.5f
-            val cy = size.height * 0.5f
-            val cfg = folderConfig
-
-            withTransform({ translate(0f, hover) }) {
-                // Folder Body
-                drawRoundRect(
-                    color = cfg.bodyColor,
-                    topLeft = Offset(cx - cfg.halfFolder, cy - cfg.thirdFolder),
-                    size = cfg.bodySize,
-                    cornerRadius = cfg.bodyCorner
-                )
-
-                // Folder Tab
-                drawRoundRect(
-                    color = cfg.tabColor,
-                    topLeft = Offset(cx - cfg.halfFolder, cy - cfg.thirdFolder - 15f),
-                    size = cfg.tabSize,
-                    cornerRadius = cfg.tabCorner
-                )
-
-                // "Empty" content line inside
-                drawLine(
-                    color = cfg.lineColor,
-                    start = Offset(cx - cfg.thirdFolder, cy),
-                    end = Offset(cx + cfg.thirdFolder, cy),
-                    strokeWidth = cfg.lineWidth,
-                    cap = StrokeCap.Round
-                )
-            }
-        }
+        QuietSpaceAnimation()
     }
 }
 
-/** Pre-computed folder configuration for CategoryEmptyState */
-private data class FolderConfig(
-    val folderSize: Float,
-    val halfFolder: Float,
-    val thirdFolder: Float,
-    val bodyCorner: CornerRadius,
-    val tabCorner: CornerRadius,
-    val bodySize: Size,
-    val tabSize: Size,
-    val lineWidth: Float,
-    val bodyColor: Color,
-    val tabColor: Color,
-    val lineColor: Color
+/**
+ * Quiet Space Animation - Simple warm orb with soft halo
+ */
+@Composable
+private fun QuietSpaceAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "quiet_space")
+    } else null
+
+    // Gentle breathing
+    val breathe by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.93f,
+            targetValue = 1.07f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(5000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "breathe"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    // Gentle float
+    val floatY by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = -5f,
+            targetValue = 5f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(6000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "float_y"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Warmth glow
+    val warmGlow by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 0.85f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "warm_glow"
+        )
+    } else {
+        remember { mutableStateOf(0.7f) }
+    }
+
+    // Halo pulse
+    val haloPulse by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.9f,
+            targetValue = 1.1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3500, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "halo_pulse"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    val density = LocalDensity.current
+
+    val quietConfig = remember(density, accentColor) {
+        with(density) {
+            QuietSpaceConfig(
+                coreRadius = 30.dp.toPx(),
+                haloRadius = 50.dp.toPx(),
+                coreColor = accentColor.copy(alpha = 0.65f),
+                haloColor = accentColor.copy(alpha = 0.15f),
+                glowColor = accentColor.copy(alpha = 0.2f),
+                highlightColor = Color.White.copy(alpha = 0.4f)
+            )
+        }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f + floatY
+        val cfg = quietConfig
+
+        // Layer 1: Outer warmth glow (very soft)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.glowColor.copy(alpha = 0.25f * warmGlow),
+                    cfg.glowColor.copy(alpha = 0.08f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.haloRadius * 1.8f
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.haloRadius * 1.8f
+        )
+
+        // Layer 2: Soft halo ring
+        drawCircle(
+            color = cfg.haloColor.copy(alpha = 0.3f * warmGlow),
+            center = Offset(cx, cy),
+            radius = cfg.haloRadius * haloPulse * breathe,
+            style = Stroke(width = 4f)
+        )
+
+        // Layer 3: Inner halo ring (smaller)
+        drawCircle(
+            color = cfg.haloColor.copy(alpha = 0.2f * warmGlow),
+            center = Offset(cx, cy),
+            radius = cfg.haloRadius * 0.75f * haloPulse * breathe,
+            style = Stroke(width = 3f)
+        )
+
+        // Layer 4: Core orb
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    cfg.coreColor.copy(alpha = 0.9f),
+                    cfg.coreColor,
+                    cfg.coreColor.copy(alpha = 0.7f)
+                ),
+                center = Offset(cx - 4f, cy - 4f),
+                radius = cfg.coreRadius * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * breathe
+        )
+
+        // Layer 5: Soft highlight
+        drawCircle(
+            color = cfg.highlightColor.copy(alpha = 0.5f * warmGlow),
+            center = Offset(cx - cfg.coreRadius * 0.25f, cy - cfg.coreRadius * 0.25f),
+            radius = cfg.coreRadius * 0.28f * breathe
+        )
+
+        // Layer 6: Inner warmth
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.12f * warmGlow),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = cfg.coreRadius * 0.5f * breathe
+            ),
+            center = Offset(cx, cy),
+            radius = cfg.coreRadius * 0.5f * breathe
+        )
+    }
+}
+
+/** Configuration for Quiet Space animation */
+private data class QuietSpaceConfig(
+    val coreRadius: Float,
+    val haloRadius: Float,
+    val coreColor: Color,
+    val haloColor: Color,
+    val glowColor: Color,
+    val highlightColor: Color
 )
 

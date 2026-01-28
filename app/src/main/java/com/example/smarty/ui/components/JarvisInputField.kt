@@ -147,7 +147,7 @@ fun JarvisInputField(
     onValueChange: (TextFieldValue) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "Share with Dot...",
+    placeholder: String = "Message Jarvis...",
     // Attachment support
     attachments: List<Attachment> = emptyList(),
     onPickImage: () -> Unit = {},
@@ -160,7 +160,7 @@ fun JarvisInputField(
     // Chat mode support
     isChatMode: Boolean = false,
     isHistoryMode: Boolean = false, // New parameter
-    chatPlaceholder: String = "Ask anything...",
+    chatPlaceholder: String = "How can I help?",
     aiPlanStatus: String? = null, // e.g. "Jarvis is planning..."
     currentTool: String? = null,
     isProcessing: Boolean = false,
@@ -225,7 +225,7 @@ fun JarvisInputField(
     // Placeholder based on mode
     val currentPlaceholder = when {
         isVoiceListening -> "Listening..."
-        isSearchMode -> "Search notes..."
+        isSearchMode -> "Find a note..."
         !aiPlanStatus.isNullOrBlank() -> aiPlanStatus
         isChatMode -> chatPlaceholder
         else -> placeholder
@@ -319,14 +319,14 @@ fun JarvisInputField(
                             style = MaterialTheme.typography.labelMedium,
                             color = Color.White
                         )
-                        
+
                         // Separator and secondary text only for normal Chat Mode (not History Mode)
                         if (!isHistoryMode) {
                             Spacer(Modifier.width(8.dp))
                             Box(Modifier.width(1.dp).height(10.dp).background(Color.White.copy(alpha = 0.3f)))
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "Tap for history",
+                                "History",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White.copy(alpha = 0.7f)
                             )
@@ -363,7 +363,7 @@ fun JarvisInputField(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Private Mode",
+                            "Private",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.inverseOnSurface
                         )
@@ -463,9 +463,9 @@ fun JarvisInputField(
                 ActionCircle(
                     icon = if (isThinkingModeEnabled) Icons.Default.Lightbulb else Icons.Outlined.Bolt,
                     contentDescription = if (isThinkingModeEnabled)
-                        "Thinking mode ON - Tap to disable"
+                        "Reasoning on - Tap to disable"
                     else
-                        "Thinking mode OFF - Tap to enable",
+                        "Reasoning off - Tap to enable",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onToggleThinkingMode()
@@ -481,7 +481,7 @@ fun JarvisInputField(
                 // File Attachment Circle
                 ActionCircle(
                     icon = Icons.Default.AttachFile, // Metaphor: Connection
-                    contentDescription = "Attach File",
+                    contentDescription = "Attach",
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         // Centralized Pill UI Toggle:

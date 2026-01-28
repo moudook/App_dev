@@ -126,18 +126,18 @@ fun LoginScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "Welcome to Jarvis",
+                    text = "Welcome back",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = (-0.5).sp
                     ),
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
-                    text = if (isLoginMode) "Sign in to continue" else "Create your account",
+                    text = if (isLoginMode) "Sign in" else "Create account",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
@@ -323,17 +323,17 @@ fun LoginScreen(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = if (isLoginMode) "Don't have an account? " else "Already have an account? ",
+                    text = if (isLoginMode) "New here? " else "Have an account? ",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                 )
                 Text(
-                    text = if (isLoginMode) "Sign Up" else "Sign In",
+                    text = if (isLoginMode) "Sign up" else "Sign in",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                     color = accentColor,
-                    modifier = Modifier.clickable { 
+                    modifier = Modifier.clickable {
                         isLoginMode = !isLoginMode
-                        viewModel.clearError() 
+                        viewModel.clearError()
                     }
                 )
             }

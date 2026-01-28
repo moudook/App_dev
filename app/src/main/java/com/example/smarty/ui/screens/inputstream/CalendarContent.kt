@@ -306,12 +306,12 @@ fun CalendarContent(
                             tint = textMuted.copy(alpha = 0.4f)
                         )
                         Text(
-                            text = "No events scheduled",
+                            text = "No events yet",
                             style = MaterialTheme.typography.bodyMedium,
                             color = textMuted.copy(alpha = 0.6f)
                         )
                         Text(
-                            text = "Tap + to add an event",
+                            text = "Tap + to add one",
                             style = MaterialTheme.typography.bodySmall,
                             color = CalendarAccent.copy(alpha = 0.7f)
                         )
@@ -500,7 +500,7 @@ private fun InlineEventCard(
                 ) {
                     Icon(
                         imageVector = if (event.isRecurring) Icons.Default.AllInclusive else Icons.Default.Timeline, // Creative: Loop/Journey
-                        contentDescription = null,
+                        contentDescription = if (event.isRecurring) "Repeating" else null,
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
                     )
