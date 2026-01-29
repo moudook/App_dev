@@ -40,7 +40,7 @@ class HighSensitivitySpeechService(
     }
 
     private var audioRecord: AudioRecord? = null
-    private var reJarvistionThread: Thread? = null
+    private var recognitionThread: Thread? = null
     private var listener: RecognitionListener? = null
 
     @Volatile
@@ -97,7 +97,7 @@ class HighSensitivitySpeechService(
             audioRecord = record
             isRunning = true
 
-            reJarvistionThread = Thread({
+            recognitionThread = Thread({
                 processAudio(actualBufferSize)
             }, "VoskHighSensitivity").apply {
                 start()
@@ -278,7 +278,7 @@ class HighSensitivitySpeechService(
         // ISSUE #6 FIX: Increased timeout from 500ms to 1000ms for safer Recognizer access
         // This ensures the processing thread completes before the Recognizer is closed
         try {
-            val thread = reJarvistionThread
+            val thread = recognitionThread
             if (thread != null && thread.isAlive) {
                 thread.join(1000)
                 // Warn if thread didn't stop in time - potential race condition
@@ -289,10 +289,10 @@ class HighSensitivitySpeechService(
                 }
             }
         } catch (e: InterruptedException) {
-            Log.w(TAG, "Interrupted while waiting for reJarvistion thread")
+            Log.w(TAG, "Interrupted while waiting for recognition thread")
             Thread.currentThread().interrupt()
         }
-        reJarvistionThread = null
+        recognitionThread = null
 
         try {
             audioRecord?.stop()

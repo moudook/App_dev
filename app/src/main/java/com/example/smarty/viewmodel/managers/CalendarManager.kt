@@ -88,7 +88,8 @@ class CalendarManager(
         color: Int? = null,
         reminderMinutes: Int? = null,
         isPrivate: Boolean = false,
-        linkedNoteId: String? = null
+        linkedNoteId: String? = null,
+        googleEventId: String? = null
     ) {
         scope.launch(Dispatchers.IO) {
             try {
@@ -102,7 +103,8 @@ class CalendarManager(
                     color = color,
                     reminderMinutes = reminderMinutes,
                     isEventPrivate = isPrivate,
-                    linkedNoteId = linkedNoteId
+                    linkedNoteId = linkedNoteId,
+                    googleEventId = googleEventId
                 )
 
                 calendarDao.insertEvent(event)

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.ui.util.lerp
@@ -55,27 +56,14 @@ import java.util.*
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
- * PREMIUM DARK ADD EVENT SHEET
- * 
- * Design: Always-dark theme matching Calendar aesthetic
- * - Deep dark background for immersive experience
+ * PREMIUM ADD EVENT SHEET
+ *
+ * Design: Calm Aesthetic, theme-aware
+ * - Integrated with Material 3 dynamic colors
  * - Electric Blue accent (consistent with Jarvis design)
  * - Gradient accents and modern form fields
  * ═══════════════════════════════════════════════════════════════════════════════
  */
-
-// Design System Colors - Now uses theme colors
-private val SheetAccent = Color(0xFF2979FF)
-private val SheetAccentLight = Color(0xFF5C9AFF)
-
-// Legacy color compatibility - maps to theme colors
-// These are kept as vals for non-composable contexts
-private val SheetDarkBg = Color(0xFF0D0D12)
-private val SheetSurfaceDark = Color(0xFF1A1A24)
-private val SheetMutedText = Color(0xFF6B6B80)
-private val SheetWhite = Color(0xFFF5F5F7)
-private val SheetInputBg = Color(0xFF1E1E28)
-private val SheetBorder = Color(0xFF2A2A35)
 
 // Theme-aware color functions for composable contexts
 @Composable
@@ -97,18 +85,15 @@ private fun sheetInputBgThemed() = MaterialTheme.colorScheme.surface
 private fun sheetBorderThemed() = MaterialTheme.colorScheme.outline
 
 
-
-/**
- * Reminder options in minutes
- */
+// Reminder options in minutes
 private val reminderOptions = listOf(
-    null to "None",
-    5 to "5 minutes before",
-    10 to "10 minutes before",
-    15 to "15 minutes before",
-    30 to "30 minutes before",
-    60 to "1 hour before",
-    1440 to "1 day before"
+    null to "none",
+    5 to "5_minutes_before",
+    10 to "10_minutes_before",
+    15 to "15_minutes_before",
+    30 to "30_minutes_before",
+    60 to "1_hour_before",
+    1440 to "1_day_before"
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -130,6 +115,7 @@ fun AddEventSheet(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val accentColor = LocalAccentColor.current
 
     // Form state
     var title by remember { mutableStateOf("") }
@@ -214,7 +200,7 @@ fun AddEventSheet(
                         .width(40.dp)
                         .height(4.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(SheetMutedText.copy(alpha = 0.4f))
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
                 )
             }
 
@@ -230,16 +216,16 @@ fun AddEventSheet(
             ) {
                 TextButton(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetMutedText)
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Medium)
+                    Text("cancel", fontWeight = FontWeight.Medium)
                 }
 
                 Text(
-                    text = "New Event",
+                    text = "new_event",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = sheetTextPrimary()
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 TextButton(
@@ -281,11 +267,11 @@ fun AddEventSheet(
                     },
                     enabled = title.isNotBlank(),
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = SheetAccent,
-                        disabledContentColor = SheetMutedText.copy(alpha = 0.5f)
+                        contentColor = accentColor,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
-                    Text("Add", fontWeight = FontWeight.Bold)
+                    Text("add", fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -294,7 +280,7 @@ fun AddEventSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(SheetBorder)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
             )
 
             // ═══════════════════════════════════════════════════════════════════
@@ -311,7 +297,7 @@ fun AddEventSheet(
                 DarkTextField(
                     value = title,
                     onValueChange = { title = it },
-                    placeholder = "Event title",
+                    placeholder = "event_title",
                     singleLine = true
                 )
 
@@ -319,15 +305,15 @@ fun AddEventSheet(
                 DarkTextField(
                     value = description,
                     onValueChange = { description = it },
-                    placeholder = "Description",
+                    placeholder = "description",
                     minLines = 2,
                     maxLines = 4
                 )
 
                 // All Day Toggle
                 DarkFormRow(
-                    icon = Icons.Default.WbSunny, // Creative: Sun
-                    title = "All day",
+                    icon = Icons.Default.CalendarToday,
+                    title = "all_day",
                     trailing = {
                         Switch(
                             checked = isAllDay,
@@ -336,10 +322,10 @@ fun AddEventSheet(
                                 isAllDay = it
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = SheetWhite,
-                                checkedTrackColor = SheetAccent,
-                                uncheckedThumbColor = SheetMutedText,
-                                uncheckedTrackColor = SheetSurfaceDark
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = accentColor,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         )
                     }
@@ -347,9 +333,9 @@ fun AddEventSheet(
 
                 // Date Selection
                 DarkFormRow(
-                    icon = Icons.Default.DateRange, // Creative: Range
-                    title = "Date",
-                    value = dateFormat.format(selectedDate.time),
+                    icon = Icons.Default.Event,
+                    title = "date",
+                    value = dateFormat.format(selectedDate.time).lowercase(),
                     onClick = { showDatePicker = true }
                 )
 
@@ -361,16 +347,16 @@ fun AddEventSheet(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         DarkFormRow(
-                            icon = Icons.Default.HourglassTop, // Creative: Time/Start
-                            title = "Start time",
-                            value = startTimeDisplay,
+                            icon = Icons.Default.Schedule,
+                            title = "start_time",
+                            value = startTimeDisplay.lowercase(),
                             onClick = { showStartTimePicker = true }
                         )
 
                         DarkFormRow(
-                            icon = Icons.Default.HourglassBottom, // Creative: Time/End
-                            title = "End time",
-                            value = endTimeDisplay,
+                            icon = Icons.Default.Schedule,
+                            title = "end_time",
+                            value = endTimeDisplay.lowercase(),
                             onClick = { showEndTimePicker = true }
                         )
                     }
@@ -378,24 +364,24 @@ fun AddEventSheet(
 
                 // Location field
                 DarkFormRow(
-                    icon = Icons.Default.Explore, // Creative: Compass
-                    title = if (location.isBlank()) "Add location" else location,
+                    icon = Icons.Default.LocationOn,
+                    title = if (location.isBlank()) "add_location" else location.lowercase(),
                     onClick = { /* Could expand to full input */ }
                 )
 
                 // Reminder Selection
                 DarkFormRow(
-                    icon = Icons.Default.TipsAndUpdates, // Creative: Insight/Reminder
-                    title = "Reminder",
-                    value = reminderOptions.find { it.first == selectedReminder }?.second ?: "None",
+                    icon = Icons.Default.NotificationsNone,
+                    title = "reminder",
+                    value = reminderOptions.find { it.first == selectedReminder }?.second ?: "none",
                     onClick = { showReminderMenu = true }
                 )
 
                 // Privacy Toggle
                 DarkFormRow(
-                    icon = Icons.Default.Lock, // Creative: Lock/Security
-                    title = "Private event",
-                    subtitle = "Hidden from AI assistant",
+                    icon = Icons.Default.Lock,
+                    title = "private_event",
+                    subtitle = "hidden_from_ai_assistant",
                     trailing = {
                         Switch(
                             checked = isPrivate,
@@ -404,10 +390,10 @@ fun AddEventSheet(
                                 isPrivate = it
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = SheetWhite,
-                                checkedTrackColor = SheetAccent,
-                                uncheckedThumbColor = SheetMutedText,
-                                uncheckedTrackColor = SheetSurfaceDark
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = accentColor,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         )
                     }
@@ -424,7 +410,7 @@ fun AddEventSheet(
 
     // Date Picker Dialog
     if (showDatePicker) {
-        DatePickerDialog(
+            DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(
@@ -434,35 +420,32 @@ fun AddEventSheet(
                         }
                         showDatePicker = false
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetAccent)
+                    colors = ButtonDefaults.textButtonColors(contentColor = accentColor)
                 ) {
-                    Text("OK")
+                    Text("ok")
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showDatePicker = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetMutedText)
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("Cancel")
+                    Text("cancel")
                 }
-            },
-            colors = DatePickerDefaults.colors(
-                containerColor = SheetSurfaceDark
-            )
+            }
         ) {
             DatePicker(
                 state = datePickerState,
                 colors = DatePickerDefaults.colors(
-                    containerColor = SheetSurfaceDark,
-                    titleContentColor = SheetWhite,
-                    headlineContentColor = SheetWhite,
-                    weekdayContentColor = SheetMutedText,
-                    dayContentColor = SheetWhite,
-                    selectedDayContainerColor = SheetAccent,
-                    selectedDayContentColor = SheetWhite,
-                    todayContentColor = SheetAccent,
-                    todayDateBorderColor = SheetAccent
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    headlineContentColor = MaterialTheme.colorScheme.onSurface,
+                    weekdayContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    dayContentColor = MaterialTheme.colorScheme.onSurface,
+                    selectedDayContainerColor = accentColor,
+                    selectedDayContentColor = Color.White,
+                    todayContentColor = accentColor,
+                    todayDateBorderColor = accentColor
                 )
             )
         }
@@ -505,7 +488,7 @@ fun AddEventSheet(
     // Reminder Menu
     if (showReminderMenu) {
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Reminder",
+            title = "reminder",
             onDismiss = { showReminderMenu = false },
             onConfirm = {},
             customContent = {
@@ -524,12 +507,12 @@ fun AddEventSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(label, color = SheetWhite)
+                            Text(label, color = MaterialTheme.colorScheme.onSurface)
                             if (selectedReminder == minutes) {
                                 Icon(
-                                    imageVector = Icons.Default.Verified, // Creative: Verified
-                                    contentDescription = "Selected",
-                                    tint = SheetAccent
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "selected",
+                                    tint = accentColor
                                 )
                             }
                         }
@@ -555,23 +538,24 @@ private fun DarkTextField(
     minLines: Int = 1,
     maxLines: Int = 1
 ) {
+    val accentColor = LocalAccentColor.current
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        placeholder = { Text(placeholder, color = SheetMutedText) },
+        placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = singleLine,
         minLines = minLines,
         maxLines = maxLines,
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = SheetWhite,
-            unfocusedTextColor = SheetWhite,
-            focusedContainerColor = SheetInputBg,
-            unfocusedContainerColor = SheetInputBg,
-            focusedBorderColor = SheetAccent,
-            unfocusedBorderColor = SheetBorder,
-            cursorColor = SheetAccent
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedBorderColor = accentColor,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+            cursorColor = accentColor
         )
     )
 }
@@ -585,12 +569,13 @@ private fun DarkFormRow(
     onClick: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null
 ) {
+    val accentColor = LocalAccentColor.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(16.dp),
-        color = SheetSurfaceDark
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Row(
             modifier = Modifier
@@ -602,7 +587,7 @@ private fun DarkFormRow(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = SheetMutedText,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(22.dp)
             )
 
@@ -610,13 +595,13 @@ private fun DarkFormRow(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = sheetTextPrimary()
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 subtitle?.let {
                     Text(
                         text = it,
                         style = MaterialTheme.typography.bodySmall,
-                        color = SheetMutedText
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -627,16 +612,16 @@ private fun DarkFormRow(
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = SheetAccent,
+                    color = accentColor,
                     fontWeight = FontWeight.Medium
                 )
             }
 
             if (onClick != null && trailing == null) {
                 Icon(
-                    imageVector = Icons.Default.ChevronRight,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
-                    tint = SheetMutedText.copy(alpha = 0.6f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -653,7 +638,7 @@ private fun DarkFormSection(
         Text(
             text = title,
             style = MaterialTheme.typography.labelMedium,
-            color = SheetMutedText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Medium
         )
         content()
@@ -721,14 +706,15 @@ private fun CosmicTimeSelector(
     }
 
     val haptic = LocalHapticFeedback.current
+    val accentColor = LocalAccentColor.current
 
     Box(
         modifier = Modifier
             .width(340.dp)
             .height(380.dp)
             .clip(RoundedCornerShape(32.dp))
-            .background(SheetDarkBg)
-            .border(1.dp, SheetBorder, RoundedCornerShape(32.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(32.dp))
             .clickable(enabled = false) {}, // consume clicks
         contentAlignment = Alignment.Center
     ) {
@@ -737,7 +723,7 @@ private fun CosmicTimeSelector(
             val center = center
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF2979FF).copy(alpha = 0.1f), Color.Transparent),
+                    colors = listOf(accentColor.copy(alpha = 0.1f), Color.Transparent),
                     center = center,
                     radius = size.minDimension / 1.5f
                 ),
@@ -761,16 +747,16 @@ private fun CosmicTimeSelector(
             ) {
                 TextButton(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetMutedText)
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Medium, fontSize = 16.sp)
+                    Text("cancel", fontWeight = FontWeight.Medium, fontSize = 16.sp)
                 }
-                
+
                 TextButton(
                     onClick = { onConfirm(selectedHour, selectedMinute) },
-                    colors = ButtonDefaults.textButtonColors(contentColor = SheetWhite)
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
-                    Text("Done", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("done", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 
@@ -791,7 +777,7 @@ private fun CosmicTimeSelector(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Color(0xFF2979FF).copy(alpha = 0.15f),
+                                    accentColor.copy(alpha = 0.15f),
                                     Color.Transparent
                                 )
                             ),
@@ -802,7 +788,7 @@ private fun CosmicTimeSelector(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     Color.Transparent,
-                                    Color(0xFF2979FF).copy(alpha = 0.5f),
+                                    accentColor.copy(alpha = 0.5f),
                                     Color.Transparent
                                 )
                             ),
@@ -828,25 +814,25 @@ private fun CosmicTimeSelector(
                             }
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         },
-                        label = "HRS"
+                        label = "hrs"
                     )
-                    
+
                     // Separator dots
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(modifier = Modifier.size(6.dp).background(Color(0xFF2979FF), CircleShape))
-                        Box(modifier = Modifier.size(6.dp).background(Color(0xFF2979FF).copy(0.5f), CircleShape))
+                        Box(modifier = Modifier.size(6.dp).background(accentColor, CircleShape))
+                        Box(modifier = Modifier.size(6.dp).background(accentColor.copy(0.5f), CircleShape))
                     }
 
                     // MINUTES WHEEL
                     CosmicWheel(
                         range = 0..59,
                         initialValue = selectedMinute,
-                        onValueChange = { m -> 
-                            selectedMinute = m 
+                        onValueChange = { m ->
+                            selectedMinute = m
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         },
                         format = { "%02d".format(it) },
-                        label = "MIN"
+                        label = "min"
                     )
                 }
             }
@@ -857,8 +843,8 @@ private fun CosmicTimeSelector(
                     .width(180.dp)
                     .height(48.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF0A0A10))
-                    .border(1.dp, Color(0xFF2A2A35), RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(24.dp))
                     .padding(4.dp)
             ) {
                Row(modifier = Modifier.fillMaxSize()) {
@@ -868,30 +854,30 @@ private fun CosmicTimeSelector(
                            .weight(1f)
                            .fillMaxHeight()
                            .clip(RoundedCornerShape(20.dp))
-                           .background(if (!isPmState) Color(0xFF2979FF) else Color.Transparent)
+                           .background(if (!isPmState) accentColor else Color.Transparent)
                            .clickable { isPmState = false },
                        contentAlignment = Alignment.Center
                    ) {
                        Text(
-                           "AM", 
-                           color = if (!isPmState) SheetWhite else Color(0xFF404050),
+                           "am",
+                           color = if (!isPmState) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                            fontWeight = FontWeight.Bold
                        )
                    }
-                   
+
                    // PM
                    Box(
                        modifier = Modifier
                            .weight(1f)
                            .fillMaxHeight()
                            .clip(RoundedCornerShape(20.dp))
-                           .background(if (isPmState) Color(0xFF2979FF) else Color.Transparent)
+                           .background(if (isPmState) accentColor else Color.Transparent)
                            .clickable { isPmState = true },
                        contentAlignment = Alignment.Center
                    ) {
                        Text(
-                           "PM", 
-                           color = if (isPmState) SheetWhite else Color(0xFF404050),
+                           "pm",
+                           color = if (isPmState) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                            fontWeight = FontWeight.Bold
                        )
                    }
@@ -952,12 +938,12 @@ private fun CosmicWheel(
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            label, 
-            style = MaterialTheme.typography.labelSmall, 
-            color = Color(0xFF6B6B80),
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        
+
         Box(
             modifier = Modifier
                 .width(80.dp)
@@ -972,7 +958,7 @@ private fun CosmicWheel(
             ) {
                 items(Int.MAX_VALUE) { index ->
                     val itemValue = items[index % items.size]
-                    
+
                     // Simple item box
                     Box(
                         modifier = Modifier
@@ -988,14 +974,14 @@ private fun CosmicWheel(
                     }
                 }
             }
-             
+
             // Top and Bottom fade gradients
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(80.dp)
                     .align(Alignment.TopCenter)
-                    .background(Brush.verticalGradient(listOf(Color(0xFF0F0F16), Color.Transparent)))
+                    .background(Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, Color.Transparent)))
                     .pointerInput(Unit) {} // pass through clicks? No, visual only
             )
             Box(
@@ -1003,7 +989,7 @@ private fun CosmicWheel(
                     .fillMaxWidth()
                     .height(80.dp)
                     .align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFF0F0F16))))
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, MaterialTheme.colorScheme.background)))
             )
         }
     }
@@ -1015,29 +1001,31 @@ private fun CosmicWheelItem(
     listState: androidx.compose.foundation.lazy.LazyListState,
     index: Int
 ) {
+    val accentColor = LocalAccentColor.current
     // Dynamic scaling based on distance from center
     val itemInfo = listState.layoutInfo.visibleItemsInfo.find { it.index == index }
-    
+
     var scale by remember { mutableFloatStateOf(0.6f) }
     var alpha by remember { mutableFloatStateOf(0.3f) }
-    var color by remember { mutableStateOf(Color(0xFF6B6B80)) }
-    
+    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant
+    var color by remember { mutableStateOf(inactiveColor) }
+
     if (itemInfo != null) {
         val viewportCenter = listState.layoutInfo.viewportStartOffset + (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset) / 2
         val itemCenter = itemInfo.offset + itemInfo.size / 2
         val distance = Math.abs(viewportCenter - itemCenter)
         val maxDistance = 200f // Falloff distance
-        
+
         val normalizedDistance = (distance / maxDistance).coerceIn(0f, 1f)
-        
+
         scale = lerp(1.3f, 0.6f, normalizedDistance)
         alpha = lerp(1f, 0.3f, normalizedDistance)
-        
+
         // Color interpolation
         color = if (normalizedDistance < 0.2f) {
-            Color(0xFF2979FF) // Active Highlight
+            accentColor // Active Highlight
         } else {
-             Color(0xFF6B6B80) // Inactive
+             inactiveColor // Inactive
         }
     }
 
@@ -1046,7 +1034,7 @@ private fun CosmicWheelItem(
         style = TextStyle(
             fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
-            shadow = if (scale > 1.0f) Shadow(color = Color(0xFF2979FF), blurRadius = 20f) else null
+            shadow = if (scale > 1.0f) Shadow(color = accentColor, blurRadius = 20f) else null
         ),
         color = color,
         modifier = Modifier

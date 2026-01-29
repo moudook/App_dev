@@ -2,8 +2,8 @@ package com.example.smarty.ui.components
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.outlined.Assistant
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -13,12 +13,12 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Toggle button for controlling thinking/reasoning mode.
- * 
- * When enabled: Shows brain icon (Psychology) - model displays reasoning
- * When disabled: Shows lightning icon (Bolt) - model skips thinking for speed
- * 
+ *
+ * When enabled: Shows assistant icon (Filled) - model displays reasoning
+ * When disabled: Shows assistant icon (Outlined) - model skips thinking for speed
+ *
  * Used with reasoning models like Falcon-H1R-7B that support <think> tags.
- * 
+ *
  * @param isEnabled Current state of thinking mode
  * @param onToggle Callback when user toggles the mode
  * @param modifier Optional modifier for the button
@@ -35,14 +35,14 @@ fun ThinkingModeToggle(
     ) {
         Icon(
             imageVector = if (isEnabled) {
-                Icons.Filled.Lightbulb  // Lightbulb - Creative Insight
+                Icons.Filled.Assistant
             } else {
-                Icons.Outlined.Bolt  // Lightning icon - fast mode (thinking OFF)
+                Icons.Outlined.Assistant
             },
             contentDescription = if (isEnabled) {
-                "Thinking mode ON - Tap to disable reasoning display"
+                "thinking_mode_on"
             } else {
-                "Thinking mode OFF - Tap to enable reasoning display"
+                "thinking_mode_off"
             },
             tint = if (isEnabled) {
                 MaterialTheme.colorScheme.primary  // Highlighted when enabled

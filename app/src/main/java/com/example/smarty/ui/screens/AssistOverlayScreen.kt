@@ -44,17 +44,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.automirrored.filled.Send
+import com.example.smarty.R
 import androidx.core.content.ContextCompat
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.viewmodel.AssistViewModel
 import java.util.Locale
-
-// Gemini colors
-private val GeminiBlue = Color(0xFF4285F4)
-private val GeminiPurple = Color(0xFF9B72CB)
-private val GeminiPink = Color(0xFFD96570)
 
 /**
  * Gemini-style Assistant Overlay
@@ -174,7 +172,7 @@ fun AssistOverlayScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Gemini-style glowing input bar
+                // Input bar
                 GlowingInputBar(
                     onSend = { viewModel.sendMessage(it) },
                     onVoice = {
@@ -203,7 +201,8 @@ fun AssistOverlayScreen(
                     },
                     onDismiss = onDismiss,
                     isProcessing = isProcessing,
-                    isListening = isListening
+                    isListening = isListening,
+                    accentColor = accentColor
                 )
             }
         }
@@ -211,7 +210,7 @@ fun AssistOverlayScreen(
 }
 
 /**
- * Gemini-style glowing input bar with animated border
+ * Glowing input bar with animated border
  */
 @Composable
 private fun GlowingInputBar(
@@ -219,7 +218,8 @@ private fun GlowingInputBar(
     onVoice: () -> Unit,
     onDismiss: () -> Unit,
     isProcessing: Boolean,
-    isListening: Boolean
+    isListening: Boolean,
+    accentColor: Color
 ) {
     var text by remember { mutableStateOf("") }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -236,13 +236,14 @@ private fun GlowingInputBar(
         label = "glowProgress"
     )
 
-    // Glow colors for gradient border
+    // Glow colors for gradient border (Calm system colors)
+    val accentColorNormalized = LocalAccentColor.current
     val gradientColors = listOf(
-        GeminiBlue,
-        GeminiPurple,
-        GeminiPink,
-        GeminiPurple,
-        GeminiBlue
+        accentColorNormalized.copy(alpha = 0.8f),
+        accentColorNormalized.copy(alpha = 0.4f),
+        accentColorNormalized,
+        accentColorNormalized.copy(alpha = 0.4f),
+        accentColorNormalized.copy(alpha = 0.8f)
     )
 
     Surface(
@@ -253,19 +254,20 @@ private fun GlowingInputBar(
                 val strokeWidth = 3.dp.toPx()
                 val cornerRadius = 28.dp.toPx()
 
-                // Create rotating gradient brush
+                // Create rotating gradient brush for a subtle, calm glow
                 val brush = Brush.sweepGradient(
                     colors = gradientColors,
                     center = Offset(
-                        size.width / 2 + (size.width * 0.3f * kotlin.math.cos(glowProgress * 2 * Math.PI)).toFloat(),
-                        size.height / 2 + (size.height * 0.3f * kotlin.math.sin(glowProgress * 2 * Math.PI)).toFloat()
+                        size.width / 2 + (size.width * 0.2f * kotlin.math.cos(glowProgress * 2 * Math.PI)).toFloat(),
+                        size.height / 2 + (size.height * 0.2f * kotlin.math.sin(glowProgress * 2 * Math.PI)).toFloat()
                     )
                 )
 
                 drawRoundRect(
                     brush = brush,
                     cornerRadius = CornerRadius(cornerRadius),
-                    style = Stroke(width = strokeWidth)
+                    style = Stroke(width = strokeWidth),
+                    alpha = if (isListening || isProcessing) 0.6f else 0.2f
                 )
             },
         shape = RoundedCornerShape(28.dp),
@@ -286,8 +288,8 @@ private fun GlowingInputBar(
                 modifier = Modifier.size(40.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
-                    contentDescription = "Close",
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.close),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
@@ -300,15 +302,15 @@ private fun GlowingInputBar(
                     .size(40.dp)
                     .then(
                         if (isListening) Modifier.background(
-                            GeminiBlue.copy(alpha = 0.15f),
+                            accentColor.copy(alpha = 0.15f),
                             CircleShape
                         ) else Modifier
                     )
             ) {
                 Icon(
-                    imageVector = if (isListening) Icons.Default.StopCircle else Icons.Default.GraphicEq, // Creative: Stop / Waveform
-                    contentDescription = if (isListening) "Stop" else "Voice",
-                    tint = if (isListening) GeminiBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                    imageVector = if (isListening) Icons.Default.StopCircle else Icons.Default.Mic, // Standard Mic icon
+                    contentDescription = if (isListening) stringResource(R.string.cancel) else stringResource(R.string.widget_voice_note),
+                    tint = if (isListening) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -328,17 +330,17 @@ private fun GlowingInputBar(
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     ),
-                    cursorBrush = SolidColor(GeminiBlue),
+                    cursorBrush = SolidColor(accentColor),
                     enabled = !isProcessing && !isListening,
                     singleLine = true,
                     decorationBox = { innerTextField ->
-                        if (text.isEmpty()) {
-                            Text(
-                                text = if (isListening) "Listening..." else "Ask Jarvis",
-                                color = if (isListening) GeminiBlue else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                fontSize = 16.sp
-                            )
-                        }
+                    Text(
+                        text = if (isListening) stringResource(R.string.listening) else stringResource(R.string.ask_jarvis),
+                        color = if (isListening) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontSize = 16.sp,
+                        letterSpacing = 0.2.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
                         innerTextField()
                     }
                 )
@@ -364,22 +366,21 @@ private fun GlowingInputBar(
                         modifier = Modifier
                             .size(40.dp)
                             .background(
-                                brush = Brush.linearGradient(listOf(GeminiBlue, GeminiPurple)),
+                                color = LocalAccentColor.current,
                                 shape = CircleShape
                             )
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.RocketLaunch, // Creative: Launch
-                            contentDescription = "Send",
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.share),
                             tint = Color.White,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 } else if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(36.dp).padding(8.dp),
-                        strokeWidth = 2.dp,
-                        color = GeminiBlue
+                    com.example.smarty.ui.components.CalmThinkingDots(
+                        modifier = Modifier.padding(12.dp),
+                        dotSize = 4.dp
                     )
                 } else {
                     // Empty space to maintain consistent layout when no send button
@@ -431,40 +432,42 @@ private fun ResponseCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Gemini icon
+                    // assistant icon
                     Box(
                         modifier = Modifier
                             .size(24.dp)
                             .background(
-                                brush = Brush.linearGradient(listOf(GeminiBlue, GeminiPurple)),
+                                color = accentColor,
                                 shape = CircleShape
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
+                            imageVector = Icons.Default.Assistant,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                     }
                     Text(
-                        text = "Assistant",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium
+                        text = stringResource(R.string.assistant),
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
                     )
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                     IconButton(onClick = onNewChat, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            Icons.Default.AutoAwesome, "New", Modifier.size(18.dp), // Creative: Spark/New
+                            Icons.Default.Add, stringResource(R.string.new_chat), Modifier.size(18.dp), // Standard Add icon
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     IconButton(onClick = onCollapse, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            Icons.Default.KeyboardArrowDown, "Minimize", Modifier.size(20.dp), // Creative: Down
+                            Icons.Default.ExpandMore, stringResource(R.string.minimize), Modifier.size(20.dp), // Standard ExpandMore icon
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -493,11 +496,11 @@ private fun ResponseCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    ThinkingDots()
+                    ThinkingDots(accentColor = accentColor)
                     Text(
-                        "Thinking...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = stringResource(R.string.thinking),
+                        style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.5.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -534,12 +537,15 @@ private fun MessageBubble(message: ChatMessage, accentColor: Color) {
             Spacer(Modifier.height(4.dp))
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = GeminiBlue.copy(alpha = 0.1f)
+                color = accentColor.copy(alpha = 0.1f)
             ) {
                 Text(
-                    "${message.citations.size} sources",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = GeminiBlue,
+                    text = stringResource(R.string.sources_count, message.citations.size),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = accentColor,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
@@ -548,7 +554,7 @@ private fun MessageBubble(message: ChatMessage, accentColor: Color) {
 }
 
 @Composable
-private fun ThinkingDots() {
+private fun ThinkingDots(accentColor: Color) {
     val infiniteTransition = rememberInfiniteTransition(label = "dots")
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(3) { i ->
@@ -563,7 +569,7 @@ private fun ThinkingDots() {
                 Modifier
                     .size(6.dp)
                     .clip(CircleShape)
-                    .background(GeminiBlue.copy(alpha = alpha))
+                    .background(accentColor.copy(alpha = alpha))
             )
         }
     }

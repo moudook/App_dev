@@ -51,7 +51,8 @@ class BackupManager(
     private val context: Context,
     private val database: JarvisDatabase,
     private val securePreferences: SecurePreferences,
-    private val driveService: DriveService
+    private val driveService: DriveService,
+    private val authManager: com.example.smarty.data.remote.GoogleAuthManager
 ) {
     private val gson: Gson = GsonBuilder()
         .setPrettyPrinting()
@@ -96,6 +97,11 @@ class BackupManager(
      */
     suspend fun createBackup(): Result<BackupMetadata> = withContext(Dispatchers.IO) {
         try {
+            // Check for network connectivity before starting heavy operations
+            if (!isNetworkAvailable()) {
+                throw Exception("connection_lost")
+            }
+
             _backupState.value = BackupOperationState.InProgress(0.05f, "Preparing backup...")
 
             // Get all notes and categories
@@ -251,8 +257,9 @@ class BackupManager(
             }
         } catch (e: Exception) {
             _backupState.value = BackupOperationState.Error(
-                e.message ?: "Backup failed",
-                e
+                message = if (e.message == "connection_lost") "connection_lost" else "backup_failed",
+                exception = e,
+                recoveryIntent = authManager.isUserRecoverable(e)
             )
             Result.failure(e)
         }
@@ -270,6 +277,11 @@ class BackupManager(
         var preRestoreCategories: List<com.example.smarty.data.model.Category>? = null
 
         try {
+            // Check for network connectivity before starting cloud restore
+            if (!isNetworkAvailable()) {
+                throw Exception("connection_lost")
+            }
+
             _restoreState.value = BackupOperationState.InProgress(0.02f, "Creating safety backup...")
 
             // Save current data for potential rollback
@@ -434,22 +446,25 @@ class BackupManager(
                         database.noteDao().insertNote(note)
                     }
 
-                    _restoreState.value = BackupOperationState.Error(
-                        "Restore failed: ${e.message}. Your original data has been preserved.",
-                        e
-                    )
-                } catch (rollbackError: Exception) {
-                    _restoreState.value = BackupOperationState.Error(
-                        "CRITICAL: Restore and rollback both failed. Some data may be lost. Error: ${e.message}",
-                        e
-                    )
-                }
-            } else {
                 _restoreState.value = BackupOperationState.Error(
-                    e.message ?: "Restore failed",
-                    e
+                    message = "Restore failed: ${e.message}. Your original data has been preserved.",
+                    exception = e,
+                    recoveryIntent = authManager.isUserRecoverable(e)
+                )
+            } catch (rollbackError: Exception) {
+                _restoreState.value = BackupOperationState.Error(
+                    message = "CRITICAL: Restore and rollback both failed. Some data may be lost. Error: ${e.message}",
+                    exception = e,
+                    recoveryIntent = authManager.isUserRecoverable(e)
                 )
             }
+        } else {
+            _restoreState.value = BackupOperationState.Error(
+                message = e.message ?: "Restore failed",
+                exception = e,
+                recoveryIntent = authManager.isUserRecoverable(e)
+            )
+        }
             Result.failure(e)
         }
     }
@@ -471,17 +486,33 @@ class BackupManager(
     // Helper functions
 
     private fun createPreferencesBackup(): PreferencesBackup {
+        val allConfigs = securePreferences.getAllProviderConfigs()
+        val providerConfigsBackup = allConfigs.map { (provider, config) ->
+            provider.name to AIProviderConfigBackup(
+                isEnabled = config.isEnabled,
+                selectedModel = config.selectedModel,
+                apiKeys = config.apiKeys
+            )
+        }.toMap()
+
+        val priorityOrder = securePreferences.getProviderPriority().map { it.name }
+
         return PreferencesBackup(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
-            // Note: We don't backup API keys for security reasons
-            // Users need to re-enter them after restore
-            encryptedGeminiKeys = null,
-            encryptedHuggingFaceKeys = null,
-            providerConfigs = AIProvider.entries.associate {
-                it.name to securePreferences.isProviderEnabled(it)
-            }
+            providerPriorityOrder = priorityOrder,
+            providerConfigs = providerConfigsBackup,
+            tavilyApiKeys = securePreferences.getTavilyApiKeys(),
+            localPcIp = securePreferences.getLocalPCIP(),
+            localPcPort = securePreferences.getLocalPCPort(),
+            localPcUseHttps = securePreferences.getLocalPCUseHttps(),
+            shakeSensitivity = securePreferences.getShakeSensitivity(),
+            soundEnabled = securePreferences.isSoundEnabled(),
+            groqDynamicModels = securePreferences.getDynamicModels(com.example.smarty.data.local.AIProvider.GROQ),
+            // Legacy support for older backups
+            encryptedGeminiKeys = securePreferences.getProviderKeys(AIProvider.GEMINI),
+            encryptedHuggingFaceKeys = securePreferences.getProviderKeys(AIProvider.HUGGINGFACE)
         )
     }
 
@@ -490,15 +521,57 @@ class BackupManager(
         securePreferences.setAutoBackupEnabled(backup.autoBackupEnabled)
         securePreferences.setAutoBackupIntervalDays(backup.autoBackupIntervalDays)
 
-        // Restore provider enabled states
-        backup.providerConfigs?.forEach { (providerName, enabled) ->
-            try {
-                val provider = AIProvider.valueOf(providerName)
-                securePreferences.setProviderEnabled(provider, enabled)
-            } catch (e: Exception) {
-                // Ignore unknown providers
+        // Restore Tavily API keys
+        backup.tavilyApiKeys?.let { keys ->
+            if (keys.isNotEmpty()) {
+                securePreferences.setTavilyApiKeys(keys)
             }
         }
+
+        // Restore Local PC settings
+        backup.localPcIp?.let { securePreferences.setLocalPCIP(it) }
+        backup.localPcPort?.let { securePreferences.setLocalPCPort(it) }
+        backup.localPcUseHttps?.let { securePreferences.setLocalPCUseHttps(it) }
+
+        // Restore UI and interaction settings
+        backup.shakeSensitivity?.let { securePreferences.setShakeSensitivity(it) }
+        backup.soundEnabled?.let { securePreferences.setSoundEnabled(it) }
+
+        // Restore dynamic models
+        backup.groqDynamicModels?.let { models ->
+            if (models.isNotEmpty()) {
+                securePreferences.setDynamicModels(AIProvider.GROQ, models)
+            }
+        }
+
+        // Restore provider configurations (models, enabled state, and keys)
+        backup.providerConfigs?.forEach { (providerName, configBackup) ->
+            try {
+                val provider = AIProvider.valueOf(providerName)
+                securePreferences.setProviderEnabled(provider, configBackup.isEnabled)
+                securePreferences.setSelectedModel(provider, configBackup.selectedModel)
+                configBackup.apiKeys?.let { keys ->
+                    if (keys.isNotEmpty()) {
+                        securePreferences.setProviderKeys(provider, keys)
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore unknown providers or malformed data
+            }
+        }
+
+        // Restore priority order
+        backup.providerPriorityOrder?.let { priorityNames ->
+            val priorityList = priorityNames.mapNotNull { name ->
+                try { AIProvider.valueOf(name) } catch (e: Exception) { null }
+            }
+            if (priorityList.isNotEmpty()) {
+                securePreferences.setProviderPriority(priorityList)
+            }
+        }
+
+        // Fallback for legacy backups that used the old providerConfigs Map<String, Boolean>
+        // Note: This is mostly handled by the current BackupData.kt structure but good to keep in mind
     }
 
     /**
@@ -569,6 +642,19 @@ class BackupManager(
         } catch (e: Exception) {
             uri.lastPathSegment
         }
+    }
+
+    /**
+     * Check if network is available for cloud operations.
+     */
+    private fun isNetworkAvailable(): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+        return capabilities != null && (
+            capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        )
     }
 
     /**

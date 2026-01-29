@@ -53,9 +53,9 @@ fun ConnectionStatusIndicator(
     }
     
     val statusColor = when (status) {
-        ConnectionStatus.CONNECTED -> Color(0xFF4CAF50) // Green
-        ConnectionStatus.CONNECTING -> Color(0xFFFFC107) // Amber
-        ConnectionStatus.DISCONNECTED -> Color(0xFFF44336) // Red
+        ConnectionStatus.CONNECTED -> Color(0xFFA5D6A7) // Soft Green (Calm Palette)
+        ConnectionStatus.CONNECTING -> Color(0xFFFFCC80) // Soft Amber (Calm Palette)
+        ConnectionStatus.DISCONNECTED -> Color(0xFFEF9A9A) // Soft Red (Calm Palette)
         ConnectionStatus.OFFLINE -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
     }
     
@@ -88,10 +88,10 @@ fun ConnectionStatusIndicator(
                 if (showLabel) {
                     Text(
                         text = when (status) {
-                            ConnectionStatus.CONNECTED -> "Connected"
-                            ConnectionStatus.CONNECTING -> "Connecting..."
-                            ConnectionStatus.DISCONNECTED -> "Reconnecting"
-                            ConnectionStatus.OFFLINE -> "Offline"
+                            ConnectionStatus.CONNECTED -> "connected"
+                            ConnectionStatus.CONNECTING -> "connecting"
+                            ConnectionStatus.DISCONNECTED -> "reconnecting"
+                            ConnectionStatus.OFFLINE -> "offline"
                         },
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Medium
@@ -132,7 +132,7 @@ fun CategoryActionsMenu(
         modifier = modifier
     ) {
         DropdownMenuItem(
-            text = { Text("View") },
+            text = { Text("view") },
             onClick = {
                 onView()
                 onDismiss()
@@ -147,14 +147,14 @@ fun CategoryActionsMenu(
         )
 
         DropdownMenuItem(
-            text = { Text("Edit") },
+            text = { Text("edit") },
             onClick = {
                 onEdit()
                 onDismiss()
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Default.DesignServices, // Creative: Design
+                    imageVector = Icons.Default.Edit,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -166,7 +166,7 @@ fun CategoryActionsMenu(
         DropdownMenuItem(
             text = {
                 Text(
-                    "Delete",
+                    "delete",
                     color = MaterialTheme.colorScheme.error
                 )
             },
@@ -176,7 +176,7 @@ fun CategoryActionsMenu(
             },
             leadingIcon = {
                 Icon(
-                    imageVector = Icons.Default.Whatshot, // Creative: Fire
+                    imageVector = Icons.Default.DeleteOutline,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error
                 )

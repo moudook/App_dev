@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -33,6 +32,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.theme.YoutubeRed
 
 /**
@@ -94,15 +94,14 @@ fun YouTubePlayButton(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp),
+                com.example.smarty.ui.components.CalmThinkingDots(
                     color = Color.White,
-                    strokeWidth = 2.dp
+                    dotSize = (if (isCompact) 3.dp else 4.dp)
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Watch video",
+                    contentDescription = "watch_video",
                     tint = Color.White,
                     modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
                 )
@@ -111,8 +110,10 @@ fun YouTubePlayButton(
             if (!isCompact) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isLoading) "Loading..." else "Watch",
-                    style = MaterialTheme.typography.labelMedium,
+                    text = if (isLoading) "" else "watch",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        letterSpacing = 0.5.sp
+                    ),
                     color = Color.White
                 )
             }
@@ -168,15 +169,14 @@ fun YouTubePlayButtonCircle(
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size((size * 0.5f).dp),
+            com.example.smarty.ui.components.CalmThinkingDots(
                 color = Color.White,
-                strokeWidth = 2.dp
+                dotSize = 3.dp
             )
         } else {
             Icon(
                 imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Play audio",
+                contentDescription = "play_audio",
                 tint = Color.White,
                 modifier = Modifier.size((size * 0.6f).dp)
             )

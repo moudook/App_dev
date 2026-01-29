@@ -158,6 +158,11 @@ class MainActivity : ComponentActivity() {
                 val selectedCategory by viewModel.selectedCategory.collectAsState()
                 val isProcessing by viewModel.isProcessing.collectAsState()
                 val isNotesLoading by viewModel.isNotesLoading.collectAsState()
+                val isStacksLoading by viewModel.isStacksLoading.collectAsState()
+                val isArchiveLoading by viewModel.isArchiveLoading.collectAsState()
+                val isChatHistoryLoading by viewModel.isChatHistoryLoading.collectAsState()
+                val isCalendarLoading by viewModel.isCalendarLoading.collectAsState()
+                val isNoteVersionsLoading by viewModel.isNoteVersionsLoading.collectAsState()
 
                 // API Key states
                 val providerConfigs by viewModel.providerConfigs.collectAsState()
@@ -285,11 +290,11 @@ class MainActivity : ComponentActivity() {
                     }
                 )
 
-                // CRITICAL: Stop speech reJarvistion when app goes to background
+                // CRITICAL: Stop speech recognition when app goes to background
                 // This prevents microphone access when app is minimized (privacy fix)
                 LaunchedEffect(isAppInForeground) {
                     if (!isAppInForeground && globalSpeechState.isListening) {
-                        android.util.Log.d("Privacy", "Stopping speech reJarvistion - app went to background")
+                        android.util.Log.d("Privacy", "Stopping speech recognition - app went to background")
                         globalSpeechState.stopListening()
                     }
                 }
@@ -307,7 +312,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 // Sync mic state to ViewModel for contextual shake detection
-                // Also coordinate audio playback with speech reJarvistion
+                // Also coordinate audio playback with speech recognition
                 // Pause/resume wake word detection based on mic usage
                 // PRIVACY: Also check foreground state to prevent background mic access
                 LaunchedEffect(globalSpeechState.isListening, isAppInForeground) {
@@ -378,9 +383,9 @@ class MainActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     // Minimal loading indicator
-                                    androidx.compose.material3.CircularProgressIndicator(
+                                    com.example.smarty.ui.components.CalmThinkingDots(
                                         color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                        strokeWidth = 3.dp
+                                        dotSize = 4.dp
                                     )
                                 }
                             }
@@ -447,6 +452,9 @@ class MainActivity : ComponentActivity() {
                                     onCreateCategory = { name ->
                                         viewModel.createUserCategory(name)
                                     },
+                                    onRenameCategory = { category, newName ->
+                                        viewModel.renameCategory(category, newName)
+                                    },
                                     onDeleteCategory = { category ->
                                         viewModel.deleteCategory(category)
                                     },
@@ -470,6 +478,10 @@ class MainActivity : ComponentActivity() {
                                     },
                                     isRefreshing = viewModel.isRefreshing.collectAsState().value,
                                     isNotesLoading = isNotesLoading,
+                                    isStacksLoading = isStacksLoading,
+                                    isArchiveLoading = isArchiveLoading,
+                                    isChatHistoryLoading = isChatHistoryLoading,
+                                    isCalendarLoading = isCalendarLoading,
                                     onDeleteNote = { note ->
                                         viewModel.deleteNote(note)
                                     },
@@ -713,6 +725,19 @@ class MainActivity : ComponentActivity() {
                                     onClearMemorySyncResult = {
                                         viewModel.clearMemorySyncResult()
                                     },
+                                    // Google Calendar Two-Way Sync
+                                    isCalendarSyncEnabled = viewModel.isCalendarSyncEnabled.collectAsState().value,
+                                    onSetCalendarSyncEnabled = { enabled ->
+                                        viewModel.setCalendarSyncEnabled(enabled)
+                                    },
+                                    deviceCalendars = viewModel.deviceCalendars.collectAsState().value,
+                                    targetCalendarId = viewModel.targetCalendarId.collectAsState().value,
+                                    onSetTargetCalendarId = { id ->
+                                        viewModel.setTargetCalendarId(id)
+                                    },
+                                    onLoadDeviceCalendars = {
+                                        viewModel.loadDeviceCalendars()
+                                    },
                                     navigationRequest = navigationRequest,
                                     onClearNavigationRequest = {
                                         viewModel.clearNavigationRequest()
@@ -888,6 +913,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 // Widget Actions
+                "com.example.smarty.action.QUICK_NOTE" -> {
+                    // Just ensure input is focused (handled by default in some views,
+                    // but we can explicitly trigger a state if needed)
+                    viewModel.triggerTextInput()
+                }
                 "com.example.smarty.action.VOICE_NOTE" -> {
                     // Trigger voice input mode directly
                     viewModel.triggerVoiceInput()
@@ -937,7 +967,7 @@ class MainActivity : ComponentActivity() {
     private fun requestRequiredPermissions() {
         val permissionsToRequest = mutableListOf<String>()
 
-        // RECORD_AUDIO - Required for wake word detection and speech reJarvistion
+        // RECORD_AUDIO - Required for wake word detection and speech recognition
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)

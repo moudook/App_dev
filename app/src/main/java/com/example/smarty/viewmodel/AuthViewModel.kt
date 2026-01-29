@@ -74,8 +74,16 @@ class AuthViewModelFactory(private val application: Application) : ViewModelProv
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
-            val repository = FirebaseAuthRepository()
-            return AuthViewModel(application, repository) as T
+            try {
+                val repository = FirebaseAuthRepository()
+                return AuthViewModel(application, repository) as T
+            } catch (e: Exception) {
+                Log.e("AuthViewModelFactory", "Failed to create AuthRepository", e)
+                com.example.smarty.util.CrashLogger.log(application, "AuthRepository init failed: ${e.message}")
+                // Rethrowing might crash, but at least we logged it.
+                // Creating a dummy repo or returning a safe state is hard without changing the constructor.
+                throw RuntimeException("Failed to initialize Auth Repository", e)
+            }
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

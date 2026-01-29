@@ -155,6 +155,22 @@ interface AIMemoryDao {
     """)
     suspend fun searchMemories(query: String): List<AIMemory>
 
+    /**
+     * Get relevant memories based on a query.
+     * Uses keyword matching and limits results for token efficiency.
+     *
+     * @param query The user's query to match against
+     * @param limit Maximum number of memories to return
+     */
+    @Query("""
+        SELECT * FROM ai_memories
+        WHERE content LIKE '%' || :query || '%'
+        OR :query LIKE '%' || content || '%'
+        ORDER BY confidence DESC, lastUsedAt DESC
+        LIMIT :limit
+    """)
+    suspend fun getRelevantMemories(query: String, limit: Int): List<AIMemory>
+
     // =========================================================================
     // USAGE TRACKING
     // =========================================================================

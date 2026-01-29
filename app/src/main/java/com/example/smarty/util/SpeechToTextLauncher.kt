@@ -4,6 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -33,6 +37,11 @@ class SpeechToTextState(
     private val speechRecognizer: SpeechRecognizer?,
     private val permissionLauncher: androidx.activity.result.ActivityResultLauncher<String>
 ) {
+    // Audio focus management
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var hasAudioFocus = false
+
     companion object {
         private const val TAG = "SpeechToText"
         private const val STARTUP_TIMEOUT_MS = 5000L // 5 seconds to wait for onReadyForSpeech
@@ -94,6 +103,10 @@ class SpeechToTextState(
             rmsDb = 0f
             speechInitiatedInChatMode = null // Reset mode tracking
             hasReceivedCallback = false
+            releaseAudioFocus()
+            // Resume Vosk global pause
+            com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = false
+            Log.d(TAG, "Vosk global pause released")
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping: ${e.message}")
         }
@@ -113,6 +126,74 @@ class SpeechToTextState(
         timeoutRunnable = null
     }
 
+    /**
+     * Request audio focus to ensure we get exclusive access to the microphone.
+     */
+    private fun requestAudioFocus(): Boolean {
+        Log.d(TAG, "Requesting audio focus...")
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener { focusChange ->
+                    when (focusChange) {
+                        AudioManager.AUDIOFOCUS_GAIN -> {
+                            Log.d(TAG, "Audio focus GAINED")
+                            hasAudioFocus = true
+                        }
+                        AudioManager.AUDIOFOCUS_LOSS -> {
+                            Log.d(TAG, "Audio focus LOST permanently")
+                            hasAudioFocus = false
+                            if (isListening) stopListening()
+                        }
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                            Log.d(TAG, "Audio focus TRANSIENT loss: $focusChange (expected)")
+                        }
+                    }
+                }
+                .build()
+
+            val result = audioManager.requestAudioFocus(audioFocusRequest!!)
+            hasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            Log.d(TAG, "Audio focus request result: $result (granted: $hasAudioFocus)")
+            return hasAudioFocus
+        } else {
+            @Suppress("DEPRECATION")
+            val result = audioManager.requestAudioFocus(
+                { focusChange ->
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                        hasAudioFocus = false
+                        if (isListening) stopListening()
+                    }
+                },
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
+            )
+            hasAudioFocus = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            Log.d(TAG, "Audio focus request result (legacy): $result (granted: $hasAudioFocus)")
+            return hasAudioFocus
+        }
+    }
+
+    private fun releaseAudioFocus() {
+        Log.d(TAG, "Releasing audio focus...")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let {
+                audioManager.abandonAudioFocusRequest(it)
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(null)
+        }
+        hasAudioFocus = false
+    }
+
     private fun startRecognition(languageCode: String?) {
         if (speechRecognizer == null) {
             Log.e(TAG, "Speech recognizer is null")
@@ -125,53 +206,68 @@ class SpeechToTextState(
             return
         }
 
-        try {
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        // CRITICAL: Pause Vosk globally before starting
+        Log.d(TAG, "Pausing Vosk globally for speech recognition")
+        com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = true
 
-                val locale = languageCode ?: Locale.getDefault().toLanguageTag()
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-
-                // SILENCE TIMEOUT EXTENSION: Wait 2.5 seconds of silence before stopping
-                // This allows users to take brief pauses/breaths while speaking
-                // EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: Silence after speech is detected
-                // EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: Silence when speech might be complete
-                // EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: Minimum length before considering silence
-                putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
-                putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
-                putExtra("android.speech.extra.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 1500L)
-            }
-
-            hasReceivedCallback = false
-            speechRecognizer.startListening(intent)
-            isListening = true
-            Log.d(TAG, "Started speech recognition")
-
-            // Set up timeout to detect if speech service doesn't respond
-            cancelTimeout()
-            timeoutRunnable = Runnable {
-                if (isListening && !hasReceivedCallback) {
-                    Log.w(TAG, "Speech recognition timeout - no callback received in ${STARTUP_TIMEOUT_MS}ms")
-                    // Reset state
-                    try {
-                        speechRecognizer.cancel()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error canceling on timeout: ${e.message}")
-                    }
-                    isListening = false
-                    rmsDb = 0f
-                    speechInitiatedInChatMode = null
-                    onError?.invoke("Voice service not responding. Tap to retry.")
-                }
-            }
-            handler.postDelayed(timeoutRunnable!!, STARTUP_TIMEOUT_MS)
-        } catch (e: Exception) {
-            Log.e(TAG, "Start error: ${e.message}")
-            isListening = false
-            onError?.invoke("Failed to start: ${e.message}")
+        // Request audio focus
+        if (!requestAudioFocus()) {
+            Log.e(TAG, "Failed to get audio focus")
+            onError?.invoke("Microphone in use. Tap to retry.")
+            com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = false
+            return
         }
+
+        // Delay starting speech recognizer to allow Vosk to release mic
+        handler.postDelayed({
+            try {
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+
+                    val locale = languageCode ?: Locale.getDefault().toLanguageTag()
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+
+                    // Add silence timeout parameters
+                    putExtra("android.speech.extra.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
+                    putExtra("android.speech.extra.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 2500L)
+                    putExtra("android.speech.extra.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 1500L)
+                }
+
+                hasReceivedCallback = false
+                speechRecognizer.startListening(intent)
+                isListening = true
+                Log.d(TAG, "Started speech recognition")
+
+                // Set up timeout to detect if speech service doesn't respond
+                cancelTimeout()
+                timeoutRunnable = Runnable {
+                    if (isListening && !hasReceivedCallback) {
+                        Log.w(TAG, "Speech recognition timeout - no callback received in ${STARTUP_TIMEOUT_MS}ms")
+                        // Reset state
+                        try {
+                            speechRecognizer.cancel()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error canceling on timeout: ${e.message}")
+                        }
+                        isListening = false
+                        rmsDb = 0f
+                        speechInitiatedInChatMode = null
+                        onError?.invoke("Voice service not responding. Tap to retry.")
+                        releaseAudioFocus()
+                        com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = false
+                    }
+                }
+                handler.postDelayed(timeoutRunnable!!, STARTUP_TIMEOUT_MS)
+            } catch (e: Exception) {
+                Log.e(TAG, "Start error: ${e.message}")
+                isListening = false
+                onError?.invoke("Failed to start: ${e.message}")
+                releaseAudioFocus()
+                com.example.smarty.voice.VoskWakeWordManager.isGloballyPaused = false
+            }
+        }, 150) // 150ms delay to ensure Vosk releases mic
     }
 }
 

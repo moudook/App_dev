@@ -21,6 +21,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Note
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.components.NotesEmptyState
@@ -64,6 +66,7 @@ fun NormalModeContent(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     if (isNotesLoading) {
         // Show skeleton loaders while notes are loading
@@ -76,7 +79,7 @@ fun NormalModeContent(
     } else if (displayedNotes.isEmpty()) {
         if (isSearchMode) {
             // Animated search empty state with query display
-            SearchEmptyState(
+            com.example.smarty.ui.components.SearchEmptyState(
                 searchQuery = searchQuery,
                 modifier = modifier.fillMaxSize()
             )
@@ -129,7 +132,7 @@ fun NormalModeContent(
                             onArchiveNote(note.id)
                             scope.launch {
                                 val result = snackbarHostState.showSnackbar(
-                                    message = "Note archived",
+                                    message = context.getString(R.string.note_archived),
                                     duration = SnackbarDuration.Short
                                 )
                                 if (result == SnackbarResult.Dismissed) {

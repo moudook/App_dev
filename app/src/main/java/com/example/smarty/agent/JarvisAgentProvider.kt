@@ -35,7 +35,7 @@ class JarvisAgentProvider(
     private val groqKeyManager: GroqKeyManager? = null
 ) {
     companion object {
-        private const val TAG = "JarvisAgentProvider"
+        private const val TAG = "SmartyAgentProvider"
         private const val LOCAL_PC_CONNECTION_TIMEOUT_MS = 3000 // 3 seconds timeout for connectivity check
     }
 

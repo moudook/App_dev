@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.SafetyOrange
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -70,25 +69,25 @@ fun DataManagementSection(
     ) {
         // Backup & Sync Row
         DataManagementRow(
-            title = "Backup & Sync",
+            title = "backup_sync",
             subtitle = formatBackupTime(lastBackupTime),
-            icon = Icons.Default.Anchor, // Creative: Anchor
+            icon = Icons.Default.CloudSync, // Standard backup icon
             onClick = onBackupClick
         )
 
         // Google Calendar Sync Row
         DataManagementRow(
-            title = "Google Calendar Sync",
+            title = "google_calendar_sync",
             subtitle = formatCalendarSyncTime(lastCalendarSyncTime),
-            icon = Icons.Default.Event, // Creative: Event
+            icon = Icons.Default.Sync, // Standard sync icon
             onClick = onCalendarSync
         )
 
         // Archive Row
         DataManagementRow(
-            title = "Archive",
-            subtitle = "View archived notes",
-            icon = Icons.Default.AllInbox, // Creative: Vault/Inbox
+            title = "archive",
+            subtitle = "view_archived_notes",
+            icon = Icons.Default.Archive, // Standard archive icon
             onClick = onArchiveClick
         )
 
@@ -102,8 +101,8 @@ fun DataManagementSection(
         // Export Row (optional)
         if (onExportClick != null) {
             DataManagementRow(
-                title = "Export Data",
-                subtitle = "Export all notes and settings",
+                title = "export_data",
+                subtitle = "export_all_notes_and_settings",
                 icon = Icons.Default.Output, // Creative: Output
                 onClick = onExportClick
             )
@@ -209,19 +208,19 @@ private fun ClearCacheRow(
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Whatshot, // Creative: Fire
+                    imageVector = Icons.Default.DeleteOutline, // Standard delete/clear icon
                     contentDescription = null,
                     tint = if (enabled) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.size(20.dp)
                 )
                 Column {
                     Text(
-                        text = "Clear Cache",
+                        text = "clear_cache",
                         style = MaterialTheme.typography.bodyLarge,
                         color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
                     Text(
-                        text = formatCacheSize(cacheSizeBytes),
+                        text = formatCacheSize(cacheSizeBytes).lowercase(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
                             alpha = if (enabled) 0.7f else 0.4f
@@ -231,10 +230,8 @@ private fun ClearCacheRow(
             }
 
             if (isClearing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = LocalAccentColor.current
+                com.example.smarty.ui.components.CalmThinkingDots(
+                    dotSize = 3.dp
                 )
             } else {
                 Icon(
@@ -254,9 +251,9 @@ private fun ClearCacheRow(
 private fun formatBackupTime(timestamp: Long): String {
     return if (timestamp > 0) {
         val sdf = SimpleDateFormat("MMM dd", Locale.getDefault())
-        "Last: ${sdf.format(Date(timestamp))}"
+        "last:_\\${sdf.format(Date(timestamp))}"
     } else {
-        "Not backed up"
+        "not_backed_up"
     }
 }
 
@@ -266,9 +263,9 @@ private fun formatBackupTime(timestamp: Long): String {
 private fun formatCalendarSyncTime(timestamp: Long): String {
     return if (timestamp > 0) {
         val sdf = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-        "Last sync: ${sdf.format(Date(timestamp))}"
+        "last_sync:_\\${sdf.format(Date(timestamp))}"
     } else {
-        "Not synced"
+        "not_synced"
     }
 }
 
@@ -277,7 +274,7 @@ private fun formatCalendarSyncTime(timestamp: Long): String {
  */
 fun formatCacheSize(bytes: Long): String {
     return when {
-        bytes <= 0 -> "No cache"
+        bytes <= 0 -> "no_cache"
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
         bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
@@ -294,16 +291,16 @@ fun ClearCacheConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    com.example.smarty.ui.components.common.JarvisDialog(
-        title = "Clear Cache?",
-        text = "This will clear ${formatCacheSize(cacheSizeBytes)} of cached data. Downloaded content may need to be fetched again.",
+        com.example.smarty.ui.components.common.JarvisDialog(
+        title = "clear_cache",
+        text = "this_will_clear_${formatCacheSize(cacheSizeBytes).lowercase()}_of_cached_data_downloaded_content_may_need_to_be_fetched_again",
         onConfirm = {
             onConfirm()
             onDismiss()
         },
         onDismiss = onDismiss,
-        confirmText = "Clear",
-        dismissText = "Cancel",
+        confirmText = "clear",
+        dismissText = "cancel",
         isDestructive = true
     )
 }
@@ -330,7 +327,7 @@ fun BackupOptionsContent(
     ) {
         // Header
         Text(
-            text = "Backup & Sync",
+            text = "backup_sync",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontWeight = FontWeight.Bold
             ),
@@ -340,7 +337,7 @@ fun BackupOptionsContent(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Keep your notes safe with automatic backups",
+            text = "keep_your_notes_safe_with_automatic_backups",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -360,7 +357,7 @@ fun BackupOptionsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Verified,
+                        imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(24.dp)
@@ -368,7 +365,7 @@ fun BackupOptionsContent(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Last Backup",
+                            text = "last_backup",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -396,13 +393,12 @@ fun BackupOptionsContent(
             shape = RoundedCornerShape(16.dp)
         ) {
             if (isBackingUp) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
+                com.example.smarty.ui.components.CalmThinkingDots(
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    dotSize = 4.dp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Backing up...")
+                Text("backing_up")
             } else {
                 Icon(
                     imageVector = Icons.Default.CloudUpload,
@@ -411,7 +407,7 @@ fun BackupOptionsContent(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Backup Now",
+                    text = "backup_now",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold
                     )
@@ -431,13 +427,11 @@ fun BackupOptionsContent(
             shape = RoundedCornerShape(16.dp)
         ) {
             if (isRestoring) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = accentColor
+                com.example.smarty.ui.components.CalmThinkingDots(
+                    dotSize = 4.dp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Restoring...")
+                Text("restoring")
             } else {
                 Icon(
                     imageVector = Icons.Default.CloudDownload,
@@ -446,7 +440,7 @@ fun BackupOptionsContent(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Restore from Backup",
+                    text = "restore_from_backup",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold
                     )
@@ -458,7 +452,7 @@ fun BackupOptionsContent(
 
         // Info text
         Text(
-            text = "Backups include notes, categories, settings, chat history, AI memories, calendar events, and attachments.",
+            text = "backups_include_notes_categories_settings_chat_history_ai_memories_calendar_events_and_attachments",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.padding(horizontal = 8.dp)

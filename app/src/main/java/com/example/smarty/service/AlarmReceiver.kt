@@ -75,8 +75,14 @@ class AlarmReceiver : BroadcastReceiver() {
 
             // For recurring alarms, schedule the next occurrence
             if (isRecurring) {
-                Log.d(TAG, "Recurring alarm - next occurrence would be scheduled here")
-                // TODO: Schedule next occurrence based on repeatDays
+                Log.d(TAG, "Recurring alarm - scheduling next occurrence")
+                scheduleNextOccurrence(context, timerId, timerName, isAlarm, intent.getStringExtra(EXTRA_REPEAT_DAYS))
+            } else {
+                // One-time timer/alarm - deactivate in database
+                CoroutineScope(Dispatchers.IO).launch {
+                    val db = com.example.smarty.data.local.JarvisDatabase.getDatabase(context)
+                    db.timerDao().deactivateTimer(timerId)
+                }
             }
 
             // Wait for audio to complete before releasing resources
@@ -172,6 +178,79 @@ class AlarmReceiver : BroadcastReceiver() {
             .build()
 
         notificationManager.notify(timerId.hashCode(), notification)
+    }
+
+    /**
+     * Logic to calculate and schedule the next occurrence of a recurring alarm.
+     */
+    private fun scheduleNextOccurrence(
+        context: Context,
+        timerId: String,
+        timerName: String,
+        isAlarm: Boolean,
+        repeatDaysJson: String?
+    ) {
+        if (repeatDaysJson.isNullOrEmpty()) return
+
+        try {
+            // Simple parsing of day names (e.g., ["monday", "friday"])
+            val days = repeatDaysJson
+                .replace("[", "")
+                .replace("]", "")
+                .replace("\"", "")
+                .split(",")
+                .map { it.trim().lowercase() }
+
+            if (days.isEmpty()) return
+
+            val calendar = java.util.Calendar.getInstance()
+            val currentDayOfWeek = when (calendar.get(java.util.Calendar.DAY_OF_WEEK)) {
+                java.util.Calendar.MONDAY -> "monday"
+                java.util.Calendar.TUESDAY -> "tuesday"
+                java.util.Calendar.WEDNESDAY -> "wednesday"
+                java.util.Calendar.THURSDAY -> "thursday"
+                java.util.Calendar.FRIDAY -> "friday"
+                java.util.Calendar.SATURDAY -> "saturday"
+                java.util.Calendar.SUNDAY -> "sunday"
+                else -> ""
+            }
+
+            // Find how many days until the next scheduled day
+            val dayOrder = listOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
+            val currentIdx = dayOrder.indexOf(currentDayOfWeek)
+
+            var minDaysAway = 8
+            for (day in days) {
+                val targetIdx = dayOrder.indexOf(day)
+                if (targetIdx == -1) continue
+
+                var daysAway = targetIdx - currentIdx
+                if (daysAway <= 0) daysAway += 7 // Same day (next week) or earlier in the week
+
+                if (daysAway < minDaysAway) {
+                    minDaysAway = daysAway
+                }
+            }
+
+            if (minDaysAway <= 7) {
+                calendar.add(java.util.Calendar.DAY_OF_YEAR, minDaysAway)
+                val nextTriggerTime = calendar.timeInMillis
+
+                val nextTimer = com.example.smarty.data.model.JarvisTimer(
+                    id = timerId,
+                    name = timerName,
+                    triggerTime = nextTriggerTime,
+                    repeatDays = repeatDaysJson,
+                    isAlarm = isAlarm,
+                    isActive = true
+                )
+
+                AlarmScheduler.getInstance(context).scheduleTimer(nextTimer)
+                Log.d(TAG, "Scheduled next occurrence for $timerName in $minDaysAway days")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to schedule next occurrence: ${e.message}")
+        }
     }
 }
 

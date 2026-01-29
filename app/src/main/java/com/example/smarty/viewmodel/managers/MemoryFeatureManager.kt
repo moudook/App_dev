@@ -129,14 +129,22 @@ class MemoryFeatureManager(
     }
 
     /**
-     * Search or retrieve recent memories.
+     * Search or retrieve relevant memories based on a query.
      */
     suspend fun retrieveMemories(query: String?, limit: Int = 10): List<AIMemory> {
         return if (query.isNullOrBlank()) {
             aiMemoryDao.getRecentMemories(limit)
         } else {
-            aiMemoryDao.searchMemories(query)
+            aiMemoryDao.getRelevantMemories(query, limit)
         }
+    }
+
+    /**
+     * Get relevant memories for the AI agent context.
+     * Uses a combination of relevance and recency.
+     */
+    suspend fun getRelevantMemoriesForContext(query: String, limit: Int = 10): List<AIMemory> {
+        return aiMemoryDao.getRelevantMemories(query, limit)
     }
 
     /**

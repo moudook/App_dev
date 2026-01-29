@@ -13,12 +13,9 @@ import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.ui.screens.CalendarScreen
 import java.util.Calendar
 
-// Calendar dark theme colors
-private val CalendarDarkBg = Color(0xFF0D0D12)
-
 /**
  * Calendar as a full-page overlay.
- * Uses dark theme for immersive calendar experience.
+ * Respects system theme for a consistent experience.
  * Completely covers the main screen.
  * Includes AddEventDialog for creating new events.
  */
@@ -42,11 +39,11 @@ fun CalendarSheet(
         onDismiss()
     }
 
-    // Full-page overlay with dark theme
+    // Full-page overlay - respects system theme
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(CalendarDarkBg)
+            .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {

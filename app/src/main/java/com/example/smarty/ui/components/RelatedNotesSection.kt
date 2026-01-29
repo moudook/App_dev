@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Assistant
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Note
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.util.PrivacyGuard
@@ -92,7 +94,7 @@ fun RelatedNotesSection(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Outlined.Hub,
+                        imageVector = Icons.Default.Assistant,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -103,24 +105,38 @@ fun RelatedNotesSection(
             Spacer(modifier = Modifier.width(12.dp))
             
             Text(
-                text = "Related Knowledge",
+                text = stringResource(R.string.related_knowledge),
                 style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.2.sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
             
             if (isLoading) {
-                Spacer(modifier = Modifier.width(8.dp))
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = accentColor
+                Spacer(modifier = Modifier.width(12.dp))
+                com.example.smarty.ui.components.CalmThinkingDots(
+                    dotSize = 3.dp,
+                    dotSpacing = 3.dp
                 )
             }
         }
-        
+
         // Related Notes List
+        if (isLoading) {
+            Column(
+                modifier = Modifier.padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                repeat(2) {
+                    com.example.smarty.ui.components.CalmLoadingState(
+                        height = 64.dp,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            }
+        }
+
         AnimatedVisibility(
             visible = !isLoading && relatedNotes.isNotEmpty(),
             enter = fadeIn() + expandVertically(),
@@ -193,21 +209,24 @@ private fun RelatedNoteCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = note.title,
+                    text = note.title.lowercase(),
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.1.sp
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                
+
                 Spacer(modifier = Modifier.height(2.dp))
-                
+
                 // Match reason (subtle)
                 Text(
-                    text = matchReason,
-                    style = MaterialTheme.typography.labelSmall,
+                    text = matchReason.lowercase(),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        letterSpacing = 0.3.sp
+                    ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
@@ -232,7 +251,7 @@ private fun RelatedNoteCard(
             // Chevron
             Icon(
                 imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Open",
+                contentDescription = stringResource(R.string.open),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                 modifier = Modifier.size(20.dp)
             )

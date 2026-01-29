@@ -2,13 +2,15 @@
 package com.example.smarty.viewmodel
 
 import android.app.Application
-import android.content.Context
-import android.net.Uri
+import android.media.AudioManager
+import android.telephony.PhoneStateListener
+import android.telephony.TelephonyManager
 import android.util.Log
+import androidx.lifecycle.AbstractSavedStateViewModelFactory
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
-import com.example.smarty.data.cache.AIResponseCache
-import com.example.smarty.data.cache.CacheManager
+import androidx.savedstate.SavedStateRegistryOwner
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.local.JarvisDatabase
@@ -19,109 +21,68 @@ import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
-import com.example.smarty.data.model.ChatRole
-import com.example.smarty.data.model.MentionState
-import com.example.smarty.data.model.MentionSuggestion
+import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.model.TodoItem
-import com.example.smarty.data.model.ChunkAnalysis
-import com.example.smarty.data.model.Citation
-import com.example.smarty.data.model.getAllAttachmentUris
-import com.example.smarty.data.model.getAttachments
-import com.example.smarty.data.model.getTodos
-import com.example.smarty.data.model.withAttachments
-import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AIService
-import com.example.smarty.agent.models.ScreenContext
-import com.example.smarty.agent.AgentCallbacks
-import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.JarvisAgentOptimized
-import com.example.smarty.agent.JarvisAgentProvider
-import com.example.smarty.agent.ImageDisplayItem
-import com.example.smarty.data.model.InlineChatImage
 import com.example.smarty.data.remote.providers.TavilySearchProvider
-import com.example.smarty.data.model.ClarificationRequest
-
-import com.example.smarty.ui.components.PendingShareData
-import com.google.gson.Gson
-import okhttp3.OkHttpClient
-import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.runBlocking
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.JarvisRepository
-import com.example.smarty.data.model.ChatSession
-import com.example.smarty.util.CompletionSoundManager
-import com.example.smarty.util.ContentTypeDetector
-import com.example.smarty.viewmodel.managers.NoteProcessingQueueManager
-import com.example.smarty.viewmodel.managers.MemorySyncManager
-import com.example.smarty.util.FileStorageHelper
-import com.example.smarty.util.PDFTextExtractor
-import com.example.smarty.util.PDFExtractionResult
-import com.example.smarty.util.ThinkingParser
-import com.example.smarty.util.PDFChunkedResult
-import com.example.smarty.util.PDFChunk
-import com.example.smarty.util.ProcessingStrategy
-import com.example.smarty.util.PrivacyGuard
-import com.example.smarty.util.mention.MentionParser
-import com.example.smarty.util.mention.NoteContextBuilder
-import com.example.smarty.util.mention.ThinkingModeProcessor
-import com.example.smarty.viewmodel.managers.*
-import com.example.smarty.data.remote.DocumentAnalysisResponse
-import com.example.smarty.util.ShakeDetector
-import com.example.smarty.util.NetworkMonitor
+import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.ui.components.ConnectionStatus
-import com.example.smarty.voice.VoskWakeWordManager
-// TTS removed - was: import com.example.smarty.voice.ResponseTTSManager
-import com.example.smarty.util.api.RateLimiter
-import android.media.AudioManager
-import android.telephony.TelephonyManager
-import android.telephony.PhoneStateListener
-import android.os.Build
+import com.example.smarty.ui.components.PendingShareData
+import com.example.smarty.util.CompletionSoundManager
+import com.example.smarty.util.NetworkMonitor
+import com.example.smarty.util.ShakeDetector
 import com.example.smarty.util.api.GroqKeyManager
 import com.example.smarty.util.api.KeyUsageStats
-import com.example.smarty.service.AlarmScheduler
-import com.example.smarty.service.AudioPlayerService
-import com.example.smarty.service.CommandResult
-import com.example.smarty.service.LocalCommandProcessor
+import com.example.smarty.util.api.RateLimiter
+import com.example.smarty.data.model.MentionState
+import com.example.smarty.ui.components.AttachmentOption
+import android.content.Context
+import android.net.Uri
 import com.example.smarty.data.model.PlaybackState
+import com.example.smarty.data.cache.AIResponseCache
+import com.example.smarty.data.model.TodoItem
+import com.example.smarty.data.model.MentionSuggestion
+import com.example.smarty.service.AudioPlayerService
+import com.example.smarty.util.FileStorageHelper
+import com.example.smarty.viewmodel.managers.ShareFlowManager
+import kotlinx.coroutines.withTimeout
+import com.example.smarty.data.model.NoteAttachment
+import com.example.smarty.util.ContentTypeDetector
+import com.example.smarty.viewmodel.managers.CalendarFeatureManager
+import com.example.smarty.viewmodel.managers.ChatFeatureManager
+import com.example.smarty.viewmodel.managers.MemorySyncManager
+import com.example.smarty.viewmodel.managers.NoteProcessingQueueManager
+import com.example.smarty.viewmodel.managers.SettingsFeatureManager
+import com.example.smarty.viewmodel.managers.SystemFeatureManager
+import com.example.smarty.voice.VoskWakeWordManager
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
-import com.example.smarty.ui.components.AttachmentOption
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.AbstractSavedStateViewModelFactory
-import androidx.lifecycle.ViewModelProvider
-import androidx.savedstate.SavedStateRegistryOwner
-import kotlinx.coroutines.withTimeout
-import com.example.smarty.widget.QuickNoteWidgetProvider
-import java.util.concurrent.CopyOnWriteArrayList
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /**
  * Single file info for sharing
@@ -165,6 +126,10 @@ class JarvisViewModel(
         private const val KEY_SELECTED_NOTE_ID = "selectedNoteId"
         private const val KEY_SELECTED_CATEGORY_ID = "selectedCategoryId"
         private const val KEY_IS_CHAT_MODE = "isChatMode"
+        private const val KEY_CURRENT_SCREEN = "currentScreen"
+        private const val KEY_CURRENT_SESSION_ID = "currentSessionId"
+        private const val KEY_SEARCH_QUERY = "searchQuery"
+        private const val KEY_SELECTED_FILTERS = "selectedFilters"
 
         /**
          * BUG FIX (L-002): Maximum notes to load into memory at once.
@@ -181,7 +146,6 @@ class JarvisViewModel(
         SecurePreferences.getInstance(application)
     }
     private val aiService: AIService by lazy { AIService(securePreferences) }
-    private val pdfExtractor: PDFTextExtractor by lazy { PDFTextExtractor(application) }
 
     // Repository needs to be initialized before agent - lazy to avoid blocking
     private val database: JarvisDatabase by lazy { JarvisDatabase.getDatabase(application) }
@@ -194,6 +158,10 @@ class JarvisViewModel(
         )
     }
 
+    private val chatRepository: ChatRepository by lazy {
+        ChatRepository(database.chatDao())
+    }
+
     // Web search provider for agent actions
     private val tavilySearchProvider: TavilySearchProvider by lazy {
         val httpClient = OkHttpClient.Builder()
@@ -201,6 +169,47 @@ class JarvisViewModel(
             .readTimeout(30, TimeUnit.SECONDS)
             .build()
         TavilySearchProvider(httpClient, Gson())
+    }
+
+    // Calendar Sync Manager - handles synchronization with device calendars
+    private val googleCalendarSyncManager by lazy {
+        com.example.smarty.calendar.GoogleCalendarSyncManager(application, repository)
+    }
+
+    // Calendar Feature Manager - handles calendar logic and sync
+    private val calendarFeatureManager by lazy {
+        CalendarFeatureManager(
+            calendarDao = calendarDao,
+            googleCalendarSyncManager = googleCalendarSyncManager,
+            securePreferences = securePreferences,
+            alarmScheduler = alarmScheduler,
+            scope = viewModelScope
+        )
+    }
+
+    // Google Calendar Sync State - delegated to CalendarFeatureManager
+    val deviceCalendars: StateFlow<List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar>> by lazy {
+        calendarFeatureManager.deviceCalendars
+    }
+
+    val isCalendarSyncEnabled: StateFlow<Boolean> by lazy {
+        calendarFeatureManager.isCalendarSyncEnabled
+    }
+
+    val targetCalendarId: StateFlow<Long> by lazy {
+        calendarFeatureManager.targetCalendarId
+    }
+
+    fun loadDeviceCalendars() {
+        calendarFeatureManager.loadDeviceCalendars()
+    }
+
+    fun setCalendarSyncEnabled(enabled: Boolean) {
+        calendarFeatureManager.setCalendarSyncEnabled(enabled)
+    }
+
+    fun setTargetCalendarId(id: Long) {
+        calendarFeatureManager.setTargetCalendarId(id)
     }
 
     // Alarm scheduler for timer/alarm tools - lazy to avoid blocking
@@ -241,7 +250,7 @@ class JarvisViewModel(
             audioManager = audioPlaybackManager,
             securePreferences = securePreferences,
             deviceAudioRepository = deviceAudioRepository,
-            onNavigateRequest = { screen -> navigateTo(screen) }
+            onNavigateRequest = { screen -> chatFeatureManager.navigateTo(screen) }
         )
     }
 
@@ -271,7 +280,7 @@ class JarvisViewModel(
             repository = repository,
             tavilySearchProvider = tavilySearchProvider,
             scope = viewModelScope,
-            onStatusUpdate = { status -> _currentToolName.value = status }
+            onStatusUpdate = { status -> chatFeatureManager.updateCurrentToolName(status) }
         )
     }
 
@@ -301,125 +310,6 @@ class JarvisViewModel(
     /** Expose reactive plan state to UI */
     val activeExecutionPlan: StateFlow<com.example.smarty.viewmodel.managers.ExecutionPlan?> = executionPlanManager.activePlan
 
-    // Koog-based AI Agent (GROQ-only with multi-key rotation) - lazy
-    private val agentProvider: JarvisAgentProvider by lazy {
-        JarvisAgentProvider(securePreferences, groqKeyManager)
-    }
-    private val JarvisAgent: JarvisAgentOptimized by lazy {
-        JarvisAgentOptimized(
-            context = application,
-            agentProvider = agentProvider,
-            repository = repository,
-            tavilySearchProvider = tavilySearchProvider,
-            alarmScheduler = alarmScheduler,
-            callbacks = agentCallbacks,
-            aiMemoryDao = database.aiMemoryDao(),
-            executionPlanManager = executionPlanManager, // HYBRID: Shared state machine
-            rateLimiter = rateLimiter
-        )
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // LOCAL COMMAND PROCESSOR - Handle commands without AI (open app, play music)
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /**
-     * LocalCommandProcessor handles hardcoded commands like "open youtube", "play music"
-     * These commands don't need AI processing and execute immediately.
-     */
-    private val localCommandProcessor: LocalCommandProcessor by lazy {
-        LocalCommandProcessor(
-            context = getApplication(),
-            getNotes = { notes.value },
-            systemFeatureManager = systemFeatureManager,
-            getDeviceAudio = { systemFeatureManager.getDeviceAudio() }
-        )
-    }
-
-    /**
-     * Launch an app by package name.
-     * Used by LocalCommandProcessor for "open [app]" commands.
-     */
-    private fun launchApp(packageName: String) {
-        try {
-            val context = getApplication<Application>()
-            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
-            if (intent != null) {
-                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                Log.d(TAG, "Successfully launched app: $packageName")
-            } else {
-                Log.w(TAG, "No launch intent found for package: $packageName")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error launching app $packageName: ${e.message}")
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // @MENTION SYSTEM - Note tagging/reference in chat
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /** MentionFeatureManager for resolving @mentions to notes */
-    private val mentionManager: MentionFeatureManager by lazy {
-        MentionFeatureManager(repository)
-    }
-
-    /** ThinkingModeProcessor for @thinking deep document analysis */
-    private val thinkingModeProcessor: ThinkingModeProcessor by lazy {
-        ThinkingModeProcessor(application)
-    }
-
-    /** NoteContextBuilder for building AI context from mentions */
-    private val noteContextBuilder: NoteContextBuilder by lazy {
-        NoteContextBuilder(mentionManager)
-    }
-
-    /** Current mention state for autocomplete dropdown */
-    private val _mentionState = MutableStateFlow(MentionState())
-    val mentionState: StateFlow<MentionState> = _mentionState.asStateFlow()
-
-    /** Current cursor position in chat input (for mention detection) */
-    private var chatInputCursorPosition: Int = 0
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PLAN PROGRESS UI STATE
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /** Current AI plan status (e.g., "Step 2/5: Searching for recipes...") */
-    private val _aiPlanStatus = MutableStateFlow<String?>(null)
-    val aiPlanStatus: StateFlow<String?> = _aiPlanStatus.asStateFlow()
-
-    /** Current tool being executed by the AI agent */
-    private val _currentToolName = MutableStateFlow<String?>(null)
-    val currentToolName: StateFlow<String?> = _currentToolName.asStateFlow()
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // AI NAVIGATION CONTROL
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /** AI-triggered navigation request. Observed by UI to perform navigation. */
-    private val _navigationRequest = MutableStateFlow<String?>(null)
-    val navigationRequest: StateFlow<String?> = _navigationRequest.asStateFlow()
-
-    /**
-     * Request navigation to a specific screen.
-     * Called by AI tools or internal logic.
-     */
-    fun navigateTo(screen: String) {
-        viewModelScope.launch {
-            _navigationRequest.value = screen
-            Log.d(TAG, "AI requested navigation to: $screen")
-        }
-    }
-
-    /**
-     * Clear the current navigation request after it has been handled by the UI.
-     */
-    fun clearNavigationRequest() {
-        _navigationRequest.value = null
-    }
-
     // GROQ key usage stats exposed for UI - lazy
     val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
 
@@ -427,74 +317,6 @@ class JarvisViewModel(
     val localServerIP: StateFlow<String> = settingsFeatureManager.localServerIP
     val localServerPort: StateFlow<String> = settingsFeatureManager.localServerPort
     val localServerUseHttps: StateFlow<Boolean> = settingsFeatureManager.localServerUseHttps
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // THINKING MODE - Control reasoning display for Falcon-H1R-7B model
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /**
-     * Thinking mode toggle state for reasoning models (Falcon-H1R-7B).
-     * When enabled, the model will show its reasoning process in <think> tags.
-     * When disabled, the model skips explicit thinking output for faster responses.
-     */
-    private val _isThinkingModeEnabled = MutableStateFlow(true)
-    val isThinkingModeEnabled: StateFlow<Boolean> = _isThinkingModeEnabled.asStateFlow()
-
-    /**
-     * Toggle thinking mode on/off.
-     * Used by UI toggle button to control reasoning display.
-     */
-    fun toggleThinkingMode() {
-        _isThinkingModeEnabled.value = !_isThinkingModeEnabled.value
-        Log.d(TAG, "Thinking mode ${if (_isThinkingModeEnabled.value) "enabled" else "disabled"}")
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PROACTIVE INTELLIGENCE - Monitor system state and suggest AI actions
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    private val _proactiveSuggestion = MutableStateFlow<String?>(null)
-    val proactiveSuggestion: StateFlow<String?> = _proactiveSuggestion.asStateFlow()
-
-    /**
-     * Monitor system state for proactive AI engagement opportunities.
-     */
-    private fun startProactiveMonitoring() {
-        viewModelScope.launch {
-            while (isActive) {
-                val unreadCount = unreadForMemoryCount.value
-                val cacheSize = _cacheSizeBytes.value
-                val memoryCount = aiMemories.value.size
-
-                val suggestion = when {
-                    unreadCount > 15 -> "You have $unreadCount unread notes. Should I analyze them to update your AI memory?"
-                    cacheSize > 500 * 1024 * 1024 -> "Your app cache is getting large (${ContentTypeDetector.formatFileSize(cacheSize)}). Want me to clear it?"
-                    memoryCount > 100 -> "Your AI memory is quite detailed. Should I consolidate it to keep things organized?"
-                    else -> null
-                }
-
-                if (_proactiveSuggestion.value != suggestion) {
-                    _proactiveSuggestion.value = suggestion
-                    if (suggestion != null) Log.i(TAG, "Proactive suggestion ready: $suggestion")
-                }
-
-                delay(300_000) // Check every 5 minutes
-            }
-        }
-    }
-
-    /**
-     * Accept a proactive suggestion and run it through the AI agent.
-     */
-    fun acceptSuggestion() {
-        val suggestion = _proactiveSuggestion.value ?: return
-        _proactiveSuggestion.value = null
-        dispatchQuery(suggestion)
-    }
-
-    fun dismissSuggestion() {
-        _proactiveSuggestion.value = null
-    }
 
     fun setLocalServerIP(ip: String) {
         settingsFeatureManager.setLocalServerIP(ip)
@@ -517,427 +339,20 @@ class JarvisViewModel(
      */
     private val _allNotesForAgent: StateFlow<List<Note>> by lazy {
         noteOperationsManager.getAllNotes()
-            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SCREEN CONTEXT - Track active item being viewed (e.g., a specific note)
     // ═══════════════════════════════════════════════════════════════════════════
 
-    private val _activeNoteId = MutableStateFlow<String?>(null)
-    val activeNoteId: StateFlow<String?> = _activeNoteId.asStateFlow()
-
-    fun setActiveNote(noteId: String?) {
-        _activeNoteId.value = noteId
-    }
-
-    // Agent callbacks for Koog tools that need ViewModel state
-    // SECURITY: Pre-filter notes at callback level for defense-in-depth
-    // BUG FIX: Use _allNotesForAgent instead of notes.value to avoid UI filter interference
-    private val agentCallbacks = object : AgentCallbacks {
-        override fun getActiveNotes(): List<Note> {
-            val rawNotes = _allNotesForAgent.value
-            val visibleNotes = PrivacyGuard.getAiVisibleNotes(rawNotes)
-
-            // DIAGNOSTIC: Log note counts to help debug agent issues
-            Log.d(TAG, " getActiveNotes callback: raw=${rawNotes.size}, visible=${visibleNotes.size}")
-
-            // Warn if notes appear empty (potential StateFlow race condition)
-            if (rawNotes.isEmpty()) {
-                Log.w(TAG, "️ getActiveNotes: StateFlow returned EMPTY - may be cold start race condition")
-            }
-
-            return visibleNotes
-        }
-        override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value)
-        override fun getCategories(): List<Category> = categories.value
-        override fun getTavilyApiKey(): String? = settingsFeatureManager.getTavilyApiKeySync()
-        // BATCH-3C: OpenAI API key for AgentOptimizer semantic cache (embeddings)
-        override fun getOpenAiApiKey(): String? = settingsFeatureManager.getProviderKeys(AIProvider.OPENAI).firstOrNull()
-        // Gemini API key for AgentOptimizer semantic cache fallback
-        override fun getGeminiApiKey(): String? = settingsFeatureManager.getProviderKeys(AIProvider.GEMINI).firstOrNull()
-
-        override suspend fun processNoteWithAi(note: Note) {
-            noteOperationsManager.processNoteWithAi(note)
-        }
-
-        override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
-            return noteOperationsManager.findNoteByDescription(description, notes)
-        }
-
-        override fun requestAudioPlayback(track: AudioTrack) {
-            // BUG FIX (ISSUE 3): Add logging to verify tool callback execution
-            Log.i(TAG, "▶ requestAudioPlayback CALLBACK INVOKED: track='${track.title}', uri=${track.uri}")
-
-            // Use hybridized system feature manager
-            systemFeatureManager.playAudio(track)
-            Log.d(TAG, " audio playback triggered via systemFeatureManager")
-        }
-
-        override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
-            _currentToolName.value = toolDisplayName
-        }
-
-        override fun onToolExecutionCompleted(toolName: String) {
-            _currentToolName.value = null
-        }
-
-        override fun onStatusUpdate(status: String) {
-            _currentToolName.value = status
-        }
-
-        override fun onCitationsFound(citations: List<com.example.smarty.agent.WebCitation>) {
-            // Store citations for the current chat response
-            pendingCitations.addAll(citations)
-            Log.d(TAG, "Citations found: ${citations.size} sources")
-        }
-
-        override fun launchApp(packageName: String) {
-            // Use hybridized system feature manager
-            systemFeatureManager.launchApp(packageName)
-        }
-
-        override fun getScreenContext(): ScreenContext? {
-            val activeId = _activeNoteId.value ?: return null
-            val note = _allNotesForAgent.value.find { it.id == activeId } ?: return null
-
-            return ScreenContext(
-                selectedText = null, // Could be populated if we track UI selection
-                referringApp = application.packageName,
-                capturedAt = System.currentTimeMillis(),
-                contextData = mapOf(
-                    "active_note_id" to note.id,
-                    "active_note_title" to note.title,
-                    "active_note_content" to (note.content ?: ""),
-                    "active_note_type" to note.type.name,
-                    "current_screen" to _currentScreen.value
-                )
-            )
-        }
-
-        override fun onDisplayImages(images: List<ImageDisplayItem>) {
-            // Store images for the current chat response
-            pendingInlineImages.clear()
-            pendingInlineImages.addAll(images.map {
-                InlineChatImage(uri = it.uri, fileName = it.fileName, noteTitle = it.noteTitle)
-            })
-            Log.d(TAG, "Images found: ${images.size} images to display inline")
-        }
-        
-        override fun onPlanStatusChanged(status: String?) {
-            _aiPlanStatus.value = status
-        }
-
-        override suspend fun markNoteAsAnalyzedForMemory(noteId: String) {
-            noteOperationsManager.markNoteAsAnalyzedForMemory(noteId)
-            Log.d(TAG, "Marked note $noteId as analyzed for AI memory via manager")
-        }
-
-        // NEW: Get audio files from device storage (MediaStore)
-        override fun getDeviceAudio(): List<AudioTrack> {
-            return systemFeatureManager.getDeviceAudio()
-        }
-
-        // HYBRID-CONTROL: Internal app navigation
-        override fun navigateTo(screen: String) {
-            this@JarvisViewModel.navigateTo(screen)
-        }
-
-        override fun getCurrentScreen(): String {
-            return _currentScreen.value
-        }
-
-        override fun getSystemStatus(): Map<String, String> {
-            return systemFeatureManager.getSystemStatus(
-                isDarkTheme = isDarkTheme.value,
-                connectionStatus = connectionStatus.value.name,
-                cacheSize = ContentTypeDetector.formatFileSize(_cacheSizeBytes.value),
-                unreadMemoryCount = unreadForMemoryCount.value
-            )
-        }
-
-        override fun addNote(content: String, category: String?) {
-            viewModelScope.launch {
-                // Use NoteOperationsManager for consistent processing (OCR, AI analysis)
-                noteOperationsManager.addNote(
-                    content = content,
-                    type = com.example.smarty.data.model.NoteType.BRAIN_DUMP,
-                    excludeFromAiChat = false,
-                    initialCategory = category
-                )
-            }
-        }
-
-        override fun updateNote(noteId: String, title: String?, content: String?) {
-            viewModelScope.launch {
-                noteOperationsManager.updateNote(
-                    noteId = noteId,
-                    newTitle = title,
-                    newContent = content,
-                    activeNotes = notes.value,
-                    archivedNotes = archivedNotes.value
-                )
-            }
-        }
-
-        override fun deleteNoteById(noteId: String) {
-            viewModelScope.launch {
-                noteOperationsManager.deleteNoteById(
-                    noteId = noteId,
-                    activeNotes = notes.value,
-                    archivedNotes = archivedNotes.value
-                )
-            }
-        }
-
-        override fun archiveNote(noteId: String) {
-            noteOperationsManager.archiveNote(noteId)
-        }
-
-        override fun unarchiveNote(noteId: String) {
-            noteOperationsManager.unarchiveNote(noteId)
-        }
-
-        override fun summarizeNote(noteId: String) {
-            noteOperationsManager.summarizeNote(noteId, notes.value, archivedNotes.value)
-        }
-
-        override suspend fun onCreateCategory(name: String): Category {
-            return noteOperationsManager.getOrCreateCategory(name)
-        }
-
-        override suspend fun getCategoryStats(): List<com.example.smarty.viewmodel.managers.CategoryStatInfo> {
-            return noteOperationsManager.getCategoryStats(categories.value, notes.value)
-        }
-
-        override fun toggleTheme(isDark: Boolean) {
-            systemFeatureManager.toggleTheme(isDark)
-        }
-
-        override fun clearCache() {
-            systemFeatureManager.clearCache()
-        }
-
-        override fun syncMemory() {
-            memoryFeatureManager.syncFromNotes()
-        }
-
-        override suspend fun storeMemory(content: String, scope: String?) {
-            memoryFeatureManager.storeMemory(content, scope)
-        }
-
-        override suspend fun updateMemory(id: String, content: String?, type: String?, confidence: Float?): Boolean {
-            return memoryFeatureManager.updateMemory(id, content, type, confidence)
-        }
-
-        override suspend fun deleteMemory(id: String): Boolean {
-            return memoryFeatureManager.deleteMemory(id)
-        }
-
-        override suspend fun retrieveMemories(query: String?, limit: Int): List<com.example.smarty.data.model.AIMemory> {
-            return memoryFeatureManager.retrieveMemories(query, limit)
-        }
-
-        override suspend fun analyzePatterns(): com.example.smarty.viewmodel.managers.UserPatternsReport {
-            return memoryFeatureManager.analyzePatterns(notes.value, noteOperationsManager.getAllCategoriesSync())
-        }
-
-        override suspend fun learnFromNotes(maxNotes: Int): com.example.smarty.viewmodel.managers.LearningReport {
-            return memoryFeatureManager.learnFromNotes(notes.value, maxNotes)
-        }
-
-        override fun backupData() {
-            systemFeatureManager.backupData()
-        }
-
-        override fun setPrivacyMode(mode: String) {
-            systemFeatureManager.setPrivacyMode(mode)
-        }
-
-        override fun consolidateMemories() {
-            memoryFeatureManager.consolidateMemories()
-        }
-
-        override fun getMemoryStats(): Map<String, Any> {
-            // Delegate to manager but run blocking for simplicity in the callback if needed
-            // However, getMemoryStats is not suspend in the interface, but it IS in the manager
-            // Let's check the interface definition in JarvisAgentOptimized.kt again
-            return runBlocking { memoryFeatureManager.getMemoryStats() }
-        }
-
-        override suspend fun searchNotes(
-            query: String,
-            category: String?,
-            noteType: String?,
-            timeRange: String,
-            limit: Int
-        ): List<com.example.smarty.viewmodel.managers.SearchResultItem> {
-            return searchFeatureManager.search(query, category, noteType, timeRange, emptySet(), limit)
-        }
-
-        override suspend fun advancedSearch(
-            query: String,
-            algorithm: String,
-            limit: Int,
-            minScore: Double
-        ): List<com.example.smarty.viewmodel.managers.SearchResultItem> {
-            return searchFeatureManager.advancedSearch(query, algorithm, limit, minScore)
-        }
-
-        override fun analyzeQuery(query: String): com.example.smarty.viewmodel.managers.SearchQueryAnalysis {
-            return searchFeatureManager.analyzeQuery(query)
-        }
-
-        override suspend fun performRecall(query: String, minScore: Double): List<com.example.smarty.viewmodel.managers.RecallResult> {
-            return searchFeatureManager.performRecall(query, minScore)
-        }
-
-        override fun shareContent(text: String, title: String?) {
-            systemFeatureManager.shareContent(text, title)
-        }
-
-        override fun findPackageName(appName: String): String? {
-            return systemFeatureManager.findPackageName(appName)
-        }
-
-        override fun findMatchingAudio(query: String): AudioTrack? {
-            return audioFeatureManager.findAudioTrack(query)
-        }
-
-        override fun pauseAudioPlayback() {
-            audioFeatureManager.pause()
-        }
-
-        override fun resumeAudioPlayback() {
-            audioFeatureManager.resume()
-        }
-
-        override fun stopAudioPlayback() {
-            audioFeatureManager.stop()
-        }
-
-        override fun seekAudioTo(positionMs: Long) {
-            audioFeatureManager.seekTo(positionMs)
-        }
-
-        override fun toggleAudioPlayback() {
-            audioFeatureManager.togglePlayPause()
-        }
-
-        override fun getCurrentAudioTrack(): AudioTrack? {
-            return audioFeatureManager.getCurrentTrack()
-        }
-
-        override fun getCurrentAudioPosition(): Long {
-            return audioFeatureManager.getCurrentPosition()
-        }
-
-        override fun getAudioDuration(): Long {
-            return audioFeatureManager.getDuration()
-        }
-
-        override fun isAudioPlaying(): Boolean {
-            return audioFeatureManager.isPlaying()
-        }
-
-        override fun addCalendarEvent(
-            title: String,
-            startTimeStr: String,
-            endTimeStr: String?,
-            description: String?,
-            location: String?,
-            isPrivate: Boolean
-        ) {
-            val startMillis = calendarManager.parseDateTime(startTimeStr) ?: return
-            val endMillis = endTimeStr?.let { calendarManager.parseDateTime(it) }
-                ?: (startMillis + 3600000L) // 1 hour default
-
-            calendarManager.addCalendarEvent(
-                title = title,
-                description = description,
-                startTime = startMillis,
-                endTime = endMillis,
-                location = location,
-                isPrivate = isPrivate
-            )
-        }
-
-        override fun deleteCalendarEvent(eventId: String) {
-            calendarManager.deleteCalendarEvent(eventId)
-        }
-
-        override suspend fun queryCalendarEvents(query: String?): List<com.example.smarty.data.model.CalendarEvent> {
-            return if (query.isNullOrBlank()) {
-                calendarManager.getTodayEvents()
-            } else {
-                calendarManager.searchEvents(query)
-            }
-        }
-
-        override fun bulkDeleteEvents(eventIds: List<String>) {
-            calendarManager.bulkDeleteEvents(eventIds)
-        }
-
-        override fun setTimer(name: String, timeStr: String, isAlarm: Boolean) {
-            val triggerTime = calendarManager.parseDateTime(timeStr) ?: return
-            calendarManager.setTimer(name, triggerTime, isAlarm)
-        }
-
-        override fun cancelTimer(timerId: String) {
-            calendarManager.cancelTimer(timerId)
-        }
-
-        override fun addTodoToNote(noteId: String, text: String) {
-            viewModelScope.launch {
-                noteOperationsManager.addTodoToNote(noteId, text)
-            }
-        }
-
-        override fun bulkArchiveNotes(noteIds: List<String>) {
-            noteOperationsManager.bulkArchiveNotes(noteIds)
-        }
-
-        override fun bulkDeleteNotes(noteIds: List<String>) {
-            noteOperationsManager.bulkDeleteNotes(noteIds, notes.value, archivedNotes.value)
-        }
-
-        override fun bulkMoveToCategory(noteIds: List<String>, categoryName: String) {
-            noteOperationsManager.bulkMoveToCategory(noteIds, categoryName)
-        }
-
-        override fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int) {
-            workflowManager.performDeepResearch(topic, apiKey, focusAreas, searchDepth)
-        }
-
-        override fun onAnalyzeStyle(limit: Int): com.example.smarty.viewmodel.managers.StyleAnalysisReport {
-            return styleFeatureManager.analyzeStyle(notes.value, limit)
-        }
-
-        override suspend fun onWebSearch(
-            query: String,
-            maxResults: Int,
-            topic: String,
-            onCitationsFound: (List<com.example.smarty.agent.WebCitation>) -> Unit
-        ): com.example.smarty.agent.tools.base.WebSearchResult {
-            val apiKey = settingsFeatureManager.getTavilyApiKeySync() ?: return com.example.smarty.agent.tools.base.WebSearchResult(
-                success = false,
-                query = query,
-                reason = "Web search not configured"
-            )
-            return searchFeatureManager.performWebSearch(query, apiKey, maxResults, topic, onCitationsFound)
-        }
-    }
-
-    // Temporary storage for citations during agent execution
-    private val pendingCitations = CopyOnWriteArrayList<com.example.smarty.agent.WebCitation>()
-
-    // Temporary storage for inline images during agent execution
-    private val pendingInlineImages = CopyOnWriteArrayList<InlineChatImage>()
-
-    // Chat repository for persistence - lazy to avoid blocking
-    private val chatRepository: ChatRepository by lazy {
-        ChatRepository(database.chatDao())
-    }
+    // MOVED ABOVE CHAT FEATURE MANAGER TO FIX INIT ORDER
+    // private val _activeNoteId = MutableStateFlow<String?>(null)
+    // val activeNoteId: StateFlow<String?> = _activeNoteId.asStateFlow()
+
+    // fun setActiveNote(noteId: String?) {
+    //    _activeNoteId.value = noteId
+    // }
 
     // Calendar DAO for event management - lazy
     private val calendarDao by lazy { database.calendarDao() }
@@ -1034,8 +449,67 @@ class JarvisViewModel(
 
     // ==================== Delegated Managers ====================
 
-    // Chat Manager - handles chat state and session lifecycle
-    private val chatManager = ChatManager(chatRepository, viewModelScope)
+    // Current screen route - shake only works on main screen (input_stream)
+    // Default to "startup" so shake is disabled until navigation explicitly sets the screen
+    private val _currentScreen = MutableStateFlow("startup")
+    val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SCREEN CONTEXT - Track active item being viewed (e.g., a specific note)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private val _activeNoteId = MutableStateFlow<String?>(null)
+    val activeNoteId: StateFlow<String?> = _activeNoteId.asStateFlow()
+
+    fun setActiveNote(noteId: String?) {
+        _activeNoteId.value = noteId
+    }
+
+    // Cache management
+    private val _cacheSizeBytes = MutableStateFlow(0L)
+    val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
+    private val _isClearingCache = MutableStateFlow(false)
+    val isClearingCache: StateFlow<Boolean> = _isClearingCache.asStateFlow()
+
+    // Network monitoring (Phase 7)
+    private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor(application) }
+    val connectionStatus: StateFlow<ConnectionStatus> = networkMonitor.connectionStatus
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionStatus.CONNECTED)
+
+    // Chat Feature Manager - handles chat logic, sessions, and AI interaction
+    private val chatFeatureManager: ChatFeatureManager by lazy {
+        ChatFeatureManager(
+            application = getApplication(),
+            scope = viewModelScope,
+            chatRepository = chatRepository,
+            repository = repository,
+            database = database,
+            securePreferences = securePreferences,
+            groqKeyManager = groqKeyManager,
+            tavilySearchProvider = tavilySearchProvider,
+            settingsFeatureManager = settingsFeatureManager,
+            noteOperationsManager = noteOperationsManager,
+            systemFeatureManager = systemFeatureManager,
+            completionSoundManager = completionSoundManager,
+            alarmScheduler = alarmScheduler,
+            executionPlanManager = executionPlanManager,
+            rateLimiter = rateLimiter,
+            memoryFeatureManager = memoryFeatureManager,
+            searchFeatureManager = searchFeatureManager,
+            audioFeatureManager = audioFeatureManager,
+            calendarFeatureManager = calendarFeatureManager,
+            styleFeatureManager = styleFeatureManager,
+            workflowManager = workflowManager,
+            savedStateHandle = savedStateHandle,
+            currentScreen = currentScreen,
+            activeNoteId = activeNoteId,
+            isDarkTheme = settingsFeatureManager.isDarkTheme,
+            connectionStatus = connectionStatus,
+            cacheSizeBytes = cacheSizeBytes,
+            unreadForMemoryCount = unreadForMemoryCount
+        )
+    }
 
     // Share Flow Manager - handles share interception and processing
     private val shareFlowManager = com.example.smarty.viewmodel.managers.ShareFlowManager(
@@ -1070,15 +544,6 @@ class JarvisViewModel(
     // Queue state exposed for UI (optional - shows pending count)
     val pendingNoteProcessingCount: StateFlow<Int> by lazy { noteProcessingQueueManager.pendingCount }
 
-    // Calendar Manager - handles calendar event CRUD operations and reminders
-    private val calendarManager by lazy {
-        com.example.smarty.viewmodel.managers.CalendarManager(
-            calendarDao = calendarDao,
-            alarmScheduler = alarmScheduler,
-            scope = viewModelScope
-        )
-    }
-
     // Audio Playback Manager - handles audio playback coordination with AudioPlayerService
     private val audioPlaybackManager by lazy {
         com.example.smarty.viewmodel.managers.AudioPlaybackManager(
@@ -1097,12 +562,19 @@ class JarvisViewModel(
     }
 
 
-    // ==================== Chat State (delegated to ChatManager) ====================
-    val isChatMode: StateFlow<Boolean> = chatManager.isChatMode
-    val chatMessages: StateFlow<List<ChatMessage>> = chatManager.chatMessages
-    val isChatProcessing: StateFlow<Boolean> = chatManager.isChatProcessing
-    val currentSessionId: StateFlow<String?> = chatManager.currentSessionId
-    val chatSessions: StateFlow<List<ChatSession>> = chatManager.chatSessions
+    // ==================== Chat State (delegated to ChatFeatureManager) ====================
+    val isChatMode: StateFlow<Boolean> get() = chatFeatureManager.isChatMode
+    val chatMessages: StateFlow<List<ChatMessage>> get() = chatFeatureManager.chatMessages
+    val isChatProcessing: StateFlow<Boolean> get() = chatFeatureManager.isChatProcessing
+    val currentSessionId: StateFlow<String?> get() = chatFeatureManager.currentSessionId
+    val chatSessions: StateFlow<List<ChatSession>> get() = chatFeatureManager.chatSessions
+    val mentionState: StateFlow<MentionState> get() = chatFeatureManager.mentionState
+    val pendingChatText: StateFlow<String?> get() = chatFeatureManager.pendingChatText
+    val isThinkingModeEnabled: StateFlow<Boolean> get() = chatFeatureManager.isThinkingModeEnabled
+    val aiPlanStatus: StateFlow<String?> get() = chatFeatureManager.aiPlanStatus
+    val currentToolName: StateFlow<String?> get() = chatFeatureManager.currentToolName
+    val navigationRequest: StateFlow<String?> get() = chatFeatureManager.navigationRequest
+    val proactiveSuggestion: StateFlow<String?> get() = chatFeatureManager.proactiveSuggestion
 
     // ==================== Share Flow State (delegated to ShareFlowManager) ====================
     val pendingShare: StateFlow<PendingShareData?> = shareFlowManager.pendingShare
@@ -1163,8 +635,9 @@ class JarvisViewModel(
 
     // Current screen route - shake only works on main screen (input_stream)
     // Default to "startup" so shake is disabled until navigation explicitly sets the screen
-    private val _currentScreen = MutableStateFlow("startup")
-    val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
+    // MOVED ABOVE CHAT FEATURE MANAGER TO FIX INIT ORDER
+    // private val _currentScreen = MutableStateFlow("startup")
+    // val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
 
     // Shared flow for speech results to be consumed by screens
     // BUG FIX (RX-04): Added extraBufferCapacity to prevent dropped events
@@ -1211,10 +684,11 @@ class JarvisViewModel(
     }
 
     // Cache management
-    private val _cacheSizeBytes = MutableStateFlow(0L)
-    val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
-    private val _isClearingCache = MutableStateFlow(false)
-    val isClearingCache: StateFlow<Boolean> = _isClearingCache.asStateFlow()
+    // MOVED ABOVE CHAT FEATURE MANAGER TO FIX INIT ORDER
+    // private val _cacheSizeBytes = MutableStateFlow(0L)
+    // val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
+    // private val _isClearingCache = MutableStateFlow(false)
+    // val isClearingCache: StateFlow<Boolean> = _isClearingCache.asStateFlow()
 
     // Audio playback request from AI agent (observed by MainActivity to trigger playback)
     // Delegated to AudioPlaybackManager for centralized control - single source of truth
@@ -1289,6 +763,7 @@ class JarvisViewModel(
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
+        savedStateHandle[KEY_SEARCH_QUERY] = query
     }
 
     /**
@@ -1316,11 +791,15 @@ class JarvisViewModel(
 
     fun onFilterToggle(option: AttachmentOption) {
         val current = _selectedFilters.value
-        _selectedFilters.value = if (option in current) current - option else current + option
+        val next = if (option in current) current - option else current + option
+        _selectedFilters.value = next
+        // Store as List of strings for SavedStateHandle compatibility
+        savedStateHandle[KEY_SELECTED_FILTERS] = next.map { it.name }
     }
 
     fun clearFilters() {
         _selectedFilters.value = emptySet()
+        savedStateHandle[KEY_SELECTED_FILTERS] = emptyList<String>()
     }
 
     /**
@@ -1369,13 +848,13 @@ class JarvisViewModel(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val categories = noteOperationsManager.getAllCategories()
+    val categories: StateFlow<List<Category>> = noteOperationsManager.getAllCategories()
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Calendar events (delegated to CalendarManager)
+    // Calendar events (delegated to CalendarFeatureManager)
     val calendarEvents: StateFlow<List<CalendarEvent>>
-        get() = calendarManager.calendarEvents
+        get() = calendarFeatureManager.calendarEvents
 
     /**
      * REACTIVE SELECTED NOTE - Auto-updates when note changes in database.
@@ -1395,7 +874,7 @@ class JarvisViewModel(
                 flowOf(null)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _isProcessing = MutableStateFlow(false)
     val isProcessing: StateFlow<Boolean> = _isProcessing.asStateFlow()
@@ -1404,22 +883,77 @@ class JarvisViewModel(
     private val _isNotesLoading = MutableStateFlow(true)
     val isNotesLoading: StateFlow<Boolean> = _isNotesLoading.asStateFlow()
 
+    private val _isStacksLoading = MutableStateFlow(true)
+    val isStacksLoading: StateFlow<Boolean> = _isStacksLoading.asStateFlow()
+
+    private val _isArchiveLoading = MutableStateFlow(true)
+    val isArchiveLoading: StateFlow<Boolean> = _isArchiveLoading.asStateFlow()
+
+    private val _isChatHistoryLoading = MutableStateFlow(true)
+    val isChatHistoryLoading: StateFlow<Boolean> = _isChatHistoryLoading.asStateFlow()
+
+    private val _isCalendarLoading = MutableStateFlow(true)
+    val isCalendarLoading: StateFlow<Boolean> = _isCalendarLoading.asStateFlow()
+
+    private val _isNoteVersionsLoading = MutableStateFlow(false)
+    val isNoteVersionsLoading: StateFlow<Boolean> = _isNoteVersionsLoading.asStateFlow()
+
     // Undo state for bulk archive operations (Phase 4)
     private val _lastArchivedNoteIds = MutableStateFlow<List<String>>(emptyList())
     val lastArchivedNoteIds: StateFlow<List<String>> = _lastArchivedNoteIds.asStateFlow()
 
     // Network monitoring (Phase 7)
-    private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor(application) }
-    val connectionStatus: StateFlow<ConnectionStatus> = networkMonitor.connectionStatus
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionStatus.CONNECTED)
+    // MOVED ABOVE CHAT FEATURE MANAGER TO FIX INIT ORDER
+    // private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor(application) }
+    // val connectionStatus: StateFlow<ConnectionStatus> = networkMonitor.connectionStatus
+    //    .distinctUntilChanged()
+    //    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ConnectionStatus.CONNECTED)
 
     init {
         // OPTIMIZATION: Track notes loading state - only first emission needed
         // Using take(1) instead of collect to avoid permanent subscription
         viewModelScope.launch {
-            notes.take(1).collect {
+            try {
+                notes.take(1).collect {
+                    _isNotesLoading.value = false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize notes from database", e)
                 _isNotesLoading.value = false
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                categories.take(1).collect {
+                    _isStacksLoading.value = false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize categories", e)
+                _isStacksLoading.value = false
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                archivedNotes.take(1).collect {
+                    _isArchiveLoading.value = false
+                }
+            } catch (e: Exception) {
+                 Log.e(TAG, "Failed to initialize archived notes", e)
+                 _isArchiveLoading.value = false
+            }
+        }
+
+        viewModelScope.launch {
+            chatSessions.take(1).collect {
+                _isChatHistoryLoading.value = false
+            }
+        }
+
+        viewModelScope.launch {
+            calendarEvents.take(1).collect {
+                _isCalendarLoading.value = false
             }
         }
 
@@ -1482,15 +1016,10 @@ class JarvisViewModel(
 
         // Schedule FTS maintenance (weekly optimization)
         scheduleFtsMaintenance()
-
-        // Start proactive system monitoring for AI engagement
-        startProactiveMonitoring()
     }
 
     // Track if deferred initialization has been done
     private var categorySyncDone = false
-    private var chatManagerInitialized = false
-    private var groqKeysSynced = false
 
     /**
      * Perform deferred initialization for categories.
@@ -1505,34 +1034,6 @@ class JarvisViewModel(
                 Log.d(TAG, "Deferred category sync complete")
             } catch (e: Exception) {
                 Log.w(TAG, "Category sync failed: ${e.message}")
-            }
-        }
-    }
-
-    /**
-     * Perform deferred initialization for chat manager.
-     * Called when chat mode is first entered.
-     */
-    private fun ensureChatManagerInitialized() {
-        if (chatManagerInitialized) return
-        chatManagerInitialized = true
-        chatManager.initialize()
-        Log.d(TAG, "Deferred chat manager initialization complete")
-    }
-
-    /**
-     * Perform deferred initialization for GROQ keys.
-     * Called before first AI request.
-     */
-    private fun ensureGroqKeysSynced() {
-        if (groqKeysSynced) return
-        groqKeysSynced = true
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                agentProvider.syncGroqKeys()
-                Log.d(TAG, "Deferred GROQ key sync complete")
-            } catch (e: Exception) {
-                Log.w(TAG, "GROQ key sync failed: ${e.message}")
             }
         }
     }
@@ -1593,11 +1094,40 @@ class JarvisViewModel(
             savedStateHandle.get<Boolean>(KEY_IS_CHAT_MODE)?.let { wasChatMode ->
                 if (wasChatMode) {
                     restoreWithRetry("chat mode") {
-                        chatManager.enterChatMode()
+                        chatFeatureManager.enterChatMode()
+
+                        // Restore specific session if saved
+                        savedStateHandle.get<String>(KEY_CURRENT_SESSION_ID)?.let { sessionId ->
+                            chatFeatureManager.switchToChatSession(sessionId)
+                            Log.d(TAG, "Restored chat session: $sessionId")
+                        }
+
                         Log.d(TAG, "Restored chat mode")
                         true
                     }
                 }
+            }
+
+            // Restore current screen - UI will observe this and navigate if needed
+            savedStateHandle.get<String>(KEY_CURRENT_SCREEN)?.let { screen ->
+                if (screen != "startup" && screen != "input_stream") {
+                    _currentScreen.value = screen
+                    Log.d(TAG, "Restored currentScreen: $screen")
+                }
+            }
+
+            // Restore search and filters
+            savedStateHandle.get<String>(KEY_SEARCH_QUERY)?.let { query ->
+                _searchQuery.value = query
+                Log.d(TAG, "Restored searchQuery: $query")
+            }
+
+            savedStateHandle.get<List<String>>(KEY_SELECTED_FILTERS)?.let { filterNames ->
+                val filters = filterNames.mapNotNull { name ->
+                    try { AttachmentOption.valueOf(name) } catch (e: Exception) { null }
+                }.toSet()
+                _selectedFilters.value = filters
+                Log.d(TAG, "Restored selectedFilters: $filters")
             }
         }
     }
@@ -1727,208 +1257,11 @@ class JarvisViewModel(
     }
 
     /**
-     * Extract suggestions from agent response.
-     * Parses TOON format: {suggestions:["suggestion1","suggestion2"]}
-     * Returns cleaned response (without suggestions block) and list of suggestions.
-     *
-     * BUG FIX (Issue #18): Made extraction more robust with multiple fallback patterns
-     * and proper error logging instead of silent failure.
-     */
-    private fun extractSuggestionsFromResponse(response: String): Pair<String, List<String>> {
-        try {
-            // Multiple patterns to handle various LLM output formats (including local LLMs)
-            val patterns = listOf(
-                // Standard format: {suggestions:["a","b"]}
-                Regex("""\{suggestions:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE),
-                // With extra spaces: { suggestions : [ "a" , "b" ] }
-                Regex("""\{\s*suggestions\s*:\s*\[([^\]]*)\]\s*\}""", RegexOption.IGNORE_CASE),
-                // JSON-style with quotes: {"suggestions":["a","b"]}
-                Regex("""\{"suggestions"\s*:\s*\[([^\]]*)\]\}""", RegexOption.IGNORE_CASE),
-                // Markdown code block: ```{suggestions:...}```
-                Regex("""```\s*\{suggestions:\s*\[([^\]]*)\]\}\s*```""", RegexOption.IGNORE_CASE),
-                // Suggestions on new line: \nsuggestions: [...]
-                Regex("""\n\s*suggestions\s*:\s*\[([^\]]*)\]""", RegexOption.IGNORE_CASE),
-                // With "Suggestions:" label (capital S)
-                Regex("""Suggestions\s*:\s*\[([^\]]*)\]"""),
-                // Fallback: just the array after suggestions:
-                Regex("""suggestions\s*:\s*\[([^\]]*)\]""", RegexOption.IGNORE_CASE)
-            )
-
-            var match: MatchResult? = null
-            var matchedPattern = ""
-            for ((index, pattern) in patterns.withIndex()) {
-                match = pattern.find(response)
-                if (match != null) {
-                    matchedPattern = "pattern$index"
-                    break
-                }
-            }
-
-            if (match == null) {
-                // No suggestions found - this is normal, not an error
-                Log.d(TAG, "No suggestions block found in response")
-                return Pair(response.trim(), emptyList())
-            }
-
-            // Extract the suggestions array content
-            val suggestionsContent = match.groupValues[1]
-
-            // Parse individual suggestions with multiple quote styles
-            // Handles: "text", 'text', and unquoted text separated by commas
-            val suggestions = mutableListOf<String>()
-
-            // Try quoted strings first
-            val quotedPattern = Regex(""""([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'""")
-            quotedPattern.findAll(suggestionsContent).forEach { quotedMatch ->
-                val suggestion = quotedMatch.groupValues[1].ifEmpty { quotedMatch.groupValues[2] }
-                if (suggestion.isNotBlank()) {
-                    // Unescape any escaped characters
-                    suggestions.add(suggestion.replace("\\\"", "\"").replace("\\'", "'"))
-                }
-            }
-
-            // If no quoted strings found, try comma-separated values
-            if (suggestions.isEmpty() && suggestionsContent.isNotBlank()) {
-                suggestionsContent.split(",")
-                    .map { it.trim().trim('"', '\'', ' ') }
-                    .filter { it.isNotBlank() && it.length >= 2 }
-                    .take(2)
-                    .forEach { suggestions.add(it) }
-            }
-
-            // Limit to 2 suggestions
-            val finalSuggestions = suggestions.take(2)
-
-            // Remove the suggestions block from the response
-            val cleanedResponse = response.replace(match.value, "").trim()
-
-            if (finalSuggestions.isNotEmpty()) {
-                Log.d(TAG, "Extracted ${finalSuggestions.size} suggestions via $matchedPattern: $finalSuggestions")
-            }
-
-            return Pair(cleanedResponse, finalSuggestions)
-
-        } catch (e: Exception) {
-            // BUG FIX (Issue #18): Log errors instead of silent failure
-            Log.e(TAG, "Failed to extract suggestions from response: ${e.message}", e)
-            return Pair(response.trim(), emptyList())
-        }
-    }
-
-    /**
-     * Parsing of Clarification Request from AI response.
-     * Expected format: {clarification:{question:"...",options:["A","B"],custom:true}}
-     */
-    private fun extractClarificationFromResponse(response: String): Pair<String, com.example.smarty.data.model.ClarificationRequest?> {
-        try {
-            // Pattern: {clarification:{...}}
-            val pattern = Regex("""\{clarification:\s*\{(.*?)\}\}""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            val match: kotlin.text.MatchResult = pattern.find(response) ?: return Pair(response, null)
-            
-            val content = match.groupValues.get(1)
-            
-            // Extract question
-            val questionMatch = Regex("""question:\s*["'](.*?)["']""").find(content)
-            val question = questionMatch?.groupValues?.get(1) ?: return Pair(response, null)
-            
-            // Extract options
-            val optionsMatch = Regex("""options:\s*\[(.*?)\]""").find(content)
-            val optionsStr = optionsMatch?.groupValues?.get(1) ?: ""
-            val options = optionsStr.split(",")
-                .map { it.trim().trim('"', '\'') }
-                .filter { it.isNotBlank() }
-            
-            // Extract custom input flag
-            val customMatch = Regex("""custom:\s*(true|false)""").find(content)
-            val allowCustomString = customMatch?.groupValues?.get(1)
-            val allowCustom = allowCustomString?.toBoolean() ?: true
-            
-            val request = ClarificationRequest(
-                question = question,
-                options = options,
-                allowCustomInput = allowCustom
-            )
-            
-            // Clean response
-            val matchValue = match.value
-            val cleanedResponse = response.replace(matchValue, "").trim()
-            
-            Log.d(TAG, "Extracted Clarification Request: $question")
-            return Pair(cleanedResponse, request)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing clarification request", e)
-            return Pair(response, null)
-        }
-    }
-
-    /**
-     * Filter out internal planning text from AI responses.
-     * The planning system is for internal AI task management - users should only see final results.
-     * 
-     * @param response The raw AI response
-     * @return Cleaned response with planning text removed, or null if this is purely a planning message
-     */
-    private fun filterPlanningText(response: String): String? {
-        val trimmed = response.trim()
-        
-        // Patterns that indicate this is internal planning text (should be hidden)
-        val planningPatterns = listOf(
-            "=== CURRENT EXECUTION PLAN ===",
-            "IMMEDIATE ACTION:",
-            "NEXT ACTION:",
-            "Step 1/",
-            "Step 2/",
-            "Step 3/",
-            "Step 4/",
-            "Step 5/",
-            "Step 6/",
-            "Step 7/",
-            "Execute this now",
-            "Executing step",
-            "I'm starting by",
-            "Now executing",
-            "I'll start by",
-            "First, I'll",
-            "I'm now going to",
-            "Proceeding with step"
-        )
-        
-        // Check if the response is primarily planning text
-        val isPlanningMessage = planningPatterns.any { pattern ->
-            trimmed.contains(pattern, ignoreCase = true)
-        }
-        
-        if (isPlanningMessage) {
-            Log.d(TAG, "Filtering out planning text: ${trimmed.take(50)}...")
-            
-            // If the response is ONLY planning text, return null to skip this message entirely
-            // This happens during intermediate plan steps
-            val linesWithoutPlanning = trimmed.lines().filter { line ->
-                !planningPatterns.any { pattern -> line.contains(pattern, ignoreCase = true) }
-            }.joinToString("\n").trim()
-            
-            return if (linesWithoutPlanning.isBlank() || linesWithoutPlanning.length < 20) {
-                null // Skip this message entirely - it's just planning
-            } else {
-                linesWithoutPlanning // Return the non-planning part
-            }
-        }
-        
-        return response // No planning text detected, return as-is
-    }
-    
-    /**
      * Submit user response to a clarification request.
      * Treats the response as a user message.
      */
     fun submitClarification(response: String) {
-        if (response.isBlank()) return
-        
-        viewModelScope.launch {
-            // Add as user message and trigger agent
-            sendChatMessage(response)
-        }
+        chatFeatureManager.dispatchQuery(response)
     }
 
     /**
@@ -2024,7 +1357,7 @@ class JarvisViewModel(
     }
 
     // Archived notes for archive screen
-    val archivedNotes = noteOperationsManager.getArchivedNotes()
+    val archivedNotes: StateFlow<List<Note>> = noteOperationsManager.getArchivedNotes()
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -2103,8 +1436,10 @@ class JarvisViewModel(
      */
     fun loadNoteVersions(noteId: String) {
         viewModelScope.launch {
+            _isNoteVersionsLoading.value = true
             val versions = noteOperationsManager.getNoteVersions(noteId)
             _selectedNoteVersions.value = versions
+            _isNoteVersionsLoading.value = false
         }
     }
 
@@ -2184,7 +1519,7 @@ class JarvisViewModel(
         settingsFeatureManager.addProviderKey(provider, apiKey)
         // Sync GROQ keys with manager for usage tracking
         if (provider == AIProvider.GROQ) {
-            viewModelScope.launch { agentProvider.syncGroqKeys() }
+            chatFeatureManager.syncGroqKeys()
         }
         // Trigger queue processing - provider just became available
         noteProcessingQueueManager.onProviderAvailable()
@@ -2194,7 +1529,7 @@ class JarvisViewModel(
         settingsFeatureManager.removeProviderKey(provider, apiKey)
         // Sync GROQ keys with manager for usage tracking
         if (provider == AIProvider.GROQ) {
-            viewModelScope.launch { agentProvider.syncGroqKeys() }
+            chatFeatureManager.syncGroqKeys()
         }
     }
 
@@ -2202,7 +1537,7 @@ class JarvisViewModel(
         settingsFeatureManager.updateProviderKey(provider, oldKey, newKey)
         // Sync GROQ keys with manager for usage tracking
         if (provider == AIProvider.GROQ) {
-            viewModelScope.launch { agentProvider.syncGroqKeys() }
+            chatFeatureManager.syncGroqKeys()
         }
         // Trigger queue processing - provider config changed
         noteProcessingQueueManager.onProviderAvailable()
@@ -2278,6 +1613,11 @@ class JarvisViewModel(
     // User Category Creation
     fun createUserCategory(name: String) {
         noteOperationsManager.createUserCategory(name)
+    }
+
+    // Rename Category
+    fun renameCategory(category: Category, newName: String) {
+        noteOperationsManager.renameCategory(category, newName)
     }
 
     // Delete Category (BUG-028: Proper cascade cleanup)
@@ -2652,6 +1992,15 @@ class JarvisViewModel(
     }
 
     /**
+     * Manually trigger text input focus (e.g. from widget)
+     */
+    fun triggerTextInput() {
+        // This could set a flag or just ensure we are on the right screen
+        // For now, we'll just ensure we're in normal mode
+        setCurrentScreen("inputStream")
+    }
+
+    /**
      * Manually trigger voice input (e.g. from widget)
      */
     fun triggerVoiceInput() {
@@ -2675,7 +2024,7 @@ class JarvisViewModel(
 
     /**
      * Restart wake word detection after Google STT completes.
-     * Call this from onActivityResult after speech reJarvistion finishes.
+     * Call this from onActivityResult after speech recognition finishes.
      *
      * PRIVACY: Only restarts if app is in foreground to prevent background mic access.
      * MED-007: Also respects privacy mode.
@@ -2751,7 +2100,8 @@ class JarvisViewModel(
     fun setCurrentScreen(screen: String) {
         val previousScreen = _currentScreen.value
         _currentScreen.value = screen
-        
+        savedStateHandle[KEY_CURRENT_SCREEN] = screen
+
         // BATTERY OPTIMIZATION: Only run shake sensor on main screen
         when {
             screen == "input_stream" && previousScreen != "input_stream" -> {
@@ -2827,13 +2177,10 @@ class JarvisViewModel(
     }
 
     /**
-     * Toggle between note input mode and chat mode (delegated to ChatManager)
+     * Toggle between note input mode and chat mode (delegated to ChatFeatureManager)
      * @param fromShake Whether this toggle was triggered by a shake gesture
      */
     fun toggleChatMode(fromShake: Boolean = false) {
-        // Ensure chat manager is initialized before toggling
-        ensureChatManagerInitialized()
-
         // Track if this was shake-triggered for glow animation
         if (fromShake) {
             _wasShakeTriggered.value = true
@@ -2842,31 +2189,16 @@ class JarvisViewModel(
                 _wasShakeTriggered.value = false
             }
         }
-
-        chatManager.toggleChatMode()
-        // Persist chat mode state for process death recovery (BUG-053)
-        savedStateHandle[KEY_IS_CHAT_MODE] = !isChatMode.value  // Will be opposite after toggle
+        chatFeatureManager.toggleChatMode(fromShake)
     }
 
     /**
-     * Enter chat mode (delegated to ChatManager)
+     * Enter chat mode (delegated to ChatFeatureManager)
      * Called when user taps the AI/Chat tab
      */
     fun enterChatMode() {
-        ensureChatManagerInitialized()
-        viewModelScope.launch {
-            chatManager.enterChatMode()
-            // Persist chat mode state for process death recovery (BUG-053)
-            savedStateHandle[KEY_IS_CHAT_MODE] = true
-        }
+        chatFeatureManager.enterChatMode()
     }
-
-    /**
-     * Initial text to pre-populate in chat input (for @mention quick reference).
-     * Set when user clicks "Ask AI" from KnowledgeCard.
-     */
-    private val _pendingChatText = MutableStateFlow<String?>(null)
-    val pendingChatText: StateFlow<String?> = _pendingChatText.asStateFlow()
 
     /**
      * Enter chat mode with a note pre-referenced.
@@ -2875,59 +2207,63 @@ class JarvisViewModel(
      * @param noteTitle Title of the note to reference
      */
     fun enterChatWithNoteReference(noteTitle: String) {
-        // Build the @mention text
-        val mentionText = if (noteTitle.contains(' ')) {
-            "@\"$noteTitle\" "
-        } else {
-            "@${noteTitle.replace(' ', '_')} "
-        }
-
-        _pendingChatText.value = mentionText
-        enterChatMode()
+        chatFeatureManager.enterChatWithNoteReference(noteTitle)
     }
 
     /**
      * Clear pending chat text after it's been consumed by the UI.
      */
     fun clearPendingChatText() {
-        _pendingChatText.value = null
+        chatFeatureManager.clearPendingChatText()
     }
 
     /**
-     * Exit chat mode and return to note input mode (delegated to ChatManager)
+     * Toggle thinking mode on/off (delegated to ChatFeatureManager)
+     */
+    fun toggleThinkingMode() {
+        chatFeatureManager.toggleThinkingMode()
+    }
+
+    /**
+     * Clear navigation request after handling (delegated to ChatFeatureManager)
+     */
+    fun clearNavigationRequest() {
+        chatFeatureManager.clearNavigationRequest()
+    }
+
+    /**
+     * Exit chat mode and return to note input mode (delegated to ChatFeatureManager)
      */
     fun exitChatMode() {
-        chatManager.exitChatMode()
-        // Persist chat mode state for process death recovery (BUG-053)
-        savedStateHandle[KEY_IS_CHAT_MODE] = false
+        chatFeatureManager.exitChatMode()
     }
 
     /**
-     * Create a new chat session (delegated to ChatManager)
+     * Create a new chat session (delegated to ChatFeatureManager)
      */
     fun createNewChatSession() {
-        chatManager.createNewChatSession()
+        chatFeatureManager.createNewChatSession()
     }
 
     /**
-     * Switch to a different chat session (delegated to ChatManager)
+     * Switch to a different chat session (delegated to ChatFeatureManager)
      */
     fun switchToChatSession(sessionId: String) {
-        chatManager.switchToChatSession(sessionId)
+        chatFeatureManager.switchToChatSession(sessionId)
     }
 
     /**
-     * Delete a chat session (delegated to ChatManager)
+     * Delete a chat session (delegated to ChatFeatureManager)
      */
     fun deleteChatSession(sessionId: String) {
-        chatManager.deleteChatSession(sessionId)
+        chatFeatureManager.deleteChatSession(sessionId)
     }
 
     /**
-     * Clear current chat history (delegated to ChatManager)
+     * Clear current chat history (delegated to ChatFeatureManager)
      */
     fun clearChatHistory() {
-        chatManager.clearChatHistory()
+        chatFeatureManager.clearChatHistory()
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -2942,28 +2278,7 @@ class JarvisViewModel(
      * @param cursorPosition Current cursor position in text
      */
     fun updateMentionState(text: String, cursorPosition: Int) {
-        chatInputCursorPosition = cursorPosition
-
-        viewModelScope.launch {
-            val detection = MentionParser.detectActiveMention(text, cursorPosition)
-
-            if (detection.isTypingMention && !detection.isEmailPattern) {
-                // User is typing a mention - get suggestions
-                val suggestions = mentionManager.getSuggestions(detection.query)
-                _mentionState.value = MentionState(
-                    isActive = true,
-                    query = detection.query,
-                    triggerIndex = detection.triggerIndex,
-                    suggestions = suggestions,
-                    highlightedIndex = 0
-                )
-            } else {
-                // Not typing a mention - dismiss dropdown
-                if (_mentionState.value.isActive) {
-                    _mentionState.value = MentionState()
-                }
-            }
-        }
+        chatFeatureManager.updateMentionState(text, cursorPosition)
     }
 
     /**
@@ -2975,45 +2290,14 @@ class JarvisViewModel(
      * @return Updated text with mention inserted
      */
     fun onMentionSelected(suggestion: MentionSuggestion, currentText: String): String {
-        val mentionState = _mentionState.value
-        if (!mentionState.isActive || mentionState.triggerIndex < 0) {
-            return currentText
-        }
-
-        // Build the replacement text based on suggestion type
-        val replacement = when (suggestion) {
-            is MentionSuggestion.NoteSuggestion -> {
-                val title = suggestion.note.title
-                // Use quotes if title has spaces
-                if (title.contains(' ')) "@\"$title\"" else "@${title.replace(' ', '_')}"
-            }
-            is MentionSuggestion.TypeFilter -> "@${suggestion.keyword}"
-            is MentionSuggestion.CategorySuggestion -> {
-                val name = suggestion.category.name
-                if (name.contains(' ')) "@\"$name\"" else "@${name.replace(' ', '_')}"
-            }
-            is MentionSuggestion.SpecialFilter -> "@${suggestion.filterName}"
-            is MentionSuggestion.CommandSuggestion -> "@${suggestion.commandName}"
-        }
-
-        // Calculate what to replace: from @triggerIndex to cursor position
-        val beforeMention = currentText.substring(0, mentionState.triggerIndex)
-        val afterCursor = if (chatInputCursorPosition < currentText.length) {
-            currentText.substring(chatInputCursorPosition)
-        } else ""
-
-        // Dismiss the dropdown
-        _mentionState.value = MentionState()
-
-        // Return updated text with mention and trailing space
-        return "$beforeMention$replacement $afterCursor"
+        return chatFeatureManager.onMentionSelected(suggestion, currentText)
     }
 
     /**
      * Dismiss mention dropdown without selection.
      */
     fun dismissMention() {
-        _mentionState.value = MentionState()
+        chatFeatureManager.dismissMention()
     }
 
     /**
@@ -3022,170 +2306,19 @@ class JarvisViewModel(
      * Hybridizes fast-path rule execution with deep-path agentic reasoning.
      */
     fun dispatchQuery(content: String, attachments: List<Attachment> = emptyList()) {
-        if (content.isBlank() && attachments.isEmpty()) return
-
         // Ensure GROQ keys are synced before first AI request
-        ensureGroqKeysSynced()
-        // Ensure chat manager is initialized
-        ensureChatManagerInitialized()
-
-        viewModelScope.launch {
-            chatManager.setProcessing(true)
-            chatManager.resetApiCallFlag()
-
-            // Ensure we have a session
-            chatManager.ensureSession()
-
-            // Add user message to chat history
-            val userMessage = chatManager.addUserMessage(content, attachments)
-
-            try {
-                // 1. FAST-PATH: Check Local Command Processor (0ms latency, offline)
-                val commandResult = localCommandProcessor.process(content)
-                when (commandResult) {
-                    is com.example.smarty.service.CommandResult.Handled -> {
-                        Log.i(TAG, "Query handled by FAST-PATH: $content")
-                        val assistantMessage = ChatMessage(
-                            role = ChatRole.ASSISTANT,
-                            content = commandResult.response
-                        )
-                        chatManager.addAssistantMessage(assistantMessage)
-                        chatManager.saveMessagePair(
-                            userMessage = userMessage,
-                            assistantMessage = assistantMessage,
-                            hasApiKeys = settingsFeatureManager.hasAnyApiKeys()
-                        )
-                        return@launch // Handled locally
-                    }
-                    is com.example.smarty.service.CommandResult.HandledAndPassToLLM -> {
-                        Log.i(TAG, "FAST-PATH executed action, but passing to REASONING-PATH for additional intent")
-                        val localMessage = ChatMessage(
-                            role = ChatRole.ASSISTANT,
-                            content = commandResult.response
-                        )
-                        chatManager.addAssistantMessage(localMessage)
-                    }
-                    else -> Log.d(TAG, "Query falling back to REASONING-PATH: $content")
-                }
-
-                // 2. REASONING-PATH: AI Agent processing for complex intent
-                processReasoningPath(content, userMessage)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Error in universal dispatcher: ${e.message}", e)
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "I encountered an error: ${e.message}"))
-            } finally {
-                chatManager.setProcessing(false)
-            }
-        }
-    }
-
-    /**
-     * Internal implementation of the agentic reasoning path.
-     */
-    private suspend fun processReasoningPath(content: String, userMessage: ChatMessage) {
-        // Build conversation history for agent memory
-        val conversationHistory = chatManager.chatMessages.value
-            .filter { it.role != ChatRole.SYSTEM }
-            .map { msg ->
-                val role = when (msg.role) {
-                    ChatRole.USER -> "User"
-                    ChatRole.ASSISTANT -> "Assistant"
-                    else -> "System"
-                }
-                Pair(role, msg.content)
-            }
-
-        // Clear pending citations before running agent
-        pendingCitations.clear()
-
-        // Reset mention state
-        _mentionState.value = MentionState()
-
-        // Parse @mentions
-        val parsedMentions = MentionParser.parseAllMentions(content)
-        val taggedNoteContext = if (parsedMentions.isNotEmpty()) {
-            val resolvedMentions = mentionManager.resolveMentions(parsedMentions)
-            noteContextBuilder.buildContext(resolvedMentions)
-        } else null
-
-        // @THINKING deep analysis
-        val thinkingModeContext = if (thinkingModeProcessor.hasThinkingCommand(content) && taggedNoteContext != null) {
-            thinkingModeProcessor.processThinkingMode(content, taggedNoteContext.resolvedMentions.flatMap { it.notes })
-        } else null
-
-        // Prepare final prompt
-        val cleanedContent = if (parsedMentions.isNotEmpty()) MentionParser.cleanMessage(content, parsedMentions) else content
-        val finalUserMessage = if (!_isThinkingModeEnabled.value) "/no_think $cleanedContent" else cleanedContent
-
-        // Execute Agent
-        val result = JarvisAgent.run(
-            userMessage = finalUserMessage,
-            conversationHistory = conversationHistory,
-            taggedNoteContext = taggedNoteContext,
-            thinkingModeContext = thinkingModeContext,
-            isThinkingModeEnabled = _isThinkingModeEnabled.value
-        )
-
-        handleAgentResult(result, userMessage)
-    }
-
-    private suspend fun handleAgentResult(result: AgentResult, userMessage: ChatMessage) {
-        when (result) {
-            is AgentResult.Success -> {
-                Log.d(TAG, "Agent completed successfully via ${result.provider}")
-
-                val filteredResponse = filterPlanningText(result.response) ?: return
-                val (responseWithoutSuggestions, suggestions) = extractSuggestionsFromResponse(filteredResponse)
-                val (cleanedResponse, clarificationRequest) = extractClarificationFromResponse(responseWithoutSuggestions)
-
-                // Citations and Images
-                val citations = pendingCitations.map { wc -> Citation(title = wc.title, url = wc.url, snippet = wc.snippet) }
-                pendingCitations.clear()
-                val inlineImages = pendingInlineImages.toList()
-                pendingInlineImages.clear()
-
-                // Thinking Content
-                val parsedThinking = ThinkingParser.parse(cleanedResponse)
-
-                val assistantMessage = ChatMessage(
-                    role = ChatRole.ASSISTANT,
-                    content = parsedThinking.answer,
-                    thinkingContent = parsedThinking.thinking,
-                    suggestions = suggestions,
-                    citations = citations,
-                    inlineImages = inlineImages,
-                    clarificationRequest = clarificationRequest
-                )
-
-                chatManager.addAssistantMessage(assistantMessage)
-                chatManager.saveMessagePair(
-                    userMessage = userMessage,
-                    assistantMessage = assistantMessage,
-                    hasApiKeys = true
-                )
-
-                if (settingsFeatureManager.isSoundEnabled() && !_wakeWordTriggered.value) {
-                    completionSoundManager.playAgentCompletionSound(isAppInForeground = _isAppInForeground.value)
-                }
-            }
-            is AgentResult.Error -> {
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "Error: ${result.message}", isError = true))
-            }
-            is AgentResult.NoProvider -> {
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "Please configure an AI provider API key in Settings."))
-            }
-        }
+        chatFeatureManager.syncGroqKeys()
+        chatFeatureManager.dispatchQuery(content, attachments)
     }
 
     /**
      * Send a message in chat mode using the Koog-based AI agent.
      */
     fun sendChatMessage(content: String, attachments: List<Attachment> = emptyList()) {
-        dispatchQuery(content, attachments)
+        chatFeatureManager.sendChatMessage(content, attachments)
     }
 
-    // ==================== Calendar Operations (delegated to CalendarManager) ====================
+    // ==================== Calendar Operations (delegated to CalendarFeatureManager) ====================
 
     /**
      * Add a new calendar event
@@ -3200,44 +2333,51 @@ class JarvisViewModel(
         color: Int? = null,
         reminderMinutes: Int? = null,
         isPrivate: Boolean = false
-    ) = calendarManager.addCalendarEvent(
-        title = title,
-        description = description,
-        startTime = startTime,
-        endTime = endTime,
-        isAllDay = isAllDay,
-        location = location,
-        color = color,
-        reminderMinutes = reminderMinutes,
-        isPrivate = isPrivate
-    )
+    ) {
+        calendarFeatureManager.addCalendarEvent(
+            title = title,
+            description = description,
+            startTime = startTime,
+            endTime = endTime,
+            isAllDay = isAllDay,
+            location = location,
+            color = color,
+            reminderMinutes = reminderMinutes,
+            isPrivate = isPrivate
+        )
+    }
 
     /**
      * Update an existing calendar event
      */
-    fun updateCalendarEvent(event: CalendarEvent) = calendarManager.updateCalendarEvent(event)
+    fun updateCalendarEvent(event: CalendarEvent) {
+        calendarFeatureManager.updateCalendarEvent(event)
+    }
 
     /**
      * Delete a calendar event by ID
      */
-    fun deleteCalendarEvent(eventId: String) = calendarManager.deleteCalendarEvent(eventId)
+    fun deleteCalendarEvent(eventId: String) {
+        calendarFeatureManager.deleteCalendarEvent(eventId)
+    }
 
     /**
      * Get events for a specific day
      */
     suspend fun getEventsForDay(dayMillis: Long): List<CalendarEvent> =
-        calendarManager.getEventsForDay(dayMillis)
+        calendarFeatureManager.getEventsForDay(dayMillis)
 
     /**
      * Get today's events
      */
-    suspend fun getTodayEvents(): List<CalendarEvent> = calendarManager.getTodayEvents()
+    suspend fun getTodayEvents(): List<CalendarEvent> =
+        calendarFeatureManager.getTodayEvents()
 
     /**
      * Get AI-visible upcoming events (for agent context)
      */
     suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> =
-        calendarManager.getAiVisibleUpcomingEvents(limit)
+        calendarFeatureManager.getAiVisibleUpcomingEvents(limit)
 
     // ==================== Dynamic Model Management ====================
 

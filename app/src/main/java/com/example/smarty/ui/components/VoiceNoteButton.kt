@@ -24,10 +24,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HighlightOff
-import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.StopCircle
-import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +44,10 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.voice.VoiceNoteRecorder
 
 /**
@@ -131,8 +135,8 @@ private fun MicButton(
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Default.GraphicEq, // Creative: Voice Wave
-            contentDescription = "Record voice note",
+            imageVector = Icons.Default.Mic,
+            contentDescription = stringResource(R.string.record_voice_note),
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.size(24.dp)
         )
@@ -175,7 +179,7 @@ private fun RecordingInterface(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f), // Calmer background
         tonalElevation = 2.dp
     ) {
         Row(
@@ -190,9 +194,9 @@ private fun RecordingInterface(
                 modifier = Modifier.size(40.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
-                    contentDescription = "Cancel recording",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.cancel_recording),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             }
 
@@ -201,26 +205,30 @@ private fun RecordingInterface(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Pulsing red dot
+                // Pulsing dot - Using Accent color instead of bright Red
+                val accentColor = com.example.smarty.ui.LocalAccentColor.current
                 Box(
                     modifier = Modifier
-                        .size(12.dp)
+                        .size(10.dp)
                         .scale(pulseScale)
                         .clip(CircleShape)
-                        .background(Color.Red)
+                        .background(accentColor.copy(alpha = 0.8f))
                 )
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 // Simple amplitude visualization
                 AmplitudeBar(amplitude = amplitude)
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
                 // Duration
                 Text(
                     text = formatDuration(durationMs),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = com.example.smarty.ui.theme.MonoFont,
+                        letterSpacing = 0.5.sp
+                    ),
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -229,14 +237,14 @@ private fun RecordingInterface(
             IconButton(
                 onClick = onStop,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(com.example.smarty.ui.LocalAccentColor.current)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Verified, // Creative: Verified
-                    contentDescription = "Stop and save recording",
-                    tint = MaterialTheme.colorScheme.onPrimary
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = stringResource(R.string.stop_and_save_recording),
+                    tint = Color.White
                 )
             }
         }
@@ -249,32 +257,33 @@ private fun AmplitudeBar(
     modifier: Modifier = Modifier
 ) {
     // Simple bar visualization that grows with amplitude
-    val bars = 5
+    val bars = 8 // More bars for smoother look
+    val accentColor = com.example.smarty.ui.LocalAccentColor.current
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         repeat(bars) { index ->
             val threshold = (index + 1) / bars.toFloat()
-            val isActive = amplitude >= threshold * 0.5f
-            val barHeight = 8.dp + (16.dp * ((index + 1) / bars.toFloat()))
+            val isActive = amplitude >= threshold * 0.4f
+            val barHeight = 6.dp + (14.dp * ((index + 1) / bars.toFloat()))
 
             val color by animateColorAsState(
                 targetValue = if (isActive) {
-                    MaterialTheme.colorScheme.error
+                    accentColor.copy(alpha = 0.6f)
                 } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                 },
-                animationSpec = tween(100),
+                animationSpec = tween(150),
                 label = "barColor$index"
             )
 
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(3.dp)
                     .height(barHeight)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(RoundedCornerShape(1.5.dp))
                     .background(color)
             )
         }
@@ -310,13 +319,16 @@ fun VoiceRecordingOverlay(
             // Title
             Text(
                 text = when (state) {
-                    is VoiceNoteRecorder.RecordingState.Recording -> "Recording..."
-                    is VoiceNoteRecorder.RecordingState.Paused -> "Paused"
-                    is VoiceNoteRecorder.RecordingState.Completed -> "Recording Saved"
-                    is VoiceNoteRecorder.RecordingState.Error -> "Error"
-                    else -> "Voice Note"
-                },
-                style = MaterialTheme.typography.headlineSmall
+                    is VoiceNoteRecorder.RecordingState.Recording -> stringResource(R.string.thinking).replace("…", "")
+                    is VoiceNoteRecorder.RecordingState.Paused -> "paused"
+                    is VoiceNoteRecorder.RecordingState.Completed -> stringResource(R.string.recording_saved)
+                    is VoiceNoteRecorder.RecordingState.Error -> "error"
+                    else -> stringResource(R.string.type_audio)
+                }.lowercase(),
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.5.sp
+                )
             )
 
             // Duration display
@@ -350,11 +362,11 @@ fun VoiceRecordingOverlay(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f))
                 ) {
                     Icon(
-                        imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
-                        contentDescription = "Cancel",
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.cancel),
                         tint = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.size(28.dp)
                     )
@@ -391,14 +403,14 @@ fun VoiceRecordingOverlay(
                 ) {
                     Icon(
                         imageVector = if (state is VoiceNoteRecorder.RecordingState.Recording) {
-                            Icons.Default.StopCircle // Creative: Stop
+                            Icons.Default.StopCircle
                         } else {
-                            Icons.Default.GraphicEq // Creative: Mic
+                            Icons.Default.Mic
                         },
                         contentDescription = if (state is VoiceNoteRecorder.RecordingState.Recording) {
-                            "Stop recording"
+                            "stop_recording"
                         } else {
-                            "Start recording"
+                            "start_recording"
                         },
                         tint = Color.White,
                         modifier = Modifier.size(36.dp)
@@ -422,8 +434,8 @@ fun VoiceRecordingOverlay(
                             .background(MaterialTheme.colorScheme.primaryContainer)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Verified, // Creative: Verified
-                            contentDescription = "Save recording",
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = stringResource(R.string.save_recording),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(28.dp)
                         )
@@ -449,12 +461,12 @@ private fun LargeAmplitudeVisualizer(
     val lifecycleState by rememberAnimationLifecycleState()
     val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
 
-    // Pulsing animation based on amplitude
+    val accentColor = com.example.smarty.ui.LocalAccentColor.current
     val pulseScale = if (shouldAnimate) {
         val infiniteTransition = rememberInfiniteTransition(label = "amplitude")
         val animatedScale by infiniteTransition.animateFloat(
             initialValue = 1f,
-            targetValue = 1f + (amplitude * 0.3f),
+            targetValue = 1f + (amplitude * 0.25f), // Slightly reduced for calm
             animationSpec = infiniteRepeatable(
                 animation = tween(150, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse
@@ -463,12 +475,12 @@ private fun LargeAmplitudeVisualizer(
         )
         animatedScale
     } else {
-        1f + (amplitude * 0.15f) // Static mid-scale when backgrounded
+        1f + (amplitude * 0.12f)
     }
 
     Box(
         modifier = modifier
-            .size(120.dp)
+            .size(110.dp)
             .graphicsLayer {
                 scaleX = if (isRecording) pulseScale else 1f
                 scaleY = if (isRecording) pulseScale else 1f
@@ -476,35 +488,35 @@ private fun LargeAmplitudeVisualizer(
             .clip(CircleShape)
             .background(
                 if (isRecording) {
-                    MaterialTheme.colorScheme.error.copy(alpha = 0.2f + amplitude * 0.3f)
+                    accentColor.copy(alpha = 0.15f + amplitude * 0.2f)
                 } else {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
                 }
             ),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(76.dp)
                 .clip(CircleShape)
                 .background(
                     if (isRecording) {
-                        MaterialTheme.colorScheme.error.copy(alpha = 0.4f + amplitude * 0.4f)
+                        accentColor.copy(alpha = 0.3f + amplitude * 0.3f)
                     } else {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
                     }
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.GraphicEq, // Creative: Mic
+                imageVector = Icons.Default.Mic,
                 contentDescription = null,
                 tint = if (isRecording) {
-                    MaterialTheme.colorScheme.error
+                    accentColor
                 } else {
-                    MaterialTheme.colorScheme.primary
+                    MaterialTheme.colorScheme.onSecondaryContainer
                 },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(32.dp)
             )
         }
     }

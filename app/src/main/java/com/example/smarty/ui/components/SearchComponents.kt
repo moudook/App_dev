@@ -3,7 +3,7 @@ package com.example.smarty.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExploreOff
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,103 +17,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
-/**
- * Empty state displayed when search yields no results.
- * Shows a gentle animation with suggestions.
- */
-@Composable
-fun SearchEmptyState(
-    searchQuery: String,
-    modifier: Modifier = Modifier
-) {
-    val accentColor = LocalAccentColor.current
-
-    // Breathing animation for icon - LIFECYCLE AWARE
-    val lifecycleState by rememberAnimationLifecycleState()
-    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
-
-    val iconScale = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "searchEmpty")
-        val animatedScale by infiniteTransition.animateFloat(
-            initialValue = 0.9f,
-            targetValue = 1.1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = EaseInOutQuad),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "iconScale"
-        )
-        animatedScale
-    } else {
-        1.0f // Static mid-point value
-    }
-
-    val iconAlpha = if (shouldAnimate) {
-        val infiniteTransition = rememberInfiniteTransition(label = "searchEmpty")
-        val animatedAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.5f,
-            targetValue = 0.8f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = EaseInOutQuad),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "iconAlpha"
-        )
-        animatedAlpha
-    } else {
-        0.65f // Static mid-point value
-    }
-    
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        // Animated search icon
-        Icon(
-            imageVector = Icons.Default.ExploreOff,
-            contentDescription = null,
-            tint = accentColor.copy(alpha = iconAlpha),
-            modifier = Modifier
-                .size((48 * iconScale).dp)
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Main message
-        Text(
-            text = "No matches",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        // Query text with quotes
-        Text(
-            text = "\"${searchQuery.take(30)}${if (searchQuery.length > 30) "..." else ""}\"",
-            style = MaterialTheme.typography.titleLarge.copy(
-                fontWeight = FontWeight.Bold
-            ),
-            color = accentColor
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Suggestions
-        Text(
-            text = "Try different keywords",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-        )
-    }
-}
+// SearchEmptyState moved to ChatEmptyState.kt to share EmptyStateContainer infrastructure
 
 /**
  * Text component that highlights matching portions with a shimmer effect.

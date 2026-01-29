@@ -94,7 +94,7 @@ fun ExpandableSettingsSection(
                 // Expand/collapse arrow
                 Icon(
                     imageVector = Icons.Default.UnfoldMore,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    contentDescription = if (expanded) "collapse" else "expand",
                     modifier = Modifier
                         .size(24.dp)
                         .rotate(rotationState),

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +34,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 
 /**
@@ -100,11 +101,16 @@ private fun ImageViewerContent(
             .onSizeChanged { containerSize = it }
     ) {
         // Image with gestures - no animations, direct state updates
-        AsyncImage(
+        SubcomposeAsyncImage(
             model = ImageRequest.Builder(context)
                 .data(imageUri)
                 .crossfade(200)
                 .build(),
+            loading = {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    com.example.smarty.ui.components.CalmThinkingDots(color = Color.White)
+                }
+            },
             contentDescription = contentDescription,
             contentScale = ContentScale.Fit,
             modifier = Modifier
@@ -169,8 +175,8 @@ private fun ImageViewerContent(
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
-                    contentDescription = "Close",
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "close",
                     tint = Color.White
                 )
             }

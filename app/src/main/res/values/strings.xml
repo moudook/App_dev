@@ -2,13 +2,263 @@
     <string name="app_name">Jarvis</string>
 
     <!-- Widget strings -->
-    <string name="widget_description">Premium quick capture widget - Voice, Text, or Camera notes with one tap</string>
-    <string name="widget_tap_to_add">Tap to capture</string>
-    <string name="widget_subtitle">Brain dump</string>
-    <string name="widget_add_note">Add note</string>
-    <string name="widget_voice_note">Voice note</string>
-    <string name="widget_camera_note">Camera note</string>
-    <string name="widget_capture_hint">Capture thought</string>
+    <string name="widget_description">premium quick capture widget - voice, text, or camera notes with one tap</string>
+    <string name="widget_tap_to_add">tap to capture</string>
+    <string name="widget_subtitle">brain dump</string>
+    <string name="widget_add_note">add note</string>
+    <string name="widget_voice_note">voice note</string>
+    <string name="widget_camera_note">camera note</string>
+    <string name="widget_capture_hint">capture thought</string>
+
+    <!-- Calm Aesthetic Errors -->
+    <string name="connection_lost">connection lost</string>
+    <string name="permission_revoked">permission revoked</string>
+    <string name="sync_failed">sync failed</string>
+    <string name="backup_failed">backup failed</string>
+    <string name="restore_failed">restore failed</string>
+    <string name="fix_permissions">fix permissions</string>
+    <string name="note_archived">note archived</string>
+    <string name="undo">undo</string>
+
+    <!-- Backup & Sync Strings -->
+    <string name="backup_and_sync">backup and sync</string>
+    <string name="google_account">google account</string>
+    <string name="not_signed_in">not signed in</string>
+    <string name="sign_in_to_enable_cloud_backup">sign in to enable cloud backup</string>
+    <string name="sign_in">sign in</string>
+    <string name="sign_out">sign out</string>
+    <string name="backup">backup</string>
+    <string name="last_backup">last backup</string>
+    <string name="never_backed_up">never backed up</string>
+    <string name="backup_now">backup now</string>
+    <string name="auto_backup">auto backup</string>
+    <string name="automatically_backup_when_due">automatically backup when due</string>
+    <string name="backup_interval">backup interval</string>
+    <string name="every_x_days">every %1$d days</string>
+    <string name="available_backups">available backups</string>
+    <string name="local_backup">local backup</string>
+    <string name="create_local_backup">create local backup</string>
+    <string name="save_a_zip_file_to_share_or_store">save a zip file to share or store</string>
+    <string name="create_backup">create backup</string>
+    <string name="saved_backups">saved backups</string>
+    <string name="share_backup">share backup</string>
+    <string name="delete">delete</string>
+    <string name="restore">restore</string>
+    <string name="cancel">cancel</string>
+    <string name="restore_backup">restore backup</string>
+    <string name="delete_cloud_backup">delete cloud backup</string>
+    <string name="delete_local_archive">delete local archive</string>
+    <string name="cloud_backup_info">cloud backups include all notes, categories, and attachments. api keys are not backed up for security.</string>
+    <string name="local_backup_info">local backups are stored on your device and can be shared via any app. use these to transfer data between devices or create offline archives.</string>
+    <string name="restore_warning">this will replace all current data with the backup from %1$s.\n\nnotes: %2$d\nstacks: %3$d\n\nthis action cannot be undone.</string>
+    <string name="delete_confirm_cloud">are you sure you want to delete this backup from %1$s?\n\nthis action cannot be undone.</string>
+    <string name="delete_confirm_local">are you sure you want to delete this archive from %1$s?\n\nsize: %2$s\nnotes: %3$d\nstacks: %4$d\n\nthis action cannot be undone.</string>
+
+    <!-- Settings Strings -->
+    <string name="settings_">settings</string>
+    <string name="ai_voice">ai &amp; voice</string>
+    <string name="ai_providers">ai providers</string>
+    <string name="models_and_api_keys">models and api keys</string>
+    <string name="ai_memory">ai memory</string>
+    <string name="no_memories">no memories</string>
+    <string name="memories">memories</string>
+    <string name="calendar">calendar</string>
+    <string name="sync_to_google_calendar">sync to google calendar</string>
+    <string name="select_calendar">select calendar</string>
+    <string name="default_calendar">default calendar</string>
+    <string name="data_vault">data vault</string>
+    <string name="backup_sync">backup &amp; sync</string>
+    <string name="last_">last:</string>
+    <string name="not_backed_up">not backed up</string>
+    <string name="google_calendar_sync">google calendar sync</string>
+    <string name="last_sync_">last sync:</string>
+    <string name="not_synced">not synced</string>
+    <string name="archive">archive</string>
+    <string name="view_archived_notes">view archived notes</string>
+    <string name="clear_cache">clear cache</string>
+    <string name="preferences">preferences</string>
+    <string name="shake_sensitivity">shake sensitivity</string>
+    <string name="low">low</string>
+    <string name="medium">medium</string>
+    <string name="high">high</string>
+    <string name="default_assistant">default assistant</string>
+    <string name="set_as_device_assistant">set as device assistant</string>
+    <string name="made_with_intelligence">made with intelligence</string>
+    <string name="about_jarvis">about jarvis</string>
+    <string name="hello_moudook">hello, i am moudook.</string>
+
+    <!-- More Settings Content Strings -->
+    <string name="ai_status">ai status</string>
+    <string name="active">active</string>
+    <string name="adjust_your_ai_and_voice_settings">adjust your ai and voice settings</string>
+    <string name="manage_models">manage models</string>
+    <string name="memory">memory</string>
+    <string name="select">select</string>
+    <string name="dark_mode">dark mode</string>
+    <string name="archives">archives</string>
+    <string name="med">med</string>
+    <string name="adjust_shake_gesture">adjust shake gesture</string>
+    <string name="less_sensitive">less sensitive</string>
+    <string name="more_sensitive">more sensitive</string>
+    <string name="select_default_calendar">select default calendar</string>
+    <string name="no_calendars_found_or_permission_denied">no calendars found or permission denied</string>
+    <string name="calendars">calendars</string>
+    <string name="requires_stronger_shake">requires stronger shake</string>
+    <string name="light_shake_triggers">light shake triggers</string>
+    <string name="shake_gesture">shake gesture</string>
+    <string name="configure_chat_mode_activation">configure chat mode activation</string>
+
+    <!-- Archive Screen Strings -->
+    <string name="preserved_items">%1$d preserved items</string>
+    <string name="delete_permanently">delete permanently</string>
+    <string name="archive_delete_warning">this note will be permanently deleted from the archive. this action cannot be undone.</string>
+    <string name="back">back</string>
+
+    <!-- Calendar Screen Strings -->
+    <string name="my">my</string>
+    <string name="schedule_">schedule</string>
+    <string name="all_day">all day</string>
+    <string name="previous">previous</string>
+    <string name="next">next</string>
+    <string name="sync_calendar">sync calendar</string>
+    <string name="add_event">add event</string>
+    <string name="mon">mon</string>
+    <string name="tue">tue</string>
+    <string name="wed">wed</string>
+    <string name="thu">thu</string>
+    <string name="fri">fri</string>
+    <string name="sat">sat</string>
+    <string name="sun">sun</string>
+    <string name="sync_completed">sync completed</string>
+
+    <!-- Category Notes Screen Strings -->
+    <string name="items_count">%1$d items</string>
+    <string name="show_qr_code">show qr code</string>
+    <string name="edit_stack">edit stack</string>
+    <string name="delete_stack">remove stack</string>
+    <string name="share_stack">share stack</string>
+    <string name="delete_stack_confirm">you are about to remove the %1$s stack.\n\ndon\'t worry, your notes remain safe. they will simply be unfiled.</string>
+    <string name="notes_count">%1$d notes</string>
+    <string name="qr_code_description">qr code for %1$s</string>
+    <string name="scan_to_import_this_stack">scan to import this stack</string>
+    <string name="close">close</string>
+    <string name="share">share</string>
+
+    <!-- Chat History & Mode Strings -->
+    <string name="delete_chat">delete chat</string>
+    <string name="current_chat">current chat</string>
+    <string name="new_conversation">new conversation</string>
+    <string name="start_a_new_conversation">start a new conversation</string>
+    <string name="now">now</string>
+    <string name="yesterday">yesterday</string>
+    <string name="thinking">thinking</string>
+    <string name="assistant">assistant</string>
+    <string name="chat_delete_warning">this chat will be permanently deleted. this action cannot be undone.</string>
+
+    <!-- Stacks Content Strings -->
+    <string name="new_stack">new stack</string>
+    <string name="create_stack">create stack</string>
+    <string name="stack_name">stack name</string>
+    <string name="rename_your_stack">rename your stack to better organize your knowledge</string>
+    <string name="define_a_new_category">define a new category for your knowledge base. the ai will automatically route relevant notes here.</string>
+    <string name="save">save</string>
+    <string name="stack">stack</string>
+    <string name="notes">notes</string>
+
+    <!-- Calendar Content Strings -->
+    <string name="return_to_today">return to today</string>
+    <string name="today">today</string>
+    <string name="what_is_happening">what is happening?</string>
+    <string name="select_time">select time</string>
+    <string name="am">am</string>
+    <string name="pm">pm</string>
+    <string name="done">done</string>
+    <string name="nothing_planned">nothing planned</string>
+    <string name="free_day">free day</string>
+    <string name="tap_plus_to_add">tap + to add something</string>
+    <string name="event">event</string>
+    <string name="events_count">%1$d events</string>
+
+    <!-- Bulk Actions & Feedback -->
+    <string name="notes_archived">%1$d notes archived</string>
+    <string name="notes_deleted">%1$d notes deleted</string>
+    <string name="notes_pinned">%1$d notes pinned</string>
+    <string name="select_all">select all</string>
+    <string name="pin_selected">pin selected</string>
+    <string name="share_selected">share selected</string>
+    <string name="archive_selected">archive selected</string>
+    <string name="delete_selected">delete selected</string>
+    <string name="delete_note">delete note</string>
+    <string name="delete_note_warning">this action cannot be undone. the note and all its todos will be permanently deleted.</string>
+
+    <!-- Search History -->
+    <string name="recent_searches">recent searches</string>
+    <string name="clear">clear</string>
+
+    <!-- Knowledge Card Strings -->
+    <string name="no_summary_available">no summary available</string>
+    <string name="per_page_analysis">per page analysis</string>
+    <string name="no_summary_available_for_this_item">no summary available for this item</string>
+    <string name="file">file</string>
+    <string name="audio_file">audio file</string>
+    <string name="attachments">attachments</string>
+    <string name="source_material">source material</string>
+    <string name="no_content_text_available">no content text available</string>
+    <string name="navigate_to_source">navigate to source</string>
+    <string name="view_history">view history</string>
+    <string name="opening_document">opening document</string>
+    <string name="decompressing_file">decompressing file</string>
+    <string name="summary">summary</string>
+    <string name="files">files</string>
+    <string name="original_content">original content</string>
+    <string name="toggle_view">toggle view</string>
+    <string name="pages">pages</string>
+    <string name="open">open</string>
+    <string name="private_note">private note</string>
+    <string name="ai_cannot_access_this_note">ai cannot access this note</string>
+    <string name="edit_note">edit note</string>
+    <string name="remove_attachment">remove attachment</string>
+    <string name="title">title</string>
+    <string name="content">content</string>
+    <string name="version_history">version history</string>
+    <string name="versions_preserved">%1$d versions preserved</string>
+    <string name="restore_version">restore version</string>
+    <string name="restore_version_warning">a new version will be created with the current content before restoring.</string>
+    <string name="latest">latest</string>
+    <string name="restore_this_version">restore this version</string>
+    <string name="pages_range">pages %1$s</string>
+
+    <!-- Note Type Strings -->
+    <string name="type_youtube">youtube</string>
+    <string name="type_twitter">twitter</string>
+    <string name="type_instagram">instagram</string>
+    <string name="type_web_link">web link</string>
+    <string name="type_image">image</string>
+    <string name="type_brain_dump">brain dump</string>
+    <string name="type_document">document</string>
+    <string name="type_spreadsheet">spreadsheet</string>
+    <string name="type_presentation">presentation</string>
+    <string name="type_video">video</string>
+    <string name="type_audio">audio</string>
+    <string name="type_code">code</string>
+    <string name="type_archive">archive</string>
+    <string name="type_apk">apk</string>
+    <string name="type_file">file</string>
+
+    <string name="created_at">created %1$s</string>
+    <string name="note_id">id: %1$s</string>
+    <string name="analyzing_section">analyzing section…</string>
+    <string name="generating_final_summary">generating final summary…</string>
+    <string name="restore_version_warning_detail">this will restore the note to version %1$d</string>
+    <string name="version_number">v%1$d</string>
+
+
+
+
+
+
+
+
 
     <!-- Google Sign-In OAuth 2.0 Web Client ID -->
     <!-- 
@@ -22,4 +272,106 @@
         
         The Firebase plugin will automatically generate the default_web_client_id resource.
     -->
+    <string name="empty_stack">empty stack</string>
+    <string name="untitled_note">untitled note</string>
+    <string name="welcome">welcome</string>
+    <string name="create_account">create account</string>
+    <string name="email">email</string>
+    <string name="password">password</string>
+    <string name="forgot_password">forgot password?</string>
+    <string name="or">or</string>
+    <string name="continue_with_google">continue with google</string>
+    <string name="new_here">new here?</string>
+    <string name="have_account">already have an account?</string>
+    <string name="sign_up">sign up</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="pin">pin</string>
+    <string name="ask_ai">ask ai</string>
+    <string name="ask_jarvis">ask jarvis</string>
+    <string name="listening">listening…</string>
+    <string name="new_chat">new chat</string>
+    <string name="minimize">minimize</string>
+    <string name="sources_count">%1$d sources</string>
+    <string name="find_notes">find notes…</string>
+    <string name="private_label">private</string>
+    <string name="history">history</string>
+    <string name="attach">attach</string>
+    <string name="reasoning_on">reasoning on</string>
+    <string name="reasoning_off">reasoning off</string>
+    <string name="stop_listening">stop listening</string>
+    <string name="voice_input">voice input</string>
+    <string name="add_attachment">add attachment</string>
+    <string name="add_note_or_ask_ai">add note or ask ai…</string>
+    <string name="tasks">tasks</string>
+    <string name="tasks_completed">%1$d of %2$d completed</string>
+    <string name="add_a_new_task">add a new task…</string>
+    <string name="add">add</string>
+    <string name="task_tip">tip: ai helps organize your tasks</string>
+    <string name="remove_task">remove task</string>
+    <string name="just_now">just now</string>
+    <string name="minutes_ago">%1$dm ago</string>
+    <string name="hours_ago">%1$dh ago</string>
+    <string name="days_ago">%1$dd ago</string>
+    <string name="new_event">new event</string>
+    <string name="event_title">event title</string>
+    <string name="description_optional">description (optional)</string>
+    <string name="date_label">date: %1$s</string>
+    <string name="all_day_event">all day event</string>
+    <string name="start">start</string>
+    <string name="end">end</string>
+    <string name="photo">photo</string>
+    <string name="video">video</string>
+    <string name="document">document</string>
+    <string name="audio_label">audio</string>
+    <string name="link">link</string>
+    <string name="one_attachment">1 attachment</string>
+    <string name="x_attachments">%1$d attachments</string>
+    <string name="copy">copy</string>
+    <string name="references_found">%1$d references found</string>
+    <string name="tap_outside_to_close">tap outside to close</string>
+    <string name="untitled_source">untitled source</string>
+    <string name="clarification_needed">clarification needed</string>
+    <string name="other">other</string>
+    <string name="submit">submit</string>
+    <string name="related_knowledge">related knowledge</string>
+    <string name="no_matches">no matches</string>
+    <string name="try_different_keywords">try different keywords</string>
+    <string name="sources">sources</string>
+    <string name="whats_on_my_calendar_today">what\'s on my calendar today?</string>
+    <string name="whats_left_today">what\'s left today?</string>
+    <string name="plan_for_tomorrow">plan for tomorrow</string>
+    <string name="quick_note">quick note</string>
+    <string name="create_a_new_note">create a new note</string>
+    <string name="summarize_my_recent_notes">summarize my recent notes</string>
+    <string name="thanks">thanks</string>
+    <string name="create_another_note">create another note</string>
+    <string name="show_me_that_note">show me that note</string>
+    <string name="edit_the_note">edit the note</string>
+    <string name="show_tomorrow">show tomorrow</string>
+    <string name="add_a_new_event">add a new event</string>
+    <string name="this_weeks_schedule">this week\'s schedule</string>
+    <string name="search_for_more">search for more</string>
+    <string name="save_as_note">save as note</string>
+    <string name="tell_me_more">tell me more</string>
+    <string name="new_topic">new topic</string>
+    <string name="theme">theme</string>
+    <string name="light_mode">light mode</string>
+    <string name="accent_color">accent color</string>
+    <string name="selected">selected</string>
+
+    <!-- Missing Strings -->
+    <string name="add_note">add note</string>
+    <string name="search">search</string>
+    <string name="save_to_jarvis">save to jarvis</string>
+    <string name="category">category</string>
+    <string name="auto_sort">auto sort</string>
+    <string name="add_context">add context</string>
+    <string name="summarize_key_points">summarize key points</string>
+    <string name="save_note">save note</string>
+    <string name="youtube_video">youtube video</string>
+    <string name="record_voice_note">record voice note</string>
+    <string name="cancel_recording">cancel recording</string>
+    <string name="stop_and_save_recording">stop and save recording</string>
+    <string name="recording_saved">recording saved</string>
+    <string name="save_recording">save recording</string>
 </resources>

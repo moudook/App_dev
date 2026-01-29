@@ -9,15 +9,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.AutoGraph
-import androidx.compose.material.icons.filled.DesignServices
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +32,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 
 /**
@@ -60,11 +64,15 @@ fun QuickReplySuggestions(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             suggestions.forEachIndexed { index, suggestion ->
+                val suggestionText = when {
+                    suggestion.textResId != 0 -> stringResource(suggestion.textResId)
+                    else -> suggestion.text
+                }
                 QuickReplyChip(
                     suggestion = suggestion,
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onSuggestionClick(suggestion.text)
+                        onSuggestionClick(suggestionText)
                     },
                     animationDelay = index * 50
                 )
@@ -73,6 +81,9 @@ fun QuickReplySuggestions(
     }
 }
 
+/**
+ * Individual quick reply chip
+ */
 @Composable
 private fun QuickReplyChip(
     suggestion: QuickReplySuggestion,
@@ -81,24 +92,29 @@ private fun QuickReplyChip(
 ) {
     val accentColor = LocalAccentColor.current
     var appeared by remember { mutableStateOf(false) }
-    
+
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(animationDelay.toLong())
         appeared = true
     }
-    
+
     val scale by animateFloatAsState(
         targetValue = if (appeared) 1f else 0.8f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
         label = "chipScale"
     )
-    
+
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
         animationSpec = tween(200),
         label = "chipAlpha"
     )
-    
+
+    val text = when {
+        suggestion.textResId != 0 -> stringResource(suggestion.textResId)
+        else -> suggestion.text
+    }
+
     Surface(
         onClick = onClick,
         modifier = Modifier
@@ -124,11 +140,12 @@ private fun QuickReplyChip(
                     modifier = Modifier.size(16.dp)
                 )
             }
-            
+
             Text(
-                text = suggestion.text,
+                text = text.lowercase(),
                 style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.2.sp
                 ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -140,7 +157,8 @@ private fun QuickReplyChip(
  * Data class for a quick reply suggestion
  */
 data class QuickReplySuggestion(
-    val text: String,
+    val text: String = "",
+    val textResId: Int = 0,
     val icon: ImageVector? = null,
     val category: SuggestionCategory = SuggestionCategory.GENERAL
 )
@@ -155,47 +173,36 @@ enum class SuggestionCategory {
 
 /**
  * Default suggestions for empty chat state.
- *
- * BUG FIX (Issue #20): Added time-of-day awareness for more contextual suggestions.
- * BUG FIX (Issue #21): Added isPrivateMode parameter to suppress note-revealing suggestions.
- *
- * @param isPrivateMode When true, suggestions that could reveal note content are suppressed
  */
 fun getDefaultSuggestions(isPrivateMode: Boolean = false): List<QuickReplySuggestion> {
     val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
 
     // Time-of-day aware greeting/task suggestions
     val timeAwareSuggestion = when {
-        hour in 5..11 -> QuickReplySuggestion("What's on my calendar today?", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR)
-        hour in 12..17 -> QuickReplySuggestion("What's left today?", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR)
-        hour in 18..21 -> QuickReplySuggestion("Plan for tomorrow", Icons.Default.DateRange, SuggestionCategory.CALENDAR)
-        else -> QuickReplySuggestion("Quick note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS)
+        hour in 5..11 -> QuickReplySuggestion(textResId = com.example.smarty.R.string.whats_on_my_calendar_today, icon = Icons.Default.CalendarToday, category = SuggestionCategory.CALENDAR)
+        hour in 12..17 -> QuickReplySuggestion(textResId = com.example.smarty.R.string.whats_left_today, icon = Icons.Default.CalendarToday, category = SuggestionCategory.CALENDAR)
+        hour in 18..21 -> QuickReplySuggestion(textResId = com.example.smarty.R.string.plan_for_tomorrow, icon = Icons.Default.DateRange, category = SuggestionCategory.CALENDAR)
+        else -> QuickReplySuggestion(textResId = com.example.smarty.R.string.quick_note, icon = Icons.Default.NoteAdd, category = SuggestionCategory.ACTIONS)
     }
 
     return if (isPrivateMode) {
         // In private mode, don't suggest actions that could reveal note content
         listOf(
             timeAwareSuggestion,
-            QuickReplySuggestion("Create a new note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS)
-            // Intentionally omit "Summarize my notes" and "Find notes about..." in private mode
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.create_a_new_note, icon = Icons.Default.Add, category = SuggestionCategory.ACTIONS)
         )
     } else {
         listOf(
             timeAwareSuggestion,
-            QuickReplySuggestion("Summarize my recent notes", Icons.Default.AutoGraph, SuggestionCategory.NOTES), // Creative: Graph/Insights
-            QuickReplySuggestion("Create a new note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS),
-            QuickReplySuggestion("Find notes about...", Icons.Default.Explore, SuggestionCategory.SEARCH) // Creative: Explore
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.summarize_my_recent_notes, icon = Icons.Default.Summarize, category = SuggestionCategory.NOTES),
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.create_a_new_note, icon = Icons.Default.Add, category = SuggestionCategory.ACTIONS),
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.find_notes, icon = Icons.Default.Search, category = SuggestionCategory.SEARCH)
         )
     }
 }
 
 /**
  * Get contextual suggestions based on the last AI message.
- *
- * BUG FIX (Issue #21): Added isPrivateMode parameter to suppress note-revealing suggestions.
- *
- * @param lastMessage The last AI response to generate contextual suggestions from
- * @param isPrivateMode When true, suggestions that could reveal note content are suppressed
  */
 fun getContextualSuggestions(lastMessage: String?, isPrivateMode: Boolean = false): List<QuickReplySuggestion> {
     if (lastMessage.isNullOrBlank()) return getDefaultSuggestions(isPrivateMode)
@@ -205,41 +212,40 @@ fun getContextualSuggestions(lastMessage: String?, isPrivateMode: Boolean = fals
     return when {
         lowercaseMessage.contains("note") || lowercaseMessage.contains("created") -> {
             if (isPrivateMode) {
-                // In private mode, don't suggest viewing/editing potentially private notes
                 listOf(
-                    QuickReplySuggestion("Create another note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS),
-                    QuickReplySuggestion("Thanks!", category = SuggestionCategory.GENERAL)
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.create_another_note, icon = Icons.Default.Add, category = SuggestionCategory.ACTIONS),
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.thanks, category = SuggestionCategory.GENERAL)
                 )
             } else {
                 listOf(
-                    QuickReplySuggestion("Show me that note", Icons.Default.Visibility, SuggestionCategory.NOTES),
-                    QuickReplySuggestion("Edit the note", Icons.Default.DesignServices, SuggestionCategory.ACTIONS), // Creative: Design
-                    QuickReplySuggestion("Create another note", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS)
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.show_me_that_note, icon = Icons.Default.Visibility, category = SuggestionCategory.NOTES),
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.edit_the_note, icon = Icons.Default.Edit, category = SuggestionCategory.ACTIONS),
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.create_another_note, icon = Icons.Default.Add, category = SuggestionCategory.ACTIONS)
                 )
             }
         }
         lowercaseMessage.contains("calendar") || lowercaseMessage.contains("event") -> listOf(
-            QuickReplySuggestion("Show tomorrow", Icons.Default.CalendarToday, SuggestionCategory.CALENDAR),
-            QuickReplySuggestion("Add a new event", Icons.Default.AutoAwesome, SuggestionCategory.ACTIONS),
-            QuickReplySuggestion("This week's schedule", Icons.Default.DateRange, SuggestionCategory.CALENDAR)
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.show_tomorrow, icon = Icons.Default.CalendarToday, category = SuggestionCategory.CALENDAR),
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.add_a_new_event, icon = Icons.Default.Add, category = SuggestionCategory.ACTIONS),
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.this_weeks_schedule, icon = Icons.Default.DateRange, category = SuggestionCategory.CALENDAR)
         )
         lowercaseMessage.contains("search") || lowercaseMessage.contains("found") -> {
             if (isPrivateMode) {
                 listOf(
-                    QuickReplySuggestion("Thanks!", category = SuggestionCategory.GENERAL),
-                    QuickReplySuggestion("New topic", Icons.Default.Refresh, SuggestionCategory.GENERAL)
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.thanks, category = SuggestionCategory.GENERAL),
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.new_topic, icon = Icons.Default.Refresh, category = SuggestionCategory.GENERAL)
                 )
             } else {
                 listOf(
-                    QuickReplySuggestion("Search for more", Icons.Default.Explore, SuggestionCategory.SEARCH), // Creative: Explore
-                    QuickReplySuggestion("Save as note", Icons.Default.BookmarkBorder, SuggestionCategory.ACTIONS) // Creative: Bookmark
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.search_for_more, icon = Icons.Default.Search, category = SuggestionCategory.SEARCH),
+                    QuickReplySuggestion(textResId = com.example.smarty.R.string.save_as_note, icon = Icons.Default.Save, category = SuggestionCategory.ACTIONS)
                 )
             }
         }
         else -> listOf(
-            QuickReplySuggestion("Tell me more", category = SuggestionCategory.GENERAL),
-            QuickReplySuggestion("Thanks!", category = SuggestionCategory.GENERAL),
-            QuickReplySuggestion("New topic", Icons.Default.Refresh, SuggestionCategory.GENERAL)
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.tell_me_more, category = SuggestionCategory.GENERAL),
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.thanks, category = SuggestionCategory.GENERAL),
+            QuickReplySuggestion(textResId = com.example.smarty.R.string.new_topic, icon = Icons.Default.Refresh, category = SuggestionCategory.GENERAL)
         )
     }
 }

@@ -93,7 +93,7 @@ fun FullAudioPlayer(
                 // 2. Title & Artist
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = state.currentTrack?.title ?: "Audio",
+                        text = (state.currentTrack?.title ?: "audio").lowercase(),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                         ),
@@ -103,7 +103,7 @@ fun FullAudioPlayer(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = state.currentTrack?.fileName ?: "Unknown",
+                        text = (state.currentTrack?.fileName ?: "unknown").lowercase(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -128,8 +128,8 @@ fun FullAudioPlayer(
                     )
                 ) {
                     Icon(
-                        imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, // Creative: Minimalist controls
-                        contentDescription = if (state.isPlaying) "Pause" else "Play",
+                        imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (state.isPlaying) "pause" else "play",
                          modifier = Modifier.size(IconSize.xl)
                     )
                 }

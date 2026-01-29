@@ -98,18 +98,18 @@ class AuthFeatureManager(
                     if (authResult.isSuccess) {
                         _authState.value = AuthState.SUCCESS
                     } else {
-                        _error.value = authResult.exceptionOrNull()?.localizedMessage ?: "Google sign-in failed"
+                        _error.value = authResult.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "google_sign_in_failed"
                         _authState.value = AuthState.ERROR
                     }
                 } else {
-                    _error.value = "Failed to get ID token from Google"
+                    _error.value = "google_auth_token_error"
                     _authState.value = AuthState.ERROR
                 }
             } catch (e: ApiException) {
-                _error.value = "Google sign-in failed: ${e.statusCode}"
+                _error.value = "google_sign_in_failed_${e.statusCode}"
                 _authState.value = AuthState.ERROR
             } catch (e: Exception) {
-                _error.value = e.localizedMessage ?: "Google sign-in failed"
+                _error.value = e.localizedMessage?.lowercase()?.replace(" ", "_") ?: "google_sign_in_failed"
                 _authState.value = AuthState.ERROR
             }
 
@@ -119,7 +119,7 @@ class AuthFeatureManager(
 
     fun signIn(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            _error.value = "Email and password cannot be empty"
+            _error.value = "credentials_required"
             return
         }
 
@@ -132,7 +132,7 @@ class AuthFeatureManager(
             if (result.isSuccess) {
                 _authState.value = AuthState.SUCCESS
             } else {
-                _error.value = result.exceptionOrNull()?.localizedMessage ?: "Sign in failed"
+                _error.value = result.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "sign_in_failed"
                 _authState.value = AuthState.ERROR
             }
             _isLoading.value = false
@@ -141,7 +141,7 @@ class AuthFeatureManager(
 
     fun signUp(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            _error.value = "Email and password cannot be empty"
+            _error.value = "credentials_required"
             return
         }
 
@@ -154,7 +154,7 @@ class AuthFeatureManager(
             if (result.isSuccess) {
                 _authState.value = AuthState.SUCCESS
             } else {
-                _error.value = result.exceptionOrNull()?.localizedMessage ?: "Sign up failed"
+                _error.value = result.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "sign_up_failed"
                 _authState.value = AuthState.ERROR
             }
             _isLoading.value = false
@@ -170,7 +170,7 @@ class AuthFeatureManager(
 
     fun resetPassword(email: String) {
         if (email.isBlank()) {
-            _error.value = "Please enter your email"
+            _error.value = "email_required"
             return
         }
         scope.launch {
@@ -181,7 +181,7 @@ class AuthFeatureManager(
             if (result.isSuccess) {
                 // Success state handled by UI if needed
             } else {
-                _error.value = result.exceptionOrNull()?.localizedMessage ?: "Reset password failed"
+                _error.value = result.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "reset_password_failed"
             }
             _isLoading.value = false
         }

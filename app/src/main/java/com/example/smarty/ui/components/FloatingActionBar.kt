@@ -1,8 +1,6 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,52 +10,41 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.filled.BookmarkAdded
-import androidx.compose.material.icons.filled.RocketLaunch
-import androidx.compose.material.icons.filled.AllInbox
-import androidx.compose.material.icons.filled.Whatshot
-import androidx.compose.material.icons.filled.DesignServices
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.SafetyOrange
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.Alpha
+import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.softCardShadow
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ENHANCED GLASSMORPHISM COLORS (Matching JarvisInputField)
+// SOFT MINIMALIST STYLES
 // ═══════════════════════════════════════════════════════════════════════════════
-private val GlassBackgroundLight = Color(0xBBFFFFFF)  // White with 73% opacity
-private val GlassBackgroundDark = Color(0xB0181822)   // Dark with 69% opacity
-private val GlassBlueTintLight = Color(0x220066FF)    // Blue tint 13% for light
-private val GlassBlueTintDark = Color(0x332979FF)     // Blue tint 20% for dark
-private val GlassBorderLight = Color(0x550066FF)      // Blue border 33% for light
-private val GlassBorderDark = Color(0x662979FF)       // Blue border 40% for dark
-private val GlassInnerGlow = Color(0x1AFFFFFF)        // Stronger white inner glow (10%)
 
 private val PILL_HEIGHT = 44.dp
-private val PILL_CORNER_RADIUS = 22.dp
 
 /**
  * Floating action bar with multiple action buttons.
  * Used at the bottom of detail screens like KnowledgeCard.
- * Redesigned to match Input Block aesthetics (3 separate pills).
+ * Redesigned to match the Soft Minimalist aesthetic (clean, solid, soft shadows).
  */
 @Composable
 fun FloatingActionBar(
@@ -80,30 +67,33 @@ fun FloatingActionBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = ComponentSpacing.screenPadding),
-            horizontalArrangement = Arrangement.Center, // Centered circles
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             FloatingActionPill(
-                icon = if (isEditing) Icons.Default.Verified else Icons.Default.DesignServices, // Creative: Design
+                icon = if (isEditing) Icons.Default.CheckCircle else Icons.Default.Edit,
                 onClick = onEdit,
-                tint = if (isEditing) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                tint = if (isEditing) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
+                contentDescription = if (isEditing) stringResource(R.string.save) else stringResource(R.string.edit_note)
             )
 
             if (!isEditing) {
-                Spacer(modifier = Modifier.width(24.dp))
+                Spacer(modifier = Modifier.width(20.dp))
 
                 FloatingActionPill(
-                    icon = Icons.Default.AllInbox, // Creative: Vault
+                    icon = Icons.Default.Archive,
                     onClick = onArchive,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = stringResource(R.string.archive)
                 )
 
-                Spacer(modifier = Modifier.width(24.dp))
+                Spacer(modifier = Modifier.width(20.dp))
 
                 FloatingActionPill(
-                    icon = Icons.Default.Whatshot, // Creative: Fire
+                    icon = Icons.Default.DeleteOutline,
                     onClick = onDelete,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentDescription = stringResource(R.string.delete)
                 )
 
                 // Ask AI button (for @mention quick reference)
@@ -111,9 +101,10 @@ fun FloatingActionBar(
                     Spacer(modifier = Modifier.width(24.dp))
 
                     FloatingActionPill(
-                        icon = Icons.Outlined.AutoAwesome,
+                        icon = Icons.Default.Assistant,
                         onClick = onAskAI,
-                        tint = LocalAccentColor.current  // Use accent color to highlight AI action
+                        tint = LocalAccentColor.current,
+                        contentDescription = stringResource(R.string.ask_ai)
                     )
                 }
             }
@@ -126,35 +117,29 @@ private fun FloatingActionPill(
     icon: ImageVector,
     onClick: () -> Unit,
     tint: Color,
+    contentDescription: String? = null,
     modifier: Modifier = Modifier
 ) {
-    // Glassmorphism: Determine colors based on theme
+    // Soft Minimalist: Solid background with soft shadow
+    // No glassmorphism, no blurs, no complex borders
+
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-    val glassBackground = if (isDark) GlassBackgroundDark else GlassBackgroundLight
-    val glassTint = if (isDark) GlassBlueTintDark else GlassBlueTintLight
-    val glassBorder = if (isDark) GlassBorderDark else GlassBorderLight
-    
-    // Glassmorphism container with layered focus/press states
+    val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
+    val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
+
     Box(
         modifier = modifier
-            .size(PILL_HEIGHT) // Fixed size for Circle
-            .shadow(
-                elevation = 6.dp, 
-                shape = CircleShape, // Use CircleShape explicitly
-                spotColor = tint.copy(alpha = 0.1f),
-                ambientColor = tint.copy(alpha = 0.05f)
+            .size(PILL_HEIGHT)
+            .softCardShadow(
+                elevation = 6.dp,
+                shape = CircleShape,
+                spotColor = Color.Black.copy(alpha = 0.12f)
             )
             .clip(CircleShape)
-            .background(glassBackground)
-            .background(glassTint)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(GlassInnerGlow, Color.Transparent, Color.Transparent)
-                )
-            )
+            .background(backgroundColor)
             .border(
-                width = 0.5.dp,
-                color = glassBorder,
+                width = 1.dp,
+                color = borderColor,
                 shape = CircleShape
             )
             .clickable(
@@ -166,7 +151,7 @@ private fun FloatingActionPill(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = contentDescription,
             tint = tint,
             modifier = Modifier.size(20.dp)
         )
@@ -185,15 +170,20 @@ fun SelectionFloatingBar(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Apply soft shadow to the selection bar as well
+    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
+    val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
+
     Surface(
         shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 12.dp,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = Alpha.medium)
-        ),
-        modifier = modifier
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor),
+        modifier = modifier.softCardShadow(
+            elevation = 12.dp,
+            shape = RoundedCornerShape(ComponentSpacing.sheetCornerRadius),
+            spotColor = Color.Black.copy(alpha = 0.15f)
+        )
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -202,7 +192,7 @@ fun SelectionFloatingBar(
         ) {
             // Selection count
             Text(
-                text = "$selectedCount selected",
+                text = stringResource(R.string.selected_count, selectedCount),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold
                 ),
@@ -214,33 +204,33 @@ fun SelectionFloatingBar(
             // Actions
             IconButton(onClick = onPin, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.BookmarkAdded,
-                    contentDescription = "Pin",
+                    imageVector = Icons.Default.PushPin,
+                    contentDescription = stringResource(R.string.pin),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             IconButton(onClick = onShare, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.RocketLaunch, // Creative: Launch
-                    contentDescription = "Share",
+                    imageVector = Icons.Default.Share,
+                    contentDescription = stringResource(R.string.share),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             IconButton(onClick = onArchive, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.AllInbox, // Creative: Vault
-                    contentDescription = "Archive",
+                    imageVector = Icons.Default.Archive,
+                    contentDescription = stringResource(R.string.archive),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                 Icon(
-                    imageVector = Icons.Default.Whatshot, // Creative: Fire
-                    contentDescription = "Delete",
-                    tint = SafetyOrange
+                    imageVector = Icons.Default.DeleteOutline,
+                    contentDescription = stringResource(R.string.delete),
+                    tint = MaterialTheme.colorScheme.error
                 )
             }
         }

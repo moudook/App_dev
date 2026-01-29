@@ -16,6 +16,7 @@ import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.ImpressedEntry
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.ProviderUsage
+import com.example.smarty.data.model.JarvisTimer
 import com.example.smarty.data.model.NoteVersion
 
 @Database(
@@ -29,9 +30,10 @@ import com.example.smarty.data.model.NoteVersion
         CalendarEvent::class,
         AgentExecution::class,      // AI agent execution tracking
         ProviderUsage::class,       // Provider usage for rate limiting
-        NoteVersion::class          // Note version history for git-like versioning
+        NoteVersion::class,         // Note version history for git-like versioning
+        JarvisTimer::class          // Persisted timers and alarms
     ],
-    version = 26,  // v15: isPinned, v16: reminders, v17: note_versions, v18: FTS5 search, v19: isPinned indices, v20: citationsJson, v21: composite indices, v22: processingStatus indices, v23: chunkAnalysesJson, v24: inlineImagesJson, v25: isReadForMemory, v26: isReadForMemory defaultValue annotation
+    version = 29,  // v29: Added index for googleEventId in calendar_events
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -44,6 +46,7 @@ abstract class JarvisDatabase : RoomDatabase() {
     abstract fun calendarDao(): CalendarDao
     abstract fun agentExecutionDao(): AgentExecutionDao
     abstract fun noteVersionDao(): NoteVersionDao
+    abstract fun timerDao(): TimerDao
 
     companion object {
         private const val TAG = "JarvisDatabase"
@@ -350,7 +353,10 @@ abstract class JarvisDatabase : RoomDatabase() {
                         Migrations.MIGRATION_22_23,  // Feature: chunkAnalysesJson for per-page analyses
                         Migrations.MIGRATION_23_24,  // Feature: inlineImagesJson for image viewing in chat
                         Migrations.MIGRATION_24_25,  // Feature: isReadForMemory for AI memory learning
-                        Migrations.MIGRATION_25_26   // Fix: @ColumnInfo defaultValue annotation
+                        Migrations.MIGRATION_25_26,   // Fix: @ColumnInfo defaultValue annotation
+                        Migrations.MIGRATION_26_27,   // Feature: googleEventId for calendar_events sync
+                        Migrations.MIGRATION_27_28,   // Feature: JarvisTimer for persistent alarms
+                        Migrations.MIGRATION_28_29    // Performance: googleEventId index for calendar sync
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

@@ -83,6 +83,7 @@ fun JarvisNavHost(
     onSelectNote: (Note?) -> Unit,
     onSelectCategory: (Category?) -> Unit,
     onCreateCategory: (String) -> Unit,
+    onRenameCategory: (Category, String) -> Unit = { _, _ -> },
     onDeleteCategory: (Category) -> Unit,
     onSyncCategoryCounts: () -> Unit = {},  // Sync category counts when entering stacks view
     onArchiveNote: (String) -> Unit,
@@ -92,6 +93,10 @@ fun JarvisNavHost(
     onRefreshNotes: () -> Unit = {},
     isRefreshing: Boolean = false,
     isNotesLoading: Boolean = false,
+    isStacksLoading: Boolean = false,
+    isArchiveLoading: Boolean = false,
+    isChatHistoryLoading: Boolean = false,
+    isCalendarLoading: Boolean = false,
     onDeleteNote: (Note) -> Unit,
     onDeleteNoteById: (String) -> Unit,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
@@ -223,6 +228,13 @@ fun JarvisNavHost(
     memorySyncResult: String? = null,
     unreadForMemoryCount: Int = 0,
     onClearMemorySyncResult: () -> Unit = {},
+    // Google Calendar Two-Way Sync
+    isCalendarSyncEnabled: Boolean = false,
+    onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
+    deviceCalendars: List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar> = emptyList(),
+    targetCalendarId: Long = -1L,
+    onSetTargetCalendarId: (Long) -> Unit = {},
+    onLoadDeviceCalendars: () -> Unit = {},
     // AI Navigation
     navigationRequest: String? = null,
     onClearNavigationRequest: () -> Unit = {}
@@ -283,15 +295,28 @@ fun JarvisNavHost(
                 onRefreshNotes = onRefreshNotes,
                 isRefreshing = isRefreshing,
                 isNotesLoading = isNotesLoading,
+                isChatHistoryLoading = isChatHistoryLoading,
                 onUpdateNoteTodos = onUpdateNoteTodos,
                 onNavigateToStacks = {
-                    navController.navigate(Screen.Stacks.route)
+                    navController.navigate(Screen.Stacks.route) {
+                        popUpTo(Screen.InputStream.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 },
                 onNavigateToSettings = {
-                    navController.navigate(Screen.Settings.route)
+                    navController.navigate(Screen.Settings.route) {
+                        popUpTo(Screen.InputStream.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 },
                 onNavigateToCalendar = {
-                    navController.navigate(Screen.Calendar.route)
+                    navController.navigate(Screen.Calendar.route) {
+                        popUpTo(Screen.InputStream.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 },
                 pendingShare = pendingShare,
                 onConfirmShare = onConfirmShare,
@@ -379,6 +404,7 @@ fun JarvisNavHost(
                 // Categories/Stacks
                 onCreateCategory = onCreateCategory,
                 onDeleteCategory = onDeleteCategory,
+                onRenameCategory = onRenameCategory,
                 onSyncCategoryCounts = onSyncCategoryCounts,
                 onCategoryClick = { category ->
                     onSelectCategory(category)
@@ -441,6 +467,7 @@ fun JarvisNavHost(
                 archiveContentForSettings = { onDismiss ->
                     ArchiveScreen(
                         archivedNotes = archivedNotes,
+                        isLoading = isArchiveLoading,
                         onBackClick = onDismiss,
                         onDeleteNote = onDeleteNoteById,
                         onUnarchiveNote = onUnarchiveNote,
@@ -468,6 +495,7 @@ fun JarvisNavHost(
         composable(Screen.Stacks.route) {
             StacksScreen(
                 categories = categories,
+                isLoading = isStacksLoading,
                 onCategoryClick = { category ->
                     onSelectCategory(category)
                     navController.navigate(Screen.CategoryNotes.route)
@@ -476,6 +504,7 @@ fun JarvisNavHost(
                     navController.safePopBackStack()
                 },
                 onCreateCategory = onCreateCategory,
+                onRenameCategory = onRenameCategory,
                 onDeleteCategory = onDeleteCategory,
                 bottomContentPadding = bottomContentPadding
             )
@@ -486,6 +515,7 @@ fun JarvisNavHost(
                 CategoryNotesScreen(
                     category = category,
                     notes = notes,
+                    isLoading = isNotesLoading,
                     onBackClick = {
                         onSelectCategory(null) // Clear the selected category to clear the filter
                         navController.safePopBackStack()
@@ -598,6 +628,13 @@ fun JarvisNavHost(
                 memorySyncResult = memorySyncResult,
                 unreadForMemoryCount = unreadForMemoryCount,
                 onClearMemorySyncResult = onClearMemorySyncResult,
+                // Google Calendar Two-Way Sync
+                isCalendarSyncEnabled = isCalendarSyncEnabled,
+                onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
+                deviceCalendars = deviceCalendars,
+                targetCalendarId = targetCalendarId,
+                onSetTargetCalendarId = onSetTargetCalendarId,
+                onLoadDeviceCalendars = onLoadDeviceCalendars,
                 onSignOut = onSignOut
             )
         }
@@ -606,6 +643,7 @@ fun JarvisNavHost(
         composable(Screen.Archive.route) {
             ArchiveScreen(
                 archivedNotes = archivedNotes,
+                isLoading = isArchiveLoading,
                 onBackClick = {
                     navController.safePopBackStack()
                 },
@@ -625,6 +663,7 @@ fun JarvisNavHost(
         composable(Screen.Calendar.route) {
             CalendarRoute(
                 calendarEvents = calendarEvents,
+                isLoading = isCalendarLoading,
                 onBackClick = { navController.safePopBackStack() },
                 onAddCalendarEvent = onAddCalendarEvent,
                 onUpdateCalendarEvent = onUpdateCalendarEvent,
@@ -657,6 +696,7 @@ fun BackupSettingsRoute(
     val backupState by viewModel.backupState.collectAsState()
     val restoreState by viewModel.restoreState.collectAsState()
     val availableBackups by viewModel.availableBackups.collectAsState()
+    val isLoadingCloudBackups by viewModel.isLoadingBackups.collectAsState()
     val lastBackupTime by viewModel.lastBackupTime.collectAsState()
     val autoBackupEnabled by viewModel.autoBackupEnabled.collectAsState()
     val autoBackupIntervalDays by viewModel.autoBackupIntervalDays.collectAsState()
@@ -664,6 +704,7 @@ fun BackupSettingsRoute(
     // Local backup state
     val localBackupState by viewModel.localBackupState.collectAsState()
     val localBackups by viewModel.localBackups.collectAsState()
+    val isLoadingLocalBackups by viewModel.isLoadingLocalBackups.collectAsState()
 
     // Activity result launcher for Google Sign-In
     val signInLauncher = rememberLauncherForActivityResult(
@@ -692,11 +733,13 @@ fun BackupSettingsRoute(
         backupState = backupState,
         restoreState = restoreState,
         availableBackups = availableBackups,
+        isLoadingCloudBackups = isLoadingCloudBackups,
         lastBackupTime = lastBackupTime,
         autoBackupEnabled = autoBackupEnabled,
         autoBackupIntervalDays = autoBackupIntervalDays,
         localBackupState = localBackupState,
         localBackups = localBackups,
+        isLoadingLocalBackups = isLoadingLocalBackups,
         onBackClick = onBackClick,
         onSignIn = {
             signInLauncher.launch(viewModel.getSignInIntent())
@@ -761,7 +804,8 @@ fun CalendarRoute(
         isPrivate: Boolean
     ) -> Unit,
     onUpdateCalendarEvent: (CalendarEvent) -> Unit,
-    onDeleteCalendarEvent: (String) -> Unit
+    onDeleteCalendarEvent: (String) -> Unit,
+    isLoading: Boolean = false
 ) {
     var showAddSheet by remember { mutableStateOf(false) }
     var selectedEventForEdit by remember { mutableStateOf<CalendarEvent?>(null) }
@@ -769,6 +813,7 @@ fun CalendarRoute(
 
     CalendarScreen(
         events = calendarEvents,
+        isLoading = isLoading,
         onBackClick = onBackClick,
         onAddEvent = { selectedDate ->
             selectedDateForNewEvent = selectedDate

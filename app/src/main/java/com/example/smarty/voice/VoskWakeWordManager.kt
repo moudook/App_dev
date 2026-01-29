@@ -803,7 +803,7 @@ class VoskWakeWordManager(
             if (text.isBlank()) return
 
             // =====================================================
-            // DEBUG LOGGING: Log ALL reJarviszed speech to logcat
+            // DEBUG LOGGING: Log ALL recognized speech to logcat
             // Filter in logcat using: VoskWakeWord or VOSK_SPEECH
             // =====================================================
             if (isPartial) {

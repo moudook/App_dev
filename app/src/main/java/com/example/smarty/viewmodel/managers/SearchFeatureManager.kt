@@ -135,20 +135,20 @@ class SearchFeatureManager(
         if (query.isNullOrBlank()) {
             return filtered.sortedByDescending { it.createdAt }
                 .take(limit)
-                .map { it.toSearchResult(1.0f, "Recent ${it.type.name.lowercase()} note") }
+                .map { it.toSearchResult(1.0f, "recent ${it.type.name.lowercase()} note") }
         }
 
         val results = SemanticSearchEngine.search(
             query = query,
             items = filtered,
-            textExtractor = { listOfNotNull(it.title, it.summary, it.content.take(1000)) }
+            textExtractor = { listOfNotNull(it.title, it.whySaved, it.summary, it.content.take(1000)) }
         )
 
         return results.take(limit).map { result ->
             SearchResultItem(
                 note = result.item,
                 score = result.score.toFloat(),
-                highlight = "Matched in ${result.matchType}"
+                highlight = "matched in ${result.matchType.toString().lowercase()}"
             )
         }
     }
@@ -317,7 +317,7 @@ class SearchFeatureManager(
 
     private fun performHybridSearch(query: String, notes: List<Note>, limit: Int, minScore: Double): List<SearchResultItem> {
         val keywordResults = performKeywordSearch(query, notes, limit * 2, 0.1)
-        val semanticResults = SemanticSearchEngine.search(query, notes, { listOfNotNull(it.title, it.content) }, minScore)
+        val semanticResults = SemanticSearchEngine.search(query, notes, { listOfNotNull(it.title, it.whySaved, it.content) }, minScore)
 
         val resultMap = mutableMapOf<String, SearchResultItem>()
 
@@ -331,7 +331,7 @@ class SearchFeatureManager(
             if (existing != null) {
                 resultMap[result.item.id] = existing.copy(score = min(1.0f, existing.score + weightedSemantic))
             } else {
-                resultMap[result.item.id] = SearchResultItem(result.item, weightedSemantic, "Hybrid match")
+                resultMap[result.item.id] = SearchResultItem(result.item, weightedSemantic, "hybrid match")
             }
         }
 
@@ -346,10 +346,11 @@ class SearchFeatureManager(
         return notes.mapNotNull { note ->
             var score = 0.0
             if (note.title.lowercase().contains(queryLower)) score += 0.6
+            if (note.whySaved?.lowercase()?.contains(queryLower) == true) score += 0.5
             if (note.content.lowercase().contains(queryLower)) score += 0.4
 
             if (score >= minScore) {
-                SearchResultItem(note, score.toFloat(), "Keyword match")
+                SearchResultItem(note, score.toFloat(), "keyword match")
             } else null
         }.sortedByDescending { it.score }.take(limit)
     }
@@ -363,7 +364,7 @@ class SearchFeatureManager(
             val score = intersection.size.toDouble() / queryTerms.size.toDouble()
 
             if (score >= minScore) {
-                SearchResultItem(note, score.toFloat(), "Vector match")
+                SearchResultItem(note, score.toFloat(), "vector match")
             } else null
         }.sortedByDescending { it.score }.take(limit)
     }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -121,9 +122,10 @@ fun rememberShimmerBrush(
  * - LIFECYCLE-AWARE: Animation pauses when app is backgrounded
  */
 fun Modifier.skeletonShimmer(): Modifier = composed {
-    // Hardcoded neutral colors for consistency across Light/Dark themes
-    val baseColor = Color(0xFFE0E0E0)
-    val highlightColor = Color(0xFFF5F5F5)
+    val isDark = isSystemInDarkTheme()
+    // Softened neutral colors for consistency across Light/Dark themes
+    val baseColor = if (isDark) Color(0xFF1F1F2A) else Color(0xFFE0E0E0)
+    val highlightColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFF5F5F5)
 
     // LIFECYCLE-AWARE: Only animate when app is in foreground
     val lifecycleState by rememberAnimationLifecycleState()

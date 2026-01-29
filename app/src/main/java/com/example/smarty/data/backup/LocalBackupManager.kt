@@ -514,16 +514,33 @@ class LocalBackupManager(
     }
 
     private fun createPreferencesBackup(): PreferencesBackup {
+        val allConfigs = securePreferences.getAllProviderConfigs()
+        val providerConfigsBackup = allConfigs.map { (provider, config) ->
+            provider.name to AIProviderConfigBackup(
+                isEnabled = config.isEnabled,
+                selectedModel = config.selectedModel,
+                apiKeys = config.apiKeys // Include keys in local backup (user's device)
+            )
+        }.toMap()
+
+        val priorityOrder = securePreferences.getProviderPriority().map { it.name }
+
         return PreferencesBackup(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
-            // Note: We don't backup API keys for security reasons
-            encryptedGeminiKeys = null,
-            encryptedHuggingFaceKeys = null,
-            providerConfigs = AIProvider.entries.associate {
-                it.name to securePreferences.isProviderEnabled(it)
-            }
+            providerPriorityOrder = priorityOrder,
+            providerConfigs = providerConfigsBackup,
+            tavilyApiKeys = securePreferences.getTavilyApiKeys(),
+            localPcIp = securePreferences.getLocalPCIP(),
+            localPcPort = securePreferences.getLocalPCPort(),
+            localPcUseHttps = securePreferences.getLocalPCUseHttps(),
+            shakeSensitivity = securePreferences.getShakeSensitivity(),
+            soundEnabled = securePreferences.isSoundEnabled(),
+            groqDynamicModels = securePreferences.getDynamicModels(AIProvider.GROQ),
+            // Legacy support
+            encryptedGeminiKeys = securePreferences.getProviderKeys(AIProvider.GEMINI),
+            encryptedHuggingFaceKeys = securePreferences.getProviderKeys(AIProvider.HUGGINGFACE)
         )
     }
 

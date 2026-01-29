@@ -29,13 +29,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.local.AIModels
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.screens.settings.formatCacheSize
 import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.ui.screens.settings.AIMemorySettingsContent
@@ -94,7 +95,14 @@ fun SettingsContent(
     isMemorySyncInProgress: Boolean = false,
     memorySyncResult: String? = null,
     unreadForMemoryCount: Int = 0,
-    onClearMemorySyncResult: () -> Unit = {}
+    onClearMemorySyncResult: () -> Unit = {},
+    // Google Calendar Two-Way Sync
+    isCalendarSyncEnabled: Boolean = false,
+    onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
+    deviceCalendars: List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar> = emptyList(),
+    targetCalendarId: Long = -1L,
+    onSetTargetCalendarId: (Long) -> Unit = {},
+    onLoadDeviceCalendars: () -> Unit = {}
 ) {
     val accentColor = LocalAccentColor.current
     val context = LocalContext.current
@@ -107,6 +115,7 @@ fun SettingsContent(
     var showBackupSheet by remember { mutableStateOf(false) }
     var showShakeSensitivitySheet by remember { mutableStateOf(false) }
     var showAIMemorySheet by remember { mutableStateOf(false) }
+    var showCalendarSelectorSheet by remember { mutableStateOf(false) }
 
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -132,33 +141,39 @@ fun SettingsContent(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "AI Status",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            text = stringResource(R.string.ai_status),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF2196F3).copy(alpha = 0.1f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2196F3).copy(alpha = 0.3f))
+                            color = accentColor.copy(alpha = 0.1f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.3f))
                         ) {
                             Text(
-                                text = "Active",
+                                text = stringResource(R.string.active),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = Color(0xFF2196F3)
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.4.sp
+                                ),
+                                color = accentColor
                             )
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Adjust your AI and voice settings.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = stringResource(R.string.adjust_your_ai_and_voice_settings),
+                        style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     Button(
                         onClick = { showAIConfigSheet = true },
                         modifier = Modifier
@@ -166,16 +181,20 @@ fun SettingsContent(
                             .height(42.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             contentColor = MaterialTheme.colorScheme.onSurface
                         )
                     ) {
-                        Text("Manage Models")
+                        Text(
+                            stringResource(R.string.manage_models),
+                            style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 0.2.sp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, 
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -186,21 +205,47 @@ fun SettingsContent(
         item {
             SettingsCard {
                 SettingsItem(
-                    icon = Icons.Filled.AutoAwesome, // Metaphor: Constellation/Sparkles
-                    label = "Memory",
+                    icon = Icons.Default.Assistant,
+                    label = stringResource(R.string.memory),
                     value = if (aiMemories.isEmpty()) null else "${aiMemories.size}",
                     onClick = { showAIMemorySheet = true },
-                    iconColor = Color(0xFF2196F3), // Blue
-                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f)
                 )
-                 SettingsItem(
-                    icon = Icons.Filled.Anchor, // Metaphor: Anchor (Security/Grounding)
-                    label = "Backup",
+                SettingsItem(
+                    icon = Icons.Default.CloudSync,
+                    label = stringResource(R.string.backup),
                     onClick = { showBackupSheet = true },
-                    showDivider = false,
-                    iconColor = Color(0xFF2196F3), // Blue
-                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f)
                 )
+                SettingsSwitch(
+                    icon = Icons.Filled.Sync,
+                    label = stringResource(R.string.google_calendar_sync),
+                    checked = isCalendarSyncEnabled,
+                    onCheckedChange = {
+                        onSetCalendarSyncEnabled(it)
+                        if (it) onLoadDeviceCalendars()
+                    },
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f),
+                    showDivider = isCalendarSyncEnabled
+                )
+                if (isCalendarSyncEnabled) {
+                    val selectedCalendar = deviceCalendars.find { it.id == targetCalendarId }
+                    SettingsItem(
+                        icon = Icons.Filled.Event,
+                        label = stringResource(R.string.default_calendar),
+                        value = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select),
+                        onClick = {
+                            onLoadDeviceCalendars()
+                            showCalendarSelectorSheet = true
+                        },
+                        showDivider = false,
+                        iconColor = accentColor,
+                        containerColor = accentColor.copy(alpha = 0.1f)
+                    )
+                }
             }
         }
 
@@ -208,31 +253,31 @@ fun SettingsContent(
         item {
             SettingsCard {
                 SettingsSwitch(
-                    icon = Icons.Filled.Contrast, // Metaphor: Eclipse (Light/Dark interplay)
-                    label = "Dark Mode",
+                    icon = Icons.Default.Brightness4,
+                    label = stringResource(R.string.dark_mode),
                     checked = isDarkTheme,
                     onCheckedChange = onToggleTheme,
-                    iconColor = Color(0xFF2196F3), // Blue
-                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f)
                 )
                 SettingsItem(
-                    icon = Icons.Filled.AllInbox, // Metaphor: Vault (Secure storage)
-                    label = "Archives",
+                    icon = Icons.Default.Archive,
+                    label = stringResource(R.string.archives),
                     onClick = { showArchiveSheet = true },
-                    iconColor = Color(0xFF2196F3), // Blue
-                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f)
                 )
                  SettingsItem(
-                    icon = Icons.Filled.Waves, // Metaphor: Seismograph (Motion)
-                    label = "Shake sensitivity",
-                    value = if (shakeSensitivity < 0.3f) "Low" else if (shakeSensitivity < 0.7f) "Med" else "High",
+                    icon = Icons.Default.Vibration,
+                    label = stringResource(R.string.shake_sensitivity),
+                    value = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.med) else stringResource(R.string.high),
                     onClick = { showShakeSensitivitySheet = true },
-                    iconColor = Color(0xFF2196F3), // Blue
-                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f)
                 )
                 SettingsItem(
-                    icon = Icons.Filled.Explore, // Metaphor: Compass (Navigation/Guide)
-                    label = "Default Assistant",
+                    icon = Icons.Default.Assistant,
+                    label = stringResource(R.string.default_assistant),
                     onClick = {
                          try {
                             val intent = android.content.Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
@@ -245,8 +290,8 @@ fun SettingsContent(
                         }
                     },
                     showDivider = false,
-                    iconColor = Color(0xFF2196F3), // Blue
-                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f)
                 )
             }
         }
@@ -255,20 +300,20 @@ fun SettingsContent(
         item {
             SettingsCard {
                 SettingsItem(
-                    icon = Icons.Filled.Whatshot, // Metaphor: Fire (Purge/Cleanse)
-                    label = "Clear Cache",
-                    value = formatCacheSize(cacheSizeBytes),
+                    icon = Icons.Default.DeleteOutline,
+                    label = stringResource(R.string.clear_cache),
+                    value = formatCacheSize(cacheSizeBytes).lowercase(),
                     onClick = onClearCache,
                     enabled = !isClearingCache && cacheSizeBytes > 0,
-                    iconColor = Color(0xFF2196F3), // Blue
-                    containerColor = Color(0xFF2196F3).copy(alpha = 0.1f)
+                    iconColor = accentColor,
+                    containerColor = accentColor.copy(alpha = 0.1f)
                 )
                  SettingsItem(
-                    icon = Icons.Filled.NoAccounts, // Metaphor: Ghost (Leaving the body/machine)
-                    label = "Sign Out",
+                    icon = Icons.AutoMirrored.Outlined.Logout,
+                    label = stringResource(R.string.sign_out),
                     onClick = onSignOut,
                     textColor = MaterialTheme.colorScheme.error,
-                    iconColor = MaterialTheme.colorScheme.error, // Keep red for destructive
+                    iconColor = MaterialTheme.colorScheme.error,
                     showChevron = false,
                     showDivider = false
                 )
@@ -284,7 +329,7 @@ fun SettingsContent(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Jarvis v1.1.0",
+                    text = "jarvis v1.1.0",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
@@ -384,18 +429,17 @@ fun SettingsContent(
                     .padding(bottom = 48.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header with icon - matches notecard aesthetic
                 Box(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF2196F3).copy(alpha = 0.1f)),
+                        .background(accentColor.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Vibration,
                         contentDescription = null,
-                        tint = Color(0xFF2196F3),
+                        tint = accentColor,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -403,7 +447,7 @@ fun SettingsContent(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Shake sensitivity",
+                    text = stringResource(R.string.shake_sensitivity),
                     style = MaterialTheme.typography.headlineSmall.copy(
                         fontWeight = FontWeight.Bold
                     ),
@@ -413,7 +457,7 @@ fun SettingsContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Adjust shake gesture",
+                    text = stringResource(R.string.adjust_shake_gesture),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp)
@@ -452,26 +496,120 @@ fun SettingsContent(
                 ) {
                     Column(horizontalAlignment = Alignment.Start) {
                         Text(
-                            text = "Low",
+                            text = stringResource(R.string.low),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Less sensitive",
+                            text = stringResource(R.string.less_sensitive),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = "High",
+                            text = stringResource(R.string.high),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "More sensitive",
+                            text = stringResource(R.string.more_sensitive),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // Calendar Selector Sheet
+    if (showCalendarSelectorSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showCalendarSelectorSheet = false },
+            sheetState = subSettingSheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shape = shapes.bottomSheet
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 48.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.select_default_calendar),
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(deviceCalendars.size) { index ->
+                        val calendar = deviceCalendars[index]
+                        val isSelected = calendar.id == targetCalendarId
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onSetTargetCalendarId(calendar.id)
+                                    showCalendarSelectorSheet = false
+                                },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) accentColor.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, accentColor) else null
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(androidx.compose.foundation.shape.CircleShape)
+                                        .background(calendar.color?.let { Color(it) } ?: Color.Gray)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = calendar.displayName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = calendar.accountName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "selected",
+                                        tint = accentColor,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (deviceCalendars.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.no_calendars_found_or_permission_denied),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

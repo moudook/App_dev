@@ -2,6 +2,7 @@ package com.example.smarty.calendar
 
 import android.Manifest
 import android.content.ContentResolver
+import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.Cursor
@@ -84,7 +85,7 @@ class GoogleCalendarSyncManager(
         object Idle : SyncState()
         object Syncing : SyncState()
         data class Completed(val importedCount: Int, val totalCount: Int) : SyncState()
-        data class Error(val message: String) : SyncState()
+        data class Error(val message: String, val isPermissionError: Boolean = false) : SyncState()
     }
 
     private val _syncState = MutableStateFlow<SyncState>(SyncState.Idle)
@@ -113,6 +114,114 @@ class GoogleCalendarSyncManager(
             context,
             Manifest.permission.READ_CALENDAR
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Check if calendar write permission is granted
+     */
+    fun hasWriteCalendarPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.WRITE_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Export a local event to the device's Google Calendar
+     * @param event The local CalendarEvent to export
+     * @param targetCalendarId The ID of the device calendar to export to
+     * @return The new Google Event ID, or null if failed
+     */
+    suspend fun exportEventToDeviceCalendar(event: CalendarEvent, targetCalendarId: Long): String? = withContext(Dispatchers.IO) {
+        if (!hasWriteCalendarPermission()) {
+            Log.w(TAG, "Write calendar permission not granted")
+            return@withContext null
+        }
+
+        try {
+            val values = ContentValues().apply {
+                put(CalendarContract.Events.DTSTART, event.startTime)
+                put(CalendarContract.Events.DTEND, event.endTime)
+                put(CalendarContract.Events.TITLE, event.title)
+                put(CalendarContract.Events.DESCRIPTION, event.description)
+                put(CalendarContract.Events.CALENDAR_ID, targetCalendarId)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
+                if (event.location != null) {
+                    put(CalendarContract.Events.EVENT_LOCATION, event.location)
+                }
+            }
+
+            val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            val newId = uri?.lastPathSegment
+            Log.d(TAG, "Exported event to Google Calendar. New ID: $newId")
+            newId
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException exporting event: ${e.message}")
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error exporting event to Google Calendar: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Update an existing event in the device calendar
+     * @param event The local CalendarEvent with the updated data
+     * @return true if successful, false otherwise
+     */
+    suspend fun updateEventOnDeviceCalendar(event: CalendarEvent): Boolean = withContext(Dispatchers.IO) {
+        val googleId = event.googleEventId ?: return@withContext false
+        if (!hasWriteCalendarPermission()) {
+            Log.w(TAG, "Write calendar permission not granted")
+            return@withContext false
+        }
+
+        try {
+            val values = ContentValues().apply {
+                put(CalendarContract.Events.DTSTART, event.startTime)
+                put(CalendarContract.Events.DTEND, event.endTime)
+                put(CalendarContract.Events.TITLE, event.title)
+                put(CalendarContract.Events.DESCRIPTION, event.description)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+                put(CalendarContract.Events.ALL_DAY, if (event.isAllDay) 1 else 0)
+                if (event.location != null) {
+                    put(CalendarContract.Events.EVENT_LOCATION, event.location)
+                }
+            }
+
+            val updateUri = Uri.withAppendedPath(CalendarContract.Events.CONTENT_URI, googleId)
+            val rows = context.contentResolver.update(updateUri, values, null, null)
+            Log.d(TAG, "Updated event $googleId in Google Calendar. Rows affected: $rows")
+            rows > 0
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException updating event: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating event in Google Calendar: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Delete an event from the device calendar
+     * @param googleEventId The Google Event ID to delete
+     */
+    suspend fun deleteEventFromDeviceCalendar(googleEventId: String) = withContext(Dispatchers.IO) {
+        if (!hasWriteCalendarPermission()) {
+            Log.w(TAG, "Write calendar permission not granted")
+            return@withContext
+        }
+
+        try {
+            val deleteUri = Uri.withAppendedPath(CalendarContract.Events.CONTENT_URI, googleEventId)
+            val rows = context.contentResolver.delete(deleteUri, null, null)
+            Log.d(TAG, "Deleted event $googleEventId from Google Calendar. Rows affected: $rows")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException deleting event: ${e.message}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting event from Google Calendar: ${e.message}", e)
+        }
     }
 
     /**
@@ -150,6 +259,8 @@ class GoogleCalendarSyncManager(
             }
 
             Log.d(TAG, "Found ${calendars.size} calendars on device")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException reading calendars: ${e.message}")
         } catch (e: Exception) {
             Log.e(TAG, "Error reading calendars: ${e.message}", e)
         }
@@ -203,9 +314,13 @@ class GoogleCalendarSyncManager(
             _syncState.value = SyncState.Completed(importedCount, events.size)
             importedCount
 
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException during sync: ${e.message}")
+            _syncState.value = SyncState.Error("permission_revoked", isPermissionError = true)
+            0
         } catch (e: Exception) {
             Log.e(TAG, "Sync failed: ${e.message}", e)
-            _syncState.value = SyncState.Error("Sync failed: ${e.message}")
+            _syncState.value = SyncState.Error("sync_failed")
             0
         }
     }
@@ -296,6 +411,7 @@ class GoogleCalendarSyncManager(
                             isAllDay = allDay,
                             location = location,
                             color = color,
+                            googleEventId = eventId.toString(),
                             isEventPrivate = false, // Synced events are not private by default
                             createdAt = System.currentTimeMillis(),
                             updatedAt = System.currentTimeMillis()
@@ -304,6 +420,8 @@ class GoogleCalendarSyncManager(
                 }
             }
 
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException querying events: ${e.message}")
         } catch (e: Exception) {
             Log.e(TAG, "Error querying events: ${e.message}", e)
         }

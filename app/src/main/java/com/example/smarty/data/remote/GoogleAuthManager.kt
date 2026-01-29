@@ -8,11 +8,16 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.gms.common.api.Scope
+import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.api.services.drive.DriveScopes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.tasks.await
 
 /**
  * Manages Google Sign-In for Google Drive backup functionality.
@@ -57,6 +62,26 @@ class GoogleAuthManager(private val context: Context) {
     }
 
     /**
+     * Silent sign-in to refresh the account and token.
+     */
+    suspend fun silentSignIn(): Result<GoogleSignInAccount> {
+        return try {
+            val account = googleSignInClient.silentSignIn().await()
+            if (account != null && hasRequiredScopes(account)) {
+                _signedInAccount.value = account
+                _isSignedIn.value = true
+                Result.success(account)
+            } else {
+                Result.failure(Exception("Silent sign-in failed or missing permissions"))
+            }
+        } catch (e: Exception) {
+            _signedInAccount.value = null
+            _isSignedIn.value = false
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Verify that the account has the required Drive scopes.
      */
     private fun hasRequiredScopes(account: GoogleSignInAccount): Boolean {
@@ -68,9 +93,6 @@ class GoogleAuthManager(private val context: Context) {
 
     /**
      * Get the sign-in intent to launch the Google Sign-In flow.
-     *
-     * Launch this intent with startActivityForResult and handle
-     * the result with handleSignInResult().
      */
     fun getSignInIntent(): Intent {
         return googleSignInClient.signInIntent
@@ -78,26 +100,50 @@ class GoogleAuthManager(private val context: Context) {
 
     /**
      * Handle the result from the Google Sign-In activity.
-     *
-     * @param data The intent data from onActivityResult
-     * @return Result containing the signed-in account or an error
      */
     fun handleSignInResult(data: Intent?): Result<GoogleSignInAccount> {
         return try {
             val task = GoogleSignIn.getSignedInAccountFromIntent(data)
-            val account = task.getResult(Exception::class.java)
+            val account = task.getResult(ApiException::class.java)
 
-            if (account != null && hasRequiredScopes(account)) {
-                _signedInAccount.value = account
-                _isSignedIn.value = true
-                Result.success(account)
+            if (account != null) {
+                if (hasRequiredScopes(account)) {
+                    _signedInAccount.value = account
+                    _isSignedIn.value = true
+                    Result.success(account)
+                } else {
+                    // This can happen if the user didn't check the scope boxes in the UI
+                    Result.failure(Exception("Missing required Drive permissions. Please try again and grant access."))
+                }
             } else {
-                Result.failure(Exception("Sign-in successful but missing required permissions"))
+                Result.failure(Exception("Sign-in failed: Account is null"))
             }
+        } catch (e: ApiException) {
+            val message = when (e.statusCode) {
+                CommonStatusCodes.SIGN_IN_REQUIRED -> "Sign-in required"
+                CommonStatusCodes.NETWORK_ERROR -> "Network error, please check your connection"
+                CommonStatusCodes.INVALID_ACCOUNT -> "Invalid Google account"
+                else -> "Sign-in failed: ${e.message} (Status code: ${e.statusCode})"
+            }
+            _signedInAccount.value = null
+            _isSignedIn.value = false
+            Result.failure(Exception(message, e))
         } catch (e: Exception) {
             _signedInAccount.value = null
             _isSignedIn.value = false
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Helper to determine if an exception is a UserRecoverableAuthException or UserRecoverableAuthIOException.
+     * If true, the UI should use the intent from the exception to ask the user for permission.
+     */
+    fun isUserRecoverable(throwable: Throwable?): Intent? {
+        return when (throwable) {
+            is UserRecoverableAuthException -> throwable.intent
+            is UserRecoverableAuthIOException -> throwable.intent
+            else -> null
         }
     }
 

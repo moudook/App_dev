@@ -9,8 +9,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Psychology
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,10 +18,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.MonoFont
-import com.example.smarty.ui.theme.SafetyOrange
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,7 +39,8 @@ fun ChatHistorySheet(
     onDismiss: () -> Unit,
     onSelectSession: (String) -> Unit,
     onNewChat: () -> Unit,
-    onDeleteSession: (String) -> Unit
+    onDeleteSession: (String) -> Unit,
+    isLoading: Boolean = false
 ) {
     // Store ID only and derive session from list to stay in sync
     var sessionToDeleteId by remember { mutableStateOf<String?>(null) }
@@ -78,7 +78,7 @@ fun ChatHistorySheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "History",
+                        text = stringResource(R.string.history),
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -96,19 +96,18 @@ fun ChatHistorySheet(
             }
 
             // Sessions list
-            if (sessions.isEmpty()) {
-                Box(
+            if (isLoading) {
+                com.example.smarty.ui.components.ChatHistoryLoadingState(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No conversations yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                }
+                        .heightIn(max = 400.dp)
+                )
+            } else if (sessions.isEmpty()) {
+                com.example.smarty.ui.components.ChatHistoryEmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp)
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier
@@ -135,15 +134,15 @@ fun ChatHistorySheet(
     // Delete Dialog (Minimalist)
     sessionToDelete?.let { session ->
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Delete chat?",
-            text = "This action cannot be undone.",
+            title = stringResource(R.string.delete_chat),
+            text = stringResource(R.string.chat_delete_warning),
             onConfirm = {
                 onDeleteSession(session.id)
                 sessionToDeleteId = null
             },
             onDismiss = { sessionToDeleteId = null },
-            confirmText = "Delete",
-            dismissText = "Cancel",
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
@@ -157,16 +156,16 @@ private fun ChatSessionItem(
     onDelete: () -> Unit
 ) {
     val accentColor = LocalAccentColor.current
-    
+
     // UI Constants
     // Apple Design: "Continuous" curves. For a 48dp Icon, ~10-12dp radius is the "Squircle" sweet spot.
     // For the list item container, a subtle 14dp radius is cleaner than 16dp.
     val containerShape = RoundedCornerShape(14.dp)
     val iconShape = RoundedCornerShape(12.dp)
-    
-    val containerColor = if (isSelected) 
-        MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp) 
-    else 
+
+    val containerColor = if (isSelected)
+        MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+    else
         MaterialTheme.colorScheme.surface
 
     Row(
@@ -178,7 +177,7 @@ private fun ChatSessionItem(
             .padding(all = 8.dp), // Tighter outer padding to allow internal breathing
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val isNewChat = session.title.isBlank() || session.title.equals("New Chat", ignoreCase = true) || session.title.equals("New Conversation", ignoreCase = true)
+        val isNewChat = session.title.isBlank() || session.title.equals("new_chat", ignoreCase = true) || session.title.equals("new_conversation", ignoreCase = true)
 
         // 1. Icon (Proper Squircle)
         Surface(
@@ -190,9 +189,9 @@ private fun ChatSessionItem(
             Box(contentAlignment = Alignment.Center) {
                 // Smart Icon Logic
                 val icon = when {
-                    isNewChat -> Icons.Rounded.AutoAwesome // Sparkle for new/AI start
-                    isSelected -> Icons.Rounded.AutoAwesome // Active AI
-                    else -> Icons.Outlined.Psychology // Brain for history
+                    isNewChat -> Icons.Default.Assistant // Standard AI
+                    isSelected -> Icons.Default.Assistant // Active AI
+                    else -> Icons.Default.Chat // History
                 }
 
                 Icon(
@@ -202,16 +201,16 @@ private fun ChatSessionItem(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.width(14.dp))
-        
+
         // 2. Center Text Column
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = if (isSelected && isNewChat) "Current Chat" else session.title.ifBlank { "New Conversation" },
+                text = if (isSelected && isNewChat) stringResource(R.string.current_chat) else session.title.ifBlank { stringResource(R.string.new_conversation) }.lowercase(),
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Medium, // lighter than SemiBold for Apple look
                     fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)
@@ -220,18 +219,18 @@ private fun ChatSessionItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            
+
             Spacer(modifier = Modifier.height(2.dp))
-            
+
             Text(
-                text = session.lastMessagePreview.ifBlank { "Start a new conversation" },
+                text = session.lastMessagePreview.ifBlank { stringResource(R.string.start_a_new_conversation) }.lowercase(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        
+
         Spacer(modifier = Modifier.width(12.dp))
 
         // 3. Right Side: Date + Close visual group
@@ -241,13 +240,13 @@ private fun ChatSessionItem(
             horizontalArrangement = Arrangement.End
         ) {
             Text(
-                text = formatRelativeTime(session.updatedAt),
+                text = formatRelativeTime(session.updatedAt).lowercase(),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
-            
+
             Spacer(modifier = Modifier.width(12.dp))
-            
+
             // Delete Button (Small, subtle)
             // Using a Box to expand click area without affecting visuals
             Box(
@@ -259,8 +258,8 @@ private fun ChatSessionItem(
                 contentAlignment = Alignment.Center
             ) {
                  Icon(
-                    imageVector = Icons.Default.Whatshot, // Metaphor: Fire
-                    contentDescription = "Delete",
+                    imageVector = Icons.Default.DeleteOutline,
+                    contentDescription = stringResource(R.string.delete),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.size(14.dp)
                 )
@@ -272,19 +271,20 @@ private fun ChatSessionItem(
 /**
  * Format timestamp as relative time (e.g., "2 hours ago", "Yesterday", "Dec 15")
  */
+@Composable
 private fun formatRelativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
 
     return when {
-        diff < 60_000 -> "Just now"
-        diff < 3600_000 -> "${diff / 60_000}m ago"
-        diff < 86400_000 -> "${diff / 3600_000}h ago"
-        diff < 172800_000 -> "Yesterday"
-        diff < 604800_000 -> "${diff / 86400_000}d ago"
+        diff < 60_000 -> stringResource(R.string.just_now)
+        diff < 3600_000 -> stringResource(R.string.minutes_ago, diff / 60_000)
+        diff < 86400_000 -> stringResource(R.string.hours_ago, diff / 3600_000)
+        diff < 172800_000 -> stringResource(R.string.yesterday)
+        diff < 604800_000 -> stringResource(R.string.days_ago, diff / 86400_000)
         else -> {
             val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
-            sdf.format(Date(timestamp))
+            sdf.format(Date(timestamp)).lowercase()
         }
     }
 }

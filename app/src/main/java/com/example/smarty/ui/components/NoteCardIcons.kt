@@ -1,29 +1,73 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.filled.HighlightOff
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.outlined.Tag
-import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.automirrored.filled.StickyNote2
-import androidx.compose.material.icons.automirrored.filled.TextSnippet
+
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.automirrored.outlined.TextSnippet
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.VideogameAsset
+import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.outlined.Android
+import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Audiotrack
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.PlayCircleOutline
+import androidx.compose.material.icons.outlined.Slideshow
+import androidx.compose.material.icons.outlined.TableChart
+import androidx.compose.material.icons.outlined.Tag
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import com.example.smarty.data.model.NoteType
+import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.*
 
 /**
  * Utility object providing icons and colors for different note types.
  *
  * Uses O(1) array lookup indexed by NoteType enum ordinal for efficient access.
- * Icons are chosen to be instantly reJarviszable and meaningful.
+ * Icons are chosen to be instantly recognizable and meaningful.
  * Colors are semantic and consistent with the app's design language.
  *
  * Usage:
@@ -46,7 +90,7 @@ object NoteCardIcons {
 
     /**
      * O(1) icon lookup array indexed by NoteType enum ordinal.
-     * Icons are Material Design icons chosen for instant reJarvistion.
+     * Icons are Material Design icons chosen for instant recognition.
      *
      * - BRAIN_DUMP: Create (pen) - writing thoughts
      * - YOUTUBE: PlayCircle - play button for video
@@ -66,21 +110,21 @@ object NoteCardIcons {
      */
     private val NOTE_TYPE_ICONS: Array<ImageVector> by lazy {
         arrayOf(
-            Icons.Outlined.AutoAwesome,      // BRAIN_DUMP - "Idea/Spark" (Creative Burst)
-            Icons.Outlined.SmartDisplay,     // YOUTUBE - "Screen" (Modern Display)
-            Icons.Outlined.Explore,          // WEBSITE - "Explore" (Compass/Navigation)
-            Icons.Outlined.BurstMode,        // IMAGE - "Burst" (Capture moments)
-            Icons.Outlined.Tag,              // TWITTER - "Hashtag" (Platform Icon)
-            Icons.Outlined.FilterVintage,    // INSTAGRAM - "Vintage" (Artistic Filters)
-            Icons.Outlined.Source,           // DOCUMENT - "Source" (Origin/Knowledge)
-            Icons.Outlined.ViewKanban,       // SPREADSHEET - "Board" (Structured Data)
-            Icons.Outlined.CoPresent,        // PRESENTATION - "Present" (Sharing ideas)
-            Icons.Outlined.SlowMotionVideo,  // VIDEO - "Cinema" (Motion)
-            Icons.Outlined.SpatialAudio,     // AUDIO - "Spatial" (Immersive Sound)
-            Icons.Outlined.DataObject,       // CODE - "Object" (Abstract Structure)
-            Icons.Outlined.AllInbox,         // ARCHIVE - "Vault" (Secure Storage)
-            Icons.Outlined.Android,          // APK - "Droid" (Standard but iconic)
-            Icons.Outlined.Attachment        // FILE - "Link" (Connection)
+            Icons.Outlined.Description,      // BRAIN_DUMP - Standard note
+            Icons.Outlined.PlayCircleOutline, // YOUTUBE
+            Icons.Outlined.Language,         // WEBSITE - Standard web
+            Icons.Outlined.Image,            // IMAGE
+            Icons.Outlined.Tag,              // TWITTER
+            Icons.Outlined.PhotoCamera,      // INSTAGRAM
+            Icons.AutoMirrored.Outlined.Article,          // DOCUMENT
+            Icons.Outlined.TableChart,       // SPREADSHEET
+            Icons.Outlined.Slideshow,        // PRESENTATION
+            Icons.Outlined.Videocam,         // VIDEO
+            Icons.Outlined.Audiotrack,       // AUDIO
+            Icons.Outlined.Code,             // CODE
+            Icons.Outlined.Archive,          // ARCHIVE
+            Icons.Outlined.Android,          // APK
+            Icons.Outlined.AttachFile        // FILE
         )
     }
 
@@ -152,24 +196,24 @@ object NoteCardIcons {
      */
     private val CATEGORY_ICONS: Map<String, ImageVector> by lazy {
         mapOf(
-            "Learn" to Icons.Default.School,             // School - classical learning
-            "Read" to Icons.Default.AutoStories,            // AutoStories - magic book
-            "Watch" to Icons.Default.TheaterComedy,      // Theater - entertainment/drama
-            "Idea" to Icons.Default.EmojiObjects,        // EmojiObjects - bright ideas
-            "Todo" to Icons.Default.Verified,             // Verified - completed task
-            "Buy" to Icons.Default.Loyalty,              // Loyalty - brand/shopping
-            "Meet" to Icons.Default.Handshake,           // Handshake - collaboration
-            "Code" to Icons.Default.DataObject,          // DataObject - structure/code
-            "Quote" to Icons.Default.FormatQuote,        // Quote - citation
-            "Inspo" to Icons.Default.WbSunny,            // Sunny - illumination/inspiration
-            "Recipe" to Icons.Default.RestaurantMenu,    // Menu - culinary arts
-            "Health" to Icons.Default.Spa,               // Spa - wellness/balance
-            "Finance" to Icons.Default.AccountBalanceWallet, // Wallet - wealth
-            "Work" to Icons.Default.BusinessCenter,      // Briefcase - professional
-            "Play" to Icons.Default.SportsEsports,       // Gamepad - gaming/fun
-            "Note" to Icons.Default.DesignServices,            // DesignServices - creative writing
-            "Legal" to Icons.Default.Gavel,              // Gavel - justice
-            "Private Notes" to Icons.Default.PrivacyTip  // PrivacyTip - secret
+            "learn" to Icons.Default.School,
+            "read" to Icons.Default.Description,
+            "watch" to Icons.Default.PlayCircle,
+            "idea" to Icons.Default.Assistant,
+            "todo" to Icons.Default.CheckCircle,
+            "buy" to Icons.Default.ShoppingCart,
+            "meet" to Icons.Default.Event,
+            "code" to Icons.Default.Code,
+            "quote" to Icons.Default.FormatQuote,
+            "inspo" to Icons.Default.Assistant,
+            "recipe" to Icons.Default.Description,
+            "health" to Icons.Default.Favorite,
+            "finance" to Icons.Default.Payments,
+            "work" to Icons.Default.Work,
+            "play" to Icons.Default.VideogameAsset,
+            "note" to Icons.Default.Description,
+            "legal" to Icons.Default.Gavel,
+            "private_notes" to Icons.Default.Lock
         )
     }
 
@@ -189,23 +233,23 @@ object NoteCardIcons {
      * Centralized here for consistency.
      */
     object Actions {
-        val Archive = Icons.Default.AllInbox             // Vault/Inbox
-        val Unarchive = Icons.Default.Unarchive          // Unarchive
-        val Delete = Icons.Default.Whatshot             // Fire - creative destruction
-        val Edit = Icons.Default.DesignServices         // Design - creative refinement
-        val Share = Icons.Default.RocketLaunch          // Rocket - launching to others
-        val Copy = Icons.Default.FileCopy            // Copy
-        val Todo = Icons.Default.Verified                // Task check
-        val Search = Icons.Default.Explore              // Compass - exploration
-        val Add = Icons.Default.AutoAwesome             // Spark - creative addition
-        val Settings = Icons.Default.SettingsSuggest    // Suggested settings
+        val Archive = Icons.Default.Archive             // Standard archive
+        val Unarchive = Icons.Default.Unarchive
+        val Delete = Icons.Default.DeleteOutline         // Standard delete
+        val Edit = Icons.Default.Edit                    // Standard edit
+        val Share = Icons.Default.Share                   // Standard share
+        val Copy = Icons.Default.ContentCopy             // Standard copy
+        val Todo = Icons.Default.CheckCircle             // Standard check
+        val Search = Icons.Default.Search                // Standard search
+        val Add = Icons.Default.Add                      // Standard add
+        val Settings = Icons.Default.Settings            // Standard settings
         val Back = Icons.AutoMirrored.Filled.ArrowBack
-        val Close = Icons.Default.HighlightOff
-        val Done = Icons.Default.Verified
+        val Close = Icons.Default.Close
+        val Done = Icons.Default.Check
         val ExpandMore = Icons.Default.ExpandMore
         val ExpandLess = Icons.Default.ExpandLess
-        val MoreVert = Icons.Default.MoreVert           // Vertical dots
-        val Lock = Icons.Default.Lock                   // Lock
+        val MoreVert = Icons.Default.MoreVert
+        val Lock = Icons.Default.Lock
         val LockOpen = Icons.Default.LockOpen
         val Visibility = Icons.Default.Visibility
         val VisibilityOff = Icons.Default.VisibilityOff
@@ -215,12 +259,17 @@ object NoteCardIcons {
 
     /**
      * Colors for different processing statuses.
+     * Updated to use semantic theme colors for a calmer aesthetic.
      */
     object StatusColors {
-        fun getProcessingColor() = Color(0xFFCCFF00) // Acid green
-        fun getErrorColor() = Color(0xFFFF4D00) // Safety orange
-        fun getSuccessColor() = Color(0xFF4CAF50) // Green
-        fun getPendingColor() = Color(0xFF8E8E93) // Gray
+        @Composable
+        fun getProcessingColor() = LocalAccentColor.current
+        @Composable
+        fun getErrorColor() = MaterialTheme.colorScheme.error
+        @Composable
+        fun getSuccessColor() = MaterialTheme.colorScheme.tertiary
+        @Composable
+        fun getPendingColor() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
     }
 }
 

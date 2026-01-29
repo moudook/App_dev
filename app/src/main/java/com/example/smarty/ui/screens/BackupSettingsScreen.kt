@@ -14,7 +14,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.CloudQueue
+import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.Assistant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,13 +35,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.backup.AutoBackupConfig
 import com.example.smarty.data.backup.BackupMetadata
 import com.example.smarty.data.backup.BackupOperationState
 import com.example.smarty.data.backup.LocalBackupMetadata
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.SafetyOrange
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -44,12 +57,14 @@ fun BackupSettingsScreen(
     backupState: BackupOperationState,
     restoreState: BackupOperationState,
     availableBackups: List<BackupMetadata>,
+    isLoadingCloudBackups: Boolean = false,
     lastBackupTime: Long,
     autoBackupEnabled: Boolean,
     autoBackupIntervalDays: Int,
     // Local backup parameters
     localBackupState: BackupOperationState,
     localBackups: List<LocalBackupMetadata>,
+    isLoadingLocalBackups: Boolean = false,
     onBackClick: () -> Unit,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
@@ -88,11 +103,11 @@ fun BackupSettingsScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(ComponentSpacing.screenPadding),
-                verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
+                verticalArrangement = Arrangement.spacedBy(16.dp) // Calmer spacing
             ) {
                 // Google Account Section
                 item {
-                    SectionHeader(title = "Google Account")
+                    SectionHeader(title = stringResource(R.string.google_account))
                 }
 
                 item {
@@ -110,7 +125,7 @@ fun BackupSettingsScreen(
                 if (isSignedIn) {
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
-                        SectionHeader(title = "Backup")
+                        SectionHeader(title = stringResource(R.string.backup))
                     }
 
                     item {
@@ -124,7 +139,7 @@ fun BackupSettingsScreen(
                     // Auto-backup settings
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
-                        SectionHeader(title = "Auto-Backup")
+                        SectionHeader(title = stringResource(R.string.auto_backup))
                     }
 
                     item {
@@ -139,24 +154,23 @@ fun BackupSettingsScreen(
                     // Available backups for restore
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
-                        SectionHeader(title = "Available Backups")
+                        SectionHeader(title = stringResource(R.string.available_backups))
                     }
 
-                    if (availableBackups.isEmpty()) {
+                    if (isLoadingCloudBackups) {
                         item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Text(
-                                    text = "No backups found in Google Drive",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
+                            com.example.smarty.ui.components.BackupsLoadingState(
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    } else if (availableBackups.isEmpty()) {
+                        item {
+                            com.example.smarty.ui.components.BackupEmptyState(
+                                isLocal = false,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp)
+                            )
                         }
                     } else {
                         items(availableBackups) { backup ->
@@ -173,7 +187,7 @@ fun BackupSettingsScreen(
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Cloud backups include all notes, categories, and attachments. API keys are not backed up for security.",
+                            text = stringResource(R.string.cloud_backup_info),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier.padding(horizontal = 4.dp)
@@ -188,7 +202,7 @@ fun BackupSettingsScreen(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    SectionHeader(title = "Local Backup")
+                    SectionHeader(title = stringResource(R.string.local_backup))
                 }
 
                 item {
@@ -201,24 +215,23 @@ fun BackupSettingsScreen(
                 // Local backups list
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
-                    SectionHeader(title = "Saved Backups")
+                    SectionHeader(title = stringResource(R.string.saved_backups))
                 }
 
-                if (localBackups.isEmpty()) {
+                if (isLoadingLocalBackups) {
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Text(
-                                text = "No local backups yet. Create one to share or save.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
+                        com.example.smarty.ui.components.BackupsLoadingState(
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                } else if (localBackups.isEmpty()) {
+                    item {
+                        com.example.smarty.ui.components.BackupEmptyState(
+                            isLocal = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp)
+                        )
                     }
                 } else {
                     items(localBackups) { backup ->
@@ -226,7 +239,7 @@ fun BackupSettingsScreen(
                             backup = backup,
                             onShare = {
                                 val intent = onShareLocalBackup(backup)
-                                context.startActivity(Intent.createChooser(intent, "Share Backup"))
+                                context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_backup)))
                             },
                             onDelete = { showDeleteLocalBackupDialog = backup }
                         )
@@ -237,7 +250,7 @@ fun BackupSettingsScreen(
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Local backups are stored on your device and can be shared via any app. Use these to transfer data between devices or create offline archives.",
+                        text = stringResource(R.string.local_backup_info),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.padding(horizontal = 4.dp)
@@ -252,7 +265,15 @@ fun BackupSettingsScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Backup & Sync") },
+                    title = {
+                        Text(
+                            stringResource(R.string.backup_and_sync),
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.5).sp
+                            )
+                        )
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
                     )
@@ -269,7 +290,7 @@ fun BackupSettingsScreen(
             ) {
                 // Google Account Section
                 item {
-                    SectionHeader(title = "Google Account")
+                    SectionHeader(title = stringResource(R.string.google_account))
                 }
 
                 item {
@@ -287,7 +308,7 @@ fun BackupSettingsScreen(
                 if (isSignedIn) {
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
-                        SectionHeader(title = "Backup")
+                        SectionHeader(title = stringResource(R.string.backup))
                     }
 
                     item {
@@ -301,7 +322,7 @@ fun BackupSettingsScreen(
                     // Auto-backup settings
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
-                        SectionHeader(title = "Auto-Backup")
+                        SectionHeader(title = stringResource(R.string.auto_backup))
                     }
 
                     item {
@@ -316,24 +337,23 @@ fun BackupSettingsScreen(
                     // Available backups for restore
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
-                        SectionHeader(title = "Available Backups")
+                        SectionHeader(title = stringResource(R.string.available_backups))
                     }
 
-                    if (availableBackups.isEmpty()) {
+                    if (isLoadingCloudBackups) {
                         item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Text(
-                                    text = "No backups found in Google Drive",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(16.dp)
-                                )
-                            }
+                            com.example.smarty.ui.components.BackupsLoadingState(
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    } else if (availableBackups.isEmpty()) {
+                        item {
+                            com.example.smarty.ui.components.BackupEmptyState(
+                                isLocal = false,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp)
+                            )
                         }
                     } else {
                         items(availableBackups) { backup ->
@@ -350,7 +370,7 @@ fun BackupSettingsScreen(
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Cloud backups include all notes, categories, and attachments. API keys are not backed up for security.",
+                            text = stringResource(R.string.cloud_backup_info),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier.padding(horizontal = 4.dp)
@@ -365,7 +385,7 @@ fun BackupSettingsScreen(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    SectionHeader(title = "Local Backup")
+                    SectionHeader(title = stringResource(R.string.local_backup))
                 }
 
                 item {
@@ -378,24 +398,23 @@ fun BackupSettingsScreen(
                 // Local backups list
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
-                    SectionHeader(title = "Saved Backups")
+                    SectionHeader(title = stringResource(R.string.saved_backups))
                 }
 
-                if (localBackups.isEmpty()) {
+                if (isLoadingLocalBackups) {
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Text(
-                                text = "No local backups yet. Create one to share or save.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
+                        com.example.smarty.ui.components.BackupsLoadingState(
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                } else if (localBackups.isEmpty()) {
+                    item {
+                        com.example.smarty.ui.components.BackupEmptyState(
+                            isLocal = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp)
+                        )
                     }
                 } else {
                     items(localBackups) { backup ->
@@ -403,7 +422,7 @@ fun BackupSettingsScreen(
                             backup = backup,
                             onShare = {
                                 val intent = onShareLocalBackup(backup)
-                                context.startActivity(Intent.createChooser(intent, "Share Backup"))
+                                context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_backup)))
                             },
                             onDelete = { showDeleteLocalBackupDialog = backup }
                         )
@@ -414,7 +433,7 @@ fun BackupSettingsScreen(
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Local backups are stored on your device and can be shared via any app. Use these to transfer data between devices or create offline archives.",
+                        text = stringResource(R.string.local_backup_info),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         modifier = Modifier.padding(horizontal = 4.dp)
@@ -436,37 +455,40 @@ fun BackupSettingsScreen(
         )
     }
 
-    // Restore confirmation dialog
     showRestoreConfirmDialog?.let { backup ->
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Restore Backup?",
-            text = "This will replace all current data with the backup from ${backup.displayDate}.\n\n" +
-                    "Notes: ${backup.noteCount}\n" +
-                    "Categories: ${backup.categoryCount}\n\n" +
-                    "This action cannot be undone.",
+            title = stringResource(R.string.restore_backup),
+            text = stringResource(
+                R.string.restore_warning,
+                backup.displayDate.lowercase(),
+                backup.noteCount,
+                backup.categoryCount
+            ),
             onConfirm = {
                 onRestoreBackup(backup)
                 showRestoreConfirmDialog = null
             },
             onDismiss = { showRestoreConfirmDialog = null },
-            confirmText = "Restore",
-            dismissText = "Cancel"
+            confirmText = stringResource(R.string.restore),
+            dismissText = stringResource(R.string.cancel)
         )
     }
 
     // Delete cloud backup confirmation dialog
     showDeleteConfirmDialog?.let { backup ->
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Delete Backup?",
-            text = "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
-                    "This action cannot be undone.",
+            title = stringResource(R.string.delete_cloud_backup),
+            text = stringResource(
+                R.string.delete_confirm_cloud,
+                backup.displayDate.lowercase()
+            ),
             onConfirm = {
                 onDeleteBackup(backup)
                 showDeleteConfirmDialog = null
             },
             onDismiss = { showDeleteConfirmDialog = null },
-            confirmText = "Delete",
-            dismissText = "Cancel",
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
@@ -474,19 +496,21 @@ fun BackupSettingsScreen(
     // Delete local backup confirmation dialog
     showDeleteLocalBackupDialog?.let { backup ->
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Delete Local Backup?",
-            text = "Are you sure you want to delete this backup from ${backup.displayDate}?\n\n" +
-                    "Size: ${backup.displaySize}\n" +
-                    "Notes: ${backup.noteCount}\n" +
-                    "Categories: ${backup.categoryCount}\n\n" +
-                    "This action cannot be undone.",
+            title = stringResource(R.string.delete_local_archive),
+            text = stringResource(
+                R.string.delete_confirm_local,
+                backup.displayDate.lowercase(),
+                backup.displaySize.lowercase(),
+                backup.noteCount,
+                backup.categoryCount
+            ),
             onConfirm = {
                 onDeleteLocalBackup(backup)
                 showDeleteLocalBackupDialog = null
             },
             onDismiss = { showDeleteLocalBackupDialog = null },
-            confirmText = "Delete",
-            dismissText = "Cancel",
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
@@ -496,10 +520,12 @@ fun BackupSettingsScreen(
 private fun SectionHeader(title: String) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(vertical = 4.dp)
+        style = MaterialTheme.typography.labelMedium.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp
+        ),
+        color = LocalAccentColor.current.copy(alpha = 0.7f),
+        modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
     )
 }
 
@@ -514,29 +540,31 @@ private fun GoogleAccountCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isSignedIn) {
-                // Profile icon (no remote image loading for security)
+                // Profile icon
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(LocalAccentColor.current.copy(alpha = 0.2f)),
+                        .background(LocalAccentColor.current.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Face,
                         contentDescription = null,
-                        tint = LocalAccentColor.current
+                        tint = LocalAccentColor.current,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
@@ -544,27 +572,34 @@ private fun GoogleAccountCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = displayName ?: "Google Account",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
+                        text = displayName?.lowercase() ?: "google_account",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.2).sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     if (email != null) {
                         Text(
-                            text = email,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = email.lowercase(),
+                            style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
                 }
 
                 TextButton(onClick = onSignOut) {
-                    Text("Sign Out", color = SafetyOrange)
+                    Text(
+                        "sign_out",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                    )
                 }
             } else {
                 Icon(
                     imageVector = Icons.Default.CloudOff,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.size(32.dp)
                 )
 
@@ -572,24 +607,26 @@ private fun GoogleAccountCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Not signed in",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "not_signed_in",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Sign in to enable backup",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        text = "sign_in_to_enable_cloud_backup",
+                        style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
 
                 Button(
                     onClick = onSignIn,
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = LocalAccentColor.current
-                    )
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(0.dp)
                 ) {
-                    Text("Sign In")
+                    Text("sign_in", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -604,14 +641,15 @@ private fun BackupStatusCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -628,51 +666,58 @@ private fun BackupStatusCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Last Backup",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium
+                        text = "last_backup",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                     Text(
                         text = if (lastBackupTime > 0) {
                             val sdf = SimpleDateFormat("MMM dd, yyyy 'at' HH:mm", Locale.getDefault())
-                            sdf.format(Date(lastBackupTime))
+                            sdf.format(Date(lastBackupTime)).lowercase()
                         } else {
-                            "Never backed up"
+                            "never_backed_up"
                         },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = (-0.2).sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Backup progress or button
             when (backupState) {
                 is BackupOperationState.Idle -> {
                     Button(
                         onClick = onCreateBackup,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = LocalAccentColor.current
-                        )
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.RocketLaunch,
+                            imageVector = Icons.Default.CloudUpload,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Backup Now")
+                        Text("backup_now", style = MaterialTheme.typography.labelLarge)
                     }
                 }
 
                 is BackupOperationState.InProgress -> {
                     Column {
-                        LinearProgressIndicator(
+                        com.example.smarty.ui.components.CalmLinearProgress(
                             progress = { backupState.progress },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = LocalAccentColor.current
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -689,13 +734,17 @@ private fun BackupStatusCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Verified,
+                            imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
                             tint = LocalAccentColor.current
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = backupState.message,
+                            text = when(backupState.message) {
+                                "connection_lost" -> stringResource(R.string.connection_lost)
+                                "backup_failed" -> stringResource(R.string.backup_failed)
+                                else -> backupState.message
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = LocalAccentColor.current
                         )
@@ -703,21 +752,46 @@ private fun BackupStatusCard(
                 }
 
                 is BackupOperationState.Error -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.GppBad,
-                            contentDescription = null,
-                            tint = SafetyOrange
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = backupState.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = SafetyOrange
-                        )
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.GppBad,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = when(backupState.message) {
+                                    "connection_lost" -> stringResource(R.string.connection_lost)
+                                    "backup_failed" -> stringResource(R.string.backup_failed)
+                                    "permission_revoked" -> stringResource(R.string.permission_revoked)
+                                    else -> backupState.message
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        backupState.recoveryIntent?.let { intent ->
+                            val launcher = rememberLauncherForActivityResult(
+                                ActivityResultContracts.StartActivityForResult()
+                            ) { _ -> onCreateBackup() }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { launcher.launch(intent) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Icon(Icons.Default.VpnKey, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("fix_permissions")
+                            }
+                        }
                     }
                 }
             }
@@ -734,14 +808,15 @@ private fun AutoBackupCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -749,14 +824,17 @@ private fun AutoBackupCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Auto-Backup",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium
+                        text = "auto_backup",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.2).sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Automatically backup when due",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "automatically_backup_when_due",
+                        style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
 
@@ -780,18 +858,20 @@ private fun AutoBackupCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
                             .clickable { onIntervalClick() }
-                            .padding(vertical = 4.dp),
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Backup Interval",
-                                style = MaterialTheme.typography.bodyMedium
+                                text = "backup_interval",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Every $intervalDays days",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = "every_$intervalDays _days",
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
                                 color = LocalAccentColor.current
                             )
                         }
@@ -819,14 +899,15 @@ private fun BackupListItem(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
         )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(20.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -835,7 +916,7 @@ private fun BackupListItem(
                 Icon(
                     imageVector = Icons.Default.CloudQueue,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = LocalAccentColor.current,
                     modifier = Modifier.size(20.dp)
                 )
 
@@ -843,19 +924,22 @@ private fun BackupListItem(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = backup.displayDate,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
+                        text = backup.displayDate.lowercase(),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.2).sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "${backup.noteCount} notes, ${backup.categoryCount} categories • ${backup.displaySize}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "${backup.noteCount}_notes, ${backup.categoryCount}_stacks • ${backup.displaySize.lowercase()}",
+                        style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = backup.deviceName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        text = backup.deviceName.lowercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.3.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -868,10 +952,9 @@ private fun BackupListItem(
             if (isRestoring) {
                 val state = restoreState as BackupOperationState.InProgress
                 Column {
-                    LinearProgressIndicator(
+                    com.example.smarty.ui.components.CalmLinearProgress(
                         progress = { state.progress },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = LocalAccentColor.current
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -886,16 +969,22 @@ private fun BackupListItem(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDelete) {
-                        Text("Delete", color = SafetyOrange)
+                        Text(
+                            "delete",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                        )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = onRestore,
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = LocalAccentColor.current
-                        )
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp)
                     ) {
-                        Text("Restore")
+                        Text("restore", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -910,10 +999,10 @@ private fun IntervalPickerDialog(
     onSelectInterval: (Int) -> Unit
 ) {
     com.example.smarty.ui.components.common.JarvisDialog(
-        title = "Backup Interval",
+        title = "backup_interval",
         onDismiss = onDismiss,
         confirmText = "",
-        dismissText = "Cancel",
+        dismissText = "cancel",
         confirmEnabled = false,
         onConfirm = {},
         customContent = {
@@ -922,8 +1011,9 @@ private fun IntervalPickerDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
                             .clickable { onSelectInterval(days) }
-                            .padding(vertical = 12.dp),
+                            .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
@@ -936,13 +1026,14 @@ private fun IntervalPickerDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = when (days) {
-                                30 -> "Every 30 days (monthly)"
-                                60 -> "Every 60 days"
-                                100 -> "Every 100 days (recommended)"
-                                180 -> "Every 180 days (6 months)"
-                                365 -> "Every 365 days (yearly)"
-                                else -> "Every $days days"
-                            }
+                                30 -> "every_30_days"
+                                60 -> "every_60_days"
+                                100 -> "every_100_days"
+                                180 -> "every_180_days"
+                                365 -> "every_365_days"
+                                else -> "every_$days _days"
+                            }.lowercase(),
+                            style = MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.2.sp)
                         )
                     }
                 }
@@ -972,7 +1063,7 @@ private fun LocalBackupCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Inventory, // Creative: Inventory/Zip
+                    imageVector = Icons.Default.Assistant, // Standard Assistant icon
                     contentDescription = null,
                     tint = LocalAccentColor.current,
                     modifier = Modifier.size(24.dp)
@@ -982,12 +1073,12 @@ private fun LocalBackupCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Create Local Backup",
+                        text = "create_local_backup",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "Save a ZIP file to share or store",
+                        text = "save_a_zip_file_to_share_or_store",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1007,21 +1098,20 @@ private fun LocalBackupCard(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
+                            imageVector = Icons.Default.CloudUpload,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Create Backup")
+                        Text("create_backup")
                     }
                 }
 
                 is BackupOperationState.InProgress -> {
                     Column {
-                        LinearProgressIndicator(
+                        com.example.smarty.ui.components.CalmLinearProgress(
                             progress = { localBackupState.progress },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = LocalAccentColor.current
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -1038,7 +1128,7 @@ private fun LocalBackupCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Verified,
+                            imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
                             tint = LocalAccentColor.current
                         )
@@ -1059,13 +1149,13 @@ private fun LocalBackupCard(
                         Icon(
                             imageVector = Icons.Default.GppBad,
                             contentDescription = null,
-                            tint = SafetyOrange
+                            tint = MaterialTheme.colorScheme.error
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = localBackupState.message,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = SafetyOrange
+                            color = MaterialTheme.colorScheme.error
                         )
                     }
                 }
@@ -1096,7 +1186,7 @@ private fun LocalBackupListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.Inventory, // Creative: Inventory
+                    imageVector = Icons.Default.Assistant, // Standard Assistant icon
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
@@ -1106,17 +1196,17 @@ private fun LocalBackupListItem(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = backup.displayDate,
+                        text = backup.displayDate.lowercase(),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "${backup.noteCount} notes, ${backup.categoryCount} categories",
+                        text = "${backup.noteCount}_notes, ${backup.categoryCount}_categories",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "${backup.displaySize} • ${backup.deviceName}",
+                        text = "${backup.displaySize.lowercase()} • ${backup.deviceName.lowercase()}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         maxLines = 1,
@@ -1133,13 +1223,13 @@ private fun LocalBackupListItem(
             ) {
                 TextButton(onClick = onDelete) {
                     Icon(
-                        imageVector = Icons.Default.Whatshot,
+                        imageVector = Icons.Default.DeleteOutline,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
-                        tint = SafetyOrange
+                        tint = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Delete", color = SafetyOrange)
+                    Text("delete", color = MaterialTheme.colorScheme.error)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -1149,12 +1239,12 @@ private fun LocalBackupListItem(
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Default.RocketLaunch, // Creative: Launch/Share
+                        imageVector = Icons.Default.Share, // Standard share icon
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Share")
+                    Text("share")
                 }
             }
         }

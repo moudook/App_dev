@@ -32,6 +32,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
@@ -140,7 +142,7 @@ fun ShareBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Save to Jarvis",
+                    text = stringResource(R.string.save_to_jarvis),
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                     ),
@@ -151,8 +153,8 @@ fun ShareBottomSheet(
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
-                        contentDescription = "Cancel",
+                        imageVector = Icons.Default.Close,
+                        contentDescription = stringResource(R.string.cancel),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
@@ -173,7 +175,7 @@ fun ShareBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Category",
+                    text = stringResource(R.string.category),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -189,13 +191,13 @@ fun ShareBottomSheet(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
+                            imageVector = Icons.Default.Assistant,
                             contentDescription = null,
                             tint = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f),
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "Auto-sort",
+                            text = stringResource(R.string.auto_sort),
                             style = MaterialTheme.typography.labelMedium,
                             color = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f)
                         )
@@ -250,7 +252,7 @@ fun ShareBottomSheet(
 
             // Compact AI Instructions
             Text(
-                text = "Add Context (Optional)",
+                text = stringResource(R.string.add_context),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -273,7 +275,7 @@ fun ShareBottomSheet(
                 ) {
                     if (aiInstructions.isEmpty()) {
                         Text(
-                            text = "e.g. \"Summarize key points\"...",
+                            text = stringResource(R.string.summarize_key_points),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -306,7 +308,7 @@ fun ShareBottomSheet(
                         contentColor = MaterialTheme.colorScheme.onSurface
                     )
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
 
                 Button(
@@ -323,12 +325,12 @@ fun ShareBottomSheet(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.BookmarkAdded, // Creative: Keep
+                        imageVector = Icons.Default.Save,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save Note")
+                    Text(stringResource(R.string.save_note))
                 }
             }
         }
@@ -385,7 +387,7 @@ private fun SharePreviewCard(pendingShare: PendingShareData) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = pendingShare.detectedType.name.lowercase().replace("_", " ").replaceFirstChar { it.uppercase() },
+                    text = pendingShare.detectedType.name.lowercase().replace("_", " "),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -403,15 +405,15 @@ private fun SharePreviewCard(pendingShare: PendingShareData) {
 
 private fun getTypeIcon(type: NoteType): ImageVector {
     return when (type) {
-        NoteType.IMAGE -> Icons.Default.BurstMode        // Creative: Burst
-        NoteType.VIDEO -> Icons.Default.SlowMotionVideo  // Creative: Cinema
-        NoteType.AUDIO -> Icons.Default.SpatialAudio     // Creative: Spatial
-        NoteType.DOCUMENT -> Icons.Default.Source        // Creative: Source
-        NoteType.YOUTUBE -> Icons.Default.SmartDisplay   // Creative: Display
-        NoteType.WEBSITE -> Icons.Default.Explore        // Creative: Compass
-        NoteType.CODE -> Icons.Default.DataObject        // Creative: Object
-        NoteType.ARCHIVE -> Icons.Default.AllInbox       // Creative: Vault
-        else -> Icons.Default.Attachment                 // Creative: Connection
+        NoteType.IMAGE -> Icons.Default.Image
+        NoteType.VIDEO -> Icons.Default.Videocam
+        NoteType.AUDIO -> Icons.Default.Audiotrack
+        NoteType.DOCUMENT -> Icons.Default.Description
+        NoteType.YOUTUBE -> Icons.Default.PlayCircle
+        NoteType.WEBSITE -> Icons.Default.Language
+        NoteType.CODE -> Icons.Default.Code
+        NoteType.ARCHIVE -> Icons.Default.Archive
+        else -> Icons.Default.AttachFile
     }
 }
 
@@ -427,16 +429,17 @@ private fun getTypeColor(type: NoteType): androidx.compose.ui.graphics.Color {
     }
 }
 
+@Composable
 private fun getTypeName(type: NoteType): String {
     return when (type) {
-        NoteType.BRAIN_DUMP -> "Text Note"
-        NoteType.YOUTUBE -> "YouTube Video"
-        NoteType.WEBSITE -> "Web Link"
-        NoteType.IMAGE -> "Image"
-        NoteType.VIDEO -> "Video"
-        NoteType.AUDIO -> "Audio File"
-        NoteType.DOCUMENT -> "Document"
-        else -> "File"
+        NoteType.BRAIN_DUMP -> stringResource(R.string.type_brain_dump)
+        NoteType.YOUTUBE -> stringResource(R.string.youtube_video)
+        NoteType.WEBSITE -> stringResource(R.string.type_web_link)
+        NoteType.IMAGE -> stringResource(R.string.type_image)
+        NoteType.VIDEO -> stringResource(R.string.type_video)
+        NoteType.AUDIO -> stringResource(R.string.audio_file)
+        NoteType.DOCUMENT -> stringResource(R.string.type_document)
+        else -> stringResource(R.string.type_file)
     }
 }
 

@@ -291,11 +291,12 @@ fun InlineImagePreview(
                 color = Color.Black.copy(alpha = 0.6f)
             ) {
                 Text(
-                    text = currentImage.noteTitle.take(30) + if (currentImage.noteTitle.length > 30) "..." else "",
+                    text = currentImage.noteTitle,
                     color = Color.White,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
         }

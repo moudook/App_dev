@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.getTodos
@@ -116,7 +118,7 @@ fun NoteTodoSheet(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Tasks",
+                        text = stringResource(R.string.tasks),
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontWeight = FontWeight.SemiBold
                         ),
@@ -135,8 +137,8 @@ fun NoteTodoSheet(
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.HighlightOff,
-                            contentDescription = "Close",
+                            imageVector = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.close),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
@@ -165,7 +167,7 @@ fun NoteTodoSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "$completedCount of $totalCount completed",
+                            text = stringResource(R.string.tasks_completed, completedCount, totalCount),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -322,7 +324,7 @@ fun NoteTodoSheet(
                         )
                         if (newTodoText.isEmpty()) {
                             Text(
-                                text = "Add a new task...",
+                                text = stringResource(R.string.add_a_new_task),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontFamily = MonoFont),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
@@ -349,8 +351,8 @@ fun NoteTodoSheet(
                             }
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "Add",
+                                imageVector = Icons.Default.Add,
+                                contentDescription = stringResource(R.string.add),
                                 tint = LocalAccentColor.current
                             )
                         }
@@ -360,7 +362,7 @@ fun NoteTodoSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Tip: AI will help organize your tasks",
+                text = stringResource(R.string.task_tip),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
@@ -442,7 +444,7 @@ private fun TodoItemRow(
         ) {
             // Animated checkmark
             Icon(
-                imageVector = Icons.Default.Verified,
+                imageVector = Icons.Default.Check,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.surface,
                 modifier = Modifier
@@ -482,8 +484,8 @@ private fun TodoItemRow(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Whatshot,
-                contentDescription = "Remove task",
+                imageVector = Icons.Default.DeleteOutline,
+                contentDescription = stringResource(R.string.remove_task),
                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
             )

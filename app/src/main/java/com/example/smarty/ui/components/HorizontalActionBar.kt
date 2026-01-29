@@ -40,12 +40,12 @@ enum class NavigationTab(
     val label: String,
     val opensSheet: Boolean = false
 ) {
-    CHAT(Icons.Outlined.Psychology, "Chat"),           // Brain - AI intelligence & thinking
-    NOTES(Icons.Outlined.Create, "Notes"),             // Creation - artistic expression
-    CALENDAR(Icons.Outlined.Explore, "Calendar", opensSheet = true),  // Compass - journey through time
-    STACKS(Icons.Outlined.Hub, "Stacks", opensSheet = true),          // Hub - interconnected ideas
-    ARCHIVE(Icons.Outlined.AutoStories, "Archive", opensSheet = true), // Stories - collected memories
-    SETTINGS(Icons.Outlined.DisplaySettings, "Settings", opensSheet = true) // Display with controls - system tuning
+    CHAT(Icons.Outlined.Psychology, "assistant"),
+    NOTES(Icons.Outlined.Create, "notes"),
+    CALENDAR(Icons.Outlined.Explore, "calendar", opensSheet = true),
+    STACKS(Icons.Outlined.Hub, "stacks", opensSheet = true),
+    ARCHIVE(Icons.Outlined.AutoStories, "archive", opensSheet = true),
+    SETTINGS(Icons.Outlined.DisplaySettings, "settings", opensSheet = true)
 }
 
 /**
@@ -292,7 +292,7 @@ private fun RotaryNavigationDial(
                     Icon(
                         imageVector = icon,
                         contentDescription = tab.label,
-                        tint = if (isCenter) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f * opacity),
+                        tint = if (isCenter) accentColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f * opacity),
                         modifier = Modifier.size(28.dp)
                     )
                 }

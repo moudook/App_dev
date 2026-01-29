@@ -405,6 +405,9 @@ class SecurePreferences(private val context: Context) {
         private const val DEFAULT_LOCAL_PC_IP = "10.200.244.247"  // Default USB tethering IP
         private const val DEFAULT_LOCAL_PC_PORT = "8000"  // HTTP port (HTTPS typically 8443)
         private const val DEFAULT_LOCAL_PC_USE_HTTPS = false
+        // Google Calendar Sync
+        private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
+        private const val KEY_TARGET_GOOGLE_CALENDAR_ID = "target_google_calendar_id"
 
         @Volatile
         private var INSTANCE: SecurePreferences? = null
@@ -633,6 +636,23 @@ class SecurePreferences(private val context: Context) {
     fun setDarkTheme(isDark: Boolean) {
         encryptedPrefs.edit().putBoolean(KEY_DARK_THEME, isDark).apply()
         _isDarkTheme.value = isDark
+    }
+
+    // Google Calendar Sync Management
+    fun isSyncToGoogleCalendarEnabled(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_SYNC_TO_GOOGLE_CALENDAR, false)
+    }
+
+    fun setSyncToGoogleCalendarEnabled(enabled: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_SYNC_TO_GOOGLE_CALENDAR, enabled).apply()
+    }
+
+    fun getTargetGoogleCalendarId(): Long {
+        return encryptedPrefs.getLong(KEY_TARGET_GOOGLE_CALENDAR_ID, -1L)
+    }
+
+    fun setTargetGoogleCalendarId(calendarId: Long) {
+        encryptedPrefs.edit().putLong(KEY_TARGET_GOOGLE_CALENDAR_ID, calendarId).apply()
     }
 
     // Backup Management

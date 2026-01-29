@@ -35,8 +35,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.CalendarEmptyState
 import com.example.smarty.ui.components.CalendarEventCard
 import com.example.smarty.ui.theme.*
 import kotlinx.coroutines.launch
@@ -56,9 +59,7 @@ import java.util.*
  */
 
 // Design System Colors for Calendar
-// Now supports both light and dark themes
-private val CalendarAccent = Color(0xFF2979FF)        // ElectricBlue - matches app accent
-private val CalendarAccentLight = Color(0xFF5C9AFF)   // Lighter variant for gradients
+// Removed hardcoded CalendarAccent/Light in favor of LocalAccentColor.current
 
 // Theme-aware colors - will be accessed via composable functions
 @Composable
@@ -93,10 +94,13 @@ fun CalendarScreen(
     onDeleteEvent: (CalendarEvent) -> Unit = {},
     syncStatus: SyncStatus = SyncStatus.Idle,
     onSyncClick: () -> Unit = {},
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
+    val accentColor = LocalAccentColor.current
+    val accentLight = accentColor.copy(alpha = 0.7f)
 
     // Calendar state
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
@@ -185,7 +189,7 @@ fun CalendarScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
@@ -204,8 +208,8 @@ fun CalendarScreen(
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = surfaceColor,
                             contentColor = when (syncStatus) {
-                                SyncStatus.Success -> CalendarAccent
-                                SyncStatus.Error -> Color(0xFFFF5252)
+                                SyncStatus.Success -> accentColor
+                                SyncStatus.Error -> MaterialTheme.colorScheme.error
                                 else -> textPrimary
                             }
                         ),
@@ -214,30 +218,28 @@ fun CalendarScreen(
                     ) {
                         when (syncStatus) {
                             SyncStatus.Syncing -> {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = CalendarAccent
+                                com.example.smarty.ui.components.CalmThinkingDots(
+                                    dotSize = 3.dp
                                 )
                             }
                             SyncStatus.Success -> {
                                 Icon(
-                                    imageVector = Icons.Default.Verified, // Creative: Done
-                                    contentDescription = "Sync completed",
+                                    imageVector = Icons.Default.Verified,
+                                    contentDescription = stringResource(R.string.sync_completed),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             SyncStatus.Error -> {
                                 Icon(
-                                    imageVector = Icons.Default.ErrorOutline, // Creative: Alert
-                                    contentDescription = "Sync failed",
+                                    imageVector = Icons.Default.ErrorOutline,
+                                    contentDescription = stringResource(R.string.sync_failed),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
                             SyncStatus.Idle -> {
                                 Icon(
-                                    imageVector = Icons.Default.AllInclusive, // Creative: Loop
-                                    contentDescription = "Sync calendar",
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = stringResource(R.string.sync_calendar),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -257,8 +259,8 @@ fun CalendarScreen(
                         modifier = Modifier.size(44.dp)
                     ) {
                         Icon(
-                            Icons.Default.AutoAwesome, // Creative: Burst
-                            contentDescription = "Add Event",
+                            Icons.Default.Add,
+                            contentDescription = stringResource(R.string.add_event),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -272,7 +274,7 @@ fun CalendarScreen(
                 modifier = Modifier.padding(horizontal = 24.dp)
             ) {
                 Text(
-                    text = "My",
+                    text = stringResource(R.string.my),
                     style = MaterialTheme.typography.displaySmall.copy(
                         fontWeight = FontWeight.Light,
                         letterSpacing = 1.sp
@@ -280,9 +282,10 @@ fun CalendarScreen(
                     color = textPrimary
                 )
                 Text(
-                    text = "Schedule",
+                    text = stringResource(R.string.schedule_),
                     style = MaterialTheme.typography.displaySmall.copy(
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-1).sp
                     ),
                     color = textPrimary
                 )
@@ -294,7 +297,7 @@ fun CalendarScreen(
             // MONTH HEADER WITH NAVIGATION
             // ═══════════════════════════════════════════════════════════════════
             val monthFormat = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -303,9 +306,10 @@ fun CalendarScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = monthFormat.format(currentMonth.time),
+                    text = monthFormat.format(currentMonth.time).lowercase(),
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.5).sp
                     ),
                     color = textPrimary
                 )
@@ -326,10 +330,10 @@ fun CalendarScreen(
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.ChevronLeft,
-                                contentDescription = "Previous",
+                                contentDescription = stringResource(R.string.previous),
                                 tint = textPrimary,
                                 modifier = Modifier.size(20.dp)
-                            )
+                              )
                         }
                     }
 
@@ -348,7 +352,7 @@ fun CalendarScreen(
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 Icons.Default.ChevronRight,
-                                contentDescription = "Next",
+                                contentDescription = stringResource(R.string.next),
                                 tint = textPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -368,13 +372,22 @@ fun CalendarScreen(
                     .padding(horizontal = 24.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN").forEach { day ->
+                listOf(
+                    stringResource(R.string.mon),
+                    stringResource(R.string.tue),
+                    stringResource(R.string.wed),
+                    stringResource(R.string.thu),
+                    stringResource(R.string.fri),
+                    stringResource(R.string.sat),
+                    stringResource(R.string.sun)
+                ).forEach { day ->
                     Text(
                         text = day,
                         style = MaterialTheme.typography.labelSmall.copy(
-                            letterSpacing = 1.sp
+                            letterSpacing = 0.5.sp,
+                            fontWeight = FontWeight.Medium
                         ),
-                        color = textMuted,
+                        color = textMuted.copy(alpha = 0.6f),
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Center
                     )
@@ -425,6 +438,8 @@ fun CalendarScreen(
                                     hasEvents = hasEvents,
                                     hasRecurringEvents = hasRecurringEvents,
                                     isCurrentMonth = isCurrentMonth,
+                                    accentColor = accentColor,
+                                    accentLight = accentLight,
                                     onClick = {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         selectedDate = day
@@ -444,14 +459,26 @@ fun CalendarScreen(
             // ═══════════════════════════════════════════════════════════════════
             // EVENT LIST (Bottom Section)
             // ═══════════════════════════════════════════════════════════════════
-            if (selectedDateEvents.isEmpty()) {
-                PremiumEmptyState(
-                    selectedDate = selectedDate,
+            if (isLoading) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .padding(24.dp)
-                )
+                        .weight(1f),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    com.example.smarty.ui.components.CalmThinkingDots(
+                        modifier = Modifier.padding(top = 40.dp)
+                    )
+                }
+            } else if (selectedDateEvents.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    com.example.smarty.ui.components.CalendarEmptyState()
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier
@@ -466,6 +493,8 @@ fun CalendarScreen(
                     ) { event ->
                         PremiumEventCard(
                             event = event,
+                            accentColor = accentColor,
+                            accentLight = accentLight,
                             onClick = { onEventClick(event) },
                             modifier = Modifier.animateItem()
                         )
@@ -488,6 +517,8 @@ private fun PremiumDayCell(
     hasEvents: Boolean,
     hasRecurringEvents: Boolean = false,
     isCurrentMonth: Boolean,
+    accentColor: Color,
+    accentLight: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -497,7 +528,7 @@ private fun PremiumDayCell(
     val textColor = when {
         isSelected -> MaterialTheme.colorScheme.onPrimary
         !isCurrentMonth -> mutedText.copy(alpha = 0.3f)
-        isToday -> CalendarAccent
+        isToday -> accentColor
         isWeekend -> mutedText
         else -> primaryText.copy(alpha = 0.9f)
     }
@@ -507,7 +538,7 @@ private fun PremiumDayCell(
             .clip(CircleShape)
             .then(
                 when {
-                    isSelected -> Modifier.background(CalendarAccent)
+                    isSelected -> Modifier.background(accentColor)
                     isToday || (isWeekend && isCurrentMonth) -> Modifier.drawBehind {
                         drawCircle(
                             color = mutedText.copy(alpha = 0.5f),
@@ -543,7 +574,7 @@ private fun PremiumDayCell(
                         modifier = Modifier
                             .size(4.dp)
                             .clip(CircleShape)
-                            .background(CalendarAccent)
+                            .background(accentColor)
                     )
                     // Recurring indicator (second dot for recurring events)
                     if (hasRecurringEvents) {
@@ -551,7 +582,7 @@ private fun PremiumDayCell(
                             modifier = Modifier
                                 .size(4.dp)
                                 .clip(CircleShape)
-                                .background(CalendarAccentLight)
+                                .background(accentLight)
                         )
                     }
                 }
@@ -566,6 +597,8 @@ private fun PremiumDayCell(
 @Composable
 private fun PremiumEventCard(
     event: CalendarEvent,
+    accentColor: Color,
+    accentLight: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -589,7 +622,7 @@ private fun PremiumEventCard(
                     brush = Brush.horizontalGradient(
                         colors = listOf(
                             surfaceColor,
-                            CalendarAccent.copy(alpha = 0.3f)
+                            accentColor.copy(alpha = 0.3f)
                         )
                     ),
                     shape = RoundedCornerShape(24.dp)
@@ -607,12 +640,12 @@ private fun PremiumEventCard(
                         shape = RoundedCornerShape(12.dp),
                         color = bgColor.copy(alpha = 0.6f)
                     ) {
-                        val timeText = if (event.isAllDay) "All Day" else {
+                        val timeText = if (event.isAllDay) stringResource(R.string.all_day) else {
                             "${timeFormat.format(Date(event.startTime))} - ${timeFormat.format(Date(event.endTime))}"
-                        }
+                        }.lowercase()
                         Text(
                             text = timeText,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.3.sp),
                             color = textPrimary.copy(alpha = 0.8f),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
@@ -626,9 +659,10 @@ private fun PremiumEventCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = event.title,
+                            text = event.title.lowercase(),
                             style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.2).sp
                             ),
                             color = textPrimary,
                             maxLines = 1,
@@ -639,21 +673,20 @@ private fun PremiumEventCard(
                         // Recurring indicator
                         if (event.isRecurring) {
                             Icon(
-                                imageVector = Icons.Default.AllInclusive, // Creative: Loop
-                                contentDescription = "Recurring event",
+                                imageVector = Icons.Default.Repeat,
+                                contentDescription = "recurring_event",
                                 modifier = Modifier.size(14.dp),
-                                tint = CalendarAccent
+                                tint = accentColor
                             )
                         }
                     }
 
-                    // Location or Description
                     event.location?.let { location ->
                         if (location.isNotBlank()) {
                             Text(
-                                text = location,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = textMuted,
+                                text = location.lowercase(),
+                                style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                                color = textMuted.copy(alpha = 0.7f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -669,15 +702,15 @@ private fun PremiumEventCard(
                         .background(
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    CalendarAccent,
-                                    CalendarAccentLight
+                                    accentColor,
+                                    accentLight
                                 )
                             )
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isHappening) Icons.Default.SlowMotionVideo else if (event.isRecurring) Icons.Default.AllInclusive else Icons.Default.Timeline, // Creative: Cinema/Loop/Journey
+                        imageVector = if (isHappening) Icons.Default.PlayCircleFilled else if (event.isRecurring) Icons.Default.Repeat else Icons.Default.Event,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(24.dp)
@@ -685,60 +718,6 @@ private fun PremiumEventCard(
                 }
             }
         }
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// PREMIUM EMPTY STATE
-// ═══════════════════════════════════════════════════════════════════════════════
-@Composable
-private fun PremiumEmptyState(
-    selectedDate: Calendar,
-    modifier: Modifier = Modifier
-) {
-    val dateFormat = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()) }
-    val isToday = remember(selectedDate) {
-        val today = Calendar.getInstance()
-        selectedDate.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) &&
-        selectedDate.get(Calendar.YEAR) == today.get(Calendar.YEAR)
-    }
-    val mutedText = MaterialTheme.colorScheme.onSurfaceVariant
-
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.HourglassEmpty, // Creative: Waiting
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = mutedText.copy(alpha = 0.4f)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = if (isToday) "No events today" else "No events",
-            style = MaterialTheme.typography.titleMedium,
-            color = mutedText
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = dateFormat.format(selectedDate.time),
-            style = MaterialTheme.typography.bodyMedium,
-            color = mutedText.copy(alpha = 0.6f)
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Tap + to schedule something",
-            style = MaterialTheme.typography.bodySmall,
-            color = CalendarAccent.copy(alpha = 0.7f)
-        )
     }
 }
 

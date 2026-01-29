@@ -18,14 +18,13 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.filled.FileCopy
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.ContentPasteGo
-import androidx.compose.material.icons.filled.GppBad
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Source
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Launch
@@ -58,6 +57,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 import com.example.smarty.ui.LocalAccentColor
@@ -163,16 +164,13 @@ fun ChatMessageItem(
                     // Custom markdown parser - bypasses buggy RichText library
 
                     val boldColor = accentColor // Bright blue for bold text
-                    // Slightly darker shade for regular text/numbers
-                    val normalColor = Color(
-                        red = (accentColor.red * 0.75f).coerceIn(0f, 1f),
-                        green = (accentColor.green * 0.75f).coerceIn(0f, 1f),
-                        blue = (accentColor.blue * 0.85f).coerceIn(0f, 1f),
-                        alpha = 1f
-                    )
-                    // Links use purple/violet - distinct from blue
-                    val linkColor = Color(0xFF9C27B0) // Material Purple 500
-                    val codeColor = normalColor // Code uses darker blue
+                    // Use MaterialTheme colors for a more integrated, calm look
+                    val normalColor = MaterialTheme.colorScheme.onSurface
+
+                    // Links use a softer, theme-aware purple
+                    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                    val linkColor = if (isDark) Color(0xFFD1C4E9) else Color(0xFF673AB7)
+                    val codeColor = accentColor.copy(alpha = 0.8f) // Code uses accent tint
 
                     // Custom markdown parser with full control over colors
                     val annotatedText = parseMarkdownToAnnotatedString(
@@ -263,9 +261,13 @@ fun ChatMessageItem(
                         color = if (isUser) accentColor.copy(alpha = Alpha.medium) else MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(12.dp)
                     ) {
+                        val count = message.attachments.size
                         Text(
-                            text = "+ ${message.attachments.size} Attachment${if(message.attachments.size > 1) "s" else ""}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            text = if (count == 1) stringResource(R.string.one_attachment) else stringResource(R.string.x_attachments, count),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 0.4.sp
+                            ),
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                             color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -421,8 +423,8 @@ fun ChatMessageItem(
 
                 // Right side: Copy button (always on right edge)
                 Icon(
-                    imageVector = if (showCopied) Icons.Default.Verified else Icons.Default.FileCopy, // Creative: Verified/Copy
-                    contentDescription = "Copy",
+                    imageVector = if (showCopied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
+                    contentDescription = "copy",
                     modifier = Modifier
                         .size(IconSize.small)
                         .clickable {
@@ -468,16 +470,17 @@ private fun CitationsInline(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.AutoStories, // Creative: Magic Book/Sources
+                imageVector = Icons.Default.Description,
                 contentDescription = null,
                 tint = accentColor,
                 modifier = Modifier.size(14.dp)
             )
             Text(
-                text = "${citations.size} Sources",
+                text = stringResource(R.string.sources_count, citations.size),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
+                    fontSize = 11.sp,
+                    letterSpacing = 0.5.sp
                 ),
                 color = accentColor
             )
@@ -522,7 +525,7 @@ private fun CitationsInline(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
+                                    imageVector = Icons.Default.Assistant,
                                     contentDescription = null,
                                     tint = accentColor,
                                     modifier = Modifier.size(20.dp)
@@ -532,16 +535,17 @@ private fun CitationsInline(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Sources",
+                                text = stringResource(R.string.sources),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
+                                    fontSize = 18.sp,
+                                    letterSpacing = (-0.5).sp
                                 ),
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "${citations.size} references found",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = stringResource(R.string.references_found, citations.size),
+                                style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -580,8 +584,8 @@ private fun CitationsInline(
                     
                     // Close hint
                     Text(
-                        text = "Tap outside to close",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = stringResource(R.string.tap_outside_to_close),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 }
@@ -639,10 +643,11 @@ private fun SourceCard(
                 Spacer(modifier = Modifier.width(12.dp))
                 
                 Text(
-                    text = citation.title.ifBlank { "Untitled Source" },
+                    text = citation.title.ifBlank { stringResource(R.string.untitled_source) }.lowercase(),
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontWeight = FontWeight.SemiBold,
-                        lineHeight = 20.sp
+                        lineHeight = 20.sp,
+                        letterSpacing = 0.1.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
@@ -720,29 +725,35 @@ private fun ActionResultChip(
     ) {
         Surface(
             shape = CircleShape,
-            color = if (success) Color(0xFFE8F5E9) else Color(0xFFFFEBEE), // Light Green / Light Red
+            color = if (success) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
             modifier = Modifier.size(IconSize.standard)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = if (success) Icons.Default.Verified else Icons.Default.GppBad, // Creative: Success/Warning
+                    imageVector = if (success) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
                     contentDescription = null,
                     modifier = Modifier.size(IconSize.micro),
-                    tint = if (success) Color(0xFF2E7D32) else androidx.compose.ui.graphics.Color(0xFFFF4D00)
+                    tint = if (success) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
                 )
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
         Column {
             Text(
-                text = formatActionName(actionName),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                text = formatActionName(actionName).lowercase().replace(" ", "_"),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.3.sp
+                ),
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (summary.isNotBlank()) {
                 Text(
-                    text = summary,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp),
+                    text = summary.lowercase(),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 10.sp,
+                        letterSpacing = 0.2.sp
+                    ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2
                 )
@@ -764,17 +775,18 @@ private fun formatActionName(actionName: String): String {
 /**
  * Format timestamp for display
  */
+@Composable
 private fun formatTimestamp(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
 
     return when {
-        diff < 60_000 -> "Just now"
-        diff < 3600_000 -> "${diff / 60_000}m ago"
-        diff < 86400_000 -> "${diff / 3600_000}h ago"
+        diff < 60_000 -> stringResource(R.string.just_now)
+        diff < 3600_000 -> stringResource(R.string.minutes_ago, diff / 60_000)
+        diff < 86400_000 -> stringResource(R.string.hours_ago, diff / 3600_000)
         else -> {
             val date = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
-            date.format(java.util.Date(timestamp))
+            date.format(java.util.Date(timestamp)).lowercase()
         }
     }
 }
@@ -942,15 +954,18 @@ private fun ClarificationBubble(
             // Question Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.AutoAwesome,
+                    imageVector = Icons.Default.Assistant,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Clarification Needed",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    text = stringResource(R.string.clarification_needed),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
                     color = accentColor
                 )
             }
@@ -1000,7 +1015,7 @@ private fun ClarificationBubble(
                     androidx.compose.material3.OutlinedTextField(
                         value = customInput,
                         onValueChange = { customInput = it },
-                        placeholder = { Text("Other...", fontSize = 14.sp) },
+                        placeholder = { Text(stringResource(R.string.other), fontSize = 14.sp) },
                         modifier = Modifier.weight(1f),
                         textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                         singleLine = true,
@@ -1016,7 +1031,7 @@ private fun ClarificationBubble(
                                 ) {
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.Send, // Creative: Submit
-                                        contentDescription = "Submit",
+                                        contentDescription = stringResource(R.string.submit),
                                         tint = accentColor
                                     )
                                 }

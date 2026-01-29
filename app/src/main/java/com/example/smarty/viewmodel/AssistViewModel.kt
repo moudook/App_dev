@@ -426,8 +426,8 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             memoryFeatureManager.consolidateMemories()
         }
 
-        override fun getMemoryStats(): Map<String, Any> {
-            return runBlocking { memoryFeatureManager.getMemoryStats() }
+        override suspend fun getMemoryStats(): Map<String, Any> {
+            return memoryFeatureManager.getMemoryStats()
         }
 
         override suspend fun searchNotes(

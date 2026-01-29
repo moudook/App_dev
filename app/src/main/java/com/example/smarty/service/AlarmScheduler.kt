@@ -8,7 +8,11 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import com.example.smarty.data.local.JarvisDatabase
 import com.example.smarty.data.model.JarvisTimer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Schedules and manages timers/alarms using AlarmManager.
@@ -16,8 +20,14 @@ import com.example.smarty.data.model.JarvisTimer
  *
  * BUG FIX (RX-02): Added permission request flow for SCHEDULE_EXACT_ALARM
  * on Android 12+ (API 31+). Without this permission, alarms may fire late.
+ *
+ * HARDENING: Now persists all timers to Room database to survive app kills and reboots.
  */
 class AlarmScheduler(private val context: Context) {
+
+    private val database = JarvisDatabase.getDatabase(context)
+    private val timerDao = database.timerDao()
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     companion object {
         private const val TAG = "AlarmScheduler"
@@ -44,6 +54,11 @@ class AlarmScheduler(private val context: Context) {
      */
     fun scheduleTimer(timer: JarvisTimer) {
         Log.d(TAG, "Scheduling timer: ${timer.name} at ${timer.triggerTime}")
+
+        // Persist to database
+        scope.launch {
+            timerDao.insertTimer(timer)
+        }
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_TIMER_TRIGGERED
@@ -97,6 +112,11 @@ class AlarmScheduler(private val context: Context) {
      */
     fun cancelTimer(timerId: String) {
         Log.d(TAG, "Cancelling timer: $timerId")
+
+        // Remove from database
+        scope.launch {
+            timerDao.deleteTimerById(timerId)
+        }
 
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_TIMER_TRIGGERED

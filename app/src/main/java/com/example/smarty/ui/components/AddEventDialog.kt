@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -37,10 +39,10 @@ fun AddEventDialog(
     val displayDate = remember(selectedDate) { dateFormat.format(selectedDate.time) }
 
     com.example.smarty.ui.components.common.JarvisDialog(
-        title = "New Event",
+        title = stringResource(R.string.new_event),
         onDismiss = onDismiss,
-        confirmText = "Add",
-        dismissText = "Cancel",
+        confirmText = stringResource(R.string.add),
+        dismissText = stringResource(R.string.cancel),
         confirmEnabled = title.isNotBlank(),
         onConfirm = {
             if (title.isNotBlank()) {
@@ -76,7 +78,7 @@ fun AddEventDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Event title") },
+                    label = { Text(stringResource(R.string.event_title)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
@@ -85,7 +87,7 @@ fun AddEventDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description (optional)") },
+                    label = { Text(stringResource(R.string.description_optional)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 3
@@ -93,7 +95,7 @@ fun AddEventDialog(
 
                 // Date display (shows the selected date from calendar)
                 Text(
-                    text = "Date: $displayDate",
+                    text = stringResource(R.string.date_label, displayDate.lowercase()),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -103,7 +105,7 @@ fun AddEventDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("All day event")
+                    Text(stringResource(R.string.all_day_event))
                     Switch(
                         checked = isAllDay,
                         onCheckedChange = { isAllDay = it }
@@ -119,7 +121,7 @@ fun AddEventDialog(
                         // Start time
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Start",
+                                text = stringResource(R.string.start),
                                 style = MaterialTheme.typography.labelMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -151,7 +153,7 @@ fun AddEventDialog(
                         // End time
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "End",
+                                text = stringResource(R.string.end),
                                 style = MaterialTheme.typography.labelMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

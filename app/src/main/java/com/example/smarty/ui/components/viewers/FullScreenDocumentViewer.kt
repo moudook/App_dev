@@ -34,7 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.HighlightOff
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -162,12 +162,12 @@ private fun PdfViewerContent(
                     isLoading = false
                 } else {
                     Log.e(TAG, "FileDescriptor is null for: $documentUri")
-                    errorMessage = "Could not open PDF file. The file may have been moved or deleted."
+                    errorMessage = "could_not_open_pdf_file"
                     isLoading = false
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception creating PdfRenderer: ${e.message}", e)
-                errorMessage = "Error opening PDF: ${e.message}"
+                errorMessage = "error_opening_pdf"
                 isLoading = false
             }
         }
@@ -188,12 +188,12 @@ private fun PdfViewerContent(
     LaunchedEffect(currentPage, isLoading) {
         Log.d(TAG, "Render LaunchedEffect triggered: currentPage=$currentPage, isLoading=$isLoading, pdfRenderer=${pdfRenderer != null}")
         if (isLoading) return@LaunchedEffect
-        
+
         // BUG-047: Debounce rapid page changes - wait 150ms before rendering
         // This allows the user to swipe through pages quickly without triggering
         // expensive renders for each intermediate page
         kotlinx.coroutines.delay(150)
-        
+
         pdfRenderer?.let { renderer ->
             Log.d(TAG, "Starting page render: page=$currentPage, totalPages=${renderer.pageCount}")
             withContext(Dispatchers.IO) {
@@ -207,7 +207,7 @@ private fun PdfViewerContent(
                         val newBitmap = synchronized(renderer) {
                             // Double-check we still want this page (may have changed during debounce)
                             if (currentPage >= renderer.pageCount) return@synchronized null
-                            
+
                             val page = try {
                                 renderer.openPage(currentPage)
                             } catch (e: IllegalStateException) {
@@ -268,17 +268,17 @@ private fun PdfViewerContent(
                                 // Try with original size as fallback
                                 Bitmap.createBitmap(pageWidth, pageHeight, Bitmap.Config.ARGB_8888)
                             }
-                            
+
                             try {
                                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                             } finally {
                                 page.close() // Always close the page
                             }
-                            
+
                             Log.d(TAG, "PDF page rendered: ${pageWidth}x${pageHeight} -> ${finalWidth}x${finalHeight} (${requiredMB}MB)")
                             bitmap
                         }
-                        
+
                         // Only update bitmap if render succeeded
                         if (newBitmap != null) {
                             // Set new bitmap first
@@ -299,14 +299,14 @@ private fun PdfViewerContent(
                     }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "OOM rendering PDF page", e)
-                    errorMessage = "Not enough memory to render page. Try closing other apps."
+                    errorMessage = "not_enough_memory_to_render_page"
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     // BUG-047: Normal cancellation when user switches pages rapidly - don't log as error
                     Log.d(TAG, "Page render cancelled (user switched pages)")
                     throw e // Re-throw to properly cancel the coroutine
                 } catch (e: Exception) {
                     Log.e(TAG, "Exception rendering PDF page: ${e.message}", e)
-                    errorMessage = "Error rendering page: ${e.message}"
+                    errorMessage = "error_rendering_page"
                 }
             }
         }
@@ -333,8 +333,8 @@ private fun PdfViewerContent(
         }
     }
 
-    // Light background color for better PDF viewing
-    val backgroundColor = Color(0xFFF5F5F5)
+    // Theme-aware background for better document contrast
+    val backgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh
     val headerColor = MaterialTheme.colorScheme.surface
     val contentColor = MaterialTheme.colorScheme.onSurface
 
@@ -345,9 +345,8 @@ private fun PdfViewerContent(
     ) {
         when {
             isLoading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = MaterialTheme.colorScheme.primary
+                com.example.smarty.ui.components.CalmThinkingDots(
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
             errorMessage != null -> {
@@ -497,14 +496,14 @@ private fun PdfViewerContent(
             ) {
                 IconButton(onClick = onDismiss) {
                     Icon(
-                        imageVector = Icons.Default.HighlightOff,
-                        contentDescription = "Close",
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "close",
                         tint = contentColor
                     )
                 }
 
                 Text(
-                    text = fileName ?: "PDF Document",
+                    text = fileName ?: "pdf_document",
                     color = contentColor,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
@@ -548,7 +547,7 @@ private fun PdfViewerContent(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
-                            contentDescription = "Previous page",
+                            contentDescription = "previous_page",
                             tint = if (currentPage > 0) contentColor else contentColor.copy(alpha = 0.3f)
                         )
                     }
@@ -567,7 +566,7 @@ private fun PdfViewerContent(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                            contentDescription = "Next page",
+                            contentDescription = "next_page",
                             tint = if (currentPage < totalPages - 1) contentColor else contentColor.copy(alpha = 0.3f)
                         )
                     }
@@ -635,13 +634,13 @@ private fun TextViewerContent(
             ) {
                 IconButton(onClick = onDismiss) {
                     Icon(
-                        imageVector = Icons.Default.HighlightOff,
-                        contentDescription = "Close"
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "close"
                     )
                 }
 
                 Text(
-                    text = fileName ?: "Text Document",
+                    text = fileName ?: "text_document",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center
@@ -653,13 +652,13 @@ private fun TextViewerContent(
 
         when {
             isLoading -> {
-                CircularProgressIndicator(
+                com.example.smarty.ui.components.CalmThinkingDots(
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
             errorMessage != null -> {
                 Text(
-                    text = errorMessage ?: "Unknown error",
+                    text = errorMessage ?: "unknown_error",
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(32.dp),
@@ -705,8 +704,8 @@ private fun UnsupportedDocumentContent(
         ) {
             IconButton(onClick = onDismiss) {
                 Icon(
-                    imageVector = Icons.Default.HighlightOff,
-                    contentDescription = "Close"
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "close"
                 )
             }
         }
@@ -727,7 +726,7 @@ private fun UnsupportedDocumentContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = fileName ?: "Document",
+                text = fileName ?: "document",
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center
             )
@@ -735,7 +734,7 @@ private fun UnsupportedDocumentContent(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "This document type cannot be previewed",
+                text = "this_document_type_cannot_be_previewed",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -744,7 +743,7 @@ private fun UnsupportedDocumentContent(
             if (mimeType != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Type: $mimeType",
+                    text = "type:_$mimeType",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )

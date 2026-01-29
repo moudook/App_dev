@@ -5,7 +5,7 @@ import com.example.smarty.data.repository.JarvisRepository
 import com.example.smarty.util.PrivacyGuard
 
 /**
- * Utility object for Jarvis AI Agent tools with PrivacyGuard integration.
+ * Utility object for Smarty AI Agent tools with PrivacyGuard integration.
  *
  * All tools that access notes should use these helper functions to ensure
  * privacy enforcement is consistent across the agent.

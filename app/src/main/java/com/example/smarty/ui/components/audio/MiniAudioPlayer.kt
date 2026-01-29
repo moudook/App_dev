@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HighlightOff
-import androidx.compose.material.icons.filled.PauseCircle
-import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
@@ -100,7 +98,7 @@ fun MiniAudioPlayer(
             ) {
                 // Title
                 Text(
-                    text = state.currentTrack?.title ?: "Not Playing",
+                    text = (state.currentTrack?.title ?: "not_playing").lowercase(),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)
@@ -119,12 +117,11 @@ fun MiniAudioPlayer(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                          // Slim Progress Bar
-                         LinearProgressIndicator(
+                         com.example.smarty.ui.components.CalmLinearProgress(
                             progress = { state.progress },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(3.dp) // Slightly thicker for visibility
-                                .clip(RoundedCornerShape(1.5.dp)),
+                                .height(3.dp), // Slightly thicker for visibility
                             color = accentColor,
                             trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.moderate),
                         )
@@ -142,7 +139,7 @@ fun MiniAudioPlayer(
                     }
                 } else {
                      Text(
-                        text = "Select a track...",
+                        text = "select_a_track",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -167,12 +164,12 @@ fun MiniAudioPlayer(
                     )
                 ) {
                     Icon(
-                        imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, // Creative: Minimalist
-                        contentDescription = if (state.isPlaying) "Pause" else "Play",
+                        imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (state.isPlaying) "pause" else "play",
                         modifier = Modifier.size(IconSize.large)
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.width(4.dp))
 
                 // Close (Subtle X)
@@ -181,8 +178,8 @@ fun MiniAudioPlayer(
                     modifier = Modifier.size(IconSize.huge)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
-                        contentDescription = "Close",
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "close",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
                         modifier = Modifier.size(IconSize.medium)
                     )

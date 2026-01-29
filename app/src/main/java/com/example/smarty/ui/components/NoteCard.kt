@@ -13,7 +13,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Label
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +42,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
+import androidx.compose.ui.unit.sp
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
@@ -54,6 +64,10 @@ import com.example.smarty.util.ContentTypeDetector
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Modern Soft Minimalist NoteCard with smooth interactions:
@@ -87,14 +101,29 @@ fun NoteCard(
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
 
+    // Date formatter
+    val dateString = remember(note.createdAt) {
+        val now = System.currentTimeMillis()
+        val diff = now - note.createdAt
+        val days = diff / (1000 * 60 * 60 * 24)
+
+        when {
+            days == 0L -> "Today"
+            days == 1L -> "Yesterday"
+            days < 7 -> SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(note.createdAt))
+            else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(note.createdAt))
+        }
+    }
+
     // Press state for animations
     var isPressed by remember { mutableStateOf(false) }
 
     // Swipe state
     val swipeOffset = remember { Animatable(0f) }
-    val swipeThreshold = remember { with(density) { 60.dp.toPx() } }
+    val swipeThreshold = remember { with(density) { 48.dp.toPx() } }
     val swipeActivationThreshold = remember { with(density) { 30.dp.toPx() } }
     var swipeActivated by remember { mutableStateOf(false) }
+    var thresholdReached by remember { mutableStateOf(false) }
     var accumulatedDrag by remember { mutableFloatStateOf(0f) }
     var actionInProgress by remember { mutableStateOf(false) }
     val snapBackSpec = spring<Float>(dampingRatio = 0.8f, stiffness = 800f)
@@ -103,13 +132,16 @@ fun NoteCard(
     val (scale, rotation) = animatedCardTransform(pressed = isPressed, index = index)
     val tilt = animateCardTilt(pressed = isPressed, pressedElevation = 2f)
 
+    val accentColor = LocalAccentColor.current
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+
     // Border color
     val borderColor by animateColorAsState(
         targetValue = when {
-            isSelected -> LocalAccentColor.current
-            note.processingStatus == ProcessingStatus.PROCESSING -> LocalAccentColor.current.copy(alpha = 0.5f)
-            swipeOffset.value > swipeThreshold * 0.5f -> if (isArchiveView) MaterialTheme.colorScheme.error.copy(alpha = 0.5f) else SystemGray.copy(alpha = 0.7f)
-            swipeOffset.value < -swipeThreshold * 0.5f -> SystemBlue.copy(alpha = 0.5f)
+            isSelected -> accentColor
+            note.processingStatus == ProcessingStatus.PROCESSING -> accentColor.copy(alpha = 0.5f)
+            swipeOffset.value > swipeThreshold * 0.5f -> if (isArchiveView) MaterialTheme.colorScheme.error.copy(alpha = 0.5f) else onSurfaceVariant.copy(alpha = 0.7f)
+            swipeOffset.value < -swipeThreshold * 0.5f -> accentColor.copy(alpha = 0.5f)
             else -> Color.Transparent
         },
         animationSpec = tween(AnimationDuration.fast),
@@ -122,8 +154,8 @@ fun NoteCard(
         // Swipe Background
         if (swipeAlpha > 0f) {
             val isSwipeRight = swipeOffset.value > 0
-            val color = if (isSwipeRight) (if (isArchiveView) MaterialTheme.colorScheme.error else SystemGray) else (if (isArchiveView) SystemBlue else SystemBlue)
-            val icon = if (isSwipeRight) (if (isArchiveView) Icons.Default.Whatshot else Icons.Default.AllInbox) else (if (isArchiveView) Icons.Default.Unarchive else Icons.Default.Verified)
+            val color = if (isSwipeRight) (if (isArchiveView) MaterialTheme.colorScheme.error else onSurfaceVariant) else accentColor
+            val icon = if (isSwipeRight) (if (isArchiveView) Icons.Default.DeleteOutline else Icons.Default.Archive) else (if (isArchiveView) Icons.Default.Unarchive else Icons.Default.CheckCircle)
 
             Box(
                 modifier = Modifier
@@ -180,91 +212,169 @@ fun NoteCard(
                                 } else {
                                     coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }
                                 }
-                                swipeActivated = false; accumulatedDrag = 0f
+                                swipeActivated = false; thresholdReached = false; accumulatedDrag = 0f
                             },
-                            onDragCancel = { coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }; swipeActivated = false; accumulatedDrag = 0f },
+                            onDragCancel = { coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }; swipeActivated = false; thresholdReached = false; accumulatedDrag = 0f },
                             onHorizontalDrag = { _, dragAmount ->
                                 accumulatedDrag += dragAmount
                                 if (!swipeActivated && abs(accumulatedDrag) > swipeActivationThreshold) {
                                     swipeActivated = true
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 }
-                                if (swipeActivated) coroutineScope.launch { swipeOffset.snapTo(accumulatedDrag) }
+
+                                // Haptic tick when crossing the full threshold
+                                if (swipeActivated) {
+                                    val isOverThreshold = abs(accumulatedDrag) > swipeThreshold
+                                    if (isOverThreshold && !thresholdReached) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        thresholdReached = true
+                                    } else if (!isOverThreshold && thresholdReached) {
+                                        thresholdReached = false
+                                    }
+
+                                    coroutineScope.launch { swipeOffset.snapTo(accumulatedDrag) }
+                                }
                             }
                         )
                     }
                 },
             shape = LocalShapes.current.cardMedium,
             color = animateColorAsState(
-                targetValue = if (isSelected) com.example.smarty.ui.theme.SystemBlue.copy(alpha = 0.20f).compositeOver(MaterialTheme.colorScheme.surface) else MaterialTheme.colorScheme.surface,
+                targetValue = if (isSelected) accentColor.copy(alpha = 0.20f).compositeOver(MaterialTheme.colorScheme.surface) else MaterialTheme.colorScheme.surface,
                 label = "cardBackground"
             ).value,
             shadowElevation = 0.dp,
-            border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, com.example.smarty.ui.theme.SystemBlue) else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, accentColor) else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(20.dp)
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // 1. Title
-                    val titleStyle = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        letterSpacing = (-0.5).sp
-                    )
-                    
-                    if (searchQuery.isNullOrBlank()) {
-                        Text(
-                            text = note.title.ifBlank { "Untitled Note" },
-                            style = titleStyle,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(end = 24.dp) // Space for edit icon area if needed
+                    // 1. Header Row (Title + Date)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        val titleStyle = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            letterSpacing = (-0.5).sp,
+                            lineHeight = 24.sp
                         )
-                    } else {
-                        HighlightedText(
-                            text = note.title.ifBlank { "Untitled Note" },
-                            query = searchQuery,
-                            style = titleStyle,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+
+                        // Title container
+                        Box(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            if (searchQuery.isNullOrBlank()) {
+                                Text(
+                                    text = note.title.ifBlank { stringResource(R.string.untitled_note) },
+                                    style = titleStyle,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else {
+                                HighlightedText(
+                                    text = note.title.ifBlank { stringResource(R.string.untitled_note) },
+                                    query = searchQuery,
+                                    style = titleStyle,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        // Date Label & Unread Indicator
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            if (!note.isViewed && !isSelectionMode) {
+                                NewNoteIndicatorDot(
+                                    isVisible = true,
+                                    modifier = Modifier.size(8.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+
+                            Text(
+                                text = dateString,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+
+                    // Insight / Summary Snippet (Ideation Integration)
+                    // Prioritize "Why Saved" as it represents the user's specific intent
+                    val insightText = note.whySaved?.takeIf { it.isNotBlank() }
+                        ?: note.summary?.takeIf { it.isNotBlank() && !it.startsWith("analyzing_section") }
+
+                    if (insightText != null) {
+                         val bodyStyle = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            letterSpacing = 0.1.sp,
+                            fontWeight = FontWeight.Normal
                         )
+                        val bodyColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
+
+                        if (searchQuery.isNullOrBlank()) {
+                            Text(
+                                text = insightText,
+                                style = bodyStyle,
+                                color = bodyColor,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            HighlightedText(
+                                text = insightText,
+                                query = searchQuery,
+                                style = bodyStyle,
+                                color = bodyColor,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     // 2. Pills Layout
                     FlowRow(
-                        modifier = Modifier.fillMaxWidth().padding(end = 24.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // AI Generation Pill
                         if (note.isAiCreated) {
                             NoteCardPill(
-                                text = "AI Generation",
-                                icon = Icons.Default.AutoAwesome,
-                                backgroundColor = Color(0xFFE8DEF8), // Light Purple
-                                contentColor = Color(0xFF1D192B),
-                                darkBackgroundColor = Color(0xFF4A4458),
-                                darkContentColor = Color(0xFFE8DEF8)
+                                text = stringResource(R.string.assistant),
+                                icon = Icons.Default.Assistant,
+                                backgroundColor = LocalAccentColor.current.copy(alpha = 0.12f),
+                                contentColor = LocalAccentColor.current,
+                                darkBackgroundColor = LocalAccentColor.current.copy(alpha = 0.15f),
+                                darkContentColor = LocalAccentColor.current
                             )
                         }
 
                         // Category Pill (Filter)
                         note.categoryName?.let { category ->
                             NoteCardPill(
-                                text = category,
-                                icon = Icons.AutoMirrored.Filled.Label, // Creative: Tag/Label
-                                backgroundColor = Color(0xFFE3E8EF), // Light Grey/Blue
-                                contentColor = Color(0xFF1D2939),
-                                darkBackgroundColor = Color(0xFF344054),
-                                darkContentColor = Color(0xFFD0D5DD)
+                                text = category.lowercase(),
+                                icon = Icons.AutoMirrored.Filled.Label,
+                                backgroundColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                darkBackgroundColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                                darkContentColor = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
 
@@ -275,37 +385,27 @@ fun NoteCard(
 
                         if (hasFiles) {
                             NoteCardPill(
-                                text = "SAVED FILES",
+                                text = stringResource(R.string.files),
                                 icon = Icons.Default.Description,
-                                backgroundColor = Color(0xFFD1E9FF), // Light Blue
-                                contentColor = Color(0xFF003F7F),
-                                darkBackgroundColor = Color(0xFF004A77),
-                                darkContentColor = Color(0xFFC3E7FF)
+                                backgroundColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                darkBackgroundColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
+                                darkContentColor = MaterialTheme.colorScheme.onTertiaryContainer
                             )
                         }
 
                         if (hasAudio) {
                             NoteCardPill(
-                                text = "SAVED AUDIO",
-                                icon = Icons.Default.GraphicEq, // Creative: Waveform
-                                backgroundColor = Color(0xFFC4E7FF), // Light Cyan
-                                contentColor = Color(0xFF004C6D),
-                                darkBackgroundColor = Color(0xFF004F70),
-                                darkContentColor = Color(0xFFC2E8FF)
+                                text = stringResource(R.string.audio_label),
+                                icon = Icons.Default.Audiotrack,
+                                backgroundColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                darkBackgroundColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                darkContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                     }
                 }
-
-                // 3. Edit Icon (Bottom Right)
-                Icon(
-                    imageVector = Icons.Default.DesignServices, // Creative: Design/Edit
-                    contentDescription = "Edit",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(20.dp)
-                )
             }
         }
     }
@@ -361,23 +461,23 @@ fun CategoryChip(
     isNew: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val bg = if (isDark) Color(0xFF344054) else Color(0xFFE3E8EF)
-    val contentColor = if (isDark) Color(0xFFD0D5DD) else Color(0xFF1D2939)
+    val accentColor = LocalAccentColor.current
+    val bg = MaterialTheme.colorScheme.surfaceVariant
+    val contentColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(50), // Pill shape
-        color = if (isNew) LocalAccentColor.current.copy(alpha = Alpha.medium) else bg
+        color = if (isNew) accentColor.copy(alpha = Alpha.medium) else bg
     ) {
         Text(
-            text = name.uppercase(),
+            text = name.lowercase(),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp
             ),
-            color = if (isNew) LocalAccentColor.current else contentColor,
+            color = if (isNew) accentColor else contentColor,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }

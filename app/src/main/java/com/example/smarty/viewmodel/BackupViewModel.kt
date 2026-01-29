@@ -46,7 +46,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private val cloudBackupManager: BackupManager by lazy {
-        BackupManager(application, database, securePreferences, driveService)
+        BackupManager(application, database, securePreferences, driveService, authManager)
     }
 
     private val localBackupManager: LocalBackupManager by lazy {
@@ -85,6 +85,7 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
     val availableBackups: StateFlow<List<BackupMetadata>> = backupFeatureManager.availableCloudBackups
     val localBackups: StateFlow<List<LocalBackupMetadata>> = backupFeatureManager.availableLocalBackups
     val isLoadingBackups: StateFlow<Boolean> = backupFeatureManager.isLoadingCloudBackups
+    val isLoadingLocalBackups: StateFlow<Boolean> = backupFeatureManager.isLoadingLocalBackups
     val lastBackupTime: StateFlow<Long> = backupFeatureManager.lastBackupTime
     val autoBackupEnabled: StateFlow<Boolean> = backupFeatureManager.autoBackupEnabled
 

@@ -71,21 +71,21 @@ val TextSecondaryLight = Color(0xFF3C3C43)
 val TextTertiaryLight = Color(0xFF8E8E93)
 
 // =============================================================================
-// NOTE TYPE COLORS - Semantic (preserved)
+// NOTE TYPE COLORS - Softened Technical Palette
 // =============================================================================
-val YoutubeRed = Color(0xFFFF0000)
-val TwitterBlue = Color(0xFF1DA1F2)
-val WebGray = Color(0xFF8E8E93)
-val ImageTeal = Color(0xFF30D158)
-val BrainDumpPurple = Color(0xFFBF5AF2)
+val YoutubeRed = Color(0xFFEF9A9A)
+val TwitterBlue = Color(0xFF90CAF9)
+val WebGray = Color(0xFFB0BEC5)
+val ImageTeal = Color(0xFFA5D6A7)
+val BrainDumpPurple = Color(0xFFB39DDB)
 
 // =============================================================================
-// APPLE SYSTEM COLORS (iOS Standard - preserved for semantic use)
+// SYSTEM COLORS - Softened for Calm Aesthetic
 // =============================================================================
-val SystemBlue = Color(0xFF007AFF)
-val SystemRed = Color(0xFFFF3B30)
-val SystemGreen = Color(0xFF34C759)
-val SystemOrange = Color(0xFFFF9500)
+val SystemBlue = Color(0xFF90CAF9)
+val SystemRed = Color(0xFFEF9A9A)
+val SystemGreen = Color(0xFFA5D6A7)
+val SystemOrange = Color(0xFFFFCC80)
 val SystemGray6 = Color(0xFFF2F2F7)
 val SystemGray5 = Color(0xFFE5E5EA)
 val SystemGray4 = Color(0xFFD1D1D6)
@@ -93,16 +93,16 @@ val SystemGray3 = Color(0xFFC7C7CC)
 val SystemGray = Color(0xFF8E8E93)
 
 // =============================================================================
-// FILE TYPE COLORS - Semantic (preserved)
+// FILE TYPE / CATEGORY COLORS - Technical Palette
 // =============================================================================
 val DocumentBlue = SystemBlue
 val SpreadsheetGreen = SystemGreen
 val PresentationOrange = SystemOrange
 val VideoRed = SystemRed
-val AudioPink = Color(0xFFEC0606)
-val CodeCyan = Color(0xFF5AC8FA)
-val ArchiveYellow = Color(0xFFFFCC00)
-val ApkGreen = Color(0xFF3DDC84)
+val AudioPink = Color(0xFFF48FB1)
+val CodeCyan = Color(0xFF80DEEA)
+val ArchiveYellow = Color(0xFFFFE082)
+val ApkGreen = Color(0xFFA5D6A7)
 val FileGray = SystemGray
 
 // =============================================================================
@@ -110,14 +110,14 @@ val FileGray = SystemGray
 // =============================================================================
 
 /**
- * Google Brand Colors for Gemini-style four-color glow animation.
- * Used in the assistant overlay for input bar border and mic button ring.
+ * Softened Technical Palette for Gemini-style four-color glow animation.
+ * Optimized for the Calm Aesthetic.
  */
 object GeminiColors {
-    val Red = Color(0xFFEA4335)
-    val Yellow = Color(0xFFFBBC05)
-    val Green = Color(0xFF34A853)
-    val Blue = Color(0xFF4285F4)
+    val Red = Color(0xFFEF9A9A)    // Soft Red
+    val Yellow = Color(0xFFFFE082) // Soft Yellow
+    val Green = Color(0xFFA5D6A7)  // Soft Green
+    val Blue = Color(0xFF90CAF9)   // Soft Blue
 
     /** Four-color gradient for glow animation */
     val glowColors = listOf(Red, Yellow, Green, Blue)

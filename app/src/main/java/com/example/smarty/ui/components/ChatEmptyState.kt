@@ -3,8 +3,11 @@ package com.example.smarty.ui.components
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -18,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
@@ -48,6 +52,240 @@ import com.example.smarty.ui.utils.*
  */
 
 /**
+ * Calendar Empty State: "Time Ripple" Animation
+ *
+ * Design Philosophy (Anthropic-inspired):
+ * - Soft expanding/contracting rings
+ * - Represents the fluidity of time
+ * - Calm, no pressure, peaceful waiting
+ *
+ * LIFECYCLE AWARE: Pauses when app backgrounded
+ */
+@Composable
+fun CalendarEmptyState(modifier: Modifier = Modifier) {
+    EmptyStateContainer(
+        title = "calendar",
+        subtitle = "nothing_planned",
+        hint = "tap_+_to_add_something_to_your_schedule",
+        modifier = modifier
+    ) {
+        TimeRippleAnimation()
+    }
+}
+
+/**
+ * Time Ripple Animation - Soft concentric ripples
+ */
+@Composable
+private fun TimeRippleAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "time_ripple")
+    } else null
+
+    val pulse by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = EaseInOutSine)
+            ),
+            label = "pulse"
+        )
+    } else {
+        remember { mutableStateOf(0.5f) }
+    }
+
+    val floatY by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = -4f,
+            targetValue = 4f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(5000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "float_y"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f + floatY
+        val radius = 40.dp.toPx()
+
+        for (i in 0 until 3) {
+            val p = (pulse + i * 0.33f) % 1f
+            val alpha = (1f - p) * 0.4f
+            val scale = 0.5f + p * 1.2f
+
+            drawCircle(
+                color = accentColor.copy(alpha = alpha),
+                radius = radius * scale,
+                center = Offset(cx, cy),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+
+        drawCircle(
+            color = accentColor.copy(alpha = 0.8f),
+            radius = 12.dp.toPx(),
+            center = Offset(cx, cy)
+        )
+    }
+}
+
+/**
+ * Search Empty State: "Searching Light" Animation
+ *
+ * Design Philosophy (Anthropic-inspired):
+ * - Soft, sweeping glow
+ * - Represents a gentle search/discovery process
+ * - Not aggressive, just looking peacefully
+ */
+@Composable
+fun SearchEmptyState(searchQuery: String, modifier: Modifier = Modifier) {
+    EmptyStateContainer(
+        title = "no_matches",
+        subtitle = "\"$searchQuery\"",
+        hint = "try_different_keywords_or_filters",
+        modifier = modifier
+    ) {
+        SearchingLightAnimation()
+    }
+}
+
+/**
+ * Searching Light Animation - Soft sweeping glow
+ */
+@Composable
+private fun SearchingLightAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "searching_light")
+    } else null
+
+    val sweep by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(6000, easing = LinearEasing)
+            ),
+            label = "sweep"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f
+        val radius = 50.dp.toPx()
+
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    accentColor.copy(alpha = 0.15f),
+                    Color.Transparent
+                ),
+                center = Offset(cx, cy),
+                radius = radius * 2f
+            ),
+            radius = radius * 2f,
+            center = Offset(cx, cy)
+        )
+
+        val sweepX = cx + kotlin.math.cos(sweep) * radius
+        val sweepY = cy + kotlin.math.sin(sweep) * radius
+
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    accentColor.copy(alpha = 0.6f),
+                    Color.Transparent
+                ),
+                center = Offset(sweepX, sweepY),
+                radius = radius
+            ),
+            radius = radius,
+            center = Offset(sweepX, sweepY)
+        )
+    }
+}
+
+/**
+ * Chat History Empty State: "Whispering Echoes" Animation
+ *
+ * Design Philosophy (Anthropic-inspired):
+ * - Soft fading circles representing past moments
+ * - Gentle drifting motion
+ * - Calm, no pressure to have history
+ */
+@Composable
+fun ChatHistoryEmptyState(modifier: Modifier = Modifier) {
+    EmptyStateContainer(
+        title = "history",
+        subtitle = "no_conversations_yet",
+        hint = "your_past_chats_will_appear_here_as_you_interact_with_smarty",
+        modifier = modifier
+    ) {
+        WhisperingEchoesAnimation()
+    }
+}
+
+/**
+ * Whispering Echoes Animation - Soft fading/drifting circles
+ */
+@Composable
+private fun WhisperingEchoesAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "whispering_echoes")
+    } else null
+
+    val drift by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(8000, easing = LinearEasing)
+            ),
+            label = "drift"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f
+        val radius = 40.dp.toPx()
+
+        for (i in 0 until 4) {
+            val phase = drift + i * (TWO_PI_F / 4f)
+            val dx = cx + kotlin.math.cos(phase) * 30f
+            val dy = cy + kotlin.math.sin(phase * 0.5f) * 20f
+            val alpha = (0.3f + 0.2f * kotlin.math.sin(phase)).coerceIn(0.1f, 0.4f)
+
+            drawCircle(
+                color = accentColor.copy(alpha = alpha),
+                radius = radius * (0.8f + 0.2f * kotlin.math.sin(phase * 1.5f)),
+                center = Offset(dx, dy),
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+        }
+    }
+}
+
+/**
  * Shared container for text content in empty states to maintain consistency.
  */
 @Composable
@@ -74,40 +312,204 @@ private fun EmptyStateContainer(
             enter = fadeIn(),
             exit = fadeOut()
         ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .offset(y = 150.dp) // Shifted lower to increase separation from graphic
-                .padding(horizontal = 32.dp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .offset(y = 150.dp) // Shifted lower to increase separation from graphic
+                    .padding(horizontal = 32.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = LocalAccentColor.current
+                )
+
+                if (subtitle.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+
+                if (hint != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = hint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.widthIn(max = 280.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Compact version of empty state for use in sheets, cards, or smaller regions.
+ */
+@Composable
+fun CompactEmptyState(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        // Simple pulsing dot for compact state
+        Box(
+            modifier = Modifier.size(60.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = LocalAccentColor.current
+            val accentColor = LocalAccentColor.current
+            val infiniteTransition = rememberInfiniteTransition(label = "compact_pulse")
+            val pulse by infiniteTransition.animateFloat(
+                initialValue = 0.6f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = EaseInOutSine),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulse"
             )
 
-            if (subtitle.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    color = accentColor.copy(alpha = 0.15f * pulse),
+                    radius = size.minDimension / 2
+                )
+                drawCircle(
+                    color = accentColor.copy(alpha = 0.4f),
+                    radius = (size.minDimension / 6) * pulse
                 )
             }
+        }
 
-            if (hint != null) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = hint,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.widthIn(max = 280.dp)
-                )
-            }
-            }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = LocalAccentColor.current
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+
+/**
+ * Calm Loading State - Unified shimmer effect for data boundaries
+ */
+@Composable
+fun CalmLoadingState(
+    modifier: Modifier = Modifier,
+    height: androidx.compose.ui.unit.Dp = 100.dp,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp)
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "calm_shimmer")
+    val shimmerAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.05f,
+        targetValue = 0.15f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = EaseInOutSine),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shimmer"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .background(
+                color = LocalAccentColor.current.copy(alpha = shimmerAlpha),
+                shape = shape
+            )
+    )
+}
+
+/**
+ * Skeleton Loader for text blocks
+ */
+@Composable
+fun TextSkeletonLoader(
+    lines: Int = 3,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        repeat(lines) { index ->
+            val widthFraction = if (index == lines - 1) 0.6f else 1f
+            CalmLoadingState(
+                height = 14.dp,
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.fillMaxWidth(widthFraction)
+            )
+        }
+    }
+}
+
+/**
+ * Calm Linear Progress - A softer, organic version of the linear progress indicator.
+ * Uses spring animations for smooth, natural progress updates.
+ */
+@Composable
+fun CalmLinearProgress(
+    progress: () -> Float,
+    modifier: Modifier = Modifier,
+    color: Color = LocalAccentColor.current,
+    trackColor: Color = color.copy(alpha = 0.1f)
+) {
+    val targetProgress = progress()
+    val animatedProgress by animateFloatAsState(
+        targetValue = targetProgress.coerceIn(0f, 1f),
+        animationSpec = spring(
+            dampingRatio = 0.85f,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "calm_progress"
+    )
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(4.dp)
+    ) {
+        val width = size.width
+        val height = size.height
+        val radius = height / 2
+
+        // Track
+        drawRoundRect(
+            color = trackColor,
+            size = Size(width, height),
+            cornerRadius = CornerRadius(radius, radius)
+        )
+
+        // Progress
+        if (animatedProgress > 0) {
+            drawRoundRect(
+                color = color,
+                size = Size(width * animatedProgress, height),
+                cornerRadius = CornerRadius(radius, radius)
+            )
         }
     }
 }
@@ -133,9 +535,9 @@ private fun EmptyStateContainer(
 @Composable
 fun ChatEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "Jarvis",
-        subtitle = "Here to help",
-        hint = "What can I help with?",
+        title = "jarvis",
+        subtitle = "here_to_help",
+        hint = "what_can_i_help_with",
         modifier = modifier
     ) {
         WarmCompanionAnimation()
@@ -397,9 +799,9 @@ private data class ThoughtParticle(
 @Composable
 fun NotesEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "Notes",
-        subtitle = "Capture your thoughts",
-        hint = "Tap + to create your first note",
+        title = "notes",
+        subtitle = "capture_your_thoughts",
+        hint = "tap_+_to_create_your_first_note",
     ) {
         GentlePagesAnimation()
     }
@@ -602,9 +1004,9 @@ private data class GentlePagesConfig(
 @Composable
 fun ArchiveEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "Archive",
-        subtitle = "Saved for later",
-        hint = "Archived notes will appear here",
+        title = "archive",
+        subtitle = "preserved_items",
+        hint = "archived_notes_will_appear_here",
         modifier = modifier
     ) {
         SafeHavenAnimation()
@@ -814,9 +1216,9 @@ private data class SafeHavenConfig(
 @Composable
 fun StacksEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "Stacks",
-        subtitle = "Your collections",
-        hint = "AI will organize your notes into smart stacks",
+        title = "stacks",
+        subtitle = "your_collections",
+        hint = "ai_will_organize_your_notes_into_smart_stacks",
         modifier = modifier
     ) {
         GatheringPlaceAnimation()
@@ -1063,12 +1465,322 @@ private data class CompanionOrb(
 @Composable
 fun CategoryEmptyState(categoryName: String, modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = categoryName,
-        subtitle = "Focused notes",
-        hint = "Add notes to this category",
+        title = categoryName.lowercase(),
+        subtitle = "focused_notes",
+        hint = "add_notes_to_this_category",
         modifier = modifier
     ) {
         QuietSpaceAnimation()
+    }
+}
+
+/**
+ * Files Empty State: "Floating Links" Animation
+ *
+ * Design Philosophy:
+ * - Soft nodes with connecting threads
+ * - Represents the web of knowledge
+ * - Calm, slow orbital motion
+ */
+@Composable
+fun FilesEmptyState(modifier: Modifier = Modifier) {
+    EmptyStateContainer(
+        title = "files",
+        subtitle = "no_associated_files",
+        hint = "images_documents_and_audio_will_appear_here",
+        modifier = modifier
+    ) {
+        FloatingLinksAnimation()
+    }
+}
+
+/**
+ * Floating Links Animation - Orbiting nodes with soft connections
+ */
+@Composable
+private fun FloatingLinksAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "floating_links")
+    } else null
+
+    val orbit by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(12000, easing = LinearEasing)
+            ),
+            label = "orbit"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    Canvas(modifier = Modifier.size(160.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f
+        val radius = 45.dp.toPx()
+
+        // Central hub
+        drawCircle(
+            color = accentColor.copy(alpha = 0.15f),
+            radius = 12.dp.toPx(),
+            center = Offset(cx, cy)
+        )
+
+        for (i in 0 until 4) {
+            val angle = orbit + i * (TWO_PI_F / 4f)
+            val ox = cx + kotlin.math.cos(angle) * radius
+            val oy = cy + kotlin.math.sin(angle * 0.5f) * (radius * 0.6f)
+
+            // Connection line
+            drawLine(
+                color = accentColor.copy(alpha = 0.1f),
+                start = Offset(cx, cy),
+                end = Offset(ox, oy),
+                strokeWidth = 1.dp.toPx()
+            )
+
+            // Orbiting node
+            drawCircle(
+                color = accentColor.copy(alpha = 0.4f),
+                radius = 6.dp.toPx(),
+                center = Offset(ox, oy)
+            )
+        }
+    }
+}
+
+/**
+ * Version History Empty State: "Time Echo" Animation
+ *
+ * Design Philosophy:
+ * - Soft concentric rings expanding slowly
+ * - Represents layers of history
+ */
+@Composable
+fun VersionHistoryEmptyState(modifier: Modifier = Modifier) {
+    EmptyStateContainer(
+        title = "history",
+        subtitle = "no_versions_yet",
+        hint = "edit_this_note_to_create_a_version",
+        modifier = modifier
+    ) {
+        TimeEchoAnimation()
+    }
+}
+
+/**
+ * Backup Empty State: "Safe Cloud" Animation
+ *
+ * Design Philosophy:
+ * - Soft cloud shape with gentle pulse
+ * - Represents data being safe and waiting
+ */
+@Composable
+fun BackupEmptyState(
+    isLocal: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    EmptyStateContainer(
+        title = if (isLocal) "local_archives" else "cloud_backups",
+        subtitle = if (isLocal) "no_local_backups_yet" else "no_cloud_backups_found",
+        hint = if (isLocal) "create_a_backup_to_save_data_on_your_device" else "sign_in_and_backup_to_protect_your_data",
+        modifier = modifier
+    ) {
+        SafeCloudAnimation()
+    }
+}
+
+/**
+ * Intelligence Empty State: "Neural Glow" Animation
+ *
+ * Design Philosophy:
+ * - Soft pulsing nodes representing neural connections
+ * - Represents the AI's learning process
+ */
+@Composable
+fun IntelligenceEmptyState(modifier: Modifier = Modifier) {
+    EmptyStateContainer(
+        title = "intelligence",
+        subtitle = "no_patterns_detected_yet",
+        hint = "start_interacting_with_smarty_to_build_your_profile",
+        modifier = modifier
+    ) {
+        NeuralGlowAnimation()
+    }
+}
+
+/**
+ * Neural Glow Animation - Soft pulsing nodes
+ */
+@Composable
+private fun NeuralGlowAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "neural_glow")
+    } else null
+
+    val pulse by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = TWO_PI_F,
+            animationSpec = infiniteRepeatable(
+                animation = tween(6000, easing = LinearEasing)
+            ),
+            label = "pulse"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    Canvas(modifier = Modifier.size(120.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f
+        val radius = 35.dp.toPx()
+
+        for (i in 0 until 5) {
+            val angle = i * (TWO_PI_F / 5f)
+            val px = cx + kotlin.math.cos(angle) * radius
+            val py = cy + kotlin.math.sin(angle) * radius
+
+            val nodePulse = (fastSin(pulse + i) + 1f) / 2f
+            val alpha = 0.1f + nodePulse * 0.4f
+            val sizePulse = 4.dp.toPx() + nodePulse * 4.dp.toPx()
+
+            // Glow
+            drawCircle(
+                color = accentColor.copy(alpha = alpha * 0.5f),
+                radius = sizePulse * 2f,
+                center = Offset(px, py)
+            )
+
+            // Core
+            drawCircle(
+                color = accentColor.copy(alpha = alpha),
+                radius = sizePulse,
+                center = Offset(px, py)
+            )
+
+            // Connection to center
+            drawLine(
+                color = accentColor.copy(alpha = 0.05f),
+                start = Offset(cx, cy),
+                end = Offset(px, py),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+
+        drawCircle(
+            color = accentColor.copy(alpha = 0.2f),
+            radius = 15.dp.toPx(),
+            center = Offset(cx, cy)
+        )
+    }
+}
+
+/**
+ * Safe Cloud Animation - Soft cloud with gentle pulse
+ */
+@Composable
+private fun SafeCloudAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "safe_cloud")
+    } else null
+
+    val breathe by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.95f,
+            targetValue = 1.05f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(4000, easing = EaseInOutSine),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "breathe"
+        )
+    } else {
+        remember { mutableStateOf(1f) }
+    }
+
+    Canvas(modifier = Modifier.size(120.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f
+        val r = 25.dp.toPx() * breathe
+
+        // Draw a soft cloud shape using circles
+        drawCircle(
+            color = accentColor.copy(alpha = 0.2f),
+            radius = r * 1.2f,
+            center = Offset(cx, cy)
+        )
+        drawCircle(
+            color = accentColor.copy(alpha = 0.2f),
+            radius = r * 0.8f,
+            center = Offset(cx - r, cy + r * 0.2f)
+        )
+        drawCircle(
+            color = accentColor.copy(alpha = 0.2f),
+            radius = r * 0.8f,
+            center = Offset(cx + r, cy + r * 0.2f)
+        )
+    }
+}
+
+/**
+ * Time Echo Animation - Soft expanding rings
+ */
+@Composable
+private fun TimeEchoAnimation() {
+    val accentColor = LocalAccentColor.current
+    val shouldAnimate = shouldAnimationRun()
+
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "time_echo")
+    } else null
+
+    val pulse by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3000, easing = EaseInOutSine)
+            ),
+            label = "pulse"
+        )
+    } else {
+        remember { mutableStateOf(0.5f) }
+    }
+
+    Canvas(modifier = Modifier.size(120.dp)) {
+        val cx = size.width * 0.5f
+        val cy = size.height * 0.5f
+
+        for (i in 0 until 2) {
+            val p = (pulse + i * 0.5f) % 1f
+            val alpha = (1f - p) * 0.3f
+            val scale = 0.2f + p * 1.5f
+
+            drawCircle(
+                color = accentColor.copy(alpha = alpha),
+                radius = 30.dp.toPx() * scale,
+                center = Offset(cx, cy),
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+        }
+
+        drawCircle(
+            color = accentColor.copy(alpha = 0.6f),
+            radius = 8.dp.toPx(),
+            center = Offset(cx, cy)
+        )
     }
 }
 
@@ -1230,6 +1942,65 @@ private fun QuietSpaceAnimation() {
             center = Offset(cx, cy),
             radius = cfg.coreRadius * 0.5f * breathe
         )
+    }
+}
+
+/**
+ * Calm Thinking Dots - A premium, organic replacement for CircularProgressIndicator.
+ * Three dots that pulse with a soft, "thinking" rhythm.
+ *
+ * Features:
+ * - Lifecycle-aware: Pauses when app is backgrounded.
+ * - Organic motion: Uses sine-based breathing.
+ * - Systematic: Uses LocalAccentColor and consistent spacing.
+ */
+@Composable
+fun CalmThinkingDots(
+    modifier: Modifier = Modifier,
+    color: Color = LocalAccentColor.current,
+    dotSize: androidx.compose.ui.unit.Dp = 6.dp,
+    dotSpacing: androidx.compose.ui.unit.Dp = 4.dp
+) {
+    val shouldAnimate = shouldAnimationRun()
+    val infiniteTransition = if (shouldAnimate) {
+        rememberInfiniteTransition(label = "thinking_dots")
+    } else null
+
+    val progress by if (infiniteTransition != null) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing)
+            ),
+            label = "progress"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(dotSpacing),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { index ->
+            // Offset each dot's animation phase
+            val dotProgress = (progress + (index * 0.2f)) % 1f
+            // Soft sine pulse: 0.3 to 1.0 alpha/scale
+            val pulse = 0.3f + 0.7f * fastSin(dotProgress * PI_F)
+
+            Box(
+                modifier = Modifier
+                    .size(dotSize)
+                    .graphicsLayer {
+                        alpha = pulse
+                        scaleX = 0.8f + 0.2f * pulse
+                        scaleY = 0.8f + 0.2f * pulse
+                    }
+                    .background(color, CircleShape)
+            )
+        }
     }
 }
 

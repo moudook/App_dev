@@ -120,6 +120,8 @@ import okhttp3.OkHttpClient
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import androidx.compose.ui.graphics.toArgb
+import com.example.smarty.ui.LocalAccentColor
 import androidx.compose.ui.graphics.Color as ComposeColor
 
 /**
@@ -434,7 +436,7 @@ class AssistActivity : ComponentActivity() {
 
         override suspend fun retrieveMemories(query: String?, limit: Int): List<com.example.smarty.data.model.AIMemory> {
             return if (query != null) {
-                database.aiMemoryDao().searchMemories("%$query%")
+                database.aiMemoryDao().getRelevantMemories(query, limit)
             } else {
                 database.aiMemoryDao().getRecentMemories(limit)
             }
@@ -444,7 +446,7 @@ class AssistActivity : ComponentActivity() {
             Log.w(TAG, "Consolidate not supported in AssistActivity")
         }
 
-        override fun getMemoryStats(): Map<String, Any> = emptyMap()
+        override suspend fun getMemoryStats(): Map<String, Any> = emptyMap()
 
         override suspend fun analyzePatterns(): com.example.smarty.viewmodel.managers.UserPatternsReport {
             return com.example.smarty.viewmodel.managers.UserPatternsReport(
@@ -1293,8 +1295,8 @@ class AssistActivity : ComponentActivity() {
                     speechTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
                     isListening.value = true
                     runOnUiThread {
-                        micButton.setColorFilter(Color.parseColor("#4285F4")) // Google Blue
-                        inputField.hint = "Listening..."
+                        micButton.setColorFilter(GeminiColors.Blue.toArgb()) // Calmer Soft Blue
+                        inputField.hint = "listening...".lowercase()
                     }
                 }
                 override fun onBeginningOfSpeech() {
@@ -1307,7 +1309,7 @@ class AssistActivity : ComponentActivity() {
                     isListening.value = false
                     runOnUiThread {
                         micButton.clearColorFilter()
-                        inputField.hint = "Ask anything..."
+                        inputField.hint = "ask_anything...".lowercase()
                     }
                 }
                 override fun onError(error: Int) {
@@ -2467,7 +2469,7 @@ fun MinimalResponseList(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Thinking...",
+                        text = "thinking",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.secondary,
                         fontStyle = FontStyle.Italic
@@ -2485,21 +2487,21 @@ fun BubbleMessage(msg: ChatMessage) {
     val isDarkTheme = isSystemInDarkTheme()
 
     // Theme-aware colors
-    // User: Blue bubble with white text
+    // User: Soft Blue bubble with normalized text
     // AI: Theme surface with theme text color
-    val userBubbleColor = GeminiColors.Blue
+    val userBubbleColor = LocalAccentColor.current.copy(alpha = 0.8f)
     val aiBubbleColor = if (isDarkTheme) {
-        ComposeColor(0xFF1E1E1E) // Dark gray for dark theme
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
     } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     }
 
-    val userTextColor = ComposeColor.White
+    val userTextColor = MaterialTheme.colorScheme.onPrimaryContainer
     val aiTextColor = MaterialTheme.colorScheme.onSurface
 
     val normalColor = if (isUser) userTextColor else aiTextColor
-    val boldColor = if (isUser) userTextColor else GeminiColors.Blue
-    val linkColor = if (isDarkTheme) ComposeColor(0xFF82B1FF) else ComposeColor(0xFF1976D2)
+    val boldColor = if (isUser) userTextColor else LocalAccentColor.current
+    val linkColor = LocalAccentColor.current
     val codeColor = normalColor
 
     val annotatedText = parseMarkdownToAnnotatedString(

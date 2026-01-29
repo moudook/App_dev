@@ -114,6 +114,9 @@ class AutoBackupWorker(
             // Initialize components
             val authManager = GoogleAuthManager(context)
 
+            // Attempt silent sign-in to refresh token
+            authManager.silentSignIn()
+
             // Check if user is signed in
             if (!authManager.isSignedIn.value) {
                 return Result.retry()
@@ -125,7 +128,8 @@ class AutoBackupWorker(
                 context = context,
                 database = database,
                 securePreferences = securePreferences,
-                driveService = driveService
+                driveService = driveService,
+                authManager = authManager
             )
 
             // Perform backup

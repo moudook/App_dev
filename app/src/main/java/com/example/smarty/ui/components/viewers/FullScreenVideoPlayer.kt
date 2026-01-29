@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -169,8 +170,8 @@ private fun VideoPlayerContent(
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.HighlightOff, // Creative: Dismiss
-                    contentDescription = "Close",
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "close",
                     tint = Color.White
                 )
             }

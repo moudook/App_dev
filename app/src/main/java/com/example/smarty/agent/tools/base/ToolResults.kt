@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Common result types for Jarvis AI Agent tools.
+ * Common result types for Smarty AI Agent tools.
  * These provide structured responses in TOON format for reduced token usage.
  *
  * TOON (Token-Oriented Object Notation) provides 30-60% token savings vs JSON.

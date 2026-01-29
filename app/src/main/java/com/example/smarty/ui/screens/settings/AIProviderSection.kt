@@ -30,7 +30,6 @@ import com.example.smarty.data.local.AIProvider
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.MonoFont
-import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.util.api.KeyHealthStatus
 
@@ -141,7 +140,7 @@ fun ProviderSection(
                     IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(28.dp)) {
                          Icon(
                             imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            contentDescription = if (isExpanded) "collapse" else "expand",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -182,13 +181,21 @@ fun ProviderSection(
                     // Existing API keys Title
                     if (apiKeys.isNotEmpty()) {
                          Text(
-                            text = "API KEYS",
+                            text = "api_keys",
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
 
                     // Existing API keys List
+                    if (apiKeys.isEmpty() && !showNewKeyInput) {
+                        com.example.smarty.ui.components.CompactEmptyState(
+                            title = "no_keys_configured",
+                            subtitle = "add_an_api_key_to_enable_${providerName.lowercase()}_features",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     apiKeys.forEachIndexed { index, key ->
                         ApiKeyItem(
                             apiKey = key,
@@ -253,12 +260,12 @@ fun ProviderSection(
                             elevation = ButtonDefaults.buttonElevation(0.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AutoAwesome,
+                                imageVector = Icons.Default.Add,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (apiKeys.isEmpty()) "Add API Key" else "Add Backup Key")
+                            Text(if (apiKeys.isEmpty()) "add_api_key" else "add_backup_key")
                         }
                     }
                 }
@@ -310,7 +317,7 @@ private fun ModelSelector(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "Model",
+                            text = "model",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -333,7 +340,7 @@ private fun ModelSelector(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Refresh,
-                                    contentDescription = "Refresh",
+                                    contentDescription = "refresh",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -370,7 +377,7 @@ private fun ModelSelector(
                         leadingIcon = {
                             if (modelId == selectedModel) {
                                 Icon(
-                                    imageVector = Icons.Default.Verified,
+                                    imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
                                     tint = LocalAccentColor.current,
                                     modifier = Modifier.size(18.dp)
@@ -423,12 +430,12 @@ fun ApiKeyItem(
     val showBorder = usageStats?.healthStatus != KeyHealthStatus.HEALTHY && usageStats?.healthStatus != null || testResult != null
     
     val borderColor = when {
-        usageStats?.healthStatus == KeyHealthStatus.ERROR -> SafetyOrange
-        usageStats?.healthStatus == KeyHealthStatus.DAILY_EXHAUSTED -> SafetyOrange.copy(alpha = 0.7f)
-        usageStats?.healthStatus == KeyHealthStatus.RATE_LIMITED -> Color(0xFFFF9800)
-        usageStats?.healthStatus == KeyHealthStatus.COOLDOWN -> Color(0xFFFF9800)
+        usageStats?.healthStatus == KeyHealthStatus.ERROR -> MaterialTheme.colorScheme.error
+        usageStats?.healthStatus == KeyHealthStatus.DAILY_EXHAUSTED -> MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+        usageStats?.healthStatus == KeyHealthStatus.RATE_LIMITED -> MaterialTheme.colorScheme.tertiary
+        usageStats?.healthStatus == KeyHealthStatus.COOLDOWN -> MaterialTheme.colorScheme.tertiary
         testResult == true -> LocalAccentColor.current
-        testResult == false -> SafetyOrange
+        testResult == false -> MaterialTheme.colorScheme.error
         else -> Color.Transparent
     }
 
@@ -450,7 +457,7 @@ fun ApiKeyItem(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Key #$keyNumber",
+                        text = "key_#$keyNumber",
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -484,15 +491,14 @@ fun ApiKeyItem(
                         modifier = Modifier.size(32.dp)
                     ) {
                         if (isTesting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(14.dp),
-                                strokeWidth = 2.dp,
-                                color = LocalAccentColor.current
+                            com.example.smarty.ui.components.CalmThinkingDots(
+                                color = LocalAccentColor.current,
+                                dotSize = 3.dp
                             )
                         } else {
                             Icon(
-                                imageVector = Icons.Default.Science, // Creative: Experiment/Test
-                                contentDescription = "Test",
+                                imageVector = Icons.Default.Build, // Standard build/test icon
+                                contentDescription = "test",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -503,8 +509,8 @@ fun ApiKeyItem(
                     if (!isEditing) {
                         IconButton(onClick = onStartEdit, modifier = Modifier.size(32.dp)) {
                             Icon(
-                                imageVector = Icons.Default.DesignServices, // Creative: Design/Edit
-                                contentDescription = "Edit",
+                                imageVector = Icons.Default.Edit, // Standard edit icon
+                                contentDescription = "edit",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -514,8 +520,8 @@ fun ApiKeyItem(
                     // Delete button
                     IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
                         Icon(
-                            imageVector = Icons.Default.Whatshot, // Creative: Fire/Delete
-                            contentDescription = "Remove",
+                            imageVector = Icons.Default.DeleteOutline, // Standard delete icon
+                            contentDescription = "remove",
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                             modifier = Modifier.size(16.dp)
                         )
@@ -564,28 +570,28 @@ private fun KeyHealthBadge(status: KeyHealthStatus) {
     val (color, icon, text) = when (status) {
         KeyHealthStatus.HEALTHY -> Triple(
             LocalAccentColor.current,
-            Icons.Default.Verified,
-            "OK"
+            Icons.Default.CheckCircle,
+            "ok"
         )
         KeyHealthStatus.RATE_LIMITED -> Triple(
-            Color(0xFFFF9800),
+            MaterialTheme.colorScheme.tertiary,
             Icons.Default.Schedule,
-            "Rate Limited"
+            "rate_limited"
         )
         KeyHealthStatus.DAILY_EXHAUSTED -> Triple(
-            SafetyOrange,
+            MaterialTheme.colorScheme.error,
             Icons.Default.Block,
-            "Daily Limit"
+            "daily_limit"
         )
         KeyHealthStatus.ERROR -> Triple(
-            SafetyOrange,
-            Icons.Default.Shield, // Creative: Shield/Protection
-            "Error"
+            MaterialTheme.colorScheme.error,
+            Icons.Default.ErrorOutline, // Standard error icon
+            "error"
         )
         KeyHealthStatus.COOLDOWN -> Triple(
-            Color(0xFFFF9800),
+            MaterialTheme.colorScheme.tertiary,
             Icons.Default.HourglassEmpty,
-            "Cooldown"
+            "cooldown"
         )
     }
 
@@ -631,7 +637,7 @@ private fun KeyUsageDisplay(stats: KeyUsageStats) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Rate",
+                text = "rate",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -639,21 +645,20 @@ private fun KeyUsageDisplay(stats: KeyUsageStats) {
                 text = "${stats.callsThisMinute}/${stats.rateLimit}/min",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (stats.callsThisMinute >= stats.rateLimit)
-                    SafetyOrange else MaterialTheme.colorScheme.onSurface
+                    MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
         }
 
         // Rate limit progress bar
         val rateProgress = (stats.callsThisMinute.toFloat() / stats.rateLimit).coerceIn(0f, 1f)
-        LinearProgressIndicator(
+        com.example.smarty.ui.components.CalmLinearProgress(
             progress = { rateProgress },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp)),
+                .height(4.dp),
             color = when {
-                rateProgress >= 1f -> SafetyOrange
-                rateProgress >= 0.8f -> Color(0xFFFF9800)
+                rateProgress >= 1f -> MaterialTheme.colorScheme.error
+                rateProgress >= 0.8f -> MaterialTheme.colorScheme.tertiary
                 else -> LocalAccentColor.current
             },
             trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -668,7 +673,7 @@ private fun KeyUsageDisplay(stats: KeyUsageStats) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Today",
+                text = "today",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -676,21 +681,20 @@ private fun KeyUsageDisplay(stats: KeyUsageStats) {
                 text = "${stats.callsToday}/${stats.dailyLimit}",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (stats.callsToday >= stats.dailyLimit)
-                    SafetyOrange else MaterialTheme.colorScheme.onSurface
+                    MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
             )
         }
 
         // Daily progress bar
         val dailyProgress = (stats.callsToday.toFloat() / stats.dailyLimit).coerceIn(0f, 1f)
-        LinearProgressIndicator(
+        com.example.smarty.ui.components.CalmLinearProgress(
             progress = { dailyProgress },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp)),
+                .height(4.dp),
             color = when {
-                dailyProgress >= 1f -> SafetyOrange
-                dailyProgress >= 0.8f -> Color(0xFFFF9800)
+                dailyProgress >= 1f -> MaterialTheme.colorScheme.error
+                dailyProgress >= 0.8f -> MaterialTheme.colorScheme.tertiary
                 else -> LocalAccentColor.current
             },
             trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -725,16 +729,16 @@ private fun ApiKeyEditMode(
         )
         IconButton(onClick = onSaveEdit) {
             Icon(
-                imageVector = Icons.Default.Verified,
-                contentDescription = "Save",
+                imageVector = Icons.Default.Check,
+                contentDescription = "save",
                 tint = LocalAccentColor.current,
                 modifier = Modifier.size(18.dp)
             )
         }
         IconButton(onClick = onCancelEdit) {
             Icon(
-                imageVector = Icons.Default.HighlightOff,
-                contentDescription = "Cancel",
+                imageVector = Icons.Default.Close,
+                contentDescription = "cancel",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
@@ -764,7 +768,7 @@ private fun ApiKeyViewMode(
         IconButton(onClick = onToggleVisibility) {
             Icon(
                 imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                contentDescription = if (showKey) "Hide" else "Show",
+                contentDescription = if (showKey) "hide" else "show",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
@@ -783,15 +787,15 @@ private fun TestResultIndicator(isValid: Boolean) {
         modifier = Modifier.padding(top = 4.dp)
     ) {
         Icon(
-            imageVector = if (isValid) Icons.Default.Verified else Icons.Default.GppBad,
+            imageVector = if (isValid) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
             contentDescription = null,
-            tint = if (isValid) LocalAccentColor.current else SafetyOrange,
+            tint = if (isValid) LocalAccentColor.current else MaterialTheme.colorScheme.error,
             modifier = Modifier.size(14.dp)
         )
         Text(
-            text = if (isValid) "Valid API key" else "Invalid API key",
+            text = if (isValid) "valid_api_key" else "invalid_api_key",
             style = MaterialTheme.typography.labelSmall,
-            color = if (isValid) LocalAccentColor.current else SafetyOrange
+            color = if (isValid) LocalAccentColor.current else MaterialTheme.colorScheme.error
         )
     }
 }
@@ -828,7 +832,7 @@ fun NewApiKeyInput(
             modifier = Modifier.padding(12.dp)
         ) {
             Text(
-                text = "New API Key",
+                text = "new_api_key",
                 style = MaterialTheme.typography.labelSmall,
                 color = LocalAccentColor.current
             )
@@ -859,7 +863,7 @@ fun NewApiKeyInput(
                     )
                     if (value.isEmpty()) {
                         Text(
-                            text = "Paste your API key here...",
+                            text = "paste_api_key_here",
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFont),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -869,7 +873,7 @@ fun NewApiKeyInput(
                 IconButton(onClick = { showKey = !showKey }) {
                     Icon(
                         imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (showKey) "Hide" else "Show",
+                        contentDescription = if (showKey) "hide" else "show",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -883,7 +887,7 @@ fun NewApiKeyInput(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onCancel) {
-                    Text("Cancel")
+                    Text("cancel")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -894,7 +898,7 @@ fun NewApiKeyInput(
                         contentColor = MaterialTheme.colorScheme.surface
                     )
                 ) {
-                    Text("Add Key")
+                    Text("add_key")
                 }
             }
         }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -39,28 +40,33 @@ object JarvisShadow {
 /**
  * Soft card shadow modifier
  * Creates the diffuse "floating" effect from the design spec
+ * Generalized to support custom colors and shapes.
  */
 fun Modifier.softCardShadow(
-    shape: RoundedCornerShape = RoundedCornerShape(28.dp),
-    elevation: Dp = JarvisShadow.cardElevation
+    elevation: Dp = JarvisShadow.cardElevation,
+    shape: Shape = RoundedCornerShape(28.dp),
+    spotColor: Color = JarvisShadow.cardSpotColor,
+    ambientColor: Color = JarvisShadow.cardAmbientColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = JarvisShadow.cardSpotColor,
-    ambientColor = JarvisShadow.cardAmbientColor
+    spotColor = spotColor,
+    ambientColor = ambientColor
 )
 
 /**
  * Elevated shadow for modals and dialogs
  */
 fun Modifier.elevatedShadow(
-    shape: RoundedCornerShape = RoundedCornerShape(28.dp),
-    elevation: Dp = JarvisShadow.elevatedElevation
+    elevation: Dp = JarvisShadow.elevatedElevation,
+    shape: Shape = RoundedCornerShape(28.dp),
+    spotColor: Color = JarvisShadow.elevatedSpotColor,
+    ambientColor: Color = JarvisShadow.elevatedAmbientColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = JarvisShadow.elevatedSpotColor,
-    ambientColor = JarvisShadow.elevatedAmbientColor
+    spotColor = spotColor,
+    ambientColor = ambientColor
 )
 
 /**
@@ -68,12 +74,13 @@ fun Modifier.elevatedShadow(
  * Creates Electric Blue glow effect
  */
 fun Modifier.activeGlow(
-    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
-    elevation: Dp = JarvisShadow.glowElevation
+    elevation: Dp = JarvisShadow.glowElevation,
+    shape: Shape = RoundedCornerShape(12.dp),
+    spotColor: Color = JarvisShadow.glowColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = JarvisShadow.glowColor,
+    spotColor = spotColor,
     ambientColor = Color.Transparent
 )
 
@@ -81,11 +88,12 @@ fun Modifier.activeGlow(
  * Subtle shadow for smaller elements like chips
  */
 fun Modifier.subtleShadow(
-    shape: RoundedCornerShape = RoundedCornerShape(8.dp),
-    elevation: Dp = JarvisShadow.subtleElevation
+    elevation: Dp = JarvisShadow.subtleElevation,
+    shape: Shape = RoundedCornerShape(8.dp),
+    spotColor: Color = JarvisShadow.subtleSpotColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
-    spotColor = JarvisShadow.subtleSpotColor,
+    spotColor = spotColor,
     ambientColor = Color.Transparent
 )

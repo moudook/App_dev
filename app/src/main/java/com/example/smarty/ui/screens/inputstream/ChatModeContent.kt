@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -34,6 +36,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.Note
 import com.example.smarty.ui.LocalAccentColor
@@ -69,7 +73,7 @@ fun ChatModeContent(
                 state = chatListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = contentPadding,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp) // Increased spacing for a calmer feel
             ) {
                 items(
                     items = chatMessages,
@@ -111,57 +115,59 @@ fun ChatModeContent(
                         val statusText = if (!currentToolName.isNullOrBlank()) {
                             // Map tool names to friendly names and icons
                             val icon = when {
-                                currentToolName.contains("knowledge", ignoreCase = true) -> ""
-                                currentToolName.contains("master", ignoreCase = true) -> ""
-                                currentToolName.contains("time", ignoreCase = true) -> ""
-                                currentToolName.contains("manager", ignoreCase = true) -> ""
-                                currentToolName.contains("system", ignoreCase = true) -> ""
-                                currentToolName.contains("interface", ignoreCase = true) -> ""
-                                currentToolName.contains("cognitive", ignoreCase = true) -> ""
-                                currentToolName.contains("core", ignoreCase = true) -> ""
-                                currentToolName.contains("orchestrator", ignoreCase = true) -> ""
-                                currentToolName.contains("search", ignoreCase = true) -> ""
-                                currentToolName.contains("research", ignoreCase = true) -> ""
-                                else -> "️"
+                                currentToolName.contains("knowledge", ignoreCase = true) -> "📚"
+                                currentToolName.contains("master", ignoreCase = true) -> "🧠"
+                                currentToolName.contains("time", ignoreCase = true) -> "📅"
+                                currentToolName.contains("manager", ignoreCase = true) -> "🛠️"
+                                currentToolName.contains("system", ignoreCase = true) -> "⚙️"
+                                currentToolName.contains("interface", ignoreCase = true) -> "🖥️"
+                                currentToolName.contains("cognitive", ignoreCase = true) -> "🧠"
+                                currentToolName.contains("core", ignoreCase = true) -> "💎"
+                                currentToolName.contains("orchestrator", ignoreCase = true) -> "🎼"
+                                currentToolName.contains("search", ignoreCase = true) -> "🔍"
+                                currentToolName.contains("research", ignoreCase = true) -> "🔬"
+                                else -> "✨"
                             }
-                            "$icon $currentToolName..."
+                            "$icon $currentToolName"
                         } else {
-                            " Thinking..."
+                            stringResource(R.string.thinking)
                         }
 
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = 24.dp, vertical = 8.dp)
                                 .animateItem(),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), // More subtle
+                            shape = RoundedCornerShape(20.dp),
                             border = androidx.compose.foundation.BorderStroke(
-                                1.dp, 
-                                accentColor.copy(alpha = 0.2f)
+                                0.5.dp,
+                                accentColor.copy(alpha = 0.1f)
                             )
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.Center // Center the status text
                             ) {
                                 // Pulsing dot indicator
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
+                                        .size(4.dp)
                                         .graphicsLayer { alpha = pulseAlpha }
                                         .clip(CircleShape)
                                         .background(accentColor)
                                 )
-                                
+
+                                Spacer(Modifier.width(10.dp))
+
                                 Text(
-                                    text = statusText,
+                                    text = statusText.lowercase(), // Systematic lowercase
                                     style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
+                                        fontWeight = FontWeight.Medium,
+                                        letterSpacing = 0.4.sp
                                     ),
-                                    color = accentColor
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 )
                             }
                         }

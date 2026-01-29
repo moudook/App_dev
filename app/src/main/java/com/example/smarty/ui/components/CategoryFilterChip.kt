@@ -1,21 +1,27 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HighlightOff
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.theme.softCardShadow
 
 /**
  * Filter chip that shows the active category filter.
  * Tap to clear the filter and show all notes.
+ * Refined for Soft Minimalist aesthetic.
  */
 @Composable
 fun CategoryFilterChip(
@@ -25,13 +31,33 @@ fun CategoryFilterChip(
     modifier: Modifier = Modifier
 ) {
     val accentColor = LocalAccentColor.current
+    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+
+    // Soft minimalist colors
+    // Use a very subtle surface color, not just transparency
+    val chipBackground = if (isDark) {
+        accentColor.copy(alpha = 0.15f) // Dark mode needs a bit more opacity
+    } else {
+        MaterialTheme.colorScheme.surface // Light mode uses clean surface
+    }
+
+    val borderColor = if (isDark) {
+        accentColor.copy(alpha = 0.3f)
+    } else {
+        accentColor.copy(alpha = 0.2f)
+    }
 
     Surface(
         onClick = onClear,
-        modifier = modifier,
+        modifier = modifier.softCardShadow(
+            elevation = 2.dp,
+            shape = RoundedCornerShape(20.dp),
+            spotColor = accentColor.copy(alpha = 0.1f)
+        ),
         shape = RoundedCornerShape(20.dp),
-        color = accentColor.copy(alpha = 0.12f),
-        contentColor = accentColor
+        color = chipBackground,
+        contentColor = accentColor,
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Row(
             modifier = Modifier.padding(
@@ -56,7 +82,7 @@ fun CategoryFilterChip(
             if (noteCount > 0) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = accentColor.copy(alpha = 0.2f)
+                    color = accentColor.copy(alpha = 0.1f)
                 ) {
                     Text(
                         text = noteCount.toString(),
@@ -67,21 +93,16 @@ fun CategoryFilterChip(
                 }
             }
 
-            // Close button
-            Surface(
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = accentColor.copy(alpha = 0.15f),
-                modifier = Modifier.size(24.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(
-                        imageVector = Icons.Default.HighlightOff,
-                        contentDescription = "Clear filter",
-                        tint = accentColor,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
+            // Close button - cleaner integration
+            // Just the icon, no nested surface circle to reduce visual noise
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "clear_filter",
+                tint = accentColor.copy(alpha = 0.7f),
+                modifier = Modifier
+                    .size(20.dp)
+                    .padding(2.dp) // Touch target padding
+            )
         }
     }
 }

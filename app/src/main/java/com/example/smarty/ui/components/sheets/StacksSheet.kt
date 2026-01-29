@@ -24,6 +24,7 @@ fun StacksSheet(
     onDismiss: () -> Unit,
     onCategoryClick: (Category) -> Unit,
     onCreateCategory: (String) -> Unit,
+    onRenameCategory: (Category, String) -> Unit = { _, _ -> },
     onDeleteCategory: (Category) -> Unit = {}
 ) {
     // Handle back button
@@ -46,6 +47,7 @@ fun StacksSheet(
             },
             onBackClick = onDismiss,
             onCreateCategory = onCreateCategory,
+            onRenameCategory = onRenameCategory,
             onDeleteCategory = onDeleteCategory
         )
     }

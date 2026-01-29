@@ -1,6 +1,7 @@
 package com.example.smarty.ui.screens
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -11,24 +12,34 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
+import com.example.smarty.ui.components.CategoryEmptyState
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.util.CategoryShareManager
 import kotlinx.coroutines.launch
+import kotlin.math.min
 
 import androidx.activity.compose.BackHandler
 
@@ -40,17 +51,23 @@ fun CategoryNotesScreen(
     onBackClick: () -> Unit,
     onNoteClick: (Note) -> Unit,
     onArchiveNote: (String) -> Unit,
+    onEditCategory: (Category) -> Unit = {},
+    onDeleteCategory: (Category) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // Use derivedStateOf to avoid filtering on every recomposition
-    val categoryNotes by remember(category.id) {
+    val categoryNotes by remember(category.id, notes) {
         derivedStateOf { notes.filter { it.categoryId == category.id } }
     }
     var showQRDialog by remember { mutableStateOf(false) }
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // Delete confirmation state
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     // Generate QR code when dialog is shown
     LaunchedEffect(showQRDialog) {
@@ -68,13 +85,27 @@ fun CategoryNotesScreen(
                 title = {
                     Column {
                         Text(
-                            text = category.name,
-                            style = MaterialTheme.typography.headlineSmall
+                            text = category.name.lowercase(),
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = (-0.5).sp
+                            )
                         )
                         Text(
-                            text = "${categoryNotes.size} item${if (categoryNotes.size != 1) "s" else ""}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = stringResource(R.string.items_count, categoryNotes.size),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp,
+                                color = LocalAccentColor.current.copy(alpha = 0.7f)
+                            )
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 },
@@ -82,9 +113,25 @@ fun CategoryNotesScreen(
                     // QR Code button
                     IconButton(onClick = { showQRDialog = true }) {
                         Icon(
-                            imageVector = Icons.Default.QrCodeScanner, // Creative: Scan
-                            contentDescription = "Show QR Code",
-                            tint = LocalAccentColor.current
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = stringResource(R.string.show_qr_code),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    // Edit button
+                    IconButton(onClick = { onEditCategory(category) }) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.edit_stack),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    // Delete button
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.delete_stack),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
                         )
                     }
                     // Share button
@@ -101,8 +148,9 @@ fun CategoryNotesScreen(
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.RocketLaunch, // Creative: Launch
-                            contentDescription = "Share Category"
+                            imageVector = Icons.Default.Share,
+                            contentDescription = stringResource(R.string.share_stack),
+                            tint = LocalAccentColor.current
                         )
                     }
                 },
@@ -113,37 +161,81 @@ fun CategoryNotesScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        if (categoryNotes.isEmpty()) {
-            com.example.smarty.ui.components.CategoryEmptyState(
-                categoryName = category.name,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            )
-        } else {
-            LazyColumn(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + bottomContentPadding),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(
-                    items = categoryNotes,
-                    key = { it.id }
-                ) { note ->
-                    NoteCard(
-                        note = note,
-                        onClick = { onNoteClick(note) },
-                        onDelete = { /* No direct delete from category view */ },
-                        onOpenTodo = { onNoteClick(note) },     // Open note detail for todos
-                        isArchiveView = false,  // Category view: swipe right = archive
-                        onArchive = { onArchiveNote(note.id) },
-                        modifier = Modifier.animateItem()
-                    )
+        val accentColor = LocalAccentColor.current
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // Background Density Pattern (Matches StacksScreen)
+            Canvas(modifier = Modifier.fillMaxSize().alpha(0.05f)) {
+                val density = min(categoryNotes.size, 20)
+                val spacing = size.width / 5f
+                val rows = (size.height / spacing).toInt()
+
+                for (r in 0..rows) {
+                    for (c in 0..5) {
+                        drawCircle(
+                            color = accentColor,
+                            radius = 1.5.dp.toPx(),
+                            center = Offset(c * spacing, r * spacing)
+                        )
+                    }
+                }
+            }
+
+            if (isLoading) {
+                com.example.smarty.ui.components.NotesLoadingState(
+                    count = 4,
+                    modifier = Modifier.fillMaxSize().padding(16.dp)
+                )
+            } else if (categoryNotes.isEmpty()) {
+                com.example.smarty.ui.components.CategoryEmptyState(
+                    categoryName = category.name,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                LazyColumn(
+                    modifier = modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 16.dp,
+                        bottom = 16.dp + bottomContentPadding
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(
+                        items = categoryNotes,
+                        key = { it.id }
+                    ) { note ->
+                        NoteCard(
+                            note = note,
+                            onClick = { onNoteClick(note) },
+                            onDelete = { /* Handled via swipe to archive in this view */ },
+                            onOpenTodo = { onNoteClick(note) },
+                            isArchiveView = false,
+                            onArchive = { onArchiveNote(note.id) },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
                 }
             }
         }
+    }
+
+    // Delete confirmation dialog
+    if (showDeleteDialog) {
+        com.example.smarty.ui.components.common.JarvisDialog(
+            title = stringResource(R.string.delete_stack),
+            text = stringResource(R.string.delete_stack_confirm, category.name.lowercase()),
+            onConfirm = {
+                onDeleteCategory(category)
+                showDeleteDialog = false
+            },
+            onDismiss = {
+                showDeleteDialog = false
+            },
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
+            isDestructive = true
+        )
     }
 
     // QR Code Dialog
@@ -191,23 +283,26 @@ private fun QRCodeDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Share Category",
-                    style = MaterialTheme.typography.headlineSmall,
+                    text = stringResource(R.string.share_stack),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp
+                    ),
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = categoryName,
-                    style = MaterialTheme.typography.titleMedium,
+                    text = categoryName.lowercase(),
+                    style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 0.2.sp),
                     color = LocalAccentColor.current
                 )
 
                 Text(
-                    text = "$noteCount notes",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = stringResource(R.string.notes_count, noteCount),
+                    style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -223,7 +318,7 @@ private fun QRCodeDialog(
                     ) {
                         Image(
                             bitmap = qrBitmap.asImageBitmap(),
-                            contentDescription = "QR Code for $categoryName",
+                            contentDescription = stringResource(R.string.qr_code_description, categoryName),
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -232,16 +327,16 @@ private fun QRCodeDialog(
                         modifier = Modifier.size(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = LocalAccentColor.current)
+                        com.example.smarty.ui.components.CalmThinkingDots()
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Scan to import this category",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = stringResource(R.string.scan_to_import_this_stack),
+                    style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -252,28 +347,29 @@ private fun QRCodeDialog(
                 ) {
                     OutlinedButton(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(18.dp)
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Close")
+                        Text(stringResource(R.string.close), style = MaterialTheme.typography.labelLarge)
                     }
 
                     Button(
                         onClick = onShare,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = LocalAccentColor.current,
                             contentColor = MaterialTheme.colorScheme.surface
-                        )
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.RocketLaunch, // Creative: Launch
+                            imageVector = Icons.Default.Share,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Share")
+                        Text(stringResource(R.string.share), style = MaterialTheme.typography.labelLarge)
                     }
                 }
             }

@@ -483,6 +483,24 @@ class NoteOperationsManager(
     }
 
     /**
+     * Rename a category.
+     */
+    fun renameCategory(category: Category, newName: String) {
+        scope.launch {
+            if (newName.length > 20) return@launch
+            val updatedCategory = category.copy(
+                name = newName,
+                lastUpdated = System.currentTimeMillis()
+            )
+            repository.updateCategory(updatedCategory)
+
+            // Also update all notes that were in this category to have the new name
+            // (NoteDao handle this if categoryName is a field, otherwise it might be cached)
+            repository.refreshNotes()
+        }
+    }
+
+    /**
      * Delete a category with cascade cleanup.
      */
     fun deleteCategory(category: Category) {
@@ -589,6 +607,7 @@ class NoteOperationsManager(
                 noteOperationMutex.withLock {
                     repository.archiveNote(noteId)
                 }
+                repository.refreshNotes()
             } catch (e: Exception) {
                 Log.e(TAG, "Error archiving note: ${e.message}", e)
             }
@@ -604,6 +623,7 @@ class NoteOperationsManager(
                 noteOperationMutex.withLock {
                     repository.unarchiveNote(noteId)
                 }
+                repository.refreshNotes()
             } catch (e: Exception) {
                 Log.e(TAG, "Error unarchiving note: ${e.message}", e)
             }
@@ -674,6 +694,7 @@ class NoteOperationsManager(
                         repository.archiveNote(id)
                     }
                 }
+                repository.refreshNotes()
                 Log.i(TAG, "Bulk archived ${noteIds.size} notes")
             } catch (e: Exception) {
                 Log.e(TAG, "Bulk archive failed: ${e.message}")
@@ -1413,6 +1434,7 @@ class NoteOperationsManager(
                         repository.unarchiveNote(id)
                     }
                 }
+                repository.refreshNotes()
                 Log.i(TAG, "Bulk unarchived ${noteIds.size} notes")
             } catch (e: Exception) {
                 Log.e(TAG, "Bulk unarchive failed: ${e.message}")

@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material3.MaterialTheme
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
@@ -154,8 +155,8 @@ fun NewNoteIndicatorDot(
     isVisible: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Red dot for "Unread" status
-    val dotColor = Color(0xFFFF3B30) // Apple-style System Red
+    // Using theme error color for consistency with "Calm" aesthetic
+    val dotColor = MaterialTheme.colorScheme.error
 
     if (isVisible) {
         Canvas(modifier = modifier) {

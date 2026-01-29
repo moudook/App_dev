@@ -21,11 +21,9 @@ import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -84,7 +82,7 @@ fun AIMemorySettingsContent(
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Default.Psychology, // Creative: Brain
+                    imageVector = Icons.Default.Assistant, // Systematic assistant icon
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(32.dp)
@@ -95,16 +93,16 @@ fun AIMemorySettingsContent(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "Personal Intelligence",
+            text = "personal_intelligence",
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold
             ),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
-        
+
         Text(
-            text = "${memories.size} insights extracted",
+            text = "${memories.size}_insights_extracted",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -127,27 +125,26 @@ fun AIMemorySettingsContent(
                 horizontalArrangement = Arrangement.Center
             ) {
                 if (isSyncing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+                    com.example.smarty.ui.components.CalmThinkingDots(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        dotSize = 3.dp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Analyzing Notes...",
+                        text = "analyzing_notes",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
                     Icon(
-                        imageVector = if (unreadNotesCount > 0) Icons.Default.CloudSync else Icons.Default.Verified,
+                        imageVector = if (unreadNotesCount > 0) Icons.Default.CloudSync else Icons.Default.CheckCircle,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                         tint = if (unreadNotesCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (unreadNotesCount > 0) "Sync $unreadNotesCount New Notes" else "Memory Up to Date",
+                        text = if (unreadNotesCount > 0) "sync_${unreadNotesCount}_new_notes" else "memory_up_to_date",
                         style = MaterialTheme.typography.labelLarge,
                         color = if (unreadNotesCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -183,7 +180,7 @@ fun AIMemorySettingsContent(
                         modifier = Modifier.size(16.dp)
                     ) {
                         Icon(
-                            Icons.Default.HighlightOff,
+                            Icons.Default.Close,
                             null,
                             tint = MaterialTheme.colorScheme.inverseOnSurface
                         )
@@ -196,14 +193,9 @@ fun AIMemorySettingsContent(
 
         // 3. Centralized Memory List
         if (memories.isEmpty()) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "No patterns detected yet.\nStart writing notes to build your profile.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
+            com.example.smarty.ui.components.IntelligenceEmptyState(
+                modifier = Modifier.weight(1f)
+            )
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -225,7 +217,7 @@ fun AIMemorySettingsContent(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            "Clear Learning Data",
+                            "clear_learning_data",
                             color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.labelMedium
                         )
@@ -238,15 +230,15 @@ fun AIMemorySettingsContent(
     // Delete Single Memory Dialog
     if (memoryToDelete != null) {
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Forget this insight?",
-            text = "The AI will stop using this behavioral pattern for personalization.",
+            title = "forget_this_insight",
+            text = "the_ai_will_stop_using_this_behavioral_pattern_for_personalization",
             onConfirm = {
                 memoryToDelete?.let { onDeleteMemory(it) }
                 memoryToDelete = null
             },
             onDismiss = { memoryToDelete = null },
-            confirmText = "Forget",
-            dismissText = "Cancel",
+            confirmText = "forget",
+            dismissText = "cancel",
             isDestructive = true
         )
     }
@@ -254,15 +246,15 @@ fun AIMemorySettingsContent(
     // Clear All Dialog
     if (showClearAllDialog) {
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Reset Personal Intelligence?",
-            text = "All ${memories.size} extracted insights will be deleted. This cannot be undone.",
+            title = "reset_personal_intelligence",
+            text = "all_extracted_insights_will_be_deleted_this_cannot_be_undone",
             onConfirm = {
                 onClearAllMemories()
                 showClearAllDialog = false
             },
             onDismiss = { showClearAllDialog = false },
-            confirmText = "Reset All",
-            dismissText = "Cancel",
+            confirmText = "reset_all",
+            dismissText = "cancel",
             isDestructive = true
         )
     }
@@ -308,10 +300,10 @@ private fun MemoryChip(
                 // Type Indicator (Small, centralized label)
                 Icon(
                     imageVector = when(memory.type) {
-                        MemoryType.PREFERENCE -> Icons.Default.Favorite // Creative: Heart
-                        MemoryType.PATTERN -> Icons.Default.AutoGraph // Creative: Graph/Pattern
-                        MemoryType.STYLE -> Icons.Default.Palette // Creative: Art
-                        MemoryType.FACT -> Icons.Default.Lightbulb // Creative: Idea
+                        MemoryType.PREFERENCE -> Icons.Default.StarOutline // Standard preference
+                        MemoryType.PATTERN -> Icons.Default.Timeline // Standard pattern/graph
+                        MemoryType.STYLE -> Icons.Default.Brush // Standard style/design
+                        MemoryType.FACT -> Icons.Default.Info // Standard fact/info
                     },
                     contentDescription = null,
                     tint = contentColor.copy(alpha = 0.7f),
@@ -334,7 +326,7 @@ private fun MemoryChip(
                     if (expanded) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = memory.type.name,
+                            text = memory.type.name.lowercase(),
                             style = MaterialTheme.typography.labelSmall,
                             color = contentColor.copy(alpha = 0.6f)
                         )
@@ -347,8 +339,8 @@ private fun MemoryChip(
                         modifier = Modifier.size(20.dp)
                     ) {
                         Icon(
-                            Icons.Default.Whatshot, // Creative: Fire/Delete
-                            contentDescription = "Remove",
+                            Icons.Default.DeleteOutline, // Standard delete
+                            contentDescription = "forget",
                             tint = contentColor.copy(alpha = 0.5f)
                         )
                     }

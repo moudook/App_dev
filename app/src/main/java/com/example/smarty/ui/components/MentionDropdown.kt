@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Assistant
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Code
@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Note
-import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.Web
 import androidx.compose.material3.Icon
@@ -60,20 +59,14 @@ import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.softCardShadow
 
-// Glassmorphism colors (matching JarvisInputField)
-private val DropdownGlassLight = Color(0xE6FFFFFF)  // White 90% opacity
-private val DropdownGlassDark = Color(0xE6181822)   // Dark 90% opacity
-private val DropdownBorderLight = Color(0x330066FF) // Blue border 20%
-private val DropdownBorderDark = Color(0x442979FF)  // Blue border 27%
-
-// Type filter icon colors
-private val AudioColor = Color(0xFF9C27B0)      // Purple
-private val DocumentColor = Color(0xFF2196F3)   // Blue
-private val ImageColor = Color(0xFF4CAF50)      // Green
-private val VideoColor = Color(0xFFE91E63)      // Pink
-private val CodeColor = Color(0xFFFF9800)       // Orange
-private val WebColor = Color(0xFF00BCD4)        // Cyan
-private val NoteColor = Color(0xFF607D8B)       // Blue Gray
+// Type filter icon colors - Softened for Calm Aesthetic
+private val AudioColor = Color(0xFFB39DDB)      // Soft Purple
+private val DocumentColor = Color(0xFF90CAF9)   // Soft Blue
+private val ImageColor = Color(0xFFA5D6A7)      // Soft Green
+private val VideoColor = Color(0xFFF48FB1)      // Soft Pink
+private val CodeColor = Color(0xFFFFCC80)       // Soft Orange
+private val WebColor = Color(0xFF80DEEA)        // Soft Cyan
+private val NoteColor = Color(0xFFB0BEC5)       // Soft Blue Gray
 
 /**
  * Autocomplete dropdown for @mention suggestions.
@@ -123,7 +116,7 @@ fun MentionDropdown(
             ) {
                 // Header
                 Text(
-                    text = if (mentionState.query.isBlank()) "Quick access" else "Suggestions",
+                    text = if (mentionState.query.isBlank()) "quick_access" else "suggestions",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -198,6 +191,7 @@ private fun NoteSuggestionContent(
     suggestion: MentionSuggestion.NoteSuggestion,
     isDarkTheme: Boolean
 ) {
+    val accentColor = LocalAccentColor.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -227,20 +221,19 @@ private fun NoteSuggestionContent(
 
             // Note type subtitle
             Text(
-                text = suggestion.note.type.name.replace("_", " ").lowercase()
-                    .replaceFirstChar { it.uppercase() },
+                text = suggestion.note.type.name.replace("_", " ").lowercase(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 maxLines = 1
             )
         }
 
-        // Match score indicator (subtle)
+        // match score indicator (subtle)
         if (suggestion.score >= 0.8) {
             Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "High match",
-                tint = Color(0xFFFFD700).copy(alpha = 0.7f),
+                imageVector = Icons.Default.Assistant,
+                contentDescription = null,
+                tint = accentColor.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
             )
         }
@@ -287,19 +280,19 @@ private fun CategorySuggestionContent(
 
             // Category subtitle
             Text(
-                text = "Category",
+                text = "category",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 maxLines = 1
             )
         }
 
-        // Match score indicator (subtle)
+        // match score indicator (subtle)
         if (suggestion.score >= 0.8) {
             Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = "High match",
-                tint = Color(0xFFFFD700).copy(alpha = 0.7f),
+                imageVector = Icons.Default.Assistant,
+                contentDescription = null,
+                tint = accentColor.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
             )
         }
@@ -341,7 +334,7 @@ private fun TypeFilterContent(
 
             // Description
             Text(
-                text = "Filter: ${suggestion.displayName}",
+                text = "filter:_\\${suggestion.displayName.lowercase()}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
@@ -408,7 +401,7 @@ private fun CommandSuggestionContent(
     suggestion: MentionSuggestion.CommandSuggestion,
     isDarkTheme: Boolean
 ) {
-    val commandColor = Color(0xFF9C27B0) // Purple for thinking/AI commands
+    val accentColor = LocalAccentColor.current
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -418,7 +411,7 @@ private fun CommandSuggestionContent(
         Icon(
             imageVector = getCommandIcon(suggestion.icon),
             contentDescription = null,
-            tint = commandColor,
+            tint = accentColor,
             modifier = Modifier.size(20.dp)
         )
 
@@ -432,7 +425,7 @@ private fun CommandSuggestionContent(
                     fontFamily = MonoFont,
                     fontWeight = FontWeight.SemiBold
                 ),
-                color = commandColor
+                color = accentColor
             )
 
             // Description
@@ -445,14 +438,14 @@ private fun CommandSuggestionContent(
             )
         }
 
-        // AI badge
+        // ai badge
         Surface(
             shape = CircleShape,
-            color = commandColor.copy(alpha = 0.15f),
-            contentColor = commandColor
+            color = accentColor.copy(alpha = 0.15f),
+            contentColor = accentColor
         ) {
             Text(
-                text = "AI",
+                text = "ai",
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
@@ -468,9 +461,9 @@ private fun CommandSuggestionContent(
  */
 private fun getCommandIcon(iconName: String): ImageVector {
     return when (iconName.lowercase()) {
-        "psychology", "thinking", "think" -> Icons.Default.Psychology
+        "thinking", "think" -> Icons.Default.Assistant
         "analytics", "analyze" -> Icons.Default.Analytics
-        else -> Icons.Default.Psychology
+        else -> Icons.Default.Assistant
     }
 }
 

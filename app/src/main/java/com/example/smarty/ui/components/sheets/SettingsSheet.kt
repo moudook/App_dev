@@ -54,6 +54,13 @@ fun SettingsSheet(
     memorySyncResult: String? = null,
     unreadForMemoryCount: Int = 0,
     onClearMemorySyncResult: () -> Unit = {},
+    // Google Calendar Two-Way Sync
+    isCalendarSyncEnabled: Boolean = false,
+    onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
+    deviceCalendars: List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar> = emptyList(),
+    targetCalendarId: Long = -1L,
+    onSetTargetCalendarId: (Long) -> Unit = {},
+    onLoadDeviceCalendars: () -> Unit = {},
     // Embedded content for sub-sheets
     archiveContent: @Composable (onDismiss: () -> Unit) -> Unit,
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
@@ -104,7 +111,14 @@ fun SettingsSheet(
             isMemorySyncInProgress = isMemorySyncInProgress,
             memorySyncResult = memorySyncResult,
             unreadForMemoryCount = unreadForMemoryCount,
-            onClearMemorySyncResult = onClearMemorySyncResult
+            onClearMemorySyncResult = onClearMemorySyncResult,
+            // Google Calendar Two-Way Sync
+            isCalendarSyncEnabled = isCalendarSyncEnabled,
+            onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
+            deviceCalendars = deviceCalendars,
+            targetCalendarId = targetCalendarId,
+            onSetTargetCalendarId = onSetTargetCalendarId,
+            onLoadDeviceCalendars = onLoadDeviceCalendars
         )
     }
 }

@@ -177,8 +177,8 @@ class ScreenCaptureService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Screen capture ready")
-            .setContentText("Say 'save this page' to capture")
+            .setContentTitle("screen_capture_ready")
+            .setContentText("say_'save_this_page'_to_capture")
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

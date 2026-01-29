@@ -31,12 +31,6 @@ import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
- * Safety/Warning orange color for privacy indicators
- */
-private val SafetyOrange = Color(0xFFFF6B00)
-private val SafetyOrangeLight = Color(0xFFFF8C3D)
-
-/**
  * Visual indicator for full privacy mode
  * Shows shield icon with pulse animation when active
  */
@@ -87,7 +81,7 @@ fun PrivacyModeIndicator(
     Row(
         modifier = modifier
             .background(
-                color = SafetyOrange.copy(alpha = 0.15f),
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.15f),
                 shape = RoundedCornerShape(8.dp)
             )
             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -96,8 +90,8 @@ fun PrivacyModeIndicator(
     ) {
         Icon(
             imageVector = Icons.Default.Security,
-            contentDescription = "Full Privacy Mode Active",
-            tint = SafetyOrange.copy(alpha = alpha),
+            contentDescription = "full_privacy_mode_active",
+            tint = MaterialTheme.colorScheme.error.copy(alpha = alpha),
             modifier = Modifier
                 .size(20.dp)
                 .scale(scale)
@@ -105,8 +99,8 @@ fun PrivacyModeIndicator(
 
         if (showLabel) {
             Text(
-                text = "Full Privacy Mode",
-                color = SafetyOrange,
+                text = "full_privacy_mode",
+                color = MaterialTheme.colorScheme.error,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -124,8 +118,8 @@ fun PrivacyModeIcon(
 ) {
     Icon(
         imageVector = Icons.Default.Security,
-        contentDescription = "Full privacy note",
-        tint = SafetyOrange,
+        contentDescription = "full_privacy_note",
+        tint = MaterialTheme.colorScheme.error,
         modifier = modifier.size(16.dp)
     )
 }
@@ -163,7 +157,7 @@ fun PrivacyModeBanner(
     Box(
         modifier = modifier
             .background(
-                color = SafetyOrange.copy(alpha = bgAlpha),
+                color = MaterialTheme.colorScheme.error.copy(alpha = bgAlpha),
                 shape = RoundedCornerShape(12.dp)
             )
             .padding(16.dp)
@@ -175,13 +169,13 @@ fun PrivacyModeBanner(
             Icon(
                 imageVector = Icons.Default.Security,
                 contentDescription = null,
-                tint = SafetyOrange,
+                tint = MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(24.dp)
             )
 
             Text(
-                text = "Full Privacy Mode - No AI Processing",
-                color = SafetyOrange,
+                text = "full_privacy_mode_no_ai_processing",
+                color = MaterialTheme.colorScheme.error,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )

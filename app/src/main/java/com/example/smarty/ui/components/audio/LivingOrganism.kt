@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlin.math.PI
@@ -33,7 +34,7 @@ fun LivingOrganism(
     amplitude: Float = 0f,
     modifier: Modifier = Modifier,
     size: Dp = 48.dp,
-    color: Color = Color(0xFFE91E63)
+    color: Color = LocalAccentColor.current
 ) {
     // Smooth amplitude for gentle reaction
     val smoothedAmplitude by animateFloatAsState(

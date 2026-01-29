@@ -37,11 +37,11 @@ private val DarkColorScheme = darkColorScheme(
     secondaryContainer = DarkPaleBlue.copy(alpha = 0.15f),
     onSecondaryContainer = DarkTextSecondary,
 
-    // Tertiary - Safety Orange for warnings
-    tertiary = SafetyOrange,
+    // Tertiary - Muted accent for calm highlighting
+    tertiary = DarkElectricBlue.copy(alpha = 0.7f),
     onTertiary = DarkTextPrimary,
-    tertiaryContainer = SafetyOrange.copy(alpha = 0.15f),
-    onTertiaryContainer = SafetyOrange,
+    tertiaryContainer = DarkElectricBlue.copy(alpha = 0.1f),
+    onTertiaryContainer = DarkElectricBlue,
 
     // Background - Near black
     background = DarkBackground,
@@ -57,11 +57,11 @@ private val DarkColorScheme = darkColorScheme(
     outline = DarkBorder,
     outlineVariant = DarkBorder.copy(alpha = 0.5f),
 
-    // Error
-    error = SafetyOrange,
+    // Error - System Red (Calmer than Safety Orange)
+    error = SystemRed,
     onError = DarkTextPrimary,
-    errorContainer = SafetyOrange.copy(alpha = 0.15f),
-    onErrorContainer = SafetyOrange,
+    errorContainer = SystemRed.copy(alpha = 0.15f),
+    onErrorContainer = SystemRed,
 
     // Inverse
     inverseSurface = CardWhite,
@@ -89,11 +89,11 @@ private val LightColorScheme = lightColorScheme(
     secondaryContainer = PaleBlueGrey,
     onSecondaryContainer = TextNearBlack,
 
-    // Tertiary - Safety Orange for warnings
-    tertiary = SafetyOrange,
+    // Tertiary - Muted accent for calm highlighting
+    tertiary = ElectricBlue.copy(alpha = 0.7f),
     onTertiary = CardWhite,
-    tertiaryContainer = SafetyOrange.copy(alpha = 0.1f),
-    onTertiaryContainer = SafetyOrange,
+    tertiaryContainer = ElectricBlue.copy(alpha = 0.1f),
+    onTertiaryContainer = ElectricBlue,
 
     // Background - Soft light grey canvas
     background = SoftBackground,

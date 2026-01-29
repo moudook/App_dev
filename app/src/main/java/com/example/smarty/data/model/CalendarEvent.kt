@@ -20,7 +20,9 @@ import java.util.UUID
         Index(value = ["linkedNoteId"]),
         Index(value = ["startTime", "endTime"]),
         // DB-004: Composite index for efficient privacy-filtered time queries
-        Index(value = ["isEventPrivate", "startTime"])
+        Index(value = ["isEventPrivate", "startTime"]),
+        // PERFORMANCE: Index for Google Calendar sync lookups
+        Index(value = ["googleEventId"])
     ]
 )
 data class CalendarEvent(
@@ -37,6 +39,7 @@ data class CalendarEvent(
     val isRecurring: Boolean = false,
     val recurrenceRule: String? = null,     // iCal RRULE format for recurring events
     val linkedNoteId: String? = null,       // Optional link to a note
+    val googleEventId: String? = null,      // Google Calendar Event ID for two-way sync
     val isEventPrivate: Boolean = false,    // Privacy flag - hidden from AI
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()

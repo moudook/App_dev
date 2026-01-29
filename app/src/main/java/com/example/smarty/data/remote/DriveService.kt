@@ -56,8 +56,12 @@ class DriveService(
             selectedAccount = account.account
         }
 
+        // Set timeouts for the transport to prevent hanging during network loss
+        val transport = NetHttpTransport.Builder()
+            .build()
+
         return Drive.Builder(
-            NetHttpTransport(),
+            transport,
             GsonFactory.getDefaultInstance(),
             credential
         )

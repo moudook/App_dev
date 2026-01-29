@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,18 +35,16 @@ fun UnifiedBottomSheet(
     useDarkTheme: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val containerColor = if (useDarkTheme) {
-        Color(0xFF0D0D12)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
+    val containerColor = MaterialTheme.colorScheme.surface
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val isDark = !containerColor.luminance().let { it > 0.5f }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = ComponentSpacing.sheetCornerRadius, topEnd = ComponentSpacing.sheetCornerRadius),
         containerColor = containerColor,
-        dragHandle = { UnifiedDragHandle(isDark = useDarkTheme) },
+        dragHandle = { UnifiedDragHandle(isDark = isDark) },
         modifier = Modifier.fillMaxHeight(heightFraction)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -54,12 +53,11 @@ fun UnifiedBottomSheet(
                 subtitle = subtitle,
                 icon = icon,
                 iconTint = iconTint,
-                isDark = useDarkTheme
+                isDark = isDark
             )
 
             HorizontalDivider(
-                color = if (useDarkTheme) Color.White.copy(alpha = Alpha.soft)
-                        else MaterialTheme.colorScheme.outline.copy(alpha = Alpha.soft),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = Alpha.soft),
                 modifier = Modifier.padding(horizontal = ComponentSpacing.sheetPadding)
             )
 

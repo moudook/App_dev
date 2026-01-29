@@ -358,17 +358,17 @@ class AgentOptimizer(
          * Get a human-readable summary of optimization impact.
          */
         fun getSummary(): String = buildString {
-            appendLine("=== Agent Optimization Stats ===")
-            appendLine("Cache mode: ${cacheMode.name}")
-            appendLine("Queries: $totalQueries (cache hit rate: ${(cacheHitRate * 100).toInt()}%)")
-            appendLine("Tokens saved: ~$tokensSaved")
-            appendLine("PII masked: $piiMaskedCount queries")
-            appendLine("Few-shot examples used: $fewShotUsedCount times")
+            appendLine("=== agent optimization stats ===")
+            appendLine("cache mode: ${cacheMode.name.lowercase()}")
+            appendLine("queries: $totalQueries (cache hit rate: ${(cacheHitRate * 100).toInt()}%)")
+            appendLine("tokens saved: ~$tokensSaved")
+            appendLine("pii masked: $piiMaskedCount queries")
+            appendLine("few-shot examples used: $fewShotUsedCount times")
             hashBasedCacheStats?.let {
-                appendLine("Hash-based cache: ${it.size} entries, ${it.hits} hits, ${it.misses} misses")
+                appendLine("hash-based cache: ${it.size} entries, ${it.hits} hits, ${it.misses} misses")
             }
             toolExampleStoreStats?.let {
-                appendLine("Tool examples: ${it.totalExamples} covering ${it.toolsCovered} tools")
+                appendLine("tool examples: ${it.totalExamples} covering ${it.toolsCovered} tools")
             }
         }
     }

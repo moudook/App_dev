@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // alias(libs.plugins.kotlin.android) REMOVED: Built-in to AGP 9.0+
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -43,9 +43,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    // kotlinOptions block removed as it is deprecated/unsupported in AGP 9.0 without kotlin-android plugin
+    // AGP should sync Kotlin JVM target with compileOptions, or it can be configured via tasks
     buildFeatures {
         compose = true
         buildConfig = true

@@ -48,6 +48,9 @@ class BackupFeatureManager(
     private val _isLoadingCloudBackups = MutableStateFlow(false)
     val isLoadingCloudBackups: StateFlow<Boolean> = _isLoadingCloudBackups.asStateFlow()
 
+    private val _isLoadingLocalBackups = MutableStateFlow(false)
+    val isLoadingLocalBackups: StateFlow<Boolean> = _isLoadingLocalBackups.asStateFlow()
+
     // --- Local Backup State ---
     val localBackupState: StateFlow<BackupOperationState> = localBackupManager.localBackupState
 
@@ -67,6 +70,14 @@ class BackupFeatureManager(
     fun performCloudBackup() {
         scope.launch {
             Log.i(TAG, "Initiating cloud backup")
+
+            // Ensure fresh session
+            authManager.silentSignIn()
+            if (!authManager.isSignedIn.value) {
+                Log.w(TAG, "Cloud backup aborted: Not signed in")
+                return@launch
+            }
+
             val result = cloudBackupManager.createBackup()
             if (result.isSuccess) {
                 _lastBackupTime.value = System.currentTimeMillis()
@@ -81,6 +92,14 @@ class BackupFeatureManager(
     fun restoreFromCloud(metadata: BackupMetadata) {
         scope.launch {
             Log.i(TAG, "Initiating cloud restore: ${metadata.driveFileId}")
+
+            // Ensure fresh session
+            authManager.silentSignIn()
+            if (!authManager.isSignedIn.value) {
+                Log.w(TAG, "Cloud restore aborted: Not signed in")
+                return@launch
+            }
+
             cloudBackupManager.restoreBackup(metadata)
         }
     }
@@ -89,11 +108,17 @@ class BackupFeatureManager(
      * Load available backups from Google Drive.
      */
     fun loadCloudBackups() {
-        if (!isSignedIn.value) return
-
         scope.launch {
             _isLoadingCloudBackups.value = true
             try {
+                // Ensure we have a fresh token/session
+                authManager.silentSignIn()
+
+                if (!authManager.isSignedIn.value) {
+                    Log.w(TAG, "Cannot load backups: Not signed in after silent sign-in attempt")
+                    return@launch
+                }
+
                 val result = driveService.listBackups()
                 _availableCloudBackups.value = result.getOrDefault(emptyList())
             } catch (e: Exception) {
@@ -122,10 +147,13 @@ class BackupFeatureManager(
      */
     fun loadLocalBackups() {
         scope.launch {
+            _isLoadingLocalBackups.value = true
             try {
                 _availableLocalBackups.value = localBackupManager.listLocalBackups()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load local backups: ${e.message}")
+            } finally {
+                _isLoadingLocalBackups.value = false
             }
         }
     }

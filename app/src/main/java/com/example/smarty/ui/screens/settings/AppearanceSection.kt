@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 
 /**
@@ -97,12 +99,12 @@ private fun ThemeToggleRow(
                     )
                 Column {
                     Text(
-                        text = "Theme",
+                        text = stringResource(R.string.theme),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (isDarkTheme) "Dark mode" else "Light mode",
+                        text = if (isDarkTheme) stringResource(R.string.dark_mode) else stringResource(R.string.light_mode),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -135,7 +137,7 @@ private fun AccentColorSelector(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "Accent Color",
+            text = stringResource(R.string.accent_color),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface
         )
@@ -185,8 +187,8 @@ private fun ColorCircle(
     ) {
         if (isSelected) {
             Icon(
-                imageVector = Icons.Default.Verified, // Creative: Verified/Selected
-                contentDescription = "Selected",
+                imageVector = Icons.Default.Check, // Standard check icon
+                contentDescription = stringResource(R.string.selected),
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
             )
@@ -196,12 +198,13 @@ private fun ColorCircle(
 
 /**
  * Default accent colors available for selection.
+ * Softened "Calm" variant of standard Material colors.
  */
 val defaultAccentColors = listOf(
-    Color(0xFF6750A4), // Purple (Material You default)
-    Color(0xFF0061A4), // Blue
-    Color(0xFF006E1C), // Green
-    Color(0xFFBA1A1A), // Red
-    Color(0xFFFF6B00), // Orange
-    Color(0xFF7D5260), // Pink/Mauve
+    Color(0xFFB39DDB), // Soft Purple
+    Color(0xFF90CAF9), // Soft Blue
+    Color(0xFFA5D6A7), // Soft Green
+    Color(0xFFEF9A9A), // Soft Red
+    Color(0xFFFFCC80), // Soft Orange
+    Color(0xFFF48FB1), // Soft Pink
 )

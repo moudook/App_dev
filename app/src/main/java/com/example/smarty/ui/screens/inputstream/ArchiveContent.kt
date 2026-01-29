@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,12 +15,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Note
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.JarvisEasing
+import com.example.smarty.ui.components.ArchiveEmptyState
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.SafetyOrange
 
 /**
  * Inline archive content that displays in the main content area.
@@ -37,6 +39,7 @@ fun ArchiveContent(
     onDeleteNote: (String) -> Unit,
     onUnarchiveNote: (String) -> Unit,
     contentPadding: PaddingValues,
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -52,38 +55,21 @@ fun ArchiveContent(
         contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(ComponentSpacing.listItemGap)
     ) {
-
-        if (archivedNotes.isEmpty()) {
+        if (isLoading) {
+            item {
+                com.example.smarty.ui.components.NotesLoadingState(
+                    count = 4,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                )
+            }
+        } else if (archivedNotes.isEmpty()) {
             // Empty state
             item {
-                Box(
+                ArchiveEmptyState(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 60.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Inventory2, // Creative: Vault
-                            contentDescription = null,
-                            modifier = Modifier.size(56.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        )
-                        Text(
-                            text = "Nothing archived yet",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                        Text(
-                            text = "Swipe left on notes to archive",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = accentColor.copy(alpha = 0.7f)
-                        )
-                    }
-                }
+                        .padding(vertical = 60.dp)
+                )
             }
         } else {
             // Archive items with full functionality
@@ -111,8 +97,8 @@ fun ArchiveContent(
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Delete permanently?",
-            text = "This note will be permanently deleted. This cannot be undone.",
+            title = stringResource(R.string.delete_permanently),
+            text = stringResource(R.string.archive_delete_warning),
             onConfirm = {
                 noteToDelete?.let { onDeleteNote(it.id) }
                 showDeleteDialog = false
@@ -122,8 +108,8 @@ fun ArchiveContent(
                 showDeleteDialog = false
                 noteToDelete = null
             },
-            confirmText = "Delete",
-            dismissText = "Cancel",
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }

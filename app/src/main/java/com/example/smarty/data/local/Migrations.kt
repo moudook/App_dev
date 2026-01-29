@@ -516,8 +516,51 @@ object Migrations {
      */
     val MIGRATION_25_26 = object : Migration(25, 26) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            // No schema changes needed - column already has correct DEFAULT from migration 24→25
-            // This migration exists only to satisfy Room's schema hash verification
+            // No schema changes - hash update only
+        }
+    }
+
+    /**
+     * Migration 26 → 27: Add googleEventId column to calendar_events.
+     * Supports Two-Way Google Calendar Sync.
+     */
+    val MIGRATION_26_27 = object : Migration(26, 27) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE calendar_events ADD COLUMN googleEventId TEXT DEFAULT NULL")
+        }
+    }
+
+    /**
+     * Migration 27 → 28: Add timers table for persistent alarms and timers.
+     */
+    val MIGRATION_27_28 = object : Migration(27, 28) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS timers (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    name TEXT NOT NULL,
+                    triggerTime INTEGER NOT NULL,
+                    repeatDays TEXT,
+                    isAlarm INTEGER NOT NULL DEFAULT 0,
+                    isActive INTEGER NOT NULL DEFAULT 1,
+                    createdAt INTEGER NOT NULL
+                )
+            """)
+        }
+    }
+
+    /**
+     * Migration 28 → 29: Add indices for isArchived, categoryId in notes, and googleEventId in calendar_events.
+     * Improves query performance for frequent filtering and Google Calendar synchronization.
+     */
+    val MIGRATION_28_29 = object : Migration(28, 29) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Performance: Note indices for frequent filtering
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_isArchived ON notes(isArchived)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_notes_categoryId ON notes(categoryId)")
+
+            // Performance: Calendar index for Google sync lookups
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_calendar_events_googleEventId ON calendar_events(googleEventId)")
         }
     }
 }

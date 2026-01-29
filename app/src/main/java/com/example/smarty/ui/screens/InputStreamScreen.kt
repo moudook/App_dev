@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Assistant
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -41,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.ChatMessage
@@ -65,10 +67,10 @@ import com.example.smarty.ui.components.ProcessingDotsIndicator
 import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.SafetyOrange
-
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.ConnectionStatusIndicator
+import com.example.smarty.ui.components.NotesEmptyState
+import com.example.smarty.ui.components.SearchEmptyState
 import com.example.smarty.ui.components.HorizontalActionBar
 import com.example.smarty.ui.components.NavigationTab
 import com.example.smarty.ui.components.sheets.CalendarSheet
@@ -116,6 +118,9 @@ fun InputStreamScreen(
     onRefreshNotes: () -> Unit = {},
     isRefreshing: Boolean = false,
     isNotesLoading: Boolean = false,
+    isStacksLoading: Boolean = false,
+    isArchiveLoading: Boolean = false,
+    isChatHistoryLoading: Boolean = false,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
     onNavigateToStacks: () -> Unit,
     onNavigateToSettings: () -> Unit,
@@ -204,6 +209,7 @@ fun InputStreamScreen(
 
     // Category management for Stacks sheet
     onCreateCategory: (String) -> Unit = {},
+    onRenameCategory: (Category, String) -> Unit = { _, _ -> },
     onDeleteCategory: (Category) -> Unit = {},
     onCategoryClick: (Category) -> Unit = {},
     onSyncCategoryCounts: () -> Unit = {},  // Sync category counts when entering stacks view
@@ -245,6 +251,13 @@ fun InputStreamScreen(
     memorySyncResult: String? = null,
     unreadForMemoryCount: Int = 0,
     onClearMemorySyncResult: () -> Unit = {},
+    // Google Calendar Two-Way Sync
+    isCalendarSyncEnabled: Boolean = false,
+    onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
+    deviceCalendars: List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar> = emptyList(),
+    targetCalendarId: Long = -1L,
+    onSetTargetCalendarId: (Long) -> Unit = {},
+    onLoadDeviceCalendars: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -566,7 +579,7 @@ fun InputStreamScreen(
         }
     }
 
-    // Auto-send in chat mode: 0.4s after speech reJarvistion stops
+    // Auto-send in chat mode: 0.4s after speech recognition stops
     LaunchedEffect(speechState.isListening, isChatMode) {
         if (!speechState.isListening && isChatMode && hadSpeechInput) {
             val currentText = chatModeTextValue.text
@@ -634,8 +647,8 @@ fun InputStreamScreen(
         clearSelection()
         scope.launch {
             val result = snackbarHostState.showSnackbar(
-                message = "$count note${if (count > 1) "s" else ""} archived",
-                actionLabel = "UNDO",
+                message = context.getString(R.string.notes_archived, ids.size),
+                actionLabel = context.getString(R.string.undo),
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -643,7 +656,7 @@ fun InputStreamScreen(
             }
         }
     }
-    
+
     // Select all visible notes (or deselect all if already all selected)
     fun selectAllNotes() {
         val allNoteIds = displayedNotes.map { it.id }.toSet()
@@ -657,7 +670,7 @@ fun InputStreamScreen(
             isSelectionMode = true
         }
     }
-    
+
     // Delete selected notes with undo capability
     fun deleteSelected() {
         val idsToDelete = selectedNoteIds.toList()
@@ -666,7 +679,7 @@ fun InputStreamScreen(
         clearSelection()
         scope.launch {
             snackbarHostState.showSnackbar(
-                message = "$count note${if (count > 1) "s" else ""} deleted",
+                message = context.getString(R.string.notes_deleted, count),
                 duration = SnackbarDuration.Short
             )
         }
@@ -680,7 +693,7 @@ fun InputStreamScreen(
         clearSelection()
         scope.launch {
             snackbarHostState.showSnackbar(
-                message = "$count note${if (count > 1) "s" else ""} pinned",
+                message = context.getString(R.string.notes_pinned, count),
                 duration = SnackbarDuration.Short
             )
         }
@@ -956,7 +969,7 @@ fun InputStreamScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = data.visuals.message,
+                            text = data.visuals.message.lowercase(),
                             style = MaterialTheme.typography.labelMedium
                         )
                         
@@ -973,7 +986,7 @@ fun InputStreamScreen(
                                 color = LocalAccentColor.current.copy(alpha = 0.2f)
                             ) {
                                 Text(
-                                    text = "UNDO",
+                                    text = stringResource(R.string.undo),
                                     color = LocalAccentColor.current,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
@@ -1134,11 +1147,13 @@ fun InputStreamScreen(
                         // Stacks inline view - categories grid
                         StacksContent(
                             categories = categories,
+                            isLoading = isStacksLoading,
                             onCategoryClick = { category ->
                                 activeCategoryFilter = category
                                 showStacksInline = false  // Close and filter notes
                             },
                             onCreateCategory = onCreateCategory,
+                            onRenameCategory = onRenameCategory,
                             onDeleteCategory = onDeleteCategory,
                             contentPadding = contentPaddingWithTop,
                             modifier = Modifier.fillMaxSize(),
@@ -1149,6 +1164,7 @@ fun InputStreamScreen(
                         // Archive inline view - archived notes
                         ArchiveContent(
                             archivedNotes = archivedNotes,
+                            isLoading = isArchiveLoading,
                             onDeleteNote = onDeleteNote,
                             onUnarchiveNote = onUnarchiveNote,
                             contentPadding = contentPaddingWithTop,
@@ -1195,6 +1211,13 @@ fun InputStreamScreen(
                             memorySyncResult = memorySyncResult,
                             unreadForMemoryCount = unreadForMemoryCount,
                             onClearMemorySyncResult = onClearMemorySyncResult,
+                            // Google Calendar Two-Way Sync
+                            isCalendarSyncEnabled = isCalendarSyncEnabled,
+                            onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
+                            deviceCalendars = deviceCalendars,
+                            targetCalendarId = targetCalendarId,
+                            onSetTargetCalendarId = onSetTargetCalendarId,
+                            onLoadDeviceCalendars = onLoadDeviceCalendars,
                             contentPadding = contentPaddingWithTop,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -1251,6 +1274,7 @@ fun InputStreamScreen(
                                 ChatHistoryContent(
                                     sessions = chatSessions,
                                     currentSessionId = currentSessionId,
+                                    isLoading = isChatHistoryLoading,
                                     onSelectSession = onSwitchChatSession,
                                     onNewChat = onNewChatSession,
                                     onDeleteSession = onDeleteChatSession,
@@ -1331,7 +1355,7 @@ fun InputStreamScreen(
                             displayedNotes = displayedNotes,
                             isNotesLoading = isNotesLoading,
                             isSearchMode = isSearchMode,
-                            searchQuery = textValue.text,
+                            searchQuery = if (isChatMode) chatModeTextValue.text else normalModeTextValue.text,
                             gridState = gridState,
                             isRefreshing = isRefreshing,
                             onRefreshNotes = onRefreshNotes,
@@ -1582,7 +1606,7 @@ fun InputStreamScreen(
                             onClearFilters = onClearFilters,
                             // Voice recording (hold mic to record, release to stop)
                             onStartRecording = {
-                                // Stop any active speech reJarvistion before recording
+                                // Stop any active speech recognition before recording
                                 if (speechState.isListening) {
                                     speechState.stopListening()
                                 }
@@ -1617,8 +1641,8 @@ fun InputStreamScreen(
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Delete Note?",
-            text = "This action cannot be undone. The note and all its todos will be permanently deleted.",
+            title = stringResource(R.string.delete_note),
+            text = stringResource(R.string.delete_note_warning),
             onConfirm = {
                 noteToDelete?.let { onDeleteNote(it.id) }
                 showDeleteDialog = false
@@ -1628,8 +1652,8 @@ fun InputStreamScreen(
                 showDeleteDialog = false
                 noteToDeleteId = null
             },
-            confirmText = "Delete",
-            dismissText = "Cancel",
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
@@ -1743,7 +1767,14 @@ fun InputStreamScreen(
             isMemorySyncInProgress = isMemorySyncInProgress,
             memorySyncResult = memorySyncResult,
             unreadForMemoryCount = unreadForMemoryCount,
-            onClearMemorySyncResult = onClearMemorySyncResult
+            onClearMemorySyncResult = onClearMemorySyncResult,
+            // Google Calendar Two-Way Sync
+            isCalendarSyncEnabled = isCalendarSyncEnabled,
+            onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
+            deviceCalendars = deviceCalendars,
+            targetCalendarId = targetCalendarId,
+            onSetTargetCalendarId = onSetTargetCalendarId,
+            onLoadDeviceCalendars = onLoadDeviceCalendars
         )
     }
 
@@ -1788,12 +1819,16 @@ private fun SearchSuggestionsDropdown(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Recent searches",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = stringResource(R.string.recent_searches),
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.5.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
             TextButton(onClick = onClearHistory) {
-                Text("Clear")
+                Text(
+                    stringResource(R.string.clear),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = LocalAccentColor.current.copy(alpha = 0.7f)
+                )
             }
         }
 

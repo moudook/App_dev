@@ -88,16 +88,16 @@ sealed class ToolErrorType {
      * Get a user-friendly error message.
      */
     fun toUserMessage(): String = when (this) {
-        is Validation -> "Invalid input: $message"
-        is InvalidState -> "Cannot complete action: $message"
-        is NotFound -> "Could not find $resource: $message"
-        is PermissionDenied -> "Access denied: $message"
-        is ParseError -> "Could not understand the input: $message"
-        is NetworkError -> "Connection issue: $message"
-        is ResourceExhausted -> "Service temporarily unavailable: $message"
-        is ProviderError -> "AI service error: $message"
-        is Unknown -> message
-        else -> message
+        is Validation -> "invalid input: ${message.lowercase()}"
+        is InvalidState -> "cannot complete action: ${message.lowercase()}"
+        is NotFound -> "could not find $resource: ${message.lowercase()}"
+        is PermissionDenied -> "access denied: ${message.lowercase()}"
+        is ParseError -> "could not understand the input: ${message.lowercase()}"
+        is NetworkError -> "connection issue: ${message.lowercase()}"
+        is ResourceExhausted -> "service temporarily unavailable: ${message.lowercase()}"
+        is ProviderError -> "ai service error: ${message.lowercase()}"
+        is Unknown -> message.lowercase()
+        else -> message.lowercase()
     }
 
     companion object {
@@ -298,7 +298,7 @@ interface AgentCallbacks {
     suspend fun deleteMemory(id: String): Boolean
     suspend fun retrieveMemories(query: String?, limit: Int = 10): List<com.example.smarty.data.model.AIMemory>
     fun consolidateMemories()
-    fun getMemoryStats(): Map<String, Any> = emptyMap()
+    suspend fun getMemoryStats(): Map<String, Any> = emptyMap()
     suspend fun analyzePatterns(): com.example.smarty.viewmodel.managers.UserPatternsReport
     suspend fun learnFromNotes(maxNotes: Int = 20): com.example.smarty.viewmodel.managers.LearningReport
 
@@ -377,16 +377,16 @@ class JarvisAgentOptimized(
     private val rateLimiter: RateLimiter? = null
 ) {
     companion object {
-        private const val TAG = "JarvisAgentOptimized"
+        private const val TAG = "SmartyAgentOptimized"
 
-        // INCREASED iteration limits to 50 for everything - MAXIMUM COMPLEXITY SUPPORT
-        private const val MAX_ITERATIONS_SIMPLE = 50     // Increased to 50 for all queries
-        private const val MAX_ITERATIONS_STANDARD = 50   // Increased to 50 for all queries
-        private const val MAX_ITERATIONS_COMPLEX = 50    // Increased to 50 for all queries
-        private const val MAX_ITERATIONS_RESEARCH = 50   // Increased to 50 for all queries
+        // REDUCED iteration limits to encourage extreme efficiency and shorter loops
+        private const val MAX_ITERATIONS_SIMPLE = 3      // Minimal steps for simple queries
+        private const val MAX_ITERATIONS_STANDARD = 7    // Standard multi-step tasks
+        private const val MAX_ITERATIONS_COMPLEX = 10    // Complex multi-action tasks
+        private const val MAX_ITERATIONS_RESEARCH = 15   // Deep research workflows
 
-        // INCREASED planning loop limit to 50 for maximum complex workflows
-        private const val MAX_PLAN_LOOP_ITERATIONS = 50  // Increased from 20 to 50
+        // PLANNING loop limit - optimized for maximum velocity
+        private const val MAX_PLAN_LOOP_ITERATIONS = 7   // Maximum 7 cycles for planning
 
         // Rate limit constants
         private const val RATE_LIMIT_DAILY_THRESHOLD_MS = 30_000L  // If wait > 30s, it's daily limit
@@ -495,39 +495,37 @@ class JarvisAgentOptimized(
         optimizer
     }
     private val systemPrompt = """
-You are Jarvis, an elite intelligent agent designed for high-performance assistance.
+You are Smarty, a calm, professional, and concise intelligence.
 
-**CORE IDENTITY:**
-- You are not just a chatbot; you are a proactive system controller.
-- You have direct access to the user's notes, calendar, device apps, and the web.
-- You value **precision**, **brevity**, and **action**.
+**IDENTITY:**
+- You are a proactive partner in the user's digital ecosystem.
+- You have direct access to notes, calendar, device apps, and the web.
+- You value high-velocity interaction and zero friction.
+
+**TONE & STYLE (Calm Aesthetic):**
+- Use "soft" language (e.g., "i've found...", "let's try...", instead of "SYSTEM ERROR" or "ACTION REQUIRED").
+- Prefer lowercase for short summaries and UI labels (e.g., "added to work_notes" instead of "Added to Work Notes").
+- Minimize large Markdown headers. Use bold text or simple lists for structure.
+- Be extremely concise. If a one-sentence answer suffices, use it.
 
 **OPERATIONAL HIERARCHY:**
-1.  **DIRECT RESPONSE**: If a query is simple (fact, math, greeting), answer IMMEDIATELY. **NO TOOLS**.
-2.  **CLARIFICATION**: If a request is vague ("do it", "send that"), ASK for context. NEVER guess.
-3.  **UI & NAVIGATION**: You have "eyes" on the app. If the user asks for a screen, use `system_interface` with action='navigate'.
-4.  **MAINTENANCE**: If the system status indicates low storage or unread memories, suggest using `app_controller`.
-5.  **SEARCH STRATEGY**:
-    -   **SEARCH STRATEGY**:
-    -   **Primary**: Use `universal_search` (scope='both') for most queries. It handles internal notes and web search simultaneously.
-    -   **Internal Only**: Use `universal_search` (scope='internal') or `knowledge_master` (intent='retrieve_notes') to find notes.
-    -   **Web Only**: Use `universal_search` (scope='web') for real-time external info.
-6.  **ACTION OVER PASSIVITY**: Don't just say you can do it; use the tool and confirm.
+1.  **DIRECT RESPONSE**: If a query is simple, answer IMMEDIATELY. NO TOOLS.
+2.  **CLARIFICATION**: If vague, ask for context. Never guess.
+3.  **UI & NAVIGATION**: Use `system_interface(action='navigate')` for screen transitions.
+4.  **ACTION OVER PASSIVITY**: Don't just say you can do it; execute and confirm briefly.
 
 **TOOL PROTOCOLS:**
--   **Search**: Use `universal_search` as your default information gathering tool. It combines web, internal, and semantic recall.
--   **Knowledge**: Use `knowledge_master` for specific note CRUD: create, update, delete, archive/unarchive, and summarization.
--   **Bulk Actions**: Use `batch_notes` for operations affecting multiple notes (archive all, delete all, move category).
--   **Navigation**: Use `system_interface(action='navigate')` for: 'input_stream', 'stacks', 'calendar', 'settings', 'archive'.
--   **Settings**: Use `app_controller` for: 'toggle_theme', 'clear_cache', 'sync_memory', 'backup_data'.
+-   **Search**: Use `universal_search` (scope='both') as default. It handles internal and web results.
+-   **Knowledge**: Use `knowledge_master` for note operations: create, update, delete, summarize.
 -   **Temporal**: Use `time_manager` for ALL todos, calendar events, and timers.
--   **Orchestration**: Use `agent_orchestrator` for 'batch_operation' or 'deep_research' workflows.
+-   **System**: Use `system_interface` for apps, audio, and navigation.
+-   **Settings**: Use `app_controller` for theme, cache, and sync.
 
 **CRITICAL RULES:**
--   ALWAYS preview batch actions with `execute=false` before proceeding.
--   NEVER create a note for a meeting (Use `time_manager` -> 'manage_event').
--   NEVER create a note for a reminder (Use `time_manager` -> 'manage_timer').
--   Format responses with clean Markdown and bold key terms.
+-   Use snake_case for structured data or categories (e.g., "trip_planning").
+-   NEVER create a note for a meeting or reminder; use `time_manager`.
+-   Keep loops short. If the goal is reached, stop immediately.
+-   Avoid redundant searches. If you have the info, use it.
     """.trimIndent()
 
     /**
@@ -679,16 +677,20 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
 
     /**
      * Build personalized context from AI memories.
-     * Fetches top recent and top most-used memories to provide user insights.
+     * Fetches top relevant memories to provide user insights while saving tokens.
+     *
+     * @param query The user's query to find relevant memories for
      */
-    private suspend fun buildMemoryContext(): String {
+    private suspend fun buildMemoryContext(query: String): String {
         return try {
-            // Fetch relevant memories
-            val recent = aiMemoryDao.getRecentMemories(7)
-            val topUsed = aiMemoryDao.getMostUsedMemories(7)
+            // Fetch relevant memories (limit to 6 for token efficiency)
+            val relevant = aiMemoryDao.getRelevantMemories(query, 6)
+
+            // Fetch a few most recent ones for general context bias (limit to 2)
+            val recent = aiMemoryDao.getRecentMemories(2)
 
             // Combine and deduplicate
-            val combined = (recent + topUsed).distinctBy { it.id }
+            val combined = (relevant + recent).distinctBy { it.id }.take(8)
 
             if (combined.isEmpty()) return ""
 
@@ -868,7 +870,7 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
 
         // Build full prompt with context, examples, history, thinking mode, mentions, and current message
         // BATCH-3C: Use masked query from optimizer for PII protection
-        val memorySection = buildMemoryContext()
+        val memorySection = buildMemoryContext(processed.maskedQuery)
         val fullPrompt = buildContext() + memorySection + historySection + thinkingContextSection + mentionContextSection + "USER: ${processed.maskedQuery}"
         val toolRegistry = buildToolRegistry()
 
@@ -949,7 +951,7 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
 
                 var currentResponse = ""
                 var planLoopIterations = 0
-                val maxPlanLoopIterations = MAX_PLAN_LOOP_ITERATIONS // Increased from 10 to 20
+                val maxPlanLoopIterations = MAX_PLAN_LOOP_ITERATIONS
 
                 val providerTimeout = getTimeoutForProvider(executorResult.provider)
 
@@ -971,237 +973,55 @@ You are Jarvis, an elite intelligent agent designed for high-performance assista
                         """
 
 <deep_thinking_mode>
-<mode_status>ACTIVE - Iteration ${planLoopIterations} of 5</mode_status>
+<mode_status>ACTIVE - reasoning step ${planLoopIterations} of 5</mode_status>
 
-<critical_rules>
-You are operating in Deep Thinking Mode. This mode exists to ensure thorough analysis before action.
+<constraints>
+You are in deep thinking mode. focus on thorough analysis before any state-altering action.
+- avoid all state-modifying tools until the final step.
+- prioritize reading, planning, and understanding.
+- stay calm and concise in your reasoning.
+</constraints>
 
-ABSOLUTE CONSTRAINTS:
-- You MUST NOT execute any actions, modifications, or changes
-- You MUST NOT use any tools that alter state - only read-only information gathering
-- You MUST NOT provide final answers or solutions until Iteration 5
-- You MUST focus exclusively on understanding, research, and planning
-
-YOUR SINGULAR FOCUS THIS ITERATION:
-Think deeply. Analyze thoroughly. Plan carefully. Do not act.
-</critical_rules>
-
-<iteration_${planLoopIterations}_instructions>
+<step_${planLoopIterations}_focus>
 ${when (planLoopIterations) {
     1 -> """
-ITERATION 1: DEEP UNDERSTANDING
-
-Your objective is to fully comprehend what the user is asking before doing anything else.
-
-Think through these questions:
-- What exactly is the user trying to accomplish?
-- What are the explicit requirements stated?
-- What are the implicit requirements not stated but necessary?
-- What assumptions am I making? Are they valid?
-- What information do I need that I don't have?
-- What could go wrong if I misunderstand this request?
-
-Structure your response:
-
-## My Understanding
-[Restate the request in your own words to confirm understanding]
-
-## Explicit Requirements
-[List what was directly stated]
-
-## Implicit Requirements
-[List what is necessary but wasn't explicitly mentioned]
-
-## Open Questions
-[List what you need to investigate or clarify]
-
-## Assumptions Being Made
-[List any assumptions and flag uncertain ones]
-
-End with: "Proceeding to information gathering..."
+step 1: understanding
+clarify the user's intent. what are the explicit and implicit needs? identify assumptions and missing info.
+format:
+**intent**: [summary]
+**requirements**: [list]
+**missing**: [list]
 """
     2 -> """
-ITERATION 2: THOROUGH RESEARCH
-
-Your objective is to gather all relevant information needed to solve this problem well.
-
-For each open question from Iteration 1:
-- What facts do I need to know?
-- What context is relevant?
-- What constraints exist?
-- What dependencies must be considered?
-- What has worked in similar situations?
-- What pitfalls should be avoided?
-
-Structure your response:
-
-## Research Findings
-
-### [Topic 1]
-**Context:** [Relevant background]
-**Key Facts:** [Important information discovered]
-**Implications:** [What this means for the solution]
-
-### [Topic 2]
-[Same structure...]
-
-## Constraints Identified
-[List technical, practical, or other limitations]
-
-## Dependencies Discovered
-[List things that must happen first or are interconnected]
-
-## Potential Pitfalls
-[List common mistakes or issues to avoid]
-
-End with: "Proceeding to approach analysis..."
+step 2: research
+gather facts using read-only tools. identify technical constraints and dependencies.
+format:
+**findings**: [bullet points]
+**constraints**: [bullet points]
 """
     3 -> """
-ITERATION 3: APPROACH ENUMERATION
-
-Your objective is to identify ALL viable approaches, not just the first one that comes to mind.
-
-Force yourself to consider at least 3 different approaches:
-- The obvious approach - what comes to mind first
-- The alternative approach - a different way entirely
-- The unconventional approach - thinking outside the box
-
-For each approach, honestly evaluate:
-- What are the genuine benefits?
-- What are the real drawbacks?
-- How complex is implementation?
-- How maintainable is this long-term?
-- What could go wrong?
-
-Structure your response:
-
-## Approach Analysis
-
-### Approach A: [Descriptive Name]
-**Strategy:** [Brief description of the approach]
-**Benefits:**
-- [Genuine advantage 1]
-- [Genuine advantage 2]
-**Drawbacks:**
-- [Real limitation 1]
-- [Real limitation 2]
-**Complexity:** [Low/Medium/High with justification]
-**Risk Level:** [Low/Medium/High with explanation]
-
-### Approach B: [Descriptive Name]
-[Same structure...]
-
-### Approach C: [Descriptive Name]
-[Same structure...]
-
-## Comparative Analysis
-[Direct comparison: which approach wins on which criteria?]
-
-## Preliminary Recommendation
-[Which approach appears best and why - but remain open to revision]
-
-End with: "Proceeding to detailed planning..."
+step 3: approach
+evaluate 2-3 paths. compare simplicity vs. depth.
+format:
+**options**: [short comparison]
+**recommendation**: [chosen path]
 """
     4 -> """
-ITERATION 4: DETAILED PLANNING
-
-Your objective is to create a concrete, actionable implementation plan for the chosen approach.
-
-Think through execution details:
-- What are the exact steps in order?
-- What does each step produce?
-- What does each step depend on?
-- Where could each step fail?
-- How would you verify each step succeeded?
-
-Structure your response:
-
-## Implementation Plan
-
-### Step 1: [Action Title]
-**Action:** [Specific description of what to do]
-**Prerequisites:** [What must be true before starting]
-**Expected Output:** [What this step produces]
-**Verification:** [How to confirm success]
-**If This Fails:** [Contingency plan]
-
-### Step 2: [Action Title]
-[Same structure...]
-
-[Continue for all steps...]
-
-## Critical Path
-[Which steps are blocking? What's the minimum viable path?]
-
-## Risk Mitigation Matrix
-| Risk | Probability | Impact | Mitigation Strategy |
-|------|-------------|--------|---------------------|
-| [Risk 1] | [H/M/L] | [H/M/L] | [How to prevent or handle] |
-| [Risk 2] | ... | ... | ... |
-
-## Verification Checklist
-- [ ] [Requirement 1 will be satisfied by Step X]
-- [ ] [Requirement 2 will be satisfied by Step Y]
-...
-
-## Remaining Concerns
-[Any lingering doubts or areas needing attention]
-
-End with: "Proceeding to final synthesis..."
+step 4: planning
+define the implementation sequence. how will we verify success?
+format:
+**sequence**: [ordered steps]
+**validation**: [how to check]
 """
     else -> """
-ITERATION 5: FINAL SYNTHESIS
-
-Your objective is to deliver a complete, polished, actionable plan to the user.
-
-This is your FINAL output. Synthesize everything from previous iterations into a clear, professional response that the user can act on.
-
-Structure your response:
-
-## Summary
-[2-3 sentences: What will be done and why this approach]
-
-## Recommended Solution
-[Clear, confident description of the chosen approach]
-
-## Implementation Steps
-
-**1. [Step Title]**
-[Clear, actionable description with enough detail to execute]
-
-**2. [Step Title]**
-[Continue for each step...]
-
-## Key Considerations
-- [Important point the user should keep in mind]
-- [Another important consideration]
-- [Technical or practical note]
-
-## Potential Challenges
-- **[Challenge 1]:** [How to handle it]
-- **[Challenge 2]:** [How to handle it]
-
-## Success Criteria
-[How will the user know this worked?]
-
-## Next Steps
-[What should the user do right now to begin?]
-
----
-*This plan was developed through 5 iterations of deep analysis. Ready for your approval to proceed.*
+step 5: synthesis
+deliver the final, polished plan. make it actionable.
+format:
+**solution**: [clear description]
+**next steps**: [what to do now]
 """
 }}
-</iteration_${planLoopIterations}_instructions>
-
-<response_style>
-- Write with confidence and clarity
-- Use precise, professional language
-- Structure information for easy scanning
-- Be thorough but not verbose
-- Avoid filler phrases, apologies, or hedging
-- Focus on actionable insights
-- Present information as knowledge, not discovery
-</response_style>
+</step_${planLoopIterations}_focus>
 </deep_thinking_mode>
 """
                     } else {
@@ -1349,7 +1169,7 @@ Structure your response:
                     Log.d(TAG, "↻ Falling back to next provider/key...")
                 }
             } catch (e: Exception) {
-                val errorMsg = e.message ?: "Unknown error"
+                val errorMsg = e.message ?: "unknown error"
                 // SECURITY: Sanitize error messages to prevent API key leakage
                 val sanitizedError = sanitizeErrorMessage(errorMsg)
 
@@ -1362,10 +1182,10 @@ Structure your response:
 
                 if (!errorType.shouldFailover()) {
                     // Tool error - return to user immediately without failover
-                    val userMessage = errorType.toUserMessage()
+                    val userMsg = errorType.toUserMessage()
                     // AGENT-007: Include error type in log for easier debugging
-                    Log.w(TAG, "Tool error [${errorType::class.simpleName}] (no failover): $userMessage")
-                    return AgentResult.Error("I couldn't complete that action: $userMessage")
+                    Log.w(TAG, "Tool error [${errorType::class.simpleName}] (no failover): $userMsg")
+                    return AgentResult.Error("i couldn't complete that action: $userMsg")
                 }
 
                 Log.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
@@ -1389,21 +1209,21 @@ Structure your response:
 
         // All providers/keys failed - return combined error
         val errorSummary = if (errors.size == 1) {
-            "Error: ${errors.first().third}"
+            "error: ${errors.first().third}"
         } else {
             // Group errors by provider for cleaner output
             val grouped = errors.groupBy { it.first }
-            "All ${errors.size} attempts failed:\n" + grouped.entries.joinToString("\n") { (provider, providerErrors) ->
+            "all ${errors.size} attempts failed:\n" + grouped.entries.joinToString("\n") { (provider, providerErrors) ->
                 if (providerErrors.size == 1) {
-                    "• $provider: ${providerErrors.first().third}"
+                    "• ${provider.name.lowercase()}: ${providerErrors.first().third}"
                 } else {
-                    "• $provider (${providerErrors.size} keys): ${providerErrors.first().third}"
+                    "• ${provider.name.lowercase()} (${providerErrors.size} keys): ${providerErrors.first().third}"
                 }
             }
         }
 
         Log.e(TAG, "All providers failed: $errorSummary")
-        return AgentResult.Error("I couldn't complete your request. $errorSummary\n\nProviders will automatically retry after a cooldown period.")
+        return AgentResult.Error("i couldn't complete your request. $errorSummary\n\nproviders will automatically retry after a cooldown period.")
     }
 
 

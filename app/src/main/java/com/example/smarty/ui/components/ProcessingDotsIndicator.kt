@@ -81,7 +81,7 @@ fun ProcessingDotsIndicator(
                 modifier = Modifier
                     .size(dotSize)
                     .clip(CircleShape)
-                    .background(accentColor)
+                    .background(accentColor.copy(alpha = 0.7f)) // Calmer, slightly transparent
                     // OPTIMIZED: graphicsLayer for GPU-accelerated scaling
                     .graphicsLayer { scaleX = scale; scaleY = scale }
             )

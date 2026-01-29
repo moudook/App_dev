@@ -51,7 +51,7 @@ class QuickNoteWidgetProvider : AppWidgetProvider() {
             // Main Add Button (Text Note)
             val intent = Intent(context, MainActivity::class.java).apply {
                 action = ACTION_QUICK_NOTE
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
             val pendingIntent = PendingIntent.getActivity(
                 context, appWidgetId, intent,
@@ -63,7 +63,7 @@ class QuickNoteWidgetProvider : AppWidgetProvider() {
             // Voice Note Button
             val voiceIntent = Intent(context, MainActivity::class.java).apply {
                 action = ACTION_VOICE_NOTE
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
             val voicePendingIntent = PendingIntent.getActivity(
                 context, appWidgetId + 1000, voiceIntent, // Unique RequestCode
@@ -74,7 +74,7 @@ class QuickNoteWidgetProvider : AppWidgetProvider() {
             // Camera Note Button
             val cameraIntent = Intent(context, MainActivity::class.java).apply {
                 action = ACTION_CAMERA_NOTE
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             }
             val cameraPendingIntent = PendingIntent.getActivity(
                 context, appWidgetId + 2000, cameraIntent, // Unique RequestCode

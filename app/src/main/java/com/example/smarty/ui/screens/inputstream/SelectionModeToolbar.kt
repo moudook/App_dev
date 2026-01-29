@@ -6,11 +6,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AllInbox
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.RocketLaunch
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,6 +22,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 
 /**
@@ -59,8 +62,8 @@ fun SelectionModeToolbar(
                     // Select All button
                     IconButton(onClick = onSelectAll) {
                         Icon(
-                            imageVector = Icons.Default.Verified,
-                            contentDescription = "Select all",
+                            imageVector = Icons.Default.SelectAll,
+                            contentDescription = stringResource(R.string.select_all),
                             tint = LocalAccentColor.current
                         )
                     }
@@ -71,12 +74,12 @@ fun SelectionModeToolbar(
                         enabled = hasSelection
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PushPin, // Creative: Pin
-                            contentDescription = "Pin selected",
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = stringResource(R.string.pin_selected),
                             tint = if (hasSelection)
                                 LocalAccentColor.current
                             else
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
                     }
 
@@ -86,12 +89,12 @@ fun SelectionModeToolbar(
                         enabled = hasSelection
                     ) {
                         Icon(
-                            imageVector = Icons.Default.RocketLaunch, // Creative: Launch
-                            contentDescription = "Share selected",
+                            imageVector = Icons.Default.Share,
+                            contentDescription = stringResource(R.string.share_selected),
                             tint = if (hasSelection)
                                 LocalAccentColor.current
                             else
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
                     }
 
@@ -101,12 +104,12 @@ fun SelectionModeToolbar(
                         enabled = hasSelection
                     ) {
                         Icon(
-                            imageVector = Icons.Default.AllInbox, // Creative: Vault
-                            contentDescription = "Archive selected",
+                            imageVector = Icons.Default.Archive,
+                            contentDescription = stringResource(R.string.archive_selected),
                             tint = if (hasSelection)
                                 LocalAccentColor.current
                             else
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
                     }
 
@@ -116,12 +119,12 @@ fun SelectionModeToolbar(
                         enabled = hasSelection
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Whatshot, // Creative: Fire
-                            contentDescription = "Delete selected",
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = stringResource(R.string.delete_selected),
                             tint = if (hasSelection)
                                 MaterialTheme.colorScheme.error
                             else
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
                     }
                 }

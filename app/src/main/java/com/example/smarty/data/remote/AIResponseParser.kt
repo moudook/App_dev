@@ -51,9 +51,9 @@ object AIResponseParser {
      * Used for validation and fallback logic.
      */
     val VALID_CATEGORIES = setOf(
-        "Learn", "Read", "Watch", "Idea", "Todo", "Buy", "Meet",
-        "Code", "Quote", "Inspo", "Recipe", "Health", "Finance",
-        "Work", "Play", "Note", "Legal"
+        "learn", "read", "watch", "idea", "todo", "buy", "meet",
+        "code", "quote", "inspo", "recipe", "health", "finance",
+        "work", "play", "note", "legal"
     )
 
     // ==================== JSON Extraction ====================
@@ -163,15 +163,15 @@ object AIResponseParser {
 
             // Default category if still missing
             if (category.isNullOrBlank()) {
-                category = "Note"
-                Log.d(TAG, "Using default category: Note")
+                category = "note"
+                Log.d(TAG, "Using default category: note")
             }
 
             return AIResponse(
                 title = title.take(60), // Enforce max length (increased for better titles)
                 category = validateCategory(category),
-                summary = if (summary.isEmpty()) "Content saved." else cleanSummary(summary.toString(), 300),
-                whySaved = whySaved?.take(20) ?: "Saved",
+                summary = if (summary.isEmpty()) "content saved." else cleanSummary(summary.toString(), 300),
+                whySaved = whySaved?.take(20)?.lowercase() ?: "saved",
                 success = true,
                 todos = todos
             )
@@ -227,10 +227,10 @@ object AIResponseParser {
             val parsed = JsonParser.parseString(jsonStr).asJsonObject
 
             AIResponse(
-                title = parsed.get("title")?.asString?.trim() ?: "Parsed Note",
-                category = parsed.get("category")?.asString?.trim() ?: "Note",
-                summary = parsed.get("summary")?.asString?.trim() ?: "Content saved for later.",
-                whySaved = parsed.get("whySaved")?.asString?.trim() ?: "Reference",
+                title = parsed.get("title")?.asString?.trim() ?: "parsed note",
+                category = parsed.get("category")?.asString?.trim() ?: "note",
+                summary = parsed.get("summary")?.asString?.trim() ?: "content saved for later.",
+                whySaved = parsed.get("whySaved")?.asString?.trim() ?: "reference",
                 success = true
             )
         } catch (e: Exception) {
@@ -479,12 +479,12 @@ object AIResponseParser {
             val actionItems = parsed.getAsJsonArray("actionItems")?.map { it.asString } ?: emptyList()
 
             DocumentAnalysisResponse(
-                title = parsed.get("title")?.asString?.trim() ?: "Document",
-                summary = parsed.get("summary")?.asString?.trim() ?: "Document saved.",
+                title = parsed.get("title")?.asString?.trim() ?: "document",
+                summary = parsed.get("summary")?.asString?.trim() ?: "document saved.",
                 keyPoints = keyPoints,
-                category = parsed.get("category")?.asString?.trim() ?: "Note",
+                category = parsed.get("category")?.asString?.trim() ?: "note",
                 actionItems = actionItems,
-                userRelevance = parsed.get("userRelevance")?.asString?.trim() ?: "Saved for reference",
+                userRelevance = parsed.get("userRelevance")?.asString?.trim() ?: "saved for reference",
                 success = true
             )
         } catch (e: Exception) {
@@ -641,29 +641,29 @@ object AIResponseParser {
     private fun categorizeByUrl(lower: String): Triple<String, String, String>? {
         return when {
             lower.contains("youtube.com") || lower.contains("youtu.be") ->
-                Triple("Watch", "YouTube video saved for later viewing.", "Watch later")
+                Triple("watch", "youtube video saved for later viewing.", "watch later")
             lower.contains("twitter.com") || lower.contains("x.com") ->
-                Triple("Read", "Tweet or thread worth revisiting.", "Social insight")
+                Triple("read", "tweet or thread worth revisiting.", "social insight")
             lower.contains("instagram.com") ->
-                Triple("Inspo", "Instagram content captured for inspiration.", "Visual inspo")
+                Triple("inspo", "instagram content captured for inspiration.", "visual inspo")
             lower.contains("github.com") ->
-                Triple("Code", "GitHub repository or code reference.", "Dev resource")
+                Triple("code", "github repository or code reference.", "dev resource")
             lower.contains("stackoverflow.com") ->
-                Triple("Code", "Stack Overflow solution for reference.", "Code help")
+                Triple("code", "stack overflow solution for reference.", "code help")
             lower.contains("reddit.com") ->
-                Triple("Read", "Reddit discussion or post.", "Community take")
+                Triple("read", "reddit discussion or post.", "community take")
             lower.contains("medium.com") || lower.contains("substack.com") ->
-                Triple("Read", "Article or blog post to read.", "Read later")
+                Triple("read", "article or blog post to read.", "read later")
             lower.contains("amazon.") || lower.contains("ebay.") || lower.contains("flipkart.") ->
-                Triple("Buy", "Product link saved for shopping.", "Want to buy")
+                Triple("buy", "product link saved for shopping.", "want to buy")
             lower.contains("linkedin.com") ->
-                Triple("Work", "LinkedIn content for professional reference.", "Career ref")
+                Triple("work", "linkedin content for professional reference.", "career ref")
             lower.contains("spotify.com") || lower.contains("music.") ->
-                Triple("Play", "Music or audio content.", "Listen later")
+                Triple("play", "music or audio content.", "listen later")
             lower.contains("netflix.com") || lower.contains("primevideo.") ->
-                Triple("Watch", "Streaming content to watch.", "Watch later")
+                Triple("watch", "streaming content to watch.", "watch later")
             lower.contains("http://") || lower.contains("https://") ->
-                Triple("Read", "Web link saved for later.", "Read later")
+                Triple("read", "web link saved for later.", "read later")
             else -> null
         }
     }
@@ -678,50 +678,50 @@ object AIResponseParser {
         return when {
             // Task/Todo patterns
             TODO_PATTERN.containsMatchIn(lower) ->
-                Triple("Todo", "Task or reminder captured.", "Action item")
+                Triple("todo", "task or reminder captured.", "action item")
 
             // Idea patterns
             IDEA_PATTERN.containsMatchIn(lower) ->
-                Triple("Idea", "Creative thought or idea captured.", "Future ref")
+                Triple("idea", "creative thought or idea captured.", "future ref")
 
             // Learning patterns
             LEARN_PATTERN.containsMatchIn(lower) ->
-                Triple("Learn", "Educational content for learning.", "Skill up")
+                Triple("learn", "educational content for learning.", "skill up")
 
             // Shopping patterns
             BUY_PATTERN.containsMatchIn(lower) ->
-                Triple("Buy", "Shopping note or wishlist item.", "Want this")
+                Triple("buy", "shopping note or wishlist item.", "want this")
 
             // Meeting patterns
             MEET_PATTERN.containsMatchIn(lower) ->
-                Triple("Meet", "Meeting or event reminder.", "Schedule")
+                Triple("meet", "meeting or event reminder.", "schedule")
 
             // Code patterns
             CODE_PATTERN.containsMatchIn(lower) ->
-                Triple("Code", "Code snippet or technical note.", "Dev ref")
+                Triple("code", "code snippet or technical note.", "dev ref")
 
             // Quote patterns
             QUOTE_PATTERN.containsMatchIn(lower) ->
-                Triple("Quote", "Quote or memorable words.", "Wisdom")
+                Triple("quote", "memorable words.", "wisdom")
 
             // Health patterns
             HEALTH_PATTERN.containsMatchIn(lower) ->
-                Triple("Health", "Health or fitness related note.", "Wellness")
+                Triple("health", "health or fitness related note.", "wellness")
 
             // Finance patterns
             FINANCE_PATTERN.containsMatchIn(lower) ->
-                Triple("Finance", "Financial note or tracking.", "Money mgmt")
+                Triple("finance", "financial note or tracking.", "money mgmt")
 
             // Recipe patterns
             RECIPE_PATTERN.containsMatchIn(lower) ->
-                Triple("Recipe", "Recipe or cooking instructions.", "Cook this")
+                Triple("recipe", "recipe or cooking instructions.", "cook this")
 
             // Work patterns
             WORK_PATTERN.containsMatchIn(lower) ->
-                Triple("Work", "Work-related note or task.", "Professional")
+                Triple("work", "work-related note or task.", "professional")
 
             else ->
-                Triple("Note", "Quick note captured for later.", "Saved")
+                Triple("note", "quick note captured for later.", "saved")
         }
     }
 
@@ -736,27 +736,25 @@ object AIResponseParser {
      * @return Validated category or "Note" as fallback
      */
     fun validateCategory(category: String?): String {
-        if (category.isNullOrBlank()) return "Note"
+        if (category.isNullOrBlank()) return "note"
 
         // check if it is one of the standard categories (fast path)
         val standardMatch = VALID_CATEGORIES.find { it.equals(category, ignoreCase = true) }
         if (standardMatch != null) return standardMatch
 
         // For dynamic categories:
-        // 1. Remove special chars (keep spaces/hyphens for multi-word stacks like "Side Project")
+        // 1. Remove special chars (keep spaces/hyphens for multi-word stacks like "side project")
         // 2. Limit length to prevent UI issues
-        // 3. Title Case
+        // 3. Lowercase (Consistent with Calm Aesthetic)
         val clean = category.trim()
             .replace(Regex("[^a-zA-Z0-9\\s\\-]"), "")
             .take(20)
+            .lowercase()
 
         return if (clean.isNotEmpty()) {
-            // Capitalize first letter of each word
-            clean.split(" ").joinToString(" ") { word ->
-                word.lowercase().replaceFirstChar { it.uppercase() }
-            }
+            clean
         } else {
-            "Note"
+            "note"
         }
     }
 
@@ -769,8 +767,8 @@ object AIResponseParser {
      * @return Cleaned summary
      */
     fun cleanSummary(summary: String?, maxLength: Int = 500): String {
-        if (summary.isNullOrBlank()) return "Content saved for later."
-        val cleaned = summary.trim().replace(WHITESPACE_PATTERN, " ")
+        if (summary.isNullOrBlank()) return "content saved for later."
+        val cleaned = summary.trim().replace(WHITESPACE_PATTERN, " ").lowercase()
         return if (cleaned.length > maxLength) {
             cleaned.take(maxLength - 3) + "..."
         } else {

@@ -71,7 +71,7 @@ fun JarvisLogo(
                     .data("file:///android_asset/Jarvis_Icon.png")
                     .crossfade(true)
                     .build(),
-                contentDescription = "Jarvis Logo",
+                contentDescription = "jarvis_logo",
                 modifier = Modifier.fillMaxSize(),
                 onError = { imageLoadError = true }
             )
@@ -85,8 +85,8 @@ fun JarvisLogo(
                     .background(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFF1A1A2E),
-                                Color(0xFF16213E)
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                MaterialTheme.colorScheme.surface
                             )
                         ),
                         shape = RoundedCornerShape(size / 4)
@@ -360,7 +360,7 @@ fun DecompressionPlaceholder(
             }
 
             Text(
-                text = "Decompressing...",
+                text = "decompressing",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -387,7 +387,7 @@ fun JarvisHeader(
         )
 
         Text(
-            text = "Jarvis_",
+            text = "jarvis_",
             style = MaterialTheme.typography.titleLarge,
             color = LocalAccentColor.current
         )

@@ -11,9 +11,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material.icons.outlined.HighlightOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,9 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.ui.LocalAccentColor
-import java.text.SimpleDateFormat
+import com.example.smarty.ui.components.ChatHistoryEmptyState
 import java.util.*
 
 /**
@@ -45,6 +47,7 @@ fun ChatHistoryContent(
     onDeleteSession: (String) -> Unit,
     onBackToChat: () -> Unit,
     contentPadding: PaddingValues,
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var sessionToDeleteId by remember { mutableStateOf<String?>(null) }
@@ -105,20 +108,19 @@ fun ChatHistoryContent(
             contentPadding = contentPadding, // Includes necessary top padding
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (sessions.isEmpty()) {
+            if (isLoading) {
                 item {
-                    Box(
+                    com.example.smarty.ui.components.ChatHistoryLoadingState(
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            } else if (sessions.isEmpty()) {
+                item {
+                    ChatHistoryEmptyState(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 40.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                         Text(
-                            text = "No conversations yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    }
+                            .padding(vertical = 40.dp)
+                    )
                 }
             } else {
                 items(sessions, key = { it.id }) { session ->
@@ -144,15 +146,15 @@ fun ChatHistoryContent(
     // Delete Dialog
     sessionToDelete?.let { session ->
         com.example.smarty.ui.components.common.JarvisDialog(
-            title = "Delete chat?",
-            text = "This cannot be undone.",
+            title = stringResource(R.string.delete_chat),
+            text = stringResource(R.string.chat_delete_warning),
             onConfirm = {
                 onDeleteSession(session.id)
                 sessionToDeleteId = null
             },
             onDismiss = { sessionToDeleteId = null },
-            confirmText = "Delete",
-            dismissText = "Cancel",
+            confirmText = stringResource(R.string.delete),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
@@ -166,64 +168,56 @@ private fun InlineSessionItem(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
-    // Local color helpers
-    val AppLightBlue = Color(0xFFD0E7FE)
-    val AppDarkBlue = Color(0xFF003258)
-
-    // "Ultrathink" / Note Card Aesthetic Constants
-    val containerShape = RoundedCornerShape(percent = 50) // Pill shape
-    val iconShape = CircleShape // Fully round for pill aesthetic
-
-    // Colors
+    // Theme-aware colors
     val containerColor by animateColorAsState(
         targetValue = if (isSelected)
-            AppLightBlue
+            accentColor.copy(alpha = 0.12f)
         else
-            MaterialTheme.colorScheme.surface, // Clean surface look for unselected
+            MaterialTheme.colorScheme.surface,
         label = "containerColor"
     )
 
     val contentColor by animateColorAsState(
         targetValue = if (isSelected)
-            AppDarkBlue
+            accentColor
         else
             MaterialTheme.colorScheme.onSurface,
         label = "contentColor"
     )
-    
+
     val borderColor by animateColorAsState(
         targetValue = if (isSelected)
-            AppDarkBlue.copy(alpha = 0.1f)
+            accentColor.copy(alpha = 0.2f)
         else
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), // Match NoteCard border style
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
         label = "borderColor"
     )
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp) // Consistent margins with note cards
-            .clip(containerShape)
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(percent = 50))
             .clickable { onClick() },
-        shape = containerShape,
+        shape = RoundedCornerShape(percent = 50),
         color = containerColor,
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp), // Balanced pill padding
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val isNewChat = session.title.isBlank() ||
-                session.title.equals("New Chat", ignoreCase = true) ||
-                session.title.equals("New Conversation", ignoreCase = true)
+                session.title.equals("new_chat", ignoreCase = true) ||
+                session.title.equals("new_conversation", ignoreCase = true)
 
-            // Icon - Clean, borderless, outlined style
+            // Icon - Unified to Assistant for AI features
             Icon(
-                imageVector = if (isNewChat) Icons.Outlined.AutoAwesome else Icons.Outlined.ChatBubbleOutline,
+                imageVector = if (isNewChat) Icons.Default.Assistant else Icons.Outlined.ChatBubbleOutline,
                 contentDescription = null,
-                tint = if (isSelected) AppDarkBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
 
@@ -236,10 +230,11 @@ private fun InlineSessionItem(
             ) {
                 // Title
                 Text(
-                    text = if (isSelected && isNewChat) "Current Chat" else session.title.ifBlank { "New Conversation" },
+                    text = if (isSelected && isNewChat) stringResource(R.string.current_chat) else session.title.ifBlank { stringResource(R.string.new_conversation) }.lowercase(),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
+                        fontSize = 15.sp,
+                        letterSpacing = (-0.2).sp
                     ),
                     color = contentColor,
                     maxLines = 1,
@@ -250,12 +245,12 @@ private fun InlineSessionItem(
 
                 // Preview
                 Text(
-                    text = session.lastMessagePreview.ifBlank { "Start a new conversation" },
+                    text = session.lastMessagePreview.ifBlank { stringResource(R.string.start_a_new_conversation) }.lowercase(),
                     style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 13.sp,
-                        letterSpacing = 0.2.sp
+                        fontSize = 12.sp,
+                        letterSpacing = 0.3.sp
                     ),
-                    color = if (isSelected) contentColor.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isSelected) contentColor.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -277,10 +272,10 @@ private fun InlineSessionItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Delete Action - Minimal, borderless
+                // Delete Action - Standard Delete icon
                 Icon(
-                    imageVector = Icons.Outlined.HighlightOff,
-                    contentDescription = "Delete",
+                    imageVector = Icons.Default.DeleteOutline,
+                    contentDescription = stringResource(R.string.delete),
                     tint = if (isSelected) contentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier
                         .size(18.dp)
@@ -291,19 +286,20 @@ private fun InlineSessionItem(
     }
 }
 
+@Composable
 private fun formatRelativeTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
 
     return when {
-        diff < 60_000 -> "Now"
-        diff < 3600_000 -> "${diff / 60_000}m"
-        diff < 86400_000 -> "${diff / 3600_000}h"
-        diff < 172800_000 -> "Yesterday"
-        diff < 604800_000 -> "${diff / 86400_000}d"
+        diff < 60_000 -> stringResource(R.string.now)
+        diff < 3600_000 -> stringResource(R.string.minutes_ago, diff / 60_000)
+        diff < 86400_000 -> stringResource(R.string.hours_ago, diff / 3600_000)
+        diff < 172800_000 -> stringResource(R.string.yesterday)
+        diff < 604800_000 -> stringResource(R.string.days_ago, diff / 86400_000)
         else -> {
-            val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
-            sdf.format(Date(timestamp))
+            val sdf = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
+            sdf.format(java.util.Date(timestamp)).lowercase()
         }
     }
 }

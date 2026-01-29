@@ -44,6 +44,14 @@ class JarvisApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
 
+        // Initialize CrashLogger first to catch early startup crashes
+        try {
+            com.example.smarty.util.CrashLogger.init(this)
+            com.example.smarty.util.CrashLogger.log(this, "Application onCreate started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to init CrashLogger", e)
+        }
+
         // Store weak reference to application (prevents memory leaks)
         applicationRef = WeakReference(this)
 
@@ -65,13 +73,24 @@ class JarvisApplication : Application(), Configuration.Provider {
         Log.d(TAG, "App shortcuts initialized")
 
         // Setup daily digest notification channel and schedule worker
-        com.example.smarty.worker.DailyDigestWorker.createNotificationChannel(this)
-        com.example.smarty.worker.DailyDigestWorker.schedule(this)
-        Log.d(TAG, "Daily digest scheduled for 6:30 AM")
+        try {
+            com.example.smarty.worker.DailyDigestWorker.createNotificationChannel(this)
+            com.example.smarty.worker.DailyDigestWorker.schedule(this)
+            Log.d(TAG, "Daily digest scheduled for 6:30 AM")
 
-        // Setup automated memory sync worker (daily)
-        com.example.smarty.worker.MemorySyncWorker.schedule(this)
-        Log.d(TAG, "Automated memory sync scheduled")
+            // Setup automated memory sync worker (daily)
+            com.example.smarty.worker.MemorySyncWorker.schedule(this)
+            Log.d(TAG, "Automated memory sync scheduled")
+
+            // Setup periodic calendar sync worker (30 min)
+            com.example.smarty.data.worker.CalendarSyncWorker.schedule(this)
+            Log.d(TAG, "Calendar sync scheduled")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to schedule workers", e)
+            com.example.smarty.util.CrashLogger.log(this, "Worker scheduling failed: ${e.message}")
+        }
+
+        com.example.smarty.util.CrashLogger.log(this, "Application onCreate finished")
     }
 
     override fun onTerminate() {

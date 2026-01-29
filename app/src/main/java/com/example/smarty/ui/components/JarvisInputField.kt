@@ -15,6 +15,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -29,15 +30,18 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.RocketLaunch
-import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Assistant
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.TravelExplore
-import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -71,6 +75,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.MentionState
 import com.example.smarty.data.model.MentionSuggestion
@@ -84,7 +90,6 @@ import com.example.smarty.ui.animation.ShimmerDirection
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
-import com.example.smarty.ui.theme.SafetyOrange
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
@@ -92,35 +97,32 @@ import com.example.smarty.util.rememberSpeechToText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// Color constants for attachment indicators
-private val AttachmentRedColor = Color(0xFFF44336)
-private val AttachmentGreenColor = Color(0xFF4CAF50)
-private val AttachmentBlueColor = Color(0xFF2196F3)
-private val AttachmentOrangeColor = Color(0xFFFF9500)
-private val AttachmentGrayColor = Color(0xFF607D8B)
+// Color constants for attachment indicators - Technical Palette (Theme-neutral)
+private val AttachmentRedColor = Color(0xFFEF9A9A)
+private val AttachmentGreenColor = Color(0xFFA5D6A7)
+private val AttachmentBlueColor = Color(0xFF90CAF9)
+private val AttachmentOrangeColor = Color(0xFFFFCC80)
+private val AttachmentGrayColor = Color(0xFFB0BEC5)
 
-// Agent shimmer color (purple/blue gradient feel)
-private val AgentShimmerColor = Color(0xFF7C4DFF)
+// Agent shimmer color (Standardized Assistant Purple - Technical Palette)
+private val AgentShimmerColor = Color(0xFFB39DDB)
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ENHANCED GLASSMORPHISM COLORS
-// More transparent backgrounds with stronger blur effect for premium glass look
+// REFINED SOFT MINIMALIST COLORS
+// Calmer, less "glassy", more "paper-like" floating elements
 // ═══════════════════════════════════════════════════════════════════════════════
-private val GlassBackgroundLight = Color(0xBBFFFFFF)  // White with 73% opacity (more transparent)
-private val GlassBackgroundDark = Color(0xB0181822)   // Dark with 69% opacity (more transparent)
-private val GlassBlueTintLight = Color(0x220066FF)    // Blue tint 13% for light (stronger)
-private val GlassBlueTintDark = Color(0x332979FF)     // Blue tint 20% for dark (stronger)
-private val GlassBorderLight = Color(0x550066FF)      // Blue border 33% for light (more visible)
-private val GlassBorderDark = Color(0x662979FF)       // Blue border 40% for dark (more visible)
-private val GlassInnerGlow = Color(0x1AFFFFFF)        // Stronger white inner glow (10%)
+private val InputBackgroundLight = Color(0xFFFCFCFD)  // Almost white, very subtle off-white
+private val InputBackgroundDark = Color(0xFF20202A)   // Soft dark gray
+private val InputBorderLight = Color(0xFFE5E5EA)      // Very subtle gray border
+private val InputBorderDark = Color(0xFF2C2C2E)       // Subtle dark border
 
 // Design constants for the redesigned input block
 private val CIRCLE_SIZE = 44.dp
 private val CIRCLE_ICON_SIZE = 22.dp
-private val PILL_HEIGHT = 48.dp
-private val PILL_CORNER_RADIUS = 24.dp
-private val ELEMENT_SPACING = 10.dp
-private val HORIZONTAL_PADDING = 12.dp
+private val PILL_HEIGHT = 52.dp // Slightly taller for better touch target/comfort
+private val PILL_CORNER_RADIUS = 26.dp
+private val ELEMENT_SPACING = 12.dp
+private val HORIZONTAL_PADDING = 16.dp
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -147,7 +149,7 @@ fun JarvisInputField(
     onValueChange: (TextFieldValue) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "Message Jarvis...",
+    placeholder: String = "add_note_or_ask_ai",
     // Attachment support
     attachments: List<Attachment> = emptyList(),
     onPickImage: () -> Unit = {},
@@ -160,7 +162,7 @@ fun JarvisInputField(
     // Chat mode support
     isChatMode: Boolean = false,
     isHistoryMode: Boolean = false, // New parameter
-    chatPlaceholder: String = "How can I help?",
+    chatPlaceholder: String = "add_note_or_ask_ai",
     aiPlanStatus: String? = null, // e.g. "Jarvis is planning..."
     currentTool: String? = null,
     isProcessing: Boolean = false,
@@ -224,11 +226,11 @@ fun JarvisInputField(
 
     // Placeholder based on mode
     val currentPlaceholder = when {
-        isVoiceListening -> "Listening..."
-        isSearchMode -> "Find a note..."
-        !aiPlanStatus.isNullOrBlank() -> aiPlanStatus
-        isChatMode -> chatPlaceholder
-        else -> placeholder
+        isVoiceListening -> stringResource(R.string.listening)
+        isSearchMode -> stringResource(R.string.find_notes)
+        !aiPlanStatus.isNullOrBlank() -> aiPlanStatus.lowercase()
+        isChatMode -> stringResource(R.string.ask_jarvis)
+        else -> stringResource(R.string.add_note)
     }
 
     // Clear focus when submitting
@@ -301,34 +303,38 @@ fun JarvisInputField(
                         if (isHistoryMode) onNewChat() else onOpenChatHistory()
                     },
                     shape = CircleShape,
-                    color = LocalAccentColor.current.copy(alpha = 0.85f)
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f), // Calmer color
+                    border = BorderStroke(1.dp, LocalAccentColor.current.copy(alpha = 0.15f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = if (isHistoryMode) Icons.Default.AutoAwesome else Icons.Default.AutoAwesome, // Sparkles for AI
+                            imageVector = Icons.Default.Assistant,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = LocalAccentColor.current,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = if (isHistoryMode) "New Chat" else "Chat Mode",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.White
+                            text = if (isHistoryMode) stringResource(R.string.new_chat) else stringResource(R.string.assistant),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
 
-                        // Separator and secondary text only for normal Chat Mode (not History Mode)
+                        // Separator and secondary text
                         if (!isHistoryMode) {
                             Spacer(Modifier.width(8.dp))
-                            Box(Modifier.width(1.dp).height(10.dp).background(Color.White.copy(alpha = 0.3f)))
+                            Box(Modifier.width(1.dp).height(10.dp).background(MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f)))
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "History",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.7f)
+                                text = stringResource(R.string.history),
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.5.sp),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -356,14 +362,14 @@ fun JarvisInputField(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Filled.Security,
-                            contentDescription = "Private",
+                            imageVector = Icons.Filled.Security,
+                            contentDescription = stringResource(R.string.private_note),
                             tint = MaterialTheme.colorScheme.inverseOnSurface,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "Private",
+                            text = stringResource(R.string.private_note),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.inverseOnSurface
                         )
@@ -456,23 +462,40 @@ fun JarvisInputField(
         ) {
             if (isChatMode) {
                 // ═══════════════════════════════════════════════════════════════════
-                // CHAT MODE: [Thinking Toggle] [Input Pill]
+                // CHAT MODE: [Thinking Toggle] [Voice Circle] [Input Pill]
                 // ═══════════════════════════════════════════════════════════════════
-                
-                // Thinking Mode Toggle Button (for reasoning models like Falcon-H1R-7B)
-                ActionCircle(
-                    icon = if (isThinkingModeEnabled) Icons.Default.Lightbulb else Icons.Outlined.Bolt,
-                    contentDescription = if (isThinkingModeEnabled)
-                        "Reasoning on - Tap to disable"
-                    else
-                        "Reasoning off - Tap to enable",
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onToggleThinkingMode()
-                    },
-                    isActive = isThinkingModeEnabled,
-                    activeColor = LocalAccentColor.current
-                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(ELEMENT_SPACING),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Thinking Mode Toggle Button (for reasoning models like Falcon-H1R-7B)
+                    ActionCircle(
+                        icon = if (isThinkingModeEnabled) Icons.Default.Psychology else Icons.Outlined.Psychology,
+                        contentDescription = if (isThinkingModeEnabled)
+                            stringResource(R.string.reasoning_on)
+                        else
+                            stringResource(R.string.reasoning_off),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onToggleThinkingMode()
+                        },
+                        isActive = isThinkingModeEnabled,
+                        activeColor = LocalAccentColor.current
+                    )
+
+                    // Voice Circle (Chat Mode only - triggers STT)
+                    ActionCircle(
+                        icon = if (isVoiceListening) Icons.Default.StopCircle else Icons.Default.Mic,
+                        contentDescription = if (isVoiceListening) stringResource(R.string.stop_listening) else stringResource(R.string.voice_input),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput()
+                        },
+                        isActive = isVoiceListening,
+                        activeColor = LocalAccentColor.current
+                    )
+                }
             } else {
                 // ═══════════════════════════════════════════════════════════════════
                 // NORMAL MODE: [Attach Circle] [Search Circle] [Input Pill]
@@ -481,7 +504,7 @@ fun JarvisInputField(
                 // File Attachment Circle
                 ActionCircle(
                     icon = Icons.Default.AttachFile, // Metaphor: Connection
-                    contentDescription = "Attach",
+                    contentDescription = stringResource(R.string.attach),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         // Centralized Pill UI Toggle:
@@ -501,8 +524,8 @@ fun JarvisInputField(
 
                 // Search Circle
                 ActionCircle(
-                    icon = Icons.Default.TravelExplore, // Metaphor: Compass
-                    contentDescription = "Search",
+                    icon = Icons.Default.Search, // Metaphor: Compass
+                    contentDescription = stringResource(R.string.search),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         
@@ -556,6 +579,10 @@ fun JarvisInputField(
                             delay(60)
                             handleSubmit()
                         }
+                    } else {
+                        // Plus button logic: Toggle attachment panel
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        showAttachmentPanel = !showAttachmentPanel
                     }
                 },
                 flyProgress = flyAnimation.value,
@@ -583,11 +610,12 @@ private fun ActionCircle(
     activeColor: Color = LocalAccentColor.current,
     badge: Int? = null
 ) {
-    // Glassmorphism: Determine colors based on theme
+    // Soft Minimalist: Determine colors based on theme
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-    val glassBackground = if (isDark) GlassBackgroundDark else GlassBackgroundLight
-    val glassTint = if (isDark) GlassBlueTintDark else GlassBlueTintLight
-    val glassBorder = if (isDark) GlassBorderDark else GlassBorderLight
+    val accentColor = LocalAccentColor.current
+
+    val backgroundColor = if (isDark) InputBackgroundDark else InputBackgroundLight
+    val borderColor = if (isDark) InputBorderDark else InputBorderLight
 
     val iconColor by animateColorAsState(
         targetValue = if (isActive) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -595,9 +623,9 @@ private fun ActionCircle(
         label = "circleIcon"
     )
 
-    // Glassmorphism border: blue tint that intensifies when active
-    val borderColor by animateColorAsState(
-        targetValue = if (isActive) activeColor.copy(alpha = 0.6f) else glassBorder,
+    // Border: Subtle normally, colored when active
+    val currentBorderColor by animateColorAsState(
+        targetValue = if (isActive) activeColor.copy(alpha = 0.5f) else borderColor,
         animationSpec = tween(200),
         label = "circleBorder"
     )
@@ -610,56 +638,41 @@ private fun ActionCircle(
     )
 
     Box(modifier = modifier) {
-        // Glassmorphism container with layered backgrounds
-        Box(
+        // Soft floating circle
+        Surface(
             modifier = Modifier
                 .requiredSize(CIRCLE_SIZE)
                 .scale(scale)
-                .shadow(
-                    elevation = if (isActive) 8.dp else 4.dp,
-                    shape = CircleShape,
-                    spotColor = activeColor.copy(alpha = if (isActive) 0.25f else 0.1f),
-                    ambientColor = activeColor.copy(alpha = if (isActive) 0.15f else 0.05f)
-                )
-                // Base glass background
-                .clip(CircleShape)
-                .background(glassBackground)
-                // Blue tint overlay
-                .background(glassTint)
-                // Inner glow for depth
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            GlassInnerGlow,
-                            Color.Transparent
-                        )
-                    )
-                )
-                // Glass border
-                .border(
-                    width = if (isActive) 1.5.dp else 1.dp,
-                    color = borderColor,
-                    shape = CircleShape
-                )
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            tryAwaitRelease()
-                            isPressed = false
-                        },
-                        onTap = { onClick() }
-                    )
-                }
-                .padding(8.dp), // Increase touch target while keeping visual size the same
-            contentAlignment = Alignment.Center
+                .softCardShadow(shape = CircleShape, elevation = if (isActive) 6.dp else 2.dp),
+            shape = CircleShape,
+            color = backgroundColor,
+            border = BorderStroke(1.dp, currentBorderColor)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = iconColor,
-                modifier = Modifier.requiredSize(CIRCLE_ICON_SIZE)
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable {
+                         // Ripple handled by Surface or custom indication if needed
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onPress = {
+                                isPressed = true
+                                tryAwaitRelease()
+                                isPressed = false
+                            },
+                            onTap = { onClick() }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                 Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    tint = iconColor,
+                    modifier = Modifier.requiredSize(CIRCLE_ICON_SIZE)
+                )
+            }
         }
 
         // Badge
@@ -670,12 +683,13 @@ private fun ActionCircle(
                     .offset(x = 4.dp, y = (-4).dp)
                     .requiredSize(18.dp),
                 shape = CircleShape,
-                color = LocalAccentColor.current
+                color = LocalAccentColor.current,
+                shadowElevation = 2.dp
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Text(
                         text = badge.toString(),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = Color.White
                     )
                 }
@@ -704,57 +718,31 @@ private fun InputPill(
     autoSendActive: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Glassmorphism: Determine colors based on theme
+    // Soft Minimalist: Determine colors based on theme
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-    val glassBackground = if (isDark) GlassBackgroundDark else GlassBackgroundLight
-    val glassTint = if (isDark) GlassBlueTintDark else GlassBlueTintLight
-    val glassBorder = if (isDark) GlassBorderDark else GlassBorderLight
     val accentColor = LocalAccentColor.current
 
-    // Glassmorphism border: blue tint that intensifies when focused
-    val borderColor by animateColorAsState(
-        targetValue = if (isFocused) accentColor.copy(alpha = 0.6f) else glassBorder,
+    val backgroundColor = if (isDark) InputBackgroundDark else InputBackgroundLight
+    val borderColor = if (isDark) InputBorderDark else InputBorderLight
+
+    // Border: Subtle normally, colored when focused
+    val currentBorderColor by animateColorAsState(
+        targetValue = if (isFocused) accentColor.copy(alpha = 0.5f) else borderColor,
         animationSpec = tween(200),
         label = "pillBorder"
     )
 
-    // Glassmorphism container with layered backgrounds
-    Box(
+    // Elevation changes on focus
+    val elevation = if (isFocused) 8.dp else 2.dp
+
+    // Soft floating pill container
+    Surface(
         modifier = modifier
             .requiredHeight(PILL_HEIGHT)
-            .shadow(
-                elevation = if (isFocused) 12.dp else 6.dp,
-                shape = RoundedCornerShape(PILL_CORNER_RADIUS),
-                spotColor = accentColor.copy(alpha = if (isFocused) 0.2f else 0.1f),
-                ambientColor = accentColor.copy(alpha = if (isFocused) 0.1f else 0.05f)
-            )
-            // Base glass background
-            .clip(RoundedCornerShape(PILL_CORNER_RADIUS))
-            .background(glassBackground)
-            // Blue tint overlay for glass effect
-            .background(glassTint)
-            // Subtle gradient for depth (top-to-bottom light gradient)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        GlassInnerGlow,
-                        Color.Transparent,
-                        Color.Transparent
-                    )
-                )
-            )
-            // Glass border with blue tint
-            .border(
-                width = if (isFocused) 1.5.dp else 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(PILL_CORNER_RADIUS)
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                focusRequester.requestFocus()
-            }
+            .softCardShadow(shape = RoundedCornerShape(PILL_CORNER_RADIUS), elevation = elevation),
+        shape = RoundedCornerShape(PILL_CORNER_RADIUS),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, currentBorderColor)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Shimmer overlay for voice/agent states
@@ -764,13 +752,12 @@ private fun InputPill(
                     isAgentWorking && !isVoiceListening && !autoSendActive -> ShimmerDirection.RIGHT_TO_LEFT
                     else -> ShimmerDirection.LEFT_TO_RIGHT
                 }
-                val shimmerColor = LocalAccentColor.current
+                val shimmerColor = LocalAccentColor.current.copy(alpha = 0.1f)
                 val shimmerSpeed = if (autoSendActive) 3.5f else 1f
 
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .clip(RoundedCornerShape(PILL_CORNER_RADIUS))
                         .directionalShimmer(
                             isVisible = showShimmer,
                             color = shimmerColor,
@@ -783,7 +770,7 @@ private fun InputPill(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 16.dp, end = 6.dp),
+                    .padding(start = 20.dp, end = 8.dp), // Increased left padding for text comfort
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Text input area
@@ -811,8 +798,8 @@ private fun InputPill(
                         onTextLayout = { lineCount = it.lineCount },
                         textStyle = TextStyle(
                             fontFamily = MonoFont,
-                            fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                            color = if (isVoiceListening) LocalAccentColor.current 
+                            fontSize = 15.sp, // Slightly larger for readability
+                            color = if (isVoiceListening) LocalAccentColor.current
                                     else MaterialTheme.colorScheme.onSurface
                         ),
                         cursorBrush = SolidColor(LocalAccentColor.current),
@@ -828,21 +815,19 @@ private fun InputPill(
                     ) {
                         Text(
                             text = placeholder,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = MonoFont),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = MonoFont,
+                                fontSize = 15.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                     }
                 }
 
-                // Send Arrow (conditional visibility) - Pointing RIGHT
-                // Using Row-aware animations for horizontal expansion
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = canSend,
-                    enter = scaleIn(initialScale = 0.7f) + fadeIn(),
-                    exit = scaleOut(targetScale = 0.7f) + fadeOut()
-                ) {
+                // Action icon (Plus when empty, Rocket when has content)
+                Box {
                     val haptic = LocalHapticFeedback.current
-                    
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.width(8.dp))
 
@@ -864,41 +849,53 @@ private fun InputPill(
                             label = "sendScale"
                         )
 
+                        // Send button style
+                        val sendBtnColor = if (canSend) LocalAccentColor.current else MaterialTheme.colorScheme.surfaceVariant
+                        val sendIconColor = if (canSend) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(36.dp)
                                 .scale(buttonScale)
                                 .clip(CircleShape)
-                                .background(LocalAccentColor.current)  // Solid background for visibility in dark mode
-                                .pointerInput(canSend) {
-                                    if (canSend) {
-                                        detectTapGestures(
-                                            onPress = {
-                                                isPressed = true
-                                                tryAwaitRelease()
-                                                isPressed = false
-                                            },
-                                            onTap = { onSend() }
-                                        )
-                                    }
+                                .background(sendBtnColor)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onPress = {
+                                            isPressed = true
+                                            tryAwaitRelease()
+                                            isPressed = false
+                                        },
+                                        onTap = { onSend() }
+                                    )
                                 }
-                                .padding(8.dp), // Increase touch target while keeping visual size the same
+                                .padding(8.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.RocketLaunch, // Creative: Launch
-                                contentDescription = "Send",
-                                tint = Color.White.copy(alpha = flyAlpha), // White for contrast against accent background
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .graphicsLayer {
-                                        translationX = flyX * density
-                                        translationY = flyY * density
-                                        rotationZ = flyRotation
-                                        scaleX = flyScale
-                                        scaleY = flyScale
-                                    }
-                            )
+                            AnimatedContent(
+                                targetState = canSend,
+                                transitionSpec = {
+                                    (scaleIn() + fadeIn()) togetherWith (scaleOut() + fadeOut())
+                                },
+                                label = "iconTransition"
+                            ) { isSending ->
+                                Icon(
+                                    imageVector = if (isSending) Icons.AutoMirrored.Filled.Send else Icons.Default.Add,
+                                    contentDescription = if (isSending) stringResource(R.string.share) else stringResource(R.string.add_attachment),
+                                    tint = if (isSending && canSend) Color.White.copy(alpha = flyAlpha) else sendIconColor,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .graphicsLayer {
+                                            if (isSending && canSend) { // Only animate flight if it's the send button
+                                                translationX = flyX * density
+                                                translationY = flyY * density
+                                                rotationZ = flyRotation
+                                                scaleX = flyScale
+                                                scaleY = flyScale
+                                            }
+                                        }
+                                )
+                            }
                         }
                     }
                 }

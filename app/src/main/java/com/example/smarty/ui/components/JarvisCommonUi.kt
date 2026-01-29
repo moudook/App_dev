@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ElectricBlue
 
@@ -61,10 +63,9 @@ fun JarvisButton(
         )
     ) {
         if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.height(24.dp).fillMaxWidth(), // Constrained height
-                strokeWidth = 2.dp,
-                color = contentColor
+            com.example.smarty.ui.components.CalmThinkingDots(
+                color = contentColor,
+                dotSize = 4.dp
             )
         } else {
             Text(
@@ -157,14 +158,14 @@ fun JarvisGoogleButton(
         enabled = !isLoading
     ) {
         if (isLoading) {
-             CircularProgressIndicator(
-                modifier = Modifier.height(24.dp),
-                strokeWidth = 2.dp
+             com.example.smarty.ui.components.CalmThinkingDots(
+                color = LocalAccentColor.current,
+                dotSize = 4.dp
             )
         } else {
             // In a real app, use the Google G logo drawable
             Text(
-                text = "Continue with Google",
+                text = stringResource(R.string.continue_with_google),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -211,11 +212,12 @@ fun GeometricGradientBackground(
             
             // 1. Precise Gradient (Linear diagonal)
             // Matching the provided image: Lighter top-left, Deep blue diagonal, Dark bottom
+            // Updated to use softened Technical Palette colors for Calm Aesthetic
             val gradientBrush = androidx.compose.ui.graphics.Brush.linearGradient(
                 colors = listOf(
-                    Color(0xFF8E9EBC), // Top-Left: Silvery Blue (Reference match)
-                    Color(0xFF1E488F), // Middle: Vibrant Royal Blue
-                    Color(0xFF0A1A3F)  // Bottom-Right: Deep Navy
+                    Color(0xFFB0BEC5), // Top-Left: Softened Silver Blue
+                    Color(0xFF90CAF9), // Middle: Softened Royal Blue
+                    Color(0xFF1E1E2A)  // Bottom-Right: Deep Technical Dark
                 ),
                 start = androidx.compose.ui.geometry.Offset(0f, 0f),
                 end = androidx.compose.ui.geometry.Offset(width, height)
@@ -311,11 +313,12 @@ fun TechnicalSurface(
     shape: Shape = RoundedCornerShape(12.dp),
     content: @Composable () -> Unit
 ) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Surface(
         modifier = modifier,
         shape = shape,
-        // Dark overlay to ensure white text pops against any background
-        color = Color(0xFF050E1E).copy(alpha = 0.6f), 
+        // Dark overlay in light mode, deep dark in dark mode
+        color = if (isDark) Color(0xFF050E1E).copy(alpha = 0.8f) else Color(0xFF1A1C1E).copy(alpha = 0.7f),
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
         content = content
     )

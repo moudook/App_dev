@@ -230,8 +230,22 @@ data class CategoryBackup(
 }
 
 /**
- * Backup-safe preferences (excludes sensitive data like API keys).
- * API keys are encrypted separately.
+ * Serializable representation of an AI Provider configuration for backup.
+ */
+data class AIProviderConfigBackup(
+    @SerializedName("is_enabled")
+    val isEnabled: Boolean,
+
+    @SerializedName("selected_model")
+    val selectedModel: String,
+
+    @SerializedName("api_keys")
+    val apiKeys: List<String>? = null
+)
+
+/**
+ * Backup-safe preferences.
+ * API keys are included only if they are not considered highly sensitive or if encrypted.
  */
 data class PreferencesBackup(
     @SerializedName("is_dark_theme")
@@ -243,15 +257,39 @@ data class PreferencesBackup(
     @SerializedName("auto_backup_interval_days")
     val autoBackupIntervalDays: Int,
 
-    // Encrypted API keys (base64 encoded)
+    @SerializedName("provider_priority_order")
+    val providerPriorityOrder: List<String>? = null,
+
+    @SerializedName("provider_configs")
+    val providerConfigs: Map<String, AIProviderConfigBackup>? = null,
+
+    @SerializedName("tavily_api_keys")
+    val tavilyApiKeys: List<String>? = null,
+
+    @SerializedName("local_pc_ip")
+    val localPcIp: String? = null,
+
+    @SerializedName("local_pc_port")
+    val localPcPort: String? = null,
+
+    @SerializedName("local_pc_use_https")
+    val localPcUseHttps: Boolean? = null,
+
+    @SerializedName("shake_sensitivity")
+    val shakeSensitivity: Float? = null,
+
+    @SerializedName("sound_enabled")
+    val soundEnabled: Boolean? = null,
+
+    @SerializedName("groq_dynamic_models")
+    val groqDynamicModels: List<Pair<String, String>>? = null,
+
+    // Legacy fields for backward compatibility
     @SerializedName("encrypted_gemini_keys")
     val encryptedGeminiKeys: List<String>? = null,
 
     @SerializedName("encrypted_hugging_face_keys")
-    val encryptedHuggingFaceKeys: List<String>? = null,
-
-    @SerializedName("provider_configs")
-    val providerConfigs: Map<String, Boolean>? = null
+    val encryptedHuggingFaceKeys: List<String>? = null
 )
 
 /**
@@ -317,7 +355,8 @@ sealed class BackupOperationState {
 
     data class Error(
         val message: String,
-        val exception: Throwable? = null
+        val exception: Throwable? = null,
+        val recoveryIntent: android.content.Intent? = null
     ) : BackupOperationState()
 }
 

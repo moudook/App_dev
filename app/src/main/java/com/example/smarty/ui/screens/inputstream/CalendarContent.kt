@@ -48,11 +48,14 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.ui.LocalAccentColor
-import kotlinx.coroutines.launch
+import com.example.smarty.ui.components.CalendarEmptyState
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 
 /**
  * Reimagined Calendar - Anthropic Style
@@ -74,6 +77,7 @@ fun CalendarContent(
     onAddEvent: (Calendar) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
     contentPadding: PaddingValues,
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier,
     // Direct event creation callback - enables inline creation (bypasses dialog)
     onCreateEvent: ((
@@ -208,14 +212,15 @@ fun CalendarContent(
                             ) {
                                 Icon(
                                     Icons.Rounded.Today,
-                                    contentDescription = "Return to today",
+                                    contentDescription = stringResource(R.string.return_to_today),
                                     tint = accentColor,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = "Today",
+                                    text = stringResource(R.string.today),
                                     style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.SemiBold
+                                        fontWeight = FontWeight.SemiBold,
+                                        letterSpacing = 0.5.sp
                                     ),
                                     color = accentColor
                                 )
@@ -249,7 +254,7 @@ fun CalendarContent(
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 if (isCreatingEvent) Icons.Rounded.Close else Icons.Rounded.Add,
-                                contentDescription = if (isCreatingEvent) "Cancel" else "Add event",
+                                contentDescription = if (isCreatingEvent) stringResource(R.string.cancel) else stringResource(R.string.add_event),
                                 tint = Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
@@ -287,9 +292,10 @@ fun CalendarContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isToday) "Today" else dateFormat.format(selectedDate.time),
+                    text = if (isToday) stringResource(R.string.today) else dateFormat.format(selectedDate.time).lowercase(),
                     style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.5).sp
                     ),
                     color = if (isToday) accentColor else textPrimary
                 )
@@ -297,7 +303,7 @@ fun CalendarContent(
                 if (selectedDateEvents.isNotEmpty()) {
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "${selectedDateEvents.size} ${if (selectedDateEvents.size == 1) "event" else "events"}",
+                        text = stringResource(R.string.events_count, selectedDateEvents.size),
                         style = MaterialTheme.typography.bodyMedium,
                         color = textMuted
                     )
@@ -364,19 +370,24 @@ fun CalendarContent(
             }
         }
 
-        // Events or Empty State
-        if (selectedDateEvents.isEmpty() && !isCreatingEvent) {
+        // Events or Loading or Empty State
+        if (isLoading) {
             item {
-                EmptyDayState(
-                    isToday = isSameDay(selectedDate, today),
-                    onAddEvent = {
-                        if (onCreateEvent != null) {
-                            isCreatingEvent = true
-                        } else {
-                            onAddEvent(selectedDate)
-                        }
-                    },
-                    accentColor = accentColor
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    com.example.smarty.ui.components.CalmThinkingDots()
+                }
+            }
+        } else if (selectedDateEvents.isEmpty() && !isCreatingEvent) {
+            item {
+                CalendarEmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp)
                 )
             }
         } else if (selectedDateEvents.isNotEmpty()) {
@@ -465,11 +476,12 @@ private fun InlineEventCreator(
                     Box {
                         if (title.isEmpty()) {
                             Text(
-                                text = "What's happening?",
+                                text = stringResource(R.string.what_is_happening),
                                 style = TextStyle(
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = textMuted.copy(alpha = 0.5f)
+                                    color = textMuted.copy(alpha = 0.5f),
+                                    letterSpacing = (-0.2).sp
                                 )
                             )
                         }
@@ -486,7 +498,7 @@ private fun InlineEventCreator(
             ) {
                 // All day chip
                 TimeChip(
-                    label = "All day",
+                    label = stringResource(R.string.all_day),
                     isSelected = isAllDay,
                     onClick = { onAllDayChange(!isAllDay) },
                     accentColor = accentColor
@@ -537,19 +549,17 @@ private fun InlineEventCreator(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Cancel (text only)
                 TextButton(
                     onClick = onCancel,
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = textMuted
+                        contentColor = textMuted.copy(alpha = 0.7f)
                     )
                 ) {
-                    Text("Cancel", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.cancel), fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp)
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // Save button
                 Button(
                     onClick = onSave,
                     enabled = title.isNotBlank(),
@@ -562,7 +572,7 @@ private fun InlineEventCreator(
                     ),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
                 ) {
-                    Text("Save", fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.save), fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
                 }
             }
         }
@@ -614,7 +624,7 @@ private fun HourChip(
     val textMuted = MaterialTheme.colorScheme.onSurfaceVariant
 
     val displayHour = if (hour == 0) 12 else if (hour > 12) hour - 12 else hour
-    val amPm = if (hour < 12) "AM" else "PM"
+    val amPm = if (hour < 12) stringResource(R.string.am) else stringResource(R.string.pm)
 
     // State for showing the hour picker
     var showHourPicker by remember { mutableStateOf(false) }
@@ -734,9 +744,10 @@ private fun JarvisTimePicker(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Select time",
+                        text = stringResource(R.string.select_time),
                         style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = (-0.5).sp
                         ),
                         color = textPrimary
                     )
@@ -747,7 +758,7 @@ private fun JarvisTimePicker(
                         color = accentColor.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = "$displayHour:00 ${if (isPM) "PM" else "AM"}",
+                            text = "$displayHour:00 ${if (isPM) stringResource(R.string.pm) else stringResource(R.string.am)}",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.SemiBold
                             ),
@@ -782,9 +793,10 @@ private fun JarvisTimePicker(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "AM",
+                                    text = stringResource(R.string.am),
                                     style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
                                     ),
                                     color = if (!isPM) MaterialTheme.colorScheme.onPrimary else textMuted
                                 )
@@ -807,9 +819,10 @@ private fun JarvisTimePicker(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "PM",
+                                    text = stringResource(R.string.pm),
                                     style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.5.sp
                                     ),
                                     color = if (isPM) MaterialTheme.colorScheme.onPrimary else textMuted
                                 )
@@ -866,9 +879,10 @@ private fun JarvisTimePicker(
                     contentPadding = PaddingValues(vertical = 14.dp)
                 ) {
                     Text(
-                        text = "Done",
+                        text = stringResource(R.string.done),
                         style = MaterialTheme.typography.labelLarge.copy(
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
                         )
                     )
                 }
@@ -1057,7 +1071,7 @@ private fun DayPill(
     ) {
         // Day name
         Text(
-            text = dayFormat.format(day.time).uppercase().take(3),
+            text = dayFormat.format(day.time).lowercase().take(3),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.5.sp,
@@ -1107,7 +1121,7 @@ private fun EmptyDayState(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
-            imageVector = Icons.Outlined.WbSunny,
+            imageVector = Icons.Outlined.EventAvailable,
             contentDescription = null,
             modifier = Modifier
                 .size(48.dp)
@@ -1118,16 +1132,16 @@ private fun EmptyDayState(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = if (isToday) "Nothing planned" else "Free day",
-            style = MaterialTheme.typography.bodyLarge,
+            text = if (isToday) stringResource(R.string.nothing_planned) else stringResource(R.string.free_day),
+            style = MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.2.sp),
             color = textMuted.copy(alpha = 0.7f)
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Tap + to add something",
-            style = MaterialTheme.typography.bodySmall,
+            text = stringResource(R.string.tap_plus_to_add),
+            style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
             color = accentColor.copy(alpha = 0.6f),
             modifier = Modifier.clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1237,15 +1251,16 @@ private fun EventCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val timeText = when {
-                        event.isAllDay -> "All day"
-                        isHappeningNow -> "Now"
-                        else -> timeFormat.format(Date(event.startTime))
+                        event.isAllDay -> stringResource(R.string.all_day)
+                        isHappeningNow -> stringResource(R.string.now)
+                        else -> timeFormat.format(Date(event.startTime)).lowercase()
                     }
 
                     Text(
                         text = timeText,
                         style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = if (isHappeningNow) FontWeight.Medium else FontWeight.Normal
+                            fontWeight = if (isHappeningNow) FontWeight.Medium else FontWeight.Normal,
+                            letterSpacing = 0.2.sp
                         ),
                         color = if (isHappeningNow) accentColor else textMuted
                     )
@@ -1269,8 +1284,8 @@ private fun EventCard(
 
             if (event.isRecurring) {
                 Icon(
-                    imageVector = Icons.Outlined.Loop,
-                    contentDescription = "Repeating",
+                    imageVector = eventIcon,
+                    contentDescription = "repeating",
                     tint = textMuted.copy(alpha = 0.4f),
                     modifier = Modifier.size(18.dp)
                 )

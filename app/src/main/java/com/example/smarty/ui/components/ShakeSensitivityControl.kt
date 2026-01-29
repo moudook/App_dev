@@ -19,11 +19,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.*
+import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ElectricBlue
 
-// Colors for the gradient arc
-private val LowSensitivityColor = Color(0xFF81D4FA) // Light Blue
-private val HighSensitivityColor = ElectricBlue     // Brand Blue
+// Colors for the gradient arc - Technical Palette
+private val LowSensitivityColor = Color(0xFF90CAF9) // Soft Blue
+private val HighSensitivityColor = Color(0xFFB39DDB) // Soft Purple (Replaced hardcoded ElectricBlue)
 
 // Baseline sensitivity - the recommended default
 private const val BASELINE_SENSITIVITY = 0.63f
@@ -79,7 +80,8 @@ fun ShakeSensitivityControl(
     val pointerY = centerYPx + arcRadius * sin(Math.toRadians(pointerAngle.toDouble())).toFloat()
 
     // Current pointer color based on sensitivity
-    val pointerColor = lerp(LowSensitivityColor, HighSensitivityColor, sensitivity)
+    val accentColor = LocalAccentColor.current
+    val pointerColor = lerp(LowSensitivityColor, accentColor, sensitivity)
 
     // Capture theme colors outside Canvas
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -109,16 +111,16 @@ fun ShakeSensitivityControl(
                         // Top-Left quadrant: x<0, y<0 -> -180 to -90
                         // Top-Right quadrant: x>0, y<0 -> -90 to 0
                         // We strictly want the top half (negative y relative to center)
-                        
+
                         var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
 
                         // Map valid input range (-180 to 0) to sensitivity
                         // We want -180 (Left) -> 0.0
                         // We want 0 (Right) -> 1.0
-                        
+
                         val newSensitivity = if (angle in -180.0..0.0) {
-                            (angle + 180f) / 180f 
-                        } else if (angle > 0 && angle < 90) { 
+                            (angle + 180f) / 180f
+                        } else if (angle > 0 && angle < 90) {
                              1f // Cap at right end
                         } else if (angle < -180 || angle > 90) {
                              0f // Cap at left end (atan2 logic wrap)
@@ -150,8 +152,8 @@ fun ShakeSensitivityControl(
             drawArc(
                 brush = Brush.sweepGradient(
                     0.5f to LowSensitivityColor,
-                    0.75f to lerp(LowSensitivityColor, HighSensitivityColor, 0.5f),
-                    1.0f to HighSensitivityColor,
+                    0.75f to lerp(LowSensitivityColor, accentColor, 0.5f),
+                    1.0f to accentColor,
                     center = Offset(centerXPx, centerYPx)
                 ),
                 startAngle = 180f,
@@ -212,7 +214,7 @@ fun ShakeSensitivityControl(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Baseline: 63%",
+                text = "baseline:_63%",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )

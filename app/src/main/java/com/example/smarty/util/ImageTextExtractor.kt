@@ -29,8 +29,8 @@ object ImageTextExtractor {
     // Maximum image dimension to prevent OOM errors
     private const val MAX_IMAGE_DIMENSION = 1920
     
-    // ML Kit text reJarviszer (lazy initialized)
-    private val reJarviszer by lazy {
+    // ML Kit text recognizer (lazy initialized)
+    private val recognizer by lazy {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
     
@@ -98,7 +98,7 @@ object ImageTextExtractor {
         return suspendCancellableCoroutine { continuation ->
             val inputImage = InputImage.fromBitmap(bitmap, 0)
             
-            reJarviszer.process(inputImage)
+            recognizer.process(inputImage)
                 .addOnSuccessListener { visionText ->
                     val fullText = visionText.text
                     val blockCount = visionText.textBlocks.size
