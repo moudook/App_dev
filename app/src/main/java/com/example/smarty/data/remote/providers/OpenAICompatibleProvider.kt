@@ -150,6 +150,7 @@ class OpenAICompatibleProvider(
      * ```
      */
     override suspend fun analyzeContent(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -197,7 +198,7 @@ class OpenAICompatibleProvider(
                 )
             }
 
-            AIResponseParser.parseOpenAIResponse(responseBody, name)
+            AIResponseParser.parseOpenAIResponse(context, responseBody, name)
         } catch (e: Exception) {
             Log.e(TAG, "$name network error: ${e.message}", e)
             null
@@ -208,6 +209,7 @@ class OpenAICompatibleProvider(
      * Analyze document using OpenAI-compatible API with extended limits.
      */
     override suspend fun analyzeDocument(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -246,7 +248,7 @@ class OpenAICompatibleProvider(
 
             // Extract text from response and parse as document analysis
             val text = extractText(responseBody)
-            AIResponseParser.parseDocumentAnalysisFromText(text)
+            AIResponseParser.parseDocumentAnalysisFromText(context, text)
         } catch (e: Exception) {
             Log.e(TAG, "$name document analysis network error: ${e.message}")
             null
@@ -257,6 +259,7 @@ class OpenAICompatibleProvider(
      * Chat using OpenAI-compatible API with conversational settings.
      */
     override suspend fun chat(
+        context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,

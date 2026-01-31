@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.dp
  *
  * Philosophy: No sharp corners anywhere. Heavy rounding signature.
  */
-data class JarvisShapes(
+data class SmartyShapes(
     // Card shapes - largest radius for main containers (24-32dp)
     val cardSmall: RoundedCornerShape = RoundedCornerShape(24.dp),
     val cardMedium: RoundedCornerShape = RoundedCornerShape(28.dp),
@@ -44,4 +44,4 @@ data class JarvisShapes(
     val avatar: RoundedCornerShape = RoundedCornerShape(50)
 )
 
-val LocalShapes = staticCompositionLocalOf { JarvisShapes() }
+val LocalShapes = staticCompositionLocalOf { SmartyShapes() }

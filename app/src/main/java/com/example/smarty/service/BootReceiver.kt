@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,7 +30,7 @@ class BootReceiver : BroadcastReceiver() {
 
             scope.launch {
                 try {
-                    val database = JarvisDatabase.getDatabase(context)
+                    val database = SmartyDatabase.getDatabase(context)
                     val activeTimers = database.timerDao().getActiveTimersOnce()
                     val scheduler = AlarmScheduler.getInstance(context)
 

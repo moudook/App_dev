@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.example.smarty.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.util.lerp
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,7 +62,7 @@ import java.util.*
  *
  * Design: Calm Aesthetic, theme-aware
  * - Integrated with Material 3 dynamic colors
- * - Electric Blue accent (consistent with Jarvis design)
+ * - Electric Blue accent (consistent with Smarty design)
  * - Gradient accents and modern form fields
  * ═══════════════════════════════════════════════════════════════════════════════
  */
@@ -86,14 +88,14 @@ private fun sheetBorderThemed() = MaterialTheme.colorScheme.outline
 
 
 // Reminder options in minutes
-private val reminderOptions = listOf(
-    null to "none",
-    5 to "5_minutes_before",
-    10 to "10_minutes_before",
-    15 to "15_minutes_before",
-    30 to "30_minutes_before",
-    60 to "1_hour_before",
-    1440 to "1_day_before"
+private val reminderOptions: List<Pair<Int?, Int>> = listOf(
+    null to R.string.none,
+    5 to R.string.five_minutes_before,
+    10 to R.string.ten_minutes_before,
+    15 to R.string.fifteen_minutes_before,
+    30 to R.string.thirty_minutes_before,
+    60 to R.string.one_hour_before,
+    1440 to R.string.one_day_before
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -218,11 +220,11 @@ fun AddEventSheet(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("cancel", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.cancel), fontWeight = FontWeight.Medium)
                 }
 
                 Text(
-                    text = "new_event",
+                    text = stringResource(R.string.new_event),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -271,7 +273,7 @@ fun AddEventSheet(
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
-                    Text("add", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.add), fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -297,7 +299,7 @@ fun AddEventSheet(
                 DarkTextField(
                     value = title,
                     onValueChange = { title = it },
-                    placeholder = "event_title",
+                    placeholder = stringResource(R.string.event_title),
                     singleLine = true
                 )
 
@@ -305,7 +307,7 @@ fun AddEventSheet(
                 DarkTextField(
                     value = description,
                     onValueChange = { description = it },
-                    placeholder = "description",
+                    placeholder = stringResource(R.string.description),
                     minLines = 2,
                     maxLines = 4
                 )
@@ -313,7 +315,7 @@ fun AddEventSheet(
                 // All Day Toggle
                 DarkFormRow(
                     icon = Icons.Default.CalendarToday,
-                    title = "all_day",
+                    title = stringResource(R.string.all_day),
                     trailing = {
                         Switch(
                             checked = isAllDay,
@@ -334,7 +336,7 @@ fun AddEventSheet(
                 // Date Selection
                 DarkFormRow(
                     icon = Icons.Default.Event,
-                    title = "date",
+                    title = stringResource(R.string.date),
                     value = dateFormat.format(selectedDate.time).lowercase(),
                     onClick = { showDatePicker = true }
                 )
@@ -348,14 +350,14 @@ fun AddEventSheet(
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         DarkFormRow(
                             icon = Icons.Default.Schedule,
-                            title = "start_time",
+                            title = stringResource(R.string.start_time),
                             value = startTimeDisplay.lowercase(),
                             onClick = { showStartTimePicker = true }
                         )
 
                         DarkFormRow(
                             icon = Icons.Default.Schedule,
-                            title = "end_time",
+                            title = stringResource(R.string.end_time),
                             value = endTimeDisplay.lowercase(),
                             onClick = { showEndTimePicker = true }
                         )
@@ -365,23 +367,23 @@ fun AddEventSheet(
                 // Location field
                 DarkFormRow(
                     icon = Icons.Default.LocationOn,
-                    title = if (location.isBlank()) "add_location" else location.lowercase(),
+                    title = if (location.isBlank()) stringResource(R.string.add_location) else location.lowercase(),
                     onClick = { /* Could expand to full input */ }
                 )
 
                 // Reminder Selection
                 DarkFormRow(
                     icon = Icons.Default.NotificationsNone,
-                    title = "reminder",
-                    value = reminderOptions.find { it.first == selectedReminder }?.second ?: "none",
+                    title = stringResource(R.string.reminder),
+                    value = stringResource(reminderOptions.find { it.first == selectedReminder }?.second ?: R.string.none),
                     onClick = { showReminderMenu = true }
                 )
 
                 // Privacy Toggle
                 DarkFormRow(
                     icon = Icons.Default.Lock,
-                    title = "private_event",
-                    subtitle = "hidden_from_ai_assistant",
+                    title = stringResource(R.string.private_event),
+                    subtitle = stringResource(R.string.hidden_from_ai_assistant),
                     trailing = {
                         Switch(
                             checked = isPrivate,
@@ -422,7 +424,7 @@ fun AddEventSheet(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = accentColor)
                 ) {
-                    Text("ok")
+                    Text(stringResource(R.string.ok))
                 }
             },
             dismissButton = {
@@ -430,7 +432,7 @@ fun AddEventSheet(
                     onClick = { showDatePicker = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         ) {
@@ -487,13 +489,13 @@ fun AddEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        com.example.smarty.ui.components.common.JarvisDialog(
-            title = "reminder",
+        com.example.smarty.ui.components.common.SmartyDialog(
+            title = stringResource(R.string.reminder),
             onDismiss = { showReminderMenu = false },
             onConfirm = {},
             customContent = {
                 Column {
-                    reminderOptions.forEach { (minutes, label) ->
+                    reminderOptions.forEach { (minutes, labelResId) ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -507,11 +509,11 @@ fun AddEventSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(label, color = MaterialTheme.colorScheme.onSurface)
+                            Text(stringResource(labelResId), color = MaterialTheme.colorScheme.onSurface)
                             if (selectedReminder == minutes) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "selected",
+                                    contentDescription = stringResource(R.string.selected),
                                     tint = accentColor
                                 )
                             }
@@ -749,14 +751,14 @@ private fun CosmicTimeSelector(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("cancel", fontWeight = FontWeight.Medium, fontSize = 16.sp)
+                    Text(stringResource(R.string.cancel), fontWeight = FontWeight.Medium, fontSize = 16.sp)
                 }
 
                 TextButton(
                     onClick = { onConfirm(selectedHour, selectedMinute) },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
-                    Text("done", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(stringResource(R.string.done), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
 
@@ -859,7 +861,7 @@ private fun CosmicTimeSelector(
                        contentAlignment = Alignment.Center
                    ) {
                        Text(
-                           "am",
+                           stringResource(R.string.am).lowercase(),
                            color = if (!isPmState) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                            fontWeight = FontWeight.Bold
                        )
@@ -876,7 +878,7 @@ private fun CosmicTimeSelector(
                        contentAlignment = Alignment.Center
                    ) {
                        Text(
-                           "pm",
+                           stringResource(R.string.pm).lowercase(),
                            color = if (isPmState) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                            fontWeight = FontWeight.Bold
                        )

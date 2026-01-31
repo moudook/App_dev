@@ -3,7 +3,7 @@ package com.example.smarty.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Jarvis Color System - Modern Soft Minimalist
+ * Smarty Color System - Modern Soft Minimalist
  *
  * Design Archetype: "Clean Tech" / "Refined Bento-Grid"
  * High readability, soft shadows, generous whitespace,
@@ -13,28 +13,28 @@ import androidx.compose.ui.graphics.Color
 // =============================================================================
 // MODERN SOFT MINIMALIST - LIGHT THEME (Comfort Edition)
 // =============================================================================
-val SoftBackground = Color(0xFFEBE8E0)       // Warm Stone - deeper, warmer background (less reflective)
-val CardWhite = Color(0xFFF7F5F0)            // Antique White - paper-like, zero blue light
-val ElectricBlue = Color(0xFF0066FF)         // Primary Accent (Brand) - vibrant
-val PaleBlueGrey = Color(0xFFE3E0D9)         // Secondary Accent - blended with background
-val TextNearBlack = Color(0xFF383530)        // Text Primary - deep warm earthy grey
-val TextCoolGrey = Color(0xFF4A4640)         // Text Secondary - warm taupe
-val SubtleBorder = Color(0xFFC4BFAC)         // Borders - refined stone grey
-val InputBackground = Color(0xFFE3E0D9)      // Input field - blends with secondary
-val SecondaryButtonBg = Color(0xFFD6D2CA)    // Secondary button background
+val SoftBackground = Color(0xFFF2F1EE)       // Warm Stone - slightly lighter for better contrast
+val CardWhite = Color(0xFFFFFFFF)            // Pure White cards for crispness
+val ElectricBlue = Color(0xFF0066FF)         // Primary Accent (Brand)
+val PaleBlueGrey = Color(0xFFEBEFF5)         // Secondary Accent - cool tint
+val TextNearBlack = Color(0xFF1A1A1C)        // Text Primary - softer black
+val TextCoolGrey = Color(0xFF58585E)         // Text Secondary
+val SubtleBorder = Color(0xFFE5E5EA)         // Borders - very subtle
+val InputBackground = Color(0xFFF2F2F7)      // Input field - standard iOS-like gray
+val SecondaryButtonBg = Color(0xFFE5E5EA)
 
 // =============================================================================
 // MODERN SOFT MINIMALIST - DARK THEME (Claude-inspired)
 // =============================================================================
-val DarkBackground = Color(0xFF0D0C11)       // Background - deep charcoal (Claude-style)
-val DarkCard = Color(0xFF181822)             // Card Background - slightly elevated
-val DarkElectricBlue = Color(0xFF2979FF)     // Primary Accent - brighter for dark
-val DarkPaleBlue = Color(0xFF1E3A5F)         // Secondary Accent - dark variant
-val DarkTextPrimary = Color(0xFFFFFFFF)      // Text Primary - white
-val DarkTextSecondary = Color(0xFF9A9BA1)    // Text Secondary - slightly brighter grey
-val DarkBorder = Color(0xFF252530)           // Borders - subtle purple-tinted dark
-val DarkInputBackground = Color(0xFF181822)  // Input field background
-val DarkSurfaceElevated = Color(0xFF1F1F2A)  // Higher elevation surface
+val DarkBackground = Color(0xFF151517)       // Deep charcoal/black
+val DarkCard = Color(0xFF1C1C1E)             // Slightly lighter card
+val DarkElectricBlue = Color(0xFF0A84FF)     // Brighter blue for dark mode
+val DarkPaleBlue = Color(0xFF1C1C1E)         // Secondary
+val DarkTextPrimary = Color(0xFFFFFFFF)
+val DarkTextSecondary = Color(0xFF98989F)
+val DarkBorder = Color(0xFF2C2C2E)
+val DarkInputBackground = Color(0xFF2C2C2E)
+val DarkSurfaceElevated = Color(0xFF2C2C2E)
 
 // =============================================================================
 // LEGACY COLORS (kept for compatibility)

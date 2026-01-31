@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 
 import com.example.smarty.viewmodel.managers.AuthFeatureManager
 
+import com.example.smarty.data.local.SecurePreferences
+
 /**
  * ViewModel for Authentication
  * Delegated to AuthFeatureManager for centralized logic.
@@ -35,7 +37,12 @@ class AuthViewModel(
 ) : AndroidViewModel(application) {
 
     private val authFeatureManager: AuthFeatureManager by lazy {
-        AuthFeatureManager(application, viewModelScope, authRepository)
+        AuthFeatureManager(
+            application,
+            viewModelScope,
+            authRepository,
+            SecurePreferences.getInstance(application)
+        )
     }
 
     val currentUser: StateFlow<FirebaseUser?> = authFeatureManager.currentUser

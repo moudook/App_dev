@@ -30,14 +30,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
  *
  * @property client OkHttp client for making requests
  * @property gson Gson instance for JSON serialization
- * @property appReferer The app's URL for attribution (e.g., "https://Jarvis.app")
- * @property appTitle The app's name for attribution (e.g., "Jarvis")
+ * @property appReferer The app's URL for attribution (e.g., "https://Smarty.app")
+ * @property appTitle The app's name for attribution (e.g., "Smarty")
  */
 class OpenRouterProvider(
     private val client: OkHttpClient,
     private val gson: Gson,
-    private val appReferer: String = "https://Jarvis.app",
-    private val appTitle: String = "Jarvis"
+    private val appReferer: String = "https://Smarty.app",
+    private val appTitle: String = "Smarty"
 ) : AIProviderContract {
 
     override val providerName: String = "OpenRouter"
@@ -54,6 +54,7 @@ class OpenRouterProvider(
      * Uses OpenAI-compatible format with additional attribution headers.
      */
     override suspend fun analyzeContent(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -96,7 +97,7 @@ class OpenRouterProvider(
                 return null
             }
 
-            AIResponseParser.parseOpenAIResponse(responseBody, providerName)
+            AIResponseParser.parseOpenAIResponse(context, responseBody, providerName)
         } catch (e: Exception) {
             Log.e(TAG, "OpenRouter network error: ${e.message}", e)
             null
@@ -107,6 +108,7 @@ class OpenRouterProvider(
      * Analyze document using OpenRouter API with extended limits.
      */
     override suspend fun analyzeDocument(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -146,7 +148,7 @@ class OpenRouterProvider(
             }
 
             val text = extractText(responseBody)
-            AIResponseParser.parseDocumentAnalysisFromText(text)
+            AIResponseParser.parseDocumentAnalysisFromText(context, text)
         } catch (e: Exception) {
             Log.e(TAG, "OpenRouter document analysis network error: ${e.message}")
             null
@@ -157,6 +159,7 @@ class OpenRouterProvider(
      * Chat using OpenRouter API with conversational settings.
      */
     override suspend fun chat(
+        context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,

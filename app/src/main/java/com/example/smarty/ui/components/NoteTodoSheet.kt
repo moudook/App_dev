@@ -172,7 +172,7 @@ fun NoteTodoSheet(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "${(progress * 100).toInt()}%",
+                            text = stringResource(R.string.percentage_format, (progress * 100).toInt()),
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = MonoFont

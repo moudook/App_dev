@@ -72,7 +72,7 @@ class BatchOperationsTool(
         return try {
             val safeMaxNotes = args.maxNotes.coerceIn(1, 25)
 
-            onStatusUpdate("Finding matching notes...")
+            onStatusUpdate("status_finding_matching_notes")
             // Find matching notes using the central search manager
             val results = onSearchNotes(args.searchQuery, args.category, null, "all", safeMaxNotes)
 
@@ -94,7 +94,7 @@ class BatchOperationsTool(
                     operation = args.operation,
                     matchingNotes = noteInfos,
                     affectedCount = 0,
-                    message = "Unknown operation: ${args.operation}. Use ${validOps.joinToString(", ")}.",
+                    message = "batch_error_unknown_operation|${args.operation}",
                     error = "Invalid operation"
                 )
             }
@@ -107,17 +107,17 @@ class BatchOperationsTool(
                     matchingNotes = noteInfos,
                     affectedCount = 0,
                     message = when {
-                        results.isEmpty() -> "No notes found matching '${args.searchQuery}'"
-                        operation == "preview" -> "Found ${results.size} notes matching '${args.searchQuery}'. Review the list and set execute=true to proceed."
-                        !args.execute -> "Found ${results.size} notes. Set execute=true to proceed with ${operation}."
-                        else -> "Preview complete."
+                        results.isEmpty() -> "batch_no_matches|${args.searchQuery}"
+                        operation == "preview" -> "batch_preview_found|${results.size}|${args.searchQuery}"
+                        !args.execute -> "batch_confirm_execute|${results.size}|$operation"
+                        else -> "batch_preview_complete"
                     },
                     requiresConfirmation = results.isNotEmpty() && operation != "preview"
                 )
             }
 
             // Execute operation via manager
-            onStatusUpdate("Executing batch $operation...")
+            onStatusUpdate("status_executing_queries")
             val ids = results.map { it.note.id }
             when (operation) {
                 "archive" -> onBulkArchive(ids)
@@ -128,7 +128,7 @@ class BatchOperationsTool(
                         operation = operation,
                         matchingNotes = noteInfos,
                         affectedCount = 0,
-                        message = "targetCategory is required for update_category operation",
+                        message = "batch_error_target_required",
                         error = "Missing targetCategory"
                     )
                     onBulkMove(ids, target)
@@ -140,7 +140,7 @@ class BatchOperationsTool(
                 operation = operation,
                 matchingNotes = noteInfos,
                 affectedCount = ids.size,
-                message = "Successfully initiated $operation on ${ids.size} notes."
+                message = "batch_initiated_success|$operation|${ids.size}"
             )
         } catch (e: Exception) {
             BatchOperationResult(
@@ -148,7 +148,7 @@ class BatchOperationsTool(
                 operation = args.operation,
                 matchingNotes = emptyList(),
                 affectedCount = 0,
-                message = "Batch operation failed: ${e.message}",
+                message = "batch_error_failed|${e.message}",
                 error = e.message
             )
         }

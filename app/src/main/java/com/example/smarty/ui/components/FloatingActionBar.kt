@@ -54,8 +54,8 @@ fun FloatingActionBar(
     modifier: Modifier = Modifier,
     isVisible: Boolean = true,
     isEditing: Boolean = false,
-    // @Mention: Ask AI about this note
-    onAskAI: (() -> Unit)? = null
+    // @Mention: Ask Smarty about this note
+    onAskSmarty: (() -> Unit)? = null
 ) {
     AnimatedVisibility(
         visible = isVisible,
@@ -96,13 +96,13 @@ fun FloatingActionBar(
                     contentDescription = stringResource(R.string.delete)
                 )
 
-                // Ask AI button (for @mention quick reference)
-                if (onAskAI != null) {
+                // Ask Smarty button (for @mention quick reference)
+                if (onAskSmarty != null) {
                     Spacer(modifier = Modifier.width(24.dp))
 
                     FloatingActionPill(
                         icon = Icons.Default.Assistant,
-                        onClick = onAskAI,
+                        onClick = onAskSmarty,
                         tint = LocalAccentColor.current,
                         contentDescription = stringResource(R.string.ask_ai)
                     )

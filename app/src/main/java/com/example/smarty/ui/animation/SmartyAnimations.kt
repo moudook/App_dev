@@ -83,7 +83,7 @@ object FastMath {
  * - ζ = 1: Critically damped (smooth settle)
  * - ζ > 1: Overdamped (sluggish)
  */
-object JarvisMotion {
+object SmartyMotion {
 
     // Spring configurations matching Apple's motion design
     // Based on UIKit's CASpringAnimation defaults
@@ -147,7 +147,7 @@ object JarvisMotion {
  * Custom easing curves using cubic Bezier mathematics.
  * Bezier curve: B(t) = (1-t)³P₀ + 3(1-t)²tP₁ + 3(1-t)t²P₂ + t³P₃
  */
-object JarvisEasing {
+object SmartyEasing {
 
     /** Apple's ease-out curve - fast start, smooth end */
     val appleEaseOut = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
@@ -248,7 +248,7 @@ object StaggerCalculator {
 fun Modifier.animatedScale(
     pressed: Boolean,
     pressedScale: Float = 0.95f,
-    spec: SpringSpec<Float> = JarvisMotion.quick
+    spec: SpringSpec<Float> = SmartyMotion.quick
 ): Modifier = composed {
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
@@ -268,7 +268,7 @@ fun animatedCardTransform(
 ): Pair<Float, Float> {
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = JarvisMotion.quick,
+        animationSpec = SmartyMotion.quick,
         label = "cardScale"
     )
 
@@ -279,7 +279,7 @@ fun animatedCardTransform(
 
     val rotation by animateFloatAsState(
         targetValue = targetRotation,
-        animationSpec = JarvisMotion.bouncy,
+        animationSpec = SmartyMotion.bouncy,
         label = "cardRotation"
     )
 
@@ -352,7 +352,7 @@ fun rememberPulsingScale(
         initialValue = minScale,
         targetValue = maxScale,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMs, easing = JarvisEasing.appleEaseInOut),
+            animation = tween(durationMs, easing = SmartyEasing.appleEaseInOut),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulsingScale"
@@ -459,22 +459,22 @@ fun animateCardTilt(
 
     val rotationX by animateFloatAsState(
         targetValue = targetRotationX,
-        animationSpec = JarvisMotion.interactive,
+        animationSpec = SmartyMotion.interactive,
         label = "tiltX"
     )
     val rotationY by animateFloatAsState(
         targetValue = targetRotationY,
-        animationSpec = JarvisMotion.interactive,
+        animationSpec = SmartyMotion.interactive,
         label = "tiltY"
     )
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = JarvisMotion.quick,
+        animationSpec = SmartyMotion.quick,
         label = "tiltScale"
     )
     val elevation by animateFloatAsState(
         targetValue = if (pressed) pressedElevation else 0f,
-        animationSpec = JarvisMotion.smooth,
+        animationSpec = SmartyMotion.smooth,
         label = "tiltElevation"
     )
 
@@ -539,7 +539,7 @@ fun animateShake(
 @Composable
 fun animateIntAsState(
     targetValue: Int,
-    animationSpec: AnimationSpec<Float> = tween(240, easing = JarvisEasing.appleEaseOut)
+    animationSpec: AnimationSpec<Float> = tween(240, easing = SmartyEasing.appleEaseOut)
 ): Int {
     val animatedFloat by animateFloatAsState(
         targetValue = targetValue.toFloat(),
@@ -560,7 +560,7 @@ fun animateProgressArc(
 ): Float {
     val animatedProgress by animateFloatAsState(
         targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMs, easing = JarvisEasing.appleEaseOut),
+        animationSpec = tween(durationMs, easing = SmartyEasing.appleEaseOut),
         label = "progressArc"
     )
     return animatedProgress * 360f

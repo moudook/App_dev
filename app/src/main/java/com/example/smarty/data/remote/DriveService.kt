@@ -37,7 +37,7 @@ class DriveService(
     private val gson = Gson()
 
     companion object {
-        private const val APP_FOLDER_NAME = "Jarvis Backups"
+        private const val APP_FOLDER_NAME = "Smarty Backups"
         private const val BACKUP_MIME_TYPE = "application/zip"
         private const val FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 
@@ -65,7 +65,7 @@ class DriveService(
             GsonFactory.getDefaultInstance(),
             credential
         )
-            .setApplicationName("Jarvis")
+            .setApplicationName("Smarty")
             .build()
     }
 
@@ -182,7 +182,7 @@ class DriveService(
             val backups = result.files.mapNotNull { file ->
                 try {
                     // Parse backup filename to extract metadata
-                    // Format: Jarvis_backup_YYYYMMDD_HHmmss.zip
+                    // Format: Smarty_backup_YYYYMMDD_HHmmss.zip
                     val createdTime = file.createdTime?.value ?: System.currentTimeMillis()
 
                     // Try to read properties, fallback to defaults

@@ -65,27 +65,27 @@ class AgentOrchestratorTool(
         return try {
             when (args.workflow) {
                 "batch_operation" -> {
-                    onStatusUpdate("Running batch action...")
+                    onStatusUpdate("status_batch_starting")
                     executeBatchOperation(args.parameters)
                 }
                 "deep_research" -> {
-                    onStatusUpdate("Initiating research...")
+                    onStatusUpdate("status_researching")
                     executeDeepResearch(args.parameters)
                 }
-                else -> OrchestratorResult(false, "Unknown workflow: ${args.workflow}")
+                else -> OrchestratorResult(false, "error_unknown_intent")
             }
         } catch (e: Exception) {
-            OrchestratorResult(false, "Error: ${e.message}")
+            OrchestratorResult(false, "batch_error_failed|${e.message}")
         }
     }
 
     private suspend fun executeBatchOperation(params: OrchestratorParameters): OrchestratorResult {
-        val targetType = params.target_type ?: return OrchestratorResult(false, "target_type required")
-        val actions = params.actions ?: return OrchestratorResult(false, "actions required")
+        val targetType = params.target_type ?: return OrchestratorResult(false, "batch_error_failed|target_type required")
+        val actions = params.actions ?: return OrchestratorResult(false, "batch_error_failed|actions required")
         val criteria = params.criteria
 
         if (targetType != "notes") {
-            return OrchestratorResult(false, "Only 'notes' target_type supported currently")
+            return OrchestratorResult(false, "batch_error_failed|Only 'notes' supported")
         }
 
         // Use central search manager for filtering logic
@@ -96,7 +96,7 @@ class AgentOrchestratorTool(
         val results = onSearchNotes(query, null, null, "all", 50)
 
         if (results.isEmpty()) {
-            return OrchestratorResult(true, "No items found matching criteria.")
+            return OrchestratorResult(true, "batch_no_matches|${query ?: ""}")
         }
 
         val noteIds = results.map { it.note.id }
@@ -109,16 +109,16 @@ class AgentOrchestratorTool(
             }
         }
 
-        return OrchestratorResult(true, "Batch operation initiated for ${results.size} items.")
+        return OrchestratorResult(true, "batch_initiated_success|batch|${results.size}")
     }
 
     private fun executeDeepResearch(params: OrchestratorParameters): OrchestratorResult {
-        val topic = params.research_query ?: return OrchestratorResult(false, "research_query required")
-        val apiKey = getTavilyApiKey() ?: return OrchestratorResult(false, "Web search not configured")
+        val topic = params.research_query ?: return OrchestratorResult(false, "batch_error_failed|research_query required")
+        val apiKey = getTavilyApiKey() ?: return OrchestratorResult(false, "error_google_auth")
 
         // HYBRIDIZED: Delegate to WorkflowManager via callback
         onDeepResearch(topic, apiKey, params.focus_areas, params.search_depth)
 
-        return OrchestratorResult(true, "Deep research initiated for topic: $topic. I will notify you when the report is ready.")
+        return OrchestratorResult(true, "status_report_generated|$topic")
     }
 }

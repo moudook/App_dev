@@ -2,7 +2,9 @@ package com.example.smarty.agent.tools.consolidated
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
+import android.content.Context
 import com.example.smarty.data.model.AudioTrack
+import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -41,18 +43,20 @@ data class AudioControlResult(
  * - AudioPlayerService (indirectly via manager)
  */
 class AudioControlTool(
+    private val context: Context,
     private val onPlay: (AudioTrack) -> Unit,
     private val onPause: () -> Unit,
     private val onResume: () -> Unit,
     private val onStop: () -> Unit,
     private val onSeek: (Long) -> Unit,
     private val onToggle: () -> Unit,
-    private val onFindAudio: (String) -> AudioTrack?,
+    private val onFindAudio: (String) -> AudioSearchResult,
     private val getCurrentTrack: () -> AudioTrack?,
     private val getCurrentPosition: () -> Long,
     private val getDuration: () -> Long,
     private val isPlaying: () -> Boolean,
-    private val onStatusUpdate: (String) -> Unit
+    private val onStatusUpdate: (String) -> Unit,
+    private val onPlayList: (List<AudioTrack>) -> Unit = {}
 ) : Tool<AudioControlArgs, AudioControlResult>(
     argsSerializer = AudioControlArgs.serializer(),
     resultSerializer = AudioControlResult.serializer(),
@@ -61,7 +65,7 @@ class AudioControlTool(
         Controls audio playback on the device.
 
         ACTIONS:
-        - play: Start playing an audio track by name or query
+        - play: Start playing audio. STRICT RULE: ONLY use this action if the user's message STARTS with the word "play" (case-insensitive). If "play" appears in the middle of a sentence (e.g., "I want to play..."), DO NOT use this tool.
         - pause: Pause the current track
         - resume: Resume the paused track
         - stop: Stop playback completely
@@ -69,9 +73,9 @@ class AudioControlTool(
         - toggle: Toggle between play and pause
 
         EXAMPLES:
+        - "Play Imagine" -> action="play", target="Imagine" (Allowed: Starts with 'Play')
+        - "Can you play Imagine?" -> DO NOT CALL (Denied: Doesn't start with 'Play')
         - "Pause the music" -> action="pause"
-        - "Skip to 2 minutes" -> action="seek", target="120"
-        - "Jump to 50%" -> action="seek", percentage=50
     """.trimIndent()
 ) {
     override suspend fun execute(args: AudioControlArgs): AudioControlResult {
@@ -80,25 +84,42 @@ class AudioControlTool(
                 "play" -> {
                     val query = args.target ?: return AudioControlResult(
                         success = false,
-                        message = "Please specify which audio to play"
+                        message = context.getString(com.example.smarty.R.string.error_specify_audio)
                     )
 
-                    onStatusUpdate("Finding audio: $query")
-                    val track = onFindAudio(query)
+                    onStatusUpdate(context.getString(com.example.smarty.R.string.status_finding_notes))
+                    val result = onFindAudio(query)
 
-                    if (track != null) {
-                        onPlay(track)
-                        AudioControlResult(
-                            success = true,
-                            message = "Now playing: ${track.title}",
-                            currentTrack = track.title,
-                            isPlaying = true
-                        )
-                    } else {
-                        AudioControlResult(
-                            success = false,
-                            message = "Could not find audio matching: $query"
-                        )
+                    when (result) {
+                        is AudioSearchResult.ExactMatch -> {
+                            val track = result.track
+                            onPlay(track)
+                            AudioControlResult(
+                                success = true,
+                                message = context.getString(com.example.smarty.R.string.now_playing_detail, track.title),
+                                currentTrack = track.title,
+                                isPlaying = true
+                            )
+                        }
+                        is AudioSearchResult.Fallback -> {
+                            val tracks = result.tracks
+                            if (tracks.isNotEmpty()) {
+                                // Play first, queue rest
+                                onPlayList(tracks)
+                                val count = tracks.size
+                                AudioControlResult(
+                                    success = true,
+                                    message = "No exact match for '$query'. Queued $count random tracks from library.",
+                                    currentTrack = tracks.first().title,
+                                    isPlaying = true
+                                )
+                            } else {
+                                AudioControlResult(
+                                    success = false,
+                                    message = result.reason
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -107,7 +128,7 @@ class AudioControlTool(
                     val track = getCurrentTrack()
                     AudioControlResult(
                         success = true,
-                        message = "Playback paused",
+                        message = context.getString(com.example.smarty.R.string.playback_paused),
                         currentTrack = track?.title,
                         isPlaying = false
                     )
@@ -118,7 +139,7 @@ class AudioControlTool(
                     val track = getCurrentTrack()
                     AudioControlResult(
                         success = true,
-                        message = "Playback resumed",
+                        message = context.getString(com.example.smarty.R.string.playback_resumed),
                         currentTrack = track?.title,
                         isPlaying = true
                     )
@@ -128,7 +149,7 @@ class AudioControlTool(
                     onStop()
                     AudioControlResult(
                         success = true,
-                        message = "Playback stopped",
+                        message = context.getString(com.example.smarty.R.string.playback_stopped),
                         isPlaying = false
                     )
                 }
@@ -139,7 +160,7 @@ class AudioControlTool(
                     val track = getCurrentTrack()
                     AudioControlResult(
                         success = true,
-                        message = if (playing) "Playback resumed" else "Playback paused",
+                        message = if (playing) context.getString(com.example.smarty.R.string.playback_resumed) else context.getString(com.example.smarty.R.string.playback_paused),
                         currentTrack = track?.title,
                         isPlaying = playing
                     )
@@ -150,7 +171,7 @@ class AudioControlTool(
                     if (duration <= 0) {
                         return AudioControlResult(
                             success = false,
-                            message = "No audio is currently loaded"
+                            message = context.getString(com.example.smarty.R.string.error_no_audio_loaded)
                         )
                     }
 
@@ -163,23 +184,22 @@ class AudioControlTool(
                             // Parse as seconds
                             val seconds = args.target.toIntOrNull() ?: return AudioControlResult(
                                 success = false,
-                                message = "Invalid seek position: ${args.target}"
+                                message = context.getString(com.example.smarty.R.string.error_invalid_seek, args.target)
                             )
                             (seconds * 1000L).coerceIn(0, duration)
                         }
                         else -> return AudioControlResult(
                             success = false,
-                            message = "Please specify 'target' (seconds) or 'percentage' for seek"
+                            message = context.getString(com.example.smarty.R.string.error_seek_params)
                         )
                     }
 
                     onSeek(targetPosition)
-                    val positionSec = targetPosition / 1000
                     val track = getCurrentTrack()
 
                     AudioControlResult(
                         success = true,
-                        message = "Seeked to ${formatTime(targetPosition)}",
+                        message = context.getString(com.example.smarty.R.string.seeked_to, formatTime(targetPosition)),
                         currentTrack = track?.title,
                         position = formatTime(targetPosition),
                         isPlaying = isPlaying()
@@ -188,13 +208,13 @@ class AudioControlTool(
 
                 else -> AudioControlResult(
                     success = false,
-                    message = "Unknown action: ${args.action}. Use: play, pause, resume, stop, seek, toggle"
+                    message = context.getString(com.example.smarty.R.string.error_unknown_action, args.action)
                 )
             }
         } catch (e: Exception) {
             AudioControlResult(
                 success = false,
-                message = "Audio control error: ${e.message}"
+                message = context.getString(com.example.smarty.R.string.error_audio_control, e.message ?: "")
             )
         }
     }

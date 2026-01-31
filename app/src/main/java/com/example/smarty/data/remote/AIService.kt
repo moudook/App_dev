@@ -1,5 +1,6 @@
 package com.example.smarty.data.remote
 
+import android.app.Application
 import android.util.Log
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SecurePreferences
@@ -126,11 +127,11 @@ data class OpenAIMessageResponse(
  * - [AIProviderOrchestrator]: Provider management and key rotation
  * - [ContentAnalyzer]: Content and document analysis
  *
- * Note: Agent chat is now handled by JarvisAgent using Koog framework.
+ * Note: Agent chat is now handled by SmartyAgent using Koog framework.
  *
  * @property securePreferences Secure storage for API keys and settings
  */
-class AIService(private val securePreferences: SecurePreferences) {
+class AIService(private val application: Application, private val securePreferences: SecurePreferences) {
 
     companion object {
         private const val TAG = "AIService"
@@ -138,7 +139,7 @@ class AIService(private val securePreferences: SecurePreferences) {
 
     // Specialized handlers
     private val orchestrator = AIProviderOrchestrator(securePreferences)
-    private val contentAnalyzer = ContentAnalyzer(orchestrator)
+    private val contentAnalyzer = ContentAnalyzer(application, orchestrator)
 
     /**
      * Analyzes content using available AI providers with fallback and retry logic.
@@ -202,6 +203,7 @@ class AIService(private val securePreferences: SecurePreferences) {
                     Log.i(TAG, "simpleChat: Attempting $provider with model $model")
 
                     val result = providerInstance.chat(
+                        context = application,
                         systemPrompt = systemPrompt,
                         userPrompt = userPrompt,
                         apiKey = keyToUse,
@@ -252,6 +254,7 @@ class AIService(private val securePreferences: SecurePreferences) {
             val testContent = "Test: Remember to buy groceries tomorrow"
 
             val result = providerInstance.analyzeContent(
+                context = application,
                 content = testContent,
                 apiKey = apiKey,
                 model = model,

@@ -28,14 +28,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.ui.components.CalmThinkingDots
+import com.example.smarty.R
 
 /**
  * Full-screen image viewer with pinch-to-zoom and pan gestures.
@@ -108,7 +111,7 @@ private fun ImageViewerContent(
                 .build(),
             loading = {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    com.example.smarty.ui.components.CalmThinkingDots(color = Color.White)
+                    CalmThinkingDots(color = Color.White)
                 }
             },
             contentDescription = contentDescription,
@@ -176,7 +179,7 @@ private fun ImageViewerContent(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "close",
+                    contentDescription = stringResource(R.string.close),
                     tint = Color.White
                 )
             }
@@ -192,7 +195,7 @@ private fun ImageViewerContent(
                 color = Color.Black.copy(alpha = 0.6f)
             ) {
                 androidx.compose.material3.Text(
-                    text = "${String.format("%.1f", scale)}x",
+                    text = stringResource(R.string.scale_factor, scale),
                     color = Color.White,
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)

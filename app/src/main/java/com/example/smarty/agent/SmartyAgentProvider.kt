@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Supports provider priority fallback with circuit breaker pattern.
  * Integrates with GroqKeyManager for per-key rate limit tracking.
  */
-class JarvisAgentProvider(
+class SmartyAgentProvider(
     private val securePreferences: SecurePreferences,
     private val groqKeyManager: GroqKeyManager? = null
 ) {
@@ -100,6 +100,11 @@ class JarvisAgentProvider(
 
             // LOCAL_PC doesn't need API keys - handle specially
             if (provider == AIProvider.LOCAL_PC) {
+                // STRICT CHECK: Only proceed if explicitly enabled to prevent UI hangs
+                if (!securePreferences.isLocalPCEnabled()) {
+                    continue
+                }
+
                 val selectedModel = securePreferences.getSelectedModel(provider)
                 val result = createExecutorForProvider(provider, "local_pc_no_key", selectedModel, 1)
                 if (result is ExecutorResult.Success) {
@@ -148,7 +153,8 @@ class JarvisAgentProvider(
 
         // FALLBACK: If NO executors from enabled providers, automatically try LOCAL_PC
         // Skip validation - let the actual request fail with a better error message
-        if (executors.isEmpty()) {
+        // CHECK: Only fallback if Local PC is actually enabled
+        if (executors.isEmpty() && securePreferences.isLocalPCEnabled()) {
             Log.w(TAG, "No enabled providers available - attempting LOCAL_PC fallback (no validation)")
             val localPcIp = securePreferences.getLocalPCIP()
             if (localPcIp.isNotBlank()) {

@@ -128,7 +128,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = if (isLoginMode) "Sign in to continue to your smart space" else "Join to start organizing your thoughts",
+                text = if (isLoginMode) stringResource(R.string.sign_in_subtitle) else stringResource(R.string.sign_up_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                 textAlign = TextAlign.Center,
@@ -179,7 +179,7 @@ fun LoginScreen(
                             Icon(
                                 if (passwordVisible) Icons.Default.VisibilityOff
                                 else Icons.Default.Visibility,
-                                null,
+                                stringResource(if (passwordVisible) R.string.hide else R.string.show),
                                 modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -279,7 +279,7 @@ fun LoginScreen(
                         )
                     } else {
                         Text(
-                            text = if (isLoginMode) stringResource(R.string.sign_in) else "Create Account",
+                            text = if (isLoginMode) stringResource(R.string.sign_in) else stringResource(R.string.create_account),
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontWeight = FontWeight.SemiBold
                             )

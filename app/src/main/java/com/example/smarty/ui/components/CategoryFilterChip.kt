@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.softCardShadow
 
@@ -97,7 +99,7 @@ fun CategoryFilterChip(
             // Just the icon, no nested surface circle to reduce visual noise
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "clear_filter",
+                contentDescription = stringResource(R.string.clear_filter),
                 tint = accentColor.copy(alpha = 0.7f),
                 modifier = Modifier
                     .size(20.dp)

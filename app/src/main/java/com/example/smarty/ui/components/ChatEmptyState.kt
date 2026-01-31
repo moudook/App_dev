@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.*
 
@@ -64,9 +66,9 @@ import com.example.smarty.ui.utils.*
 @Composable
 fun CalendarEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "calendar",
-        subtitle = "nothing_planned",
-        hint = "tap_+_to_add_something_to_your_schedule",
+        title = stringResource(R.string.calendar),
+        subtitle = stringResource(R.string.nothing_planned),
+        hint = stringResource(R.string.tap_plus_to_add_something_to_your_schedule),
         modifier = modifier
     ) {
         TimeRippleAnimation()
@@ -149,9 +151,9 @@ private fun TimeRippleAnimation() {
 @Composable
 fun SearchEmptyState(searchQuery: String, modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "no_matches",
+        title = stringResource(R.string.no_matches),
         subtitle = "\"$searchQuery\"",
-        hint = "try_different_keywords_or_filters",
+        hint = stringResource(R.string.try_different_keywords_or_filters),
         modifier = modifier
     ) {
         SearchingLightAnimation()
@@ -230,9 +232,9 @@ private fun SearchingLightAnimation() {
 @Composable
 fun ChatHistoryEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "history",
-        subtitle = "no_conversations_yet",
-        hint = "your_past_chats_will_appear_here_as_you_interact_with_smarty",
+        title = stringResource(R.string.history),
+        subtitle = stringResource(R.string.no_conversations_yet),
+        hint = stringResource(R.string.your_past_chats_will_appear_here_as_you_interact_with_smarty),
         modifier = modifier
     ) {
         WhisperingEchoesAnimation()
@@ -535,9 +537,9 @@ fun CalmLinearProgress(
 @Composable
 fun ChatEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "jarvis",
-        subtitle = "here_to_help",
-        hint = "what_can_i_help_with",
+        title = stringResource(R.string.smarty),
+        subtitle = stringResource(R.string.here_to_help),
+        hint = stringResource(R.string.what_can_i_help_with),
         modifier = modifier
     ) {
         WarmCompanionAnimation()
@@ -799,9 +801,9 @@ private data class ThoughtParticle(
 @Composable
 fun NotesEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "notes",
-        subtitle = "capture_your_thoughts",
-        hint = "tap_+_to_create_your_first_note",
+        title = stringResource(R.string.notes),
+        subtitle = stringResource(R.string.capture_your_thoughts),
+        hint = stringResource(R.string.tap_plus_to_create_your_first_note),
     ) {
         GentlePagesAnimation()
     }
@@ -1004,9 +1006,9 @@ private data class GentlePagesConfig(
 @Composable
 fun ArchiveEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "archive",
-        subtitle = "preserved_items",
-        hint = "archived_notes_will_appear_here",
+        title = stringResource(R.string.archive),
+        subtitle = stringResource(R.string.archives),
+        hint = stringResource(R.string.archived_notes_will_appear_here),
         modifier = modifier
     ) {
         SafeHavenAnimation()
@@ -1216,9 +1218,9 @@ private data class SafeHavenConfig(
 @Composable
 fun StacksEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "stacks",
-        subtitle = "your_collections",
-        hint = "ai_will_organize_your_notes_into_smart_stacks",
+        title = stringResource(R.string.stacks),
+        subtitle = stringResource(R.string.your_collections),
+        hint = stringResource(R.string.ai_will_organize_your_notes_into_smart_stacks),
         modifier = modifier
     ) {
         GatheringPlaceAnimation()
@@ -1466,8 +1468,8 @@ private data class CompanionOrb(
 fun CategoryEmptyState(categoryName: String, modifier: Modifier = Modifier) {
     EmptyStateContainer(
         title = categoryName.lowercase(),
-        subtitle = "focused_notes",
-        hint = "add_notes_to_this_category",
+        subtitle = stringResource(R.string.focused_notes),
+        hint = stringResource(R.string.add_notes_to_this_category),
         modifier = modifier
     ) {
         QuietSpaceAnimation()
@@ -1485,9 +1487,9 @@ fun CategoryEmptyState(categoryName: String, modifier: Modifier = Modifier) {
 @Composable
 fun FilesEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "files",
-        subtitle = "no_associated_files",
-        hint = "images_documents_and_audio_will_appear_here",
+        title = stringResource(R.string.files),
+        subtitle = stringResource(R.string.no_associated_files),
+        hint = stringResource(R.string.images_documents_and_audio_will_appear_here),
         modifier = modifier
     ) {
         FloatingLinksAnimation()
@@ -1564,9 +1566,9 @@ private fun FloatingLinksAnimation() {
 @Composable
 fun VersionHistoryEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "history",
-        subtitle = "no_versions_yet",
-        hint = "edit_this_note_to_create_a_version",
+        title = stringResource(R.string.history),
+        subtitle = stringResource(R.string.no_versions_yet),
+        hint = stringResource(R.string.edit_this_note_to_create_a_version),
         modifier = modifier
     ) {
         TimeEchoAnimation()
@@ -1586,9 +1588,9 @@ fun BackupEmptyState(
     modifier: Modifier = Modifier
 ) {
     EmptyStateContainer(
-        title = if (isLocal) "local_archives" else "cloud_backups",
-        subtitle = if (isLocal) "no_local_backups_yet" else "no_cloud_backups_found",
-        hint = if (isLocal) "create_a_backup_to_save_data_on_your_device" else "sign_in_and_backup_to_protect_your_data",
+        title = if (isLocal) stringResource(R.string.local_archives) else stringResource(R.string.cloud_backups),
+        subtitle = if (isLocal) stringResource(R.string.no_local_backups_yet) else stringResource(R.string.no_cloud_backups_found),
+        hint = if (isLocal) stringResource(R.string.create_a_backup_to_save_data_on_your_device) else stringResource(R.string.sign_in_and_backup_to_protect_your_data),
         modifier = modifier
     ) {
         SafeCloudAnimation()
@@ -1605,9 +1607,9 @@ fun BackupEmptyState(
 @Composable
 fun IntelligenceEmptyState(modifier: Modifier = Modifier) {
     EmptyStateContainer(
-        title = "intelligence",
-        subtitle = "no_patterns_detected_yet",
-        hint = "start_interacting_with_smarty_to_build_your_profile",
+        title = stringResource(R.string.intelligence),
+        subtitle = stringResource(R.string.no_patterns_detected_yet),
+        hint = stringResource(R.string.start_interacting_with_smarty_to_build_your_profile),
         modifier = modifier
     ) {
         NeuralGlowAnimation()
@@ -1942,65 +1944,6 @@ private fun QuietSpaceAnimation() {
             center = Offset(cx, cy),
             radius = cfg.coreRadius * 0.5f * breathe
         )
-    }
-}
-
-/**
- * Calm Thinking Dots - A premium, organic replacement for CircularProgressIndicator.
- * Three dots that pulse with a soft, "thinking" rhythm.
- *
- * Features:
- * - Lifecycle-aware: Pauses when app is backgrounded.
- * - Organic motion: Uses sine-based breathing.
- * - Systematic: Uses LocalAccentColor and consistent spacing.
- */
-@Composable
-fun CalmThinkingDots(
-    modifier: Modifier = Modifier,
-    color: Color = LocalAccentColor.current,
-    dotSize: androidx.compose.ui.unit.Dp = 6.dp,
-    dotSpacing: androidx.compose.ui.unit.Dp = 4.dp
-) {
-    val shouldAnimate = shouldAnimationRun()
-    val infiniteTransition = if (shouldAnimate) {
-        rememberInfiniteTransition(label = "thinking_dots")
-    } else null
-
-    val progress by if (infiniteTransition != null) {
-        infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1200, easing = LinearEasing)
-            ),
-            label = "progress"
-        )
-    } else {
-        remember { mutableStateOf(0f) }
-    }
-
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(dotSpacing),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(3) { index ->
-            // Offset each dot's animation phase
-            val dotProgress = (progress + (index * 0.2f)) % 1f
-            // Soft sine pulse: 0.3 to 1.0 alpha/scale
-            val pulse = 0.3f + 0.7f * fastSin(dotProgress * PI_F)
-
-            Box(
-                modifier = Modifier
-                    .size(dotSize)
-                    .graphicsLayer {
-                        alpha = pulse
-                        scaleX = 0.8f + 0.2f * pulse
-                        scaleY = 0.8f + 0.2f * pulse
-                    }
-                    .background(color, CircleShape)
-            )
-        }
     }
 }
 

@@ -38,7 +38,7 @@ fun AddEventDialog(
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
     val displayDate = remember(selectedDate) { dateFormat.format(selectedDate.time) }
 
-    com.example.smarty.ui.components.common.JarvisDialog(
+    com.example.smarty.ui.components.common.SmartyDialog(
         title = stringResource(R.string.new_event),
         onDismiss = onDismiss,
         confirmText = stringResource(R.string.add),
@@ -136,7 +136,7 @@ fun AddEventDialog(
                                     modifier = Modifier.weight(1f),
                                     singleLine = true
                                 )
-                                Text(":", modifier = Modifier.padding(top = 16.dp))
+                                Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
                                 OutlinedTextField(
                                     value = startMinute.toString().padStart(2, '0'),
                                     onValueChange = {
@@ -167,7 +167,7 @@ fun AddEventDialog(
                                     modifier = Modifier.weight(1f),
                                     singleLine = true
                                 )
-                                Text(":", modifier = Modifier.padding(top = 16.dp))
+                                Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
                                 OutlinedTextField(
                                     value = endMinute.toString().padStart(2, '0'),
                                     onValueChange = {

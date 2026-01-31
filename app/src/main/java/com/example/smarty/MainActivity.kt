@@ -38,16 +38,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.offset
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
-import com.example.smarty.navigation.JarvisNavHost
+import com.example.smarty.navigation.SmartyNavHost
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
 import com.example.smarty.ui.components.audio.FullAudioPlayer
 
-import com.example.smarty.ui.theme.JarvisTheme
+import com.example.smarty.ui.theme.SmartyTheme
 import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.service.AudioPlayerService
 import com.example.smarty.viewmodel.AudioPlayerViewModel
-import com.example.smarty.viewmodel.JarvisViewModel
-import com.example.smarty.viewmodel.JarvisViewModelFactory
+import com.example.smarty.viewmodel.SmartyViewModel
+import com.example.smarty.viewmodel.SmartyViewModelFactory
 import com.example.smarty.viewmodel.AuthViewModel
 import com.example.smarty.viewmodel.AuthViewModelFactory
 import com.example.smarty.viewmodel.SharedContent
@@ -56,8 +57,8 @@ import com.example.smarty.ui.components.AttachmentOption
 
 class MainActivity : ComponentActivity() {
     // Use factory for SavedStateHandle support (BUG-053: state preservation across process death)
-    private val viewModel: JarvisViewModel by viewModels {
-        JarvisViewModelFactory(application, this)
+    private val viewModel: SmartyViewModel by viewModels {
+        SmartyViewModelFactory(application, this)
     }
     private val authViewModel: AuthViewModel by viewModels {
         AuthViewModelFactory(application)
@@ -121,10 +122,10 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         setContent {
-            // Collect theme state at the top level for JarvisTheme
+            // Collect theme state at the top level for SmartyTheme
             val isDarkThemeTop by viewModel.isDarkTheme.collectAsState()
 
-            JarvisTheme(darkTheme = isDarkThemeTop) {
+            SmartyTheme(darkTheme = isDarkThemeTop) {
                 // NOTE: Splash animation is now integrated into LoginScreen
                 // No separate splash state needed
 
@@ -177,6 +178,7 @@ class MainActivity : ComponentActivity() {
 
                 // Calendar events
                 val calendarEvents by viewModel.calendarEvents.collectAsState()
+                val activeTimers by viewModel.activeTimers.collectAsState()
 
                 // Theme state
                 val isDarkTheme by viewModel.isDarkTheme.collectAsState()
@@ -325,6 +327,8 @@ class MainActivity : ComponentActivity() {
                         viewModel.stopWakeWordDetection()
                     } else if (isAppInForeground) {
                         // Mic released AND app is in foreground - restart wake word detection
+                        // WAIT for SpeechToTextLauncher to release global pause (it has a 300ms safety buffer)
+                        delay(500)
                         android.util.Log.d("WakeWord", "Mic released - resuming wake word detection")
                         viewModel.restartWakeWordDetection()
                     } else {
@@ -383,7 +387,7 @@ class MainActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     // Minimal loading indicator
-                                    com.example.smarty.ui.components.CalmThinkingDots(
+                                    CalmThinkingDots(
                                         color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
                                         dotSize = 4.dp
                                     )
@@ -404,7 +408,7 @@ class MainActivity : ComponentActivity() {
                             "main_app" -> {
                                 // MAIN APP - User is logged in, splash done, enrollment done/skipped
                                 Box(modifier = Modifier.fillMaxSize()) {
-                                    JarvisNavHost(
+                                    SmartyNavHost(
                                         navController = navController,
                                         // Auth Guard - user is definitely logged in at this point
                                         isLoggedIn = true,
@@ -515,22 +519,25 @@ class MainActivity : ComponentActivity() {
                                     onShareNotes = { notesToShare ->
                                         // Create share intent with note titles and descriptions
                                         val shareText = notesToShare.joinToString("\n\n") { note ->
-                                            buildString {
-                                                append(" ${note.title}")
-                                                if (!note.summary.isNullOrBlank()) {
-                                                    append("\n${note.summary}")
-                                                } else if (note.content.isNotBlank()) {
-                                                    append("\n${note.content.take(200)}")
-                                                    if (note.content.length > 200) append("...")
+                                            val body = when {
+                                                !note.summary.isNullOrBlank() -> note.summary
+                                                note.content.isNotBlank() -> {
+                                                    if (note.content.length > 200) {
+                                                        getString(R.string.share_note_truncated_format, note.content.take(200))
+                                                    } else {
+                                                        note.content
+                                                    }
                                                 }
+                                                else -> ""
                                             }
+                                            getString(R.string.share_note_format, note.title, body).trim()
                                         }
                                         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                             type = "text/plain"
                                             putExtra(android.content.Intent.EXTRA_TEXT, shareText)
-                                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Shared from Jarvis")
+                                            putExtra(android.content.Intent.EXTRA_SUBJECT, getString(R.string.shared_from_smarty))
                                         }
-                                        startActivity(android.content.Intent.createChooser(intent, "Share notes"))
+                                        startActivity(android.content.Intent.createChooser(intent, getString(R.string.share_notes)))
                                     },
                                     // Pending share management
                                     pendingShare = pendingShare,
@@ -655,6 +662,7 @@ class MainActivity : ComponentActivity() {
                                     onClearCameraTrigger = { viewModel.clearCameraTrigger() },
                                     // Calendar management
                                     calendarEvents = calendarEvents,
+                                    activeTimers = activeTimers,
                                     onAddCalendarEvent = { title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate ->
                                         viewModel.addCalendarEvent(
                                             title = title,
@@ -673,6 +681,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onDeleteCalendarEvent = { eventId ->
                                         viewModel.deleteCalendarEvent(eventId)
+                                    },
+                                    onCancelTimer = { timer ->
+                                        viewModel.cancelTimer(timer.id)
                                     },
                                     bottomContentPadding = androidx.compose.animation.core.animateDpAsState(
                                         targetValue = if (isMiniPlayerVisible && !isFullPlayerVisible && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) == 0) 84.dp else 0.dp,
@@ -772,12 +783,12 @@ class MainActivity : ComponentActivity() {
                                         onDismiss = { audioPlayerViewModel.collapseToMiniPlayer() }
                                     )
                                 }  // End if (isFullPlayerVisible)
-                            }  // End inner Box (JarvisNavHost container)
+                            }  // End inner Box (SmartyNavHost container)
                         }  // End main_app case
                     }  // End when
                 }  // End Crossfade
             }  // End outer Box
-        }  // End JarvisTheme
+        }  // End SmartyTheme
     }  // End setContent
 }  // End onCreate
 
@@ -810,7 +821,8 @@ class MainActivity : ComponentActivity() {
 
             // Start wake word detection (Vosk) - only after foreground flag is set
             // VoskWakeWordManager will auto-reinitialize if model was invalidated
-            viewModel.startWakeWordDetection()
+            // Use restartWakeWordDetection for more robust state handling on resume
+            viewModel.restartWakeWordDetection()
         }
     }
 

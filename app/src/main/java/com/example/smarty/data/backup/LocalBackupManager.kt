@@ -9,7 +9,7 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import com.example.smarty.BuildConfig
 import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -44,7 +44,7 @@ import java.util.zip.ZipOutputStream
  */
 class LocalBackupManager(
     private val context: Context,
-    private val database: JarvisDatabase,
+    private val database: SmartyDatabase,
     private val securePreferences: SecurePreferences
 ) {
     private val gson: Gson = GsonBuilder()
@@ -89,13 +89,13 @@ class LocalBackupManager(
      */
     suspend fun createLocalBackup(): Result<LocalBackupMetadata> = withContext(Dispatchers.IO) {
         try {
-            _localBackupState.value = BackupOperationState.InProgress(0.05f, "Preparing backup...")
+            _localBackupState.value = BackupOperationState.InProgress(0.05f, context.getString(com.example.smarty.R.string.backup_preparing))
 
             // Get all notes and categories
             val notes = database.noteDao().getAllNotesOnce()
             val categories = database.categoryDao().getAllCategoriesOnce()
 
-            _localBackupState.value = BackupOperationState.InProgress(0.1f, "Exporting database...")
+            _localBackupState.value = BackupOperationState.InProgress(0.1f, context.getString(com.example.smarty.R.string.backup_exporting_db))
 
             // Create temp directory for backup
             val tempDir = File(context.cacheDir, "local_backup_temp_${System.currentTimeMillis()}")
@@ -108,7 +108,7 @@ class LocalBackupManager(
                 imagesDir.mkdirs()
                 filesDir.mkdirs()
 
-                _localBackupState.value = BackupOperationState.InProgress(0.15f, "Copying attachments...")
+                _localBackupState.value = BackupOperationState.InProgress(0.15f, context.getString(com.example.smarty.R.string.backup_copying_attachments))
 
                 // Copy attachments and build backup notes with relative paths
                 var attachmentCount = 0
@@ -116,7 +116,7 @@ class LocalBackupManager(
                     val progress = 0.15f + (0.45f * index / notes.size.coerceAtLeast(1))
                     _localBackupState.value = BackupOperationState.InProgress(
                         progress,
-                        "Copying attachments (${index + 1}/${notes.size})..."
+                        context.getString(com.example.smarty.R.string.backup_copying_progress, index + 1, notes.size)
                     )
 
                     var backupImagePath: String? = null
@@ -155,7 +155,7 @@ class LocalBackupManager(
                     NoteBackup.fromNote(note, backupImagePath, backupFilePath)
                 }
 
-                _localBackupState.value = BackupOperationState.InProgress(0.6f, "Creating database export...")
+                _localBackupState.value = BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.backup_creating_export))
 
                 // Create database backup
                 val categoryBackups = categories.map { CategoryBackup.fromCategory(it) }
@@ -163,14 +163,14 @@ class LocalBackupManager(
                 val databaseJson = gson.toJson(databaseBackup)
                 File(tempDir, DatabaseBackup.DATABASE_FILENAME).writeText(databaseJson)
 
-                _localBackupState.value = BackupOperationState.InProgress(0.65f, "Exporting preferences...")
+                _localBackupState.value = BackupOperationState.InProgress(0.65f, context.getString(com.example.smarty.R.string.backup_exporting_prefs))
 
                 // Create preferences backup
                 val preferencesBackup = createPreferencesBackup()
                 val preferencesJson = gson.toJson(preferencesBackup)
                 File(tempDir, PREFERENCES_FILENAME).writeText(preferencesJson)
 
-                _localBackupState.value = BackupOperationState.InProgress(0.7f, "Creating manifest...")
+                _localBackupState.value = BackupOperationState.InProgress(0.7f, context.getString(com.example.smarty.R.string.backup_creating_manifest))
 
                 // Create manifest
                 val manifest = BackupManifest(
@@ -184,16 +184,16 @@ class LocalBackupManager(
                 val manifestJson = gson.toJson(manifest)
                 File(tempDir, BackupManifest.MANIFEST_FILENAME).writeText(manifestJson)
 
-                _localBackupState.value = BackupOperationState.InProgress(0.75f, "Creating backup archive...")
+                _localBackupState.value = BackupOperationState.InProgress(0.75f, context.getString(com.example.smarty.R.string.backup_creating_archive))
 
                 // Create ZIP file in local backups directory
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val zipFileName = "Jarvis_backup_$timestamp.zip"
+                val zipFileName = "Smarty_backup_$timestamp.zip"
                 val zipFile = File(localBackupsDir, zipFileName)
 
                 createZipFile(tempDir, zipFile)
 
-                _localBackupState.value = BackupOperationState.InProgress(0.9f, "Finalizing...")
+                _localBackupState.value = BackupOperationState.InProgress(0.9f, context.getString(com.example.smarty.R.string.backup_finalizing))
 
                 // Create metadata
                 val metadata = LocalBackupMetadata(
@@ -219,7 +219,7 @@ class LocalBackupManager(
                 enforceBackupLimits()
 
                 _localBackupState.value = BackupOperationState.Success(
-                    "Local backup created successfully"
+                    context.getString(com.example.smarty.R.string.backup_created_success)
                 )
 
                 Result.success(metadata)
@@ -229,7 +229,7 @@ class LocalBackupManager(
             }
         } catch (e: Exception) {
             _localBackupState.value = BackupOperationState.Error(
-                e.message ?: "Local backup failed",
+                e.message ?: context.getString(com.example.smarty.R.string.backup_failed_generic),
                 e
             )
             Result.failure(e)
@@ -300,9 +300,8 @@ class LocalBackupManager(
         return Intent(Intent.ACTION_SEND).apply {
             type = "application/zip"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Jarvis Backup - ${metadata.displayDate}")
-            putExtra(Intent.EXTRA_TEXT, "Jarvis backup from ${metadata.displayDate}\n" +
-                    "Contains ${metadata.noteCount} notes and ${metadata.categoryCount} categories")
+            putExtra(Intent.EXTRA_SUBJECT, context.getString(com.example.smarty.R.string.backup_share_subject, metadata.displayDate))
+            putExtra(Intent.EXTRA_TEXT, context.getString(com.example.smarty.R.string.backup_share_text, metadata.displayDate, metadata.noteCount, metadata.categoryCount))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }

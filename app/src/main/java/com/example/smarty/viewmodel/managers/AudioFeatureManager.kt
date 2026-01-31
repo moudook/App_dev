@@ -16,7 +16,7 @@ import kotlinx.coroutines.CoroutineScope
  * This manager ensures consistent audio control across:
  * 1. UI components (direct calls)
  * 2. LocalCommandProcessor (voice commands)
- * 3. JarvisAgent (AI-driven audio control)
+ * 3. SmartyAgent (AI-driven audio control)
  *
  * INTEGRATION POINTS:
  * - AudioPlaybackManager (for playback control)
@@ -40,6 +40,14 @@ class AudioFeatureManager(
     fun play(track: AudioTrack) {
         Log.i(TAG, "Playing: ${track.title}")
         audioPlaybackManager.play(track)
+    }
+
+    /**
+     * Play a list of audio tracks.
+     */
+    fun playList(tracks: List<AudioTrack>) {
+        Log.i(TAG, "Playing list: ${tracks.size} tracks")
+        audioPlaybackManager.playList(tracks)
     }
 
     /**
@@ -122,7 +130,20 @@ class AudioFeatureManager(
     // ==================== Audio Discovery ====================
 
     /**
+     * Result of an audio search operation.
+     */
+    sealed class AudioSearchResult {
+        /** Exact or partial match found */
+        data class ExactMatch(val track: AudioTrack) : AudioSearchResult()
+
+        /** No direct match found, providing fallback recommendations */
+        data class Fallback(val tracks: List<AudioTrack>, val reason: String) : AudioSearchResult()
+    }
+
+    /**
      * Get all audio files from device storage.
+     *
+     * @return List of AudioTrack
      */
     fun getAllAudioTracks(): List<AudioTrack> {
         return deviceAudioRepository.getAllAudio()
@@ -133,9 +154,9 @@ class AudioFeatureManager(
      * Searches across title, artist, album, and filename.
      *
      * @param query Search query
-     * @return Matching audio track, or null if not found
+     * @return AudioSearchResult with matching track or fallback tracks
      */
-    fun findAudioTrack(query: String): AudioTrack? {
+    fun findAudioTrack(query: String): AudioSearchResult {
         val tracks = getAllAudioTracks()
         return findMatchingAudio(query, tracks)
     }
@@ -146,25 +167,37 @@ class AudioFeatureManager(
      *
      * @param query Search query
      * @param tracks List of tracks to search within
-     * @return Matching audio track, or null if not found
+     * @return AudioSearchResult with matching track or fallback tracks
      */
-    fun findMatchingAudio(query: String, tracks: List<AudioTrack>): AudioTrack? {
+    fun findMatchingAudio(query: String, tracks: List<AudioTrack>): AudioSearchResult {
         val queryLower = query.lowercase().trim()
 
         // Try exact match first
-        tracks.firstOrNull { track ->
+        val exactMatch = tracks.firstOrNull { track ->
             track.title.lowercase() == queryLower ||
             track.artist?.lowercase() == queryLower ||
             track.album?.lowercase() == queryLower
-        }?.let { return it }
+        }
+
+        if (exactMatch != null) return AudioSearchResult.ExactMatch(exactMatch)
 
         // Fallback to partial match
-        return tracks.firstOrNull { track ->
+        val partialMatch = tracks.firstOrNull { track ->
             track.title.lowercase().contains(queryLower) ||
             track.artist?.lowercase()?.contains(queryLower) == true ||
             track.album?.lowercase()?.contains(queryLower) == true ||
             track.fileName?.lowercase()?.contains(queryLower) == true
         }
+
+        if (partialMatch != null) return AudioSearchResult.ExactMatch(partialMatch)
+
+        // No match found, provide fallback list (up to 20 random tracks)
+        val fallbackTracks = if (tracks.isNotEmpty()) {
+            tracks.shuffled().take(20)
+        } else {
+            emptyList()
+        }
+        return AudioSearchResult.Fallback(fallbackTracks, "No match found for '$query'")
     }
 
     /**

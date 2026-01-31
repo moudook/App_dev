@@ -1,8 +1,9 @@
 package com.example.smarty.viewmodel.managers
 
 import android.util.Log
+import android.content.Context
 import com.example.smarty.data.local.AIMemoryDao
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.data.model.MemoryType
 import com.example.smarty.data.model.Note
@@ -36,7 +37,8 @@ import java.util.UUID
  * =============================================================================
  */
 class MemorySyncManager(
-    private val database: JarvisDatabase,
+    private val context: android.content.Context,
+    private val database: SmartyDatabase,
     private val aiMemoryDao: AIMemoryDao,
     private val aiService: AIService
 ) {
@@ -235,8 +237,8 @@ class MemorySyncManager(
         try {
             // 1. Check if AI is available
             if (!aiService.isAiAvailable()) {
-                val msg = "AI provider not configured. Please check settings."
-                _syncResult.value = "Failed: $msg"
+                val msg = context.getString(com.example.smarty.R.string.no_ai_provider_configured)
+                _syncResult.value = context.getString(com.example.smarty.R.string.sync_failed_prefix, msg)
                 return@withContext SyncResult.Error(msg)
             }
 
@@ -315,13 +317,13 @@ class MemorySyncManager(
 
             // 3. Final Result
             val resultMsg = when {
-                notesProcessed == 0 -> "All notes have been analyzed."
-                memoriesCreated > 0 || memoriesUpdated > 0 -> 
-                    "Analyzed $notesProcessed notes. Learned ${memoriesCreated + memoriesUpdated} new things!"
+                notesProcessed == 0 -> context.getString(com.example.smarty.R.string.all_notes_analyzed)
+                memoriesCreated > 0 || memoriesUpdated > 0 ->
+                    context.getString(com.example.smarty.R.string.sync_learned_patterns, notesProcessed, memoriesCreated + memoriesUpdated)
                 notesFailed > 0 ->
-                    "Processed $notesProcessed notes ($notesFailed failed). No new patterns found."
-                else -> 
-                    "Analyzed $notesProcessed notes. No new behavior patterns detected."
+                    context.getString(com.example.smarty.R.string.sync_no_patterns_found, notesProcessed, notesFailed)
+                else ->
+                    context.getString(com.example.smarty.R.string.sync_no_additional_patterns, notesProcessed)
             }
             
             _syncResult.value = resultMsg
@@ -337,7 +339,7 @@ class MemorySyncManager(
 
         } catch (e: Exception) {
             Log.e(TAG, "Fatal error during memory sync", e)
-            _syncResult.value = "Sync failed: ${e.localizedMessage}"
+            _syncResult.value = context.getString(com.example.smarty.R.string.sync_failed_prefix, e.localizedMessage ?: "Unknown error")
             return@withContext SyncResult.Error(e.message ?: "Unknown error")
         } finally {
             _isSyncing.value = false

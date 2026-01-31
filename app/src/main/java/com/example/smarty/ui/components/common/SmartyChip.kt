@@ -31,7 +31,7 @@ import com.example.smarty.ui.theme.LocalSpacing
 
 /**
  * =============================================================================
- * Jarvis CHIP COMPONENT
+ * Smarty CHIP COMPONENT
  * =============================================================================
  *
  * A reusable chip component that consolidates chip-like UI elements across
@@ -48,7 +48,7 @@ import com.example.smarty.ui.theme.LocalSpacing
  */
 
 /**
- * Visual variants for JarvisChip.
+ * Visual variants for SmartyChip.
  */
 enum class ChipVariant {
     /** Standard chip with subtle background */
@@ -65,7 +65,7 @@ enum class ChipVariant {
 }
 
 /**
- * Size options for JarvisChip.
+ * Size options for SmartyChip.
  */
 enum class ChipSize {
     /** Compact chip for dense layouts */
@@ -114,7 +114,7 @@ private data class ChipColorConfig(
  * @param modifier Modifier for the chip container
  */
 @Composable
-fun JarvisChip(
+fun SmartyChip(
     label: String,
     onClick: (() -> Unit)? = null,
     leadingIcon: ImageVector? = null,
@@ -316,14 +316,14 @@ fun JarvisChip(
  * @param modifier Modifier for the chip
  */
 @Composable
-fun JarvisFilterChip(
+fun SmartyFilterChip(
     label: String,
     isSelected: Boolean,
     onToggle: (Boolean) -> Unit,
     leadingIcon: ImageVector? = null,
     modifier: Modifier = Modifier
 ) {
-    JarvisChip(
+    SmartyChip(
         label = label,
         onClick = { onToggle(!isSelected) },
         leadingIcon = leadingIcon,
@@ -343,13 +343,13 @@ fun JarvisFilterChip(
  * @param modifier Modifier for the chip
  */
 @Composable
-fun JarvisTagChip(
+fun SmartyTagChip(
     label: String,
     onRemove: (() -> Unit)? = null,
     removeIcon: ImageVector? = null,
     modifier: Modifier = Modifier
 ) {
-    JarvisChip(
+    SmartyChip(
         label = label,
         trailingIcon = removeIcon,
         onTrailingClick = onRemove,

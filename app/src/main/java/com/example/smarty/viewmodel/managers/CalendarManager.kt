@@ -3,11 +3,12 @@ package com.example.smarty.viewmodel.managers
 import android.util.Log
 import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.model.JarvisTimer
+import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.service.AlarmScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -61,6 +62,13 @@ class CalendarManager(
      * Use when building context for AI/Agent services.
      */
     val aiVisibleEvents: Flow<List<CalendarEvent>> = calendarDao.getAiVisibleEvents()
+
+    /**
+     * Observable stream of active timers.
+     */
+    val activeTimers: StateFlow<List<SmartyTimer>> = alarmScheduler?.activeTimers
+        ?.stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
+        ?: MutableStateFlow(emptyList<SmartyTimer>())
 
     // ==================== CRUD Operations ====================
 
@@ -381,7 +389,7 @@ class CalendarManager(
      */
     fun setTimer(name: String, triggerTime: Long, isAlarm: Boolean) {
         alarmScheduler?.let { scheduler ->
-            val timer = JarvisTimer(
+            val timer = SmartyTimer(
                 name = name,
                 triggerTime = triggerTime,
                 isAlarm = isAlarm,
@@ -401,15 +409,15 @@ class CalendarManager(
     }
 
     /**
-     * Schedule a reminder alarm for an event using JarvisTimer.
+     * Schedule a reminder alarm for an event using SmartyTimer.
      * Creates a one-time timer that fires at the reminder time.
      */
     private fun scheduleReminder(event: CalendarEvent, minutesBefore: Int) {
         alarmScheduler?.let { scheduler ->
             val reminderTime = event.startTime - (minutesBefore * 60 * 1000L)
             if (reminderTime > System.currentTimeMillis()) {
-                // Create a JarvisTimer for the event reminder
-                val timer = JarvisTimer(
+                // Create a SmartyTimer for the event reminder
+                val timer = SmartyTimer(
                     id = "event_reminder_${event.id}",
                     name = "Reminder: ${event.title}",
                     triggerTime = reminderTime,

@@ -32,6 +32,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -171,7 +173,7 @@ private fun VideoPlayerContent(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "close",
+                    contentDescription = stringResource(R.string.close),
                     tint = Color.White
                 )
             }

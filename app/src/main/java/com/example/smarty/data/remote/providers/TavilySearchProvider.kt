@@ -77,16 +77,19 @@ class TavilySearchProvider(
      * @param searchDepth "basic" (1 credit) or "advanced" (2 credits)
      * @param maxResults 0-20, default 5
      * @param includeAnswer Include AI-generated answer summary
+     * @param includeRawContent Include full parsed HTML content
      * @param topic "general", "news", or "finance"
      */
     data class TavilyRequest(
         val query: String,
         @SerializedName("search_depth")
-        val searchDepth: String = "basic",      // basic=1 credit, advanced=2 credits
+        val searchDepth: String = "advanced",      // Changed to advanced for better results
         @SerializedName("max_results")
         val maxResults: Int = 5,                // 0-20, default 5
         @SerializedName("include_answer")
         val includeAnswer: Boolean = true,      // Get AI summary
+        @SerializedName("include_raw_content")
+        val includeRawContent: Boolean = true,  // Get full content
         val topic: String = "general"           // general, news, finance (NOT research/code)
     )
 
@@ -105,6 +108,8 @@ class TavilySearchProvider(
         val title: String?,
         val url: String?,
         val content: String?,                   // Snippet/summary
+        @SerializedName("raw_content")
+        val rawContent: String?,                // Full parsed content
         val score: Float?                       // Relevance score
     )
 
@@ -153,9 +158,10 @@ class TavilySearchProvider(
 
             val request = TavilyRequest(
                 query = query,
-                searchDepth = "basic",          // Use basic to conserve credits
+                searchDepth = "advanced",          // Use advanced for better depth
                 maxResults = maxResults.coerceIn(1, 10),
                 includeAnswer = true,
+                includeRawContent = true,
                 topic = topic
             )
 
@@ -201,9 +207,16 @@ class TavilySearchProvider(
 
             val results = tavilyResponse.results?.mapNotNull { result ->
                 if (result.title != null && result.url != null && result.content != null) {
+                    // Use raw content if available and not empty, otherwise fallback to snippet
+                    val fullContent = if (!result.rawContent.isNullOrBlank()) {
+                        result.rawContent
+                    } else {
+                        result.content
+                    }
+
                     SearchResult(
                         title = result.title,
-                        snippet = result.content.take(300),  // Limit snippet length
+                        snippet = fullContent.take(8000),  // Limit snippet length (approx 1000-1500 words, hard limit 8k)
                         url = result.url,
                         score = result.score ?: 0f
                     )

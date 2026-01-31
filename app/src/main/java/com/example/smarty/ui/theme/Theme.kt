@@ -199,7 +199,7 @@ enum class ThemeMode {
 }
 
 /**
- * Jarvis Theme - Modern Soft Minimalist
+ * Smarty Theme - Modern Soft Minimalist
  *
  * Design Archetype: "Clean Tech" / "Refined Bento-Grid"
  * - High readability, soft shadows, generous whitespace
@@ -209,7 +209,7 @@ enum class ThemeMode {
  * - System theme detection with manual override
  */
 @Composable
-fun JarvisTheme(
+fun SmartyTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     isTransparent: Boolean = false, // Set to true for transparent overlays (e.g., AssistActivity)
     content: @Composable () -> Unit
@@ -229,7 +229,7 @@ fun JarvisTheme(
         // Optimize: Cache Window and Controller to avoid repetitive lookups
         val context = view.context
         val window = remember(context) { (context as? Activity)?.window }
-        val insetsController = remember(window, view) { 
+        val insetsController = remember(window, view) {
             window?.let { WindowCompat.getInsetsController(it, view) }
         }
 
@@ -238,9 +238,8 @@ fun JarvisTheme(
                 val decorView = win.decorView
                 // Only update if changed to avoid unnecessary JNI calls
                 val bgColorArgb = animatedBackground.toArgb()
-                
-                // Note: getSolidColor() is not reliable for background color check, 
-                // so we just set it as setting background color is relatively cheap if hardware accelerated.
+
+                // Note: decorView.setBackgroundColor(bgColorArgb) is relatively cheap if hardware accelerated.
                 decorView.setBackgroundColor(bgColorArgb)
 
                 // Use semi-transparent system bars that blend with content
@@ -273,12 +272,12 @@ fun JarvisTheme(
 
     CompositionLocalProvider(
         LocalSpacing provides Spacing(),
-        LocalShapes provides JarvisShapes(),
+        LocalShapes provides SmartyShapes(),
         LocalAccentColor provides animatedColorScheme.primary
     ) {
         MaterialTheme(
             colorScheme = animatedColorScheme,
-            typography = JarvisTypography,
+            typography = SmartyTypography,
             content = content
         )
     }

@@ -1,12 +1,13 @@
 package com.example.smarty.data.backup
 
+import com.example.smarty.R
 import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import com.example.smarty.BuildConfig
 import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.DriveService
 import com.google.gson.Gson
@@ -49,7 +50,7 @@ import java.util.zip.ZipOutputStream
  */
 class BackupManager(
     private val context: Context,
-    private val database: JarvisDatabase,
+    private val database: SmartyDatabase,
     private val securePreferences: SecurePreferences,
     private val driveService: DriveService,
     private val authManager: com.example.smarty.data.remote.GoogleAuthManager
@@ -102,13 +103,13 @@ class BackupManager(
                 throw Exception("connection_lost")
             }
 
-            _backupState.value = BackupOperationState.InProgress(0.05f, "Preparing backup...")
+            _backupState.value = BackupOperationState.InProgress(0.05f, context.getString(com.example.smarty.R.string.backup_preparing))
 
             // Get all notes and categories
             val notes = database.noteDao().getAllNotesOnce()
             val categories = database.categoryDao().getAllCategoriesOnce()
 
-            _backupState.value = BackupOperationState.InProgress(0.1f, "Exporting database...")
+            _backupState.value = BackupOperationState.InProgress(0.1f, context.getString(com.example.smarty.R.string.backup_exporting_db))
 
             // Create temp directory for backup
             val tempDir = File(context.cacheDir, "backup_temp_${System.currentTimeMillis()}")
@@ -121,7 +122,7 @@ class BackupManager(
                 imagesDir.mkdirs()
                 filesDir.mkdirs()
 
-                _backupState.value = BackupOperationState.InProgress(0.15f, "Copying attachments...")
+                _backupState.value = BackupOperationState.InProgress(0.15f, context.getString(com.example.smarty.R.string.backup_copying_attachments))
 
                 // Copy attachments and build backup notes with relative paths
                 var attachmentCount = 0
@@ -129,7 +130,7 @@ class BackupManager(
                     val progress = 0.15f + (0.35f * index / notes.size.coerceAtLeast(1))
                     _backupState.value = BackupOperationState.InProgress(
                         progress,
-                        "Copying attachments (${index + 1}/${notes.size})..."
+                        context.getString(com.example.smarty.R.string.backup_copying_progress, index + 1, notes.size)
                     )
 
                     var backupImagePath: String? = null
@@ -168,7 +169,7 @@ class BackupManager(
                     NoteBackup.fromNote(note, backupImagePath, backupFilePath)
                 }
 
-                _backupState.value = BackupOperationState.InProgress(0.5f, "Creating database export...")
+                _backupState.value = BackupOperationState.InProgress(0.5f, context.getString(com.example.smarty.R.string.backup_creating_export))
 
                 // Create database backup
                 val categoryBackups = categories.map { CategoryBackup.fromCategory(it) }
@@ -176,14 +177,14 @@ class BackupManager(
                 val databaseJson = gson.toJson(databaseBackup)
                 File(tempDir, DatabaseBackup.DATABASE_FILENAME).writeText(databaseJson)
 
-                _backupState.value = BackupOperationState.InProgress(0.55f, "Exporting preferences...")
+                _backupState.value = BackupOperationState.InProgress(0.55f, context.getString(com.example.smarty.R.string.backup_exporting_prefs))
 
                 // Create preferences backup
                 val preferencesBackup = createPreferencesBackup()
                 val preferencesJson = gson.toJson(preferencesBackup)
                 File(tempDir, PREFERENCES_FILENAME).writeText(preferencesJson)
 
-                _backupState.value = BackupOperationState.InProgress(0.6f, "Creating manifest...")
+                _backupState.value = BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.backup_creating_manifest))
 
                 // Create manifest
                 val manifest = BackupManifest(
@@ -197,16 +198,16 @@ class BackupManager(
                 val manifestJson = gson.toJson(manifest)
                 File(tempDir, BackupManifest.MANIFEST_FILENAME).writeText(manifestJson)
 
-                _backupState.value = BackupOperationState.InProgress(0.65f, "Creating backup archive...")
+                _backupState.value = BackupOperationState.InProgress(0.65f, context.getString(com.example.smarty.R.string.backup_creating_archive))
 
                 // Create ZIP file
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val zipFileName = "Jarvis_backup_$timestamp.zip"
+                val zipFileName = "Smarty_backup_$timestamp.zip"
                 val zipFile = File(context.cacheDir, zipFileName)
 
                 createZipFile(tempDir, zipFile)
 
-                _backupState.value = BackupOperationState.InProgress(0.75f, "Uploading to Google Drive...")
+                _backupState.value = BackupOperationState.InProgress(0.75f, context.getString(com.example.smarty.R.string.backup_uploading))
 
                 // Upload to Drive
                 val fileId = driveService.uploadBackupWithMetadata(
@@ -217,11 +218,11 @@ class BackupManager(
                     val totalProgress = 0.75f + (0.2f * uploadProgress)
                     _backupState.value = BackupOperationState.InProgress(
                         totalProgress,
-                        "Uploading to Google Drive..."
+                        context.getString(com.example.smarty.R.string.backup_uploading)
                     )
                 }.getOrThrow()
 
-                _backupState.value = BackupOperationState.InProgress(0.95f, "Cleaning up old backups...")
+                _backupState.value = BackupOperationState.InProgress(0.95f, context.getString(com.example.smarty.R.string.backup_cleaning_old))
 
                 // Clean up old backups
                 driveService.deleteOldBackups()
@@ -246,7 +247,7 @@ class BackupManager(
                 tempDir.deleteRecursively()
 
                 _backupState.value = BackupOperationState.Success(
-                    "Backup completed successfully",
+                    context.getString(com.example.smarty.R.string.backup_created_success),
                     metadata
                 )
 
@@ -282,13 +283,13 @@ class BackupManager(
                 throw Exception("connection_lost")
             }
 
-            _restoreState.value = BackupOperationState.InProgress(0.02f, "Creating safety backup...")
+            _restoreState.value = BackupOperationState.InProgress(0.02f, context.getString(com.example.smarty.R.string.restore_creating_safety))
 
             // Save current data for potential rollback
             preRestoreNotes = database.noteDao().getAllNotesOnce()
             preRestoreCategories = database.categoryDao().getAllCategoriesOnce()
 
-            _restoreState.value = BackupOperationState.InProgress(0.05f, "Downloading backup...")
+            _restoreState.value = BackupOperationState.InProgress(0.05f, context.getString(com.example.smarty.R.string.restore_downloading))
 
             // Download backup file
             val downloadFile = File(context.cacheDir, "restore_${System.currentTimeMillis()}.zip")
@@ -299,11 +300,11 @@ class BackupManager(
                 val totalProgress = 0.05f + (0.25f * progress)
                 _restoreState.value = BackupOperationState.InProgress(
                     totalProgress,
-                    "Downloading backup..."
+                    context.getString(com.example.smarty.R.string.restore_downloading)
                 )
             }.getOrThrow()
 
-            _restoreState.value = BackupOperationState.InProgress(0.3f, "Extracting backup...")
+            _restoreState.value = BackupOperationState.InProgress(0.3f, context.getString(com.example.smarty.R.string.restore_extracting))
 
             // Extract ZIP
             val extractDir = File(context.cacheDir, "restore_extract_${System.currentTimeMillis()}")
@@ -312,56 +313,56 @@ class BackupManager(
             try {
                 extractZipFile(downloadFile, extractDir)
 
-                _restoreState.value = BackupOperationState.InProgress(0.4f, "Verifying backup...")
+                _restoreState.value = BackupOperationState.InProgress(0.4f, context.getString(com.example.smarty.R.string.restore_verifying))
 
                 // INPUT-001: Validate backup size before processing
                 val totalSize = extractDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
                 if (totalSize > MAX_BACKUP_SIZE) {
-                    throw Exception("Backup too large: ${totalSize / (1024 * 1024)}MB exceeds ${MAX_BACKUP_SIZE / (1024 * 1024)}MB limit")
+                    throw Exception(context.getString(com.example.smarty.R.string.error_backup_too_large, totalSize / (1024 * 1024), MAX_BACKUP_SIZE / (1024 * 1024)))
                 }
 
                 // Read and verify manifest
                 val manifestFile = File(extractDir, BackupManifest.MANIFEST_FILENAME)
                 if (!manifestFile.exists()) {
-                    throw Exception("Invalid backup: missing manifest")
+                    throw Exception(context.getString(com.example.smarty.R.string.error_backup_missing_manifest))
                 }
                 val manifest = gson.fromJson(manifestFile.readText(), BackupManifest::class.java)
-                    ?: throw Exception("Invalid backup: corrupt manifest")
+                    ?: throw Exception(context.getString(com.example.smarty.R.string.error_backup_corrupt_manifest))
 
                 if (manifest.version > BackupManifest.CURRENT_BACKUP_VERSION) {
-                    throw Exception("Backup version ${manifest.version} is newer than supported version ${BackupManifest.CURRENT_BACKUP_VERSION}")
+                    throw Exception(context.getString(com.example.smarty.R.string.error_backup_version_mismatch, manifest.version, BackupManifest.CURRENT_BACKUP_VERSION))
                 }
 
-                _restoreState.value = BackupOperationState.InProgress(0.45f, "Reading database...")
+                _restoreState.value = BackupOperationState.InProgress(0.45f, context.getString(com.example.smarty.R.string.restore_reading_db))
 
                 // Read database backup
                 val databaseFile = File(extractDir, DatabaseBackup.DATABASE_FILENAME)
                 if (!databaseFile.exists()) {
-                    throw Exception("Invalid backup: missing database")
+                    throw Exception(context.getString(com.example.smarty.R.string.error_backup_missing_db))
                 }
                 val databaseBackup = gson.fromJson(databaseFile.readText(), DatabaseBackup::class.java)
-                    ?: throw Exception("Invalid backup: corrupt database file")
+                    ?: throw Exception(context.getString(com.example.smarty.R.string.error_backup_corrupt_db))
 
                 // BUG-030: Validate backup data before proceeding
                 @Suppress("SENSELESS_COMPARISON")
                 if (databaseBackup.notes == null || databaseBackup.categories == null) {
-                    throw Exception("Invalid backup: missing notes or categories data")
+                    throw Exception(context.getString(com.example.smarty.R.string.error_backup_missing_data))
                 }
 
-                _restoreState.value = BackupOperationState.InProgress(0.5f, "Clearing existing data...")
+                _restoreState.value = BackupOperationState.InProgress(0.5f, context.getString(com.example.smarty.R.string.restore_clearing_data))
 
                 // Clear existing database
                 database.noteDao().deleteAllNotes()
                 database.categoryDao().deleteAllCategories()
 
-                _restoreState.value = BackupOperationState.InProgress(0.55f, "Restoring categories...")
+                _restoreState.value = BackupOperationState.InProgress(0.55f, context.getString(com.example.smarty.R.string.restore_restoring_categories))
 
                 // Restore categories first (notes depend on them)
                 databaseBackup.categories.forEach { categoryBackup ->
                     database.categoryDao().insertCategory(categoryBackup.toCategory())
                 }
 
-                _restoreState.value = BackupOperationState.InProgress(0.6f, "Restoring notes and attachments...")
+                _restoreState.value = BackupOperationState.InProgress(0.6f, context.getString(com.example.smarty.R.string.restore_restoring_notes))
 
                 // Restore notes with attachments
                 val attachmentsDir = File(context.filesDir, "restored_attachments")
@@ -371,7 +372,7 @@ class BackupManager(
                     val progress = 0.6f + (0.3f * index / databaseBackup.notes.size.coerceAtLeast(1))
                     _restoreState.value = BackupOperationState.InProgress(
                         progress,
-                        "Restoring notes (${index + 1}/${databaseBackup.notes.size})..."
+                        context.getString(com.example.smarty.R.string.restore_restoring_progress, index + 1, databaseBackup.notes.size)
                     )
 
                     var restoredImageUri: String? = null
@@ -401,7 +402,7 @@ class BackupManager(
                     database.noteDao().insertNote(note)
                 }
 
-                _restoreState.value = BackupOperationState.InProgress(0.9f, "Restoring preferences...")
+                _restoreState.value = BackupOperationState.InProgress(0.9f, context.getString(R.string.restoring_preferences))
 
                 // Restore preferences
                 val preferencesFile = File(extractDir, PREFERENCES_FILENAME)
@@ -413,14 +414,14 @@ class BackupManager(
                     restorePreferences(preferencesBackup)
                 }
 
-                _restoreState.value = BackupOperationState.InProgress(0.95f, "Cleaning up...")
+                _restoreState.value = BackupOperationState.InProgress(0.95f, context.getString(R.string.cleaning_up_))
 
                 // Cleanup
                 downloadFile.delete()
                 extractDir.deleteRecursively()
 
                 _restoreState.value = BackupOperationState.Success(
-                    "Restore completed successfully! ${databaseBackup.notes.size} notes and ${databaseBackup.categories.size} categories restored."
+                    context.getString(R.string.restore_success_detail, databaseBackup.notes.size, databaseBackup.categories.size)
                 )
 
                 Result.success(Unit)
@@ -432,7 +433,7 @@ class BackupManager(
             // BUG-030: Attempt rollback if we have pre-restore data
             if (preRestoreNotes != null && preRestoreCategories != null) {
                 try {
-                    _restoreState.value = BackupOperationState.InProgress(0f, "Restore failed, rolling back...")
+                    _restoreState.value = BackupOperationState.InProgress(0f, context.getString(R.string.restore_rollback))
 
                     // Clear any partial restore data
                     database.noteDao().deleteAllNotes()
@@ -447,20 +448,20 @@ class BackupManager(
                     }
 
                 _restoreState.value = BackupOperationState.Error(
-                    message = "Restore failed: ${e.message}. Your original data has been preserved.",
+                    message = context.getString(R.string.restore_failed) + ": ${e.message}",
                     exception = e,
                     recoveryIntent = authManager.isUserRecoverable(e)
                 )
             } catch (rollbackError: Exception) {
                 _restoreState.value = BackupOperationState.Error(
-                    message = "CRITICAL: Restore and rollback both failed. Some data may be lost. Error: ${e.message}",
+                    message = context.getString(R.string.restore_critical_failure),
                     exception = e,
                     recoveryIntent = authManager.isUserRecoverable(e)
                 )
             }
         } else {
             _restoreState.value = BackupOperationState.Error(
-                message = e.message ?: "Restore failed",
+                message = e.message ?: context.getString(R.string.restore_failed),
                 exception = e,
                 recoveryIntent = authManager.isUserRecoverable(e)
             )

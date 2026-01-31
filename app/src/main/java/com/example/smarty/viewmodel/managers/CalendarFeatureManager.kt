@@ -30,6 +30,7 @@ class CalendarFeatureManager(
 
     // Observable State
     val calendarEvents = calendarManager.calendarEvents
+    val activeTimers = calendarManager.activeTimers
 
     private val _deviceCalendars = MutableStateFlow<List<GoogleCalendarSyncManager.DeviceCalendar>>(emptyList())
     val deviceCalendars: StateFlow<List<GoogleCalendarSyncManager.DeviceCalendar>> = _deviceCalendars.asStateFlow()
@@ -46,7 +47,8 @@ class CalendarFeatureManager(
     fun loadDeviceCalendars() {
         scope.launch {
             try {
-                _deviceCalendars.value = googleCalendarSyncManager.getDeviceCalendars()
+                val userEmail = securePreferences.getGoogleAccountEmail()
+                _deviceCalendars.value = googleCalendarSyncManager.getDeviceCalendars(userEmail)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load device calendars", e)
             }

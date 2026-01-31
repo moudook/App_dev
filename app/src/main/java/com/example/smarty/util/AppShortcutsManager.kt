@@ -30,7 +30,7 @@ object AppShortcutsManager {
 
     /**
      * Initialize app shortcuts on startup.
-     * Call this in JarvisApplication.onCreate()
+     * Call this in SmartyApplication.onCreate()
      */
     fun setupShortcuts(context: Context) {
         val shortcuts = listOf(
@@ -54,8 +54,8 @@ object AppShortcutsManager {
         }
 
         return ShortcutInfoCompat.Builder(context, SHORTCUT_NEW_NOTE)
-            .setShortLabel("New Note")
-            .setLongLabel("Add a new note")
+            .setShortLabel(context.getString(R.string.shortcut_new_note_short))
+            .setLongLabel(context.getString(R.string.shortcut_new_note_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_note))
             .setIntent(intent)
             .setRank(0) // First position
@@ -69,8 +69,8 @@ object AppShortcutsManager {
         }
 
         return ShortcutInfoCompat.Builder(context, SHORTCUT_CHAT)
-            .setShortLabel("AI Chat")
-            .setLongLabel("Open AI Chat")
+            .setShortLabel(context.getString(R.string.shortcut_chat_short))
+            .setLongLabel(context.getString(R.string.shortcut_chat_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_chat))
             .setIntent(intent)
             .setRank(1)
@@ -84,8 +84,8 @@ object AppShortcutsManager {
         }
 
         return ShortcutInfoCompat.Builder(context, SHORTCUT_CALENDAR)
-            .setShortLabel("Calendar")
-            .setLongLabel("Open Calendar")
+            .setShortLabel(context.getString(R.string.shortcut_calendar_short))
+            .setLongLabel(context.getString(R.string.shortcut_calendar_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_calendar))
             .setIntent(intent)
             .setRank(2)
@@ -99,8 +99,8 @@ object AppShortcutsManager {
         }
 
         return ShortcutInfoCompat.Builder(context, SHORTCUT_STACKS)
-            .setShortLabel("Stacks")
-            .setLongLabel("Open Note Stacks")
+            .setShortLabel(context.getString(R.string.shortcut_stacks_short))
+            .setLongLabel(context.getString(R.string.shortcut_stacks_long))
             .setIcon(IconCompat.createWithResource(context, R.drawable.ic_shortcut_stacks))
             .setIntent(intent)
             .setRank(3)

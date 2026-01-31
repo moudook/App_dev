@@ -161,7 +161,10 @@
       "WebFetch(domain:www.interaction-design.org)",
       "WebFetch(domain:www.anthropic.com)",
       "WebFetch(domain:claude.ai)",
-      "Bash(./gradlew projects:*)"
+      "Bash(./gradlew projects:*)",
+      "Bash(.\\\\gradlew.bat assembleDebug:*)",
+      "Bash(./gradlew :app:assembleDebug:*)",
+      "Bash(more:*)"
     ],
     "deny": []
   },

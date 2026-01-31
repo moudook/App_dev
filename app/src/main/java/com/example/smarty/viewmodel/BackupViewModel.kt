@@ -9,7 +9,7 @@ import com.example.smarty.data.backup.BackupMetadata
 import com.example.smarty.data.backup.BackupOperationState
 import com.example.smarty.data.backup.LocalBackupManager
 import com.example.smarty.data.backup.LocalBackupMetadata
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.DriveService
 import com.example.smarty.data.remote.GoogleAuthManager
@@ -37,8 +37,8 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         GoogleAuthManager(application)
     }
 
-    private val database: JarvisDatabase by lazy {
-        JarvisDatabase.getDatabase(application)
+    private val database: SmartyDatabase by lazy {
+        SmartyDatabase.getDatabase(application)
     }
 
     private val driveService: DriveService by lazy {
@@ -98,7 +98,11 @@ class BackupViewModel(application: Application) : AndroidViewModel(application) 
         backupFeatureManager.loadLocalBackups()
     }
 
-    fun getSignInIntent(): Intent = authManager.getSignInIntent()
+    fun getSignInIntent(): Intent {
+        // Use the app-level signed in email as a hint if available
+        val emailHint = securePreferences.getGoogleAccountEmail()
+        return authManager.getSignInIntent(emailHint)
+    }
 
     fun handleSignInResult(data: Intent?) {
         val result = authManager.handleSignInResult(data)

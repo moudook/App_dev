@@ -6,6 +6,7 @@ import android.util.Log
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.cache.CacheManager
 import com.example.smarty.data.model.AudioTrack
+import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,7 @@ import com.example.smarty.data.repository.DeviceAudioRepository
  * This manager is used by:
  * 1. UI components (direct calls)
  * 2. LocalCommandProcessor (fast-path rule-based actions)
- * 3. JarvisAgent (AI-driven tool execution)
+ * 3. SmartyAgent (AI-driven tool execution)
  */
 class SystemFeatureManager(
     private val context: Context,
@@ -62,13 +63,18 @@ class SystemFeatureManager(
     fun clearCache(onComplete: (Long) -> Unit = {}) {
         Log.i(TAG, "Cache clear requested")
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
+            val result = runCatching {
                 cacheManager.clearCache()
-                onComplete(0L)
-                Log.d(TAG, "Cache cleared successfully")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clear cache: ${e.message}")
             }
+
+            if (result.isSuccess) {
+                Log.d(TAG, "Cache cleared successfully")
+            } else {
+                Log.e(TAG, "Failed to clear cache", result.exceptionOrNull())
+            }
+
+            // Always notify completion, even on error
+            onComplete(0L)
         }
     }
 
@@ -163,7 +169,7 @@ class SystemFeatureManager(
     /**
      * Find a matching audio track from device storage based on a query.
      */
-    fun findMatchingAudio(query: String): AudioTrack? {
+    fun findMatchingAudio(query: String): AudioSearchResult {
         val tracks = deviceAudioRepository.getAllAudio()
         return findMatchingAudio(query, tracks)
     }
@@ -171,13 +177,21 @@ class SystemFeatureManager(
     /**
      * Find a matching audio track from a list based on a query.
      */
-    fun findMatchingAudio(query: String, tracks: List<AudioTrack>): AudioTrack? {
+    fun findMatchingAudio(query: String, tracks: List<AudioTrack>): AudioSearchResult {
         val queryLower = query.lowercase().trim()
-        return tracks.firstOrNull { track ->
+
+        // Try exact/partial match
+        val match = tracks.firstOrNull { track ->
             track.title.lowercase().contains(queryLower) ||
             track.artist?.lowercase()?.contains(queryLower) == true ||
             track.album?.lowercase()?.contains(queryLower) == true ||
             track.fileName?.lowercase()?.contains(queryLower) == true
+        }
+
+        return if (match != null) {
+            AudioSearchResult.ExactMatch(match)
+        } else {
+            AudioSearchResult.Fallback(tracks.shuffled().take(20), "No match found")
         }
     }
 

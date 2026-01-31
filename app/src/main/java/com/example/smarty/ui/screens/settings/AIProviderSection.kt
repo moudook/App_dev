@@ -26,10 +26,15 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.local.AIProvider
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.util.api.KeyHealthStatus
 
@@ -82,13 +87,22 @@ fun ProviderSection(
     // Decoupled expansion state - default expand if enabled and keys exist, or if it's the first one
     var isExpanded by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
+    // Soft Minimalist Card
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .softCardShadow(
+                elevation = if (isExpanded) 6.dp else 2.dp,
+                shape = RoundedCornerShape(24.dp),
+                spotColor = Color.Black.copy(alpha = 0.05f)
+            ),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isEnabled) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                    else Color.Transparent
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -98,7 +112,10 @@ fun ProviderSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { isExpanded = !isExpanded },
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null // Remove ripple for cleaner feel
+                    ) { isExpanded = !isExpanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -106,23 +123,39 @@ fun ProviderSection(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
+                    // Status dot
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(
+                                if (isEnabled && apiKeys.isNotEmpty()) LocalAccentColor.current
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
                     Column {
                         Text(
                             text = providerName,
                             style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                letterSpacing = (-0.5).sp
                             ),
                             color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = providerDescription,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        AnimatedVisibility(visible = isExpanded) {
+                            Text(
+                                text = providerDescription,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                     }
                 }
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                      Switch(
                         checked = isEnabled,
@@ -136,13 +169,15 @@ fun ProviderSection(
                         ),
                         modifier = Modifier.scale(0.8f)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(28.dp)) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(32.dp)) {
                          Icon(
-                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (isExpanded) "collapse" else "expand",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .size(20.dp)
+                                .rotate(if (isExpanded) 180f else 0f)
                         )
                     }
                 }
@@ -151,13 +186,13 @@ fun ProviderSection(
             // Content (Keys, Models)
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
             ) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
 
                     // Model selector - only shown when API keys are configured and enabled
                     AnimatedVisibility(
@@ -181,19 +216,40 @@ fun ProviderSection(
                     // Existing API keys Title
                     if (apiKeys.isNotEmpty()) {
                          Text(
-                            text = "api_keys",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            text = stringResource(R.string.api_keys),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
 
                     // Existing API keys List
                     if (apiKeys.isEmpty() && !showNewKeyInput) {
-                        com.example.smarty.ui.components.CompactEmptyState(
-                            title = "no_keys_configured",
-                            subtitle = "add_an_api_key_to_enable_${providerName.lowercase()}_features",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // Minimal empty state
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = stringResource(R.string.no_keys_configured),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = stringResource(R.string.add_an_api_key_to_enable_features, providerName.lowercase()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     apiKeys.forEachIndexed { index, key ->
@@ -249,23 +305,31 @@ fun ProviderSection(
 
                     // Add key button
                     if (!showNewKeyInput) {
-                        Button(
+                        Surface(
                             onClick = { showNewKeyInput = true },
-                            modifier = Modifier.fillMaxWidth().height(40.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                contentColor = MaterialTheme.colorScheme.onSurface
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(0.dp)
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (apiKeys.isEmpty()) "add_api_key" else "add_backup_key")
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (apiKeys.isEmpty()) stringResource(R.string.add_api_key) else stringResource(R.string.add_backup_key),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 }
@@ -289,93 +353,60 @@ private fun ModelSelector(
 ) {
     val selectedDisplayName = availableModels.find { it.first == selectedModel }?.second ?: selectedModel
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         ExposedDropdownMenuBox(
             expanded = expanded,
-            onExpandedChange = onExpandedChange
+            onExpandedChange = onExpandedChange,
+            modifier = Modifier.weight(1f)
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            OutlinedTextField(
+                value = selectedDisplayName,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(R.string.model)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = LocalAccentColor.current,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                ),
                 shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                border = if (expanded) BorderStroke(1.dp, LocalAccentColor.current) else null,
-                onClick = { onExpandedChange(!expanded) }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "model",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = selectedDisplayName,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                singleLine = true
+            )
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                         if (onRefreshModels != null) {
-                            IconButton(
-                                onClick = onRefreshModels,
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = "refresh",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.rotate(if (expanded) 180f else 0f)
-                        )
-                    }
-                }
-            }
-            
             ExposedDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { onExpandedChange(false) },
-                shape = RoundedCornerShape(12.dp),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                shape = RoundedCornerShape(12.dp)
             ) {
                 availableModels.forEach { (modelId, displayName) ->
                     DropdownMenuItem(
                         text = {
-                            Text(
-                                text = displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Column {
+                                Text(
+                                    text = displayName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                // Optional: Show model ID in smaller text if needed for clarity
+                                if (displayName != modelId) {
+                                    Text(
+                                        text = modelId,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
                         },
                         onClick = { onSelectModel(modelId) },
-                        leadingIcon = {
-                            if (modelId == selectedModel) {
+                        leadingIcon = if (modelId == selectedModel) {
+                            {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
@@ -383,10 +414,23 @@ private fun ModelSelector(
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
-                        },
+                        } else null,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
+            }
+        }
+
+        if (onRefreshModels != null) {
+            IconButton(
+                onClick = onRefreshModels,
+                modifier = Modifier.size(48.dp) // Match height roughly
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = stringResource(R.string.refresh),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -457,14 +501,14 @@ fun ApiKeyItem(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "key_#$keyNumber",
+                        text = stringResource(R.string.api_key_label, keyNumber),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     // Show label if available
                     usageStats?.label?.takeIf { it.isNotBlank() }?.let { label ->
                         Text(
-                            text = " • $label",
+                            text = " ${stringResource(R.string.bullet_separator)} $label",
                             style = MaterialTheme.typography.labelSmall,
                             color = LocalAccentColor.current
                         )
@@ -491,14 +535,14 @@ fun ApiKeyItem(
                         modifier = Modifier.size(32.dp)
                     ) {
                         if (isTesting) {
-                            com.example.smarty.ui.components.CalmThinkingDots(
+                            CalmThinkingDots(
                                 color = LocalAccentColor.current,
                                 dotSize = 3.dp
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Default.Build, // Standard build/test icon
-                                contentDescription = "test",
+                                contentDescription = stringResource(R.string.test),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -510,7 +554,7 @@ fun ApiKeyItem(
                         IconButton(onClick = onStartEdit, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 imageVector = Icons.Default.Edit, // Standard edit icon
-                                contentDescription = "edit",
+                                contentDescription = stringResource(R.string.edit),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(16.dp)
                             )
@@ -521,7 +565,7 @@ fun ApiKeyItem(
                     IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
                         Icon(
                             imageVector = Icons.Default.DeleteOutline, // Standard delete icon
-                            contentDescription = "remove",
+                            contentDescription = stringResource(R.string.remove),
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                             modifier = Modifier.size(16.dp)
                         )
@@ -571,27 +615,27 @@ private fun KeyHealthBadge(status: KeyHealthStatus) {
         KeyHealthStatus.HEALTHY -> Triple(
             LocalAccentColor.current,
             Icons.Default.CheckCircle,
-            "ok"
+            stringResource(R.string.ok)
         )
         KeyHealthStatus.RATE_LIMITED -> Triple(
             MaterialTheme.colorScheme.tertiary,
             Icons.Default.Schedule,
-            "rate_limited"
+            stringResource(R.string.rate_limited)
         )
         KeyHealthStatus.DAILY_EXHAUSTED -> Triple(
             MaterialTheme.colorScheme.error,
             Icons.Default.Block,
-            "daily_limit"
+            stringResource(R.string.daily_limit)
         )
         KeyHealthStatus.ERROR -> Triple(
             MaterialTheme.colorScheme.error,
             Icons.Default.ErrorOutline, // Standard error icon
-            "error"
+            stringResource(R.string.error)
         )
         KeyHealthStatus.COOLDOWN -> Triple(
             MaterialTheme.colorScheme.tertiary,
             Icons.Default.HourglassEmpty,
-            "cooldown"
+            stringResource(R.string.cooldown)
         )
     }
 
@@ -637,12 +681,12 @@ private fun KeyUsageDisplay(stats: KeyUsageStats) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "rate",
+                text = stringResource(R.string.rate),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "${stats.callsThisMinute}/${stats.rateLimit}/min",
+                text = stringResource(R.string.calls_per_minute, stats.callsThisMinute, stats.rateLimit),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (stats.callsThisMinute >= stats.rateLimit)
                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
@@ -673,12 +717,12 @@ private fun KeyUsageDisplay(stats: KeyUsageStats) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "today",
+                text = stringResource(R.string.today),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = "${stats.callsToday}/${stats.dailyLimit}",
+                text = stringResource(R.string.calls_today, stats.callsToday, stats.dailyLimit),
                 style = MaterialTheme.typography.labelSmall,
                 color = if (stats.callsToday >= stats.dailyLimit)
                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
@@ -716,7 +760,7 @@ private fun ApiKeyEditMode(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        BasicTextField(
+        OutlinedTextField(
             value = editValue,
             onValueChange = onEditValueChange,
             modifier = Modifier.weight(1f),
@@ -724,23 +768,29 @@ private fun ApiKeyEditMode(
                 fontFamily = MonoFont,
                 color = MaterialTheme.colorScheme.onSurface
             ),
-            cursorBrush = SolidColor(LocalAccentColor.current),
-            singleLine = true
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = LocalAccentColor.current,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent
+            )
         )
         IconButton(onClick = onSaveEdit) {
             Icon(
                 imageVector = Icons.Default.Check,
-                contentDescription = "save",
+                contentDescription = stringResource(R.string.save),
                 tint = LocalAccentColor.current,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
         IconButton(onClick = onCancelEdit) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "cancel",
+                contentDescription = stringResource(R.string.cancel),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
     }
@@ -763,12 +813,18 @@ private fun ApiKeyViewMode(
             text = if (showKey) apiKey else maskApiKey(apiKey),
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFont),
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .background(
+                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.3f),
+                    RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         )
         IconButton(onClick = onToggleVisibility) {
             Icon(
                 imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                contentDescription = if (showKey) "hide" else "show",
+                contentDescription = stringResource(if (showKey) R.string.hide else R.string.show),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
@@ -793,7 +849,7 @@ private fun TestResultIndicator(isValid: Boolean) {
             modifier = Modifier.size(14.dp)
         )
         Text(
-            text = if (isValid) "valid_api_key" else "invalid_api_key",
+            text = if (isValid) stringResource(R.string.valid_api_key) else stringResource(R.string.invalid_api_key),
             style = MaterialTheme.typography.labelSmall,
             color = if (isValid) LocalAccentColor.current else MaterialTheme.colorScheme.error
         )
@@ -817,89 +873,77 @@ fun NewApiKeyInput(
 ) {
     var showKey by remember { mutableStateOf(false) }
 
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                1.dp,
-                LocalAccentColor.current,
-                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-            ),
-        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Text(
-                text = "new_api_key",
-                style = MaterialTheme.typography.labelSmall,
-                color = LocalAccentColor.current
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
+                RoundedCornerShape(16.dp)
             )
+            .padding(16.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.add_new_api_key),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
 
-            Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = MonoFont,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        cursorBrush = SolidColor(LocalAccentColor.current),
-                        singleLine = true,
-                        visualTransformation = if (showKey)
-                            VisualTransformation.None
-                        else
-                            PasswordVisualTransformation()
-                    )
-                    if (value.isEmpty()) {
-                        Text(
-                            text = "paste_api_key_here",
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFont),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    }
-                }
-
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFont),
+            placeholder = {
+                Text(
+                    text = stringResource(R.string.paste_api_key_here),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = LocalAccentColor.current,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+            ),
+            visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
                 IconButton(onClick = { showKey = !showKey }) {
                     Icon(
                         imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (showKey) "hide" else "show",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        contentDescription = stringResource(if (showKey) R.string.hide else R.string.show),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+        )
 
-            Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(
+                onClick = onCancel,
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
             ) {
-                TextButton(onClick = onCancel) {
-                    Text("cancel")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = onSave,
-                    enabled = value.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = LocalAccentColor.current,
-                        contentColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Text("add_key")
-                }
+                Text(stringResource(R.string.cancel))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = onSave,
+                enabled = value.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = LocalAccentColor.current,
+                    contentColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Text(stringResource(R.string.add_key))
             }
         }
     }

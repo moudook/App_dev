@@ -3,7 +3,7 @@ package com.example.smarty.ui.theme
 import androidx.compose.ui.unit.dp
 
 /**
- * Centralized icon size constants for the Jarvis design system.
+ * Centralized icon size constants for the Smarty design system.
  * Replaces 8+ different hardcoded icon sizes throughout the codebase.
  */
 object IconSize {

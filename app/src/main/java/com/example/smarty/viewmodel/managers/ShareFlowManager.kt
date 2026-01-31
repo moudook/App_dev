@@ -7,7 +7,7 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.FileStorageHelper
@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Shared content data class for share flow
@@ -48,7 +51,7 @@ data class SharedFileInfo(
 
 /**
  * Manages share flow state and operations.
- * Extracted from JarvisViewModel for better separation of concerns.
+ * Extracted from SmartyViewModel for better separation of concerns.
  *
  * Responsibilities:
  * - Pending share state management
@@ -58,7 +61,7 @@ data class SharedFileInfo(
  * - Related notes discovery
  */
 class ShareFlowManager(
-    private val repository: JarvisRepository,
+    private val repository: SmartyRepository,
     private val context: Context,
     private val scope: CoroutineScope,
     private val getNotesSnapshot: () -> List<Note>
@@ -170,57 +173,64 @@ class ShareFlowManager(
         val allFiles = pending.getAllFiles()
 
         // Process all files - compress and store each one
-        val processedAttachments = mutableListOf<NoteAttachment>()
+        // PARALLEL PROCESSING: Use async to process files concurrently for speed
+        val processedAttachments = java.util.concurrent.CopyOnWriteArrayList<NoteAttachment>()
         var firstFileUri: String? = null
         var firstFileName: String? = null
         var firstMimeType: String? = null
         var firstFileSize: Long? = null
 
         // BUG-061 fix: Track failed files to prevent silent data loss
-        val failedFiles = mutableListOf<String>()
+        val failedFiles = java.util.concurrent.CopyOnWriteArrayList<String>()
 
-        allFiles.forEachIndexed { index, file ->
-            try {
-                val compressed = FileStorageHelper.compressAndStore(
-                    context = context,
-                    sourceUri = Uri.parse(file.fileUri),
-                    mimeType = file.mimeType,
-                    originalFileName = file.fileName
-                )
+        kotlinx.coroutines.coroutineScope {
+            val deferreds = allFiles.mapIndexed { index, file ->
+                async(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val compressed = FileStorageHelper.compressAndStore(
+                            context = context,
+                            sourceUri = Uri.parse(file.fileUri),
+                            mimeType = file.mimeType,
+                            originalFileName = file.fileName
+                        )
 
-                val finalUri = compressed?.uri ?: file.fileUri
-                val finalName = compressed?.fileName ?: file.fileName ?: "file_${index + 1}"
-                val finalMime = compressed?.mimeType ?: file.mimeType ?: "application/octet-stream"
-                val finalSize = compressed?.compressedSize ?: file.fileSize ?: 0
+                        val finalUri = compressed?.uri ?: file.fileUri
+                        val finalName = compressed?.fileName ?: file.fileName ?: "file_${index + 1}"
+                        val finalMime = compressed?.mimeType ?: file.mimeType ?: "application/octet-stream"
+                        val finalSize = compressed?.compressedSize ?: file.fileSize ?: 0
 
-                // Add to attachments list
-                processedAttachments.add(NoteAttachment(
-                    uri = finalUri,
-                    fileName = finalName,
-                    mimeType = finalMime,
-                    fileSize = finalSize
-                ))
+                        // Add to attachments list
+                        processedAttachments.add(NoteAttachment(
+                            uri = finalUri,
+                            fileName = finalName,
+                            mimeType = finalMime,
+                            fileSize = finalSize
+                        ))
 
-                // Store first file info for backward compatibility
-                if (index == 0) {
-                    firstFileUri = finalUri
-                    firstFileName = finalName
-                    firstMimeType = finalMime
-                    firstFileSize = finalSize
-                }
+                        // Store first file info for backward compatibility
+                        // Note: Synchronization might be loose here but first file usually finishes fast or we just take 'some' file
+                        if (index == 0) {
+                            firstFileUri = finalUri
+                            firstFileName = finalName
+                            firstMimeType = finalMime
+                            firstFileSize = finalSize
+                        }
 
-                // Log compression savings
-                compressed?.let {
-                    if (it.isCompressed) {
-                        Log.i(TAG, "File compressed: ${it.fileName} saved ${formatSize(it.savedBytes)} " +
-                                "(${String.format("%.1f", it.compressionRatio)}% reduction)")
+                        // Log compression savings
+                        compressed?.let {
+                            if (it.isCompressed) {
+                                Log.i(TAG, "File compressed: ${it.fileName} saved ${formatSize(context, it.savedBytes)} " +
+                                        "(${String.format("%.1f", it.compressionRatio)}% reduction)")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        val fileName = file.fileName ?: "file_${index + 1}"
+                        failedFiles.add(fileName)
+                        Log.e(TAG, "Failed to process file '$fileName': ${e.message}", e)
                     }
                 }
-            } catch (e: Exception) {
-                val fileName = file.fileName ?: "file_${index + 1}"
-                failedFiles.add(fileName)
-                Log.e(TAG, "Failed to process file '$fileName': ${e.message}", e)
             }
+            deferreds.forEach { it.await() }
         }
 
         // Log warning if some files failed
@@ -236,7 +246,7 @@ class ShareFlowManager(
                 if (processedAttachments.size == 1) {
                     append("File: ${processedAttachments[0].fileName}")
                     append("\nType: ${processedAttachments[0].mimeType}")
-                    append("\nSize: ${formatSize(processedAttachments[0].fileSize)}")
+                    append("\nSize: ${formatSize(context, processedAttachments[0].fileSize)}")
                 } else {
                     append("${processedAttachments.size} files attached:")
                     processedAttachments.forEachIndexed { idx, att ->
@@ -254,7 +264,7 @@ class ShareFlowManager(
         val title = when {
             processedAttachments.size > 1 -> "${processedAttachments.size} ${getTypeNamePlural(pending.detectedType)}"
             firstFileName != null -> firstFileName
-            else -> generateTitle(pending.text ?: "", pending.detectedType)
+            else -> generateTitle(context, pending.text ?: "", pending.detectedType)
         }
 
         // Serialize attachments to JSON
@@ -271,7 +281,7 @@ class ShareFlowManager(
             fileSize = firstFileSize,
             imageUri = if (pending.detectedType == NoteType.IMAGE) firstFileUri else null,
             type = pending.detectedType,
-            categoryName = if (isFullPrivacy) "Private Notes" else selectedCategory,
+            categoryName = if (isFullPrivacy) context.getString(com.example.smarty.R.string.category_private_notes) else selectedCategory,
             processingStatus = if (isFullPrivacy || selectedCategory != null) ProcessingStatus.PENDING else ProcessingStatus.PROCESSING,
             isFullPrivacy = isFullPrivacy,
             excludeFromAiChat = isFullPrivacy,
@@ -337,7 +347,7 @@ class ShareFlowManager(
      * Save note in full privacy mode - no AI processing at all
      */
     private suspend fun saveNoteWithoutAiProcessing(note: Note) {
-        val category = repository.getOrCreateCategory("Private Notes")
+        val category = repository.getOrCreateCategory(context.getString(com.example.smarty.R.string.category_private_notes))
         val savedNote = note.copy(
             isFullPrivacy = true,
             excludeFromAiChat = true,
@@ -379,23 +389,23 @@ class ShareFlowManager(
 
     // Helper functions
 
-    private fun formatSize(bytes: Long): String = ContentTypeDetector.formatSize(bytes)
+    private fun formatSize(context: Context, bytes: Long): String = ContentTypeDetector.formatSize(context, bytes)
 
     private fun getTypeNamePlural(type: NoteType): String {
         return when (type) {
-            NoteType.IMAGE -> "Images"
-            NoteType.VIDEO -> "Videos"
-            NoteType.AUDIO -> "Audio Files"
-            NoteType.DOCUMENT -> "Documents"
-            else -> "Files"
+            NoteType.IMAGE -> context.getString(com.example.smarty.R.string.note_type_images)
+            NoteType.VIDEO -> context.getString(com.example.smarty.R.string.note_type_videos)
+            NoteType.AUDIO -> context.getString(com.example.smarty.R.string.note_type_audio_files)
+            NoteType.DOCUMENT -> context.getString(com.example.smarty.R.string.note_type_documents)
+            else -> context.getString(com.example.smarty.R.string.note_type_files)
         }
     }
 
-    private fun generateTitle(content: String, type: NoteType): String {
+    private fun generateTitle(context: Context, content: String, type: NoteType): String {
         return when {
             content.isNotBlank() && content.length > 30 -> content.take(30) + "..."
             content.isNotBlank() -> content
-            else -> ContentTypeDetector.getDefaultTitle(type)
+            else -> ContentTypeDetector.getDefaultTitle(context, type)
         }
     }
 }

@@ -48,12 +48,12 @@ class ChatRepository(private val chatDao: ChatDao) {
      * Create a new chat session and make it active
      */
     @Transaction
-    suspend fun createNewSession(title: String = "New Chat"): ChatSession {
+    suspend fun createNewSession(context: android.content.Context, title: String? = null): ChatSession {
         // Deactivate all existing sessions
         chatDao.deactivateAllSessions()
 
         val session = ChatSession(
-            title = title,
+            title = title ?: context.getString(com.example.smarty.R.string.title_new_chat),
             isActive = true
         )
         chatDao.insertSession(session)
@@ -236,6 +236,15 @@ class ChatRepository(private val chatDao: ChatDao) {
     }
 
     /**
+     * Mark session as inactive without finalizing it
+     * Used for quick switching between modes
+     */
+    suspend fun markSessionInactive(sessionId: String) {
+        chatDao.deactivateSession(sessionId)
+        Log.d(TAG, "Marked session as inactive: $sessionId (for quick switching)")
+    }
+
+    /**
      * Finalize a session - clean up if not worth keeping
      */
     suspend fun finalizeSession(sessionId: String) {
@@ -282,7 +291,7 @@ class ChatRepository(private val chatDao: ChatDao) {
     /**
      * Get or create active session
      */
-    suspend fun getOrCreateActiveSession(): ChatSession {
-        return getActiveSession() ?: createNewSession()
+    suspend fun getOrCreateActiveSession(context: android.content.Context): ChatSession {
+        return getActiveSession() ?: createNewSession(context)
     }
 }

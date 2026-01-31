@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -84,7 +85,7 @@ fun ChatHistorySheet(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "•  ${sessions.size}",
+                        text = "${stringResource(R.string.bullet_separator)}  ${stringResource(R.string.sessions_count, sessions.size)}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
@@ -133,7 +134,7 @@ fun ChatHistorySheet(
 
     // Delete Dialog (Minimalist)
     sessionToDelete?.let { session ->
-        com.example.smarty.ui.components.common.JarvisDialog(
+        com.example.smarty.ui.components.common.SmartyDialog(
             title = stringResource(R.string.delete_chat),
             text = stringResource(R.string.chat_delete_warning),
             onConfirm = {
@@ -191,7 +192,7 @@ private fun ChatSessionItem(
                 val icon = when {
                     isNewChat -> Icons.Default.Assistant // Standard AI
                     isSelected -> Icons.Default.Assistant // Active AI
-                    else -> Icons.Default.Chat // History
+                    else -> Icons.AutoMirrored.Filled.Chat // History
                 }
 
                 Icon(

@@ -51,10 +51,11 @@ import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.JarvisEasing
+import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.data.model.ChatSession
-import com.example.smarty.ui.components.JarvisInputField
+import com.example.smarty.ui.components.common.SmartyDialog
+import com.example.smarty.ui.components.SmartyInputField
 import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.ui.components.AttachmentOption
@@ -63,7 +64,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.data.model.AIMemory
-import com.example.smarty.ui.components.ProcessingDotsIndicator
 import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
@@ -150,9 +150,9 @@ fun InputStreamScreen(
     aiPlanStatus: String? = null,
     currentToolName: String? = null,
     // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
-    isThinkingModeEnabled: Boolean = true,
+    isThinkingModeEnabled: Boolean = false,
     onToggleThinkingMode: () -> Unit = {},
-    // Pending chat text (for "Ask AI" from note card)
+    // Pending chat text (for "Ask Smarty" from note card)
     pendingChatText: String? = null,
     onClearPendingChatText: () -> Unit = {},
     // Mention state update callback (called on text change in chat mode)
@@ -202,6 +202,7 @@ fun InputStreamScreen(
 
     // Calendar events for Calendar sheet
     calendarEvents: List<CalendarEvent> = emptyList(),
+    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
     onAddCalendarEvent: () -> Unit = {},
     onCreateCalendarEvent: ((title: String, description: String?, startTime: Long, endTime: Long, isAllDay: Boolean) -> Unit)? = null,
     onEventClick: (CalendarEvent) -> Unit = {},
@@ -717,32 +718,38 @@ fun InputStreamScreen(
     // Priority: History view → Chat mode → Normal navigation
     BackHandler(enabled = isChatMode && showChatHistoryInline && !isSelectionMode) {
         showChatHistoryInline = false
+        // No reset needed here as we stay in chat mode
     }
 
     // Handle back button press - exit chat mode and return to main page
     // This only triggers when in chat mode, NOT showing history, and NOT in selection mode
     BackHandler(enabled = isChatMode && !showChatHistoryInline && !isSelectionMode) {
         onExitChatMode()
+        selectedTab = NavigationTab.NOTES // FIX: Sync header state
     }
 
     // Handle back button press - exit calendar inline view
     BackHandler(enabled = showCalendarInline && !isSelectionMode) {
         showCalendarInline = false
+        selectedTab = NavigationTab.NOTES // FIX: Sync header state
     }
 
     // Handle back button press - exit stacks inline view
     BackHandler(enabled = showStacksInline && !isSelectionMode) {
         showStacksInline = false
+        selectedTab = NavigationTab.NOTES // FIX: Sync header state
     }
 
     // Handle back button press - exit archive inline view
     BackHandler(enabled = showArchiveInline && !isSelectionMode) {
         showArchiveInline = false
+        selectedTab = NavigationTab.NOTES // FIX: Sync header state
     }
 
     // Handle back button press - exit settings inline view
     BackHandler(enabled = showSettingsInline && !isSelectionMode) {
         showSettingsInline = false
+        selectedTab = NavigationTab.NOTES // FIX: Sync header state
     }
 
     // Handle back button press - clear active category filter instead of closing app
@@ -1226,6 +1233,7 @@ fun InputStreamScreen(
                         // Calendar inline view - same layer as note cards
                         CalendarContent(
                             events = calendarEvents,
+                            activeTimers = activeTimers,
                             onEventClick = onEventClick,
                             onAddEvent = { selectedDate ->
                                 // Fallback if onCreateEvent not provided
@@ -1458,7 +1466,7 @@ fun InputStreamScreen(
                     // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
                     Box(contentAlignment = Alignment.Center) {
                         // The Actual Input Field with halftone shimmer inside
-                        JarvisInputField(
+                        SmartyInputField(
                             value = textValue,
                             aiPlanStatus = aiPlanStatus,
                             onValueChange = { newTextValue ->
@@ -1640,7 +1648,7 @@ fun InputStreamScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        SmartyDialog(
             title = stringResource(R.string.delete_note),
             text = stringResource(R.string.delete_note_warning),
             onConfirm = {
@@ -1694,6 +1702,7 @@ fun InputStreamScreen(
     if (showCalendarSheet) {
         CalendarSheet(
             events = calendarEvents,
+            activeTimers = activeTimers,
             sheetState = calendarSheetState,
             onDismiss = { showCalendarSheet = false },
             onAddEvent = onAddCalendarEvent,

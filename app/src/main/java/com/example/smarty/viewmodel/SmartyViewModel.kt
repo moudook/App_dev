@@ -13,7 +13,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.savedstate.SavedStateRegistryOwner
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.AIProviderConfig
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SearchHistoryManager
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.Attachment
@@ -24,11 +24,12 @@ import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
+import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.PendingShareData
@@ -48,6 +49,7 @@ import com.example.smarty.data.model.TodoItem
 import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.service.AudioPlayerService
 import com.example.smarty.util.FileStorageHelper
+import com.example.smarty.R
 import com.example.smarty.viewmodel.managers.ShareFlowManager
 import kotlinx.coroutines.withTimeout
 import com.example.smarty.data.model.NoteAttachment
@@ -115,14 +117,14 @@ data class SharedContent(
     }
 }
 
-class JarvisViewModel(
+class SmartyViewModel(
     application: Application,
     private val savedStateHandle: SavedStateHandle
 ) : AndroidViewModel(application) {
 
     // SavedStateHandle keys for state preservation across process death (BUG-053)
     companion object {
-        private const val TAG = "JarvisViewModel"
+        private const val TAG = "SmartyViewModel"
         private const val KEY_SELECTED_NOTE_ID = "selectedNoteId"
         private const val KEY_SELECTED_CATEGORY_ID = "selectedCategoryId"
         private const val KEY_IS_CHAT_MODE = "isChatMode"
@@ -145,12 +147,12 @@ class JarvisViewModel(
     private val securePreferences: SecurePreferences by lazy {
         SecurePreferences.getInstance(application)
     }
-    private val aiService: AIService by lazy { AIService(securePreferences) }
+    private val aiService: AIService by lazy { AIService(getApplication(), securePreferences) }
 
     // Repository needs to be initialized before agent - lazy to avoid blocking
-    private val database: JarvisDatabase by lazy { JarvisDatabase.getDatabase(application) }
-    private val repository: JarvisRepository by lazy {
-        JarvisRepository(
+    private val database: SmartyDatabase by lazy { SmartyDatabase.getDatabase(application) }
+    private val repository: SmartyRepository by lazy {
+        SmartyRepository(
             database.noteDao(),
             database.categoryDao(),
             database.calendarDao(),
@@ -212,6 +214,13 @@ class JarvisViewModel(
         calendarFeatureManager.setTargetCalendarId(id)
     }
 
+    /**
+     * Cancel a timer by ID.
+     */
+    fun cancelTimer(timerId: String) {
+        calendarFeatureManager.cancelTimer(timerId)
+    }
+
     // Alarm scheduler for timer/alarm tools - lazy to avoid blocking
     private val alarmScheduler: AlarmScheduler by lazy {
         AlarmScheduler.getInstance(application)
@@ -265,6 +274,7 @@ class JarvisViewModel(
             repository = repository,
             allNotes = _allNotesForAgent,
             searchHistoryManager = SearchHistoryManager(application),
+            securePreferences = securePreferences,
             tavilySearchProvider = tavilySearchProvider
         )
     }
@@ -287,13 +297,14 @@ class JarvisViewModel(
     // Memory Sync Manager - handles behavior extraction from notes
     private val memorySyncManager by lazy {
         MemorySyncManager(
+            context = getApplication(),
             database = database,
             aiMemoryDao = database.aiMemoryDao(),
             aiService = aiService
         )
     }
 
-    // Memory Feature Manager - Centralized long-term memory
+    // Memory Feature Manager - Centralized long-term intelligence
     private val memoryFeatureManager: com.example.smarty.viewmodel.managers.MemoryFeatureManager by lazy {
         com.example.smarty.viewmodel.managers.MemoryFeatureManager(
             aiMemoryDao = database.aiMemoryDao(),
@@ -363,7 +374,7 @@ class JarvisViewModel(
 
     // Memory managers initialized above in lazy properties (lines 273-289)
 
-    // AI Memories StateFlow for UI observation - Observed through manager
+    // AI Intelligence StateFlow for UI observation - Observed through manager
     val aiMemories: StateFlow<List<com.example.smarty.data.model.AIMemory>> by lazy {
         memoryFeatureManager.allMemories
     }
@@ -856,6 +867,9 @@ class JarvisViewModel(
     val calendarEvents: StateFlow<List<CalendarEvent>>
         get() = calendarFeatureManager.calendarEvents
 
+    val activeTimers: StateFlow<List<SmartyTimer>>
+        get() = calendarFeatureManager.activeTimers
+
     /**
      * REACTIVE SELECTED NOTE - Auto-updates when note changes in database.
      *
@@ -1243,16 +1257,16 @@ class JarvisViewModel(
      */
     private fun getTypePluralName(type: NoteType): String {
         return when (type) {
-            NoteType.IMAGE -> "Images"
-            NoteType.VIDEO -> "Videos"
-            NoteType.AUDIO -> "Audio Files"
-            NoteType.DOCUMENT -> "Documents"
-            NoteType.SPREADSHEET -> "Spreadsheets"
-            NoteType.PRESENTATION -> "Presentations"
-            NoteType.CODE -> "Code Files"
-            NoteType.ARCHIVE -> "Archives"
-            NoteType.APK -> "APK Files"
-            else -> "Files"
+            NoteType.IMAGE -> getApplication<Application>().getString(R.string.note_type_images)
+            NoteType.VIDEO -> getApplication<Application>().getString(R.string.note_type_videos)
+            NoteType.AUDIO -> getApplication<Application>().getString(R.string.note_type_audio_files)
+            NoteType.DOCUMENT -> getApplication<Application>().getString(R.string.note_type_documents)
+            NoteType.SPREADSHEET -> getApplication<Application>().getString(R.string.note_type_spreadsheets)
+            NoteType.PRESENTATION -> getApplication<Application>().getString(R.string.note_type_presentations)
+            NoteType.CODE -> getApplication<Application>().getString(R.string.note_type_code_files)
+            NoteType.ARCHIVE -> getApplication<Application>().getString(R.string.note_type_archives)
+            NoteType.APK -> getApplication<Application>().getString(R.string.note_type_apk_files)
+            else -> getApplication<Application>().getString(R.string.note_type_files)
         }
     }
 
@@ -1268,13 +1282,14 @@ class JarvisViewModel(
      * Build description for multiple attachments
      */
     private fun buildMultipleAttachmentsDescription(attachments: List<NoteAttachment>): String {
+        val app = getApplication<Application>()
         val sb = StringBuilder()
-        sb.append("${attachments.size} files attached:\n\n")
+        sb.append(app.getString(R.string.attachments_list_header, app.getString(R.string.files_attached_count, attachments.size))).append("\n\n")
         attachments.forEachIndexed { index, attachment ->
-            sb.append("${index + 1}. ${attachment.fileName}")
-            if (attachment.fileSize > 0) {
-                sb.append(" (${ContentTypeDetector.formatFileSize(attachment.fileSize)})")
-            }
+            val sizeStr = if (attachment.fileSize > 0) {
+                app.getString(R.string.attachment_size_format, ContentTypeDetector.formatFileSize(app, attachment.fileSize))
+            } else ""
+            sb.append(app.getString(R.string.attachment_list_item, index + 1, attachment.fileName)).append(sizeStr)
             if (index < attachments.lastIndex) sb.append('\n')
         }
         return sb.toString()
@@ -1296,7 +1311,7 @@ class JarvisViewModel(
             if (compressed != null) {
                 // Log compression savings
                 if (compressed.isCompressed) {
-                    Log.i(TAG, "Attachment compressed: ${attachment.fileName} saved ${ContentTypeDetector.formatFileSize(compressed.savedBytes)} " +
+                    Log.i(TAG, "Attachment compressed: ${attachment.fileName} saved ${ContentTypeDetector.formatFileSize(getApplication(), compressed.savedBytes)} " +
                             "(${String.format("%.1f", compressed.compressionRatio)}% reduction)")
                 }
                 attachment.copy(
@@ -1320,12 +1335,12 @@ class JarvisViewModel(
      */
     private fun buildAttachmentDescription(attachment: Attachment): String {
         val sb = StringBuilder()
-        sb.append("File: ").append(attachment.fileName)
+        sb.append(getApplication<Application>().getString(R.string.file_label, attachment.fileName))
         sb.append('\n')
-        sb.append("Type: ").append(attachment.mimeType)
+        sb.append(getApplication<Application>().getString(R.string.type_label, attachment.mimeType))
         if (attachment.fileSize > 0) {
             sb.append('\n')
-            sb.append("Size: ").append(ContentTypeDetector.formatFileSize(attachment.fileSize))
+            sb.append(getApplication<Application>().getString(R.string.size_label, ContentTypeDetector.formatFileSize(getApplication(), attachment.fileSize)))
         }
         return sb.toString()
     }
@@ -1706,14 +1721,19 @@ class JarvisViewModel(
      * When "hello reddit" is detected:
      * - Vosk stops listening (frees mic)
      * - wakeWordTriggered becomes true
-     * - MainActivity should launch Google Speech ReJarviszer
+     * - MainActivity should launch Google Speech Recognizer
      * - After STT completes, call restartWakeWordDetection()
      */
     fun initVoskWakeWord(context: Context) {
-        // Prevent double initialization
-        if (voskWakeWordManager != null) {
-            Log.d(TAG, "Vosk wake word manager already initialized, skipping")
+        // Prevent double initialization, but allow re-initialization if destroyed
+        if (voskWakeWordManager != null && !voskWakeWordManager!!.isDestroyed) {
+            Log.d(TAG, "Vosk wake word manager already initialized and active, skipping")
             return
+        }
+
+        if (voskWakeWordManager?.isDestroyed == true) {
+            Log.d(TAG, "Vosk wake word manager was destroyed, re-initializing")
+            voskWakeWordManager = null
         }
 
         voskWakeWordManager = VoskWakeWordManager(
@@ -2031,6 +2051,9 @@ class JarvisViewModel(
      */
     fun restartWakeWordDetection() {
         _wakeWordTriggered.value = false
+        // Always start the music check to monitor for music starting/stopping
+        startMusicCheck()
+
         // CRITICAL: Only restart if all conditions are met
         if (!_isAppInForeground.value) {
             Log.d(TAG, "Skipping wake word restart - app is in background")
@@ -2528,17 +2551,17 @@ class JarvisViewModel(
 }
 
 /**
- * Factory for JarvisViewModel that provides SavedStateHandle for state preservation
+ * Factory for SmartyViewModel that provides SavedStateHandle for state preservation
  * across process death (BUG-053 fix).
  *
  * Usage in Activity:
  * ```
- * private val viewModel: JarvisViewModel by viewModels {
- *     JarvisViewModelFactory(application, this)
+ * private val viewModel: SmartyViewModel by viewModels {
+ *     SmartyViewModelFactory(application, this)
  * }
  * ```
  */
-class JarvisViewModelFactory(
+class SmartyViewModelFactory(
     private val application: Application,
     owner: SavedStateRegistryOwner
 ) : AbstractSavedStateViewModelFactory(owner, null) {
@@ -2549,8 +2572,8 @@ class JarvisViewModelFactory(
         modelClass: Class<T>,
         handle: SavedStateHandle
     ): T {
-        if (modelClass.isAssignableFrom(JarvisViewModel::class.java)) {
-            return JarvisViewModel(application, handle) as T
+        if (modelClass.isAssignableFrom(SmartyViewModel::class.java)) {
+            return SmartyViewModel(application, handle) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

@@ -69,8 +69,9 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.EaseInOutSine
 import android.os.Build
 import com.example.smarty.data.model.Category
+import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.JarvisShadow
+import com.example.smarty.ui.theme.SmartyShadow
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import kotlin.math.min
@@ -213,7 +214,7 @@ fun StacksScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && categoryToDelete != null) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        SmartyDialog(
             title = stringResource(R.string.delete_stack),
             text = stringResource(R.string.delete_stack_confirm, categoryToDelete?.name.orEmpty().lowercase()),
             onConfirm = {
@@ -248,7 +249,7 @@ fun StacksScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "${categoryToDelete?.noteCount ?: 0} notes will be unfiled",
+                        text = stringResource(R.string.notes_will_be_unfiled, categoryToDelete?.noteCount ?: 0),
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -699,7 +700,7 @@ private fun CreateCategoryBottomSheet(
                 horizontalArrangement = Arrangement.End
             ) {
                 Text(
-                    text = "${categoryName.length}/20",
+                    text = stringResource(R.string.character_count_limit, categoryName.length, 20),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (categoryName.length > 18) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                 )

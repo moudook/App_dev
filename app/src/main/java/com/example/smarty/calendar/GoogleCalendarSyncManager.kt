@@ -1,5 +1,6 @@
 package com.example.smarty.calendar
 
+import com.example.smarty.R
 import android.Manifest
 import android.content.ContentResolver
 import android.content.ContentValues
@@ -11,7 +12,7 @@ import android.provider.CalendarContract
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +33,7 @@ import java.util.TimeZone
  */
 class GoogleCalendarSyncManager(
     private val context: Context,
-    private val repository: JarvisRepository
+    private val repository: SmartyRepository
 ) {
     companion object {
         private const val TAG = "CalendarSync"
@@ -225,9 +226,10 @@ class GoogleCalendarSyncManager(
     }
 
     /**
-     * Get list of all calendars on the device
+     * Get list of all calendars on the device.
+     * Sorts the list so calendars matching the userEmail come first.
      */
-    suspend fun getDeviceCalendars(): List<DeviceCalendar> = withContext(Dispatchers.IO) {
+    suspend fun getDeviceCalendars(userEmail: String? = null): List<DeviceCalendar> = withContext(Dispatchers.IO) {
         if (!hasCalendarPermission()) {
             Log.w(TAG, "Calendar permission not granted")
             return@withContext emptyList()
@@ -265,7 +267,11 @@ class GoogleCalendarSyncManager(
             Log.e(TAG, "Error reading calendars: ${e.message}", e)
         }
 
-        calendars
+        // Sort: userEmail matches first, then Google accounts, then others
+        calendars.sortedWith(compareByDescending<DeviceCalendar> {
+            userEmail != null && it.accountName.equals(userEmail, ignoreCase = true)
+        }.thenByDescending { it.isGoogleCalendar }
+         .thenBy { it.displayName })
     }
 
     /**
@@ -385,7 +391,7 @@ class GoogleCalendarSyncManager(
             )?.use { cursor ->
                 while (cursor.moveToNext()) {
                     val eventId = cursor.getLong(EVENT_ID_INDEX)
-                    val title = cursor.getString(EVENT_TITLE_INDEX) ?: "Untitled Event"
+                    val title = cursor.getString(EVENT_TITLE_INDEX) ?: context.getString(R.string.untitled_event)
                     val description = cursor.getString(EVENT_DESCRIPTION_INDEX)
                     val dtStart = cursor.getLong(EVENT_DTSTART_INDEX)
                     val dtEnd = if (!cursor.isNull(EVENT_DTEND_INDEX)) {

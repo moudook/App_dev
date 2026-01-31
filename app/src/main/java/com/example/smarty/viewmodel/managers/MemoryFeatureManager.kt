@@ -6,7 +6,7 @@ import com.example.smarty.data.model.AIMemory
 import com.example.smarty.data.model.MemoryType
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.Category
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.search.SemanticSearchEngine
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +23,7 @@ import kotlin.math.min
  * - Active memory storage and retrieval (CRUD)
  * - Background pattern extraction (via MemorySyncManager & Regex)
  * - Insight consolidation and abstraction
- * - Cognitive analytics and user pattern analysis
+ * - Intelligence analytics and user pattern analysis
  *
  * This manager is the "Pre-frontal Cortex" of the app, used by UI and AI.
  */
@@ -33,7 +33,7 @@ class MemoryFeatureManager(
     private val scope: CoroutineScope
 ) {
     /**
-     * All cognitive memories as a reactive flow.
+     * All intelligence memories as a reactive flow.
      */
     val allMemories: StateFlow<List<AIMemory>> = aiMemoryDao.getAllMemoriesFlow()
         .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -78,7 +78,7 @@ class MemoryFeatureManager(
                 source = source
             )
             aiMemoryDao.insertMemory(memory)
-            Log.i(TAG, "Stored new cognitive entry: $content")
+            Log.i(TAG, "Stored new intelligence entry: $content")
             return true
         }
         return false
@@ -120,7 +120,7 @@ class MemoryFeatureManager(
     suspend fun clearAllMemories(): Boolean {
         return try {
             aiMemoryDao.clearAllMemories()
-            Log.i(TAG, "All cognitive memories cleared")
+            Log.i(TAG, "All intelligence memories cleared")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear memories: ${e.message}")
@@ -212,7 +212,7 @@ class MemoryFeatureManager(
     }
 
     /**
-     * Get high-level cognitive statistics.
+     * Get high-level intelligence statistics.
      */
     suspend fun getMemoryStats(): Map<String, Any> {
         val total = aiMemoryDao.getMemoryCount()

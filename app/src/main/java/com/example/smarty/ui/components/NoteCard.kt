@@ -51,7 +51,7 @@ import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.model.getAttachmentCount
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.JarvisEasing
+import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.animateCardTilt
 import com.example.smarty.ui.animation.animatedCardTransform
 import com.example.smarty.ui.animation.cardTilt3D
@@ -108,8 +108,8 @@ fun NoteCard(
         val days = diff / (1000 * 60 * 60 * 24)
 
         when {
-            days == 0L -> "Today"
-            days == 1L -> "Yesterday"
+            days == 0L -> context.getString(R.string.today)
+            days == 1L -> context.getString(R.string.yesterday)
             days < 7 -> SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(note.createdAt))
             else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(note.createdAt))
         }

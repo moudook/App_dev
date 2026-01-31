@@ -195,7 +195,7 @@ fun StacksContent(
 
     // Delete confirmation dialog
     if (showDeleteDialog && categoryToDelete != null) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        com.example.smarty.ui.components.common.SmartyDialog(
             title = stringResource(R.string.delete_stack),
             text = stringResource(R.string.delete_stack_confirm, categoryToDelete?.name.orEmpty().lowercase()),
             onConfirm = {
@@ -230,7 +230,7 @@ fun StacksContent(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "${categoryToDelete?.noteCount ?: 0} notes will be unfiled",
+                        text = stringResource(R.string.notes_will_be_unfiled, categoryToDelete?.noteCount ?: 0),
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -549,7 +549,7 @@ private fun CreateCategorySheet(
             // Character count
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Text(
-                    text = "${categoryName.length}/20",
+                    text = stringResource(R.string.character_count_limit, categoryName.length, 20),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (categoryName.length > 18) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                 )

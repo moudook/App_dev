@@ -50,32 +50,32 @@ class AppControllerTool(
                 "toggle_theme" -> {
                     val isDark = args.value?.lowercase() == "dark"
                     onToggleTheme(isDark)
-                    AppControlResult(true, "Theme changed to ${if (isDark) "dark" else "light"} mode")
+                    AppControlResult(true, "theme_changed_success|${if (isDark) "dark" else "light"}")
                 }
                 "clear_cache" -> {
-                    onStatusUpdate("Clearing cache...")
+                    onStatusUpdate("status_clearing_cache")
                     onClearCache()
-                    AppControlResult(true, "App cache cleared successfully")
+                    AppControlResult(true, "cache_cleared_success")
                 }
                 "sync_memory" -> {
-                    onStatusUpdate("Syncing AI memory...")
+                    onStatusUpdate("status_syncing_ai_memory")
                     onSyncMemory()
-                    AppControlResult(true, "AI memory synchronization started")
+                    AppControlResult(true, "sync_started_success")
                 }
                 "backup_data" -> {
-                    onStatusUpdate("Preparing backup...")
+                    onStatusUpdate("status_preparing_backup")
                     onBackupData()
-                    AppControlResult(true, "Data backup initiated")
+                    AppControlResult(true, "backup_initiated_success")
                 }
                 "set_privacy_mode" -> {
                     val mode = args.value ?: "standard"
                     onSetPrivacyMode(mode)
-                    AppControlResult(true, "Privacy mode set to: $mode")
+                    AppControlResult(true, "privacy_mode_set_success|$mode")
                 }
-                else -> AppControlResult(false, "Unknown action: ${args.action}")
+                else -> AppControlResult(false, "batch_error_unknown_operation|${args.action}")
             }
         } catch (e: Exception) {
-            AppControlResult(false, "Error: ${e.message}")
+            AppControlResult(false, "batch_error_failed|${e.message}")
         }
     }
 }

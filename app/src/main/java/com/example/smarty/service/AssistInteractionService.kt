@@ -5,7 +5,7 @@ import android.service.voice.VoiceInteractionService
 import android.util.Log
 
 /**
- * VoiceInteractionService for Jarvis/Jarvis Assistant
+ * VoiceInteractionService for Smarty/Smarty Assistant
  *
  * This service is required for Android to recognize the app as a digital assistant.
  * When set as the default assistant, this service handles the assistant trigger

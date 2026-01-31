@@ -42,6 +42,9 @@ interface ChatDao {
     @Query("UPDATE chat_sessions SET isActive = 1 WHERE id = :sessionId")
     suspend fun activateSession(sessionId: String)
 
+    @Query("UPDATE chat_sessions SET isActive = 0 WHERE id = :sessionId")
+    suspend fun deactivateSession(sessionId: String)
+
     @Transaction
     suspend fun switchToSession(sessionId: String) {
         deactivateAllSessions()

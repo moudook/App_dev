@@ -46,6 +46,7 @@ class AnthropicProvider(
     )
 
     override suspend fun analyzeContent(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -62,11 +63,12 @@ class AnthropicProvider(
         )
 
         return executeRequest(requestBody, apiKey) { text ->
-            AIResponseParser.parseOpenAIResponse(text, providerName)
+            AIResponseParser.parseOpenAIResponse(context, text, providerName)
         }
     }
 
     override suspend fun analyzeDocument(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -84,11 +86,12 @@ class AnthropicProvider(
 
         return executeRequest(requestBody, apiKey) { text ->
             val cleanText = extractText(text)
-            AIResponseParser.parseDocumentAnalysisFromText(cleanText)
+            AIResponseParser.parseDocumentAnalysisFromText(context, cleanText)
         }
     }
 
     override suspend fun chat(
+        context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,

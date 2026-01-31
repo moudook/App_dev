@@ -9,7 +9,7 @@ import java.util.UUID
  * Supports one-time timers and recurring alarms on specific days.
  */
 @Entity(tableName = "timers")
-data class JarvisTimer(
+data class SmartyTimer(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
     val name: String,

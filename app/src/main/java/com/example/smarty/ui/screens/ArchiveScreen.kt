@@ -23,7 +23,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.data.model.Note
-import com.example.smarty.ui.animation.JarvisEasing
+import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.theme.ComponentSpacing
@@ -187,7 +187,7 @@ fun ArchiveScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        com.example.smarty.ui.components.common.SmartyDialog(
             title = stringResource(R.string.delete_permanently),
             text = stringResource(R.string.archive_delete_warning),
             onConfirm = {
@@ -268,7 +268,7 @@ private fun ArchiveNoteItem(
     // Alpha animation
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(200, easing = JarvisEasing.appleEaseOut),
+        animationSpec = tween(200, easing = SmartyEasing.appleEaseOut),
         label = "itemAlpha"
     )
 

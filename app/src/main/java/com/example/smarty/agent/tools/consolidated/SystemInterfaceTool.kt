@@ -5,6 +5,7 @@ import ai.koog.agents.core.tools.annotations.LLMDescription
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.data.model.AudioTrack
+import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -44,12 +45,13 @@ class SystemInterfaceTool(
     private val onLaunchApp: (String) -> Unit,
     private val onFindPackage: (String) -> String?,
     private val onPlayAudio: (AudioTrack) -> Unit,
-    private val onFindAudio: (String) -> AudioTrack?,
+    private val onFindAudio: (String) -> AudioSearchResult,
     private val onDisplayImages: (List<ImageDisplayItem>) -> Unit,
     private val getScreenContext: () -> ScreenContext?,
     private val onNavigate: (String) -> Unit,
     private val onShare: (String, String?) -> Unit,
-    private val onStatusUpdate: (String) -> Unit
+    private val onStatusUpdate: (String) -> Unit,
+    private val onPlayList: (List<AudioTrack>) -> Unit = {}
 ) : Tool<SystemInterfaceArgs, SystemResult>(
     argsSerializer = SystemInterfaceArgs.serializer(),
     resultSerializer = SystemResult.serializer(),
@@ -58,7 +60,7 @@ class SystemInterfaceTool(
         Handles interactions with the host OS, hardware, and apps.
 
         ACTIONS:
-        - play_media: Play audio by name or filename.
+        - play_media: Play audio. STRICT RULE: ONLY use this if the user's message STARTS with "play". If "play" is in the middle, DO NOT use this.
         - display_media: Display image by filename.
         - launch_app: Open an application by name.
         - capture_screen: Capture and save screenshot.
@@ -70,53 +72,61 @@ class SystemInterfaceTool(
         return try {
             when (args.action) {
                 "play_media" -> {
-                    val query = args.resource ?: return SystemResult(false, "Resource required")
-                    onStatusUpdate("Finding audio...")
-                    val match = onFindAudio(query)
-                    if (match != null) {
-                        onPlayAudio(match)
-                        SystemResult(true, "Playing: ${match.title}")
-                    } else {
-                        // Fallback: direct URI
-                        onPlayAudio(AudioTrack(id = query.hashCode().toString(), title = query, uri = query))
-                        SystemResult(true, "Playing audio: $query")
+                    val query = args.resource ?: return SystemResult(false, "error_content_required")
+                    onStatusUpdate("status_finding_audio")
+                    val result = onFindAudio(query)
+                    when (result) {
+                        is AudioSearchResult.ExactMatch -> {
+                            onPlayAudio(result.track)
+                            SystemResult(true, "playing_success|${result.track.title}")
+                        }
+                        is AudioSearchResult.Fallback -> {
+                            if (result.tracks.isNotEmpty()) {
+                                onPlayList(result.tracks)
+                                SystemResult(true, "playing_fallback|${result.tracks.first().title}")
+                            } else {
+                                // Fallback: direct URI if possible
+                                onPlayAudio(AudioTrack(id = query.hashCode().toString(), title = query, uri = query))
+                                SystemResult(true, "playing_audio_success|$query")
+                            }
+                        }
                     }
                 }
                 "display_media" -> {
-                    val fileName = args.resource ?: return SystemResult(false, "Filename required")
+                    val fileName = args.resource ?: return SystemResult(false, "error_content_required")
                     onDisplayImages(listOf(ImageDisplayItem(uri = fileName, fileName = fileName, noteTitle = "Image")))
-                    SystemResult(true, "Displaying image")
+                    SystemResult(true, "playing_success|Image")
                 }
                 "launch_app" -> {
-                    val appName = args.resource ?: return SystemResult(false, "App name required")
-                    onStatusUpdate("Finding $appName...")
+                    val appName = args.resource ?: return SystemResult(false, "error_content_required")
+                    onStatusUpdate("status_finding_app|$appName")
                     val packageName = onFindPackage(appName)
                     if (packageName != null) {
                         onLaunchApp(packageName)
-                        SystemResult(true, "Launching $appName ($packageName)")
+                        SystemResult(true, "launching_app_success|$appName|$packageName")
                     } else {
-                        SystemResult(false, "App '$appName' not found")
+                        SystemResult(false, "error_app_not_found|$appName")
                     }
                 }
                 "capture_screen" -> {
-                    onStatusUpdate("Capturing...")
-                    val ctx = getScreenContext() ?: return SystemResult(false, "Capture failed")
-                    SystemResult(true, "Screen captured", ctx.referringApp)
+                    onStatusUpdate("status_capturing")
+                    val ctx = getScreenContext() ?: return SystemResult(false, "failed")
+                    SystemResult(true, "capture_success", ctx.referringApp)
                 }
                 "navigate" -> {
-                    val dest = args.resource ?: return SystemResult(false, "Destination required")
+                    val dest = args.resource ?: return SystemResult(false, "error_id_required")
                     onNavigate(dest)
-                    SystemResult(true, "Navigating to $dest")
+                    SystemResult(true, "navigating_success|$dest")
                 }
                 "share" -> {
-                    val content = args.resource ?: return SystemResult(false, "Content required")
+                    val content = args.resource ?: return SystemResult(false, "error_content_required")
                     onShare(content, args.parameters?.title)
-                    SystemResult(true, "Shared content")
+                    SystemResult(true, "share_success")
                 }
-                else -> SystemResult(false, "Unknown action")
+                else -> SystemResult(false, "error_unknown_intent")
             }
         } catch (e: Exception) {
-            SystemResult(false, "Error: ${e.message}")
+            SystemResult(false, "error_prefix|${e.message}")
         }
     }
 }

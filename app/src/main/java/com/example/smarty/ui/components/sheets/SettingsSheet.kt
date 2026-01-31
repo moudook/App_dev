@@ -61,6 +61,15 @@ fun SettingsSheet(
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
+    // Local LLM Server
+    isLocalPCEnabled: Boolean = false,
+    onSetLocalPCEnabled: (Boolean) -> Unit = {},
+    localServerIP: String = "",
+    localServerPort: String = "1234",
+    localServerUseHttps: Boolean = false,
+    onSetLocalServerIP: (String) -> Unit = {},
+    onSetLocalServerPort: (String) -> Unit = {},
+    onSetLocalServerUseHttps: (Boolean) -> Unit = {},
     // Embedded content for sub-sheets
     archiveContent: @Composable (onDismiss: () -> Unit) -> Unit,
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
@@ -118,7 +127,16 @@ fun SettingsSheet(
             deviceCalendars = deviceCalendars,
             targetCalendarId = targetCalendarId,
             onSetTargetCalendarId = onSetTargetCalendarId,
-            onLoadDeviceCalendars = onLoadDeviceCalendars
+            onLoadDeviceCalendars = onLoadDeviceCalendars,
+            // Local LLM
+            isLocalPCEnabled = isLocalPCEnabled,
+            onSetLocalPCEnabled = onSetLocalPCEnabled,
+            localServerIP = localServerIP,
+            localServerPort = localServerPort,
+            localServerUseHttps = localServerUseHttps,
+            onSetLocalServerIP = onSetLocalServerIP,
+            onSetLocalServerPort = onSetLocalServerPort,
+            onSetLocalServerUseHttps = onSetLocalServerUseHttps
         )
     }
 }

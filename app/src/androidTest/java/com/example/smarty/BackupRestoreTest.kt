@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.example.smarty.data.local.CogniDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
@@ -32,7 +32,7 @@ import java.util.UUID
 @RunWith(AndroidJUnit4::class)
 class BackupRestoreTest {
 
-    private lateinit var database: CogniDatabase
+    private lateinit var database: SmartyDatabase
     private lateinit var context: Context
 
     @Before
@@ -41,7 +41,7 @@ class BackupRestoreTest {
         // Use in-memory database for testing
         database = Room.inMemoryDatabaseBuilder(
             context,
-            CogniDatabase::class.java
+            SmartyDatabase::class.java
         ).allowMainThreadQueries().build()
     }
 

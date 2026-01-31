@@ -24,20 +24,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+
 /**
  * Displays the thinking/reasoning process from AI models.
- * 
+ *
  * Shows a collapsible card with the model's step-by-step reasoning.
  * Used for responses from thinking-enabled models like Falcon-H1R-7B.
- * 
- * The thinking content is displayed in a distinct style (italic, muted color)
- * to differentiate it from the final answer.
- * 
+ *
+ * Design: "Soft Tech" - Clean surface with subtle border, distinct from chat bubbles.
+ *
  * @param thinkingContent The reasoning process text (from <think> tags)
  * @param modifier Optional modifier for the card
  * @param initiallyExpanded Whether the section starts expanded (default: false)
@@ -49,12 +54,12 @@ fun ThinkingSection(
     initiallyExpanded: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
-    
-    Card(
+
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
@@ -73,12 +78,12 @@ fun ThinkingSection(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Assistant,
-                        contentDescription = "thinking",
+                        contentDescription = stringResource(R.string.thinking),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "reasoning",
+                        text = stringResource(R.string.reasoning),
                         style = MaterialTheme.typography.labelLarge.copy(
                             fontWeight = FontWeight.Medium,
                             letterSpacing = 0.5.sp

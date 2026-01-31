@@ -53,6 +53,7 @@ class GeminiProvider(
      * ```
      */
     override suspend fun analyzeContent(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -104,7 +105,7 @@ class GeminiProvider(
                 )
             }
 
-            AIResponseParser.parseGeminiResponse(responseBody)
+            AIResponseParser.parseGeminiResponse(context, responseBody)
         } catch (e: Exception) {
             Log.e(TAG, "Gemini network error: ${e.message}", e)
             null
@@ -115,6 +116,7 @@ class GeminiProvider(
      * Analyze document using Gemini API with extended token limits.
      */
     override suspend fun analyzeDocument(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -155,7 +157,7 @@ class GeminiProvider(
                 return null
             }
 
-            AIResponseParser.parseDocumentAnalysisResponse(responseBody)
+            AIResponseParser.parseDocumentAnalysisResponse(context, responseBody)
         } catch (e: Exception) {
             Log.e(TAG, "Gemini document analysis network error: ${e.message}")
             null
@@ -166,6 +168,7 @@ class GeminiProvider(
      * Chat using Gemini API with higher temperature for conversational responses.
      */
     override suspend fun chat(
+        context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,

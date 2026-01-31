@@ -28,14 +28,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ElectricBlue
 
 /**
- * Standard Primary Button for Jarvis App
+ * Standard Primary Button for Smarty App
  */
 @Composable
-fun JarvisButton(
+fun SmartyButton(
     onClick: () -> Unit,
     text: String,
     modifier: Modifier = Modifier,
@@ -63,7 +64,7 @@ fun JarvisButton(
         )
     ) {
         if (isLoading) {
-            com.example.smarty.ui.components.CalmThinkingDots(
+            CalmThinkingDots(
                 color = contentColor,
                 dotSize = 4.dp
             )
@@ -77,10 +78,10 @@ fun JarvisButton(
 }
 
 /**
- * Standard Outlined Text Field for Jarvis App
+ * Standard Outlined Text Field for Smarty App
  */
 @Composable
-fun JarvisOutlinedTextField(
+fun SmartyOutlinedTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
@@ -143,7 +144,7 @@ fun JarvisOutlinedTextField(
  * (Simplified placeholder for visual consistency)
  */
 @Composable
-fun JarvisGoogleButton(
+fun SmartyGoogleButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false
@@ -158,7 +159,7 @@ fun JarvisGoogleButton(
         enabled = !isLoading
     ) {
         if (isLoading) {
-             com.example.smarty.ui.components.CalmThinkingDots(
+             CalmThinkingDots(
                 color = LocalAccentColor.current,
                 dotSize = 4.dp
             )

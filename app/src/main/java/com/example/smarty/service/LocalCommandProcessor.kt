@@ -5,6 +5,8 @@ import android.util.Log
 import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.data.model.Note
 import com.example.smarty.viewmodel.managers.SystemFeatureManager
+import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
+import com.example.smarty.R
 import java.util.Locale
 
 /**
@@ -77,7 +79,7 @@ class LocalCommandProcessor(
                     val internalScreenMatch = matchInternalScreen(appQuery)
                     if (internalScreenMatch != null) {
                         systemFeatureManager.navigateTo(internalScreenMatch)
-                        return CommandResult.Handled(response = "Opening $appQuery")
+                        return CommandResult.Handled(response = context.getString(R.string.opening_app, appQuery))
                     }
                     return handleOpenCommand(appQuery)
                 }
@@ -121,33 +123,50 @@ class LocalCommandProcessor(
 
             systemFeatureManager.launchApp(packageName)
             CommandResult.Handled(
-                response = "Opening $appName",
+                response = context.getString(R.string.opening_app, appName),
                 action = CommandAction.LaunchApp(packageName, appName)
             )
         } else {
-            CommandResult.Handled(response = "I couldn't find an app matching \"$appQuery\"")
+            CommandResult.Handled(response = context.getString(R.string.error_app_not_found_query, appQuery))
         }
     }
 
     private fun tryExtractAndPlayAudio(normalizedInput: String): CommandResult? {
         for (pattern in PLAY_PREFIXES) {
-            val playIndex = normalizedInput.indexOf(pattern)
-            if (playIndex != -1) {
-                val afterPlay = normalizedInput.substring(playIndex + pattern.length).trim()
+            // STRICT RULE: Input MUST start with the play command
+            if (normalizedInput.startsWith(pattern)) {
+                val afterPlay = normalizedInput.substring(pattern.length).trim()
                 val audioQuery = afterPlay.split(Regex("\\s+")).take(3).joinToString(" ").trim()
                 if (audioQuery.isEmpty()) continue
 
                 val deviceAudio = getDeviceAudio()
-                val track = systemFeatureManager.findMatchingAudio(audioQuery, deviceAudio)
+                val result = systemFeatureManager.findMatchingAudio(audioQuery, deviceAudio)
 
-                if (track != null) {
-                    systemFeatureManager.playAudio(track)
-                    val hasTaskWords = TASK_WORDS.any { normalizedInput.contains(Regex("\\b${Regex.escape(it)}\\b")) }
+                when (result) {
+                    is AudioSearchResult.ExactMatch -> {
+                        val track = result.track
+                        systemFeatureManager.playAudio(track)
+                        val hasTaskWords = TASK_WORDS.any { normalizedInput.contains(Regex("\\b${Regex.escape(it)}\\b")) }
 
-                    return if (hasTaskWords) {
-                        CommandResult.HandledAndPassToLLM("Playing ${track.title}", CommandAction.PlayAudio(track))
-                    } else {
-                        CommandResult.Handled("Playing ${track.title}", CommandAction.PlayAudio(track))
+                        return if (hasTaskWords) {
+                            CommandResult.HandledAndPassToLLM(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
+                        } else {
+                            CommandResult.Handled(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
+                        }
+                    }
+                    is AudioSearchResult.Fallback -> {
+                        // No exact match found, but we could play the first fallback track
+                        if (result.tracks.isNotEmpty()) {
+                            val track = result.tracks.first()
+                            systemFeatureManager.playAudio(track)
+                            val hasTaskWords = TASK_WORDS.any { normalizedInput.contains(Regex("\\b${Regex.escape(it)}\\b")) }
+
+                            return if (hasTaskWords) {
+                                CommandResult.HandledAndPassToLLM(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
+                            } else {
+                                CommandResult.Handled(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
+                            }
+                        }
                     }
                 }
             }
@@ -158,18 +177,18 @@ class LocalCommandProcessor(
     private fun handleStopCommand(): CommandResult {
         return try {
             AudioPlayerService.pause(context)
-            CommandResult.Handled(response = "Paused playback")
+            CommandResult.Handled(response = context.getString(R.string.playback_paused_success))
         } catch (e: Exception) {
-            CommandResult.Handled(response = "Couldn't pause playback")
+            CommandResult.Handled(response = context.getString(R.string.error_playback_pause_failed))
         }
     }
 
     private fun handleConversationalQuery(input: String): String? {
         return when {
-            input in listOf("hi", "hello", "hey") -> "Hey! How can I help you today?"
-            input.contains("what can you do") || input == "help" -> "I can manage your notes, todos, calendar, and more. Just ask!"
-            input in listOf("thank you", "thanks") -> "You're welcome!"
-            input in listOf("bye", "goodbye") -> "Goodbye! Have a great day!"
+            input in listOf("hi", "hello", "hey") -> context.getString(R.string.greeting_response)
+            input.contains("what can you do") || input == "help" -> context.getString(R.string.help_response)
+            input in listOf("thank you", "thanks") -> context.getString(R.string.thanks_response)
+            input in listOf("bye", "goodbye") -> context.getString(R.string.goodbye_response)
             else -> null
         }
     }

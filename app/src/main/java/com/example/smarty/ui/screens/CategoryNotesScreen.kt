@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.data.model.Category
 import com.example.smarty.data.model.Note
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.components.CategoryEmptyState
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.LocalAccentColor
@@ -222,7 +223,7 @@ fun CategoryNotesScreen(
 
     // Delete confirmation dialog
     if (showDeleteDialog) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        com.example.smarty.ui.components.common.SmartyDialog(
             title = stringResource(R.string.delete_stack),
             text = stringResource(R.string.delete_stack_confirm, category.name.lowercase()),
             onConfirm = {
@@ -327,7 +328,7 @@ private fun QRCodeDialog(
                         modifier = Modifier.size(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        com.example.smarty.ui.components.CalmThinkingDots()
+                        CalmThinkingDots()
                     }
                 }
 

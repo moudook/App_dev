@@ -2,7 +2,7 @@ package com.example.smarty.viewmodel.managers
 
 import android.util.Log
 import com.example.smarty.data.model.*
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.util.mention.MentionParser
 import com.example.smarty.util.search.SemanticSearchEngine
 import kotlinx.coroutines.Dispatchers
@@ -20,8 +20,13 @@ import kotlinx.coroutines.withContext
  * This manager ensures the AI and UI use identical logic for resolving context.
  */
 class MentionFeatureManager(
-    private val repository: JarvisRepository
+    private val repository: SmartyRepository
 ) {
+    /**
+     * Get the application context for resource resolution.
+     */
+    fun getContext(): android.content.Context = repository.getApplicationContext()
+
     companion object {
         private const val TAG = "MentionFeatureManager"
         private const val MAX_SUGGESTIONS = 4
@@ -160,8 +165,8 @@ class MentionFeatureManager(
             suggestions.add(
                 MentionSuggestion.CommandSuggestion(
                     commandName = thinkingInfo.name,
-                    displayName = thinkingInfo.displayName,
-                    description = thinkingInfo.description,
+                    displayName = thinkingInfo.getDisplayName(repository.getApplicationContext()),
+                    description = thinkingInfo.getDescription(repository.getApplicationContext()),
                     icon = thinkingInfo.icon
                 )
             )
@@ -173,8 +178,8 @@ class MentionFeatureManager(
         suggestions.add(
             MentionSuggestion.SpecialFilter(
                 filterName = "recent",
-                displayName = "Recent",
-                description = "Most recently created notes",
+                displayName = repository.getApplicationContext().getString(com.example.smarty.R.string.recent),
+                description = MentionParser.getSpecialFilterDescription(repository.getApplicationContext(), "recent"),
                 count = minOf(aiVisibleNotes.size, RECENT_NOTES_LIMIT)
             )
         )
@@ -183,8 +188,8 @@ class MentionFeatureManager(
             suggestions.add(
                 MentionSuggestion.SpecialFilter(
                     filterName = "pinned",
-                    displayName = "Pinned",
-                    description = "Your pinned notes",
+                    displayName = repository.getApplicationContext().getString(com.example.smarty.R.string.pin),
+                    description = MentionParser.getSpecialFilterDescription(repository.getApplicationContext(), "pinned"),
                     count = pinnedCount
                 )
             )
@@ -202,7 +207,7 @@ class MentionFeatureManager(
                 suggestions.add(
                     MentionSuggestion.TypeFilter(
                         type = type,
-                        displayName = MentionParser.getTypeFilterDisplayName(type),
+                        displayName = MentionParser.getTypeFilterDisplayName(repository.getApplicationContext(), type),
                         keyword = MentionParser.getTypeFilterKeyword(type),
                         count = count
                     )
@@ -217,8 +222,8 @@ class MentionFeatureManager(
         return MentionParser.getMatchingCommands(query).map { cmdInfo ->
             MentionSuggestion.CommandSuggestion(
                 commandName = cmdInfo.name,
-                displayName = cmdInfo.displayName,
-                description = cmdInfo.description,
+                displayName = cmdInfo.getDisplayName(repository.getApplicationContext()),
+                description = cmdInfo.getDescription(repository.getApplicationContext()),
                 icon = cmdInfo.icon
             )
         }
@@ -237,7 +242,7 @@ class MentionFeatureManager(
                 if (count > 0) {
                     MentionSuggestion.TypeFilter(
                         type = type,
-                        displayName = MentionParser.getTypeFilterDisplayName(type),
+                        displayName = MentionParser.getTypeFilterDisplayName(repository.getApplicationContext(), type),
                         keyword = MentionParser.getTypeFilterKeyword(type),
                         count = count
                     )
@@ -249,20 +254,21 @@ class MentionFeatureManager(
     private suspend fun getMatchingSpecialFilters(query: String): List<MentionSuggestion.SpecialFilter> {
         refreshCacheIfNeeded()
         val aiVisibleNotes = getAiVisibleNotes()
+        val context = repository.getApplicationContext()
 
         return MentionParser.SPECIAL_FILTERS
             .filter { it.startsWith(query, ignoreCase = true) }
             .map { filterName ->
                 val (displayName, count) = when (filterName) {
-                    "recent" -> "Recent" to minOf(aiVisibleNotes.size, RECENT_NOTES_LIMIT)
-                    "pinned", "starred", "favorites" -> "Pinned" to aiVisibleNotes.count { it.isPinned }
-                    "all" -> "All Notes" to aiVisibleNotes.size
+                    "recent" -> context.getString(com.example.smarty.R.string.recent) to minOf(aiVisibleNotes.size, RECENT_NOTES_LIMIT)
+                    "pinned", "starred", "favorites" -> context.getString(com.example.smarty.R.string.pin) to aiVisibleNotes.count { it.isPinned }
+                    "all" -> context.getString(com.example.smarty.R.string.notes) to aiVisibleNotes.size
                     else -> filterName.replaceFirstChar { it.uppercase() } to 0
                 }
                 MentionSuggestion.SpecialFilter(
                     filterName = filterName,
                     displayName = displayName,
-                    description = MentionParser.getSpecialFilterDescription(filterName),
+                    description = MentionParser.getSpecialFilterDescription(context, filterName),
                     count = count
                 )
             }
@@ -270,7 +276,7 @@ class MentionFeatureManager(
     }
 
     private suspend fun searchCategories(query: String): List<MentionSuggestion.CategorySuggestion> {
-        // We'll need to add searchCategories to JarvisRepository if it doesn't exist
+        // We'll need to add searchCategories to SmartyRepository if it doesn't exist
         // For now, using the cached approach or direct repo access if we update it
         val categories = repository.getAllCategories().first()
         return categories.filter { it.name.contains(query, ignoreCase = true) }

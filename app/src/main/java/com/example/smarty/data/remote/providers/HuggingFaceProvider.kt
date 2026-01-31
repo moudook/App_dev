@@ -57,6 +57,7 @@ class HuggingFaceProvider(
      * ```
      */
     override suspend fun analyzeContent(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -100,7 +101,7 @@ class HuggingFaceProvider(
                 return null
             }
 
-            AIResponseParser.parseHuggingFaceResponse(responseBody)
+            AIResponseParser.parseHuggingFaceResponse(context, responseBody)
         } catch (e: Exception) {
             Log.e(TAG, "HuggingFace network error: ${e.message}", e)
             null
@@ -111,6 +112,7 @@ class HuggingFaceProvider(
      * Analyze document using HuggingFace Inference API.
      */
     override suspend fun analyzeDocument(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -151,7 +153,7 @@ class HuggingFaceProvider(
 
             // Parse HuggingFace response format
             val text = extractText(responseBody)
-            AIResponseParser.parseDocumentAnalysisFromText(text)
+            AIResponseParser.parseDocumentAnalysisFromText(context, text)
         } catch (e: Exception) {
             Log.e(TAG, "HuggingFace document analysis network error: ${e.message}")
             null
@@ -162,6 +164,7 @@ class HuggingFaceProvider(
      * Chat using HuggingFace Inference API.
      */
     override suspend fun chat(
+        context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,

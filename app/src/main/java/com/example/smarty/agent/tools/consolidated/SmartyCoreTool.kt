@@ -8,7 +8,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 
 @Serializable
-data class CognitiveCoreArgs(
+data class SmartyCoreArgs(
     @property:LLMDescription("The mode: 'store' (add memory), 'retrieve' (search memories), 'analyze' (stats), 'consolidate' (abstract), 'sync' (learn from notes)")
     val mode: String,
     @property:LLMDescription("Data to store, or JSON params")
@@ -20,7 +20,7 @@ data class CognitiveCoreArgs(
 )
 
 @Serializable
-data class CognitiveResult(
+data class SmartyResult(
     val success: Boolean,
     val message: String,
     val data: String? = null
@@ -31,20 +31,20 @@ data class CognitiveResult(
 }
 
 /**
- * Hybridized Cognitive Core Tool.
+ * Hybridized Smarty Core Tool.
  * 100% logic-free. Delegates to MemoryFeatureManager via callbacks.
  */
-class CognitiveCoreTool(
+class SmartyCoreTool(
     private val onStoreMemory: suspend (String, String?) -> Unit,
     private val onRetrieveMemories: suspend (String?, Int) -> List<AIMemory>,
     private val onGetMemoryStats: suspend () -> Map<String, Any>,
     private val onConsolidate: () -> Unit,
     private val onSyncMemory: () -> Unit,
     private val onStatusUpdate: (String) -> Unit
-) : Tool<CognitiveCoreArgs, CognitiveResult>(
-    argsSerializer = CognitiveCoreArgs.serializer(),
-    resultSerializer = CognitiveResult.serializer(),
-    name = "cognitive_core",
+) : Tool<SmartyCoreArgs, SmartyResult>(
+    argsSerializer = SmartyCoreArgs.serializer(),
+    resultSerializer = SmartyResult.serializer(),
+    name = "smarty_core",
     description = """
         The long-term memory and pattern recognition engine.
 
@@ -56,42 +56,42 @@ class CognitiveCoreTool(
         - sync: Process recent notes to build memory.
     """.trimIndent()
 ) {
-    private val cognitiveJson = Json { encodeDefaults = false }
+    private val smartyJson = Json { encodeDefaults = false }
 
-    override suspend fun execute(args: CognitiveCoreArgs): CognitiveResult {
+    override suspend fun execute(args: SmartyCoreArgs): SmartyResult {
         return try {
             when (args.mode) {
                 "store" -> {
-                    val content = args.data ?: return CognitiveResult(false, "Data required")
-                    onStatusUpdate("Learning...")
+                    val content = args.data ?: return SmartyResult(false, "error_data_required")
+                    onStatusUpdate("status_learning")
                     onStoreMemory(content, args.scope)
-                    CognitiveResult(true, "Memory stored")
+                    SmartyResult(true, "memory_stored_success")
                 }
                 "retrieve" -> {
-                    onStatusUpdate("Recalling...")
+                    onStatusUpdate("status_recalling")
                     val memories = onRetrieveMemories(args.query, 10)
                     val results = memories.map { mapOf("type" to it.type.name, "content" to it.content) }
-                    CognitiveResult(true, "Found ${memories.size} memories", cognitiveJson.encodeToString(results))
+                    SmartyResult(true, "memories_found_count|${memories.size}", smartyJson.encodeToString(results))
                 }
                 "analyze" -> {
-                    onStatusUpdate("Analyzing habits...")
+                    onStatusUpdate("status_analyzing_habits")
                     val stats = onGetMemoryStats()
-                    CognitiveResult(true, "Cognitive analysis complete", cognitiveJson.encodeToString(stats))
+                    SmartyResult(true, "smarty_analysis_complete", smartyJson.encodeToString(stats))
                 }
                 "consolidate" -> {
-                    onStatusUpdate("Consolidating...")
+                    onStatusUpdate("status_consolidating")
                     onConsolidate()
-                    CognitiveResult(true, "Consolidation initiated")
+                    SmartyResult(true, "consolidation_initiated_success")
                 }
                 "sync" -> {
-                    onStatusUpdate("Syncing memories...")
+                    onStatusUpdate("status_syncing_memories")
                     onSyncMemory()
-                    CognitiveResult(true, "Note synchronization initiated")
+                    SmartyResult(true, "sync_initiated_success")
                 }
-                else -> CognitiveResult(false, "Unknown mode: ${args.mode}")
+                else -> SmartyResult(false, "error_unknown_intent")
             }
         } catch (e: Exception) {
-            CognitiveResult(false, "Error: ${e.message}")
+            SmartyResult(false, "error_prefix|${e.message}")
         }
     }
 }

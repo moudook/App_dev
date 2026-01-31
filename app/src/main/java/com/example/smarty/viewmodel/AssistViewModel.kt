@@ -7,14 +7,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.smarty.agent.models.ScreenContext
+import com.example.smarty.R
 import com.example.smarty.agent.AgentCallbacks
 import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.JarvisAgentOptimized
-import com.example.smarty.agent.JarvisAgentProvider
+import com.example.smarty.agent.SmartyAgentOptimized
+import com.example.smarty.agent.SmartyAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.WebCitation
+import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
 import com.example.smarty.data.model.InlineChatImage
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.AudioTrack
@@ -27,7 +29,7 @@ import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.service.LocalCommandProcessor
 import com.example.smarty.service.CommandResult
@@ -71,11 +73,11 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val securePreferences: SecurePreferences by lazy {
         SecurePreferences.getInstance(application)
     }
-    private val database: JarvisDatabase by lazy {
-        JarvisDatabase.getDatabase(application)
+    private val database: SmartyDatabase by lazy {
+        SmartyDatabase.getDatabase(application)
     }
-    private val repository: JarvisRepository by lazy {
-        JarvisRepository(
+    private val repository: SmartyRepository by lazy {
+        SmartyRepository(
             database.noteDao(),
             database.categoryDao(),
             database.calendarDao(),
@@ -102,8 +104,8 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val deviceAudioRepository: DeviceAudioRepository by lazy {
         DeviceAudioRepository(application)
     }
-    private val agentProvider: JarvisAgentProvider by lazy {
-        JarvisAgentProvider(securePreferences, groqKeyManager)
+    private val agentProvider: SmartyAgentProvider by lazy {
+        SmartyAgentProvider(securePreferences, groqKeyManager)
     }
 
     // Hybridized Feature Managers
@@ -127,6 +129,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             repository = repository,
             allNotes = _notes,
             searchHistoryManager = com.example.smarty.data.local.SearchHistoryManager(application),
+            securePreferences = securePreferences,
             tavilySearchProvider = tavilySearchProvider
         )
     }
@@ -145,13 +148,13 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
 
     // Chat Manager - handles chat state and session lifecycle
     private val chatManager: com.example.smarty.viewmodel.managers.ChatManager by lazy {
-        com.example.smarty.viewmodel.managers.ChatManager(chatRepository, viewModelScope)
+        com.example.smarty.viewmodel.managers.ChatManager(application, chatRepository, viewModelScope)
     }
 
     private val noteOperationsManager: NoteOperationsManager by lazy {
         NoteOperationsManager(
             repository = repository,
-            aiService = com.example.smarty.data.remote.AIService(securePreferences),
+            aiService = com.example.smarty.data.remote.AIService(getApplication(), securePreferences),
             context = application,
             scope = viewModelScope
         )
@@ -175,9 +178,10 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
 
     private val memoryFeatureManager: com.example.smarty.viewmodel.managers.MemoryFeatureManager by lazy {
         val memorySyncManager = com.example.smarty.viewmodel.managers.MemorySyncManager(
+            context = application,
             database = database,
             aiMemoryDao = database.aiMemoryDao(),
-            aiService = com.example.smarty.data.remote.AIService(securePreferences)
+            aiService = com.example.smarty.data.remote.AIService(getApplication(), securePreferences)
         )
         com.example.smarty.viewmodel.managers.MemoryFeatureManager(
             aiMemoryDao = database.aiMemoryDao(),
@@ -238,7 +242,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
-            _toolStatus.value = toolDisplayName
+            _toolStatus.value = resolveResourceString(toolDisplayName)
         }
 
         override fun onToolExecutionCompleted(toolName: String) {
@@ -274,7 +278,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         override fun onStatusUpdate(status: String) {
-            _toolStatus.value = status
+            _toolStatus.value = resolveResourceString(status)
         }
 
         override fun getDeviceAudio(): List<AudioTrack> {
@@ -465,9 +469,12 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             return systemFeatureManager.findPackageName(appName)
         }
 
-        override fun findMatchingAudio(query: String): AudioTrack? {
-            val deviceAudio = deviceAudioRepository.getAllAudio()
-            return systemFeatureManager.findMatchingAudio(query, deviceAudio)
+        override fun findMatchingAudio(query: String): AudioSearchResult {
+            return systemFeatureManager.findMatchingAudio(query)
+        }
+
+        override fun playAudioList(tracks: List<AudioTrack>) {
+            audioPlaybackManager.playList(tracks)
         }
 
         // HYBRID-CONTROL: Time Operations (Delegated to Managers)
@@ -511,7 +518,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
 
         override fun setTimer(name: String, timeStr: String, isAlarm: Boolean) {
             val triggerTime = calendarManager.parseDateTime(timeStr) ?: return
-            val timer = com.example.smarty.data.model.JarvisTimer(
+            val timer = com.example.smarty.data.model.SmartyTimer(
                 name = name,
                 triggerTime = triggerTime,
                 isAlarm = isAlarm,
@@ -570,10 +577,19 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             )
             return searchFeatureManager.performWebSearch(query, apiKey, maxResults, topic, onCitationsFound)
         }
+
+        override suspend fun onParallelWebSearch(
+            queries: List<String>,
+            maxResults: Int,
+            topic: String,
+            onCitationsFound: (List<com.example.smarty.agent.WebCitation>) -> Unit
+        ): com.example.smarty.agent.tools.base.WebSearchResult {
+            return searchFeatureManager.performParallelWebSearch(queries, maxResults, topic, onCitationsFound)
+        }
     }
 
-    private val jarvisAgent: JarvisAgentOptimized by lazy {
-        JarvisAgentOptimized(
+    private val smartyAgent: SmartyAgentOptimized by lazy {
+        SmartyAgentOptimized(
             context = application,
             agentProvider = agentProvider,
             repository = repository,
@@ -647,23 +663,58 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         if (content.isBlank() && attachments.isEmpty()) return
 
         viewModelScope.launch {
+            // Reset success flag for new request
+            chatManager.resetApiCallFlag()
+
+            var processingSet = false
             try {
-                _isProcessing.value = true
-                pendingCitations.clear()
+                // Set processing state with error handling
+                try {
+                    _isProcessing.value = true
+                    processingSet = true
+                    pendingCitations.clear()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to set processing state: ${e.message}")
+                    processingSet = false
+                }
 
                 // 1. Add user message via manager
                 val userMessage = chatManager.addUserMessage(content, attachments)
 
                 // 2. FAST-PATH: Check Local Command Processor (offline, 0ms latency)
                 val commandResult = localCommandProcessor.process(content)
+
+                if (commandResult is CommandResult.SavePageRequest) {
+                    // Screen capture not fully supported in overlay mode yet
+                    val assistantMessage = ChatMessage(
+                        role = ChatRole.ASSISTANT,
+                        content = getApplication<Application>().getString(R.string.limited_in_overlay_mode)
+                    )
+                    addAssistantMessage(assistantMessage, userMessage)
+                    return@launch
+                }
+
                 if (commandResult is CommandResult.Handled) {
                     Log.i(TAG, "Query handled by FAST-PATH: $content")
+                    // Local commands are considered successful interactions
+                    chatManager.markApiCallSuccessful()
                     val assistantMessage = ChatMessage(
                         role = ChatRole.ASSISTANT,
                         content = commandResult.response
                     )
                     addAssistantMessage(assistantMessage, userMessage)
                     return@launch
+                }
+
+                if (commandResult is CommandResult.HandledAndPassToLLM) {
+                    Log.i(TAG, "Query handled by FAST-PATH (PassToLLM): $content")
+                    chatManager.markApiCallSuccessful()
+                    val assistantMessage = ChatMessage(
+                        role = ChatRole.ASSISTANT,
+                        content = commandResult.response
+                    )
+                    addAssistantMessage(assistantMessage, userMessage)
+                    // Continue to reasoning path...
                 }
 
                 // 3. REASONING-PATH: AI Agent processing
@@ -673,12 +724,29 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                 Log.e(TAG, "Error in universal dispatcher: ${e.message}", e)
                 val errorMessage = ChatMessage(
                     role = ChatRole.ASSISTANT,
-                    content = "Sorry, I encountered an error. Please try again.",
+                    content = getApplication<Application>().getString(R.string.request_timed_out),
                     isError = true
                 )
                 chatManager.addAssistantMessage(errorMessage)
             } finally {
-                _isProcessing.value = false
+                // Safely reset processing state only if we successfully set it
+                if (processingSet) {
+                    try {
+                        // Use NonCancellable to ensure processing state is always reset
+                        // but wrap in try-catch to prevent crashes during cleanup
+                        withContext(NonCancellable) {
+                            _isProcessing.value = false
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to reset processing state: ${e.message}")
+                        // Fallback: try direct assignment
+                        try {
+                            _isProcessing.value = false
+                        } catch (fallbackE: Exception) {
+                            Log.e(TAG, "Complete failure to reset processing state: ${fallbackE.message}")
+                        }
+                    }
+                }
             }
         }
     }
@@ -691,10 +759,15 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         val conversationHistory = chatManager.getHistoryForAgent().takeLast(10)
 
         // Get AI response
-        val result = jarvisAgent.run(
+        val result = smartyAgent.run(
             userMessage = content,
             conversationHistory = conversationHistory
         )
+
+        // Mark success if agent execution succeeded
+        if (result is AgentResult.Success) {
+            chatManager.markApiCallSuccessful()
+        }
 
         // Get inline images and clear pending
         val inlineImages = pendingInlineImages.toList()
@@ -850,28 +923,35 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Cleanup resources when ViewModel is destroyed
+     * Resolves a string that might be a resource key with parameters (e.g., "key|param1|param2")
      */
-    override fun onCleared() {
-        super.onCleared()
+    private fun resolveResourceString(input: String?): String? {
+        if (input == null) return null
 
-        // Cancel all coroutines in viewModelScope
-        viewModelScope.cancel()
+        val parts = input.split("|")
+        val key = parts[0]
+        val resId = getApplication<Application>().resources.getIdentifier(key, "string", getApplication<Application>().packageName)
 
-        // Note: httpClient is now a shared singleton from HttpClientProvider
-        // Do NOT shutdown here as other components may still be using it
+        return if (resId != 0) {
+            if (parts.size > 1) {
+                // Try to parse numeric arguments if possible
+                val args = parts.subList(1, parts.size).map {
+                    it.toIntOrNull() ?: it
+                }.toTypedArray<Any>()
 
-        // Clear pending state
-        pendingCitations.clear()
-        chatManager.clearChatHistory()
-        _isProcessing.value = false
-        _isListening.value = false
-        _assistContext.value = null
-        _toolStatus.value = null
-        _notes.value = emptyList()
-        _categories.value = emptyList()
-
-        Log.d(TAG, "AssistViewModel cleared")
+                try {
+                    getApplication<Application>().getString(resId, *args)
+                } catch (e: Exception) {
+                    // Fallback to raw key if formatting fails
+                    input
+                }
+            } else {
+                getApplication<Application>().getString(resId)
+            }
+        } else {
+            // Not a resource key, return as is
+            input
+        }
     }
 }
 
@@ -879,11 +959,21 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
  * Factory for AssistViewModel
  */
 class AssistViewModelFactory(
-    private val application: Application
+    private val application: Application,
+    private val repository: SmartyRepository,
+    private val chatRepository: ChatRepository,
+    private val agentProvider: SmartyAgentProvider,
+    private val tavilySearchProvider: TavilySearchProvider,
+    private val alarmScheduler: AlarmScheduler,
+    private val aiMemoryDao: com.example.smarty.data.local.AIMemoryDao
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AssistViewModel::class.java)) {
+            // We still just pass application because AssistViewModel injects its own dependencies lazily
+            // But we need this factory signature to match what AssistActivity is trying to pass.
+            // Ideally, we should refactor AssistViewModel to accept these in constructor for better testing,
+            // but for now we'll just ignore them to fix the compilation error while keeping the lazy injection logic.
             return AssistViewModel(application) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

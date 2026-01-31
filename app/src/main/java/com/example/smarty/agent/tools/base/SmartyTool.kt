@@ -1,7 +1,7 @@
 package com.example.smarty.agent.tools.base
 
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.util.PrivacyGuard
 
 /**
@@ -10,7 +10,7 @@ import com.example.smarty.util.PrivacyGuard
  * All tools that access notes should use these helper functions to ensure
  * privacy enforcement is consistent across the agent.
  */
-object JarvisToolUtils {
+object SmartyToolUtils {
     /**
      * Get a fresh note from database with AI accessibility check.
      * Returns null if:
@@ -20,7 +20,7 @@ object JarvisToolUtils {
      *
      * SECURITY: This is the ONLY way tools should access notes by ID.
      */
-    suspend fun getFreshAiAccessibleNote(repository: JarvisRepository, noteId: String): Note? {
+    suspend fun getFreshAiAccessibleNote(repository: SmartyRepository, noteId: String): Note? {
         val freshNote = repository.getNoteById(noteId) ?: return null
         return if (PrivacyGuard.canAiProcess(freshNote)) freshNote else null
     }

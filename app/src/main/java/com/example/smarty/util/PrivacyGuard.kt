@@ -143,10 +143,10 @@ object PrivacyGuard {
      * Security check before any AI operation on a note
      * Throws SecurityException if note is private
      */
-    fun requireAiAccess(note: Note, operation: String) {
+    fun requireAiAccess(note: Note, operation: String, context: android.content.Context) {
         if (isPrivate(note)) {
             // PRIVACY FIX (CRIT-002): Don't include note IDs in exception messages
-            val message = "SECURITY VIOLATION: AI attempted $operation on private note"
+            val message = context.getString(com.example.smarty.R.string.security_violation_detail, operation)
             Log.e(TAG, message)
             throw SecurityException(message)
         }
@@ -339,9 +339,9 @@ object PrivacyGuard {
      * Throws SecurityException if validation fails.
      * Use for critical security checkpoints.
      */
-    fun assertNoPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>, operation: String) {
+    fun assertNoPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>, operation: String, context: android.content.Context) {
         if (containsPrivateNoteIds(noteIds, allNotes)) {
-            val message = "SECURITY VIOLATION: Private note IDs in $operation"
+            val message = context.getString(com.example.smarty.R.string.security_violation_ids, operation)
             Log.e(TAG, message)
             throw SecurityException(message)
         }

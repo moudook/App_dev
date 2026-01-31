@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Database migrations for Jarvis app
+ * Database migrations for Smarty app
  */
 object Migrations {
     /**
@@ -535,6 +535,7 @@ object Migrations {
      */
     val MIGRATION_27_28 = object : Migration(27, 28) {
         override fun migrate(db: SupportSQLiteDatabase) {
+            // Feature: SmartyTimer for persistent alarms
             db.execSQL("""
                 CREATE TABLE IF NOT EXISTS timers (
                     id TEXT PRIMARY KEY NOT NULL,

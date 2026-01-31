@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.example.smarty.data.local.SecurePreferences
+
 /**
  * Centralized manager for Authentication operations.
  * Hybridizes logic for:
@@ -27,10 +29,12 @@ import kotlinx.coroutines.launch
  *
  * This manager ensures both the UI and AI interact with the same auth state.
  */
+@Suppress("DEPRECATION")
 class AuthFeatureManager(
     private val application: Application,
     private val scope: CoroutineScope,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val securePreferences: SecurePreferences? = null
 ) {
     private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
@@ -55,7 +59,7 @@ class AuthFeatureManager(
         val webClientId = try {
             application.getString(R.string.default_web_client_id)
         } catch (e: Exception) {
-            Log.w(TAG, "OAuth Client ID not found. Configure Firebase OAuth in console.")
+            Log.w(TAG, application.getString(R.string.error_auth_not_configured))
             null
         }
 
@@ -65,7 +69,7 @@ class AuthFeatureManager(
                 .requestEmail()
                 .build()
         } else {
-            Log.w(TAG, "Google Sign-In configured without ID token - Firebase Auth will not work")
+            Log.w(TAG, application.getString(R.string.error_google_auth_no_token))
             GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestEmail()
                 .build()
@@ -76,6 +80,10 @@ class AuthFeatureManager(
         scope.launch {
             authRepository.currentUser.collect { user ->
                 _currentUser.value = user
+                // Sync email to SecurePreferences for other features (Calendar, Backup)
+                if (user != null && user.email != null) {
+                    securePreferences?.setGoogleAccountEmail(user.email)
+                }
             }
         }
     }
@@ -98,18 +106,18 @@ class AuthFeatureManager(
                     if (authResult.isSuccess) {
                         _authState.value = AuthState.SUCCESS
                     } else {
-                        _error.value = authResult.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "google_sign_in_failed"
+                        _error.value = authResult.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_google_sign_in)
                         _authState.value = AuthState.ERROR
                     }
                 } else {
-                    _error.value = "google_auth_token_error"
+                    _error.value = application.getString(R.string.error_google_auth)
                     _authState.value = AuthState.ERROR
                 }
             } catch (e: ApiException) {
-                _error.value = "google_sign_in_failed_${e.statusCode}"
+                _error.value = application.getString(R.string.error_google_sign_in_code, application.getString(R.string.error_google_sign_in), e.statusCode)
                 _authState.value = AuthState.ERROR
             } catch (e: Exception) {
-                _error.value = e.localizedMessage?.lowercase()?.replace(" ", "_") ?: "google_sign_in_failed"
+                _error.value = e.localizedMessage ?: application.getString(R.string.error_google_sign_in)
                 _authState.value = AuthState.ERROR
             }
 
@@ -119,7 +127,7 @@ class AuthFeatureManager(
 
     fun signIn(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            _error.value = "credentials_required"
+            _error.value = application.getString(R.string.error_credentials_required)
             return
         }
 
@@ -132,7 +140,7 @@ class AuthFeatureManager(
             if (result.isSuccess) {
                 _authState.value = AuthState.SUCCESS
             } else {
-                _error.value = result.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "sign_in_failed"
+                _error.value = result.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_sign_in_failed)
                 _authState.value = AuthState.ERROR
             }
             _isLoading.value = false
@@ -141,7 +149,7 @@ class AuthFeatureManager(
 
     fun signUp(email: String, password: String) {
         if (email.isBlank() || password.isBlank()) {
-            _error.value = "credentials_required"
+            _error.value = application.getString(R.string.error_credentials_required)
             return
         }
 
@@ -154,7 +162,7 @@ class AuthFeatureManager(
             if (result.isSuccess) {
                 _authState.value = AuthState.SUCCESS
             } else {
-                _error.value = result.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "sign_up_failed"
+                _error.value = result.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_sign_up_failed)
                 _authState.value = AuthState.ERROR
             }
             _isLoading.value = false
@@ -165,12 +173,13 @@ class AuthFeatureManager(
         scope.launch {
             authRepository.signOut()
             googleSignInClient.signOut()
+            securePreferences?.setGoogleAccountEmail(null)
         }
     }
 
     fun resetPassword(email: String) {
         if (email.isBlank()) {
-            _error.value = "email_required"
+            _error.value = application.getString(R.string.error_email_required)
             return
         }
         scope.launch {
@@ -181,7 +190,7 @@ class AuthFeatureManager(
             if (result.isSuccess) {
                 // Success state handled by UI if needed
             } else {
-                _error.value = result.exceptionOrNull()?.localizedMessage?.lowercase()?.replace(" ", "_") ?: "reset_password_failed"
+                _error.value = result.exceptionOrNull()?.localizedMessage ?: application.getString(R.string.error_reset_password_failed)
             }
             _isLoading.value = false
         }

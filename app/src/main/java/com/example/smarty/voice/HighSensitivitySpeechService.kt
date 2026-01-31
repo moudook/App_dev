@@ -283,7 +283,7 @@ class HighSensitivitySpeechService(
                 thread.join(1000)
                 // Warn if thread didn't stop in time - potential race condition
                 if (thread.isAlive) {
-                    Log.w(TAG, "ReJarvistion thread didn't stop within 1000ms - forcing interrupt")
+                    Log.w(TAG, "Recognition thread didn't stop within 1000ms - forcing interrupt")
                     thread.interrupt()
                     thread.join(200)  // Brief wait after interrupt
                 }

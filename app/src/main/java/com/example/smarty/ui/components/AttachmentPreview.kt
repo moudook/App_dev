@@ -37,7 +37,7 @@ import coil.request.ImageRequest
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.AttachmentType
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.JarvisEasing
+import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.softCardShadow
@@ -111,7 +111,7 @@ private fun AnimatedAttachmentChip(
 
     val entryAlpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(200, easing = JarvisEasing.appleEaseOut),
+        animationSpec = tween(200, easing = SmartyEasing.appleEaseOut),
         label = "entryAlpha"
     )
 
@@ -129,7 +129,7 @@ private fun AnimatedAttachmentChip(
     val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
     val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
 
-    val shape = if (attachmentType == AttachmentType.AUDIO) CircleShape else RoundedCornerShape(16.dp)
+    val shape = if (attachmentType == AttachmentType.AUDIO) CircleShape else RoundedCornerShape(24.dp)
 
     Surface(
         modifier = Modifier
@@ -227,7 +227,7 @@ private fun AnimatedAttachmentChip(
                             Spacer(modifier = Modifier.height(2.dp))
 
                             Text(
-                                text = "Audio",
+                                text = stringResource(R.string.type_audio),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

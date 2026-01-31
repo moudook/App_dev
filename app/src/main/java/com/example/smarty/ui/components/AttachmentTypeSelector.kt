@@ -88,7 +88,7 @@ fun AttachmentTypeSelector(
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), // Reduced padding for compactness
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AttachmentOption.entries.forEachIndexed { index, option ->
@@ -107,7 +107,7 @@ fun AttachmentTypeSelector(
                                          AttachmentOption.LINK -> onSelectLink()
                                     }
                                 }
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .padding(horizontal = 10.dp, vertical = 6.dp) // Reduced padding
                         ) {
                             Text(
                                 text = stringResource(option.labelResId),
@@ -121,7 +121,7 @@ fun AttachmentTypeSelector(
                             Box(
                                 modifier = Modifier
                                     .width(1.dp)
-                                    .height(14.dp)
+                                    .height(12.dp) // Slightly shorter separator
                                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                             )
                         }
@@ -171,7 +171,7 @@ fun SearchFilterTypeSelector(
                 )
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), // Reduced padding
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AttachmentOption.entries.forEachIndexed { index, option ->
@@ -194,7 +194,7 @@ fun SearchFilterTypeSelector(
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     onFilterToggle(option)
                                 }
-                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .padding(horizontal = 10.dp, vertical = 6.dp) // Reduced padding
                         ) {
                             Text(
                                 text = stringResource(option.labelResId),
@@ -210,7 +210,7 @@ fun SearchFilterTypeSelector(
                                 Box(
                                     modifier = Modifier
                                         .width(1.dp)
-                                        .height(14.dp)
+                                        .height(12.dp) // Slightly shorter separator
                                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                                 )
                             } else {

@@ -19,12 +19,12 @@ import org.vosk.android.RecognitionListener
 import org.vosk.android.StorageService
 
 /**
- * Vosk-based wake word manager for fully offline Jarvis wake word detection.
+ * Vosk-based wake word manager for fully offline Smarty wake word detection.
  *
  * Architecture:
  * - Uses Vosk (open source, on-device) for wake word detection
  * - English model: vosk-model-small-en-us-0.15
- * - Wake word: "Jarvis" - unique and distinctive
+ * - Wake word: "Start" - unique and distinctive
  * - When wake word is detected, stops listening and triggers callback
  * - Caller should then launch Google Speech Recognizer for full STT
  * - After STT completes, call restartListening() to resume wake word detection
@@ -40,7 +40,7 @@ import org.vosk.android.StorageService
  * - No API key required
  * - All processing on-device
  * - Model included in app: English (small) for storage efficiency
- * - Wake word: "Jarvis" (English)
+ * - Wake word: "Start" (English)
  * - Speaker verification ensures only enrolled user can trigger
  */
 class VoskWakeWordManager(
@@ -57,8 +57,8 @@ class VoskWakeWordManager(
         private const val MODEL_PATH = "vosk-model-small-en-us-0.15"
         private const val SAMPLE_RATE = 16000.0f
 
-        // Wake word: "Jarvis"
-        private const val WAKE_WORD = "jarvis"
+        // Wake word: "hear me out"
+        private const val WAKE_WORD = "hear me out"
 
         // Audio gain multiplier for increased microphone sensitivity
         // 1.0 = normal, 2.0 = 2x louder, 3.0 = 3x louder
@@ -73,13 +73,10 @@ class VoskWakeWordManager(
 
         // Pre-compiled wake word patterns for faster matching (all lowercase since text is lowercased before matching)
         private val WAKE_WORD_PATTERNS = setOf(
-            "jarvis",
-            " jarvis",
-            "jarvis ",
-            "jarvis.",
-            "jar vis",
-            "hey jarvis",
-            "ok jarvis"
+            "hear me out",
+            " hear me out",
+            "hear me out ",
+            "hear me out."
         )
 
         // Model validity cache duration - must be in companion object for const
@@ -104,19 +101,39 @@ class VoskWakeWordManager(
                 Log.d(TAG, "Global pause state changed: $oldValue -> $value")
                 // When paused, notify all registered instances to stop immediately
                 if (value && !oldValue) {
-                    activeInstances.forEach { instance ->
-                        Log.d(TAG, "Stopping active Vosk instance due to global pause")
-                        try {
-                            instance.forceStopImmediate()
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Error stopping instance: ${e.message}")
+                    synchronized(activeInstances) {
+                        activeInstances.forEach { instance ->
+                            Log.d(TAG, "Stopping active Vosk instance due to global pause")
+                            try {
+                                instance.forceStopImmediate()
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Error stopping instance: ${e.message}")
+                            }
+                        }
+                    }
+                } else if (!value) {
+                    // When unpaused, restart active instances
+                    // NOTE: removed "&& oldValue" check to ensure we always try to resume
+                    // when explicitly set to false, even if it wasn't previously true.
+                    // This handles cases where AssistActivity didn't set it to true but we want to ensure restart.
+                    Log.d(TAG, "Global pause released - resuming active Vosk instances...")
+
+                    // Create copy safely within synchronized block
+                    val instancesToResume = synchronized(activeInstances) {
+                        activeInstances.toList()
+                    }
+
+                    instancesToResume.forEach { instance ->
+                        if (!instance.isDestroyed) {
+                            Log.d(TAG, "Resuming instance: $instance")
+                            instance.startListening()
                         }
                     }
                 }
             }
 
         // Track active instances for global pause functionality
-        private val activeInstances = mutableSetOf<VoskWakeWordManager>()
+        private val activeInstances = java.util.Collections.synchronizedSet(mutableSetOf<VoskWakeWordManager>())
 
         fun registerInstance(instance: VoskWakeWordManager) {
             activeInstances.add(instance)
@@ -155,7 +172,8 @@ class VoskWakeWordManager(
     // All callbacks check this flag and abort if true
     // This prevents initialization from continuing after app closes
     @Volatile
-    private var isDestroyed = false
+    var isDestroyed = false
+        private set
 
     // State tracking
     private val _isInitialized = MutableStateFlow(false)
@@ -307,6 +325,23 @@ class VoskWakeWordManager(
             LibVosk.setLogLevel(LogLevel.INFO)
 
             val startTime = System.currentTimeMillis()
+
+            // OPTIMIZATION: Check if model is already unpacked to avoid expensive I/O
+            val modelDir = java.io.File(context.filesDir, "model-en")
+            if (modelDir.exists() && modelDir.isDirectory && (modelDir.list()?.isNotEmpty() == true)) {
+                Log.i(TAG, "Vosk model already unpacked at: ${modelDir.absolutePath}")
+                try {
+                    model = Model(modelDir.absolutePath)
+                    Log.i(TAG, "Model loaded directly from disk in ${System.currentTimeMillis() - startTime}ms")
+                    isInitializing = false
+                    setupRecognizer()
+                    return
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to load existing model, will re-unpack: ${e.message}")
+                    // Fall through to unpack logic
+                }
+            }
+
             Log.i(TAG, "Unpacking Vosk English model from assets: $MODEL_PATH")
 
             // StorageService.unpack already runs on background thread
@@ -371,7 +406,7 @@ class VoskWakeWordManager(
             val m = model
             if (m == null) {
                 Log.e(TAG, "Cannot setup Recognizer - model is null")
-                _initError.value = "Model not loaded"
+                _initError.value = context.getString(com.example.smarty.R.string.error_model_not_loaded)
                 return
             }
 
@@ -460,7 +495,7 @@ class VoskWakeWordManager(
             Log.i(TAG, "Started listening for wake word '$WAKE_WORD' with ${AUDIO_GAIN}x gain")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start speech service: ${e.message}", e)
-            _initError.value = "Failed to start: ${e.message}"
+            _initError.value = context.getString(com.example.smarty.R.string.error_start_speech_service)
 
             // Might be invalid AudioRecord - try re-init
             if (e is IllegalStateException) {
@@ -552,12 +587,20 @@ class VoskWakeWordManager(
      * Restart listening after Google STT completes.
      * This re-enables wake word detection.
      *
+     * @param forceResetPause If true, forcibly resets the global pause flag (use when Activity is finishing)
+     *
      * PROCESS DEATH SAFE: Validates model and re-initializes if needed.
      * THREAD-SAFE: Uses mutex to prevent concurrent state modifications.
      * TOCTOU-SAFE: Wraps Recognizer creation in try-catch to handle race conditions.
      * DEBOUNCED: Prevents rapid consecutive calls from crashing the Recognizer.
      */
-    fun restartListening() {
+    fun restartListening(forceResetPause: Boolean = false) {
+        // Handle forced reset of global pause
+        if (forceResetPause) {
+            Log.d(TAG, "Forcing global pause RESET")
+            isGloballyPaused = false
+        }
+
         // Check global pause flag first
         if (isGloballyPaused) {
             Log.d(TAG, "Vosk globally paused (AssistActivity active) - not restarting")
@@ -660,7 +703,11 @@ class VoskWakeWordManager(
                             return@withLock
                         }
                         // Call internal version directly since we already hold the mutex
-                        startListeningInternal()
+                        if (!isGloballyPaused) {
+                            startListeningInternal()
+                        } else {
+                            Log.d(TAG, "Vosk globally paused (post-init check) - not starting")
+                        }
                     } else {
                         // Model is null - need to reinitialize
                         Log.w(TAG, "Model is null - triggering re-initialization")
@@ -755,8 +802,8 @@ class VoskWakeWordManager(
 
     override fun onError(exception: Exception?) {
         if (isDestroyed) return  // Ignore errors after destruction
-        Log.e(TAG, "ReJarvistion error: ${exception?.message}", exception)
-        _initError.value = "ReJarvistion error: ${exception?.message}"
+        Log.e(TAG, "Recognition error: ${exception?.message}", exception)
+        _initError.value = context.getString(com.example.smarty.R.string.error_recognition)
 
         // ISSUE #3 FIX: Automatically recover from AudioRecord invalidation
         // When system takes the mic (phone call, etc.), we need to reinitialize
@@ -779,7 +826,7 @@ class VoskWakeWordManager(
 
     override fun onTimeout() {
         if (isDestroyed) return  // Ignore timeout after destruction
-        Log.d(TAG, "ReJarvistion timeout - will restart")
+        Log.d(TAG, "Recognition timeout - will restart")
         // Don't restart in onTimeout to avoid recursion - let caller handle
     }
 
@@ -839,6 +886,12 @@ class VoskWakeWordManager(
                 // for the same utterance if verification failed.
                 val now = System.currentTimeMillis()
                 if (now - lastVerificationTime < VERIFICATION_COOLDOWN_MS) {
+                    return
+                }
+
+                // Check global pause before triggering
+                if (isGloballyPaused) {
+                    Log.d(TAG, "Wake word detected but globally paused - ignoring")
                     return
                 }
 

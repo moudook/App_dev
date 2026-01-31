@@ -22,10 +22,11 @@ class CancelPlanTool(
     description = "Cancels the current active plan. Use this if the user wants to stop, change course, or just chat instead of following the plan."
 ) {
     override suspend fun execute(args: CancelPlanArgs): CancelPlanResult {
+        val context = com.example.smarty.SmartyApplication.appInstance
         planManager.clearPlan()
         return CancelPlanResult(
             success = true,
-            message = "Plan cancelled. You are now in normal chat mode."
+            message = context.getString(com.example.smarty.R.string.plan_cancelled)
         )
     }
 }

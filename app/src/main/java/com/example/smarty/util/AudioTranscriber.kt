@@ -478,14 +478,20 @@ object AudioTranscriber {
                                     AudioFormat.ENCODING_PCM_16BIT
                                 )
                                 
-                                audioTrack = AudioTrack(
-                                    AudioManager.STREAM_VOICE_CALL,
-                                    SAMPLE_RATE,
-                                    AudioFormat.CHANNEL_OUT_MONO,
-                                    AudioFormat.ENCODING_PCM_16BIT,
-                                    minBufferSize,
-                                    AudioTrack.MODE_STREAM
-                                )
+                                val audioTrackBuilder = AudioTrack.Builder()
+                                    .setAudioAttributes(android.media.AudioAttributes.Builder()
+                                        .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                                        .build())
+                                    .setAudioFormat(AudioFormat.Builder()
+                                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                        .setSampleRate(SAMPLE_RATE)
+                                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                        .build())
+                                    .setBufferSizeInBytes(minBufferSize)
+                                    .setTransferMode(AudioTrack.MODE_STREAM)
+
+                                audioTrack = audioTrackBuilder.build()
                                 
                                 audioTrack?.play()
                                 

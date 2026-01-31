@@ -105,9 +105,11 @@ class NoteContextBuilder(
         noteContents: List<NoteContentEntry>
     ): String {
         if (noteContents.isEmpty()) return ""
+        val context = mentionManager.getContext()
 
         return buildString {
-            append("--- REFERENCED NOTES ---\n\n")
+            append(context.getString(com.example.smarty.R.string.ai_context_header))
+            append("\n\n")
 
             // Group notes by how they were referenced
             val singleNotes = resolvedMentions.filter { it.type == MentionType.SINGLE_NOTE }
@@ -121,7 +123,7 @@ class NoteContextBuilder(
                     for (note in mention.notes) {
                         val content = noteContents.find { it.note.id == note.id }
                         if (content != null) {
-                            append(formatNoteForContext(content.note, content.content, "Referenced"))
+                            append(formatNoteForContext(content.note, content.content, context.getString(com.example.smarty.R.string.ai_context_label_referenced)))
                         }
                     }
                 }
@@ -131,8 +133,8 @@ class NoteContextBuilder(
             if (typeFilters.isNotEmpty()) {
                 for (mention in typeFilters) {
                     val typeName = mention.noteType?.let {
-                        MentionParser.getTypeFilterDisplayName(it)
-                    } ?: "Notes"
+                        MentionParser.getTypeFilterDisplayName(context, it)
+                    } ?: context.getString(com.example.smarty.R.string.ai_context_label_notes)
 
                     append("[$typeName from @${mention.parsedMention.query}]\n\n")
 
@@ -149,13 +151,14 @@ class NoteContextBuilder(
             if (categoryMentions.isNotEmpty()) {
                 for (mention in categoryMentions) {
                     val categoryName = mention.category?.name ?: "Category"
+                    val sourceLabel = context.getString(com.example.smarty.R.string.ai_context_label_category, categoryName)
 
-                    append("[Category: $categoryName from @${mention.parsedMention.query}]\n\n")
+                    append("[$sourceLabel from @${mention.parsedMention.query}]\n\n")
 
                     for (note in mention.notes) {
                         val content = noteContents.find { it.note.id == note.id }
                         if (content != null) {
-                            append(formatNoteForContext(content.note, content.content, "Category: $categoryName"))
+                            append(formatNoteForContext(content.note, content.content, sourceLabel))
                         }
                     }
                 }
@@ -165,10 +168,10 @@ class NoteContextBuilder(
             if (specialFilters.isNotEmpty()) {
                 for (mention in specialFilters) {
                     val filterName = when (mention.specialFilter) {
-                        "recent" -> "Recent Notes"
-                        "pinned" -> "Pinned Notes"
-                        "all" -> "All Notes"
-                        else -> "Notes"
+                        "recent" -> context.getString(com.example.smarty.R.string.ai_context_label_recent)
+                        "pinned" -> context.getString(com.example.smarty.R.string.ai_context_label_pinned)
+                        "all" -> context.getString(com.example.smarty.R.string.ai_context_label_all)
+                        else -> context.getString(com.example.smarty.R.string.ai_context_label_notes)
                     }
 
                     append("[$filterName from @${mention.parsedMention.query}]\n\n")
@@ -182,7 +185,8 @@ class NoteContextBuilder(
                 }
             }
 
-            append("--- END REFERENCED NOTES ---\n")
+            append(context.getString(com.example.smarty.R.string.ai_context_footer))
+            append("\n")
         }
     }
 
@@ -190,11 +194,17 @@ class NoteContextBuilder(
      * Format a single note for inclusion in context.
      */
     private fun formatNoteForContext(note: Note, content: String, source: String): String {
+        val context = mentionManager.getContext()
         return buildString {
             append("### ${note.title}\n")
-            append("Type: ${note.type.name} | Source: $source\n")
+            append(context.getString(com.example.smarty.R.string.ai_context_note_type, note.type.name))
+            append(" | ")
+            append(context.getString(com.example.smarty.R.string.ai_context_note_source, source))
+            append("\n")
+
             if (!note.categoryName.isNullOrBlank()) {
-                append("Category: ${note.categoryName}\n")
+                append(context.getString(com.example.smarty.R.string.ai_context_note_category, note.categoryName))
+                append("\n")
             }
             append("\n")
             append(content.trim())

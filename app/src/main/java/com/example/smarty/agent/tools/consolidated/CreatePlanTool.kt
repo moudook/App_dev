@@ -34,20 +34,21 @@ class CreatePlanTool(
     """.trimIndent()
 ) {
     override suspend fun execute(args: CreatePlanArgs): CreatePlanResult {
+        val context = com.example.smarty.SmartyApplication.appInstance
         if (args.steps.isEmpty()) {
              return CreatePlanResult(
                 success = false,
-                message = "Plan cannot be empty. Please provide at least one step."
+                message = context.getString(com.example.smarty.R.string.error_plan_empty)
             )
         }
 
         val plan = planManager.createPlan(args.goal, args.steps)
         val firstStep = plan.getCurrentStep()
-        
+
         return CreatePlanResult(
             success = true,
-            message = "Plan '${args.goal}' created with ${plan.steps.size} steps. EXECUTION STARTED.",
-            firstStep = "IMMEDIATE ACTION: ${firstStep?.description}. Execute this now."
+            message = context.getString(com.example.smarty.R.string.plan_created, args.goal, plan.steps.size),
+            firstStep = context.getString(com.example.smarty.R.string.immediate_action, firstStep?.description ?: "")
         )
     }
 }

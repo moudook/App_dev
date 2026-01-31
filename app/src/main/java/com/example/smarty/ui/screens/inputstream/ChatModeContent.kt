@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import com.example.smarty.ui.components.ChatEmptyState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,8 +42,10 @@ import com.example.smarty.R
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.Note
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.components.ChatEmptyState
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.components.ChatMessageItem
+
+import com.example.smarty.ui.components.MessageGroupPosition
 
 /**
  * Chat mode content displaying AI conversation messages.
@@ -63,7 +66,7 @@ fun ChatModeContent(
     modifier: Modifier = Modifier
 ) {
     val accentColor = LocalAccentColor.current
-    
+
     Box(modifier = modifier.fillMaxSize()) {
         // Chat messages content
         if (chatMessages.isEmpty()) {
@@ -73,33 +76,65 @@ fun ChatModeContent(
                 state = chatListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = contentPadding,
-                verticalArrangement = Arrangement.spacedBy(16.dp) // Increased spacing for a calmer feel
+                // We handle spacing manually for dynamic grouping
+                verticalArrangement = Arrangement.Top
             ) {
                 items(
-                    items = chatMessages,
-                    key = { it.id },
-                    contentType = { it.role }
-                ) { message ->
+                    count = chatMessages.size,
+                    key = { index -> chatMessages[index].id },
+                    contentType = { index -> chatMessages[index].role }
+                ) { index ->
+                    val message = chatMessages[index]
+                    val prevMessage = chatMessages.getOrNull(index - 1)
+                    val nextMessage = chatMessages.getOrNull(index + 1)
+
+                    // Grouping Logic: Check roles
+                    val isSameAsPrev = prevMessage?.role == message.role
+                    val isSameAsNext = nextMessage?.role == message.role
+
+                    // Calculate position in group
+                    val groupPosition = when {
+                        !isSameAsPrev && !isSameAsNext -> MessageGroupPosition.SINGLE
+                        !isSameAsPrev && isSameAsNext -> MessageGroupPosition.TOP
+                        isSameAsPrev && isSameAsNext -> MessageGroupPosition.MIDDLE
+                        isSameAsPrev && !isSameAsNext -> MessageGroupPosition.BOTTOM
+                        else -> MessageGroupPosition.SINGLE
+                    }
+
+                    // Dynamic Spacing Logic
+                    // Different sender (or first item) = Large gap (24dp)
+                    // Same sender = Small gap (2.dp) - handled by item padding logic effectively
+                    // We add top padding here
+                    val topSpacing = if (index == 0) 0.dp else if (isSameAsPrev) 2.dp else 24.dp
+
                     // Stabilize getNote lambda - only recreate when notes change
                     val stableGetNote = remember(notes) {
                         { id: String -> notes.find { it.id == id } }
                     }
+
                     ChatMessageItem(
                         message = message,
+                        groupPosition = groupPosition,
                         getNote = stableGetNote,
                         onNoteClick = onNoteClick,
                         onSuggestionClick = { suggestion ->
                             // Send the clicked suggestion as a new message
                             onSendChatMessage(suggestion, emptyList())
-                        }
+                        },
+                        modifier = Modifier.padding(top = topSpacing)
                     )
                 }
 
                 // ═══════════════════════════════════════════════════════════════════════════
                 // INLINE TOOL INDICATOR (ChatGPT-style)
                 // Appears as the last item in the chat while the agent is working
+                // Logic: Show if (Tool Active) OR (Processing AND Last message is NOT from Assistant)
+                // This prevents the indicator from persisting after the assistant has replied.
                 // ═══════════════════════════════════════════════════════════════════════════
-                if (!currentToolName.isNullOrBlank() || isChatProcessing) {
+                val lastMessageIsAssistant = chatMessages.lastOrNull()?.role == com.example.smarty.data.model.ChatRole.ASSISTANT
+                val showIndicator = !currentToolName.isNullOrBlank() || (isChatProcessing && !lastMessageIsAssistant)
+
+                if (showIndicator) {
                     item(key = "tool_indicator") {
                         val infiniteTransition = rememberInfiniteTransition(label = "tool_pulse")
                         val pulseAlpha by infiniteTransition.animateFloat(
@@ -121,7 +156,7 @@ fun ChatModeContent(
                                 currentToolName.contains("manager", ignoreCase = true) -> "🛠️"
                                 currentToolName.contains("system", ignoreCase = true) -> "⚙️"
                                 currentToolName.contains("interface", ignoreCase = true) -> "🖥️"
-                                currentToolName.contains("cognitive", ignoreCase = true) -> "🧠"
+                                currentToolName.contains("intelligence", ignoreCase = true) -> "🧠"
                                 currentToolName.contains("core", ignoreCase = true) -> "💎"
                                 currentToolName.contains("orchestrator", ignoreCase = true) -> "🎼"
                                 currentToolName.contains("search", ignoreCase = true) -> "🔍"
@@ -136,7 +171,7 @@ fun ChatModeContent(
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 8.dp)
+                                .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp)
                                 .animateItem(),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), // More subtle
                             shape = RoundedCornerShape(20.dp),
@@ -150,16 +185,14 @@ fun ChatModeContent(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center // Center the status text
                             ) {
-                                // Pulsing dot indicator
-                                Box(
-                                    modifier = Modifier
-                                        .size(4.dp)
-                                        .graphicsLayer { alpha = pulseAlpha }
-                                        .clip(CircleShape)
-                                        .background(accentColor)
+                                // Calm Thinking Dots indicator
+                                CalmThinkingDots(
+                                    color = accentColor,
+                                    dotSize = 6.dp, // Slightly larger
+                                    dotSpacing = 4.dp
                                 )
 
-                                Spacer(Modifier.width(10.dp))
+                                Spacer(Modifier.width(12.dp))
 
                                 Text(
                                     text = statusText.lowercase(), // Systematic lowercase
@@ -171,7 +204,7 @@ fun ChatModeContent(
                                 )
                             }
                         }
-                        
+
                         // Auto-scroll when tool indicator appears
                         LaunchedEffect(Unit) {
                             chatListState.animateScrollToItem(chatMessages.size)

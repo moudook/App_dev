@@ -7,7 +7,7 @@ import androidx.room.Transaction
 import android.util.Log
 import com.example.smarty.data.local.CalendarDao
 import com.example.smarty.data.local.CategoryDao
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.local.NoteVersionDao
 import com.example.smarty.data.model.NoteVersion
@@ -19,12 +19,21 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 
-class JarvisRepository(
+class SmartyRepository(
     private val noteDao: NoteDao,
     private val categoryDao: CategoryDao,
     private val calendarDao: CalendarDao,  // Required for calendar functionality
-    private val noteVersionDao: NoteVersionDao? = null  // Optional for backwards compatibility
+    private val noteVersionDao: NoteVersionDao? = null,  // Optional for backwards compatibility
+    private val context: android.content.Context? = null
 ) {
+    /**
+     * Get application context.
+     * Required for some AI fallback logic and resource resolution.
+     */
+    fun getApplicationContext(): android.content.Context {
+        return context ?: com.example.smarty.SmartyApplication.appInstance.applicationContext
+    }
+
     // Notes
     fun getAllNotes(): Flow<List<Note>> = noteDao.getAllNotes()
         .distinctUntilChanged()
@@ -71,7 +80,7 @@ class JarvisRepository(
         if (sanitizedQuery.isBlank()) return emptyList()
 
         return try {
-            when (JarvisDatabase.getFtsVersion()) {
+            when (SmartyDatabase.getFtsVersion()) {
                 5 -> {
                     Log.d(TAG, "Using FTS5 search")
                     noteDao.searchNotesFts(sanitizedQuery)
@@ -99,7 +108,7 @@ class JarvisRepository(
         if (sanitizedQuery.isBlank()) return emptyList()
 
         return try {
-            when (JarvisDatabase.getFtsVersion()) {
+            when (SmartyDatabase.getFtsVersion()) {
                 5 -> noteDao.searchNotesFtsWithType(sanitizedQuery, types)
                 4 -> noteDao.searchNotesFts4WithType(sanitizedQuery, types)
                 else -> noteDao.searchNotes(query, types, true).first()
@@ -120,7 +129,7 @@ class JarvisRepository(
         }
 
         return try {
-            when (JarvisDatabase.getFtsVersion()) {
+            when (SmartyDatabase.getFtsVersion()) {
                 5 -> noteDao.searchNotesFtsFlow(sanitizedQuery).distinctUntilChanged()
                 4 -> noteDao.searchNotesFts4Flow(sanitizedQuery).distinctUntilChanged()
                 else -> noteDao.searchNotes(query, emptyList(), false).distinctUntilChanged()
@@ -152,7 +161,7 @@ class JarvisRepository(
     // =========================================================================
 
     companion object {
-        private const val TAG = "JarvisRepository"
+        private const val TAG = "SmartyRepository"
 
         // Default paging configuration - 20 items per page, prefetch 2 pages
         private val DEFAULT_PAGING_CONFIG = PagingConfig(

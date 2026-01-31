@@ -1,6 +1,8 @@
 package com.example.smarty.util
 
 import com.example.smarty.data.model.NoteType
+import android.content.Context
+import com.example.smarty.R
 
 /**
  * Utility object for detecting content types from text, URLs, and MIME types.
@@ -140,64 +142,57 @@ object ContentTypeDetector {
     )
 
     /**
-     * Storage category names for non-analyzable file types.
-     * Used to automatically categorize files that don't need AI processing.
+     * Storage category resource IDs for non-analyzable file types.
      */
-    private val STORAGE_CATEGORY_MAP: Map<NoteType, String> = hashMapOf(
-        NoteType.APK to "Saved Apps",
-        NoteType.ARCHIVE to "Saved Archives",
-        NoteType.VIDEO to "Saved Videos",
-        NoteType.AUDIO to "Saved Audio",
-        NoteType.FILE to "Saved Files"
-    )
-
-    // ==================== Title Generation ====================
-
-    /**
-     * O(1) title lookup array indexed by NoteType ordinal.
-     * Returns null for BRAIN_DUMP (uses content preview instead).
-     */
-    private val TYPE_TITLES = arrayOf(
-        null,              // BRAIN_DUMP - uses content preview
-        "YouTube Video",   // YOUTUBE
-        "Web Link",        // WEBSITE
-        "Image",           // IMAGE
-        "Tweet",           // TWITTER
-        "Instagram Post",  // INSTAGRAM
-        "Document",        // DOCUMENT
-        "Spreadsheet",     // SPREADSHEET
-        "Presentation",    // PRESENTATION
-        "Video",           // VIDEO
-        "Audio",           // AUDIO
-        "Code File",       // CODE
-        "Archive",         // ARCHIVE
-        "APK File",        // APK
-        "File"             // FILE
+    private val STORAGE_CATEGORY_RES_MAP: Map<NoteType, Int> = hashMapOf(
+        NoteType.APK to R.string.category_saved_apps,
+        NoteType.ARCHIVE to R.string.category_saved_archives,
+        NoteType.VIDEO to R.string.category_saved_videos,
+        NoteType.AUDIO to R.string.category_saved_audio,
+        NoteType.FILE to R.string.category_saved_files
     )
 
     /**
-     * Default titles for shared files by type.
-     * Used when no specific title can be extracted.
+     * Note type title resource IDs.
      */
-    private val DEFAULT_TITLES = arrayOf(
-        "Shared Content",     // BRAIN_DUMP
-        "Shared Content",     // YOUTUBE
-        "Shared Content",     // WEBSITE
-        "Shared Image",       // IMAGE
-        "Shared Content",     // TWITTER
-        "Shared Content",     // INSTAGRAM
-        "Shared Document",    // DOCUMENT
-        "Shared Spreadsheet", // SPREADSHEET
-        "Shared Presentation",// PRESENTATION
-        "Shared Video",       // VIDEO
-        "Shared Audio",       // AUDIO
-        "Shared Code",        // CODE
-        "Shared Archive",     // ARCHIVE
-        "Shared APK",         // APK
-        "Shared File"         // FILE
+    private val TYPE_TITLE_RES = arrayOf(
+        0,                             // BRAIN_DUMP
+        R.string.note_type_youtube,    // YOUTUBE
+        R.string.note_type_website,    // WEBSITE
+        R.string.note_type_image,      // IMAGE
+        R.string.note_type_twitter,    // TWITTER
+        R.string.note_type_instagram,  // INSTAGRAM
+        R.string.note_type_document,   // DOCUMENT
+        R.string.note_type_spreadsheet,// SPREADSHEET
+        R.string.note_type_presentation,// PRESENTATION
+        R.string.note_type_video,      // VIDEO
+        R.string.note_type_audio,      // AUDIO
+        R.string.note_type_code,       // CODE
+        R.string.note_type_archive,    // ARCHIVE
+        R.string.note_type_apk,        // APK
+        R.string.note_type_file        // FILE
     )
 
-    // ==================== File Size Formatting ====================
+    /**
+     * Default title resource IDs for shared files.
+     */
+    private val DEFAULT_TITLE_RES = arrayOf(
+        R.string.default_title_content,     // BRAIN_DUMP
+        R.string.default_title_content,     // YOUTUBE
+        R.string.default_title_content,     // WEBSITE
+        R.string.default_title_image,       // IMAGE
+        R.string.default_title_content,     // TWITTER
+        R.string.default_title_content,     // INSTAGRAM
+        R.string.default_title_document,    // DOCUMENT
+        R.string.default_title_spreadsheet, // SPREADSHEET
+        R.string.default_title_presentation,// PRESENTATION
+        R.string.default_title_video,       // VIDEO
+        R.string.default_title_audio,       // AUDIO
+        R.string.default_title_code,        // CODE
+        R.string.default_title_archive,     // ARCHIVE
+        R.string.default_title_apk,         // APK
+        R.string.default_title_file         // FILE
+    )
 
     /**
      * File size unit labels for formatting.
@@ -209,40 +204,25 @@ object ContentTypeDetector {
      */
     private const val SIZE_THRESHOLD = 1024L
 
-    // ==================== AI Response Templates ====================
+    // ==================== AI Response Template resource keys ====================
 
-    /**
-     * Pre-computed AI responses indexed by NoteType ordinal.
-     * Format: Triple(tag (max 2 words), brutal summary (3 lines max), intent)
-     * Returns null for types that require content analysis (BRAIN_DUMP) or aren't analyzable.
-     */
-    private val AI_RESPONSES = arrayOf<Triple<String, String, String>?>(
-        null, // BRAIN_DUMP - requires content analysis
-        Triple("Learn", "Tutorial or educational content. Watch to level up skills.", "To learn something"),
-        Triple("Read", "Article worth reading. Key info inside.", "To read later"),
-        Triple("Visual", "Image reference. Useful for inspiration or context.", "For reference"),
-        Triple("Tweet", "Hot take or insight. Social signal worth noting.", "Perspective matters"),
-        Triple("Inspo", "Visual content. Creative fuel for future projects.", "Creative spark"),
-        Triple("Docs", "Document to review. Contains important information.", "Need this info"),
-        Triple("Data", "Numbers and data. Analyze when needed.", "For analysis"),
-        Triple("Slides", "Presentation deck. Review the key points.", "To review"),
-        Triple("Watch", "Video content. Queue for later viewing.", "To watch later")
+    private val MOCK_AI_RES_PREFIXES = arrayOf(
+        null,    // BRAIN_DUMP
+        "learn", // YOUTUBE
+        "read",  // WEBSITE
+        "visual",// IMAGE
+        "tweet", // TWITTER
+        "inspo", // INSTAGRAM
+        "docs",  // DOCUMENT
+        "data",  // SPREADSHEET
+        "slides",// PRESENTATION
+        "watch"  // VIDEO
     )
 
     // ==================== Public API ====================
 
     /**
      * Detects the content type from text content.
-     *
-     * Checks for URL patterns in the following order:
-     * 1. YouTube URLs
-     * 2. Twitter/X URLs
-     * 3. Instagram URLs
-     * 4. Other URLs (websites)
-     * 5. Falls back to BRAIN_DUMP for plain text
-     *
-     * @param text The text content to analyze
-     * @return The detected [NoteType]
      */
     fun detectContentType(text: String): NoteType {
         return when {
@@ -256,20 +236,14 @@ object ContentTypeDetector {
 
     /**
      * Detects the content type from a MIME type string.
-     *
-     * Uses O(1) hash map lookup for exact matches, then falls back to
-     * prefix matching for media types (image, video, audio wildcards).
-     *
-     * @param mimeType The MIME type string (e.g., "application/pdf")
-     * @return The detected [NoteType], defaults to FILE if unknown
      */
     fun detectTypeFromMime(mimeType: String?): NoteType {
         if (mimeType == null) return NoteType.FILE
 
-        // Fast path: direct lookup in hash map - O(1) average
+        // Fast path: direct lookup in hash map
         MIME_TYPE_MAP[mimeType]?.let { return it }
 
-        // Prefix matching for media categories - O(1) with substring check
+        // Prefix matching for media categories
         return when {
             mimeType.startsWith("image/") -> NoteType.IMAGE
             mimeType.startsWith("video/") -> NoteType.VIDEO
@@ -281,17 +255,11 @@ object ContentTypeDetector {
 
     /**
      * Extracts the first URL from text content.
-     *
-     * @param text The text to search for URLs
-     * @return The first URL found, or null if none
      */
     fun extractUrl(text: String): String? = URL_PATTERN.find(text)?.value
 
     /**
      * Extracts the YouTube video ID from a URL or text containing a URL.
-     *
-     * @param text The text to search
-     * @return The video ID if found, null otherwise
      */
     fun extractYouTubeId(text: String): String? {
         return YOUTUBE_ID_PATTERN.find(text)?.groupValues?.get(1)
@@ -299,176 +267,117 @@ object ContentTypeDetector {
 
     /**
      * Generates a title for a note based on its content and type.
-     *
-     * For specific types (YouTube, Twitter, etc.), returns a descriptive title.
-     * For BRAIN_DUMP, creates a preview from the content (max 50 chars).
-     *
-     * @param content The note content
-     * @param type The detected note type
-     * @return A suitable title for the note
      */
-    fun extractTitle(content: String, type: NoteType): String {
-        TYPE_TITLES[type.ordinal]?.let { return it }
+    fun extractTitle(context: Context, content: String, type: NoteType): String {
+        val resId = TYPE_TITLE_RES.getOrNull(type.ordinal) ?: 0
+        if (resId != 0) return context.getString(resId)
+
         // BRAIN_DUMP: create preview from content
         return if (content.length > 50) "${content.take(50)}..." else content
     }
 
     /**
      * Gets the default title for a note type.
-     * Used when no specific title can be extracted from content.
-     *
-     * @param type The note type
-     * @return The default title for that type
      */
-    fun getDefaultTitle(type: NoteType): String = DEFAULT_TITLES[type.ordinal]
+    fun getDefaultTitle(context: Context, type: NoteType): String {
+        val resId = DEFAULT_TITLE_RES.getOrNull(type.ordinal) ?: R.string.default_title_content
+        return context.getString(resId)
+    }
 
     /**
      * Gets the storage category name for a file type.
-     * Used for non-analyzable files that are automatically categorized.
-     *
-     * @param type The note type
-     * @return The category name (e.g., "Saved Apps" for APK)
      */
-    fun getStorageCategoryName(type: NoteType): String =
-        STORAGE_CATEGORY_MAP[type] ?: "Saved Files"
+    fun getStorageCategoryName(context: Context, type: NoteType): String {
+        val resId = STORAGE_CATEGORY_RES_MAP[type] ?: R.string.category_saved_files
+        return context.getString(resId)
+    }
 
     /**
      * Formats a file size in bytes to a human-readable string.
-     * Uses logarithmic calculation for efficient unit selection.
-     *
-     * @param bytes The file size in bytes
-     * @return Formatted string (e.g., "1.5 MB", "256 KB")
      */
-    fun formatFileSize(bytes: Long): String {
-        if (bytes < SIZE_THRESHOLD) return "$bytes ${SIZE_UNITS[0]}"
-
-        // Use log base 1024 to find the right unit - O(1)
+    fun formatFileSize(context: Context, bytes: Long): String {
+        if (bytes < SIZE_THRESHOLD) return "$bytes ${context.getString(R.string.size_unit_b)}"
         val unitIndex = minOf(
             (63 - java.lang.Long.numberOfLeadingZeros(bytes)) / 10,
             SIZE_UNITS.size - 1
         )
-        val divisor = 1L shl (unitIndex * 10) // 2^(unitIndex * 10) using bit shift
-        return "${bytes / divisor} ${SIZE_UNITS[unitIndex]}"
+        val divisor = 1L shl (unitIndex * 10)
+        val unitResId = when (unitIndex) {
+            1 -> R.string.size_unit_kb
+            2 -> R.string.size_unit_mb
+            3 -> R.string.size_unit_gb
+            else -> R.string.size_unit_b
+        }
+        return "${bytes / divisor} ${context.getString(unitResId)}"
     }
 
     /**
      * Formats a file size with decimal precision for larger sizes.
-     *
-     * @param bytes The file size in bytes
-     * @return Formatted string with decimal for MB+ sizes
      */
-    fun formatSize(bytes: Long): String {
+    fun formatSize(context: android.content.Context, bytes: Long): String {
         return when {
-            bytes < 1024 -> "$bytes B"
-            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
-            else -> String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+            bytes < 1024 -> "$bytes ${context.getString(R.string.size_unit_b)}"
+            bytes < 1024 * 1024 -> "${bytes / 1024} ${context.getString(R.string.size_unit_kb)}"
+            else -> String.format("%.1f ${context.getString(R.string.size_unit_mb)}", bytes / (1024.0 * 1024.0))
         }
     }
 
     /**
      * Generates a mock AI response for a note type.
-     * Used for offline fallback when AI service is unavailable.
-     *
-     * For BRAIN_DUMP content, analyzes keywords to categorize the note.
-     * For other types, returns pre-computed responses.
-     *
-     * @param type The note type
-     * @param content The note content (used for BRAIN_DUMP analysis)
-     * @return Triple of (category tag, summary, intent)
      */
-    fun generateMockAiResponse(type: NoteType, content: String): Triple<String, String, String> {
+    fun generateMockAiResponse(context: Context, type: NoteType, content: String): Triple<String, String, String> {
         val ordinal = type.ordinal
 
-        // Fast path: O(1) array lookup for pre-computed responses
         if (ordinal in 1..9) {
-            AI_RESPONSES[ordinal]?.let { return it }
+            MOCK_AI_RES_PREFIXES[ordinal]?.let { prefix ->
+                val tag = context.getString(context.resources.getIdentifier("mock_ai_tag_$prefix", "string", context.packageName))
+                val summary = context.getString(context.resources.getIdentifier("mock_ai_summary_$prefix", "string", context.packageName))
+                val intent = context.getString(context.resources.getIdentifier("mock_ai_intent_$prefix", "string", context.packageName))
+                return Triple(tag, summary, intent)
+            }
         }
 
-        // Non-analyzable types fallback - O(1) using storage category map
         if (!NoteType.isAnalyzable(type)) {
-            return Triple(getStorageCategoryName(type), "", "")
+            return Triple(getStorageCategoryName(context, type), "", "")
         }
 
-        // BRAIN_DUMP: keyword analysis with pre-compiled regex - O(n)
-        return analyzeBrainDumpContent(content)
+        return analyzeBrainDumpContent(context, content)
     }
 
-    /**
-     * Analyzes brain dump content to categorize based on keywords.
-     * Uses pre-compiled regex patterns for efficient matching.
-     *
-     * @param content The brain dump content to analyze
-     * @return Triple of (category tag (2 words max), brutal summary, intent)
-     */
-    private fun analyzeBrainDumpContent(content: String): Triple<String, String, String> {
-        return when {
-            CODE_PATTERN.containsMatchIn(content) -> Triple(
-                "Code",
-                "Code snippet saved. Copy-paste ready when needed.",
-                "Dev reference"
-            )
-            QUOTE_PATTERN.containsMatchIn(content) -> Triple(
-                "Quote",
-                "Words worth remembering. Wisdom captured.",
-                "Words matter"
-            )
-            BUY_PATTERN.containsMatchIn(content) -> Triple(
-                "Buy",
-                "Shopping note. Item to purchase or consider.",
-                "Need to get this"
-            )
-            TASK_PATTERN.containsMatchIn(content) -> Triple(
-                "Todo",
-                "Action required. Don't forget to execute.",
-                "Must do this"
-            )
-            LEARN_PATTERN.containsMatchIn(content) -> Triple(
-                "Study",
-                "Learning note. Review to retain knowledge.",
-                "Building knowledge"
-            )
-            IDEA_PATTERN.containsMatchIn(content) -> Triple(
-                "Idea",
-                "Raw thought captured. Revisit and expand later.",
-                "Future me needs this"
-            )
-            else -> Triple(
-                "Note",
-                "Quick capture. Context preserved for later.",
-                "Just needed to save"
-            )
+    private fun analyzeBrainDumpContent(context: Context, content: String): Triple<String, String, String> {
+        val prefix = when {
+            CODE_PATTERN.containsMatchIn(content) -> "code"
+            QUOTE_PATTERN.containsMatchIn(content) -> "quote"
+            BUY_PATTERN.containsMatchIn(content) -> "buy"
+            TASK_PATTERN.containsMatchIn(content) -> "todo"
+            LEARN_PATTERN.containsMatchIn(content) -> "study"
+            IDEA_PATTERN.containsMatchIn(content) -> "idea"
+            else -> "note"
         }
+
+        val tag = context.getString(context.resources.getIdentifier("mock_ai_tag_$prefix", "string", context.packageName))
+        val summary = context.getString(context.resources.getIdentifier("mock_ai_summary_$prefix", "string", context.packageName))
+        val intent = context.getString(context.resources.getIdentifier("mock_ai_intent_$prefix", "string", context.packageName))
+        return Triple(tag, summary, intent)
     }
 
     /**
      * Checks if content contains a URL.
-     *
-     * @param text The text to check
-     * @return true if the text contains a URL
      */
     fun containsUrl(text: String): Boolean = PROTOCOL_PATTERN.containsMatchIn(text)
 
     /**
      * Checks if content is a YouTube URL.
-     *
-     * @param text The text to check
-     * @return true if the text contains a YouTube URL
      */
     fun isYouTubeUrl(text: String): Boolean = YOUTUBE_PATTERN.containsMatchIn(text)
 
     /**
      * Checks if content is a Twitter/X URL.
-     *
-     * @param text The text to check
-     * @return true if the text contains a Twitter/X URL
      */
     fun isTwitterUrl(text: String): Boolean = TWITTER_PATTERN.containsMatchIn(text)
 
     /**
      * Checks if content is an Instagram URL.
-     *
-     * @param text The text to check
-     * @return true if the text contains an Instagram URL
      */
     fun isInstagramUrl(text: String): Boolean = INSTAGRAM_PATTERN.containsMatchIn(text)
 }

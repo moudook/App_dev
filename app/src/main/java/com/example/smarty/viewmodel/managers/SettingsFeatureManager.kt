@@ -61,7 +61,15 @@ class SettingsFeatureManager(
     // --- UI/System Preferences ---
     val isDarkTheme: StateFlow<Boolean> = securePreferences.isDarkTheme
 
-    private val _shakeSensitivity = MutableStateFlow(securePreferences.getShakeSensitivity())
+    // Map logic sensitivity (0.5..5.0) to UI range (0.0..1.0)
+    // Logic 5.0 (Low) -> UI 0.0
+    // Logic 0.5 (High) -> UI 1.0
+    private fun mapLogicToUi(logic: Float): Float = ((5.0f - logic) / 4.5f).coerceIn(0f, 1f)
+
+    // Map UI range (0.0..1.0) to logic sensitivity (5.0..0.5)
+    private fun mapUiToLogic(ui: Float): Float = (5.0f - (ui * 4.5f)).coerceIn(0.5f, 5.0f)
+
+    private val _shakeSensitivity = MutableStateFlow(mapLogicToUi(securePreferences.getShakeSensitivity()))
     val shakeSensitivity: StateFlow<Float> = _shakeSensitivity.asStateFlow()
 
     // --- AI Provider Actions ---
@@ -220,10 +228,14 @@ class SettingsFeatureManager(
         securePreferences.setDarkTheme(isDark)
     }
 
-    fun setShakeSensitivity(sensitivity: Float) {
-        val clamped = sensitivity.coerceIn(0.5f, 5.0f)
-        securePreferences.setShakeSensitivity(clamped)
-        _shakeSensitivity.value = clamped
+    /**
+     * Set shake sensitivity.
+     * @param uiSensitivity Value from UI (0.0 to 1.0)
+     */
+    fun setShakeSensitivity(uiSensitivity: Float) {
+        val logicValue = mapUiToLogic(uiSensitivity)
+        securePreferences.setShakeSensitivity(logicValue)
+        _shakeSensitivity.value = uiSensitivity.coerceIn(0f, 1f)
     }
 
     fun getShakeThreshold(): Int = securePreferences.getShakeThreshold()

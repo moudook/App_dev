@@ -51,6 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.MentionState
 import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.NoteType
@@ -116,7 +118,7 @@ fun MentionDropdown(
             ) {
                 // Header
                 Text(
-                    text = if (mentionState.query.isBlank()) "quick_access" else "suggestions",
+                    text = if (mentionState.query.isBlank()) stringResource(R.string.quick_access) else stringResource(R.string.suggestions),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -149,11 +151,12 @@ private fun MentionSuggestionItem(
 ) {
     val accentColor = LocalAccentColor.current
     val highlightColor = if (isHighlighted) {
-        accentColor.copy(alpha = 0.12f)
+        accentColor.copy(alpha = 0.08f) // Refined Soft Tech highlight opacity
     } else {
         Color.Transparent
     }
-    val itemShape = LocalShapes.current.cardSmall
+    // Use explicit shape for consistency with other inputs/bubbles
+    val itemShape = RoundedCornerShape(16.dp)
 
     Box(
         modifier = Modifier
@@ -280,7 +283,7 @@ private fun CategorySuggestionContent(
 
             // Category subtitle
             Text(
-                text = "category",
+                text = stringResource(R.string.category),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 maxLines = 1
@@ -334,7 +337,7 @@ private fun TypeFilterContent(
 
             // Description
             Text(
-                text = "filter:_\\${suggestion.displayName.lowercase()}",
+                text = stringResource(R.string.filter_prefix, suggestion.displayName.lowercase()),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
@@ -445,7 +448,7 @@ private fun CommandSuggestionContent(
             contentColor = accentColor
         ) {
             Text(
-                text = "ai",
+                text = stringResource(R.string.ai_badge),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold

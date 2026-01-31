@@ -114,13 +114,13 @@ class CompletionSoundManager private constructor(private val context: Context) {
      */
     suspend fun playAgentCompletionSound(
         isAppInForeground: Boolean,
-        title: String = "AI Response Ready"
+        title: String = context.getString(R.string.ai_response_ready)
     ) = withContext(Dispatchers.Main) {
         playCompletionSound(
             isAppInForeground = isAppInForeground,
             notificationId = NOTIFICATION_ID_AGENT,
             title = title,
-            message = "Your AI assistant has finished processing"
+            message = context.getString(R.string.ai_finished_processing)
         )
     }
 
@@ -135,15 +135,15 @@ class CompletionSoundManager private constructor(private val context: Context) {
         noteTitle: String? = null
     ) = withContext(Dispatchers.Main) {
         val message = if (noteTitle != null) {
-            "\"$noteTitle\" has been processed"
+            context.getString(R.string.note_processed_detail, noteTitle)
         } else {
-            "Your note has been categorized"
+            context.getString(R.string.note_categorized)
         }
 
         playCompletionSound(
             isAppInForeground = isAppInForeground,
             notificationId = NOTIFICATION_ID_NOTECARD,
-            title = "Note Processed",
+            title = context.getString(R.string.note_processed),
             message = message
         )
     }

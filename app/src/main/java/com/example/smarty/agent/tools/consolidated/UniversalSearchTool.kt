@@ -15,8 +15,10 @@ import kotlinx.serialization.encodeToString
 
 @Serializable
 data class UniversalSearchArgs(
-    @property:LLMDescription("The search query. Can be natural language.")
-    val query: String,
+    @property:LLMDescription("List of 3-5 distinct search queries for deep research. Use this for complex topics.")
+    val queries: List<String> = emptyList(),
+    @property:LLMDescription("Single search query (legacy). Use 'queries' for research.")
+    val query: String? = null,
     @property:LLMDescription("Search scope: 'web', 'internal', or 'both'")
     val scope: String = "both",
     @property:LLMDescription("Maximum results per category (1-10)")
@@ -78,6 +80,7 @@ class UniversalSearchTool(
     private val onSearchInternal: suspend (String, String?, String?, String, Int) -> List<SearchResultItem>,
     private val onAdvancedSearch: suspend (String, String, Int, Double) -> List<SearchResultItem>,
     private val onWebSearch: suspend (String, Int, String, (List<WebCitation>) -> Unit) -> WebSearchResult,
+    private val onParallelWebSearch: suspend (List<String>, Int, String, (List<WebCitation>) -> Unit) -> WebSearchResult,
     private val onAnalyzeQuery: (String) -> SearchQueryAnalysis,
     private val onRecall: suspend (String, Double) -> List<RecallResult>,
     private val onCitationsFound: (List<WebCitation>) -> Unit,
@@ -87,8 +90,8 @@ class UniversalSearchTool(
     resultSerializer = UniversalSearchResult.serializer(),
     name = "universal_search",
     description = """
-        The primary search engine. Handles web search, internal note search, and semantic recall.
-        Use this for finding ANY information.
+        The primary search engine. Handles web search (parallel supported), internal note search, and semantic recall.
+        Use 'queries' (plural) for deep research to check multiple sources simultaneously.
 
         SCOPES:
         - both (default): Web + Internal.
@@ -100,8 +103,9 @@ class UniversalSearchTool(
 
     override suspend fun execute(args: UniversalSearchArgs): UniversalSearchResult {
         return try {
-            onStatusUpdate("Analyzing query...")
-            val analysis = onAnalyzeQuery(args.query)
+            val primaryQuery = args.query ?: args.queries.firstOrNull() ?: ""
+            onStatusUpdate("status_analyzing_query")
+            val analysis = onAnalyzeQuery(primaryQuery)
 
             val webResults = mutableListOf<WebResult>()
             val internalResults = mutableListOf<UniversalInternalItem>()
@@ -109,8 +113,18 @@ class UniversalSearchTool(
 
             // 1. Web Search
             if (args.scope == "web" || args.scope == "both") {
-                onStatusUpdate("Searching web...")
-                val res = onWebSearch(args.query, args.limit, "general", onCitationsFound)
+                onStatusUpdate("status_searching_web")
+
+                val res = if (args.queries.isNotEmpty()) {
+                    // Parallel Search (Deep Research)
+                    onParallelWebSearch(args.queries, args.limit, "general", onCitationsFound)
+                } else if (!args.query.isNullOrBlank()) {
+                    // Single Search (Legacy)
+                    onWebSearch(args.query, args.limit, "general", onCitationsFound)
+                } else {
+                    WebSearchResult(false, "", "No query provided")
+                }
+
                 if (res.success) {
                     res.results?.let { webResults.addAll(it) }
                 }
@@ -118,43 +132,45 @@ class UniversalSearchTool(
 
             // 2. Internal Search
             if (args.scope == "internal" || args.scope == "both") {
-                onStatusUpdate("Searching notes...")
-                val rawInternal = if (args.algorithm == "hybrid" && args.category == null && args.type == null && args.time_range == "all") {
-                    onAdvancedSearch(args.query, args.algorithm, args.limit, args.threshold)
-                } else {
-                    onSearchInternal(args.query, args.category, args.type, args.time_range, args.limit)
+                if (primaryQuery.isNotBlank()) {
+                    onStatusUpdate("status_searching_notes")
+                    val rawInternal = if (args.algorithm == "hybrid" && args.category == null && args.type == null && args.time_range == "all") {
+                        onAdvancedSearch(primaryQuery, args.algorithm, args.limit, args.threshold)
+                    } else {
+                        onSearchInternal(primaryQuery, args.category, args.type, args.time_range, args.limit)
+                    }
+
+                    internalResults.addAll(rawInternal.map {
+                        UniversalInternalItem(
+                            id = it.note.id,
+                            title = it.note.title,
+                            preview = it.note.content.take(200),
+                            score = it.score.toDouble(),
+                            type = it.note.type.name,
+                            category = it.note.categoryName,
+                            tags = it.note.getTags()
+                        )
+                    })
+
+                    // 3. Recall
+                    onStatusUpdate("status_recalling_context")
+                    val recall = onRecall(primaryQuery, args.threshold)
+                    recalledFacts.addAll(recall.map {
+                        UniversalRecallItem(it.title, it.content, it.reason, it.score)
+                    })
                 }
-
-                internalResults.addAll(rawInternal.map {
-                    UniversalInternalItem(
-                        id = it.note.id,
-                        title = it.note.title,
-                        preview = it.note.content.take(200),
-                        score = it.score.toDouble(),
-                        type = it.note.type.name,
-                        category = it.note.categoryName,
-                        tags = it.note.getTags()
-                    )
-                })
-
-                // 3. Recall
-                onStatusUpdate("Recalling context...")
-                val recall = onRecall(args.query, args.threshold)
-                recalledFacts.addAll(recall.map {
-                    UniversalRecallItem(it.title, it.content, it.reason, it.score)
-                })
             }
 
             UniversalSearchResult(
                 success = true,
-                message = "Search complete.",
+                message = "search_complete",
                 web_results = webResults,
                 internal_results = internalResults,
                 recalled_facts = recalledFacts,
                 analysis = UniversalQueryAnalysis(analysis.parsedKeywords, analysis.detectedIntent, analysis.complexity)
             )
         } catch (e: Exception) {
-            UniversalSearchResult(false, "Search error: ${e.message}")
+            UniversalSearchResult(false, "batch_error_failed|${e.message}")
         }
     }
 }

@@ -97,6 +97,7 @@ fun ShareBottomSheet(
     var selectedCategory by remember(shareKey) { mutableStateOf<String?>(pendingShare.suggestedCategory) }
     var letAIDecide by remember(shareKey, isFullPrivacy) { mutableStateOf(!isFullPrivacy) }
     var aiInstructions by remember(shareKey) { mutableStateOf("") }
+    var isProcessing by remember { mutableStateOf(false) }
 
     LaunchedEffect(isFullPrivacy) {
         if (isFullPrivacy) {
@@ -105,7 +106,9 @@ fun ShareBottomSheet(
     }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            if (!isProcessing) onDismiss()
+        },
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         containerColor = MaterialTheme.colorScheme.surface,
@@ -142,14 +145,15 @@ fun ShareBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.save_to_jarvis),
+                    text = stringResource(R.string.save_to_smarty),
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                     ),
                     color = LocalAccentColor.current
                 )
                 IconButton(
-                    onClick = onDismiss,
+                    onClick = { if (!isProcessing) onDismiss() },
+                    enabled = !isProcessing,
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
@@ -313,9 +317,11 @@ fun ShareBottomSheet(
 
                 Button(
                     onClick = {
+                        isProcessing = true
                         val category = if (letAIDecide) null else selectedCategory
                         onSave(category, aiInstructions)
                     },
+                    enabled = !isProcessing,
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -324,13 +330,21 @@ fun ShareBottomSheet(
                     ),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Save,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.save_note))
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.save_note))
+                    }
                 }
             }
         }
@@ -392,8 +406,9 @@ private fun SharePreviewCard(pendingShare: PendingShareData) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (pendingShare.fileSize != null && pendingShare.fileSize > 0) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     Text(
-                        text = "• ${formatFileSize(pendingShare.fileSize)}",
+                        text = "${stringResource(R.string.bullet_separator)} ${com.example.smarty.util.ContentTypeDetector.formatFileSize(context, pendingShare.fileSize)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -443,4 +458,3 @@ private fun getTypeName(type: NoteType): String {
     }
 }
 
-private fun formatFileSize(bytes: Long): String = com.example.smarty.util.ContentTypeDetector.formatFileSize(bytes)

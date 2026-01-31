@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
  * - Card: box-shadow: 0px 12px 24px -6px rgba(0,0,0,0.06), 0px 4px 8px -2px rgba(0,0,0,0.04)
  * - Active glow: box-shadow: 0px 4px 12px rgba(0,102,255,0.25)
  */
-object JarvisShadow {
+object SmartyShadow {
     // Card shadow - soft floating effect
     val cardElevation: Dp = 8.dp
     val cardSpotColor: Color = Color(0x0F000000)    // ~6% opacity black
@@ -43,10 +43,10 @@ object JarvisShadow {
  * Generalized to support custom colors and shapes.
  */
 fun Modifier.softCardShadow(
-    elevation: Dp = JarvisShadow.cardElevation,
+    elevation: Dp = SmartyShadow.cardElevation,
     shape: Shape = RoundedCornerShape(28.dp),
-    spotColor: Color = JarvisShadow.cardSpotColor,
-    ambientColor: Color = JarvisShadow.cardAmbientColor
+    spotColor: Color = SmartyShadow.cardSpotColor,
+    ambientColor: Color = SmartyShadow.cardAmbientColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
@@ -58,10 +58,10 @@ fun Modifier.softCardShadow(
  * Elevated shadow for modals and dialogs
  */
 fun Modifier.elevatedShadow(
-    elevation: Dp = JarvisShadow.elevatedElevation,
+    elevation: Dp = SmartyShadow.elevatedElevation,
     shape: Shape = RoundedCornerShape(28.dp),
-    spotColor: Color = JarvisShadow.elevatedSpotColor,
-    ambientColor: Color = JarvisShadow.elevatedAmbientColor
+    spotColor: Color = SmartyShadow.elevatedSpotColor,
+    ambientColor: Color = SmartyShadow.elevatedAmbientColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
@@ -74,9 +74,9 @@ fun Modifier.elevatedShadow(
  * Creates Electric Blue glow effect
  */
 fun Modifier.activeGlow(
-    elevation: Dp = JarvisShadow.glowElevation,
+    elevation: Dp = SmartyShadow.glowElevation,
     shape: Shape = RoundedCornerShape(12.dp),
-    spotColor: Color = JarvisShadow.glowColor
+    spotColor: Color = SmartyShadow.glowColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,
@@ -88,9 +88,9 @@ fun Modifier.activeGlow(
  * Subtle shadow for smaller elements like chips
  */
 fun Modifier.subtleShadow(
-    elevation: Dp = JarvisShadow.subtleElevation,
+    elevation: Dp = SmartyShadow.subtleElevation,
     shape: Shape = RoundedCornerShape(8.dp),
-    spotColor: Color = JarvisShadow.subtleSpotColor
+    spotColor: Color = SmartyShadow.subtleSpotColor
 ): Modifier = this.shadow(
     elevation = elevation,
     shape = shape,

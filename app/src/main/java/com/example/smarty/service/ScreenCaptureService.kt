@@ -157,10 +157,10 @@ class ScreenCaptureService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Screen Capture",
+                getString(R.string.screen_capture),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Enables 'Save this page' screenshot feature"
+                description = getString(R.string.enables_save_this_page_feature)
                 setShowBadge(false)
                 setSound(null, null)
             }
@@ -177,8 +177,8 @@ class ScreenCaptureService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("screen_capture_ready")
-            .setContentText("say_'save_this_page'_to_capture")
+            .setContentTitle(getString(R.string.screen_capture_ready))
+            .setContentText(getString(R.string.say_save_this_page_to_capture))
             .setSmallIcon(R.drawable.ic_launcher_monochrome)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

@@ -119,7 +119,7 @@ if !errorLevel! neq 0 (
 )
 
 :: Check model
-if not exist "models\Phi-4-mini-instruct-Q4_K_M.gguf" (
+if not exist "models\chatglm3-6b-128k.Q8_0.gguf" (
     echo [ERROR] Model file not found!
     pause
     exit /b 1
@@ -136,7 +136,7 @@ echo ============================================================
 echo.
 
 :: Start llama-server in background (localhost only for security)
-start /B "LLM Server" cmd /c ".\llama-server.exe --model models\Phi-4-mini-instruct-Q4_K_M.gguf --chat-template-file qwen3_chat_template.jinja --ctx-size 8192 --n-gpu-layers 20 --port !SERVER_PORT! --host 127.0.0.1 --parallel 2 --cont-batching"
+start /B "LLM Server" cmd /c ".\llama-server.exe --model models\chatglm3-6b-128k.Q8_0.gguf --ctx-size 36864 --n-gpu-layers 35 --port !SERVER_PORT! --host 127.0.0.1 --parallel 2 --cont-batching --flash-attn auto --chat-template chatglm3"
 
 :: Wait for server to start
 timeout /t 3 /nobreak >nul

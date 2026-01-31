@@ -64,7 +64,7 @@ object CategoryShareManager {
     fun createDeepLink(category: Category, notes: List<Note>): String {
         val data = createShareableData(category, notes)
         val encoded = Base64.getEncoder().encodeToString(data.toByteArray())
-        return "Jarvis://import?data=$encoded"
+        return "smarty://import?data=$encoded"
     }
 
     /**
@@ -91,7 +91,7 @@ object CategoryShareManager {
         return try {
             val cachePath = File(context.cacheDir, "shared_qr")
             cachePath.mkdirs()
-            val fileName = "Jarvis_${categoryName.replace(" ", "_")}_qr.png"
+            val fileName = "Smarty_${categoryName.replace(" ", "_")}_qr.png"
             val file = File(cachePath, fileName)
 
             FileOutputStream(file).use { out ->
@@ -120,7 +120,7 @@ object CategoryShareManager {
         includeQRCode: Boolean = true
     ) {
         val shareText = buildString {
-            appendLine("Jarvis Category: ${category.name}")
+            appendLine("Smarty Category: ${category.name}")
             appendLine("${notes.size} notes")
             appendLine()
             appendLine("Notes:")
@@ -136,7 +136,7 @@ object CategoryShareManager {
 
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Jarvis: ${category.name}")
+            putExtra(Intent.EXTRA_SUBJECT, "Smarty: ${category.name}")
             putExtra(Intent.EXTRA_TEXT, shareText)
         }
 

@@ -46,6 +46,7 @@ interface AIProviderContract {
      * @return AIResponse with categorization, or null if failed
      */
     suspend fun analyzeContent(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -60,6 +61,7 @@ interface AIProviderContract {
      *
      * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
      *
+     * @param context Android context for localization
      * @param content The document text to analyze
      * @param apiKey The API key for authentication
      * @param model The model identifier to use
@@ -67,6 +69,7 @@ interface AIProviderContract {
      * @return DocumentAnalysisResponse with detailed analysis, or null if failed
      */
     suspend fun analyzeDocument(
+        context: android.content.Context,
         content: String,
         apiKey: String,
         model: String,
@@ -81,6 +84,7 @@ interface AIProviderContract {
      *
      * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
      *
+     * @param context Android context for localization
      * @param systemPrompt The system instructions for the conversation
      * @param userPrompt The user's message with context
      * @param apiKey The API key for authentication
@@ -88,6 +92,7 @@ interface AIProviderContract {
      * @return Raw text response from the AI, or null if failed
      */
     suspend fun chat(
+        context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
         apiKey: String,
@@ -99,13 +104,15 @@ interface AIProviderContract {
      *
      * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
      *
+     * @param context Android context for localization
      * @param apiKey The API key to test
      * @param model The model to use for testing
      * @return true if the key is valid and the request succeeds
      */
-    suspend fun testApiKey(apiKey: String, model: String): Boolean {
+    suspend fun testApiKey(context: android.content.Context, apiKey: String, model: String): Boolean {
         return try {
             val result = analyzeContent(
+                context = context,
                 content = "Test: Remember to buy groceries tomorrow",
                 apiKey = apiKey,
                 model = model,

@@ -81,9 +81,9 @@ import com.example.smarty.data.model.Attachment
 import com.example.smarty.data.model.MentionState
 import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.JarvisEasing
-import com.example.smarty.ui.animation.JarvisMotion
-import com.example.smarty.ui.theme.JarvisShadow
+import com.example.smarty.ui.animation.SmartyEasing
+import com.example.smarty.ui.animation.SmartyMotion
+import com.example.smarty.ui.theme.SmartyShadow
 import com.example.smarty.ui.animation.halftoneShimmer
 import com.example.smarty.ui.animation.directionalShimmer
 import com.example.smarty.ui.animation.ShimmerDirection
@@ -107,15 +107,6 @@ private val AttachmentGrayColor = Color(0xFFB0BEC5)
 // Agent shimmer color (Standardized Assistant Purple - Technical Palette)
 private val AgentShimmerColor = Color(0xFFB39DDB)
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// REFINED SOFT MINIMALIST COLORS
-// Calmer, less "glassy", more "paper-like" floating elements
-// ═══════════════════════════════════════════════════════════════════════════════
-private val InputBackgroundLight = Color(0xFFFCFCFD)  // Almost white, very subtle off-white
-private val InputBackgroundDark = Color(0xFF20202A)   // Soft dark gray
-private val InputBorderLight = Color(0xFFE5E5EA)      // Very subtle gray border
-private val InputBorderDark = Color(0xFF2C2C2E)       // Subtle dark border
-
 // Design constants for the redesigned input block
 private val CIRCLE_SIZE = 44.dp
 private val CIRCLE_ICON_SIZE = 22.dp
@@ -129,27 +120,27 @@ private val HORIZONTAL_PADDING = 16.dp
  * REDESIGNED INPUT BLOCK
  * 
  * Design Principles:
- * - Comfortable, calm, low Jarvistive load
+ * - Comfortable, calm, low cognitive load
  * - Intentionally minimal
  * - Clear visual hierarchy: Circles (actions) vs Pill (input)
  * - Perfect circles, horizontal pill shape
- * 
+ *
  * NORMAL MODE Layout (Left to Right):
  * [Attach Circle] [Search Circle] [Input Pill ─────────── (Send Arrow)]
- * 
+ *
  * CHAT MODE Layout (Left to Right):
  * [Voice Circle] [Input Pill ───────────────────── (Send Arrow)]
- * 
+ *
  * Send Arrow appears only when: text is present OR attachment is present
  * ═══════════════════════════════════════════════════════════════════════════════
  */
 @Composable
-fun JarvisInputField(
+fun SmartyInputField(
     value: TextFieldValue,
     onValueChange: (TextFieldValue) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "add_note_or_ask_ai",
+    placeholder: String = stringResource(R.string.add_note),
     // Attachment support
     attachments: List<Attachment> = emptyList(),
     onPickImage: () -> Unit = {},
@@ -162,8 +153,8 @@ fun JarvisInputField(
     // Chat mode support
     isChatMode: Boolean = false,
     isHistoryMode: Boolean = false, // New parameter
-    chatPlaceholder: String = "add_note_or_ask_ai",
-    aiPlanStatus: String? = null, // e.g. "Jarvis is planning..."
+    chatPlaceholder: String = stringResource(R.string.add_note_or_ask_ai),
+    aiPlanStatus: String? = null, // e.g. "Smarty is planning..."
     currentTool: String? = null,
     isProcessing: Boolean = false,
     onOpenChatHistory: () -> Unit = {},
@@ -194,7 +185,7 @@ fun JarvisInputField(
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion) -> Unit = {},
     // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
-    isThinkingModeEnabled: Boolean = true,
+    isThinkingModeEnabled: Boolean = false,
     onToggleThinkingMode: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -229,7 +220,7 @@ fun JarvisInputField(
         isVoiceListening -> stringResource(R.string.listening)
         isSearchMode -> stringResource(R.string.find_notes)
         !aiPlanStatus.isNullOrBlank() -> aiPlanStatus.lowercase()
-        isChatMode -> stringResource(R.string.ask_jarvis)
+        isChatMode -> stringResource(R.string.ask_smarty)
         else -> stringResource(R.string.add_note)
     }
 
@@ -507,18 +498,20 @@ fun JarvisInputField(
                     contentDescription = stringResource(R.string.attach),
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        // Centralized Pill UI Toggle:
-                        // Matches the Search Filter behavior for consistency.
+
+                        // STRICT MUTUAL EXCLUSIVITY: If entering attachment mode, ensure search is OFF
                         if (isSearchMode) {
-                            // Ideally we close search mode to switch context
-                            // onClearFilters/onToggleSearch handled by parent? 
-                             // We just ensure visual exclusivity here if possible
+                            onToggleSearch() // Toggle off search mode
+                            // Also clear filters to reset state
+                            if (selectedFilters.isNotEmpty()) {
+                                onClearFilters()
+                            }
                         }
+
                         showAttachmentPanel = !showAttachmentPanel
-                        // Note: If entering attachment mode, parent logic or visual exclusivity will hide search filters if implemented above
                     },
                     badge = if (attachments.isNotEmpty()) attachments.size else null,
-                    isActive = showAttachmentPanel, 
+                    isActive = showAttachmentPanel,
                     activeColor = LocalAccentColor.current
                 )
 
@@ -570,7 +563,7 @@ fun JarvisInputField(
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         scope.launch {
                             flyAnimation.snapTo(0f)
-                            flyAnimation.animateTo(1f, tween(300, easing = JarvisEasing.appleEaseOut))
+                            flyAnimation.animateTo(1f, tween(300, easing = SmartyEasing.appleEaseOut))
                             delay(50)
                             flyAnimation.snapTo(0f)
                         }
@@ -614,8 +607,8 @@ private fun ActionCircle(
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
     val accentColor = LocalAccentColor.current
 
-    val backgroundColor = if (isDark) InputBackgroundDark else InputBackgroundLight
-    val borderColor = if (isDark) InputBorderDark else InputBorderLight
+    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
     val iconColor by animateColorAsState(
         targetValue = if (isActive) activeColor else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -722,8 +715,8 @@ private fun InputPill(
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
     val accentColor = LocalAccentColor.current
 
-    val backgroundColor = if (isDark) InputBackgroundDark else InputBackgroundLight
-    val borderColor = if (isDark) InputBorderDark else InputBorderLight
+    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
     // Border: Subtle normally, colored when focused
     val currentBorderColor by animateColorAsState(

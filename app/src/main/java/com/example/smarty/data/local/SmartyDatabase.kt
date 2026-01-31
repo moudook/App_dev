@@ -16,7 +16,7 @@ import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.ImpressedEntry
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.ProviderUsage
-import com.example.smarty.data.model.JarvisTimer
+import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.data.model.NoteVersion
 
 @Database(
@@ -31,13 +31,13 @@ import com.example.smarty.data.model.NoteVersion
         AgentExecution::class,      // AI agent execution tracking
         ProviderUsage::class,       // Provider usage for rate limiting
         NoteVersion::class,         // Note version history for git-like versioning
-        JarvisTimer::class          // Persisted timers and alarms
+        SmartyTimer::class          // Persisted timers and alarms
     ],
     version = 29,  // v29: Added index for googleEventId in calendar_events
     exportSchema = false
 )
 @TypeConverters(Converters::class)
-abstract class JarvisDatabase : RoomDatabase() {
+abstract class SmartyDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun categoryDao(): CategoryDao
     abstract fun chatDao(): ChatDao
@@ -49,10 +49,10 @@ abstract class JarvisDatabase : RoomDatabase() {
     abstract fun timerDao(): TimerDao
 
     companion object {
-        private const val TAG = "JarvisDatabase"
+        private const val TAG = "SmartyDatabase"
 
         @Volatile
-        private var INSTANCE: JarvisDatabase? = null
+        private var INSTANCE: SmartyDatabase? = null
 
         // Track which FTS version is available (null = not checked yet)
         @Volatile
@@ -320,12 +320,12 @@ abstract class JarvisDatabase : RoomDatabase() {
             }
         }
 
-        fun getDatabase(context: Context): JarvisDatabase {
+        fun getDatabase(context: Context): SmartyDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
-                    JarvisDatabase::class.java,
-                    "Jarvis_database"
+                    SmartyDatabase::class.java,
+                    "Smarty_database"
                 )
                     .addCallback(databaseCallback)
                     .addMigrations(
@@ -355,7 +355,7 @@ abstract class JarvisDatabase : RoomDatabase() {
                         Migrations.MIGRATION_24_25,  // Feature: isReadForMemory for AI memory learning
                         Migrations.MIGRATION_25_26,   // Fix: @ColumnInfo defaultValue annotation
                         Migrations.MIGRATION_26_27,   // Feature: googleEventId for calendar_events sync
-                        Migrations.MIGRATION_27_28,   // Feature: JarvisTimer for persistent alarms
+                        Migrations.MIGRATION_27_28,   // Feature: SmartyTimer for persistent alarms
                         Migrations.MIGRATION_28_29    // Performance: googleEventId index for calendar sync
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data

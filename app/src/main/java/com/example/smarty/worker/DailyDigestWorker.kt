@@ -15,7 +15,7 @@ import androidx.core.content.ContextCompat
 import androidx.work.*
 import com.example.smarty.MainActivity
 import com.example.smarty.R
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -89,10 +89,10 @@ class DailyDigestWorker(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     CHANNEL_ID,
-                    "Daily Digest",
+                    context.getString(R.string.daily_digest_channel_name),
                     NotificationManager.IMPORTANCE_DEFAULT
                 ).apply {
-                    description = "Morning summary of your notes and tasks"
+                    description = context.getString(R.string.daily_digest_channel_description)
                 }
 
                 val notificationManager = context.getSystemService(NotificationManager::class.java)
@@ -122,7 +122,7 @@ class DailyDigestWorker(
     private suspend fun generateDigest(): DigestContent {
         // Use applicationContext to prevent context leaks
         val appContext = applicationContext
-        val database = JarvisDatabase.getDatabase(appContext)
+        val database = SmartyDatabase.getDatabase(appContext)
         val noteDao = database.noteDao()
 
         // Get notes from the last 24 hours
@@ -141,22 +141,26 @@ class DailyDigestWorker(
 
         // Build digest
         val title = when {
-            recentNotes.isEmpty() -> "Good morning!"
-            recentNotes.size == 1 -> "You captured 1 note yesterday"
-            else -> "You captured ${recentNotes.size} notes yesterday"
+            recentNotes.isEmpty() -> appContext.getString(R.string.digest_title_empty)
+            recentNotes.size == 1 -> appContext.getString(R.string.digest_title_single)
+            else -> appContext.getString(R.string.digest_title_plural, recentNotes.size)
         }
 
         val body = buildString {
             if (recentNotes.isNotEmpty()) {
-                append("Latest: \"${recentNotes.first().title.take(40)}\"")
-                if (recentNotes.first().title.length > 40) append("...")
+                val latestTitle = if (recentNotes.first().title.length > 40) {
+                    appContext.getString(R.string.share_note_truncated_format, recentNotes.first().title.take(40))
+                } else {
+                    recentNotes.first().title
+                }
+                append(appContext.getString(R.string.digest_body_latest, latestTitle))
                 append("\n")
             }
 
-            append("$totalNotes total notes")
+            append(appContext.getString(R.string.digest_body_total, totalNotes))
 
             if (pinnedNotes > 0) {
-                append(" | $pinnedNotes pinned")
+                append(appContext.getString(R.string.digest_body_pinned, pinnedNotes))
             }
         }
 

@@ -30,6 +30,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.Note
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -150,7 +152,7 @@ fun InlineNotePreview(
                 color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f)
             ) {
                 Text(
-                    text = "${currentIndex + 1}/${notes.size}",
+                    text = stringResource(R.string.pagination_format, currentIndex + 1, notes.size),
                     color = androidx.compose.ui.graphics.Color.White,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.SemiBold,

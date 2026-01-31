@@ -17,7 +17,7 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Manages chat mode state and session lifecycle.
- * Extracted from JarvisViewModel for better separation of concerns.
+ * Extracted from SmartyViewModel for better separation of concerns.
  *
  * Responsibilities:
  * - Chat mode on/off state
@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.withLock
  * - Session persistence coordination
  */
 class ChatManager(
+    private val context: android.content.Context,
     private val chatRepository: ChatRepository,
     private val scope: CoroutineScope
 ) {
@@ -44,6 +45,10 @@ class ChatManager(
     // Processing state
     private val _isChatProcessing = MutableStateFlow(false)
     val isChatProcessing: StateFlow<Boolean> = _isChatProcessing.asStateFlow()
+
+    // State preservation during mode switching
+    private var preservedChatMessages: List<ChatMessage> = emptyList()
+    private var preservedProcessingState: Boolean = false
 
     // Current session
     private val _currentSessionId = MutableStateFlow<String?>(null)
@@ -112,6 +117,7 @@ class ChatManager(
 
     /**
      * Enter chat mode - creates a new session or restores the last active one
+     * Also restores preserved state from quick switching
      */
     suspend fun enterChatMode() {
         _isChatMode.value = true
@@ -119,16 +125,34 @@ class ChatManager(
         val activeSession = chatRepository.getActiveSession()
         if (activeSession != null) {
             _currentSessionId.value = activeSession.id
-            val messages = chatRepository.getMessagesForSessionOnce(activeSession.id)
-            chatMutex.withLock {
-                _chatMessages.value = messages
+            // Check if we have preserved messages from a recent switch
+            if (preservedChatMessages.isNotEmpty()) {
+                // Restore preserved state
+                chatMutex.withLock {
+                    _chatMessages.value = preservedChatMessages
+                    _isChatProcessing.value = preservedProcessingState
+                }
+                Log.d(TAG, "Restored preserved chat state: ${preservedChatMessages.size} messages, processing: $preservedProcessingState")
+                // Clear preserved state
+                preservedChatMessages = emptyList()
+                preservedProcessingState = false
+            } else {
+                // Load from repository
+                val messages = chatRepository.getMessagesForSessionOnce(activeSession.id)
+                chatMutex.withLock {
+                    _chatMessages.value = messages
+                    // Restore processing state if needed
+                    _isChatProcessing.value = preservedProcessingState
+                    preservedProcessingState = false
+                }
+                Log.d(TAG, "Restored chat session: ${activeSession.id} with ${messages.size} messages")
             }
-            Log.d(TAG, "Restored chat session: ${activeSession.id} with ${messages.size} messages")
         } else {
-            val newSession = chatRepository.createNewSession()
+            val newSession = chatRepository.createNewSession(context)
             _currentSessionId.value = newSession.id
             chatMutex.withLock {
                 _chatMessages.value = emptyList()
+                _isChatProcessing.value = false
             }
             Log.d(TAG, "Created new chat session: ${newSession.id}")
         }
@@ -138,15 +162,28 @@ class ChatManager(
 
     /**
      * Exit chat mode and return to note input mode
+     * Preserves chat state for quick switching back
      */
     fun exitChatMode() {
+        // Preserve current state before switching
+        preservedChatMessages = _chatMessages.value
+        preservedProcessingState = _isChatProcessing.value
+
         scope.launch {
             _currentSessionId.value?.let { sessionId ->
-                chatRepository.finalizeSession(sessionId)
+                // BUG FIX: If session is empty, delete it immediately to prevent blank history
+                if (_chatMessages.value.isEmpty()) {
+                    chatRepository.deleteSession(sessionId)
+                    Log.d(TAG, "Deleted empty session on exit: $sessionId")
+                } else {
+                    // Don't finalize session immediately for quick switching
+                    // Just mark it as inactive but keep the data
+                    chatRepository.markSessionInactive(sessionId)
+                }
             }
         }
         _isChatMode.value = false
-        Log.d(TAG, "Exited chat mode")
+        Log.d(TAG, "Exited chat mode (preserved ${preservedChatMessages.size} messages, processing: $preservedProcessingState)")
     }
 
     /**
@@ -161,7 +198,7 @@ class ChatManager(
                 chatRepository.finalizeSession(sessionId)
             }
 
-            val newSession = chatRepository.createNewSession()
+            val newSession = chatRepository.createNewSession(context)
             _currentSessionId.value = newSession.id
             chatMutex.withLock {
                 _chatMessages.value = emptyList()
@@ -199,7 +236,7 @@ class ChatManager(
             chatRepository.deleteSession(sessionId)
 
             if (isCurrentSession) {
-                val newSession = chatRepository.createNewSession()
+                val newSession = chatRepository.createNewSession(context)
                 _currentSessionId.value = newSession.id
                 chatMutex.withLock {
                     _chatMessages.value = emptyList()
@@ -286,7 +323,7 @@ class ChatManager(
         if (existingId != null) {
             return existingId
         }
-        val newSession = chatRepository.createNewSession()
+        val newSession = chatRepository.createNewSession(context)
         _currentSessionId.value = newSession.id
         return newSession.id
     }
@@ -333,7 +370,7 @@ class ChatManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving message pair: ${e.message}", e)
                 // BUG FIX (TECH-004): Set error state for UI to observe
-                _lastError.value = "Failed to save message: ${e.message}"
+                _lastError.value = context.getString(com.example.smarty.R.string.error_save_message)
                 Result.failure(e)
             }
         }

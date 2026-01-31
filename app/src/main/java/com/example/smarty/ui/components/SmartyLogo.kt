@@ -20,16 +20,18 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
 /**
- * Jarvis Logo component - renders the hand gesture logo
+ * Smarty Logo component - renders the hand gesture logo
  * Falls back to a stylized text logo if image not available
  */
 @Composable
-fun JarvisLogo(
+fun SmartyLogo(
     modifier: Modifier = Modifier,
     size: Dp = 32.dp,
     showShimmer: Boolean = false
@@ -68,10 +70,10 @@ fun JarvisLogo(
         if (!imageLoadError) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data("file:///android_asset/Jarvis_Icon.png")
+                    .data("file:///android_asset/Smarty_Icon.png")
                     .crossfade(true)
                     .build(),
-                contentDescription = "jarvis_logo",
+                contentDescription = stringResource(R.string.app_name),
                 modifier = Modifier.fillMaxSize(),
                 onError = { imageLoadError = true }
             )
@@ -360,7 +362,7 @@ fun DecompressionPlaceholder(
             }
 
             Text(
-                text = "decompressing",
+                text = stringResource(R.string.decompressing),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -372,7 +374,7 @@ fun DecompressionPlaceholder(
  * Compact header with logo + text for main screen
  */
 @Composable
-fun JarvisHeader(
+fun SmartyHeader(
     modifier: Modifier = Modifier,
     showShimmer: Boolean = false
 ) {
@@ -381,13 +383,13 @@ fun JarvisHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        JarvisLogo(
+        SmartyLogo(
             size = 28.dp,
             showShimmer = false // Disabled per user request
         )
 
         Text(
-            text = "jarvis_",
+            text = stringResource(R.string.app_name).lowercase() + "_",
             style = MaterialTheme.typography.titleLarge,
             color = LocalAccentColor.current
         )

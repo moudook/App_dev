@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ultra-Compact Jarvis Widget - Single Row -->
+<!-- Ultra-Compact Smarty Widget - Single Row -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_container"
     android:layout_width="match_parent"
@@ -40,7 +40,7 @@
             android:id="@+id/widget_subtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="capture anything"
+            android:text="@string/widget_capture_anything"
             android:textColor="#80FFFFFF"
             android:textSize="11sp" />
     </LinearLayout>

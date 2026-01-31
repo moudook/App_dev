@@ -34,6 +34,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.ui.components.CalmThinkingDots
+import com.example.smarty.R
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.data.model.MemoryType
 
@@ -93,7 +96,7 @@ fun AIMemorySettingsContent(
         Spacer(modifier = Modifier.height(16.dp))
         
         Text(
-            text = "personal_intelligence",
+            text = stringResource(R.string.personal_intelligence),
             style = MaterialTheme.typography.headlineSmall.copy(
                 fontWeight = FontWeight.Bold
             ),
@@ -102,7 +105,7 @@ fun AIMemorySettingsContent(
         )
 
         Text(
-            text = "${memories.size}_insights_extracted",
+            text = stringResource(R.string.insights_extracted, memories.size),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -125,13 +128,13 @@ fun AIMemorySettingsContent(
                 horizontalArrangement = Arrangement.Center
             ) {
                 if (isSyncing) {
-                    com.example.smarty.ui.components.CalmThinkingDots(
+                    CalmThinkingDots(
                         color = MaterialTheme.colorScheme.onPrimary,
                         dotSize = 3.dp
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "analyzing_notes",
+                        text = stringResource(R.string.analyzing_notes),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
@@ -144,7 +147,7 @@ fun AIMemorySettingsContent(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (unreadNotesCount > 0) "sync_${unreadNotesCount}_new_notes" else "memory_up_to_date",
+                        text = if (unreadNotesCount > 0) stringResource(R.string.sync_new_notes, unreadNotesCount) else stringResource(R.string.memory_up_to_date),
                         style = MaterialTheme.typography.labelLarge,
                         color = if (unreadNotesCount > 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -217,7 +220,7 @@ fun AIMemorySettingsContent(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            "clear_learning_data",
+                            stringResource(R.string.clear_learning_data),
                             color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.labelMedium
                         )
@@ -229,32 +232,32 @@ fun AIMemorySettingsContent(
 
     // Delete Single Memory Dialog
     if (memoryToDelete != null) {
-        com.example.smarty.ui.components.common.JarvisDialog(
-            title = "forget_this_insight",
-            text = "the_ai_will_stop_using_this_behavioral_pattern_for_personalization",
+        com.example.smarty.ui.components.common.SmartyDialog(
+            title = stringResource(R.string.forget_this_insight),
+            text = stringResource(R.string.forget_insight_info),
             onConfirm = {
                 memoryToDelete?.let { onDeleteMemory(it) }
                 memoryToDelete = null
             },
             onDismiss = { memoryToDelete = null },
-            confirmText = "forget",
-            dismissText = "cancel",
+            confirmText = stringResource(R.string.forget),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
 
     // Clear All Dialog
     if (showClearAllDialog) {
-        com.example.smarty.ui.components.common.JarvisDialog(
-            title = "reset_personal_intelligence",
-            text = "all_extracted_insights_will_be_deleted_this_cannot_be_undone",
+        com.example.smarty.ui.components.common.SmartyDialog(
+            title = stringResource(R.string.reset_personal_intelligence),
+            text = stringResource(R.string.reset_intelligence_info),
             onConfirm = {
                 onClearAllMemories()
                 showClearAllDialog = false
             },
             onDismiss = { showClearAllDialog = false },
-            confirmText = "reset_all",
-            dismissText = "cancel",
+            confirmText = stringResource(R.string.reset_all),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
@@ -340,7 +343,7 @@ private fun MemoryChip(
                     ) {
                         Icon(
                             Icons.Default.DeleteOutline, // Standard delete
-                            contentDescription = "forget",
+                            contentDescription = stringResource(R.string.forget_insight),
                             tint = contentColor.copy(alpha = 0.5f)
                         )
                     }

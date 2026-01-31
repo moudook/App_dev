@@ -25,6 +25,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.CalendarEvent
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.*
@@ -37,7 +39,7 @@ import java.util.*
  *
  * Design: Calm Aesthetic, theme-aware
  * - Integrated with Material 3 dynamic colors
- * - Electric Blue accent (consistent with Jarvis design)
+ * - Electric Blue accent (consistent with Smarty design)
  * - Pre-populated with existing event data
  * - Delete option with confirmation
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -196,11 +198,11 @@ fun EditEventSheet(
                     onClick = onDismiss,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("cancel", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.cancel), fontWeight = FontWeight.Medium)
                 }
 
                 Text(
-                    text = "edit_event",
+                    text = stringResource(R.string.edit_event),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -243,7 +245,7 @@ fun EditEventSheet(
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 ) {
-                    Text("save", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.save), fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -269,7 +271,7 @@ fun EditEventSheet(
                 EditDarkTextField(
                     value = title,
                     onValueChange = { title = it },
-                    placeholder = "event_title",
+                    placeholder = stringResource(R.string.event_title),
                     singleLine = true
                 )
 
@@ -277,7 +279,7 @@ fun EditEventSheet(
                 EditDarkTextField(
                     value = description,
                     onValueChange = { description = it },
-                    placeholder = "description",
+                    placeholder = stringResource(R.string.description),
                     minLines = 2,
                     maxLines = 4
                 )
@@ -285,7 +287,7 @@ fun EditEventSheet(
                 // All Day Toggle
                 EditDarkFormRow(
                     icon = Icons.Default.CalendarToday,
-                    title = "all_day",
+                    title = stringResource(R.string.all_day),
                     trailing = {
                         Switch(
                             checked = isAllDay,
@@ -306,7 +308,7 @@ fun EditEventSheet(
                 // Date Selection
                 EditDarkFormRow(
                     icon = Icons.Default.Event,
-                    title = "date",
+                    title = stringResource(R.string.date_label, ""), // Empty placeholder for dynamic label
                     value = dateFormat.format(selectedDate.time).lowercase(),
                     onClick = { showDatePicker = true }
                 )
@@ -320,14 +322,14 @@ fun EditEventSheet(
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         EditDarkFormRow(
                             icon = Icons.Default.Schedule,
-                            title = "start_time",
+                            title = stringResource(R.string.start_time),
                             value = startTimeDisplay.lowercase(),
                             onClick = { showStartTimePicker = true }
                         )
 
                         EditDarkFormRow(
                             icon = Icons.Default.Schedule,
-                            title = "end_time",
+                            title = stringResource(R.string.end_time),
                             value = endTimeDisplay.lowercase(),
                             onClick = { showEndTimePicker = true }
                         )
@@ -337,23 +339,23 @@ fun EditEventSheet(
                 // Location field
                 EditDarkFormRow(
                     icon = Icons.Default.LocationOn,
-                    title = if (location.isBlank()) "add_location" else location.lowercase(),
+                    title = if (location.isBlank()) stringResource(R.string.add_location) else location.lowercase(),
                     onClick = { /* Could expand to full input */ }
                 )
 
                 // Reminder Selection
                 EditDarkFormRow(
                     icon = Icons.Default.NotificationsNone,
-                    title = "reminder",
-                    value = reminderOptions.find { it.first == selectedReminder }?.second ?: "none",
+                    title = stringResource(R.string.reminder),
+                    value = reminderOptions.find { it.first == selectedReminder }?.second ?: stringResource(R.string.none),
                     onClick = { showReminderMenu = true }
                 )
 
                 // Privacy Toggle
                 EditDarkFormRow(
                     icon = Icons.Default.Lock,
-                    title = "private_event",
-                    subtitle = "hidden_from_ai_assistant",
+                    title = stringResource(R.string.private_event),
+                    subtitle = stringResource(R.string.hidden_from_ai_assistant),
                     trailing = {
                         Switch(
                             checked = isPrivate,
@@ -399,7 +401,7 @@ fun EditEventSheet(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "delete_event",
+                            text = stringResource(R.string.delete_event),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.error
@@ -430,7 +432,7 @@ fun EditEventSheet(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = accentColor)
                 ) {
-                    Text("ok")
+                    Text(stringResource(R.string.ok))
                 }
             },
             dismissButton = {
@@ -438,7 +440,7 @@ fun EditEventSheet(
                     onClick = { showDatePicker = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
                 ) {
-                    Text("cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         ) {
@@ -526,8 +528,8 @@ fun EditEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        com.example.smarty.ui.components.common.JarvisDialog(
-            title = "reminder",
+        com.example.smarty.ui.components.common.SmartyDialog(
+            title = stringResource(R.string.reminder),
             onDismiss = { showReminderMenu = false },
             onConfirm = {},
             customContent = {
@@ -546,11 +548,11 @@ fun EditEventSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(label, color = MaterialTheme.colorScheme.onSurface)
+                            Text(label.lowercase(), color = MaterialTheme.colorScheme.onSurface)
                             if (selectedReminder == minutes) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "selected",
+                                    contentDescription = stringResource(R.string.selected),
                                     tint = accentColor
                                 )
                             }
@@ -565,17 +567,17 @@ fun EditEventSheet(
 
     // Delete Confirmation Dialog
     if (showDeleteConfirmation) {
-        com.example.smarty.ui.components.common.JarvisDialog(
-            title = "delete_event",
-            text = "delete_\"${event.title}\"_this_action_cannot_be_undone",
+        com.example.smarty.ui.components.common.SmartyDialog(
+            title = stringResource(R.string.delete_event),
+            text = stringResource(R.string.delete_event_confirm, event.title),
             onConfirm = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 showDeleteConfirmation = false
                 onDelete()
             },
             onDismiss = { showDeleteConfirmation = false },
-            confirmText = "delete",
-            dismissText = "cancel",
+            confirmText = stringResource(R.string.remove),
+            dismissText = stringResource(R.string.cancel),
             isDestructive = true
         )
     }
@@ -710,8 +712,8 @@ private fun EditDarkTimePickerDialog(
     onConfirm: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    com.example.smarty.ui.components.common.JarvisDialog(
-        title = "select_time",
+    com.example.smarty.ui.components.common.SmartyDialog(
+        title = stringResource(R.string.select_time),
         onDismiss = onDismiss,
         onConfirm = onConfirm,
         customContent = {
@@ -722,7 +724,7 @@ private fun EditDarkTimePickerDialog(
                 content()
             }
         },
-        confirmText = "ok",
-        dismissText = "cancel"
+        confirmText = stringResource(R.string.ok),
+        dismissText = stringResource(R.string.cancel)
     )
 }

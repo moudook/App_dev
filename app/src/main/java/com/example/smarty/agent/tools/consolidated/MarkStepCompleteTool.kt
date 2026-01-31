@@ -32,31 +32,32 @@ class MarkStepCompleteTool(
     """.trimIndent()
 ) {
     override suspend fun execute(args: MarkStepCompleteArgs): MarkStepCompleteResult {
+        val context = com.example.smarty.SmartyApplication.appInstance
         if (!planManager.hasActivePlan()) {
             return MarkStepCompleteResult(
                 success = false,
-                message = "No active plan found. Use 'create_plan' first.",
+                message = context.getString(com.example.smarty.R.string.error_no_active_plan),
                 isPlanComplete = true
             )
         }
 
         val updatedPlan = planManager.markStepComplete(args.resultSummary)
-        
+
         if (updatedPlan == null) {
              return MarkStepCompleteResult(
                 success = false,
-                message = "Failed to update plan.",
+                message = context.getString(com.example.smarty.R.string.failed),
                 isPlanComplete = true
             )
         }
 
         val nextStep = updatedPlan.getCurrentStep()
-        
+
         return if (nextStep != null) {
             MarkStepCompleteResult(
                 success = true,
-                message = "Step completed. Moving to Step ${nextStep.index}.",
-                nextStep = "STEP ${nextStep.index}: ${nextStep.description}",
+                message = context.getString(com.example.smarty.R.string.step_completed_moving, nextStep.index),
+                nextStep = context.getString(com.example.smarty.R.string.step_label, nextStep.index, nextStep.description),
                 isPlanComplete = false
             )
         } else {
@@ -64,7 +65,7 @@ class MarkStepCompleteTool(
             planManager.clearPlan()
              MarkStepCompleteResult(
                 success = true,
-                message = "ALL STEPS COMPLETED! Plan finished.",
+                message = context.getString(com.example.smarty.R.string.all_steps_completed),
                 nextStep = null,
                 isPlanComplete = true
             )

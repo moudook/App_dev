@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.theme.ElectricBlue
 import com.example.smarty.ui.theme.MinimalRed
 
@@ -33,13 +35,13 @@ import com.example.smarty.ui.theme.MinimalRed
  * @param isDestructive If true, styles the confirm button with a warning color.
  */
 @Composable
-fun JarvisDialog(
+fun SmartyDialog(
     title: String,
     text: String = "",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    confirmText: String = "confirm",
-    dismissText: String = "cancel",
+    confirmText: String = stringResource(R.string.confirm),
+    dismissText: String = stringResource(R.string.cancel),
     isDestructive: Boolean = false,
     confirmEnabled: Boolean = true,
     customContent: @Composable (() -> Unit)? = null

@@ -1,6 +1,7 @@
 package com.example.smarty.util
 
 import android.content.Context
+import com.example.smarty.R
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
@@ -86,7 +87,7 @@ class PDFTextExtractor(private val context: Context) {
 
         try {
             inputStream = context.contentResolver.openInputStream(uri)
-                ?: return@withContext PDFExtractionResult.Error("Could not open PDF file")
+                ?: return@withContext PDFExtractionResult.Error(context.getString(R.string.error_pdf_open))
 
             document = PDDocument.load(inputStream)
 
@@ -94,7 +95,7 @@ class PDFTextExtractor(private val context: Context) {
             Log.i(TAG, "PDF loaded: $pageCount pages")
 
             if (pageCount == 0) {
-                return@withContext PDFExtractionResult.Error("PDF has no pages")
+                return@withContext PDFExtractionResult.Error(context.getString(R.string.error_pdf_no_pages))
             }
 
             val stripper = PDFTextStripper().apply {
@@ -112,7 +113,7 @@ class PDFTextExtractor(private val context: Context) {
                 Log.w(TAG, "No text content extracted (might be image-based PDF)")
                 return@withContext PDFExtractionResult.Empty(
                     pageCount = pageCount,
-                    message = "This PDF appears to contain images only. Text extraction is not available for scanned documents."
+                    message = context.getString(R.string.error_pdf_images_only)
                 )
             }
 
@@ -136,7 +137,7 @@ class PDFTextExtractor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "PDF extraction failed: ${e.message}", e)
             PDFExtractionResult.Error(
-                message = "Failed to extract text: ${e.message ?: "Unknown error"}"
+                message = context.getString(R.string.error_pdf_extract_failed)
             )
         } finally {
             try {
@@ -161,7 +162,7 @@ class PDFTextExtractor(private val context: Context) {
             Log.i(TAG, "PDF loaded from stream: $pageCount pages")
 
             if (pageCount == 0) {
-                return@withContext PDFExtractionResult.Error("PDF has no pages")
+                return@withContext PDFExtractionResult.Error(context.getString(R.string.error_pdf_no_pages))
             }
 
             val stripper = PDFTextStripper().apply {
@@ -176,7 +177,7 @@ class PDFTextExtractor(private val context: Context) {
             if (cleanedText.isBlank()) {
                 return@withContext PDFExtractionResult.Empty(
                     pageCount = pageCount,
-                    message = "This PDF appears to contain images only."
+                    message = context.getString(R.string.error_pdf_images_only)
                 )
             }
 
@@ -195,7 +196,7 @@ class PDFTextExtractor(private val context: Context) {
 
         } catch (e: Exception) {
             Log.e(TAG, "PDF extraction from stream failed: ${e.message}", e)
-            PDFExtractionResult.Error("Failed to extract text: ${e.message ?: "Unknown error"}")
+            PDFExtractionResult.Error(context.getString(R.string.error_pdf_extract_failed))
         } finally {
             try {
                 document?.close()
@@ -276,7 +277,7 @@ class PDFTextExtractor(private val context: Context) {
 
         try {
             inputStream = context.contentResolver.openInputStream(uri)
-                ?: return@withContext PDFChunkedResult.Error("Could not open PDF file")
+                ?: return@withContext PDFChunkedResult.Error(context.getString(R.string.error_pdf_open))
 
             document = PDDocument.load(inputStream)
 
@@ -284,7 +285,7 @@ class PDFTextExtractor(private val context: Context) {
             Log.i(TAG, "PDF loaded for chunked extraction: $totalPages pages")
 
             if (totalPages == 0) {
-                return@withContext PDFChunkedResult.Error("PDF has no pages")
+                return@withContext PDFChunkedResult.Error(context.getString(R.string.error_pdf_no_pages))
             }
 
             val chunks = mutableListOf<PDFChunk>()
@@ -357,7 +358,7 @@ class PDFTextExtractor(private val context: Context) {
                 Log.w(TAG, "No text content extracted (might be image-based PDF)")
                 return@withContext PDFChunkedResult.Empty(
                     pageCount = totalPages,
-                    message = "This PDF appears to contain images only. Text extraction is not available for scanned documents."
+                    message = context.getString(R.string.error_pdf_images_only)
                 )
             }
 
@@ -378,7 +379,7 @@ class PDFTextExtractor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Chunked PDF extraction failed: ${e.message}", e)
             PDFChunkedResult.Error(
-                message = "Failed to extract text: ${e.message ?: "Unknown error"}"
+                message = context.getString(R.string.error_pdf_extract_failed)
             )
         } finally {
             try {
@@ -436,16 +437,16 @@ class PDFTextExtractor(private val context: Context) {
         
         try {
             inputStream = context.contentResolver.openInputStream(uri)
-                ?: return@withContext PDFExtractionResult.Error("Could not open PDF file")
-            
+                ?: return@withContext PDFExtractionResult.Error(context.getString(R.string.error_pdf_open))
+
             document = PDDocument.load(inputStream)
             val pageCount = document.numberOfPages
             val pagesToProcess = minOf(pageCount, OCR_MAX_PAGES)
-            
+
             Log.i(TAG, "OCR: Processing $pagesToProcess of $pageCount pages")
-            
+
             if (pageCount == 0) {
-                return@withContext PDFExtractionResult.Error("PDF has no pages")
+                return@withContext PDFExtractionResult.Error(context.getString(R.string.error_pdf_no_pages))
             }
             
             val renderer = PDFRenderer(document)
@@ -481,7 +482,7 @@ class PDFTextExtractor(private val context: Context) {
                 Log.w(TAG, "OCR extraction found no text in any pages")
                 return@withContext PDFExtractionResult.Empty(
                     pageCount = pageCount,
-                    message = "No text could be extracted from this scanned PDF via OCR."
+                    message = context.getString(R.string.error_pdf_ocr_no_text)
                 )
             }
             
@@ -507,7 +508,7 @@ class PDFTextExtractor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "OCR extraction failed: ${e.message}", e)
             PDFExtractionResult.Error(
-                message = "OCR extraction failed: ${e.message ?: "Unknown error"}"
+                message = context.getString(R.string.error_pdf_ocr_failed)
             )
         } finally {
             try {

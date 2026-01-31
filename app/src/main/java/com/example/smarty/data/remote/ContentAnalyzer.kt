@@ -1,6 +1,8 @@
 package com.example.smarty.data.remote
 
+import android.app.Application
 import android.util.Log
+import com.example.smarty.R
 import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.model.AttachmentMetadata
 import com.example.smarty.util.ContentSecurityFilter
@@ -18,7 +20,7 @@ import kotlinx.coroutines.withContext
  *
  * @property orchestrator Provider orchestrator for API calls
  */
-class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
+class ContentAnalyzer(private val application: Application, private val orchestrator: AIProviderOrchestrator) {
 
     companion object {
         private const val TAG = "ContentAnalyzer"
@@ -149,10 +151,10 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
         if (securityCheck.riskLevel == ContentSecurityFilter.RiskLevel.BLOCKED) {
             Log.w(TAG, "Content blocked by security filter")
             return@withContext AIResponse(
-                title = "Content Blocked",
-                category = "Note",
-                summary = "Content could not be analyzed due to security concerns.",
-                whySaved = "Saved note",
+                title = application.getString(R.string.content_blocked),
+                category = application.getString(R.string.stack),
+                summary = application.getString(R.string.error_security_blocked),
+                whySaved = application.getString(R.string.save_note),
                 success = true
             )
         }
@@ -203,8 +205,9 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
             val providerInstance = orchestrator.getProvider(provider)
             val model = orchestrator.getModelForProvider(provider)
 
-            val result = orchestrator.executeWithContentAnalysisRetry(provider, config) { apiKey ->
+            val result = orchestrator.executeWithContentAnalysisRetry(application, provider, config) { apiKey ->
                 providerInstance.analyzeContent(
+                    context = application,
                     content = contentWithMetadata,
                     apiKey = apiKey,
                     model = model,
@@ -221,7 +224,7 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
 
         // All providers failed - use smart fallback
         Log.w(TAG, " All AI providers failed, using smart categorization")
-        val fallbackResponse = AIResponseParser.smartFallbackCategorization(contentWithMetadata)
+        val fallbackResponse = AIResponseParser.smartFallbackCategorization(application, contentWithMetadata)
         // Cache fallback response too to avoid repeated failures
         AIResponseCache.put(cacheKey, fallbackResponse)
         return@withContext fallbackResponse
@@ -251,12 +254,12 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
         if (securityCheck.riskLevel == ContentSecurityFilter.RiskLevel.BLOCKED) {
             Log.w(TAG, "Document content blocked by security filter")
             return@withContext DocumentAnalysisResponse(
-                title = fileName ?: "Document",
-                summary = "Document could not be analyzed due to security concerns.",
+                title = fileName ?: application.getString(R.string.document),
+                summary = application.getString(R.string.error_security_blocked),
                 keyPoints = emptyList(),
-                category = "Note",
+                category = application.getString(R.string.stack),
                 actionItems = emptyList(),
-                userRelevance = "Document saved for reference",
+                userRelevance = application.getString(R.string.visit_original_source),
                 success = true
             )
         }
@@ -302,8 +305,9 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
             val providerInstance = orchestrator.getProvider(provider)
             val model = orchestrator.getModelForProvider(provider)
 
-            val result = orchestrator.executeWithDocumentAnalysisRetry(provider, config) { apiKey ->
+            val result = orchestrator.executeWithDocumentAnalysisRetry(application, provider, config) { apiKey ->
                 providerInstance.analyzeDocument(
+                    context = application,
                     content = fullContent,
                     apiKey = apiKey,
                     model = model,
@@ -319,12 +323,12 @@ class ContentAnalyzer(private val orchestrator: AIProviderOrchestrator) {
         // Fallback response when AI is unavailable
         Log.w(TAG, " All providers failed for document analysis, using fallback")
         return@withContext DocumentAnalysisResponse(
-            title = fileName ?: "Document",
-            summary = "Document saved. AI analysis unavailable - please configure API keys in settings.",
-            keyPoints = listOf("Document contains ${documentText.length} characters"),
-            category = AIResponseParser.inferCategoryFromText(sanitizedDocumentText),
+            title = fileName ?: application.getString(R.string.document),
+            summary = application.getString(R.string.error_ai_unavailable_keys),
+            keyPoints = listOf(application.getString(R.string.x_attachments, 1)), // Use 1 as dummy count
+            category = AIResponseParser.validateCategory(null), // Use validateCategory instead of infer
             actionItems = emptyList(),
-            userRelevance = "Document saved for future reference",
+            userRelevance = application.getString(R.string.visit_original_source),
             success = true
         )
     }

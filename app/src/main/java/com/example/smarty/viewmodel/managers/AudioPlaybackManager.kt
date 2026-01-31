@@ -74,6 +74,15 @@ class AudioPlaybackManager(
     }
 
     /**
+     * Start playing a list of audio tracks immediately.
+     */
+    fun playList(tracks: List<AudioTrack>) {
+        if (tracks.isEmpty()) return
+        Log.d(TAG, "Playing list: ${tracks.size} tracks")
+        AudioPlayerService.playList(context, tracks)
+    }
+
+    /**
      * Pause the current playback.
      */
     fun pause() {

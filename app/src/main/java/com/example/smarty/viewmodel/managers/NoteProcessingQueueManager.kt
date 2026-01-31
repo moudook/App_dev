@@ -5,7 +5,7 @@ import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.ProcessingStatus
 import com.example.smarty.data.remote.AIService
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.util.ContentTypeDetector
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +41,7 @@ import kotlinx.coroutines.flow.asSharedFlow
  */
 class NoteProcessingQueueManager(
     private val noteDao: NoteDao,
-    private val repository: JarvisRepository,
+    private val repository: SmartyRepository,
     private val aiService: AIService,
     private val scope: CoroutineScope
 ) {
@@ -358,7 +358,13 @@ class NoteProcessingQueueManager(
                 Log.e(TAG, "Note failed after $MAX_RETRY_ATTEMPTS retries, saving with default: ${note.id}")
 
                 _processingEvents.emit(
-                    NoteProcessingEvent.Failed(note.id, "Processing failed after $MAX_RETRY_ATTEMPTS attempts")
+                    NoteProcessingEvent.Failed(
+                        note.id,
+                        repository.getApplicationContext().getString(
+                            com.example.smarty.R.string.processing_error_retries_exceeded,
+                            MAX_RETRY_ATTEMPTS
+                        )
+                    )
                 )
 
                 saveWithDefaultCategory(note)
@@ -376,7 +382,7 @@ class NoteProcessingQueueManager(
      */
     private suspend fun saveWithDefaultCategory(note: Note) {
         // Use smart keyword-based categorization instead of just type-based "Saved Files"
-        val fallbackResponse = com.example.smarty.data.remote.AIResponseParser.smartFallbackCategorization(note.content)
+        val fallbackResponse = com.example.smarty.data.remote.AIResponseParser.smartFallbackCategorization(repository.getApplicationContext(), note.content)
         val categoryName = fallbackResponse.category
         val category = repository.getOrCreateCategory(categoryName)
 

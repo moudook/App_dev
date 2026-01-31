@@ -36,7 +36,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_IS_RECURRING = "is_recurring"
         const val EXTRA_REPEAT_DAYS = "repeat_days"
 
-        private const val NOTIFICATION_CHANNEL_ID = "Jarvis_alarms"
+        private const val NOTIFICATION_CHANNEL_ID = "Smarty_alarms"
         private const val NOTIFICATION_CHANNEL_NAME = "Timers & Alarms"
 
         // WakeLock timeout slightly longer than audio duration to ensure completion
@@ -62,7 +62,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val wakeLock = powerManager.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
-            "Jarvis:AlarmWakeLock"
+            "Smarty:AlarmWakeLock"
         )
         wakeLock.acquire(WAKELOCK_TIMEOUT_MS)
 
@@ -80,7 +80,7 @@ class AlarmReceiver : BroadcastReceiver() {
             } else {
                 // One-time timer/alarm - deactivate in database
                 CoroutineScope(Dispatchers.IO).launch {
-                    val db = com.example.smarty.data.local.JarvisDatabase.getDatabase(context)
+                    val db = com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
                     db.timerDao().deactivateTimer(timerId)
                 }
             }
@@ -236,7 +236,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 calendar.add(java.util.Calendar.DAY_OF_YEAR, minDaysAway)
                 val nextTriggerTime = calendar.timeInMillis
 
-                val nextTimer = com.example.smarty.data.model.JarvisTimer(
+                val nextTimer = com.example.smarty.data.model.SmartyTimer(
                     id = timerId,
                     name = timerName,
                     triggerTime = nextTriggerTime,

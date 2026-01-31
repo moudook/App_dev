@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 
@@ -90,7 +92,7 @@ fun PrivacyModeIndicator(
     ) {
         Icon(
             imageVector = Icons.Default.Security,
-            contentDescription = "full_privacy_mode_active",
+            contentDescription = stringResource(R.string.privacy_mode_active),
             tint = MaterialTheme.colorScheme.error.copy(alpha = alpha),
             modifier = Modifier
                 .size(20.dp)
@@ -99,7 +101,7 @@ fun PrivacyModeIndicator(
 
         if (showLabel) {
             Text(
-                text = "full_privacy_mode",
+                text = stringResource(R.string.full_privacy_mode),
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
@@ -118,7 +120,7 @@ fun PrivacyModeIcon(
 ) {
     Icon(
         imageVector = Icons.Default.Security,
-        contentDescription = "full_privacy_note",
+        contentDescription = stringResource(R.string.privacy_note),
         tint = MaterialTheme.colorScheme.error,
         modifier = modifier.size(16.dp)
     )
@@ -174,7 +176,7 @@ fun PrivacyModeBanner(
             )
 
             Text(
-                text = "full_privacy_mode_no_ai_processing",
+                text = stringResource(R.string.full_privacy_no_ai),
                 color = MaterialTheme.colorScheme.error,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold

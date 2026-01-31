@@ -182,6 +182,7 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
      * @return Successful AIResponse or null if all attempts failed
      */
     suspend fun executeWithContentAnalysisRetry(
+        context: android.content.Context,
         provider: AIProvider,
         config: AIProviderConfig,
         action: suspend (apiKey: String) -> AIResponse?
@@ -284,12 +285,14 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
     /**
      * Execute an action with document analysis retry logic and failover tracking.
      *
+     * @param context Android context for localization
      * @param provider The AI provider to use
      * @param config Provider configuration with API keys
      * @param action The action to execute with each key
      * @return Successful DocumentAnalysisResponse or null if all attempts failed
      */
     suspend fun executeWithDocumentAnalysisRetry(
+        context: android.content.Context,
         provider: AIProvider,
         config: AIProviderConfig,
         action: suspend (apiKey: String) -> DocumentAnalysisResponse?
@@ -364,12 +367,14 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
      * Execute a chat action using normal keys (excludes agent key 1).
      * Includes failover tracking.
      *
+     * @param context Android context for localization
      * @param provider The AI provider to use
      * @param config Provider configuration with API keys
      * @param action The action to execute with each key
      * @return Successful response string or null if all attempts failed
      */
     suspend fun executeWithNormalKeys(
+        context: android.content.Context,
         provider: AIProvider,
         config: AIProviderConfig,
         action: suspend (apiKey: String) -> String?
@@ -442,12 +447,14 @@ class AIProviderOrchestrator(private val securePreferences: SecurePreferences) {
      * Execute a chat action using the dedicated agent key (key 1).
      * Includes failover tracking.
      *
+     * @param context Android context for localization
      * @param provider The AI provider to use
      * @param config Provider configuration with API keys
      * @param action The action to execute with agent key
      * @return Successful response string or null if failed
      */
     suspend fun executeWithAgentKey(
+        context: android.content.Context,
         provider: AIProvider,
         config: AIProviderConfig,
         action: suspend (apiKey: String) -> String?

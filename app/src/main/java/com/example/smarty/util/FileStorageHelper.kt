@@ -216,7 +216,7 @@ object FileStorageHelper {
 
             Log.d(TAG, "File compressed and stored: ${compressedResult.originalFileName} -> " +
                     "${compressedResult.compressedFileName} (${compressedResult.compressionType}, " +
-                    "saved ${formatFileSize(compressedResult.savedBytes)})")
+                    "saved ${formatFileSize(context, compressedResult.savedBytes)})")
 
             CompressedStorageResult(
                 uri = Uri.fromFile(compressedResult.compressedFile).toString(),
@@ -497,7 +497,7 @@ object FileStorageHelper {
 
     // ========================== Private Helpers ==========================
 
-    private fun formatFileSize(bytes: Long): String = ContentTypeDetector.formatFileSize(bytes)
+    private fun formatFileSize(context: Context, bytes: Long): String = ContentTypeDetector.formatFileSize(context, bytes)
 
     private fun getFileName(context: Context, uri: Uri): String? {
         return try {

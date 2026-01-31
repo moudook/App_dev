@@ -65,7 +65,11 @@ class VoiceFeatureManager(
     }
 
     fun initVoskWakeWord() {
-        if (voskWakeWordManager != null) return
+        if (voskWakeWordManager != null && !voskWakeWordManager!!.isDestroyed) return
+
+        if (voskWakeWordManager?.isDestroyed == true) {
+            voskWakeWordManager = null
+        }
 
         voskWakeWordManager = VoskWakeWordManager(
             context = context.applicationContext,
@@ -86,16 +90,12 @@ class VoiceFeatureManager(
     }
 
     fun startWakeWordDetection(isPrivacyModeActive: Boolean) {
+        startMusicCheck()
+
         if (isPrivacyModeActive) {
             Log.d(TAG, "Skipping wake word start - privacy mode active")
             return
         }
-        if (isInAppAudioPlaying) {
-            Log.d(TAG, "Skipping wake word start - in-app audio playing")
-            return
-        }
-
-        startMusicCheck()
 
         if (audioManager?.isMusicActive == true) {
             Log.d(TAG, "Skipping wake word start - system music active")
@@ -150,6 +150,7 @@ class VoiceFeatureManager(
     private fun initPhoneCallListener() {
         try {
             telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            @Suppress("DEPRECATION")
             phoneStateListener = object : PhoneStateListener() {
                 @Deprecated("Deprecated in Java")
                 override fun onCallStateChanged(state: Int, phoneNumber: String?) {
@@ -168,6 +169,7 @@ class VoiceFeatureManager(
                     }
                 }
             }
+            @Suppress("DEPRECATION")
             telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to init phone listener", e)
@@ -245,6 +247,7 @@ class VoiceFeatureManager(
         // Unregister listeners
         try {
             phoneStateListener?.let { listener ->
+                @Suppress("DEPRECATION")
                 telephonyManager?.listen(listener, android.telephony.PhoneStateListener.LISTEN_NONE)
             }
         } catch (e: Exception) {

@@ -183,6 +183,7 @@ object AIModels {
         "mistralai/mistral-7b-instruct:free" to "Mistral 7B (Free)",
         "deepseek/deepseek-r1:free" to "DeepSeek R1 (Free, Reasoning)",
         "qwen/qwen3-32b:free" to "Qwen 3 32B (Free)",
+        "arcee-ai/trinity-large-preview:free" to "Trinity Large (Free)",
         "meta-llama/llama-3.3-70b-instruct" to "Llama 3.3 70B (Paid)",
         "anthropic/claude-3.5-sonnet" to "Claude 3.5 Sonnet (Paid)"
     )
@@ -227,6 +228,7 @@ object AIModels {
     // Local PC models - Run AI locally on your computer
     // Connect via USB tethering or WiFi to your local LLM server
     val LOCAL_PC_MODELS = listOf(
+        "chatglm3-6b-128k" to "ChatGLM3 6B 128K (Full)",
         "qwen2.5-3b-instruct" to "Qwen 2.5 3B Instruct (Default)",
         "qwen2.5-7b-instruct" to "Qwen 2.5 7B Instruct",
         "qwen2.5-14b-instruct" to "Qwen 2.5 14B Instruct",
@@ -235,7 +237,7 @@ object AIModels {
         "gemma-2-2b-it" to "Gemma 2 2B IT",
         "mistral-7b-instruct-v0.3" to "Mistral 7B Instruct v0.3"
     )
-    const val LOCAL_PC_DEFAULT = "qwen2.5-3b-instruct"
+    const val LOCAL_PC_DEFAULT = "chatglm3-6b-128k"
 
     fun getModelsForProvider(provider: AIProvider): List<Pair<String, String>> {
         return when (provider) {
@@ -290,7 +292,7 @@ class SecurePreferences(private val context: Context) {
     private val encryptedPrefs: android.content.SharedPreferences by lazy {
         EncryptedSharedPreferences.create(
             context,
-            "Jarvis_secure_prefs",
+            "Smarty_secure_prefs",
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
@@ -402,9 +404,11 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_LOCAL_PC_IP = "local_pc_ip"
         private const val KEY_LOCAL_PC_PORT = "local_pc_port"
         private const val KEY_LOCAL_PC_USE_HTTPS = "local_pc_use_https"
-        private const val DEFAULT_LOCAL_PC_IP = "10.200.244.247"  // Default USB tethering IP
-        private const val DEFAULT_LOCAL_PC_PORT = "8000"  // HTTP port (HTTPS typically 8443)
+        private const val KEY_LOCAL_PC_ENABLED = "local_pc_enabled"
+        private const val DEFAULT_LOCAL_PC_IP = "10.200.245.89"  // User's WiFi IP
+        private const val DEFAULT_LOCAL_PC_PORT = "8000"  // llama-server default port
         private const val DEFAULT_LOCAL_PC_USE_HTTPS = false
+        private const val DEFAULT_LOCAL_PC_ENABLED = false
         // Google Calendar Sync
         private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
         private const val KEY_TARGET_GOOGLE_CALENDAR_ID = "target_google_calendar_id"
@@ -450,24 +454,25 @@ class SecurePreferences(private val context: Context) {
         return !getApiKey().isNullOrBlank()
     }
 
-    // Shake sensitivity (0.0 to 1.0, default 0.63 - baseline recommended)
+    // Shake sensitivity (Logic range: 5.0 (Low) to 0.5 (High))
     fun getShakeSensitivity(): Float {
-        return encryptedPrefs.getFloat(KEY_SHAKE_SENSITIVITY, 0.63f)
+        return encryptedPrefs.getFloat(KEY_SHAKE_SENSITIVITY, 1.5f) // Default in the new range
     }
 
     fun setShakeSensitivity(value: Float) {
-        encryptedPrefs.edit().putFloat(KEY_SHAKE_SENSITIVITY, value.coerceIn(0f, 1f)).apply()
+        encryptedPrefs.edit().putFloat(KEY_SHAKE_SENSITIVITY, value.coerceIn(0.5f, 5.0f)).apply()
     }
 
     /**
-     * Convert sensitivity (0-1) to shake threshold.
-     * Higher sensitivity = lower threshold (easier to trigger)
-     * sensitivity 0 -> threshold 1600 (hard to trigger)
-     * sensitivity 1 -> threshold 400 (easy to trigger)
+     * Convert sensitivity (0.5 - 5.0) to shake threshold.
+     * Higher logic value = lower sensitivity = higher threshold (harder to trigger)
+     * sensitivity 0.5 (High) -> threshold 400 (easy)
+     * sensitivity 5.0 (Low) -> threshold 1600 (hard)
      */
     fun getShakeThreshold(): Int {
-        val sensitivity = getShakeSensitivity()
-        return (1600 - sensitivity * 1200).toInt()
+        val logicValue = getShakeSensitivity()
+        // Linear mapping: 400 + (logicValue - 0.5) * (1200 / 4.5)
+        return (400 + (logicValue - 0.5f) * (1200f / 4.5f)).toInt()
     }
 
     // Sound Settings
@@ -892,6 +897,23 @@ class SecurePreferences(private val context: Context) {
      */
     fun setLocalPCUseHttps(useHttps: Boolean) {
         encryptedPrefs.edit().putBoolean(KEY_LOCAL_PC_USE_HTTPS, useHttps).apply()
+    }
+
+    /**
+     * Get whether Local PC connection is enabled.
+     * If false, strictly skip all connectivity checks to prevent UI hangs.
+     */
+    fun isLocalPCEnabled(): Boolean {
+        return encryptedPrefs.getBoolean(KEY_LOCAL_PC_ENABLED, DEFAULT_LOCAL_PC_ENABLED)
+    }
+
+    /**
+     * Set whether Local PC connection is enabled.
+     */
+    fun setLocalPCEnabled(enabled: Boolean) {
+        encryptedPrefs.edit().putBoolean(KEY_LOCAL_PC_ENABLED, enabled).apply()
+        // Trigger config update so provider list refreshes immediately
+        _providerConfigs.value = getAllProviderConfigs()
     }
 
     /**

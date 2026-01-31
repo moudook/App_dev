@@ -10,25 +10,32 @@ import com.example.smarty.util.api.ApiMetrics
 import java.lang.ref.WeakReference
 
 /**
- * Application class for Jarvis.
+ * Application class for Smarty.
  *
  * Initializes global components:
  * - ResourceManager: Device capability detection and memory monitoring
  * - LazyDecompressor: On-demand decompression with intelligent caching
  * - WorkManager: Custom configuration to prevent memory leaks
  */
-class JarvisApplication : Application(), Configuration.Provider {
+class SmartyApplication : Application(), Configuration.Provider {
 
     companion object {
-        private const val TAG = "JarvisApplication"
+        private const val TAG = "SmartyApplication"
 
         // WeakReference to prevent memory leaks from static context references
-        private var applicationRef: WeakReference<JarvisApplication>? = null
+        private var applicationRef: WeakReference<SmartyApplication>? = null
 
         /**
          * Get application instance safely (may be null if app terminated)
          */
-        fun getInstance(): JarvisApplication? = applicationRef?.get()
+        fun getInstance(): SmartyApplication? = applicationRef?.get()
+
+        /**
+         * Convenience property for accessing the singleton instance.
+         * Throws IllegalStateException if not initialized.
+         */
+        val appInstance: SmartyApplication
+            get() = getInstance() ?: throw IllegalStateException("SmartyApplication not initialized")
     }
 
     /**

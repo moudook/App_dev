@@ -50,12 +50,14 @@ import com.example.smarty.data.model.NoteVersion
 import com.example.smarty.data.model.getAttachments
 import com.example.smarty.data.model.getChunkAnalyses
 import com.example.smarty.data.model.hasChunkAnalyses
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.components.CategoryChip
 import com.example.smarty.ui.components.DecompressionPlaceholder
 import com.example.smarty.ui.components.FloatingActionBar
 import com.example.smarty.ui.components.ShimmerBox
 import com.example.smarty.ui.components.getNoteTypeColor
 import com.example.smarty.ui.components.getNoteTypeIcon
+import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.AudioPink
 import com.example.smarty.ui.theme.softCardShadow
@@ -98,8 +100,8 @@ fun KnowledgeCardScreen(
     isVersionsLoading: Boolean = false,
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     isMiniPlayerVisible: Boolean = false,
-    // @Mention: Ask AI about this note (opens chat with note pre-referenced)
-    onAskAI: (() -> Unit)? = null,
+    // @Mention: Ask Smarty about this note (opens chat with note pre-referenced)
+    onAskSmarty: (() -> Unit)? = null,
     // Related Notes: All notes for semantic linking
     allNotes: List<Note> = emptyList(),
     onNavigateToNote: (Note) -> Unit = {},
@@ -227,7 +229,7 @@ fun KnowledgeCardScreen(
                         // "Why Saved" - High Priority Ideation Element
                         if (isEditing || note.whySaved != null) {
                             SectionCard(
-                                title = "Why this matters", // Clearer label for ideation
+                                title = stringResource(R.string.why_this_matters), // Clearer label for ideation
                                 icon = Icons.Outlined.Lightbulb, // Lightbulb for ideas
                                 accentColor = LocalAccentColor.current,
                                 showToggleIndicator = false
@@ -236,7 +238,7 @@ fun KnowledgeCardScreen(
                                     OutlinedTextField(
                                         value = editedWhySaved,
                                         onValueChange = { editedWhySaved = it },
-                                        placeholder = { Text("Why did you save this? What sparked your interest?") },
+                                        placeholder = { Text(stringResource(R.string.why_saved_placeholder)) },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(12.dp),
                                         colors = OutlinedTextFieldDefaults.colors(
@@ -246,7 +248,7 @@ fun KnowledgeCardScreen(
                                     )
                                 } else {
                                     Text(
-                                        text = note.whySaved?.ifBlank { "No reason recorded yet." } ?: "No reason recorded yet.",
+                                        text = note.whySaved?.ifBlank { stringResource(R.string.no_reason_recorded) } ?: stringResource(R.string.no_reason_recorded),
                                         style = MaterialTheme.typography.bodyLarge.copy(
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.Medium,
@@ -270,7 +272,7 @@ fun KnowledgeCardScreen(
                         }
 
                         SectionCard(
-                            title = if (isEditing) "Summary" else if (showChunkAnalyses) stringResource(R.string.per_page_analysis) else summaryTitle.ifEmpty { "Summary" },
+                            title = if (isEditing) stringResource(R.string.summary) else if (showChunkAnalyses) stringResource(R.string.per_page_analysis) else summaryTitle.ifEmpty { stringResource(R.string.summary) },
                             icon = Icons.AutoMirrored.Filled.TextSnippet,
                             onIconClick = if (hasChunks && !isEditing) {
                                 { showChunkAnalyses = !showChunkAnalyses }
@@ -318,7 +320,7 @@ fun KnowledgeCardScreen(
                             } else {
                                 // Standard Summary Text
                                 Text(
-                                    text = summaryContent.ifBlank { "No summary generated." },
+                                    text = summaryContent.ifBlank { stringResource(R.string.no_summary_generated) },
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontSize = 16.sp,
                                         lineHeight = 26.sp,
@@ -366,7 +368,7 @@ fun KnowledgeCardScreen(
 
                         if (allAttachments.isNotEmpty()) {
                             SectionCard(
-                                title = "Attachments",
+                                title = stringResource(R.string.attachments),
                                 icon = Icons.Outlined.Attachment
                             ) {
                                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -400,14 +402,14 @@ fun KnowledgeCardScreen(
                             }
                         } else {
                             // Empty state for files if none
-                             SectionCard(title = "Attachments", icon = Icons.Outlined.Attachment) {
-                                Text("No files attached.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                             SectionCard(title = stringResource(R.string.attachments), icon = Icons.Outlined.Attachment) {
+                                Text(stringResource(R.string.no_files_attached), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
 
                         // 2. Original Content Text
                         SectionCard(
-                            title = "Original Text",
+                            title = stringResource(R.string.original_text),
                             icon = Icons.AutoMirrored.Outlined.Article,
                             forceVertical = true
                         ) {
@@ -424,7 +426,7 @@ fun KnowledgeCardScreen(
                                 )
                             } else {
                                 Text(
-                                    text = note.content.ifBlank { "No text content." },
+                                    text = note.content.ifBlank { stringResource(R.string.no_text_content) },
                                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp),
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
                                 )
@@ -442,7 +444,7 @@ fun KnowledgeCardScreen(
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.OpenInNew, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Visit Original Source")
+                                Text(stringResource(R.string.visit_original_source))
                             }
                         }
                     }
@@ -468,7 +470,7 @@ fun KnowledgeCardScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.History,
-                        contentDescription = "History",
+                        contentDescription = stringResource(R.string.history),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         modifier = Modifier.size(18.dp)
                     )
@@ -550,14 +552,14 @@ fun KnowledgeCardScreen(
                     .navigationBarsPadding(),
                 isVisible = !showImageViewer && !showVideoPlayer,
                 isEditing = isEditing,
-                onAskAI = onAskAI
+                onAskSmarty = onAskSmarty
             )
         }
     }
 
     // Delete Confirmation Dialog
     if (showDeleteDialog) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        SmartyDialog(
             title = stringResource(R.string.delete_note),
             text = stringResource(R.string.delete_note_warning),
             onConfirm = {
@@ -610,7 +612,7 @@ fun KnowledgeCardScreen(
     }
 
     if (isDecompressing) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        SmartyDialog(
             title = stringResource(R.string.opening_document),
             text = "",
             customContent = {
@@ -618,7 +620,7 @@ fun KnowledgeCardScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    com.example.smarty.ui.components.CalmThinkingDots(
+                    CalmThinkingDots(
                         dotSize = 4.dp
                     )
                     Text(
@@ -659,8 +661,8 @@ enum class KnowledgeTab {
 @Composable
 fun getKnowledgeTabTitle(tab: KnowledgeTab): String {
     return when (tab) {
-        KnowledgeTab.INSIGHT -> "Insight" // Was Summary
-        KnowledgeTab.SOURCE -> "Source"   // Combined Files + Original
+        KnowledgeTab.INSIGHT -> stringResource(R.string.insight)
+        KnowledgeTab.SOURCE -> stringResource(R.string.source)
     }
 }
 
@@ -715,7 +717,7 @@ fun KnowledgeHeaderCard(
                 // Optional: Add "processed" indicator text if needed, or keep minimal
                 if (note.processingStatus == ProcessingStatus.COMPLETED) {
                      Text(
-                        text = "Processed",
+                        text = stringResource(R.string.processed),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                     )
@@ -857,7 +859,7 @@ private fun SectionCard(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = if (isToggled) "View Pages" else "View Summary",
+                                text = if (isToggled) stringResource(R.string.view_history) else stringResource(R.string.summary),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (isToggled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -897,12 +899,13 @@ private fun getNoteTypeName(type: NoteType): String {
     }
 }
 
+@Composable
 private fun formatDate(timestamp: Long): String {
-    val sdf = SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault())
-    return sdf.format(Date(timestamp))
+    val dateStr = SimpleDateFormat(stringResource(R.string.date_format_short), Locale.getDefault()).format(Date(timestamp))
+    val timeStr = SimpleDateFormat(stringResource(R.string.time_format_12h), Locale.getDefault()).format(Date(timestamp))
+    return stringResource(R.string.date_at_time_format, dateStr, timeStr)
 }
 
-private fun formatFileSize(bytes: Long): String = com.example.smarty.util.ContentTypeDetector.formatFileSize(bytes)
 
 
 
@@ -983,7 +986,11 @@ fun FileAttachmentItem(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "${attachment.mimeType.substringAfterLast('/').lowercase()} • ${formatFileSize(attachment.fileSize).lowercase()}",
+                    text = stringResource(
+                        R.string.file_metadata_format,
+                        attachment.mimeType.substringAfterLast('/').lowercase(),
+                        com.example.smarty.ui.screens.settings.formatCacheSize(attachment.fileSize).lowercase()
+                    ),
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.3.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1093,8 +1100,9 @@ private fun CompactFileRow(
                 overflow = TextOverflow.Ellipsis
             )
             if (fileSize != null) {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 Text(
-                    text = formatFileSize(fileSize),
+                    text = com.example.smarty.util.ContentTypeDetector.formatFileSize(context, fileSize),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1459,7 +1467,7 @@ private fun VersionHistorySheet(
                         .height(200.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    com.example.smarty.ui.components.CalmThinkingDots()
+                    CalmThinkingDots()
                 }
             } else if (versions.isEmpty()) {
                 com.example.smarty.ui.components.VersionHistoryEmptyState(
@@ -1493,7 +1501,7 @@ private fun VersionHistorySheet(
 
     // Restore Confirmation Dialog
     if (showRestoreDialog && selectedVersion != null) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        SmartyDialog(
             title = stringResource(R.string.restore_version),
             text = "",
             customContent = {

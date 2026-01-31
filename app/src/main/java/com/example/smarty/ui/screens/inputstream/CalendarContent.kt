@@ -51,7 +51,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.components.CalendarEmptyState
 import java.text.SimpleDateFormat
 import java.util.*
@@ -73,9 +75,11 @@ import kotlinx.coroutines.launch
 @Composable
 fun CalendarContent(
     events: List<CalendarEvent>,
+    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
     onEventClick: (CalendarEvent) -> Unit,
     onAddEvent: (Calendar) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
+    onCancelTimer: (SmartyTimer) -> Unit = {},
     contentPadding: PaddingValues,
     isLoading: Boolean = false,
     modifier: Modifier = Modifier,
@@ -264,6 +268,20 @@ fun CalendarContent(
             }
         }
 
+        // Active Timers Section
+        if (activeTimers.isNotEmpty()) {
+            item {
+                ActiveTimersRow(
+                    timers = activeTimers,
+                    accentColor = accentColor,
+                    textPrimary = textPrimary,
+                    surfaceVariant = MaterialTheme.colorScheme.surfaceVariant,
+                    onCancelTimer = onCancelTimer
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+
         // Horizontal Week Scroll
         item {
             HorizontalWeekStrip(
@@ -379,7 +397,7 @@ fun CalendarContent(
                         .padding(vertical = 40.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    com.example.smarty.ui.components.CalmThinkingDots()
+                    CalmThinkingDots()
                 }
             }
         } else if (selectedDateEvents.isEmpty() && !isCreatingEvent) {
@@ -528,7 +546,7 @@ private fun InlineEventCreator(
                         )
 
                         Text(
-                            text = "→",
+                            text = stringResource(R.string.arrow_right),
                             color = textMuted.copy(alpha = 0.4f),
                             fontSize = 14.sp
                         )
@@ -669,9 +687,9 @@ private fun HourChip(
             }
         }
 
-        // Time picker matching app's Jarvis dialog style
+        // Time picker matching app's Smarty dialog style
         if (showHourPicker) {
-            JarvisTimePicker(
+            SmartyTimePicker(
                 selectedHour = hour,
                 onHourSelected = { h ->
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -686,7 +704,7 @@ private fun HourChip(
 }
 
 /**
- * Jarvis-Style Time Picker
+ * Smarty-Style Time Picker
  * Theme-aware design that adapts to light/dark mode:
  * - Uses MaterialTheme colors for automatic theming
  * - Super-rounded corners (32dp)
@@ -694,7 +712,7 @@ private fun HourChip(
  * - Accent color highlights
  */
 @Composable
-private fun JarvisTimePicker(
+private fun SmartyTimePicker(
     selectedHour: Int,
     onHourSelected: (Int) -> Unit,
     onDismiss: () -> Unit,
@@ -854,7 +872,7 @@ private fun JarvisTimePicker(
                         }
                         val isSelected = hour24 == selectedHour
 
-                        JarvisTimeItem(
+                        SmartyTimeItem(
                             displayHour = displayH,
                             isSelected = isSelected,
                             accentColor = accentColor,
@@ -892,10 +910,10 @@ private fun JarvisTimePicker(
 }
 
 /**
- * Individual hour item in the Jarvis-style picker - theme-aware
+ * Individual hour item in the Smarty-style picker - theme-aware
  */
 @Composable
-private fun JarvisTimeItem(
+private fun SmartyTimeItem(
     displayHour: Int,
     isSelected: Boolean,
     accentColor: Color,
@@ -1267,7 +1285,7 @@ private fun EventCard(
 
                     event.location?.takeIf { it.isNotBlank() }?.let { location ->
                         Text(
-                            text = " · ",
+                            text = " ${stringResource(R.string.dot_separator)} ",
                             style = MaterialTheme.typography.bodySmall,
                             color = textMuted.copy(alpha = 0.5f)
                         )
@@ -1285,7 +1303,7 @@ private fun EventCard(
             if (event.isRecurring) {
                 Icon(
                     imageVector = eventIcon,
-                    contentDescription = "repeating",
+                    contentDescription = stringResource(R.string.repeating),
                     tint = textMuted.copy(alpha = 0.4f),
                     modifier = Modifier.size(18.dp)
                 )
@@ -1334,6 +1352,117 @@ private fun generateWeekWindow(centerDate: Calendar): List<Calendar?> {
     }
 
     return days
+}
+
+// ============ Helper Components ============
+
+@Composable
+private fun ActiveTimersRow(
+    timers: List<com.example.smarty.data.model.SmartyTimer>,
+    accentColor: Color,
+    textPrimary: Color,
+    surfaceVariant: Color,
+    onCancelTimer: (SmartyTimer) -> Unit
+) {
+    val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+
+    // State to trigger recomposition every second for countdown
+    var ticks by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(timers) {
+        while(true) {
+            ticks = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.active_timers).lowercase(),
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.5.sp
+            ),
+            color = textPrimary.copy(alpha = 0.4f),
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+        )
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(timers, key = { it.id }) { timer ->
+                // Calculate time remaining for timers
+                val now = ticks
+                val timeRemaining = if (!timer.isAlarm) {
+                    (timer.triggerTime - now).coerceAtLeast(0)
+                } else {
+                    0L
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = surfaceVariant.copy(alpha = 0.4f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.15f)),
+                    modifier = Modifier.widthIn(min = 130.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (timer.isAlarm) Icons.Rounded.Alarm else Icons.Rounded.Timer,
+                            contentDescription = null,
+                            tint = accentColor.copy(alpha = 0.8f),
+                            modifier = Modifier.size(14.dp)
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = timer.name.lowercase(),
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            val statusText = if (timer.isAlarm) {
+                                timeFormat.format(Date(timer.triggerTime)).lowercase()
+                            } else {
+                                val minutes = timeRemaining / 60000
+                                val seconds = (timeRemaining % 60000) / 1000
+                                String.format("%d:%02d", minutes, seconds)
+                            }
+
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = textPrimary.copy(alpha = 0.5f)
+                            )
+                        }
+
+                        // Cancel button
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.3f))
+                                .clickable { onCancelTimer(timer) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.cancel),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun filterEventsForDate(events: List<CalendarEvent>, date: Calendar): List<CalendarEvent> {

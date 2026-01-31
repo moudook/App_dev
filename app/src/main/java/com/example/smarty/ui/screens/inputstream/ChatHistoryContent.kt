@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.data.model.ChatSession
+import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.ChatHistoryEmptyState
 import java.util.*
@@ -145,7 +146,7 @@ fun ChatHistoryContent(
 
     // Delete Dialog
     sessionToDelete?.let { session ->
-        com.example.smarty.ui.components.common.JarvisDialog(
+        SmartyDialog(
             title = stringResource(R.string.delete_chat),
             text = stringResource(R.string.chat_delete_warning),
             onConfirm = {

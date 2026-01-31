@@ -91,37 +91,37 @@ class KnowledgeMasterTool(
         return try {
             when (args.intent) {
                 "create_note" -> {
-                    onStatusUpdate("Saving note...")
-                    val content = args.content ?: return KnowledgeResult(false, "Content required")
+                    onStatusUpdate("status_saving_note")
+                    val content = args.content ?: return KnowledgeResult(false, "error_content_required")
                     onAddNote(content, args.metadata?.category)
-                    KnowledgeResult(true, "Note created")
+                    KnowledgeResult(true, "note_created_success")
                 }
                 "update_note" -> {
-                    val id = args.target_id ?: return KnowledgeResult(false, "ID required")
-                    onStatusUpdate("Updating...")
+                    val id = args.target_id ?: return KnowledgeResult(false, "error_id_required")
+                    onStatusUpdate("status_updating")
                     onUpdateNote(id, args.metadata?.title, args.content)
-                    KnowledgeResult(true, "Note updated")
+                    KnowledgeResult(true, "note_updated_success")
                 }
                 "delete_note" -> {
-                    val id = args.target_id ?: return KnowledgeResult(false, "ID required")
-                    onStatusUpdate("Deleting...")
+                    val id = args.target_id ?: return KnowledgeResult(false, "error_id_required")
+                    onStatusUpdate("status_deleting")
                     onDeleteNote(id)
-                    KnowledgeResult(true, "Note deleted")
+                    KnowledgeResult(true, "note_deleted_success")
                 }
                 "archive_note" -> {
-                    val id = args.target_id ?: return KnowledgeResult(false, "ID required")
-                    onStatusUpdate("Archiving...")
+                    val id = args.target_id ?: return KnowledgeResult(false, "error_id_required")
+                    onStatusUpdate("status_archiving")
                     onArchiveNote(id)
-                    KnowledgeResult(true, "Note archived")
+                    KnowledgeResult(true, "note_archived_success")
                 }
                 "unarchive_note" -> {
-                    val id = args.target_id ?: return KnowledgeResult(false, "ID required")
-                    onStatusUpdate("Restoring...")
+                    val id = args.target_id ?: return KnowledgeResult(false, "error_id_required")
+                    onStatusUpdate("status_restoring")
                     onUnarchiveNote(id)
-                    KnowledgeResult(true, "Note unarchived")
+                    KnowledgeResult(true, "note_unarchived_success")
                 }
                 "retrieve_notes" -> {
-                    onStatusUpdate("Searching...")
+                    onStatusUpdate("status_searching")
                     val results = onSearchNotes(
                         args.filters?.query,
                         args.filters?.category,
@@ -132,30 +132,30 @@ class KnowledgeMasterTool(
                     val noteInfos = results.map {
                         NoteInfo(it.note.id, it.note.title, it.note.content ?: "", it.note.summary, it.note.categoryName, it.note.type.name, it.note.createdAt)
                     }
-                    KnowledgeResult(true, "Found ${results.size} notes", knowledgeJson.encodeToString(noteInfos))
+                    KnowledgeResult(true, "found_notes_count|${results.size}", knowledgeJson.encodeToString(noteInfos))
                 }
                 "summarize_note" -> {
-                    val id = args.target_id ?: return KnowledgeResult(false, "ID required")
-                    onStatusUpdate("Summarizing...")
+                    val id = args.target_id ?: return KnowledgeResult(false, "error_id_required")
+                    onStatusUpdate("status_summarizing")
                     onSummarizeNote(id)
-                    KnowledgeResult(true, "Summary initiated")
+                    KnowledgeResult(true, "summary_initiated_success")
                 }
                 "manage_category" -> {
                     if (args.content != null) {
-                        onStatusUpdate("Creating category...")
+                        onStatusUpdate("status_creating_category")
                         val cat = onCreateCategory(args.content)
-                        KnowledgeResult(true, "Category '${cat.name}' created")
+                        KnowledgeResult(true, "category_created_success|${cat.name}")
                     } else {
-                        onStatusUpdate("Fetching categories...")
+                        onStatusUpdate("status_fetching_categories")
                         val stats = onGetCategoryStats()
                         val categories = stats.map { CategoryInfo(it.name, it.count) }
-                        KnowledgeResult(true, "Listing categories", knowledgeJson.encodeToString(categories))
+                        KnowledgeResult(true, "listing_categories_success", knowledgeJson.encodeToString(categories))
                     }
                 }
-                else -> KnowledgeResult(false, "Unknown intent")
+                else -> KnowledgeResult(false, "error_unknown_intent")
             }
         } catch (e: Exception) {
-            KnowledgeResult(false, "Error: ${e.message}")
+            KnowledgeResult(false, "error_prefix|${e.message}")
         }
     }
 }

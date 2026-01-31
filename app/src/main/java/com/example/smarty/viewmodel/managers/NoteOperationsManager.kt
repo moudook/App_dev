@@ -18,7 +18,7 @@ import com.example.smarty.data.model.withAttachments
 import com.example.smarty.data.model.withTodos
 import com.example.smarty.data.remote.AIResponseParser
 import com.example.smarty.data.remote.AIService
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.DatabaseWriteBatcher
 import com.example.smarty.util.FileStorageHelper
@@ -52,7 +52,7 @@ data class CategoryStatInfo(val name: String, val count: Int)
  * Manages all note CRUD operations.
  */
 class NoteOperationsManager(
-    private val repository: JarvisRepository,
+    private val repository: SmartyRepository,
     private val aiService: AIService,
     private val context: Context,
     private val scope: CoroutineScope,
@@ -169,14 +169,14 @@ class NoteOperationsManager(
             val shouldProcess = NoteType.isAnalyzable(detectedType)
 
             // Resolve initial category if provided
-            val category = initialCategory?.let { repository.getOrCreateCategory(it) }
+            val category = initialCategory?.let { repository.getOrCreateCategory(it) } ?: repository.getOrCreateCategory(context.getString(com.example.smarty.R.string.category_quick_notes))
 
             val note = Note(
-                title = ContentTypeDetector.extractTitle(content, detectedType),
+                title = ContentTypeDetector.extractTitle(context, content, detectedType),
                 content = content,
                 type = detectedType,
-                categoryId = category?.id,
-                categoryName = category?.name,
+                categoryId = category.id,
+                categoryName = category.name,
                 sourceUrl = sourceUrl ?: if (detectedType != NoteType.BRAIN_DUMP && content.startsWith("http")) content else null,
                 processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
                 excludeFromAiChat = excludeFromAiChat
@@ -210,7 +210,7 @@ class NoteOperationsManager(
                     val shouldProcess = NoteType.isAnalyzable(type)
 
                     Note(
-                        title = sharedContent.fileName ?: ContentTypeDetector.getDefaultTitle(type),
+                        title = sharedContent.fileName ?: ContentTypeDetector.getDefaultTitle(context, type),
                         content = buildFileDescription(sharedContent),
                         fileUri = sharedContent.fileUri,
                         fileName = sharedContent.fileName,
@@ -224,7 +224,7 @@ class NoteOperationsManager(
                 sharedContent.text != null -> {
                     val type = ContentTypeDetector.detectContentType(sharedContent.text!!)
                     Note(
-                        title = ContentTypeDetector.extractTitle(sharedContent.text!!, type),
+                        title = ContentTypeDetector.extractTitle(context, sharedContent.text!!, type),
                         content = sharedContent.text!!,
                         sourceUrl = if (type != NoteType.BRAIN_DUMP && sharedContent.text!!.contains("://"))
                             ContentTypeDetector.extractUrl(sharedContent.text!!) else null,
@@ -291,7 +291,7 @@ class NoteOperationsManager(
             }
 
             val title = when {
-                hasUserText -> ContentTypeDetector.extractTitle(content, type)
+                hasUserText -> ContentTypeDetector.extractTitle(context, content, type)
                 attachments.size > 1 -> "${attachments.size} ${getTypePluralName(type)}"
                 else -> primaryOriginal.fileName
             }
@@ -406,7 +406,7 @@ class NoteOperationsManager(
 
             // 2. Create note directly in PROCESSING state (skip PENDING)
             val note = Note(
-                title = ContentTypeDetector.extractTitle(content, NoteType.IMAGE),
+                title = ContentTypeDetector.extractTitle(context, content, NoteType.IMAGE),
                 content = content,
                 fileUri = copiedFileUri,
                 fileName = processed.fileName,
@@ -548,7 +548,7 @@ class NoteOperationsManager(
     fun optimizeSearchIndex() {
         scope.launch(Dispatchers.IO) {
             try {
-                // Implementation assumes JARVIS database has FTS maintenance support
+                // Implementation assumes SMARTY database has FTS maintenance support
                 repository.optimizeSearchIndex()
                 Log.i(TAG, "Search index optimized successfully")
             } catch (e: Exception) {
@@ -896,10 +896,10 @@ class NoteOperationsManager(
         } catch (e: Exception) {
             Log.e(TAG, "Error processing PDF: ${e.message}", e)
 
-            val category = repository.getOrCreateCategory("Documents")
+            val category = repository.getOrCreateCategory(context.getString(com.example.smarty.R.string.category_documents))
             val updatedNote = note.copy(
-                summary = "Error processing PDF",
-                whySaved = "Document saved",
+                summary = context.getString(com.example.smarty.R.string.error_pdf_processing),
+                whySaved = context.getString(com.example.smarty.R.string.doc_saved),
                 categoryId = category.id,
                 categoryName = category.name,
                 processingStatus = ProcessingStatus.FAILED,
@@ -1030,10 +1030,10 @@ class NoteOperationsManager(
                     )
                 } catch (e: Exception) {
                     DocumentAnalysisResponse(
-                        title = note.fileName ?: "Document",
+                        title = note.fileName ?: context.getString(com.example.smarty.R.string.untitled_note),
                         summary = chunkSummaries.joinToString("\n\n"),
                         keyPoints = emptyList(),
-                        category = "Documents",
+                        category = context.getString(com.example.smarty.R.string.category_documents),
                         actionItems = emptyList(),
                         userRelevance = "Comprehensive ${chunkedResult.totalPages}-page document"
                     )
@@ -1067,32 +1067,32 @@ class NoteOperationsManager(
         isComplete: Boolean = true
     ): String = buildString {
         if (totalPages != null && successfulChunks != null) {
-            append(" $totalPages pages analyzed ($successfulChunks sections)\n\n")
+            append(context.getString(com.example.smarty.R.string.doc_summary_header, totalPages, successfulChunks))
         }
         append(response.summary)
 
         response.references?.formulas?.takeIf { it.isNotEmpty() }?.let { formulas ->
-            append("\n\n Formulas:")
+            append(context.getString(com.example.smarty.R.string.doc_formulas))
             formulas.forEach { append("\n  • $it") }
         }
 
         response.references?.keyTerms?.takeIf { it.isNotEmpty() }?.let { terms ->
-            append("\n\n Key Terms:")
+            append(context.getString(com.example.smarty.R.string.doc_key_terms))
             terms.forEach { append("\n  • ${it.term}: ${it.definition}") }
         }
 
         if (response.keyPoints.isNotEmpty()) {
-            append("\n\nKey Points:")
+            append(context.getString(com.example.smarty.R.string.doc_key_points))
             response.keyPoints.forEach { append("\n• $it") }
         }
 
         if (response.actionItems.isNotEmpty()) {
-            append("\n\nAction Items:")
+            append(context.getString(com.example.smarty.R.string.doc_action_items))
             response.actionItems.forEach { append("\n $it") }
         }
 
         if (!isComplete) {
-            append("\n\n Note: Some pages could not be processed.")
+            append(context.getString(com.example.smarty.R.string.doc_incomplete_notice))
         }
     }
 
@@ -1103,30 +1103,30 @@ class NoteOperationsManager(
         chunkSummaries: List<String>,
         currentBatch: List<com.example.smarty.util.PDFChunk>
     ): String = buildString {
-        append(" Processing $totalPages-page document...\n")
-        append(" Completed $successfulChunks/$totalChunks sections\n\n")
+        append(context.getString(com.example.smarty.R.string.doc_progress_header, totalPages))
+        append(context.getString(com.example.smarty.R.string.doc_progress_steps, successfulChunks, totalChunks))
         chunkSummaries.forEachIndexed { idx, summary ->
             append(summary)
             if (idx < chunkSummaries.lastIndex) append("\n\n")
         }
         val lastIndex = currentBatch.maxOfOrNull { it.index } ?: 0
         if (lastIndex + 1 < totalChunks) {
-            append("\n\nAnalyzing remaining sections...")
+            append(context.getString(com.example.smarty.R.string.doc_analyzing_remaining))
         } else {
-            append("\n\nGenerating final summary...")
+            append(context.getString(com.example.smarty.R.string.doc_generating_final))
         }
     }
 
     private suspend fun handleImageBasedPdf(note: Note, uri: Uri, pageCount: Int) {
         val pdfInfo = pdfExtractor.getPDFInfo(uri)
         val metadataDescription = buildString {
-            append("PDF Document: ${note.fileName ?: "Unknown"}\n")
+            append(context.getString(com.example.smarty.R.string.doc_metadata_title, note.fileName ?: context.getString(com.example.smarty.R.string.unknown)))
             pdfInfo?.let { info ->
-                info.title?.let { append("Title: $it\n") }
-                info.author?.let { append("Author: $it\n") }
+                info.title?.let { append(context.getString(com.example.smarty.R.string.doc_metadata_subject, it)) }
+                info.author?.let { append(context.getString(com.example.smarty.R.string.doc_metadata_author, it)) }
             }
-            append("Pages: $pageCount\n")
-            append("Note: Image-based/scanned PDF.")
+            append(context.getString(com.example.smarty.R.string.doc_metadata_pages, pageCount))
+            append(context.getString(com.example.smarty.R.string.doc_metadata_scanned))
         }
 
         try {
@@ -1134,8 +1134,8 @@ class NoteOperationsManager(
             val category = repository.getOrCreateCategory(response.category)
             val updatedNote = note.copy(
                 title = response.title,
-                summary = " Image-based PDF ($pageCount pages)\n\n${response.summary}",
-                whySaved = response.userRelevance ?: "Document saved",
+                summary = context.getString(com.example.smarty.R.string.doc_image_based_notice, pageCount, response.summary),
+                whySaved = response.userRelevance ?: context.getString(com.example.smarty.R.string.widget_add_note),
                 categoryId = category.id,
                 categoryName = category.name,
                 processingStatus = ProcessingStatus.COMPLETED,
@@ -1150,9 +1150,9 @@ class NoteOperationsManager(
 
     private suspend fun handlePdfExtractionError(note: Note, errorMessage: String) {
         Log.e(TAG, "PDF extraction failed: $errorMessage")
-        val category = repository.getOrCreateCategory("Documents")
+        val category = repository.getOrCreateCategory(context.getString(com.example.smarty.R.string.category_documents))
         val updatedNote = note.copy(
-            summary = "PDF could not be analyzed: $errorMessage",
+            summary = context.getString(com.example.smarty.R.string.error_pdf_analysis_failed, errorMessage),
             processingStatus = ProcessingStatus.FAILED,
             categoryId = category.id,
             categoryName = category.name,
@@ -1277,10 +1277,10 @@ class NoteOperationsManager(
 
     /**
      * Process note with AI for categorization and summary.
-     * 
+     *
      * MIXED CONTENT HANDLING:
      * - Extracts text from ALL attachment types (images, PDFs, documents)
-     * - Images: Uses OCR (ML Kit Text ReJarvistion)
+     * - Images: Uses OCR (ML Kit Text Recognition)
      * - PDFs: Uses text extraction, falls back to OCR for scanned PDFs
      * - Combines user text + extracted text from attachments
      * - Sends combined content to AI for analysis
@@ -1297,59 +1297,59 @@ class NoteOperationsManager(
         try {
             val attachments = note.getAttachments()
             val extractedTexts = mutableListOf<String>()
-            
+
             // Start with user's text content if present
-            val userText = note.content.takeIf { 
-                it.isNotBlank() && 
-                !it.startsWith("[Attached:") && 
-                !it.all { c -> c.isWhitespace() } 
+            val userText = note.content.takeIf {
+                it.isNotBlank() &&
+                !it.startsWith("[Attached:") &&
+                !it.all { c -> c.isWhitespace() }
             }
-            
+
             if (userText != null) {
-                extractedTexts.add("[User Content]\n$userText")
+                extractedTexts.add(context.getString(com.example.smarty.R.string.user_content_label, userText))
                 Log.d(TAG, "Added user text: ${userText.length} chars")
             }
-            
+
             // Process each attachment type and extract text
             for (attachment in attachments) {
                 try {
                     val uri = Uri.parse(attachment.uri)
                     val mimeType = attachment.mimeType.lowercase()
-                    
+
                     when {
                         // IMAGES: Run OCR
                         mimeType.startsWith("image/") -> {
                             Log.d(TAG, "Processing image: ${attachment.fileName}")
                             val ocrResult = ImageTextExtractor.extractTextFromUri(context, uri)
                             if (ocrResult.hasText) {
-                                extractedTexts.add("[Image: ${attachment.fileName}]\n${ocrResult.text}")
+                                extractedTexts.add(context.getString(com.example.smarty.R.string.image_content_label, attachment.fileName, ocrResult.text))
                                 Log.d(TAG, "OCR extracted ${ocrResult.text.length} chars from ${attachment.fileName}")
                             }
                         }
-                        
+
                         // PDFs: Use sophisticated chunked pipeline
                         mimeType == "application/pdf" -> {
                             Log.d(TAG, "Routing to sophisticated PDF pipeline: ${attachment.fileName}")
                             processPdfWithAi(note)
                             return // Exit processNoteWithAi as processPdfWithAi handles the rest
                         }
-                        
+
                         // TEXT FILES: Read directly
                         mimeType.startsWith("text/") -> {
                             Log.d(TAG, "Processing text file: ${attachment.fileName}")
                             try {
-                                val textContent = context.contentResolver.openInputStream(uri)?.use { 
+                                val textContent = context.contentResolver.openInputStream(uri)?.use {
                                     it.bufferedReader().readText().take(10000) // Limit to 10KB
                                 }
                                 if (!textContent.isNullOrBlank()) {
-                                    extractedTexts.add("[File: ${attachment.fileName}]\n$textContent")
+                                    extractedTexts.add(context.getString(com.example.smarty.R.string.file_content_label, attachment.fileName, textContent))
                                     Log.d(TAG, "Text file: ${textContent.length} chars from ${attachment.fileName}")
                                 }
                             } catch (e: Exception) {
                                 Log.w(TAG, "Failed to read text file: ${e.message}")
                             }
                         }
-                        
+
                         // OTHER TYPES: Just log metadata
                         else -> {
                             Log.d(TAG, "Skipping unsupported type: $mimeType (${attachment.fileName})")
@@ -1359,17 +1359,17 @@ class NoteOperationsManager(
                     Log.w(TAG, "Failed to process attachment ${attachment.fileName}: ${e.message}")
                 }
             }
-            
+
             // Combine all extracted content
             val enhancedContent = if (extractedTexts.isNotEmpty()) {
                 extractedTexts.joinToString("\n\n---\n\n")
             } else {
                 // No text extracted - use attachment descriptions
-                "[Attachments: ${attachments.joinToString(", ") { it.fileName }}]"
+                context.getString(com.example.smarty.R.string.attachments_label, attachments.joinToString(", ") { it.fileName })
             }
-            
+
             Log.i(TAG, "Combined content for AI: ${enhancedContent.length} chars from ${extractedTexts.size} sources")
-            
+
             // Build attachment metadata for AI (file names and types only, no content)
             val attachmentMetadata = attachments.map { attachment ->
                 com.example.smarty.data.model.AttachmentMetadata.fromNoteAttachment(attachment)
@@ -1447,7 +1447,7 @@ class NoteOperationsManager(
      */
     suspend fun storeWithoutAnalysis(note: Note) {
         // Use smart keyword-based categorization instead of just type-based "Saved Files"
-        val fallbackResponse = com.example.smarty.data.remote.AIResponseParser.smartFallbackCategorization(note.content)
+        val fallbackResponse = com.example.smarty.data.remote.AIResponseParser.smartFallbackCategorization(context, note.content)
         val categoryName = fallbackResponse.category
         val category = repository.getOrCreateCategory(categoryName)
 
@@ -1468,7 +1468,7 @@ class NoteOperationsManager(
     }
 
     private suspend fun saveNoteWithoutAiProcessing(note: Note) {
-        val category = repository.getOrCreateCategory("Private Notes")
+        val category = repository.getOrCreateCategory(context.getString(com.example.smarty.R.string.category_private_notes))
         val savedNote = note.copy(
             isFullPrivacy = true,
             excludeFromAiChat = true,
@@ -1528,30 +1528,30 @@ class NoteOperationsManager(
 
     private fun buildFileDescription(content: ManagerSharedContent): String {
         val sb = StringBuilder()
-        content.fileName?.let { sb.append("File: ").append(it) }
+        content.fileName?.let { sb.append(context.getString(com.example.smarty.R.string.label_file, it)) }
         content.mimeType?.let {
             if (sb.isNotEmpty()) sb.append('\n')
-            sb.append("Type: ").append(it)
+            sb.append(context.getString(com.example.smarty.R.string.label_type, it))
         }
         content.fileSize?.let {
             if (sb.isNotEmpty()) sb.append('\n')
-            sb.append("Size: ").append(ContentTypeDetector.formatFileSize(it))
+            sb.append(context.getString(com.example.smarty.R.string.label_size, ContentTypeDetector.formatFileSize(context, it)))
         }
-        return if (sb.isEmpty()) "Shared file" else sb.toString()
+        return if (sb.isEmpty()) context.getString(com.example.smarty.R.string.label_shared_file) else sb.toString()
     }
 
     private fun buildMultipleAttachmentsDescription(attachments: List<NoteAttachment>): String {
         return attachments.joinToString("\n") { att ->
-            "${att.fileName} (${ContentTypeDetector.formatFileSize(att.fileSize)})"
+            "${att.fileName} (${ContentTypeDetector.formatFileSize(context, att.fileSize)})"
         }
     }
 
     private fun getTypePluralName(type: NoteType): String = when (type) {
-        NoteType.IMAGE -> "images"
-        NoteType.DOCUMENT -> "PDFs"
-        NoteType.VIDEO -> "videos"
-        NoteType.AUDIO -> "audio files"
-        else -> "files"
+        NoteType.IMAGE -> context.getString(com.example.smarty.R.string.type_images_plural)
+        NoteType.DOCUMENT -> context.getString(com.example.smarty.R.string.type_pdfs_plural)
+        NoteType.VIDEO -> context.getString(com.example.smarty.R.string.type_videos_plural)
+        NoteType.AUDIO -> context.getString(com.example.smarty.R.string.type_audio_plural)
+        else -> context.getString(com.example.smarty.R.string.type_files_plural)
     }
 
     private suspend fun copyAttachmentToStorage(attachment: Attachment): Attachment {

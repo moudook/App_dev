@@ -1,5 +1,7 @@
 package com.example.smarty.ui.components.calendar
 
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,23 +34,23 @@ val eventColors = listOf(
     Color(0xFF80DEEA), // Soft Cyan
 )
 
-// Reminder options (minutes, display text)
+// Reminder options (minutes, display resource)
 private val reminderOptions = listOf(
-    null to "none",
-    5 to "5_minutes_before",
-    15 to "15_minutes_before",
-    30 to "30_minutes_before",
-    60 to "1_hour_before",
-    1440 to "1_day_before"
+    null to R.string.none,
+    5 to R.string.five_minutes_before,
+    15 to R.string.fifteen_minutes_before,
+    30 to R.string.thirty_minutes_before,
+    60 to R.string.one_hour_before,
+    1440 to R.string.one_day_before
 )
 
-// Recurrence options (RRULE, display text)
+// Recurrence options (RRULE, display resource)
 val recurrenceOptions = listOf(
-    "" to "does_not_repeat",
-    "FREQ=DAILY" to "daily",
-    "FREQ=WEEKLY" to "weekly",
-    "FREQ=MONTHLY" to "monthly",
-    "FREQ=YEARLY" to "yearly"
+    "" to R.string.does_not_repeat,
+    "FREQ=DAILY" to R.string.daily,
+    "FREQ=WEEKLY" to R.string.weekly,
+    "FREQ=MONTHLY" to R.string.monthly,
+    "FREQ=YEARLY" to R.string.yearly
 )
 
 /**
@@ -113,14 +115,14 @@ fun EnhancedEventDialog(
     }
 
     val isEditing = existingEvent != null
-    val dialogTitle = if (isEditing) "edit_event" else "new_event"
-    val confirmText = if (isEditing) "save" else "add"
+    val dialogTitle = if (isEditing) stringResource(R.string.edit_event) else stringResource(R.string.new_event)
+    val confirmText = if (isEditing) stringResource(R.string.save) else stringResource(R.string.add)
 
-    com.example.smarty.ui.components.common.JarvisDialog(
+    com.example.smarty.ui.components.common.SmartyDialog(
         title = dialogTitle,
         onDismiss = onDismiss,
         confirmText = confirmText,
-        dismissText = "cancel",
+        dismissText = stringResource(R.string.cancel),
         confirmEnabled = title.isNotBlank(),
         onConfirm = {
             if (title.isNotBlank()) {
@@ -180,7 +182,7 @@ fun EnhancedEventDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("event_title") },
+                    label = { Text(stringResource(R.string.event_title)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = title.isBlank()
@@ -190,7 +192,7 @@ fun EnhancedEventDialog(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("description") },
+                    label = { Text(stringResource(R.string.description)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4
@@ -200,20 +202,20 @@ fun EnhancedEventDialog(
                 OutlinedTextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text("location") },
+                    label = { Text(stringResource(R.string.add_location)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.LocationOn,
-                            contentDescription = "location"
+                            contentDescription = stringResource(R.string.add_location)
                         )
                     }
                 )
 
                 // 4. Date display
                 Text(
-                    text = "date: ${dateFormat.format(Date(startTime)).lowercase()}",
+                    text = "${stringResource(R.string.date_label, dateFormat.format(Date(startTime)).lowercase())}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -224,7 +226,7 @@ fun EnhancedEventDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("all_day_event")
+                    Text(stringResource(R.string.all_day_event))
                     Switch(
                         checked = isAllDay,
                         onCheckedChange = { isAllDay = it }
@@ -240,7 +242,7 @@ fun EnhancedEventDialog(
                         // Start time
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "start",
+                                text = stringResource(R.string.start),
                                 style = MaterialTheme.typography.labelMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -254,7 +256,7 @@ fun EnhancedEventDialog(
                                     modifier = Modifier.weight(1f),
                                     singleLine = true
                                 )
-                                Text(":", modifier = Modifier.padding(top = 16.dp))
+                                Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
                                 OutlinedTextField(
                                     value = startMinute.toString().padStart(2, '0'),
                                     onValueChange = {
@@ -271,7 +273,7 @@ fun EnhancedEventDialog(
                         // End time
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "end",
+                                text = stringResource(R.string.end),
                                 style = MaterialTheme.typography.labelMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -285,7 +287,7 @@ fun EnhancedEventDialog(
                                     modifier = Modifier.weight(1f),
                                     singleLine = true
                                 )
-                                Text(":", modifier = Modifier.padding(top = 16.dp))
+                                Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
                                 OutlinedTextField(
                                     value = endMinute.toString().padStart(2, '0'),
                                     onValueChange = {
@@ -304,7 +306,7 @@ fun EnhancedEventDialog(
                 // 6. Color picker
                 Column {
                     Text(
-                        text = "color",
+                        text = stringResource(R.string.accent_color),
                         style = MaterialTheme.typography.labelMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -339,7 +341,7 @@ fun EnhancedEventDialog(
                 // 7. Reminder dropdown
                 Column {
                     Text(
-                        text = "reminder",
+                        text = stringResource(R.string.reminder),
                         style = MaterialTheme.typography.labelMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -348,7 +350,7 @@ fun EnhancedEventDialog(
                         onExpandedChange = { reminderExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value = (reminderOptions.find { it.first == reminderMinutes }?.second ?: "none").lowercase(),
+                            value = stringResource(reminderOptions.find { it.first == reminderMinutes }?.second ?: R.string.none).lowercase(),
                             onValueChange = {},
                             readOnly = true,
                             modifier = Modifier
@@ -360,9 +362,9 @@ fun EnhancedEventDialog(
                             expanded = reminderExpanded,
                             onDismissRequest = { reminderExpanded = false }
                         ) {
-                            reminderOptions.forEach { (minutes, label) ->
+                            reminderOptions.forEach { (minutes, labelRes) ->
                                 DropdownMenuItem(
-                                    text = { Text(label.lowercase()) },
+                                    text = { Text(stringResource(labelRes).lowercase()) },
                                     onClick = {
                                         reminderMinutes = minutes
                                         reminderExpanded = false
@@ -379,7 +381,7 @@ fun EnhancedEventDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("recurring_event")
+                    Text(stringResource(R.string.recurring_event))
                     Switch(
                         checked = isRecurring,
                         onCheckedChange = {
@@ -395,7 +397,7 @@ fun EnhancedEventDialog(
                         onExpandedChange = { recurrenceExpanded = it }
                     ) {
                         OutlinedTextField(
-                            value = (recurrenceOptions.find { it.first == recurrenceRule }?.second ?: "does_not_repeat").lowercase(),
+                            value = stringResource(recurrenceOptions.find { it.first == recurrenceRule }?.second ?: R.string.does_not_repeat).lowercase(),
                             onValueChange = {},
                             readOnly = true,
                             modifier = Modifier
@@ -407,9 +409,9 @@ fun EnhancedEventDialog(
                             expanded = recurrenceExpanded,
                             onDismissRequest = { recurrenceExpanded = false }
                         ) {
-                            recurrenceOptions.drop(1).forEach { (rule, label) ->
+                            recurrenceOptions.drop(1).forEach { (rule, labelRes) ->
                                 DropdownMenuItem(
-                                    text = { Text(label.lowercase()) },
+                                    text = { Text(stringResource(labelRes).lowercase()) },
                                     onClick = {
                                         recurrenceRule = rule
                                         recurrenceExpanded = false

@@ -291,24 +291,24 @@ class ThinkingModeProcessor(
         val paragraphBreak = searchWindow.lastIndexOf("\n\n")
         if (paragraphBreak > searchWindow.length / 2) {
             val breakPoint = searchStart + paragraphBreak
-            return content.substring(0, breakPoint) + "\n\n[... Document truncated to fit context window ...]"
+            return content.substring(0, breakPoint) + context.getString(com.example.smarty.R.string.doc_truncated_notice)
         }
 
         // Try to break at sentence (period followed by space or newline)
         val sentenceBreak = searchWindow.lastIndexOf(". ")
         if (sentenceBreak > searchWindow.length / 2) {
             val breakPoint = searchStart + sentenceBreak + 1
-            return content.substring(0, breakPoint) + "\n\n[... Document truncated to fit context window ...]"
+            return content.substring(0, breakPoint) + context.getString(com.example.smarty.R.string.doc_truncated_notice)
         }
 
         // Fall back to word boundary
         val wordBreak = searchWindow.lastIndexOf(" ")
         if (wordBreak > 0) {
             val breakPoint = searchStart + wordBreak
-            return content.substring(0, breakPoint) + "\n\n[... Document truncated to fit context window ...]"
+            return content.substring(0, breakPoint) + context.getString(com.example.smarty.R.string.doc_truncated_notice)
         }
 
-        return content.substring(0, maxLength) + "\n\n[... Document truncated to fit context window ...]"
+        return content.substring(0, maxLength) + context.getString(com.example.smarty.R.string.doc_truncated_notice)
     }
 
     /**
@@ -376,36 +376,36 @@ class ThinkingModeProcessor(
 
         val sb = StringBuilder()
 
-        sb.appendLine("=== DEEP THINKING MODE ===")
+        sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_header))
         sb.appendLine()
 
         if (thinkingContext.documentFileName != null) {
-            sb.appendLine("Document: ${thinkingContext.documentFileName}")
+            sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_doc_label, thinkingContext.documentFileName))
         }
         if (thinkingContext.targetNote != null) {
-            sb.appendLine("Note Title: ${thinkingContext.targetNote.title}")
+            sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_note_label, thinkingContext.targetNote.title))
         }
-        sb.appendLine("Total Characters: ${thinkingContext.totalChars}")
-        sb.appendLine("Chunks: ${thinkingContext.documentChunks.size}")
+        sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_char_count, thinkingContext.totalChars))
+        sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_chunks_count, thinkingContext.documentChunks.size))
         sb.appendLine()
 
-        sb.appendLine("USER'S QUESTION:")
-        sb.appendLine(thinkingContext.userQuery.ifBlank { "Please analyze this document in depth." })
+        sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_question_header))
+        sb.appendLine(thinkingContext.userQuery.ifBlank { context.getString(com.example.smarty.R.string.thinking_mode_default_query) })
         sb.appendLine()
 
-        sb.appendLine("=== FULL DOCUMENT CONTENT ===")
+        sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_content_header))
         sb.appendLine()
 
         // Include all chunks with clear markers
         thinkingContext.documentChunks.forEach { chunk ->
-            sb.appendLine("[CHUNK ${chunk.index + 1}/${chunk.totalChunks}]")
+            sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_chunk_marker, chunk.index + 1, chunk.totalChunks))
             sb.appendLine(chunk.content)
             sb.appendLine()
         }
 
-        sb.appendLine("=== END OF DOCUMENT ===")
+        sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_content_footer))
         sb.appendLine()
-        sb.appendLine("INSTRUCTIONS: You are in DEEP THINKING mode. Analyze the ENTIRE document above thoroughly to answer the user's question. Consider all sections and details. Provide a comprehensive, well-structured response based on the full document content.")
+        sb.appendLine(context.getString(com.example.smarty.R.string.thinking_mode_instructions))
 
         return sb.toString()
     }

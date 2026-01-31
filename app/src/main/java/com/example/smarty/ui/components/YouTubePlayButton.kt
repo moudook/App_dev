@@ -33,6 +33,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.ui.components.CalmThinkingDots
+import com.example.smarty.R
 import com.example.smarty.ui.theme.YoutubeRed
 
 /**
@@ -94,14 +97,14 @@ fun YouTubePlayButton(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isLoading) {
-                com.example.smarty.ui.components.CalmThinkingDots(
+                CalmThinkingDots(
                     color = Color.White,
                     dotSize = (if (isCompact) 3.dp else 4.dp)
                 )
             } else {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "watch_video",
+                    contentDescription = stringResource(R.string.watch_video),
                     tint = Color.White,
                     modifier = Modifier.size(if (isCompact) 16.dp else 20.dp)
                 )
@@ -110,7 +113,7 @@ fun YouTubePlayButton(
             if (!isCompact) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isLoading) "" else "watch",
+                    text = if (isLoading) "" else stringResource(R.string.watch),
                     style = MaterialTheme.typography.labelMedium.copy(
                         letterSpacing = 0.5.sp
                     ),
@@ -169,14 +172,14 @@ fun YouTubePlayButtonCircle(
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
-            com.example.smarty.ui.components.CalmThinkingDots(
+            CalmThinkingDots(
                 color = Color.White,
                 dotSize = 3.dp
             )
         } else {
             Icon(
                 imageVector = Icons.Default.PlayArrow,
-                contentDescription = "play_audio",
+                contentDescription = stringResource(R.string.play_audio),
                 tint = Color.White,
                 modifier = Modifier.size((size * 0.6f).dp)
             )

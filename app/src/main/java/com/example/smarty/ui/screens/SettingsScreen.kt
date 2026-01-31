@@ -47,6 +47,12 @@ import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import com.example.smarty.ui.components.ConnectionStatusIndicator
+import com.example.smarty.ui.components.ConnectionStatus
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
@@ -85,6 +91,7 @@ import com.example.smarty.util.api.KeyUsageStats
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.components.ShakeSensitivityControl
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
@@ -135,8 +142,10 @@ fun SettingsScreen(
     // GROQ key usage stats
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     // Local LLM Server (USB/WiFi)
+    isLocalPCEnabled: Boolean = false,
+    onSetLocalPCEnabled: (Boolean) -> Unit = {},
     localServerIP: String = "",
-    localServerPort: String = "8000",
+    localServerPort: String = "1234",
     localServerUseHttps: Boolean = false,
     onSetLocalServerIP: (String) -> Unit = {},
     onSetLocalServerPort: (String) -> Unit = {},
@@ -418,13 +427,13 @@ fun SettingsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "jarvis v1.1.0",
+                    text = stringResource(R.string.smarty_version),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "made_with_intelligence",
+                    text = stringResource(R.string.made_with_intelligence),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                 )
@@ -454,6 +463,8 @@ fun SettingsScreen(
             groqKeyUsageStats = groqKeyUsageStats,
             onRefreshModels = onRefreshModels,
             getAvailableModels = getAvailableModels,
+            isLocalPCEnabled = isLocalPCEnabled,
+            onSetLocalPCEnabled = onSetLocalPCEnabled,
             localServerIP = localServerIP,
             localServerPort = localServerPort,
             localServerUseHttps = localServerUseHttps,
@@ -573,7 +584,7 @@ fun SettingsScreen(
             ) {
                 // Fixed Header
                 Text(
-                    text = "about_jarvis",
+                    text = stringResource(R.string.about_smarty),
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
@@ -591,56 +602,13 @@ fun SettingsScreen(
                         .padding(bottom = 32.dp)
                 ) {
                     Text(
-                    text =  "hello,_i_am_moudook.\n\n" +
-                                "jarvis_is_an_ai-powered_personal_knowledge_management_app._i_made_this_mainly_for_myself_so_i_do_not_get_fussed_managing_my_notes_and_content._the_idea_is_simple._capture_anything,_and_let_the_ai_help_later_with_organizing,_searching,_and_recalling_things_when_needed.\n\n" +
-                                "you_can_add_many_types_of_content._text_notes_for_brain_dumps._images._videos,_both_youtube_and_local._documents_like_pdf,_docx,_xlsx,_and_pptx._website_links_with_metadata._audio_files_and_voice_notes._code_snippets._twitter_or_x_posts,_instagram_posts,_apk_files,_and_archive_files.\n\n" +
-                                "for_organization,_i_added_basic_but_useful_things._you_can_pin_notes_so_important_ones_stay_on_top._notes_get_smart_categories_automatically._ai_also_generates_tags_for_every_note._if_you_do_not_want_something_but_also_do_not_want_to_delete_it,_you_can_archive_it._there_is_also_bulk_selection_so_you_can_operate_on_many_notes_at_once.\n\n" +
-                                "i_also_added_note_versioning._every_note_has_a_git-like_history._up_to_10_versions_are_saved_automatically._you_can_restore_any_older_version_instantly._you_can_also_see_what_changed_and_when_it_changed.\n\n" +
-                                "search_was_one_of_the_main_focus_areas.\n\n" +
-                                "i_added_full-text_search_using_fts5._it_searches_across_all_notes_instantly._it_uses_bm25_ranking_so_relevant_notes_come_first._it_searches_titles,_content,_and_summaries._it_also_supports_prefix_matching_for_partial_words.\n\n" +
-                                "along_with_that,_i_added_semantic_search._it_can_handle_typos._it_uses_fuzzy_matching,_jaro-winkler_similarity,_phonetic_matching_using_soundex,_and_n-gram_token_overlap_so_search_still_works_even_if_you_do_not_type_things_perfectly.\n\n" +
-                                "the_ai_assistant_is_agentic.\n\n" +
-                                "it_can_search_and_retrieve_notes_based_on_context._it_can_create_new_notes_directly_from_conversation._it_can_edit_and_update_existing_notes._it_can_delete_notes_when_asked._it_can_manage_to-do_lists_inside_notes._it_can_also_set_smart_reminders_on_cards.\n\n" +
-                                "every_ai_response_shows_citations._you_can_tap_a_citation_and_jump_directly_to_the_source_note._so_you_always_know_where_the_information_is_coming_from.\n\n" +
-                                "i_also_added_smart_reminders._ai_can_highlight_important_notes._a_shimmer_animation_is_used_to_draw_attention._you_can_also_set_expiration_on_reminders_so_temporary_things_do_not_stay_forever.\n\n" +
-                                "for_the_agentic_ai,_i_use_koog_by_jetbrains._koog_stands_for_kotlin_object-oriented_graphs._it_lets_the_ai_work_with_structured_tool_calls_and_function_execution._the_ai_can_decide_which_tools_to_use_and_chain_them_together._this_is_what_makes_the_assistant_truly_agentic_instead_of_just_a_chatbot._koog_handles_the_execution_graph_and_makes_sure_everything_runs_in_the_right_order.\n\n" +
-                                "multiple_ai_providers_are_supported._google_gemini_is_the_default._i_also_added_support_for_openai,_anthropic,_groq,_deepseek,_cerebras,_cohere,_openrouter,_and_huggingface._you_can_manage_multiple_api_keys_per_provider._you_can_reorder_provider_priority_by_drag_and_drop._automatic_key_rotation_and_rate_limit_handling_are_also_there._you_can_choose_models_per_provider.\n\n" +
-                                "for_web_search,_i_integrated_tavily._it_gives_real-time_information._there_are_1000_free_requests_per_month._ai_summarizes_the_results_so_you_do_not_need_to_read_everything_manually.\n\n" +
-                                "i_also_added_a_daily_digest._it_sends_a_notification_at_6:30_am._it_summarizes_what_happened_in_the_last_24_hours._new_notes_and_important_updates_show_up_there.\n\n" +
-                                "voice_and_audio_were_also_important.\n\n" +
-                                "you_can_record_voice_notes_instantly_by_tapping_the_mic._there_is_a_real-time_amplitude_visualizer._audio_is_saved_in_m4a_format._you_can_record_up_to_10_minutes._you_always_get_a_confirmation_before_saving_or_canceling.\n\n" +
-                                "speech-to-text_uses_google_speech_recognition._a_halftone_shimmer_shows_when_it_is_actively_listening._continuous_recognition_mode_is_also_supported.\n\n" +
-                                "the_music_player_has_a_living_orb_visualizer._it_reacts_to_audio_amplitude_and_frequency_bands._there_is_a_mini_player_and_a_full-screen_mode._i_tried_to_make_it_feel_alive.\n\n" +
-                                "calendar_support_is_also_there.\n\n" +
-                                "you_can_import_events_from_google_calendar._exchange_and_other_providers_are_supported._it_syncs_past_30_days_and_next_90_days._events_update_automatically.\n\n" +
-                                "ai_can_access_your_calendar,_but_only_non-private_events._it_can_create_events_from_conversation._you_can_also_link_notes_to_calendar_events._private_events_stay_hidden_from_ai.\n\n" +
-                                "privacy_was_non-negotiable.\n\n" +
-                                "there_are_multiple_privacy_modes._full_privacy_means_ai_cannot_see_the_note_at_all._exclude_from_chat_means_the_note_stays_hidden_from_ai_context._private_calendar_events_are_also_invisible_to_ai.\n\n" +
-                                "i_added_shake-to-private_mode._you_can_shake_the_device_to_toggle_privacy._sensitivity_can_be_adjusted._there_is_visual_feedback_so_you_know_when_the_mode_changes.\n\n" +
-                                "i_also_added_prompt_injection_protection._content_is_sanitized_across_multiple_languages._this_runs_on_device._it_prevents_malicious_note_content_from_affecting_the_ai.\n\n" +
-                                "all_data_is_stored_locally_on_the_device._i_use_a_room_database_for_persistence._api_keys_are_stored_using_android's_encryptedsharedpreferences._only_api_calls_go_out_of_the_device.\n\n" +
-                                "for_user_experience,_i_added_widgets._you_can_capture_notes_directly_from_the_home_screen._one_tap_and_you_are_inside_a_new_note.\n\n" +
-                                "app_shortcuts_are_also_there._long_press_the_app_icon_for_quick_actions_like_new_note,_search,_or_voice_note._recent_notes_also_show_up_dynamically.\n\n" +
-                                "sharing_is_deeply_integrated._you_can_share_content_from_any_app_into_jarvis._content_type_is_detected_automatically._url_metadata_is_extracted._you_can_also_bulk_select_and_share_multiple_notes.\n\n" +
-                                "for_ui,_i_avoided_popups._i_use_slide-in_panels_instead._animations_are_smooth_and_spring-based._entry_animations_are_staggered._dark_and_light_themes_are_supported._you_can_also_customize_accent_colors.\n\n" +
-                                "there_are_many_animations._cloud-like_startup_animation._living_orb_on_the_main_screen._chat_personality_animations._shimmer_effects_for_reminders._halftone_indicator_for_speech.\n\n" +
-                                "performance_was_a_big_focus.\n\n" +
-                                "i_optimized_memory_usage_using_shared_http_clients._resources_are_cleaned_automatically._coroutines_are_scoped_properly_so_there_are_no_leaks._cache_size_is_managed.\n\n" +
-                                "cpu_usage_is_optimized_by_merging_animation_transitions,_using_derivedstateof_where_needed,_pre-compiling_regex_patterns,_early_terminating_searches,_and_using_fast_math_approximations.\n\n" +
-                                "the_database_uses_room_with_sqlite._queries_are_indexed._fts5_is_used_for_search._migrations_are_automatic._paging3_is_used_for_infinite_scrolling.\n\n" +
-                                "the_app_is_built_to_work_on_edge_and_low-end_devices._rendering_quality_adapts._memory_usage_stays_low._background_work_is_battery_conscious.\n\n" +
-                                "backup_is_simple.\n\n" +
-                                "you_can_export_a_full_zip_backup._it_contains_notes,_categories,_settings,_chat_history,_ai_memories,_calendar_events,_and_attachments._you_can_restore_anytime._you_can_choose_to_merge_or_replace_data._integrity_is_preserved.\n\n" +
-                                "the_app_is_built_using_kotlin_and_jetpack_compose._it_follows_material_design_3._room_database_version_is_19._min_sdk_is_26._target_sdk_is_36._workmanager_is_used_for_background_tasks._okhttp_handles_networking._exoplayer_handles_media.\n\n" +
-                                "your_data_stays_on_your_device._only_ai_and_speech_recognition_apis_need_internet.\n\n" +
-                                "i_am_still_working_on_the_ui_and_the_agentic_part._if_you_find_any_issues,_please_mention_them_on_github.\n\n" +
-                                "thank_you_for_using_jarvis.",
+                        text = stringResource(R.string.about_description),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             lineHeight = androidx.compose.ui.unit.TextUnit(24f, androidx.compose.ui.unit.TextUnitType.Sp)
                         ),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    
+
                     Spacer(modifier = Modifier.height(32.dp))
                 }
             }
@@ -692,7 +660,7 @@ fun SettingsScreen(
                 ) {
                     Column {
                         Text(
-                            text = "shake_gesture",
+                            text = stringResource(R.string.shake_gesture),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                 letterSpacing = (-0.5).sp
@@ -701,7 +669,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "configure_chat_mode_activation",
+                            text = stringResource(R.string.configure_chat_mode_activation),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                         )
@@ -754,24 +722,24 @@ fun SettingsScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.Start) {
                         Text(
-                            text = "low",
+                            text = stringResource(R.string.low),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "requires_stronger_shake",
+                            text = stringResource(R.string.requires_stronger_shake),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = "high",
+                            text = stringResource(R.string.high),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "light_shake_triggers",
+                            text = stringResource(R.string.light_shake_triggers),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
@@ -862,7 +830,7 @@ fun SettingsScreen(
                     .padding(bottom = 48.dp)
             ) {
                 Text(
-                    text = "select_default_calendar",
+                    text = stringResource(R.string.select_default_calendar),
                     style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
@@ -912,7 +880,7 @@ fun SettingsScreen(
                                 if (isSelected) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "selected",
+                                        contentDescription = stringResource(R.string.selected),
                                         tint = LocalAccentColor.current,
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -924,8 +892,8 @@ fun SettingsScreen(
 
                 if (deviceCalendars.isEmpty()) {
                     com.example.smarty.ui.components.CompactEmptyState(
-                        title = "calendars",
-                        subtitle = "no_calendars_found_or_permission_denied",
+                        title = stringResource(R.string.calendars),
+                        subtitle = stringResource(R.string.no_calendars_found_or_permission_denied),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -1002,7 +970,7 @@ private fun SettingsItem(
 
             // Action
             if (isLoading) {
-                com.example.smarty.ui.components.CalmThinkingDots(
+                CalmThinkingDots(
                     dotSize = 3.dp
                 )
             } else if (showArrow) {
@@ -1113,8 +1081,11 @@ internal fun AIConfigBottomSheet(
     groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     onRefreshModels: (AIProvider) -> Unit,
     getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
+    // Local LLM
+    isLocalPCEnabled: Boolean = false,
+    onSetLocalPCEnabled: (Boolean) -> Unit = {},
     localServerIP: String = "",
-    localServerPort: String = "8000",
+    localServerPort: String = "1234",
     localServerUseHttps: Boolean = false,
     onSetLocalServerIP: (String) -> Unit = {},
     onSetLocalServerPort: (String) -> Unit = {},
@@ -1123,9 +1094,9 @@ internal fun AIConfigBottomSheet(
     val shapes = LocalShapes.current
 
     // Local state for drag-and-drop reordering
-    // Filter out LOCAL_PC - it has its own section and doesn't need API keys
+    // Include all providers including LOCAL_PC for consistent UI treatment
     var localProviderOrder by remember {
-        mutableStateOf(providerPriorityOrder.filter { it != AIProvider.LOCAL_PC })
+        mutableStateOf(providerPriorityOrder)
     }
     var draggedItemIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
@@ -1139,64 +1110,75 @@ internal fun AIConfigBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         shape = shapes.bottomSheet,
-        containerColor = MaterialTheme.colorScheme.background // Contrast with Surface cards
+        containerColor = MaterialTheme.colorScheme.surface, // Use surface for cleaner look
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        scrimColor = Color.Black.copy(alpha = 0.3f)
     ) {
-        HideSystemBars()
+        // Custom Drag Handle for cleaner look
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(4.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+            )
+        }
+
         Column(
             modifier = Modifier
-                .fillMaxHeight(0.92f) // Taller sheet
+                .fillMaxHeight(0.92f)
                 .fillMaxWidth()
-                .navigationBarsPadding()
         ) {
-            // Header
+            // Header - Centralized and Minimal
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 24.dp)
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = LocalAccentColor.current.copy(alpha = 0.1f),
+                    modifier = Modifier.size(56.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = "ai_intelligence",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                letterSpacing = (-0.5).sp
-                            ),
-                            color = MaterialTheme.colorScheme.onBackground
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Assistant,
+                            contentDescription = null,
+                            tint = LocalAccentColor.current,
+                            modifier = Modifier.size(28.dp)
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "configure_ai_providers_and_models",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                        )
-                    }
-
-                    // Optional: Add a "Done" button or icon if needed, but the drag handle is standard.
-                    // Could add a small icon/illustration here.
-                    Surface(
-                         shape = androidx.compose.foundation.shape.CircleShape,
-                         color = LocalAccentColor.current.copy(alpha = 0.1f),
-                         modifier = Modifier.size(48.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Assistant, // AI Icon
-                                contentDescription = null,
-                                tint = LocalAccentColor.current,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = stringResource(R.string.ai_intelligence),
+                    style = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = stringResource(R.string.configure_ai_providers_and_models),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
-            
+
             HorizontalDivider(
-                modifier = Modifier.padding(bottom = 16.dp),
+                modifier = Modifier.padding(vertical = 16.dp, horizontal = 24.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
             )
 
@@ -1204,27 +1186,29 @@ internal fun AIConfigBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp) // Less horizontal padding so cards are wider
+                    .padding(horizontal = 20.dp) // Consistent padding
                     .padding(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Intro/Help text moved to just a small hint if needed, or removed as redundant.
-                // Keeping the drag hint but making it subtle.
+                // Drag Hint
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 8.dp, start = 8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.DragIndicator,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                        modifier = Modifier.size(14.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(12.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                     Text(
-                        text = "drag_providers_to_reorder_priority",
+                    Text(
+                        text = stringResource(R.string.drag_providers_to_reorder_priority),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
 
@@ -1257,23 +1241,20 @@ internal fun AIConfigBottomSheet(
                                 translationY = dragOffsetY
                                 scaleX = 1.02f
                                 scaleY = 1.02f
+                                shadowElevation = 8.dp.toPx()
                             }
                         }
                         .zIndex(if (isDragging) 1f else 0f)
-                        .then(
-                            if (isDragging) Modifier.shadow(8.dp, RoundedCornerShape(12.dp))
-                            else Modifier
-                        )
                         .background(
                             if (isDragging) MaterialTheme.colorScheme.surfaceContainerHigh
                             else Color.Transparent,
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(16.dp)
                         )
                 ) {
-                    // Drag Handle with gesture detection
+                    // Drag Handle
                     Box(
                         modifier = Modifier
-                            .padding(end = 4.dp)
+                            .padding(end = 8.dp)
                             .pointerInput(index) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
@@ -1281,12 +1262,8 @@ internal fun AIConfigBottomSheet(
                                         dragOffsetY = 0f
                                     },
                                     onDragEnd = {
-                                        // Calculate target position based on drag offset
-                                        // Use a more accurate height calculation - items are likely around 80-100dp
-                                        val itemHeight = 90f // Better estimate of item height in pixels
+                                        val itemHeight = 100f // Approx height
                                         val moveBy = (dragOffsetY / itemHeight).toInt()
-
-                                        // Calculate the target index based on how many positions the item was moved
                                         val targetIndex = (index + moveBy).coerceIn(0, localProviderOrder.size - 1)
 
                                         if (targetIndex != index) {
@@ -1312,25 +1289,13 @@ internal fun AIConfigBottomSheet(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            // Drag indicator icon
-                            Icon(
-                                imageVector = Icons.Default.DragHandle,
-                                contentDescription = "drag_to_reorder",
-                                tint = if (isDragging) LocalAccentColor.current
-                                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            // Priority number badge
-                            Text(
-                                text = "${index + 1}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isDragging) LocalAccentColor.current
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.DragHandle,
+                            contentDescription = stringResource(R.string.drag_to_reorder),
+                            tint = if (isDragging) LocalAccentColor.current
+                                   else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
                     Box(modifier = Modifier.weight(1f)) {
@@ -1360,66 +1325,51 @@ internal fun AIConfigBottomSheet(
                         )
                     }
                 }
-
-                if (index < localProviderOrder.size - 1) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Tavily Web Search Section
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 12.dp),
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-            )
+            // Other Sections
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                TavilyApiSection(
+                    apiKeys = tavilyApiKeys,
+                    onAddKey = onAddTavilyApiKey,
+                    onRemoveKey = onRemoveTavilyApiKey
+                )
+            }
 
-            TavilyApiSection(
-                apiKeys = tavilyApiKeys,
-                onAddKey = onAddTavilyApiKey,
-                onRemoveKey = onRemoveTavilyApiKey
-            )
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Local LLM Server Section
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 12.dp),
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-            )
-
-            LocalServerSection(
-                serverIP = localServerIP,
-                serverPort = localServerPort,
-                useHttps = localServerUseHttps,
-                onSetServerIP = onSetLocalServerIP,
-                onSetServerPort = onSetLocalServerPort,
-                onSetUseHttps = onSetLocalServerUseHttps
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Status
+            // Status Footer
             val hasAnyKeys = providerConfigs.values.any { it.apiKeys.isNotEmpty() }
             val configuredCount = providerConfigs.values.count { it.apiKeys.isNotEmpty() }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 8.dp)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    imageVector = if (hasAnyKeys) Icons.Default.Verified else Icons.Default.ReportProblem,
-                    contentDescription = null,
-                    tint = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (hasAnyKeys) "$configuredCount provider${if (configuredCount > 1) "s" else ""} configured" else "no_api_keys_-_using_demo_mode",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (hasAnyKeys) Icons.Default.Verified else Icons.Default.Info,
+                        contentDescription = null,
+                        tint = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (hasAnyKeys) stringResource(R.string.providers_configured, configuredCount) else stringResource(R.string.no_api_keys_demo_mode),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
@@ -1436,238 +1386,24 @@ private fun TavilyApiSection(
     onAddKey: (String) -> Unit,
     onRemoveKey: (String) -> Unit
 ) {
-    var showKeyInput by remember { mutableStateOf(false) }
-    var keyInput by remember { mutableStateOf("") }
-    // Map to track visibility state for each key
-    val showKeyMap = remember { mutableStateMapOf<String, Boolean>() }
-    var showKeyWhileTyping by remember { mutableStateOf(false) }  // For masking input
-    var isExpanded by remember { mutableStateOf(false) }
-
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { isExpanded = !isExpanded }
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "collapse" else "expand",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp).padding(end = 8.dp)
-                )
-
-                Column {
-                    Text(
-                        text = "tavily_web_search",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (apiKeys.isNotEmpty()) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "enable_ai_web_search_capabilities",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Status indicator
-            if (apiKeys.isNotEmpty()) {
-                Icon(
-                    imageVector = Icons.Default.Verified,
-                    contentDescription = "configured",
-                    tint = LocalAccentColor.current,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // Expanded content
-        androidx.compose.animation.AnimatedVisibility(
-            visible = isExpanded,
-            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically()
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Info text
-                Text(
-                    text = "tavily_provides_real-time_web_search_for_ai_get_your_free_api_key_from_tavily_com",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-
-                // List of keys
-                if (apiKeys.isNotEmpty()) {
-                    apiKeys.forEach { key ->
-                        val showKey = showKeyMap[key] ?: false
-                        
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    LocalAccentColor.current,
-                                    RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-                                ),
-                            shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-                            color = MaterialTheme.colorScheme.surface
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (showKey) key else maskApiKey(key),
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = com.example.smarty.ui.theme.MonoFont
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-
-                                IconButton(onClick = { showKeyMap[key] = !showKey }) {
-                                    Icon(
-                                        imageVector = if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = if (showKey) "hide" else "show",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-
-                                IconButton(onClick = { onRemoveKey(key) }) {
-                                    Icon(
-                                        imageVector = Icons.Default.DeleteOutline,
-                                        contentDescription = "remove",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Add new key input
-                if (showKeyInput) {
-                    // Input for new key
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                LocalAccentColor.current,
-                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-                            ),
-                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(modifier = Modifier.weight(1f)) {
-                                    androidx.compose.foundation.text.BasicTextField(
-                                        value = keyInput,
-                                        onValueChange = { keyInput = it },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        textStyle = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = com.example.smarty.ui.theme.MonoFont,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        ),
-                                        cursorBrush = androidx.compose.ui.graphics.SolidColor(LocalAccentColor.current),
-                                        singleLine = true,
-                                        // Mask the key while typing for security
-                                        visualTransformation = if (showKeyWhileTyping) {
-                                            androidx.compose.ui.text.input.VisualTransformation.None
-                                        } else {
-                                            androidx.compose.ui.text.input.PasswordVisualTransformation()
-                                        }
-                                    )
-                                    if (keyInput.isEmpty()) {
-                                        Text(
-                                            text = "tvly-xxxxx",
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = com.example.smarty.ui.theme.MonoFont
-                                            ),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                }
-                                // Toggle to show/hide key while typing
-                                IconButton(
-                                    onClick = { showKeyWhileTyping = !showKeyWhileTyping },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (showKeyWhileTyping) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                        contentDescription = if (showKeyWhileTyping) "hide_key" else "show_key",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                TextButton(onClick = {
-                                    showKeyInput = false
-                                    keyInput = ""
-                                }) {
-                                    Text("cancel")
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        if (keyInput.isNotBlank()) {
-                                            onAddKey(keyInput.trim())
-                                            keyInput = ""
-                                            showKeyInput = false
-                                        }
-                                    },
-                                    enabled = keyInput.isNotBlank()
-                                ) {
-                                    Text("add_key")
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // Add Key Button
-                    OutlinedButton(
-                        onClick = { showKeyInput = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Assistant,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("add_tavily_api_key")
-                    }
-                }
-            }
-        }
-    }
+    // Reuse the generic ProviderSection logic but simplified for Tavily (no models)
+    // This ensures UI consistency with other providers
+    com.example.smarty.ui.screens.settings.ProviderSection(
+        provider = AIProvider.OPENAI, // Dummy provider enum, just for the composable
+        providerName = stringResource(R.string.tavily_web_search),
+        providerDescription = stringResource(R.string.enable_ai_web_search_capabilities),
+        apiKeys = apiKeys,
+        isEnabled = true, // Always enabled if keys exist
+        selectedModel = "", // No model selection
+        availableModels = emptyList(),
+        onAddKey = onAddKey,
+        onRemoveKey = onRemoveKey,
+        onUpdateKey = { _, _ -> }, // Update not supported yet for Tavily in this view
+        onToggleEnabled = { }, // Cannot toggle independently of keys
+        onSelectModel = { },
+        onTestKey = { _, callback -> callback(true) }, // Mock test for now
+        keyUsageStats = emptyMap()
+    )
 }
 
 /**
@@ -1686,7 +1422,7 @@ private suspend fun testLocalServer(ip: String, port: String, useHttps: Boolean)
     return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val protocol = if (useHttps) "https" else "http"
-            val testUrl = "$protocol://$ip:$port/health"
+            val testUrl = "$protocol://$ip:$port/v1/models"
             
             // Build appropriate OkHttp client
             val client = if (useHttps) {
@@ -1786,6 +1522,8 @@ private suspend fun testLocalServer(ip: String, port: String, useHttps: Boolean)
  */
 @Composable
 private fun LocalServerSection(
+    isEnabled: Boolean,
+    onSetEnabled: (Boolean) -> Unit,
     serverIP: String,
     serverPort: String,
     useHttps: Boolean,
@@ -1804,10 +1542,10 @@ private fun LocalServerSection(
 
     // Detect connection type based on IP range
     val connectionType = when {
-        ipInput.startsWith("10.") -> "usb/wifi"
-        ipInput.startsWith("192.168.") -> "wifi"
-        ipInput.startsWith("172.") -> "ethernet"
-        else -> "network"
+        ipInput.startsWith("10.") -> "USB/WiFi"
+        ipInput.startsWith("192.168.") -> "WiFi"
+        ipInput.startsWith("172.") -> "Ethernet"
+        else -> "Network"
     }
 
     // Sync with external state
@@ -1827,277 +1565,106 @@ private fun LocalServerSection(
         }
     }
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    SettingsSection(
+        title = stringResource(R.string.local_llm_server),
+        icon = Icons.Default.Lan,
+        isExpanded = isExpanded,
+        onToggle = { isExpanded = !isExpanded }
     ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { isExpanded = !isExpanded }
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "collapse" else "expand",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(24.dp).padding(end = 8.dp)
-                )
+        // Master Toggle
+        SettingsToggleRow(
+            title = stringResource(R.string.enable_local_connection),
+            icon = if (isEnabled) Icons.Default.Sensors else Icons.Default.VisibilityOff,
+            isChecked = isEnabled,
+            onCheckedChange = onSetEnabled,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
 
-                Column {
-                    Text(
-                        text = "local_llm_server",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = if (serverIP.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "connect_via_usb_tethering_or_wifi",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Status indicator with connection type
-            if (serverIP.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = connectionType,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = LocalAccentColor.current
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Default.Lan,
-                        contentDescription = "configured",
-                        tint = LocalAccentColor.current,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        // Expanded content
         AnimatedVisibility(
-            visible = isExpanded,
-            enter = expandVertically() + androidx.compose.animation.fadeIn(),
-            exit = shrinkVertically() + androidx.compose.animation.fadeOut()
+            visible = isEnabled,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Info text
-                Text(
-                    text = "connect_to_your_local_llm_server_use_usb_ip_for_usb_tethering_or_wifi_ip_for_wireless",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
+            Column {
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // IP and Port Input Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // IP Input
-                    Surface(
-                        modifier = Modifier
-                            .weight(2f)
-                            .border(
-                                1.dp,
-                                if (ipInput.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
-                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-                            ),
-                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "ip_address",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Box {
-                                androidx.compose.foundation.text.BasicTextField(
-                                    value = ipInput,
-                                    onValueChange = {
-                                        ipInput = it
-                                        isEditing = true
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = com.example.smarty.ui.theme.MonoFont,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(LocalAccentColor.current),
-                                    singleLine = true
-                                )
-                                if (ipInput.isEmpty()) {
-                                    Text(
-                                        text = "192.168.1.100",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = com.example.smarty.ui.theme.MonoFont
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Port Input
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .border(
-                                1.dp,
-                                if (portInput.isNotBlank()) LocalAccentColor.current else MaterialTheme.colorScheme.outline,
-                                RoundedCornerShape(ComponentSpacing.inputCornerRadius)
-                            ),
-                        shape = RoundedCornerShape(ComponentSpacing.inputCornerRadius),
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "port",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Box {
-                                androidx.compose.foundation.text.BasicTextField(
-                                    value = portInput,
-                                    onValueChange = { newValue ->
-                                        // Only allow numeric input
-                                        if (newValue.all { it.isDigit() }) {
-                                            portInput = newValue
-                                            isEditing = true
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = com.example.smarty.ui.theme.MonoFont,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    ),
-                                    cursorBrush = androidx.compose.ui.graphics.SolidColor(LocalAccentColor.current),
-                                    singleLine = true
-                                )
-                                if (portInput.isEmpty()) {
-                                    Text(
-                                        text = "8000",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = com.example.smarty.ui.theme.MonoFont
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // HTTPS Toggle
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "use_https_(encrypted)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (httpsEnabled) "traffic_is_encrypted" else "traffic_is_unencrypted",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (httpsEnabled) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                    Switch(
-                        checked = httpsEnabled,
-                        onCheckedChange = {
-                            httpsEnabled = it
-                            isEditing = true
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.surface,
-                            checkedTrackColor = LocalAccentColor.current,
-                            uncheckedThumbColor = MaterialTheme.colorScheme.surface,
-                            uncheckedTrackColor = MaterialTheme.colorScheme.outlineVariant
-                        )
-                    )
-                }
-
-                // Test result message
-                AnimatedVisibility(
-                    visible = testResult != null || isTesting,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
-                    Row(
+                // Status Badge if connected/configured
+                if (serverIP.isNotBlank() && !isEditing) {
+                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
+                            .padding(bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        when {
-                            isTesting -> {
-                                com.example.smarty.ui.components.CalmThinkingDots(
-                                    color = LocalAccentColor.current,
-                                    dotSize = 3.dp
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "testing_connection",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            testResult is TestResult.Success -> {
-                                Icon(
-                                    imageVector = Icons.Default.Verified,
-                                    contentDescription = "success",
-                                    tint = MaterialTheme.colorScheme.tertiary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "connection_successful_settings_saved",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.tertiary
-                                )
-                            }
-                            testResult is TestResult.Failure -> {
-                                Icon(
-                                    imageVector = Icons.Default.ReportProblem,
-                                    contentDescription = "failed",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = (testResult as TestResult.Failure).message,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
+                        ConnectionStatusIndicator(
+                            status = if (testResult is TestResult.Success) ConnectionStatus.CONNECTED else ConnectionStatus.OFFLINE,
+                            showLabel = true
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = connectionType,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
-                // Action buttons
+                // Info Text
+                Text(
+                    text = stringResource(R.string.connect_to_your_local_llm_server_use_usb_ip_for_usb_tethering_or_wifi_ip_for_wireless),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Inputs
+                com.example.smarty.ui.components.SettingsInputRow(
+                    label = stringResource(R.string.ip_address),
+                    value = ipInput,
+                    onValueChange = {
+                        ipInput = it
+                        isEditing = true
+                    },
+                    placeholder = stringResource(R.string.ip_address_placeholder)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                com.example.smarty.ui.components.SettingsInputRow(
+                    label = stringResource(R.string.port),
+                    value = portInput,
+                    onValueChange = { newValue ->
+                        if (newValue.all { it.isDigit() }) {
+                            portInput = newValue
+                            isEditing = true
+                        }
+                    },
+                    placeholder = "8000",
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // HTTPS Toggle
+                SettingsToggleRow(
+                    title = stringResource(R.string.use_https),
+                    icon = Icons.Default.Lock,
+                    isChecked = httpsEnabled,
+                    onCheckedChange = {
+                        httpsEnabled = it
+                        isEditing = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
                 ) {
                     if (serverIP.isNotBlank()) {
                         TextButton(
@@ -2111,10 +1678,10 @@ private fun LocalServerSection(
                             },
                             enabled = !isTesting
                         ) {
-                            Text("clear", color = MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.clear), color = MaterialTheme.colorScheme.error)
                         }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+
                     Button(
                         onClick = {
                             if (ipInput.isNotBlank()) {
@@ -2142,26 +1709,54 @@ private fun LocalServerSection(
                         )
                     ) {
                         if (isTesting) {
-                            com.example.smarty.ui.components.CalmThinkingDots(
+                            CalmThinkingDots(
                                 color = MaterialTheme.colorScheme.surface,
                                 dotSize = 3.dp
                             )
                         } else {
-                            Text("test_and_save")
+                            Text(stringResource(R.string.test_and_save))
                         }
                     }
                 }
 
-                // Current URL display if configured
-                if (serverIP.isNotBlank()) {
-                    val displayPort = serverPort.ifBlank { "8000" }
-                    Text(
-                        text = "URL: http://$serverIP:$displayPort/v1/chat/completions",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = com.example.smarty.ui.theme.MonoFont
-                        ),
-                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
-                    )
+                // Test Result Message
+                AnimatedVisibility(
+                    visible = testResult != null,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .background(
+                                color = if (testResult is TestResult.Success)
+                                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                                else
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (testResult is TestResult.Success) Icons.Default.CheckCircle else Icons.Default.Error,
+                                contentDescription = null,
+                                tint = if (testResult is TestResult.Success) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = when (val result = testResult) {
+                                    is TestResult.Success -> stringResource(R.string.connection_successful)
+                                    is TestResult.Failure -> result.message
+                                    else -> ""
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
             }
         }

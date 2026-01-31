@@ -72,61 +72,61 @@ class TimeManagerTool(
             when (args.intent) {
                 "manage_todo" -> {
                     if (args.action == "create") {
-                        val noteId = args.target_id ?: return TimeResult(false, "target_id required")
-                        val text = args.item?.title ?: return TimeResult(false, "Title required")
+                        val noteId = args.target_id ?: return TimeResult(false, "error_id_required")
+                        val text = args.item?.title ?: return TimeResult(false, "error_content_required")
                         onAddTodo(noteId, text)
-                        TimeResult(true, "Todo added to note")
-                    } else TimeResult(false, "Unknown todo action")
+                        TimeResult(true, "todo_added_success")
+                    } else TimeResult(false, "error_unknown_intent")
                 }
                 "manage_event" -> {
                     when (args.action) {
                         "create" -> {
-                            val title = args.item?.title ?: return TimeResult(false, "Title required")
-                            val start = args.item.start_time ?: return TimeResult(false, "Start time required")
-                            onStatusUpdate("Scheduling event...")
+                            val title = args.item?.title ?: return TimeResult(false, "error_content_required")
+                            val start = args.item.start_time ?: return TimeResult(false, "error_content_required")
+                            onStatusUpdate("status_scheduling_event")
                             onAddEvent(title, start, args.item.end_time, args.item.description, args.item.location, args.item.is_private)
-                            TimeResult(true, "Event scheduling initiated")
+                            TimeResult(true, "event_initiated_success")
                         }
                         "delete" -> {
-                            val id = args.target_id ?: return TimeResult(false, "ID required")
+                            val id = args.target_id ?: return TimeResult(false, "error_id_required")
                             onDeleteEvent(id)
-                            TimeResult(true, "Event deleted")
+                            TimeResult(true, "event_deleted_success")
                         }
                         "bulk_delete" -> {
-                            val ids = args.target_id?.split(",")?.map { it.trim() } ?: return TimeResult(false, "Comma-separated IDs required in target_id")
+                            val ids = args.target_id?.split(",")?.map { it.trim() } ?: return TimeResult(false, "error_id_required")
                             onBulkDeleteEvents(ids)
-                            TimeResult(true, "Bulk delete initiated for ${ids.size} events")
+                            TimeResult(true, "event_bulk_delete_success|${ids.size}")
                         }
                         "query" -> {
-                            onStatusUpdate("Searching events...")
+                            onStatusUpdate("status_searching_events")
                             val query = args.item?.title
                             val events = onQueryEvents(query)
-                            TimeResult(true, "Found ${events.size} events", timeJson.encodeToString(events))
+                            TimeResult(true, "found_events_count|${events.size}", timeJson.encodeToString(events))
                         }
-                        else -> TimeResult(false, "Unknown event action")
+                        else -> TimeResult(false, "error_unknown_intent")
                     }
                 }
                 "manage_timer" -> {
                     when (args.action) {
                         "create" -> {
                             val title = args.item?.title ?: "Timer"
-                            val start = args.item?.start_time ?: return TimeResult(false, "Start time required")
-                            onStatusUpdate("Setting timer...")
+                            val start = args.item?.start_time ?: return TimeResult(false, "error_content_required")
+                            onStatusUpdate("status_setting_timer")
                             onSetTimer(title, start, args.item.is_alarm)
-                            TimeResult(true, "Timer/Alarm initiated")
+                            TimeResult(true, "timer_initiated_success")
                         }
                         "delete" -> {
-                            val id = args.target_id ?: return TimeResult(false, "ID required")
+                            val id = args.target_id ?: return TimeResult(false, "error_id_required")
                             onCancelTimer(id)
-                            TimeResult(true, "Timer cancelled")
+                            TimeResult(true, "timer_cancelled_success")
                         }
-                        else -> TimeResult(false, "Unknown timer action")
+                        else -> TimeResult(false, "error_unknown_intent")
                     }
                 }
-                else -> TimeResult(false, "Unknown intent: ${args.intent}")
+                else -> TimeResult(false, "error_unknown_intent")
             }
         } catch (e: Exception) {
-            TimeResult(false, "Error: ${e.message}")
+            TimeResult(false, "error_prefix|${e.message}")
         }
     }
 }

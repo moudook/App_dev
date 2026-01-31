@@ -19,8 +19,9 @@ import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.data.model.Note
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.animation.JarvisEasing
+import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.components.ArchiveEmptyState
+import com.example.smarty.ui.components.common.SmartyDialog
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.theme.ComponentSpacing
 
@@ -96,7 +97,7 @@ fun ArchiveContent(
 
     // Delete confirmation dialog
     if (showDeleteDialog && noteToDelete != null) {
-        com.example.smarty.ui.components.common.JarvisDialog(
+        SmartyDialog(
             title = stringResource(R.string.delete_permanently),
             text = stringResource(R.string.archive_delete_warning),
             onConfirm = {
@@ -141,7 +142,7 @@ private fun InlineArchiveNoteItem(
 
     val alpha by animateFloatAsState(
         targetValue = if (appeared) 1f else 0f,
-        animationSpec = tween(200, easing = JarvisEasing.appleEaseOut),
+        animationSpec = tween(200, easing = SmartyEasing.appleEaseOut),
         label = "itemAlpha"
     )
 

@@ -29,15 +29,15 @@ object FileViewerHelper {
             true
         } catch (e: ActivityNotFoundException) {
             Log.e(TAG, "No app found to open file: $uriString", e)
-            Toast.makeText(context, "No app found to open this file", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(com.example.smarty.R.string.no_app_found), Toast.LENGTH_SHORT).show()
             false
         } catch (e: SecurityException) {
             Log.e(TAG, "Security exception opening file: $uriString", e)
-            Toast.makeText(context, "Permission denied to open this file", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(com.example.smarty.R.string.permission_denied_file), Toast.LENGTH_SHORT).show()
             false
         } catch (e: Exception) {
             Log.e(TAG, "Error opening file: $uriString", e)
-            Toast.makeText(context, "Unable to open file", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(com.example.smarty.R.string.unable_to_open_file), Toast.LENGTH_SHORT).show()
             false
         }
     }

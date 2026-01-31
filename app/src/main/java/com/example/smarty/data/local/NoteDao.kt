@@ -401,7 +401,7 @@ interface NoteDao {
     /**
      * Rebuild FTS5 index if corrupted.
      * Call periodically (e.g., on app startup once per week).
-     * NOTE: Only works with FTS5. Check JarvisDatabase.getFtsVersion() first.
+     * NOTE: Only works with FTS5. Check SmartyDatabase.getFtsVersion() first.
      */
     @SkipQueryVerification
     @Query("INSERT INTO notes_fts(notes_fts) VALUES('rebuild')")
@@ -410,7 +410,7 @@ interface NoteDao {
     /**
      * Optimize FTS5 index for better query performance.
      * Call after bulk operations.
-     * NOTE: Only works with FTS5. Check JarvisDatabase.getFtsVersion() first.
+     * NOTE: Only works with FTS5. Check SmartyDatabase.getFtsVersion() first.
      */
     @SkipQueryVerification
     @Query("INSERT INTO notes_fts(notes_fts) VALUES('optimize')")
@@ -419,7 +419,7 @@ interface NoteDao {
     /**
      * Check FTS5 index integrity.
      * Throws exception if corrupted.
-     * NOTE: Only works with FTS5. Check JarvisDatabase.getFtsVersion() first.
+     * NOTE: Only works with FTS5. Check SmartyDatabase.getFtsVersion() first.
      */
     @SkipQueryVerification
     @Query("INSERT INTO notes_fts(notes_fts, rank) VALUES('integrity-check', 1)")

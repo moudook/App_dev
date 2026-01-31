@@ -8,10 +8,13 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import com.example.smarty.data.local.JarvisDatabase
-import com.example.smarty.data.model.JarvisTimer
+import com.example.smarty.data.local.SmartyDatabase
+import com.example.smarty.data.model.SmartyTimer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -25,9 +28,15 @@ import kotlinx.coroutines.launch
  */
 class AlarmScheduler(private val context: Context) {
 
-    private val database = JarvisDatabase.getDatabase(context)
+    private val database = SmartyDatabase.getDatabase(context)
     private val timerDao = database.timerDao()
     private val scope = CoroutineScope(Dispatchers.IO)
+
+    /**
+     * Observable stream of active timers.
+     */
+    val activeTimers: StateFlow<List<SmartyTimer>> = timerDao.getActiveTimers()
+        .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     companion object {
         private const val TAG = "AlarmScheduler"
@@ -52,7 +61,7 @@ class AlarmScheduler(private val context: Context) {
      * For one-time timers, schedules at the specified triggerTime.
      * For recurring alarms, schedules the next occurrence based on repeatDays.
      */
-    fun scheduleTimer(timer: JarvisTimer) {
+    fun scheduleTimer(timer: SmartyTimer) {
         Log.d(TAG, "Scheduling timer: ${timer.name} at ${timer.triggerTime}")
 
         // Persist to database
@@ -113,13 +122,13 @@ class AlarmScheduler(private val context: Context) {
     fun cancelTimer(timerId: String) {
         Log.d(TAG, "Cancelling timer: $timerId")
 
-        // Remove from database
-        scope.launch {
-            timerDao.deleteTimerById(timerId)
-        }
-
         val intent = Intent(context, AlarmReceiver::class.java).apply {
             action = AlarmReceiver.ACTION_TIMER_TRIGGERED
+            putExtra(AlarmReceiver.EXTRA_TIMER_ID, timerId)
+            putExtra(AlarmReceiver.EXTRA_TIMER_NAME, "") // Not needed for cancellation
+            putExtra(AlarmReceiver.EXTRA_IS_ALARM, false)
+            putExtra(AlarmReceiver.EXTRA_IS_RECURRING, false)
+            putExtra(AlarmReceiver.EXTRA_REPEAT_DAYS, "")
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
@@ -132,8 +141,16 @@ class AlarmScheduler(private val context: Context) {
         pendingIntent?.let {
             alarmManager.cancel(it)
             it.cancel()
-            Log.d(TAG, "Timer cancelled: $timerId")
+            Log.d(TAG, "Pending intent cancelled for timer: $timerId")
         }
+
+        // Remove from database after cancelling the alarm
+        scope.launch {
+            timerDao.deleteTimerById(timerId)
+            Log.d(TAG, "Timer removed from database: $timerId")
+        }
+
+        Log.d(TAG, "Timer cancelled: $timerId")
     }
 
     /**

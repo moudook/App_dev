@@ -1,5 +1,7 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -88,10 +90,10 @@ fun ConnectionStatusIndicator(
                 if (showLabel) {
                     Text(
                         text = when (status) {
-                            ConnectionStatus.CONNECTED -> "connected"
-                            ConnectionStatus.CONNECTING -> "connecting"
-                            ConnectionStatus.DISCONNECTED -> "reconnecting"
-                            ConnectionStatus.OFFLINE -> "offline"
+                            ConnectionStatus.CONNECTED -> stringResource(R.string.connected)
+                            ConnectionStatus.CONNECTING -> stringResource(R.string.connecting)
+                            ConnectionStatus.DISCONNECTED -> stringResource(R.string.reconnecting)
+                            ConnectionStatus.OFFLINE -> stringResource(R.string.offline)
                         },
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Medium
@@ -132,7 +134,7 @@ fun CategoryActionsMenu(
         modifier = modifier
     ) {
         DropdownMenuItem(
-            text = { Text("view") },
+            text = { Text(stringResource(R.string.open)) },
             onClick = {
                 onView()
                 onDismiss()
@@ -147,7 +149,7 @@ fun CategoryActionsMenu(
         )
 
         DropdownMenuItem(
-            text = { Text("edit") },
+            text = { Text(stringResource(R.string.edit)) },
             onClick = {
                 onEdit()
                 onDismiss()
@@ -166,7 +168,7 @@ fun CategoryActionsMenu(
         DropdownMenuItem(
             text = {
                 Text(
-                    "delete",
+                    stringResource(R.string.remove),
                     color = MaterialTheme.colorScheme.error
                 )
             },
@@ -181,6 +183,56 @@ fun CategoryActionsMenu(
                     tint = MaterialTheme.colorScheme.error
                 )
             }
+        )
+    }
+}
+
+/**
+ * Clean input row for settings with label and text field.
+ * Uses OutlinedTextField for better usability and aesthetics.
+ */
+@Composable
+fun SettingsInputRow(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    enabled: Boolean = true,
+    keyboardOptions: androidx.compose.foundation.text.KeyboardOptions = androidx.compose.foundation.text.KeyboardOptions.Default
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
+        )
+
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = enabled,
+            textStyle = MaterialTheme.typography.bodyMedium,
+            placeholder = {
+                if (placeholder.isNotEmpty()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            },
+            keyboardOptions = keyboardOptions,
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = LocalAccentColor.current,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            )
         )
     }
 }

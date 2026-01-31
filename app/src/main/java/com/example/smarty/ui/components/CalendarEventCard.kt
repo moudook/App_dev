@@ -1,5 +1,7 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -110,7 +112,7 @@ fun CalendarEventCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.DeleteOutline,
-                    contentDescription = "delete",
+                    contentDescription = stringResource(R.string.delete),
                     tint = Color.White,
                     modifier = Modifier
                         .padding(horizontal = 24.dp)
@@ -241,7 +243,7 @@ fun CalendarEventCard(
                     if (event.isEventPrivate) {
                         Icon(
                             imageVector = Icons.Default.Lock,
-                            contentDescription = "private",
+                            contentDescription = stringResource(R.string.private_label),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -251,7 +253,7 @@ fun CalendarEventCard(
                     event.reminderMinutes?.let {
                         Icon(
                             imageVector = Icons.Default.NotificationsNone,
-                            contentDescription = "has_reminder",
+                            contentDescription = stringResource(R.string.reminder),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -261,7 +263,7 @@ fun CalendarEventCard(
                     if (event.isRecurring) {
                         Icon(
                             imageVector = Icons.Default.Sync,
-                            contentDescription = "recurring",
+                            contentDescription = stringResource(R.string.sync_calendar),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -346,7 +348,7 @@ private fun TimeRow(event: CalendarEvent) {
         )
 
         val timeText = when {
-            event.isAllDay -> "all_day"
+            event.isAllDay -> stringResource(R.string.all_day)
             else -> {
                 val startTime = timeFormat.format(Date(event.startTime)).lowercase()
                 val endTime = timeFormat.format(Date(event.endTime)).lowercase()
@@ -369,7 +371,7 @@ private fun TimeRow(event: CalendarEvent) {
                 color = LocalAccentColor.current.copy(alpha = 0.15f)
             ) {
                 Text(
-                    text = "now",
+                    text = stringResource(R.string.now),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = LocalAccentColor.current,

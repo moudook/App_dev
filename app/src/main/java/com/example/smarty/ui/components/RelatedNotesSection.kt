@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.data.model.Note
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.RelatedNotesProvider
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +116,7 @@ fun RelatedNotesSection(
             
             if (isLoading) {
                 Spacer(modifier = Modifier.width(12.dp))
-                com.example.smarty.ui.components.CalmThinkingDots(
+                CalmThinkingDots(
                     dotSize = 3.dp,
                     dotSpacing = 3.dp
                 )

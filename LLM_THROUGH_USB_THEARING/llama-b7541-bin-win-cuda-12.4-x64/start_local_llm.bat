@@ -127,9 +127,10 @@ if !errorLevel! neq 0 (
 echo.
 
 :: Check if model exists
-if not exist "models\Phi-4-mini-instruct-Q4_K_M.gguf" (
+:: Check if model exists
+if not exist "models\chatglm3-6b-128k.Q8_0.gguf" (
     echo [ERROR] Model file not found!
-    echo [ERROR] Expected: models\Phi-4-mini-instruct-Q4_K_M.gguf
+    echo [ERROR] Expected: models\chatglm3-6b-128k.Q8_0.gguf
     echo.
     echo Download a GGUF model and place it in the 'models' folder.
     pause
@@ -137,13 +138,14 @@ if not exist "models\Phi-4-mini-instruct-Q4_K_M.gguf" (
 )
 
 echo [INFO] Starting LLM server...
-echo [INFO] Model: Phi-4-mini-instruct-Q4_K_M.gguf
-echo [INFO] Context: 8192 tokens (8K)
-echo [INFO] GPU Layers: 20 (RTX 2050)
+echo [INFO] Model: chatglm3-6b-128k.Q8_0.gguf
+echo [INFO] Context: 131072 tokens
+echo [INFO] GPU Layers: 35 (Optimized)
 echo [INFO] Port: !SERVER_PORT!
 echo [INFO] Host: 0.0.0.0 (accepting connections from any device)
 echo [INFO] Parallel Slots: 2 (can process 2 requests simultaneously)
 echo [INFO] Continuous Batching: ENABLED
+echo [INFO] Flash Attention: AUTO
 echo.
 echo ============================================================
 echo   SERVER STARTING... PRESS CTRL+C TO STOP
@@ -151,14 +153,14 @@ echo ============================================================
 echo.
 
 .\llama-server.exe ^
-  --model models\Phi-4-mini-instruct-Q4_K_M.gguf ^
-  --chat-template-file qwen3_chat_template.jinja ^
-  --ctx-size 8192 ^
-  --n-gpu-layers 20 ^
+  --model models\chatglm3-6b-128k.Q8_0.gguf ^
+  --ctx-size 131072 ^
+  --n-gpu-layers 35 ^
   --port !SERVER_PORT! ^
   --host 0.0.0.0 ^
   --parallel 2 ^
   --cont-batching ^
+  --flash-attn auto ^
   --verbose-prompt
 
 echo.

@@ -253,7 +253,7 @@ sealed class AgentState {
      * Agent is thinking/reasoning - waiting for LLM response
      */
     data class Thinking(
-        val message: String = "Thinking...",
+        val message: String = "thinking",
         val iteration: Int = 1
     ) : AgentState()
 

@@ -19,7 +19,8 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.TaggedNoteContext
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.local.AIMemoryDao
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
+import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.HistoryCompressor
 import com.example.smarty.util.PIIMasker
@@ -97,7 +98,6 @@ sealed class ToolErrorType {
         is ResourceExhausted -> "service temporarily unavailable: ${message.lowercase()}"
         is ProviderError -> "ai service error: ${message.lowercase()}"
         is Unknown -> message.lowercase()
-        else -> message.lowercase()
     }
 
     companion object {
@@ -292,7 +292,7 @@ interface AgentCallbacks {
     fun backupData()
     fun setPrivacyMode(mode: String)
 
-    // HYBRID-CONTROL: Cognitive Operations
+    // HYBRID-CONTROL: Intelligence Operations
     suspend fun storeMemory(content: String, scope: String? = null)
     suspend fun updateMemory(id: String, content: String? = null, type: String? = null, confidence: Float? = null): Boolean
     suspend fun deleteMemory(id: String): Boolean
@@ -313,9 +313,10 @@ interface AgentCallbacks {
 
     // HYBRID-CONTROL: System Lookups
     fun findPackageName(appName: String): String?
-    fun findMatchingAudio(query: String): AudioTrack?
+    fun findMatchingAudio(query: String): AudioSearchResult
 
     // HYBRID-CONTROL: Audio Playback Control (NEW)
+    fun playAudioList(tracks: List<AudioTrack>)
     fun pauseAudioPlayback()
     fun resumeAudioPlayback()
     fun stopAudioPlayback()
@@ -351,10 +352,11 @@ interface AgentCallbacks {
     // HYBRID-CONTROL: Specialized Analytics
     fun onAnalyzeStyle(limit: Int): com.example.smarty.viewmodel.managers.StyleAnalysisReport
     suspend fun onWebSearch(query: String, maxResults: Int, topic: String, onCitationsFound: (List<WebCitation>) -> Unit): com.example.smarty.agent.tools.base.WebSearchResult
+    suspend fun onParallelWebSearch(queries: List<String>, maxResults: Int, topic: String, onCitationsFound: (List<WebCitation>) -> Unit): com.example.smarty.agent.tools.base.WebSearchResult
 }
 
 /**
- * Main Jarvis AI Agent wrapper using JetBrains Koog framework.
+ * Main Smarty AI Agent wrapper using JetBrains Koog framework.
  *
  * This agent can:
  * - Create, search, update, delete, archive/unarchive notes
@@ -365,10 +367,10 @@ interface AgentCallbacks {
  *
  * All operations respect PrivacyGuard - private notes are invisible to AI.
  */
-class JarvisAgentOptimized(
+class SmartyAgentOptimized(
     private val context: Context,  // For OpenAppTool
-    private val agentProvider: JarvisAgentProvider,
-    private val repository: JarvisRepository,
+    private val agentProvider: SmartyAgentProvider,
+    private val repository: SmartyRepository,
     private val tavilySearchProvider: TavilySearchProvider,
     private val alarmScheduler: AlarmScheduler,
     private val callbacks: AgentCallbacks,
@@ -507,6 +509,19 @@ You are Smarty, a calm, professional, and concise intelligence.
 - Prefer lowercase for short summaries and UI labels (e.g., "added to work_notes" instead of "Added to Work Notes").
 - Minimize large Markdown headers. Use bold text or simple lists for structure.
 - Be extremely concise. If a one-sentence answer suffices, use it.
+- **Adaptive Persona**: Mirror the user's vibe. If casual/slangy, be casual. If formal, be professional.
+- **Wit & Humor**: You are not a robot. Use metaphors (e.g., "Scanning the digital horizon..."). If the user is playful or bored, be playful back.
+
+**METAPHORICAL & ADAPTIVE UNDERSTANDING:**
+- **Implicit Intents**: Map emotional states to tools:
+  - "I'm bored" -> `audio_control(action='play', query='upbeat music')` or `universal_search(query='fun facts')`.
+  - "I need to focus" -> `audio_control(action='play', query='lo-fi beats')`.
+  - "I'm scrolling too much" / "Social media addiction" -> `time_manager(action='set_timer', duration='5m', label='Social Media Detox Break')`.
+- **Tool Versatility**:
+  - `universal_search` is not just for facts; use it for "deep research" by calling it multiple times with different angles (via `queries` list).
+  - `time_manager` is not just for meetings; use it for mental health breaks, focus sprints (Pomodoro), or "detox" timers.
+- **Memory & Context**:
+  - If the user asks to "save this research", look at the *history* for previous web results and use `knowledge_master(action='add_note')` to save them. Do NOT search again.
 
 **OPERATIONAL HIERARCHY:**
 1.  **DIRECT RESPONSE**: If a query is simple, answer IMMEDIATELY. NO TOOLS.
@@ -515,7 +530,7 @@ You are Smarty, a calm, professional, and concise intelligence.
 4.  **ACTION OVER PASSIVITY**: Don't just say you can do it; execute and confirm briefly.
 
 **TOOL PROTOCOLS:**
--   **Search**: Use `universal_search` (scope='both') as default. It handles internal and web results.
+-   **Search**: Use `universal_search` (scope='both') as default. It handles internal and web results. Use `queries=['q1', 'q2', 'q3']` for deep research.
 -   **Knowledge**: Use `knowledge_master` for note operations: create, update, delete, summarize.
 -   **Temporal**: Use `time_manager` for ALL todos, calendar events, and timers.
 -   **System**: Use `system_interface` for apps, audio, and navigation.
@@ -590,10 +605,12 @@ You are Smarty, a calm, professional, and concise intelligence.
                 getScreenContext = callbacks::getScreenContext,
                 onStatusUpdate = callbacks::onStatusUpdate,
                 onNavigate = callbacks::navigateTo,
-                onShare = callbacks::shareContent
+                onShare = callbacks::shareContent,
+                onPlayList = callbacks::playAudioList
             ), callbacks))
 
             tool(NotifyingTool(AudioControlTool(
+                context = context,
                 onPlay = callbacks::requestAudioPlayback,
                 onPause = callbacks::pauseAudioPlayback,
                 onResume = callbacks::resumeAudioPlayback,
@@ -605,10 +622,11 @@ You are Smarty, a calm, professional, and concise intelligence.
                 getCurrentPosition = callbacks::getCurrentAudioPosition,
                 getDuration = callbacks::getAudioDuration,
                 isPlaying = callbacks::isAudioPlaying,
-                onStatusUpdate = callbacks::onStatusUpdate
+                onStatusUpdate = callbacks::onStatusUpdate,
+                onPlayList = callbacks::playAudioList
             ), callbacks))
 
-            tool(NotifyingTool(CognitiveCoreTool(
+            tool(NotifyingTool(SmartyCoreTool(
                 onStoreMemory = callbacks::storeMemory,
                 onRetrieveMemories = callbacks::retrieveMemories,
                 onGetMemoryStats = callbacks::getMemoryStats,
@@ -633,6 +651,7 @@ You are Smarty, a calm, professional, and concise intelligence.
                 onSearchInternal = callbacks::searchNotes,
                 onAdvancedSearch = callbacks::advancedSearch,
                 onWebSearch = callbacks::onWebSearch,
+                onParallelWebSearch = callbacks::onParallelWebSearch,
                 onAnalyzeQuery = callbacks::analyzeQuery,
                 onRecall = callbacks::performRecall,
                 onCitationsFound = callbacks::onCitationsFound,
@@ -726,7 +745,7 @@ You are Smarty, a calm, professional, and concise intelligence.
         conversationHistory: List<Pair<String, String>> = emptyList(),
         taggedNoteContext: TaggedNoteContext? = null,
         thinkingModeContext: ThinkingModeContext? = null,
-        isThinkingModeEnabled: Boolean = true // Default to true (standard behavior)
+        isThinkingModeEnabled: Boolean = false // Default to false (flash mode)
     ): AgentResult {
         Log.d(TAG, "Running agent with message: ${userMessage.take(50)}... (history: ${conversationHistory.size} messages)")
 
@@ -736,7 +755,7 @@ You are Smarty, a calm, professional, and concise intelligence.
 
         if (availableExecutors.isEmpty()) {
             Log.w(TAG, "No healthy AI provider available")
-            return AgentResult.NoProvider("No AI provider available. All providers may be temporarily disabled due to errors.")
+            return AgentResult.NoProvider(context.getString(com.example.smarty.R.string.error_all_providers_disabled))
         }
 
         Log.i(TAG, "Available executors: ${availableExecutors.size} (across ${availableExecutors.map { it.provider }.distinct().size} providers)")
@@ -887,18 +906,14 @@ You are Smarty, a calm, professional, and concise intelligence.
             // Note: The HistoryCompressor already handles aggressive compression above
         }
 
-        // Determine dynamic iteration limit based on task complexity
-        val maxIterations = determineMaxIterations(userMessage)
-        Log.d(TAG, "Using maxIterations=$maxIterations for task")
+        // Max iterations removed - allow agent to run without iteration limits
+        val maxIterations = Int.MAX_VALUE
+        Log.d(TAG, "Max iterations disabled - agent will run until task completion")
 
         // BATCH-3C: Simple query caching is now handled by AgentOptimizer's semantic cache
         // The old AIResponseCache was incompatible (designed for note analysis, not chat responses)
         // Semantic cache from AgentOptimizer provides better similarity-based caching
-        val isSimpleQuery = maxIterations == MAX_ITERATIONS_SIMPLE &&
-            !userMessage.lowercase().let { msg ->
-                msg.contains("search") || msg.contains("find") || msg.contains("create") ||
-                msg.contains("delete") || msg.contains("play") || msg.contains("note")
-            }
+        val isSimpleQuery = false  // Always treat as complex to allow full processing
 
         // Rate limiter check before making API call
         rateLimiter?.let { limiter ->
@@ -909,11 +924,11 @@ You are Smarty, a calm, professional, and concise intelligence.
                     val hours = waitTime / 3600_000
                     val minutes = (waitTime / 60_000) % 60
                     Log.w(TAG, "Daily API limit reached. Resets in ${hours}h ${minutes}m")
-                    return AgentResult.Error(
-                        "I've reached my daily thinking limit to help manage resources. " +
-                        "I'll be back at full capacity in ${hours}h ${minutes}m. " +
-                        "Feel free to continue chatting - I can still help with simpler questions!"
-                    )
+                    val timeStr = "${hours}h ${minutes}m"
+                    val message = context.getString(com.example.smarty.R.string.error_daily_limit_reached) + " " +
+                            context.getString(com.example.smarty.R.string.error_limit_reset_time, timeStr) + " " +
+                            context.getString(com.example.smarty.R.string.error_limit_chat_available)
+                    return AgentResult.Error(message)
                 } else {
                     // Per-minute limit, wait briefly
                     Log.d(TAG, "Rate limit: waiting ${waitTime}ms before API call")
@@ -968,7 +983,45 @@ You are Smarty, a calm, professional, and concise intelligence.
                     val currentToolRegistry = buildToolRegistry()
 
                     // AGENT-010: Inject thinking mode instruction into system prompt
-                    // When THINKING MODE is ON, use iterative planning loop with STRICT no-action guidelines
+                    val stepFocus = when (planLoopIterations) {
+                        1 -> """
+step 1: understanding
+clarify the user's intent. what are the explicit and implicit needs? identify assumptions and missing info.
+format:
+**intent**: [summary]
+**requirements**: [list]
+**missing**: [list]
+"""
+                        2 -> """
+step 2: research
+gather facts using read-only tools. identify technical constraints and dependencies.
+format:
+**findings**: [bullet points]
+**constraints**: [bullet points]
+"""
+                        3 -> """
+step 3: approach
+evaluate 2-3 paths. compare simplicity vs. depth.
+format:
+**options**: [short comparison]
+**recommendation**: [chosen path]
+"""
+                        4 -> """
+step 4: planning
+define the implementation sequence. how will we verify success?
+format:
+**sequence**: [ordered steps]
+**validation**: [how to check]
+"""
+                        else -> """
+step 5: synthesis
+deliver the final, polished plan. make it actionable.
+format:
+**solution**: [clear description]
+**next steps**: [what to do now]
+"""
+                    }
+
                     val thinkingModeInstruction = if (isThinkingModeEnabled) {
                         """
 
@@ -983,44 +1036,7 @@ You are in deep thinking mode. focus on thorough analysis before any state-alter
 </constraints>
 
 <step_${planLoopIterations}_focus>
-${when (planLoopIterations) {
-    1 -> """
-step 1: understanding
-clarify the user's intent. what are the explicit and implicit needs? identify assumptions and missing info.
-format:
-**intent**: [summary]
-**requirements**: [list]
-**missing**: [list]
-"""
-    2 -> """
-step 2: research
-gather facts using read-only tools. identify technical constraints and dependencies.
-format:
-**findings**: [bullet points]
-**constraints**: [bullet points]
-"""
-    3 -> """
-step 3: approach
-evaluate 2-3 paths. compare simplicity vs. depth.
-format:
-**options**: [short comparison]
-**recommendation**: [chosen path]
-"""
-    4 -> """
-step 4: planning
-define the implementation sequence. how will we verify success?
-format:
-**sequence**: [ordered steps]
-**validation**: [how to check]
-"""
-    else -> """
-step 5: synthesis
-deliver the final, polished plan. make it actionable.
-format:
-**solution**: [clear description]
-**next steps**: [what to do now]
-"""
-}}
+$stepFocus
 </step_${planLoopIterations}_focus>
 </deep_thinking_mode>
 """
@@ -1185,7 +1201,7 @@ format:
                     val userMsg = errorType.toUserMessage()
                     // AGENT-007: Include error type in log for easier debugging
                     Log.w(TAG, "Tool error [${errorType::class.simpleName}] (no failover): $userMsg")
-                    return AgentResult.Error("i couldn't complete that action: $userMsg")
+                    return AgentResult.Error(context.getString(com.example.smarty.R.string.error_action_failed_detail, userMsg))
                 }
 
                 Log.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
@@ -1209,11 +1225,11 @@ format:
 
         // All providers/keys failed - return combined error
         val errorSummary = if (errors.size == 1) {
-            "error: ${errors.first().third}"
+            context.getString(com.example.smarty.R.string.error_prefix, errors.first().third)
         } else {
             // Group errors by provider for cleaner output
             val grouped = errors.groupBy { it.first }
-            "all ${errors.size} attempts failed:\n" + grouped.entries.joinToString("\n") { (provider, providerErrors) ->
+            context.getString(com.example.smarty.R.string.error_attempts_failed, errors.size) + "\n" + grouped.entries.joinToString("\n") { (provider, providerErrors) ->
                 if (providerErrors.size == 1) {
                     "• ${provider.name.lowercase()}: ${providerErrors.first().third}"
                 } else {
@@ -1223,7 +1239,9 @@ format:
         }
 
         Log.e(TAG, "All providers failed: $errorSummary")
-        return AgentResult.Error("i couldn't complete your request. $errorSummary\n\nproviders will automatically retry after a cooldown period.")
+        val finalMessage = context.getString(com.example.smarty.R.string.error_request_failed_detail, errorSummary) + "\n\n" +
+                context.getString(com.example.smarty.R.string.error_retry_after_cooldown)
+        return AgentResult.Error(finalMessage)
     }
 
 

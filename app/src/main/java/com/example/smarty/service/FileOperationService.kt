@@ -179,7 +179,7 @@ class FileOperationService : Service() {
         serviceScope.launch {
             operationMutex.withLock {
                 if (!isProcessing) {
-                    startForeground(NOTIFICATION_ID, createNotification("Processing files..."))
+                    startForeground(NOTIFICATION_ID, createNotification(getString(R.string.status_processing_files)))
                     processQueue()
                 }
             }
@@ -206,10 +206,10 @@ class FileOperationService : Service() {
                     _operationState.value = OperationState.Processing(
                         operationId = operation.id,
                         progress = 0f,
-                        message = "Processing ${operation.id}..."
+                        message = getString(R.string.processing_item, operation.id)
                     )
 
-                    updateNotification("Processing: ${operation.id}")
+                    updateNotification(getString(R.string.processing_item, operation.id))
 
                     try {
                         val result = when (operation) {
@@ -278,7 +278,7 @@ class FileOperationService : Service() {
             OperationResult(
                 operationId = operation.id,
                 success = true,
-                message = "Compressed successfully",
+                message = getString(R.string.compressed_successfully),
                 resultFile = result.compressedFile,
                 compressionResult = result
             )
@@ -286,7 +286,7 @@ class FileOperationService : Service() {
             OperationResult(
                 operationId = operation.id,
                 success = false,
-                message = e.message ?: "Compression failed"
+                message = e.message ?: getString(R.string.failed)
             )
         }
     }
@@ -299,7 +299,7 @@ class FileOperationService : Service() {
         return OperationResult(
             operationId = operation.id,
             success = true,
-            message = "Copy completed"
+            message = getString(R.string.copy_completed)
         )
     }
 
@@ -363,14 +363,14 @@ class FileOperationService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Jarvis")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(message)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
-                "Cancel",
+                getString(R.string.cancel),
                 cancelPendingIntent
             )
             .build()

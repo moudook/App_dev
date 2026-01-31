@@ -9,11 +9,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
@@ -121,7 +121,8 @@ private fun QuickReplyChip(
             .scale(scale)
             .alpha(alpha),
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+        // Match user bubble aesthetic: Subtle accent tint + border
+        color = accentColor.copy(alpha = 0.08f),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
             color = accentColor.copy(alpha = 0.2f)
@@ -142,12 +143,12 @@ private fun QuickReplyChip(
             }
 
             Text(
-                text = text.lowercase(),
+                text = text.lowercase(), // Consistent lowercase style
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 0.2.sp
                 ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = accentColor // Use accent color for text to match border
             )
         }
     }
@@ -182,7 +183,7 @@ fun getDefaultSuggestions(isPrivateMode: Boolean = false): List<QuickReplySugges
         hour in 5..11 -> QuickReplySuggestion(textResId = com.example.smarty.R.string.whats_on_my_calendar_today, icon = Icons.Default.CalendarToday, category = SuggestionCategory.CALENDAR)
         hour in 12..17 -> QuickReplySuggestion(textResId = com.example.smarty.R.string.whats_left_today, icon = Icons.Default.CalendarToday, category = SuggestionCategory.CALENDAR)
         hour in 18..21 -> QuickReplySuggestion(textResId = com.example.smarty.R.string.plan_for_tomorrow, icon = Icons.Default.DateRange, category = SuggestionCategory.CALENDAR)
-        else -> QuickReplySuggestion(textResId = com.example.smarty.R.string.quick_note, icon = Icons.Default.NoteAdd, category = SuggestionCategory.ACTIONS)
+        else -> QuickReplySuggestion(textResId = com.example.smarty.R.string.quick_note, icon = Icons.AutoMirrored.Filled.NoteAdd, category = SuggestionCategory.ACTIONS)
     }
 
     return if (isPrivateMode) {

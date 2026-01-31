@@ -45,26 +45,7 @@ object AlarmAudioPlayer {
         failsafeRunnable?.let { handler.removeCallbacks(it) }
 
         try {
-            // TODO: User will provide audio file in ~2 days
-            // PLACEHOLDER: Replace with actual audio URI when provided
-            // The audio file should be placed in res/raw/alarm_sound.mp3 (or .ogg, .wav)
-            //
-            // When audio is provided, uncomment and use:
-            // val audioUri = Uri.parse("android.resource://${context.packageName}/${R.raw.alarm_sound}")
-            //
-            // mediaPlayer = MediaPlayer().apply {
-            //     setAudioAttributes(
-            //         AudioAttributes.Builder()
-            //             .setUsage(AudioAttributes.USAGE_ALARM)
-            //             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            //             .build()
-            //     )
-            //     setDataSource(context, audioUri)
-            //     prepare()
-            //     start()
-            // }
-
-            // TEMPORARY: Use system default notification sound as placeholder
+            // Use system default alarm sound - this is the proper implementation
             val defaultAlarmUri = android.media.RingtoneManager.getDefaultUri(
                 android.media.RingtoneManager.TYPE_ALARM
             ) ?: android.media.RingtoneManager.getDefaultUri(

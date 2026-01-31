@@ -399,6 +399,35 @@ class ToolExampleStore {
             )
         )
 
+        // Audio Control Examples (STRICT RULE ENFORCEMENT)
+        examples["audio_control"] = mutableListOf(
+            ToolExample(
+                toolName = "audio_control",
+                userQuery = "Play my favorite song",
+                arguments = mapOf("action" to "play", "target" to "favorite song"),
+                description = "Allowed: Query starts with 'Play'",
+                keywords = setOf("play", "music", "song", "audio"),
+                successRate = 1.0f
+            ),
+            ToolExample(
+                toolName = "audio_control",
+                userQuery = "Play jazz music",
+                arguments = mapOf("action" to "play", "target" to "jazz music"),
+                description = "Allowed: Query starts with 'Play'",
+                keywords = setOf("play", "jazz", "music"),
+                successRate = 1.0f
+            ),
+            ToolExample(
+                toolName = "audio_control",
+                userQuery = "Pause the music",
+                arguments = mapOf("action" to "pause"),
+                description = "Paused playback",
+                keywords = setOf("pause", "stop", "music")
+            )
+            // Note: Negative examples (what NOT to do) are best handled by the system prompt's strict rule,
+            // as this store is for retrieving "how to use" examples.
+        )
+
         // Web Search examples - Added for better knowledge retrieval
         examples["web_search"] = mutableListOf(
             ToolExample(
@@ -440,7 +469,7 @@ class ToolExampleStore {
                 userQuery = "open spotify",
                 arguments = mapOf("appName" to "Spotify"),
                 description = "Opened Spotify",
-                keywords = setOf("open", "launch", "start", "play", "music", "app")
+                keywords = setOf("open", "launch", "start", "music", "app")
             ),
             ToolExample(
                 toolName = "open_app",

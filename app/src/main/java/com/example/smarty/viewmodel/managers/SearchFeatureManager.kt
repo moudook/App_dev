@@ -3,7 +3,7 @@ package com.example.smarty.viewmodel.managers
 import android.util.Log
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.data.local.SearchHistoryManager
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.search.SemanticSearchEngine
@@ -35,9 +35,10 @@ import kotlin.math.*
  * This manager is the "Brain" of the search system, used by UI and AI.
  */
 class SearchFeatureManager(
-    private val repository: JarvisRepository,
+    private val repository: SmartyRepository,
     private val allNotes: StateFlow<List<Note>>,
     private val searchHistoryManager: SearchHistoryManager,
+    private val securePreferences: com.example.smarty.data.local.SecurePreferences,
     private val tavilySearchProvider: TavilySearchProvider? = null
 ) {
     /**
@@ -135,7 +136,7 @@ class SearchFeatureManager(
         if (query.isNullOrBlank()) {
             return filtered.sortedByDescending { it.createdAt }
                 .take(limit)
-                .map { it.toSearchResult(1.0f, "recent ${it.type.name.lowercase()} note") }
+                .map { it.toSearchResult(1.0f, "search_highlight_recent|${it.type.name.lowercase()}") }
         }
 
         val results = SemanticSearchEngine.search(
@@ -148,7 +149,7 @@ class SearchFeatureManager(
             SearchResultItem(
                 note = result.item,
                 score = result.score.toFloat(),
-                highlight = "matched in ${result.matchType.toString().lowercase()}"
+                highlight = "search_highlight_matched|${result.matchType.toString().lowercase()}"
             )
         }
     }
@@ -263,6 +264,123 @@ class SearchFeatureManager(
                 content = result.content,
                 score = result.semanticScore,
                 reason = result.recallReason
+            )
+        }
+    }
+
+    /**
+     * Perform parallel external web searches for multiple queries.
+     * Uses available API keys in rotation to maximize throughput.
+     * Handles rate limits (429) by automatically retrying with a different key.
+     */
+    suspend fun performParallelWebSearch(
+        queries: List<String>,
+        maxResultsPerQuery: Int = 4,
+        topic: String = "general",
+        onCitationsFound: (List<WebCitation>) -> Unit = {}
+    ): WebSearchResult = coroutineScope {
+        if (tavilySearchProvider == null) {
+            return@coroutineScope WebSearchResult(success = false, query = queries.joinToString(", "), reason = "Search engine not initialized")
+        }
+
+        if (queries.isEmpty()) {
+            return@coroutineScope WebSearchResult(success = false, query = "", reason = "No queries provided")
+        }
+
+        // Execute searches in parallel
+        val deferredResults = queries.map { query ->
+            async {
+                // Get a key for this specific request (auto-rotates)
+                var currentKey = securePreferences.getTavilyApiKey()
+
+                if (currentKey == null) {
+                    return@async WebSearchResult(success = false, query = query, reason = "No API key available")
+                }
+
+                if (!checkRateLimit()) {
+                    return@async WebSearchResult(success = false, query = query, reason = "Global daily limit reached")
+                }
+
+                try {
+                    // First attempt
+                    var result = tavilySearchProvider.search(currentKey!!, query, maxResultsPerQuery, topic)
+
+                    // Automatic Failover for Rate Limits (429) or Auth Errors (401)
+                    if (!result.success && (result.error?.contains("429") == true || result.error?.contains("401") == true)) {
+                        Log.w(TAG, "Search failed for '$query' with key ending in ...${currentKey!!.takeLast(4)} (Error: ${result.error}). Retrying with next key...")
+
+                        // Rotate to next key
+                        // Calling getTavilyApiKey() again will return the next key in rotation
+                        val nextKey = securePreferences.getTavilyApiKey()
+
+                        if (nextKey != null && nextKey != currentKey) {
+                            currentKey = nextKey
+                            Log.d(TAG, "Retrying '$query' with new key ending in ...${currentKey!!.takeLast(4)}")
+                            result = tavilySearchProvider.search(currentKey!!, query, maxResultsPerQuery, topic)
+                        } else {
+                            Log.e(TAG, "No alternative keys available for retry.")
+                        }
+                    }
+
+                    if (result.success) {
+                        val webResults = result.results.map {
+                            // Map the raw/full snippet directly without extra truncation here
+                            WebResult(title = it.title, url = it.url, snippet = it.snippet)
+                        }
+
+                        // Don't trigger callback here to avoid UI race conditions,
+                        // we'll aggregate citations at the end
+
+                        WebSearchResult(
+                            success = true,
+                            query = query,
+                            reason = "Success",
+                            aiSummary = result.answer, // Note: Individual summaries might be null if using 'raw' mode
+                            results = webResults,
+                            totalResults = webResults.size
+                        )
+                    } else {
+                        WebSearchResult(success = false, query = query, reason = result.error ?: "Unknown error")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error in parallel search for '$query'", e)
+                    WebSearchResult(success = false, query = query, reason = "Exception: ${e.message}")
+                }
+            }
+        }
+
+        // Wait for all to complete
+        val results = deferredResults.awaitAll()
+
+        // Aggregate results
+        val allWebResults = results.flatMap { it.results ?: emptyList() }
+        val failedQueries = results.filter { !it.success }.map { it.query }
+        val successfulQueries = results.filter { it.success }.map { it.query }
+
+        // Notify citations once with all results
+        if (allWebResults.isNotEmpty()) {
+            onCitationsFound(allWebResults.map { WebCitation(it.title, it.url, it.snippet) })
+        }
+
+        // Synthesize synthesis (if multiple results, we leave AI summary null so the Agent generates its own from the snippets)
+        // If single query success, preserve its AI summary if available
+        val aggregatedSummary = if (results.size == 1) results.first().aiSummary else null
+
+        if (allWebResults.isNotEmpty()) {
+            WebSearchResult(
+                success = true,
+                query = queries.joinToString(" | "),
+                reason = "Parallel search complete. Success: ${successfulQueries.size}, Failed: ${failedQueries.size}",
+                aiSummary = aggregatedSummary,
+                results = allWebResults,
+                totalResults = allWebResults.size
+            )
+        } else {
+            WebSearchResult(
+                success = false,
+                query = queries.joinToString(" | "),
+                reason = "All searches failed. Errors: ${results.joinToString { it.reason ?: "unknown" }}",
+                results = emptyList()
             )
         }
     }

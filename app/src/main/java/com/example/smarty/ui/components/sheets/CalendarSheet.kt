@@ -23,6 +23,7 @@ import java.util.Calendar
 @Composable
 fun CalendarSheet(
     events: List<CalendarEvent>,
+    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
     sheetState: SheetState, // Keep for API compatibility, but not used
     onDismiss: () -> Unit,
     onAddEvent: () -> Unit, // Legacy callback - still used for actual event creation
@@ -49,6 +50,7 @@ fun CalendarSheet(
     ) {
         CalendarScreen(
             events = events,
+            activeTimers = activeTimers,
             onBackClick = onDismiss,
             onAddEvent = { selectedDate ->
                 // Show dialog with the selected date

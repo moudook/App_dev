@@ -44,15 +44,15 @@ class ReadAndAnalyzeStyleTool(
 ) {
     override suspend fun execute(args: ReadAndAnalyzeStyleArgs): StyleAnalysisResult {
         return try {
-            onStatusUpdate("Analyzing style...")
+            onStatusUpdate("status_analyzing_style")
             val report = onAnalyzeStyle(args.limit.coerceIn(1, 30))
             StyleAnalysisResult(
                 success = true,
-                message = "Successfully analyzed notes for writing style patterns.",
+                message = "style_analysis_success",
                 data = report
             )
         } catch (e: Exception) {
-            StyleAnalysisResult(false, "Error: ${e.message}")
+            StyleAnalysisResult(false, "batch_error_failed|${e.message}")
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -38,7 +39,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.CalmThinkingDots
 import com.example.smarty.ui.components.CalendarEmptyState
 import com.example.smarty.ui.components.CalendarEventCard
 import com.example.smarty.ui.theme.*
@@ -52,7 +55,7 @@ import java.util.*
  * 
  * Design: Always-dark theme with Electric Blue accent (matches app theme)
  * - Deep dark background for immersive experience
- * - Electric Blue accent for selections (consistent with Jarvis design)
+ * - Electric Blue accent for selections (consistent with Smarty design)
  * - Dashed circles for today/weekends
  * - Gradient event cards
  * ═══════════════════════════════════════════════════════════════════════════════
@@ -88,10 +91,12 @@ enum class SyncStatus {
 @Composable
 fun CalendarScreen(
     events: List<CalendarEvent>,
+    activeTimers: List<SmartyTimer> = emptyList(),
     onBackClick: () -> Unit,
     onAddEvent: (Calendar) -> Unit,
     onEventClick: (CalendarEvent) -> Unit,
     onDeleteEvent: (CalendarEvent) -> Unit = {},
+    onCancelTimer: (SmartyTimer) -> Unit = {},
     syncStatus: SyncStatus = SyncStatus.Idle,
     onSyncClick: () -> Unit = {},
     isLoading: Boolean = false,
@@ -218,7 +223,7 @@ fun CalendarScreen(
                     ) {
                         when (syncStatus) {
                             SyncStatus.Syncing -> {
-                                com.example.smarty.ui.components.CalmThinkingDots(
+                                CalmThinkingDots(
                                     dotSize = 3.dp
                                 )
                             }
@@ -292,6 +297,20 @@ fun CalendarScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            // ═══════════════════════════════════════════════════════════════════
+            // ACTIVE TIMERS SECTION
+            // ═══════════════════════════════════════════════════════════════════
+            if (activeTimers.isNotEmpty()) {
+                ActiveTimersRow(
+                    timers = activeTimers,
+                    accentColor = accentColor,
+                    surfaceColor = surfaceColor,
+                    textPrimary = textPrimary,
+                    onCancelTimer = onCancelTimer
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
             // ═══════════════════════════════════════════════════════════════════
             // MONTH HEADER WITH NAVIGATION
@@ -466,7 +485,7 @@ fun CalendarScreen(
                         .weight(1f),
                     contentAlignment = Alignment.TopCenter
                 ) {
-                    com.example.smarty.ui.components.CalmThinkingDots(
+                    CalmThinkingDots(
                         modifier = Modifier.padding(top = 40.dp)
                     )
                 }
@@ -498,6 +517,122 @@ fun CalendarScreen(
                             onClick = { onEventClick(event) },
                             modifier = Modifier.animateItem()
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ACTIVE TIMERS COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+@Composable
+private fun ActiveTimersRow(
+    timers: List<SmartyTimer>,
+    accentColor: Color,
+    surfaceColor: Color,
+    textPrimary: Color,
+    onCancelTimer: (SmartyTimer) -> Unit
+) {
+    val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+
+    // State to trigger recomposition every second for countdown
+    var ticks by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(timers) {
+        while(true) {
+            ticks = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(R.string.active_timers).lowercase(),
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.5.sp
+            ),
+            color = textPrimary.copy(alpha = 0.6f),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+        )
+
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(timers, key = { it.id }) { timer ->
+                // Calculate time remaining for timers
+                val now = ticks // use state to trigger recomposition
+                val timeRemaining = if (!timer.isAlarm) {
+                    (timer.triggerTime - now).coerceAtLeast(0)
+                } else {
+                    0L
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = surfaceColor.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.2f)),
+                    modifier = Modifier.widthIn(min = 140.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (timer.isAlarm) Icons.Default.Alarm else Icons.Default.Timer,
+                            contentDescription = null,
+                            tint = accentColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = timer.name.lowercase(),
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            // Calculate time remaining for both timers and alarms
+                            val timeRemainingMillis = (timer.triggerTime - now).coerceAtLeast(0)
+                            val hours = timeRemainingMillis / 3600000
+                            val minutes = (timeRemainingMillis % 3600000) / 60000
+                            val seconds = (timeRemainingMillis % 60000) / 1000
+
+                            val statusText = if (timeRemainingMillis <= 0) {
+                                stringResource(R.string.expired)
+                            } else if (hours > 0) {
+                                String.format("%dh %dm %ds", hours, minutes, seconds)
+                            } else {
+                                String.format("%dm %ds", minutes, seconds)
+                            }
+
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (timeRemainingMillis <= 0) MaterialTheme.colorScheme.error else accentColor
+                                )
+                            )
+                        }
+
+                        // Cancel button
+                        IconButton(
+                            onClick = { onCancelTimer(timer) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.cancel),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -674,7 +809,7 @@ private fun PremiumEventCard(
                         if (event.isRecurring) {
                             Icon(
                                 imageVector = Icons.Default.Repeat,
-                                contentDescription = "recurring_event",
+                                contentDescription = stringResource(R.string.recurring_event),
                                 modifier = Modifier.size(14.dp),
                                 tint = accentColor
                             )

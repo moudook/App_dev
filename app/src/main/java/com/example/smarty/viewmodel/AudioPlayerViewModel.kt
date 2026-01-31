@@ -107,7 +107,7 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
                         autoHideJob?.cancel()
                         android.widget.Toast.makeText(
                             getApplication(),
-                            "Unable to satisfy request. Use local file.",
+                            getApplication<Application>().getString(com.example.smarty.R.string.audio_playback_error),
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     }

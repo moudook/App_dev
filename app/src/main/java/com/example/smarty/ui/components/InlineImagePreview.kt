@@ -1,5 +1,6 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -48,6 +49,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.InlineChatImage
 import com.example.smarty.ui.theme.Alpha
 import kotlinx.coroutines.delay
@@ -115,9 +118,14 @@ fun InlineImagePreview(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(1.2f) // Slightly wider than square
-            .clip(RoundedCornerShape(16.dp))
+            .aspectRatio(1.2f)
+            .clip(RoundedCornerShape(24.dp)) // Increased to 24dp for Soft Tech
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f), // Subtle border
+                RoundedCornerShape(24.dp)
+            )
             .clickable { onExpandImage(currentIndex) }
             .pointerInput(images.size) {
                 if (images.size <= 1) return@pointerInput // No swipe for single image
@@ -209,7 +217,7 @@ fun InlineImagePreview(
                 ) {
                     Icon(
                         imageVector = Icons.Default.BrokenImage,
-                        contentDescription = "Image failed to load",
+                        contentDescription = stringResource(R.string.image_load_failed),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(48.dp)
                     )
@@ -270,7 +278,7 @@ fun InlineImagePreview(
                 color = Color.Black.copy(alpha = 0.6f)
             ) {
                 Text(
-                    text = "${currentIndex + 1}/${images.size}",
+                    text = stringResource(R.string.pagination_format, currentIndex + 1, images.size),
                     color = Color.White,
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.SemiBold,

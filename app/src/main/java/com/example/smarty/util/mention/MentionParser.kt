@@ -90,20 +90,20 @@ object MentionParser {
     val COMMANDS: Map<String, CommandInfo> = mapOf(
         "thinking" to CommandInfo(
             name = "thinking",
-            displayName = "Deep Thinking",
-            description = "Analyze full document content in depth",
+            displayNameRes = com.example.smarty.R.string.command_thinking_display,
+            descriptionRes = com.example.smarty.R.string.command_thinking_desc,
             icon = "psychology"
         ),
         "think" to CommandInfo(
             name = "thinking", // Alias
-            displayName = "Deep Thinking",
-            description = "Analyze full document content in depth",
+            displayNameRes = com.example.smarty.R.string.command_thinking_display,
+            descriptionRes = com.example.smarty.R.string.command_thinking_desc,
             icon = "psychology"
         ),
         "analyze" to CommandInfo(
             name = "thinking", // Alias
-            displayName = "Deep Analysis",
-            description = "Perform deep analysis on document",
+            displayNameRes = com.example.smarty.R.string.command_analyze_display,
+            descriptionRes = com.example.smarty.R.string.command_analyze_desc,
             icon = "analytics"
         )
     )
@@ -113,10 +113,13 @@ object MentionParser {
      */
     data class CommandInfo(
         val name: String,
-        val displayName: String,
-        val description: String,
+        val displayNameRes: Int,
+        val descriptionRes: Int,
         val icon: String
-    )
+    ) {
+        fun getDisplayName(context: android.content.Context): String = context.getString(displayNameRes)
+        fun getDescription(context: android.content.Context): String = context.getString(descriptionRes)
+    }
 
     /**
      * Regex to detect email patterns.
@@ -527,57 +530,57 @@ object MentionParser {
     /**
      * Get display text for a type filter suggestion.
      */
-    fun getTypeFilterDisplayName(type: NoteType): String {
+    fun getTypeFilterDisplayName(context: android.content.Context, type: com.example.smarty.data.model.NoteType): String {
         return when (type) {
-            NoteType.AUDIO -> "Audios"
-            NoteType.DOCUMENT -> "Documents"
-            NoteType.IMAGE -> "Images"
-            NoteType.VIDEO -> "Videos"
-            NoteType.CODE -> "Code Files"
-            NoteType.WEBSITE -> "Websites"
-            NoteType.YOUTUBE -> "YouTube"
-            NoteType.SPREADSHEET -> "Spreadsheets"
-            NoteType.PRESENTATION -> "Presentations"
-            NoteType.BRAIN_DUMP -> "Brain Dumps"
-            NoteType.TWITTER -> "Twitter/X"
-            NoteType.INSTAGRAM -> "Instagram"
-            NoteType.FILE -> "Files"
-            NoteType.ARCHIVE -> "Archives"
-            NoteType.APK -> "APK Files"
+            com.example.smarty.data.model.NoteType.AUDIO -> context.getString(com.example.smarty.R.string.mention_type_audios)
+            com.example.smarty.data.model.NoteType.DOCUMENT -> context.getString(com.example.smarty.R.string.mention_type_documents)
+            com.example.smarty.data.model.NoteType.IMAGE -> context.getString(com.example.smarty.R.string.mention_type_images)
+            com.example.smarty.data.model.NoteType.VIDEO -> context.getString(com.example.smarty.R.string.mention_type_videos)
+            com.example.smarty.data.model.NoteType.CODE -> context.getString(com.example.smarty.R.string.mention_type_code_files)
+            com.example.smarty.data.model.NoteType.WEBSITE -> context.getString(com.example.smarty.R.string.mention_type_websites)
+            com.example.smarty.data.model.NoteType.YOUTUBE -> context.getString(com.example.smarty.R.string.mention_type_youtube)
+            com.example.smarty.data.model.NoteType.SPREADSHEET -> context.getString(com.example.smarty.R.string.mention_type_spreadsheets)
+            com.example.smarty.data.model.NoteType.PRESENTATION -> context.getString(com.example.smarty.R.string.mention_type_presentations)
+            com.example.smarty.data.model.NoteType.BRAIN_DUMP -> context.getString(com.example.smarty.R.string.mention_type_braindumps)
+            com.example.smarty.data.model.NoteType.TWITTER -> context.getString(com.example.smarty.R.string.mention_type_twitter)
+            com.example.smarty.data.model.NoteType.INSTAGRAM -> context.getString(com.example.smarty.R.string.mention_type_instagram)
+            com.example.smarty.data.model.NoteType.FILE -> context.getString(com.example.smarty.R.string.mention_type_files)
+            com.example.smarty.data.model.NoteType.ARCHIVE -> context.getString(com.example.smarty.R.string.mention_type_archives)
+            com.example.smarty.data.model.NoteType.APK -> context.getString(com.example.smarty.R.string.mention_type_apks)
         }
     }
 
     /**
      * Get the primary keyword for a type filter.
      */
-    fun getTypeFilterKeyword(type: NoteType): String {
+    fun getTypeFilterKeyword(type: com.example.smarty.data.model.NoteType): String {
         return when (type) {
-            NoteType.AUDIO -> "audios"
-            NoteType.DOCUMENT -> "documents"
-            NoteType.IMAGE -> "images"
-            NoteType.VIDEO -> "videos"
-            NoteType.CODE -> "code"
-            NoteType.WEBSITE -> "websites"
-            NoteType.YOUTUBE -> "youtube"
-            NoteType.SPREADSHEET -> "spreadsheets"
-            NoteType.PRESENTATION -> "presentations"
-            NoteType.BRAIN_DUMP -> "braindumps"
-            NoteType.TWITTER -> "twitter"
-            NoteType.INSTAGRAM -> "instagram"
-            NoteType.FILE -> "files"
-            NoteType.ARCHIVE -> "archives"
-            NoteType.APK -> "apks"
+            com.example.smarty.data.model.NoteType.AUDIO -> "audios"
+            com.example.smarty.data.model.NoteType.DOCUMENT -> "documents"
+            com.example.smarty.data.model.NoteType.IMAGE -> "images"
+            com.example.smarty.data.model.NoteType.VIDEO -> "videos"
+            com.example.smarty.data.model.NoteType.CODE -> "code"
+            com.example.smarty.data.model.NoteType.WEBSITE -> "websites"
+            com.example.smarty.data.model.NoteType.YOUTUBE -> "youtube"
+            com.example.smarty.data.model.NoteType.SPREADSHEET -> "spreadsheets"
+            com.example.smarty.data.model.NoteType.PRESENTATION -> "presentations"
+            com.example.smarty.data.model.NoteType.BRAIN_DUMP -> "braindumps"
+            com.example.smarty.data.model.NoteType.TWITTER -> "twitter"
+            com.example.smarty.data.model.NoteType.INSTAGRAM -> "instagram"
+            com.example.smarty.data.model.NoteType.FILE -> "files"
+            com.example.smarty.data.model.NoteType.ARCHIVE -> "archives"
+            com.example.smarty.data.model.NoteType.APK -> "apks"
         }
     }
 
     /**
      * Get description for special filters.
      */
-    fun getSpecialFilterDescription(filterName: String): String {
+    fun getSpecialFilterDescription(context: android.content.Context, filterName: String): String {
         return when (filterName.lowercase()) {
-            "recent" -> "Most recently created notes"
-            "pinned" -> "Pinned/starred notes"
-            "all" -> "All accessible notes"
+            "recent" -> context.getString(com.example.smarty.R.string.filter_recent_desc)
+            "pinned" -> context.getString(com.example.smarty.R.string.filter_pinned_desc)
+            "all" -> context.getString(com.example.smarty.R.string.filter_all_desc)
             else -> ""
         }
     }

@@ -24,6 +24,8 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.data.model.AudioPlayerUiState
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ComponentSpacing
@@ -98,7 +100,7 @@ fun MiniAudioPlayer(
             ) {
                 // Title
                 Text(
-                    text = (state.currentTrack?.title ?: "not_playing").lowercase(),
+                    text = (state.currentTrack?.title ?: stringResource(R.string.not_playing)).lowercase(),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)
@@ -107,7 +109,7 @@ fun MiniAudioPlayer(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                
+
                 Spacer(modifier = Modifier.height(6.dp))
 
                 // Progress Row: Bar + Time
@@ -125,9 +127,9 @@ fun MiniAudioPlayer(
                             color = accentColor,
                             trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.moderate),
                         )
-                        
+
                         Spacer(modifier = Modifier.width(8.dp))
-                        
+
                         // Time Text
                         Text(
                             text = state.durationFormatted, // Showing total duration like reference "2:49"
@@ -139,7 +141,7 @@ fun MiniAudioPlayer(
                     }
                 } else {
                      Text(
-                        text = "select_a_track",
+                        text = stringResource(R.string.select_a_track),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -165,7 +167,7 @@ fun MiniAudioPlayer(
                 ) {
                     Icon(
                         imageVector = if (state.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        contentDescription = if (state.isPlaying) "pause" else "play",
+                        contentDescription = stringResource(if (state.isPlaying) R.string.pause else R.string.play),
                         modifier = Modifier.size(IconSize.large)
                     )
                 }
@@ -179,7 +181,7 @@ fun MiniAudioPlayer(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "close",
+                        contentDescription = stringResource(R.string.close),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half),
                         modifier = Modifier.size(IconSize.medium)
                     )

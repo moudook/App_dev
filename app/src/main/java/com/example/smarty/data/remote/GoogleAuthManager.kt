@@ -93,9 +93,22 @@ class GoogleAuthManager(private val context: Context) {
 
     /**
      * Get the sign-in intent to launch the Google Sign-In flow.
+     * Optionally pre-fill the account email if known.
      */
-    fun getSignInIntent(): Intent {
-        return googleSignInClient.signInIntent
+    fun getSignInIntent(userEmail: String? = null): Intent {
+        val gsoBuilder = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestScopes(
+                Scope(DriveScopes.DRIVE_FILE),
+                Scope(DriveScopes.DRIVE_APPDATA)
+            )
+
+        if (!userEmail.isNullOrBlank()) {
+            gsoBuilder.setAccountName(userEmail)
+        }
+
+        val client = GoogleSignIn.getClient(context, gsoBuilder.build())
+        return client.signInIntent
     }
 
     /**

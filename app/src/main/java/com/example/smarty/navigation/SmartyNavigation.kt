@@ -25,6 +25,7 @@ import com.example.smarty.data.model.MentionSuggestion
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteAttachment
 import com.example.smarty.data.model.NoteVersion
+import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.screens.*
@@ -42,7 +43,7 @@ private fun NavHostController.safePopBackStack(): Boolean {
             false
         }
     } catch (e: Exception) {
-        android.util.Log.w("JarvisNavigation", "Safe pop failed: ${e.message}")
+        android.util.Log.w("SmartyNavigation", "Safe pop failed: ${e.message}")
         false
     }
 }
@@ -60,7 +61,7 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun JarvisNavHost(
+fun SmartyNavHost(
     navController: NavHostController = rememberNavController(),
     notes: List<Note>,
     archivedNotes: List<Note>,
@@ -127,7 +128,7 @@ fun JarvisNavHost(
     aiPlanStatus: String? = null,
     currentToolName: String? = null,
     // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
-    isThinkingModeEnabled: Boolean = true,
+    isThinkingModeEnabled: Boolean = false,
     onToggleThinkingMode: () -> Unit = {},
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
@@ -185,6 +186,7 @@ fun JarvisNavHost(
     onClearCameraTrigger: () -> Unit = {},
     // Calendar management
     calendarEvents: List<CalendarEvent> = emptyList(),
+    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
     onAddCalendarEvent: (
         title: String,
         description: String?,
@@ -198,6 +200,7 @@ fun JarvisNavHost(
     ) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
     onUpdateCalendarEvent: (CalendarEvent) -> Unit = {},
     onDeleteCalendarEvent: (String) -> Unit = {},
+    onCancelTimer: (SmartyTimer) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
@@ -209,7 +212,7 @@ fun JarvisNavHost(
     onScreenChange: (String) -> Unit = {},
     // Local LLM Server (USB/WiFi)
     localServerIP: String = "",
-    localServerPort: String = "8000",
+    localServerPort: String = "1234",
     localServerUseHttps: Boolean = false,
     onSetLocalServerIP: (String) -> Unit = {},
     onSetLocalServerPort: (String) -> Unit = {},
@@ -239,7 +242,7 @@ fun JarvisNavHost(
     navigationRequest: String? = null,
     onClearNavigationRequest: () -> Unit = {}
 ) {
-    // NOTE: Login is now handled in MainActivity BEFORE JarvisNavHost is rendered
+    // NOTE: Login is now handled in MainActivity BEFORE SmartyNavHost is rendered
     // When we get here, user is ALWAYS logged in
     val startDestination = Screen.InputStream.route
 
@@ -257,7 +260,7 @@ fun JarvisNavHost(
             }
 
             route?.let {
-                android.util.Log.i("JarvisNavigation", "AI navigating to: $it")
+                android.util.Log.i("SmartyNavigation", "AI navigating to: $it")
                 navController.navigate(it)
                 onClearNavigationRequest()
             }
@@ -390,6 +393,7 @@ fun JarvisNavHost(
 
                 // Calendar
                 calendarEvents = calendarEvents,
+                activeTimers = activeTimers,
                 // FIX: onAddCalendarEvent should be a no-op - actual creation goes through onCreateCalendarEvent
                 // The previous implementation incorrectly created empty events immediately
                 onAddCalendarEvent = { /* No-op - dialog shown internally by CalendarSheet/CalendarContent */ },
@@ -555,7 +559,7 @@ fun JarvisNavHost(
                     bottomContentPadding = bottomContentPadding,
                     isMiniPlayerVisible = isMiniPlayerVisible,
                     // @Mention: Ask AI about this note
-                    onAskAI = {
+                    onAskSmarty = {
                         onEnterChatWithNoteReference(note.title)
                         navController.safePopBackStack()
                     }
@@ -663,11 +667,13 @@ fun JarvisNavHost(
         composable(Screen.Calendar.route) {
             CalendarRoute(
                 calendarEvents = calendarEvents,
+                activeTimers = activeTimers,
                 isLoading = isCalendarLoading,
                 onBackClick = { navController.safePopBackStack() },
                 onAddCalendarEvent = onAddCalendarEvent,
                 onUpdateCalendarEvent = onUpdateCalendarEvent,
-                onDeleteCalendarEvent = onDeleteCalendarEvent
+                onDeleteCalendarEvent = onDeleteCalendarEvent,
+                onCancelTimer = onCancelTimer
             )
         }
 
@@ -791,6 +797,7 @@ fun BackupSettingsRoute(
 @Composable
 fun CalendarRoute(
     calendarEvents: List<CalendarEvent>,
+    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
     onBackClick: () -> Unit,
     onAddCalendarEvent: (
         title: String,
@@ -805,6 +812,7 @@ fun CalendarRoute(
     ) -> Unit,
     onUpdateCalendarEvent: (CalendarEvent) -> Unit,
     onDeleteCalendarEvent: (String) -> Unit,
+    onCancelTimer: (SmartyTimer) -> Unit = {},
     isLoading: Boolean = false
 ) {
     var showAddSheet by remember { mutableStateOf(false) }
@@ -813,6 +821,7 @@ fun CalendarRoute(
 
     CalendarScreen(
         events = calendarEvents,
+        activeTimers = activeTimers,
         isLoading = isLoading,
         onBackClick = onBackClick,
         onAddEvent = { selectedDate ->
@@ -824,6 +833,9 @@ fun CalendarRoute(
         },
         onDeleteEvent = { event ->
             onDeleteCalendarEvent(event.id)
+        },
+        onCancelTimer = { timer ->
+            onCancelTimer(timer)
         }
     )
 

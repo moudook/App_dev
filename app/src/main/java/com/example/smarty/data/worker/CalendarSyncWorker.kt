@@ -4,9 +4,9 @@ import android.content.Context
 import android.util.Log
 import androidx.work.*
 import com.example.smarty.calendar.GoogleCalendarSyncManager
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 import java.util.concurrent.TimeUnit
 
 /**
@@ -66,8 +66,8 @@ class CalendarSyncWorker(
         }
 
         try {
-            val database = JarvisDatabase.getDatabase(context)
-            val repository = JarvisRepository(
+            val database = SmartyDatabase.getDatabase(context)
+            val repository = SmartyRepository(
                 noteDao = database.noteDao(),
                 categoryDao = database.categoryDao(),
                 calendarDao = database.calendarDao(),

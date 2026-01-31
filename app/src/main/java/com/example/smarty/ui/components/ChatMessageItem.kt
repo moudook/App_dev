@@ -1,90 +1,106 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Launch
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Assistant
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Source
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.automirrored.filled.Launch
-import androidx.compose.ui.zIndex
 import androidx.compose.material3.HorizontalDivider
-import com.example.smarty.ui.theme.softCardShadow
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.runtime.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.zIndex
 import com.example.smarty.R
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
+import com.example.smarty.data.model.Citation
+import com.example.smarty.data.model.ClarificationRequest
+import com.example.smarty.data.model.Note
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.ui.components.viewers.FullScreenImageViewer
+import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
-import com.example.smarty.ui.theme.AnimationDuration
-import com.example.smarty.ui.theme.Alpha
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.getAttachments
-import com.example.smarty.ui.components.viewers.FullScreenImageViewer
-import com.example.smarty.ui.components.InlineNotePreview
-import com.halilibo.richtext.markdown.Markdown
-import com.halilibo.richtext.ui.RichText
-import com.halilibo.richtext.ui.RichTextStyle
-import com.halilibo.richtext.ui.string.RichTextStringStyle
-import androidx.compose.animation.core.FastOutSlowInEasing
-import com.example.smarty.data.model.ClarificationRequest
-import com.example.smarty.data.model.Citation
-
+import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.ui.theme.softCardShadow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Pre-compiled regex patterns for markdown parsing.
- * Moved to file level to avoid recreation on every recomposition.
- * This is a critical performance optimization - regex compilation is O(n) expensive.
  */
 private object MarkdownPatterns {
     val bold = Regex("\\*\\*(.+?)\\*\\*")
@@ -95,18 +111,28 @@ private object MarkdownPatterns {
 }
 
 /**
+ * Position of a message within a grouped burst of messages.
+ */
+enum class MessageGroupPosition {
+    SINGLE,  // Isolated message
+    TOP,     // First in a group
+    MIDDLE,  // Middle of a group
+    BOTTOM   // Last in a group
+}
+
+/**
  * Unified Chat Message Bubble Component
  *
- * Design Philosophy:
- * - Centralized, cohesive look matching the rest of the app
- * - User messages: Accent-tinted pill with clean typography
- * - AI messages: Elevated card with subtle border, professional appearance
- * - Consistent spacing, padding, and visual hierarchy
+ * Design Philosophy: "Soft Tech"
+ * - Organic Geometry: Continuous curvature (32dp) with small anchors
+ * - Refined Depth: Subtle borders/shadows
+ * - Chromatic Calm: Desaturated accents
  */
 @Composable
 fun ChatMessageItem(
     message: ChatMessage,
     modifier: Modifier = Modifier,
+    groupPosition: MessageGroupPosition = MessageGroupPosition.SINGLE,
     getNote: (String) -> Note? = { null },
     onNoteClick: (Note) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
@@ -115,37 +141,61 @@ fun ChatMessageItem(
     val isUser = message.role == ChatRole.USER
     val accentColor = LocalAccentColor.current
 
-    // No animations - direct rendering for performance
+    // "Soft Tech" Shape Logic
+    val largeCorner = 24.dp
+    val smallCorner = 4.dp
+
+    val bubbleShape = when (groupPosition) {
+        MessageGroupPosition.SINGLE -> RoundedCornerShape(
+            topStart = largeCorner,
+            topEnd = largeCorner,
+            bottomStart = if (isUser) largeCorner else smallCorner,
+            bottomEnd = if (isUser) smallCorner else largeCorner
+        )
+        MessageGroupPosition.TOP -> RoundedCornerShape(
+            topStart = largeCorner,
+            topEnd = largeCorner,
+            bottomStart = if (isUser) largeCorner else smallCorner,
+            bottomEnd = if (isUser) smallCorner else largeCorner
+        )
+        MessageGroupPosition.MIDDLE -> RoundedCornerShape(
+            topStart = if (isUser) largeCorner else smallCorner,
+            topEnd = if (isUser) smallCorner else largeCorner,
+            bottomStart = if (isUser) largeCorner else smallCorner,
+            bottomEnd = if (isUser) smallCorner else largeCorner
+        )
+        MessageGroupPosition.BOTTOM -> RoundedCornerShape(
+            topStart = if (isUser) largeCorner else smallCorner,
+            topEnd = if (isUser) smallCorner else largeCorner,
+            bottomStart = largeCorner,
+            bottomEnd = largeCorner
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp),
+            .padding(horizontal = 20.dp, vertical = 2.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         // Message Bubble
         Surface(
-            shape = RoundedCornerShape(
-                topStart = ComponentSpacing.bubbleCornerLarge,
-                topEnd = ComponentSpacing.bubbleCornerLarge,
-                bottomStart = if (isUser) ComponentSpacing.bubbleCornerLarge else ComponentSpacing.bubbleCornerSmall,
-                bottomEnd = if (isUser) ComponentSpacing.bubbleCornerSmall else ComponentSpacing.bubbleCornerLarge
-            ),
+            shape = bubbleShape,
             color = if (isUser) {
-                // User bubble: Accent tint with subtle presence
-                accentColor.copy(alpha = Alpha.soft)
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
             } else {
-                // AI bubble: Clean surface with elevation
                 MaterialTheme.colorScheme.surface
             },
-            border = if (!isUser) {
-                BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = Alpha.hint))
-            } else null,
-            shadowElevation = if (!isUser) 2.dp else 0.dp,
-            modifier = Modifier
-                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+            border = if (isUser) {
+                BorderStroke(1.dp, accentColor.copy(alpha = 0.15f))
+            } else {
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            },
+            shadowElevation = if (!isUser) 1.dp else 0.dp,
+            modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth)
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = ComponentSpacing.bubblePadding, vertical = ComponentSpacing.bubblePaddingVertical)
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
             ) {
                 // Message content
                 if (isUser) {
@@ -154,58 +204,63 @@ fun ChatMessageItem(
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = 16.sp,
                             lineHeight = 24.sp,
-                            letterSpacing = 0.15.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.sp
                         ),
-                        color = accentColor
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 } else {
-                    // Assistant messages - ALL text is BLUE in both light and dark mode
-                    // Custom markdown parser - bypasses buggy RichText library
-
-                    val boldColor = accentColor // Bright blue for bold text
-                    // Use MaterialTheme colors for a more integrated, calm look
+                    val isDark = isSystemInDarkTheme()
                     val normalColor = MaterialTheme.colorScheme.onSurface
+                    val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
 
-                    // Links use a softer, theme-aware purple
-                    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-                    val linkColor = if (isDark) Color(0xFFD1C4E9) else Color(0xFF673AB7)
-                    val codeColor = accentColor.copy(alpha = 0.8f) // Code uses accent tint
+                    // Split content by code blocks
+                    val parts = message.content.split("```")
 
-                    // Custom markdown parser with full control over colors
-                    val annotatedText = parseMarkdownToAnnotatedString(
-                        content = message.content,
-                        normalColor = normalColor,
-                        boldColor = boldColor,
-                        italicColor = normalColor,
-                        linkColor = linkColor,
-                        codeColor = codeColor
-                    )
+                    parts.forEachIndexed { index, part ->
+                        if (index % 2 == 1) {
+                            val lines = part.trim().lines()
+                            val language = if (lines.firstOrNull()?.all { it.isLetterOrDigit() } == true) lines.first() else ""
+                            val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
 
-                    // Use ClickableText to make links work
-                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                    @Suppress("DEPRECATION")
-                    androidx.compose.foundation.text.ClickableText(
-                        text = annotatedText,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 16.sp,
-                            lineHeight = 24.sp,
-                            letterSpacing = 0.15.sp
-                        ),
-                        onClick = { offset ->
-                        annotatedText.getStringAnnotations(tag = "URL", start = offset, end = offset)
-                            .firstOrNull()?.let { annotation ->
-                                try {
-                                    uriHandler.openUri(annotation.item)
-                                } catch (e: Exception) {
-                                    // Handle invalid URLs gracefully
-                                }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            CodeBlock(code = codeContent, language = language)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        } else {
+                            if (part.isNotBlank()) {
+                                val annotatedText = parseMarkdownToAnnotatedString(
+                                    content = part,
+                                    normalColor = normalColor,
+                                    boldColor = boldColor,
+                                    italicColor = normalColor,
+                                    linkColor = if (isDark) Color(0xFFCE93D8) else Color(0xFF7B1FA2),
+                                    codeColor = MaterialTheme.colorScheme.primary
+                                )
+
+                                val uriHandler = LocalUriHandler.current
+                                ClickableText(
+                                    text = annotatedText,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 16.sp,
+                                        lineHeight = 26.sp,
+                                        letterSpacing = 0.sp,
+                                        fontWeight = FontWeight.Normal
+                                    ),
+                                    onClick = { offset ->
+                                        annotatedText.getStringAnnotations(tag = "URL", start = offset, end = offset)
+                                            .firstOrNull()?.let { annotation ->
+                                                try {
+                                                    uriHandler.openUri(annotation.item)
+                                                } catch (e: Exception) { }
+                                            }
+                                    }
+                                )
                             }
                         }
-                    )
+                    }
                 }
 
-                // Inline Image Preview (for AI messages with images from ViewImageTool)
+                // Inline Image Preview
                 if (!isUser && message.hasInlineImages) {
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -223,7 +278,6 @@ fun ChatMessageItem(
                             .clip(RoundedCornerShape(16.dp))
                     )
 
-                    // Full-screen viewer dialog
                     if (showFullScreen && message.inlineImages.isNotEmpty()) {
                         val currentImage = message.inlineImages.getOrNull(fullScreenIndex)
                             ?: message.inlineImages.first()
@@ -235,7 +289,7 @@ fun ChatMessageItem(
                     }
                 }
 
-                // Referenced Notes (Inline)
+                // Referenced Notes
                 if (!isUser && message.referencedNoteIds.isNotEmpty()) {
                     val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
                     val relevantNotes = message.referencedNoteIds
@@ -274,10 +328,9 @@ fun ChatMessageItem(
                     }
                 }
 
-                // Action Results (Inside bubble for cleaner look)
+                // Action Results
                 if (!isUser && message.hasActions) {
                     Spacer(modifier = Modifier.height(12.dp))
-
                     message.executedActions.forEach { actionResult ->
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
@@ -291,8 +344,6 @@ fun ChatMessageItem(
                                     success = actionResult.success,
                                     summary = actionResult.resultSummary
                                 )
-
-                                // Affected Notes
                                 if (actionResult.affectedNoteIds.isNotEmpty()) {
                                     Spacer(modifier = Modifier.height(10.dp))
                                     actionResult.affectedNoteIds.forEach { noteId ->
@@ -316,7 +367,7 @@ fun ChatMessageItem(
                     }
                 }
 
-                // Clarification request (Inside bubble)
+                // Clarification request
                 message.clarificationRequest?.let { request ->
                     Spacer(modifier = Modifier.height(12.dp))
                     ClarificationBubble(
@@ -328,7 +379,7 @@ fun ChatMessageItem(
             }
         }
 
-        // AI Suggestions (below bubble)
+        // Suggestions
         if (!isUser && message.hasSuggestions) {
             Row(
                 modifier = Modifier
@@ -357,11 +408,8 @@ fun ChatMessageItem(
             }
         }
 
-        // Timestamp Row with Citations inline (below suggestions/bubble)
-        // AI: [Timestamp] [Citations] ............. [Copy]
-        // User: ........................ [Timestamp]
+        // Timestamp
         if (isUser) {
-            // User message: just timestamp on the right
             Row(
                 modifier = Modifier.padding(top = 6.dp),
                 horizontalArrangement = Arrangement.End,
@@ -377,7 +425,6 @@ fun ChatMessageItem(
                 )
             }
         } else {
-            // AI message: [Timestamp + Citations] on left, [Copy] on right
             val clipboardManager = LocalClipboardManager.current
             var showCopied by remember { mutableStateOf(false) }
             val scope = rememberCoroutineScope()
@@ -397,7 +444,6 @@ fun ChatMessageItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left side: Timestamp + Citations
                 Row(
                     horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
@@ -411,7 +457,6 @@ fun ChatMessageItem(
                         fontSize = 11.sp
                     )
 
-                    // Citations inline - next to timestamp
                     if (message.hasCitations) {
                         Spacer(modifier = Modifier.width(10.dp))
                         CitationsInline(
@@ -421,10 +466,9 @@ fun ChatMessageItem(
                     }
                 }
 
-                // Right side: Copy button (always on right edge)
                 Icon(
                     imageVector = if (showCopied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
-                    contentDescription = "copy",
+                    contentDescription = stringResource(R.string.copy),
                     modifier = Modifier
                         .size(IconSize.small)
                         .clickable {
@@ -439,24 +483,17 @@ fun ChatMessageItem(
                 )
             }
         }
-
-        
     }
 }
 
-/**
- * Inline citations with overlapping circles that open a selection popup
- * Shows max 3 circles in overlapping style, last shows "3+" if more citations
- */
 @Composable
 private fun CitationsInline(
     citations: List<Citation>,
     accentColor: Color
 ) {
     var showSelectionPopup by remember { mutableStateOf(false) }
-    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val uriHandler = LocalUriHandler.current
 
-    // Trigger: Clean Pill "Sources (N)"
     Surface(
         onClick = { showSelectionPopup = true },
         shape = RoundedCornerShape(50),
@@ -487,12 +524,11 @@ private fun CitationsInline(
         }
     }
 
-    // Popup: NoteCard styled list
     if (showSelectionPopup) {
-        androidx.compose.ui.window.Popup(
+        Popup(
             alignment = Alignment.Center,
             onDismissRequest = { showSelectionPopup = false },
-            properties = androidx.compose.ui.window.PopupProperties(
+            properties = PopupProperties(
                 focusable = true,
                 dismissOnBackPress = true,
                 dismissOnClickOutside = true
@@ -510,7 +546,6 @@ private fun CitationsInline(
                     modifier = Modifier.padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Header
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center,
@@ -551,13 +586,11 @@ private fun CitationsInline(
                         }
                     }
 
-                    // Divider
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         modifier = Modifier.padding(bottom = 20.dp)
                     )
 
-                    // List
                     Column(
                         modifier = Modifier
                             .weight(1f, fill = false)
@@ -572,17 +605,14 @@ private fun CitationsInline(
                                     try {
                                         uriHandler.openUri(citation.url)
                                         showSelectionPopup = false
-                                    } catch (e: Exception) {
-                                        // Ignore
-                                    }
+                                    } catch (e: Exception) { }
                                 }
                             )
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(20.dp))
-                    
-                    // Close hint
+
                     Text(
                         text = stringResource(R.string.tap_outside_to_close),
                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
@@ -594,9 +624,6 @@ private fun CitationsInline(
     }
 }
 
-/**
- * A Citation Card styled like a NoteCard
- */
 @Composable
 private fun SourceCard(
     citation: Citation,
@@ -610,22 +637,18 @@ private fun SourceCard(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow, // Slightly different from bg
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         modifier = Modifier
             .fillMaxWidth()
             .softCardShadow(shape = RoundedCornerShape(24.dp))
-            .zIndex(1f) // Ensure shadow renders
+            .zIndex(1f)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Title and Number
-            Row(
-                verticalAlignment = Alignment.Top
-            ) {
-                // Index Badge
+            Row(verticalAlignment = Alignment.Top) {
                 Surface(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -633,15 +656,15 @@ private fun SourceCard(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "$index",
+                            text = index.toString(),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.width(12.dp))
-                
+
                 Text(
                     text = citation.title.ifBlank { stringResource(R.string.untitled_source) }.lowercase(),
                     style = MaterialTheme.typography.titleSmall.copy(
@@ -651,7 +674,7 @@ private fun SourceCard(
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
 
@@ -665,11 +688,7 @@ private fun SourceCard(
                 )
             }
 
-            // Metadata Pills
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Domain Pill
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = RoundedCornerShape(50),
                     color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
@@ -679,7 +698,7 @@ private fun SourceCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Language, // Creative: Web/Globe
+                            imageVector = Icons.Default.Language,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(12.dp)
@@ -693,8 +712,7 @@ private fun SourceCard(
                     }
                 }
             }
-            
-            // Snippet (if available)
+
             if (citation.snippet.isNotBlank()) {
                  Text(
                     text = citation.snippet,
@@ -704,25 +722,20 @@ private fun SourceCard(
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 3,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
     }
 }
 
-/**
- * Modern chip for action execution results
- */
 @Composable
 private fun ActionResultChip(
     actionName: String,
     success: Boolean,
     summary: String
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(
             shape = CircleShape,
             color = if (success) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
@@ -762,9 +775,6 @@ private fun ActionResultChip(
     }
 }
 
-/**
- * Format action name for display
- */
 private fun formatActionName(actionName: String): String {
     return actionName
         .replace("Action", "")
@@ -772,9 +782,89 @@ private fun formatActionName(actionName: String): String {
         .trim()
 }
 
-/**
- * Format timestamp for display
- */
+@Composable
+fun CodeBlock(
+    code: String,
+    language: String
+) {
+    val clipboardManager = LocalClipboardManager.current
+    var isCopied by remember { mutableStateOf(false) }
+    val isDark = isSystemInDarkTheme()
+
+    val backgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF5F5F5)
+    val borderColor = if (isDark) Color(0xFF333333) else Color(0xFFE0E0E0)
+    val textColor = if (isDark) Color(0xFFD4D4D4) else Color(0xFF333333)
+    val headerColor = if (isDark) Color(0xFF2D2D2D) else Color(0xFFEEEEEE)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(headerColor)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = language.ifBlank { "code" }.lowercase(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666)
+            )
+
+            Row(
+                modifier = Modifier
+                    .clickable {
+                        clipboardManager.setText(AnnotatedString(code))
+                        isCopied = true
+                    }
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                    contentDescription = "Copy code",
+                    tint = if (isCopied) MaterialTheme.colorScheme.primary else if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666),
+                    modifier = Modifier.size(14.dp)
+                )
+                if (isCopied) {
+                    Text(
+                        text = "Copied",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    LaunchedEffect(Unit) {
+                        delay(2000)
+                        isCopied = false
+                    }
+                }
+            }
+        }
+
+        Box(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = code,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                ),
+                color = textColor,
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            )
+        }
+    }
+}
+
 @Composable
 private fun formatTimestamp(timestamp: Long): String {
     val now = System.currentTimeMillis()
@@ -791,11 +881,6 @@ private fun formatTimestamp(timestamp: Long): String {
     }
 }
 
-/**
- * Custom markdown parser that gives full control over text colors.
- * Supports: **bold**, *italic*, `code`, [links](url), __underline__
- * This bypasses the buggy compose-richtext library.
- */
 private fun parseMarkdownToAnnotatedString(
     content: String,
     normalColor: Color,
@@ -808,8 +893,6 @@ private fun parseMarkdownToAnnotatedString(
         var text = content
         var currentIndex = 0
 
-        // Define markdown patterns with their styles
-        // Order matters: check longer patterns first (** before *)
         data class MarkdownMatch(
             val range: IntRange,
             val displayText: String,
@@ -818,10 +901,8 @@ private fun parseMarkdownToAnnotatedString(
             val url: String? = null
         )
 
-        // Find all markdown elements
         val matches = mutableListOf<MarkdownMatch>()
 
-        // Bold: **text** (using pre-compiled pattern)
         MarkdownPatterns.bold.findAll(text).forEach { match ->
             matches.add(MarkdownMatch(
                 range = match.range,
@@ -830,9 +911,7 @@ private fun parseMarkdownToAnnotatedString(
             ))
         }
 
-        // Italic: *text* (but not **) - using pre-compiled pattern
         MarkdownPatterns.italic.findAll(text).forEach { match ->
-            // Check if this overlaps with any bold match
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(
@@ -843,9 +922,7 @@ private fun parseMarkdownToAnnotatedString(
             }
         }
 
-        // Inline code: `code` - using pre-compiled pattern
         MarkdownPatterns.inlineCode.findAll(text).forEach { match ->
-            // Check if this overlaps with any bold or italic match
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(
@@ -860,9 +937,7 @@ private fun parseMarkdownToAnnotatedString(
             }
         }
 
-        // Links: [text](url) - using pre-compiled pattern
         MarkdownPatterns.link.findAll(text).forEach { match ->
-            // Check overlaps
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
                 matches.add(MarkdownMatch(
@@ -871,7 +946,7 @@ private fun parseMarkdownToAnnotatedString(
                     style = SpanStyle(
                         color = linkColor,
                         fontWeight = FontWeight.SemiBold,
-                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                        textDecoration = TextDecoration.Underline
                     ),
                     isLink = true,
                     url = match.groupValues[2]
@@ -879,7 +954,6 @@ private fun parseMarkdownToAnnotatedString(
             }
         }
 
-        // Underline: __text__ - using pre-compiled pattern
         MarkdownPatterns.underline.findAll(text).forEach { match ->
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
@@ -888,25 +962,21 @@ private fun parseMarkdownToAnnotatedString(
                     displayText = match.groupValues[1],
                     style = SpanStyle(
                         color = normalColor,
-                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                        textDecoration = TextDecoration.Underline
                     )
                 ))
             }
         }
 
-        // Sort matches by start index to process sequentially
         val sortedMatches = matches.sortedBy { it.range.first }
 
-        // Build the annotated string
         for (match in sortedMatches) {
-            // Add normal text before this match
             if (match.range.first > currentIndex) {
                 withStyle(SpanStyle(color = normalColor)) {
                     append(text.substring(currentIndex, match.range.first))
                 }
             }
 
-            // Add the styled text
             if (match.isLink && match.url != null) {
                 pushStringAnnotation(tag = "URL", annotation = match.url)
                 withStyle(match.style) {
@@ -922,7 +992,6 @@ private fun parseMarkdownToAnnotatedString(
             currentIndex = match.range.last + 1
         }
 
-        // Add remaining text
         if (currentIndex < text.length) {
             withStyle(SpanStyle(color = normalColor)) {
                 append(text.substring(currentIndex))
@@ -931,10 +1000,6 @@ private fun parseMarkdownToAnnotatedString(
     }
 }
 
-/**
- * Bubble for interactive clarification requests.
- * Contains: Question, Option Chips, and Optional Text Input.
- */
 @Composable
 private fun ClarificationBubble(
     request: ClarificationRequest,
@@ -951,7 +1016,6 @@ private fun ClarificationBubble(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Question Header
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Assistant,
@@ -969,9 +1033,9 @@ private fun ClarificationBubble(
                     color = accentColor
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Text(
                 text = request.question,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
@@ -980,14 +1044,13 @@ private fun ClarificationBubble(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Options list
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 request.options.forEach { option ->
                     Surface(
-                        onClick = { 
+                        onClick = {
                             if (!isSubmitted) {
                                 isSubmitted = true
-                                onSubmit(option) 
+                                onSubmit(option)
                             }
                         },
                         shape = RoundedCornerShape(12.dp),
@@ -1007,12 +1070,11 @@ private fun ClarificationBubble(
                 }
             }
 
-            // Custom Input Field
             if (request.allowCustomInput) {
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.OutlinedTextField(
+                    OutlinedTextField(
                         value = customInput,
                         onValueChange = { customInput = it },
                         placeholder = { Text(stringResource(R.string.other), fontSize = 14.sp) },
@@ -1023,14 +1085,14 @@ private fun ClarificationBubble(
                         enabled = !isSubmitted,
                         trailingIcon = {
                             if (customInput.isNotBlank() && !isSubmitted) {
-                                androidx.compose.material3.IconButton(
+                                IconButton(
                                     onClick = {
                                         isSubmitted = true
                                         onSubmit(customInput)
                                     }
                                 ) {
                                     Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Send, // Creative: Submit
+                                        imageVector = Icons.AutoMirrored.Filled.Send,
                                         contentDescription = stringResource(R.string.submit),
                                         tint = accentColor
                                     )

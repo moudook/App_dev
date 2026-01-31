@@ -66,7 +66,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.example.smarty.ui.components.CalmThinkingDots
 import java.io.File
+import androidx.compose.ui.res.stringResource
+import com.example.smarty.R
 import com.example.smarty.util.ResourceManager
 
 /**
@@ -162,12 +165,12 @@ private fun PdfViewerContent(
                     isLoading = false
                 } else {
                     Log.e(TAG, "FileDescriptor is null for: $documentUri")
-                    errorMessage = "could_not_open_pdf_file"
+                    errorMessage = context.getString(R.string.error_opening_pdf)
                     isLoading = false
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Exception creating PdfRenderer: ${e.message}", e)
-                errorMessage = "error_opening_pdf"
+                errorMessage = context.getString(R.string.error_opening_pdf)
                 isLoading = false
             }
         }
@@ -299,14 +302,14 @@ private fun PdfViewerContent(
                     }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "OOM rendering PDF page", e)
-                    errorMessage = "not_enough_memory_to_render_page"
+                    errorMessage = context.getString(R.string.not_enough_memory_to_render)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     // BUG-047: Normal cancellation when user switches pages rapidly - don't log as error
                     Log.d(TAG, "Page render cancelled (user switched pages)")
                     throw e // Re-throw to properly cancel the coroutine
                 } catch (e: Exception) {
                     Log.e(TAG, "Exception rendering PDF page: ${e.message}", e)
-                    errorMessage = "error_rendering_page"
+                    errorMessage = context.getString(R.string.error_rendering_page)
                 }
             }
         }
@@ -345,7 +348,7 @@ private fun PdfViewerContent(
     ) {
         when {
             isLoading -> {
-                com.example.smarty.ui.components.CalmThinkingDots(
+                CalmThinkingDots(
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -364,7 +367,7 @@ private fun PdfViewerContent(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = errorMessage ?: "Unknown error",
+                        text = errorMessage ?: stringResource(R.string.unknown_error),
                         color = contentColor,
                         textAlign = TextAlign.Center
                     )
@@ -464,7 +467,7 @@ private fun PdfViewerContent(
                 ) {
                     Image(
                         bitmap = pageBitmap!!.asImageBitmap(),
-                        contentDescription = "PDF page ${currentPage + 1}",
+                        contentDescription = stringResource(R.string.pdf_page_description, currentPage + 1),
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
                             .fillMaxSize()
@@ -497,13 +500,13 @@ private fun PdfViewerContent(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "close",
+                        contentDescription = stringResource(R.string.close),
                         tint = contentColor
                     )
                 }
 
                 Text(
-                    text = fileName ?: "pdf_document",
+                    text = fileName ?: stringResource(R.string.pdf_document),
                     color = contentColor,
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
@@ -514,7 +517,7 @@ private fun PdfViewerContent(
                 // Zoom indicator
                 if (scale > 1f) {
                     Text(
-                        text = "${(scale * 100).toInt()}%",
+                        text = stringResource(R.string.zoom_percentage, (scale * 100).toInt()),
                         color = contentColor.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(end = 12.dp)
@@ -547,13 +550,13 @@ private fun PdfViewerContent(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
-                            contentDescription = "previous_page",
+                            contentDescription = stringResource(R.string.previous_page),
                             tint = if (currentPage > 0) contentColor else contentColor.copy(alpha = 0.3f)
                         )
                     }
 
                     Text(
-                        text = "${currentPage + 1} / $totalPages",
+                        text = stringResource(R.string.page_indicator, currentPage + 1, totalPages),
                         color = contentColor,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 12.dp)
@@ -566,7 +569,7 @@ private fun PdfViewerContent(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                            contentDescription = "next_page",
+                            contentDescription = stringResource(R.string.next_page),
                             tint = if (currentPage < totalPages - 1) contentColor else contentColor.copy(alpha = 0.3f)
                         )
                     }
@@ -599,7 +602,7 @@ private fun TextViewerContent(
                 }
                 isLoading = false
             } catch (e: Exception) {
-                errorMessage = "Error reading file: ${e.message}"
+                errorMessage = context.getString(R.string.error_reading_file, e.message ?: "")
                 isLoading = false
             }
         }
@@ -635,12 +638,12 @@ private fun TextViewerContent(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "close"
+                        contentDescription = stringResource(R.string.close)
                     )
                 }
 
                 Text(
-                    text = fileName ?: "text_document",
+                    text = fileName ?: stringResource(R.string.text_document),
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center
@@ -652,13 +655,13 @@ private fun TextViewerContent(
 
         when {
             isLoading -> {
-                com.example.smarty.ui.components.CalmThinkingDots(
+                CalmThinkingDots(
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
             errorMessage != null -> {
                 Text(
-                    text = errorMessage ?: "unknown_error",
+                    text = errorMessage ?: stringResource(R.string.unknown_error),
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(32.dp),
@@ -705,7 +708,7 @@ private fun UnsupportedDocumentContent(
             IconButton(onClick = onDismiss) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "close"
+                    contentDescription = stringResource(R.string.close)
                 )
             }
         }
@@ -726,7 +729,7 @@ private fun UnsupportedDocumentContent(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = fileName ?: "document",
+                text = fileName ?: stringResource(R.string.document),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center
             )
@@ -734,7 +737,7 @@ private fun UnsupportedDocumentContent(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "this_document_type_cannot_be_previewed",
+                text = stringResource(R.string.unsupported_preview),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -743,7 +746,7 @@ private fun UnsupportedDocumentContent(
             if (mimeType != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "type:_$mimeType",
+                    text = stringResource(R.string.file_type_label, mimeType),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )

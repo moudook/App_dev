@@ -42,11 +42,12 @@ class AudioPlayerService : MediaSessionService() {
 
     companion object {
         private const val TAG = "AudioPlayerService"
-        private const val NOTIFICATION_CHANNEL_ID = "Jarvis_audio_player"
+        private const val NOTIFICATION_CHANNEL_ID = "Smarty_audio_player"
         private const val NOTIFICATION_ID = 1001
 
         // Action constants
         const val ACTION_PLAY = "com.example.smarty.action.PLAY"
+        const val ACTION_PLAY_LIST = "com.example.smarty.action.PLAY_LIST"
         const val ACTION_PAUSE = "com.example.smarty.action.PAUSE"
         const val ACTION_RESUME = "com.example.smarty.action.RESUME"
         const val ACTION_STOP = "com.example.smarty.action.STOP"
@@ -56,6 +57,7 @@ class AudioPlayerService : MediaSessionService() {
 
         // Extra constants
         const val EXTRA_TRACK = "extra_track"
+        const val EXTRA_TRACKS = "extra_tracks"
         const val EXTRA_POSITION = "extra_position"
 
         // Track if app is in foreground for resource optimization
@@ -99,6 +101,18 @@ class AudioPlayerService : MediaSessionService() {
             val intent = Intent(context, AudioPlayerService::class.java).apply {
                 action = ACTION_PLAY
                 putExtra(EXTRA_TRACK, track)
+            }
+            context.startForegroundService(intent)
+        }
+
+        /**
+         * Play a list of tracks (queues them after the first one)
+         */
+        fun playList(context: Context, tracks: List<AudioTrack>) {
+            if (tracks.isEmpty()) return
+            val intent = Intent(context, AudioPlayerService::class.java).apply {
+                action = ACTION_PLAY_LIST
+                putParcelableArrayListExtra(EXTRA_TRACKS, ArrayList(tracks))
             }
             context.startForegroundService(intent)
         }
@@ -184,10 +198,10 @@ class AudioPlayerService : MediaSessionService() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             NOTIFICATION_CHANNEL_ID,
-            "Audio Playback",
+            getString(R.string.channel_audio_playback_name),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Audio playback controls"
+            description = getString(R.string.channel_audio_playback_desc)
             setShowBadge(false)
         }
 
@@ -520,6 +534,15 @@ class AudioPlayerService : MediaSessionService() {
                     }
                     track?.let { playTrack(it) }
                 }
+                ACTION_PLAY_LIST -> {
+                    val tracks = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intentVal.getParcelableArrayListExtra(EXTRA_TRACKS, AudioTrack::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intentVal.getParcelableArrayListExtra(EXTRA_TRACKS)
+                    }
+                    tracks?.let { playTracks(it) }
+                }
                 ACTION_PAUSE -> pause()
                 ACTION_RESUME -> resume()
                 ACTION_STOP -> stop()
@@ -536,7 +559,13 @@ class AudioPlayerService : MediaSessionService() {
     }
 
     private fun playTrack(track: AudioTrack) {
-        Log.d(TAG, "Playing track: ${track.title}")
+        playTracks(listOf(track))
+    }
+
+    private fun playTracks(tracks: List<AudioTrack>) {
+        if (tracks.isEmpty()) return
+        val firstTrack = tracks[0]
+        Log.d(TAG, "Playing tracks: ${tracks.size} items, starting with: ${firstTrack.title}")
 
         // Safety: Ensure player is initialized (handles service restart scenarios)
         if (player == null) {
@@ -545,12 +574,11 @@ class AudioPlayerService : MediaSessionService() {
         }
 
         // CRITICAL: Stop any currently playing audio first to prevent conflicts
-        // This releases audio focus and resources before starting new playback
         player?.let { exoPlayer ->
             if (exoPlayer.isPlaying || exoPlayer.playbackState == Player.STATE_READY ||
                 exoPlayer.playbackState == Player.STATE_BUFFERING) {
-                Log.d(TAG, "Stopping current playback before playing new track")
-                releaseVisualizer()  // Release visualizer to free audio session
+                Log.d(TAG, "Stopping current playback before playing new tracks")
+                releaseVisualizer()
                 exoPlayer.stop()
                 exoPlayer.clearMediaItems()
             }
@@ -558,28 +586,26 @@ class AudioPlayerService : MediaSessionService() {
 
         serviceScope.launch {
             stateMutex.withLock {
-                currentTrack = track
+                currentTrack = firstTrack
             }
         }
 
         player?.apply {
-            // Create MediaItem - works for both content:// URIs and http:// URLs
-            val uri = if (track.uri.startsWith("http")) {
-                android.net.Uri.parse(track.uri)
-            } else {
-                track.uri.toUri()
+            val mediaItems = tracks.map { track ->
+                val uri = if (track.uri.startsWith("http")) {
+                    android.net.Uri.parse(track.uri)
+                } else {
+                    track.uri.toUri()
+                }
+                MediaItem.Builder()
+                    .setUri(uri)
+                    .apply {
+                        track.mimeType?.let { setMimeType(it) }
+                    }
+                    .build()
             }
 
-            val mediaItem = MediaItem.Builder()
-                .setUri(uri)
-                .apply {
-                    track.mimeType?.let { setMimeType(it) }
-                }
-                .build()
-
-            Log.d(TAG, "Setting media item: $uri, mimeType: ${track.mimeType}")
-
-            setMediaItem(mediaItem)
+            setMediaItems(mediaItems)
             prepare()
             playWhenReady = true
         }
@@ -587,7 +613,7 @@ class AudioPlayerService : MediaSessionService() {
         serviceScope.launch {
             updateState {
                 copy(
-                    currentTrack = track,
+                    currentTrack = firstTrack,
                     currentPosition = 0L,
                     isPlaying = true,
                     playbackState = PlaybackState.BUFFERING
@@ -595,15 +621,10 @@ class AudioPlayerService : MediaSessionService() {
             }
         }
 
-        // Note: Visualizer is setup in onIsPlayingChanged() AFTER playback starts
-        // to prevent audio pops/artifacts during buffering phase
-
-        // SERVICE-003: Start foreground service with notification (wrapped in try-catch)
         try {
             startForeground(NOTIFICATION_ID, createNotification())
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground service", e)
-            // Service will continue but without foreground notification
         }
     }
 
@@ -670,11 +691,11 @@ class AudioPlayerService : MediaSessionService() {
         // Use filename for audio files
         val subtitle = when {
             track?.fileName != null -> track.fileName
-            else -> "Playing"
+            else -> getString(R.string.playing)
         }
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(track?.title ?: "Audio")
+            .setContentTitle(track?.title ?: getString(R.string.audio_label))
             .setContentText(subtitle)
             .setSmallIcon(android.R.drawable.ic_media_play) // Safer system icon
             .setOngoing(true)

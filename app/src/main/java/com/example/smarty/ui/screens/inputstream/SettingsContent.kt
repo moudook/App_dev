@@ -270,7 +270,7 @@ fun SettingsContent(
                  SettingsItem(
                     icon = Icons.Default.Vibration,
                     label = stringResource(R.string.shake_sensitivity),
-                    value = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.med) else stringResource(R.string.high),
+                    value = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.medium) else stringResource(R.string.high),
                     onClick = { showShakeSensitivitySheet = true },
                     iconColor = accentColor,
                     containerColor = accentColor.copy(alpha = 0.1f)
@@ -329,7 +329,7 @@ fun SettingsContent(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "jarvis v1.1.0",
+                    text = stringResource(R.string.smarty_version).lowercase(),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
@@ -589,7 +589,7 @@ fun SettingsContent(
                                 if (isSelected) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
-                                        contentDescription = "selected",
+                                        contentDescription = stringResource(R.string.selected),
                                         tint = accentColor,
                                         modifier = Modifier.size(20.dp)
                                     )

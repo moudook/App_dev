@@ -7,7 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.example.smarty.agent.*
 import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.JarvisDatabase
+import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.*
 import com.example.smarty.data.remote.AIService
@@ -27,11 +27,15 @@ import com.example.smarty.util.api.RateLimiter
 import com.example.smarty.util.mention.MentionParser
 import com.example.smarty.util.mention.NoteContextBuilder
 import com.example.smarty.util.mention.ThinkingModeProcessor
+import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
+import com.example.smarty.R
 import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -40,14 +44,14 @@ import java.util.concurrent.TimeUnit
  * Orchestrates the Chat feature, including AI agent interaction,
  * session management, and mention resolution.
  */
-import com.example.smarty.data.repository.JarvisRepository
+import com.example.smarty.data.repository.SmartyRepository
 
 class ChatFeatureManager(
     private val application: Application,
     private val scope: CoroutineScope,
     private val chatRepository: ChatRepository,
-    private val repository: JarvisRepository,
-    private val database: JarvisDatabase,
+    private val repository: SmartyRepository,
+    private val database: SmartyDatabase,
     private val securePreferences: SecurePreferences,
     private val groqKeyManager: GroqKeyManager,
     private val tavilySearchProvider: TavilySearchProvider,
@@ -80,7 +84,7 @@ class ChatFeatureManager(
     }
 
     // Reuse existing ChatManager for basic state and session management
-    private val chatManager = ChatManager(chatRepository, scope)
+    private val chatManager = ChatManager(application, chatRepository, scope)
 
     // --- Internal Managers ---
 
@@ -105,12 +109,12 @@ class ChatFeatureManager(
         NoteContextBuilder(mentionManager)
     }
 
-    private val agentProvider: JarvisAgentProvider by lazy {
-        JarvisAgentProvider(securePreferences, groqKeyManager)
+    private val agentProvider: SmartyAgentProvider by lazy {
+        SmartyAgentProvider(securePreferences, groqKeyManager)
     }
 
-    private val jarvisAgent: JarvisAgentOptimized by lazy {
-        JarvisAgentOptimized(
+    private val smartyAgent: SmartyAgentOptimized by lazy {
+        SmartyAgentOptimized(
             context = application,
             agentProvider = agentProvider,
             repository = repository,
@@ -132,7 +136,7 @@ class ChatFeatureManager(
         )
     }
 
-    // Agent callbacks for Koog tools
+    // Agent callbacks for Smarty tools
     private val agentCallbacks = object : AgentCallbacks {
         override fun getActiveNotes(): List<Note> {
             val rawNotes = allNotes.value
@@ -157,7 +161,8 @@ class ChatFeatureManager(
         }
 
         override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
-            this@ChatFeatureManager.onToolExecutionStarted(toolDisplayName)
+            val finalName = resolveResourceString(toolDisplayName) ?: toolDisplayName
+            this@ChatFeatureManager.onToolExecutionStarted(finalName)
         }
 
         override fun onToolExecutionCompleted(toolName: String) {
@@ -165,7 +170,8 @@ class ChatFeatureManager(
         }
 
         override fun onStatusUpdate(status: String) {
-            this@ChatFeatureManager.onToolExecutionStarted(status)
+            val finalStatus = resolveResourceString(status) ?: status
+            this@ChatFeatureManager.onToolExecutionStarted(finalStatus)
         }
 
         override fun onCitationsFound(citations: List<WebCitation>) {
@@ -218,7 +224,7 @@ class ChatFeatureManager(
             return systemFeatureManager.getSystemStatus(
                 isDarkTheme = isDarkTheme.value,
                 connectionStatus = connectionStatus.value.name,
-                cacheSize = ContentTypeDetector.formatFileSize(cacheSizeBytes.value),
+                cacheSize = ContentTypeDetector.formatFileSize(application, cacheSizeBytes.value),
                 unreadMemoryCount = unreadForMemoryCount.value
             )
         }
@@ -353,8 +359,12 @@ class ChatFeatureManager(
             return systemFeatureManager.findPackageName(appName)
         }
 
-        override fun findMatchingAudio(query: String): AudioTrack? {
+        override fun findMatchingAudio(query: String): AudioSearchResult {
             return audioFeatureManager.findAudioTrack(query)
+        }
+
+        override fun playAudioList(tracks: List<AudioTrack>) {
+            audioFeatureManager.playList(tracks)
         }
 
         override fun pauseAudioPlayback() {
@@ -481,6 +491,15 @@ class ChatFeatureManager(
             )
             return searchFeatureManager.performWebSearch(query, apiKey, maxResults, topic, onCitationsFound)
         }
+
+        override suspend fun onParallelWebSearch(
+            queries: List<String>,
+            maxResults: Int,
+            topic: String,
+            onCitationsFound: (List<WebCitation>) -> Unit
+        ): com.example.smarty.agent.tools.base.WebSearchResult {
+            return searchFeatureManager.performParallelWebSearch(queries, maxResults, topic, onCitationsFound)
+        }
     }
 
     // Exposed flows from ChatManager
@@ -499,8 +518,8 @@ class ChatFeatureManager(
     private val _pendingChatText = MutableStateFlow<String?>(null)
     val pendingChatText: StateFlow<String?> = _pendingChatText.asStateFlow()
 
-    // Thinking Mode
-    private val _isThinkingModeEnabled = MutableStateFlow(true)
+    // Thinking Mode (default: false = Flash mode)
+    private val _isThinkingModeEnabled = MutableStateFlow(false)
     val isThinkingModeEnabled: StateFlow<Boolean> = _isThinkingModeEnabled.asStateFlow()
 
     // UI Status
@@ -656,17 +675,27 @@ class ChatFeatureManager(
         if (content.isBlank() && attachments.isEmpty()) return
 
         scope.launch {
-            chatManager.setProcessing(true)
-            chatManager.resetApiCallFlag()
-            chatManager.ensureSession()
-
-            val userMessage = chatManager.addUserMessage(content, attachments)
-
+            var processingSet = false
             try {
+                // Set processing state with error handling
+                try {
+                    chatManager.setProcessing(true)
+                    processingSet = true
+                    chatManager.resetApiCallFlag()
+                    chatManager.ensureSession()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to initialize chat processing: ${e.message}")
+                    // Continue anyway, but mark that we couldn't set processing state
+                    processingSet = false
+                }
+
+                val userMessage = chatManager.addUserMessage(content, attachments)
+
                 // 1. FAST-PATH: Local Command Processor
                 val commandResult = localCommandProcessor.process(content)
                 when (commandResult) {
                     is CommandResult.Handled -> {
+                        chatManager.markApiCallSuccessful()
                         val assistantMessage = ChatMessage(role = ChatRole.ASSISTANT, content = commandResult.response)
                         chatManager.addAssistantMessage(assistantMessage)
                         chatManager.saveMessagePair(
@@ -688,9 +717,28 @@ class ChatFeatureManager(
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error in dispatcher: ${e.message}", e)
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "Error: ${e.message}"))
+                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = application.getString(R.string.error_prefix, e.message ?: application.getString(R.string.unknown_error))))
             } finally {
-                chatManager.setProcessing(false)
+                // Safely reset processing state only if we successfully set it
+                if (processingSet) {
+                    try {
+                        // Use NonCancellable to ensure processing state is always reset
+                        // but wrap in try-catch to prevent crashes during cleanup
+                        withContext(NonCancellable) {
+                            chatManager.setProcessing(false)
+                            _currentToolName.value = null
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to reset processing state: ${e.message}")
+                        // Fallback: try direct assignment
+                        try {
+                            chatManager.setProcessing(false)
+                            _currentToolName.value = null
+                        } catch (fallbackE: Exception) {
+                            Log.e(TAG, "Complete failure to reset processing state: ${fallbackE.message}")
+                        }
+                    }
+                }
             }
         }
     }
@@ -704,7 +752,19 @@ class ChatFeatureManager(
                     ChatRole.ASSISTANT -> "Assistant"
                     else -> "System"
                 }
-                Pair(role, msg.content)
+
+                // ENHANCEMENT: Include citations in history so agent can "remember" sources
+                val contentWithContext = buildString {
+                    append(msg.content)
+                    if (msg.citations.isNotEmpty()) {
+                        append("\n\n[Context: Referenced Sources]")
+                        msg.citations.take(5).forEach { citation ->
+                            append("\n- ${citation.title}: ${citation.url}")
+                        }
+                    }
+                }
+
+                Pair(role, contentWithContext)
             }
 
         pendingCitations.clear()
@@ -723,7 +783,7 @@ class ChatFeatureManager(
         val cleanedContent = if (parsedMentions.isNotEmpty()) MentionParser.cleanMessage(content, parsedMentions) else content
         val finalUserMessage = if (!_isThinkingModeEnabled.value) "/no_think $cleanedContent" else cleanedContent
 
-        val result = jarvisAgent.run(
+        val result = smartyAgent.run(
             userMessage = finalUserMessage,
             conversationHistory = history,
             taggedNoteContext = taggedNoteContext,
@@ -737,6 +797,7 @@ class ChatFeatureManager(
     private suspend fun handleAgentResult(result: AgentResult, userMessage: ChatMessage) {
         when (result) {
             is AgentResult.Success -> {
+                chatManager.markApiCallSuccessful()
                 val filteredResponse = filterPlanningText(result.response) ?: return
                 val (responseWithoutSuggestions, suggestions) = extractSuggestionsFromResponse(filteredResponse)
                 val (cleanedResponse, clarificationRequest) = extractClarificationFromResponse(responseWithoutSuggestions)
@@ -766,10 +827,10 @@ class ChatFeatureManager(
                 }
             }
             is AgentResult.Error -> {
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "Error: ${result.message}", isError = true))
+                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = application.getString(R.string.error_prefix, result.message), isError = true))
             }
             is AgentResult.NoProvider -> {
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = "Please configure an AI provider API key."))
+                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = application.getString(com.example.smarty.R.string.api_key_required)))
             }
         }
     }
@@ -819,9 +880,9 @@ class ChatFeatureManager(
                 val memoryCount = memoryCountFlow.value
 
                 val suggestion = when {
-                    unreadCount > 15 -> "You have $unreadCount unread notes. Should I analyze them?"
-                    cacheSize > 500 * 1024 * 1024 -> "Your app cache is large. Want me to clear it?"
-                    memoryCount > 100 -> "Your AI memory is quite detailed. Should I consolidate it?"
+                    unreadCount > 15 -> application.getString(R.string.unread_notes_suggestion, unreadCount)
+                    cacheSize > 500 * 1024 * 1024 -> application.getString(R.string.large_cache_suggestion)
+                    memoryCount > 100 -> application.getString(R.string.detailed_memory_suggestion)
                     else -> null
                 }
 
@@ -843,7 +904,7 @@ class ChatFeatureManager(
         _proactiveSuggestion.value = null
     }
 
-    // Callbacks for JarvisAgent
+    // Callbacks for SmartyAgent
     fun onCitationsFound(citations: List<WebCitation>) {
         pendingCitations.addAll(citations)
     }
@@ -865,5 +926,37 @@ class ChatFeatureManager(
 
     fun onToolExecutionCompleted() {
         _currentToolName.value = null
+    }
+
+    /**
+     * Resolves a string that might be a resource key with parameters (e.g., "key|param1|param2")
+     */
+    private fun resolveResourceString(input: String?): String? {
+        if (input == null) return null
+
+        val parts = input.split("|")
+        val key = parts[0]
+        val resId = application.resources.getIdentifier(key, "string", application.packageName)
+
+        return if (resId != 0) {
+            if (parts.size > 1) {
+                // Try to parse numeric arguments if possible
+                val args = parts.subList(1, parts.size).map {
+                    it.toIntOrNull() ?: it
+                }.toTypedArray<Any>()
+
+                try {
+                    application.getString(resId, *args)
+                } catch (e: Exception) {
+                    // Fallback to raw key if formatting fails
+                    input
+                }
+            } else {
+                application.getString(resId)
+            }
+        } else {
+            // Not a resource key, return as is
+            input
+        }
     }
 }
