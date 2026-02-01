@@ -1,0 +1,166 @@
+package com.example.smarty.data.model
+
+import androidx.room.Entity
+import androidx.room.Ignore
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import com.example.smarty.util.PrivacyAware
+import kotlinx.serialization.Serializable
+// import com.google.gson.Gson // Removing Gson for KMP purity (for now) - logic moved to extension methods in App or Server
+// import com.google.gson.reflect.TypeToken
+// import java.util.UUID
+
+/**
+ * Todo item stored as JSON within Note.todoContent
+ */
+@Serializable
+data class TodoItem(
+    val id: String, // = UUID.randomUUID().toString(),
+    val text: String,
+    val isCompleted: Boolean = false,
+    val createdAt: Long = 0L // System.currentTimeMillis()
+)
+
+/**
+ * Per-chunk analysis result stored in Note.chunkAnalysesJson
+ * Used for documents processed in multiple chunks (pages)
+ */
+@Serializable
+data class ChunkAnalysis(
+    val index: Int,           // Chunk index (0-based)
+    val totalChunks: Int,     // Total number of chunks
+    val pageRange: String,    // e.g., "1-5", "6-10"
+    val summary: String       // Analysis/summary of this chunk
+)
+
+/**
+ * Attachment item stored as JSON within Note.attachmentsJson
+ * Supports multiple files per note
+ */
+@Serializable
+data class NoteAttachment(
+    val id: String, // = UUID.randomUUID().toString(),
+    val uri: String,  // File URI as string
+    val fileName: String,
+    val mimeType: String,
+    val fileSize: Long = 0
+)
+
+@Serializable
+enum class NoteType {
+    BRAIN_DUMP,
+    YOUTUBE,
+    WEBSITE,
+    IMAGE,
+    TWITTER,
+    INSTAGRAM,
+    DOCUMENT,
+    SPREADSHEET,
+    PRESENTATION,
+    VIDEO,
+    AUDIO,
+    CODE,
+    ARCHIVE,
+    APK,
+    FILE;
+
+    // Explicit type checking for analyzable types
+    companion object {
+        fun isAnalyzable(type: NoteType): Boolean = when(type) {
+            BRAIN_DUMP, YOUTUBE, WEBSITE, IMAGE, TWITTER, INSTAGRAM,
+            DOCUMENT, SPREADSHEET, PRESENTATION, CODE -> true  // CODE is now analyzable
+            VIDEO, AUDIO, ARCHIVE, APK, FILE -> false  // VIDEO is now NOT analyzable
+        }
+    }
+}
+
+@Serializable
+enum class ProcessingStatus {
+    PENDING,
+    PROCESSING,
+    COMPLETED,
+    FAILED
+}
+
+// TODO: Remove Room annotations from this KMP common module.
+// Strategy (Option B):
+// Temporarily keeping @Entity, @PrimaryKey, @ColumnInfo, @Index in commonMain
+// by relying on `androidx.room:room-common` (pure annotations).
+//
+// Future Plan:
+// 1. Create Android-specific wrapper classes in :app (e.g., RoomNote) that map to these domain models.
+// 2. Remove all `androidx.room.*` imports from this file.
+// 3. Ensure this file is Pure Kotlin with zero Android dependencies.
+@Serializable
+@Entity(
+    tableName = "notes",
+    indices = [
+        Index(value = ["categoryId"]),
+        Index(value = ["isArchived"]),
+        Index(value = ["createdAt"]),
+        Index(value = ["type"]),
+        // Composite indices for common queries
+        Index(value = ["isArchived", "createdAt"]),  // Archived/active notes by date
+        Index(value = ["categoryId", "isArchived"]),  // Category notes filtering
+        Index(value = ["excludeFromAiChat"]),  // AI chat exclusion filtering
+        Index(value = ["isFullPrivacy"]),  // Full privacy mode filtering
+        // PERFORMANCE: isPinned indices for efficient note list queries
+        Index(value = ["isPinned"]),  // Single column for pinned status
+        Index(value = ["isPinned", "createdAt"]),  // Composite for sorted queries (pinned first, then by date)
+        // PERFORMANCE (Sprint 3): processingStatus index for queue management
+        Index(value = ["processingStatus"]),  // Queue processing queries
+        Index(value = ["processingStatus", "updatedAt"]),  // Stuck note detection with timeout
+        // AI Memory learning: track which notes have been analyzed
+        Index(value = ["isReadForMemory"])  // Memory learning queries
+    ]
+)
+data class Note(
+    @PrimaryKey
+    val id: String, // = UUID.randomUUID().toString(),
+    val title: String,
+    val content: String,
+    val summary: String? = null,
+    val sourceUrl: String? = null,
+    val imageUri: String? = null,
+    val fileUri: String? = null,
+    val fileName: String? = null,
+    val fileMimeType: String? = null,
+    val fileSize: Long? = null,
+    val type: NoteType,
+    val categoryId: String? = null,
+    val categoryName: String? = null,
+    val whySaved: String? = null,
+    val processingStatus: ProcessingStatus = ProcessingStatus.PENDING,
+    val createdAt: Long = 0L, // System.currentTimeMillis(),
+    val updatedAt: Long = 0L, // System.currentTimeMillis(),
+    val isArchived: Boolean = false,
+    val todoContent: String? = null,  // JSON string of List<TodoItem>
+    val excludeFromAiChat: Boolean = false,  // Exclude this note from AI chat context
+    val isFullPrivacy: Boolean = false,  // Full privacy mode - no AI processing at all
+    val isAiCreated: Boolean = false, // Flag to indicate if note was created by AI
+    val attachmentsJson: String? = null,  // JSON string of List<NoteAttachment> for multiple files
+    val tagsJson: String? = null,  // JSON string of List<String> for AI-generated tags
+    val isViewed: Boolean = false, // Track if the note has been viewed by the user
+    val isPinned: Boolean = false, // Pin note to top of list
+    val reminderText: String? = null, // Smart reminder text to show on card
+    val reminderExpiresAt: Long? = null, // When reminder should stop showing (null = forever)
+    val chunkAnalysesJson: String? = null, // JSON string of List<ChunkAnalysis> for per-page document analyses
+    @androidx.room.ColumnInfo(defaultValue = "0")
+    val isReadForMemory: Boolean = false // Flag to track if note has been analyzed for AI memory learning
+) : PrivacyAware {
+    /**
+     * PrivacyAware implementation.
+     * A note is private if EITHER privacy flag is set:
+     * - isFullPrivacy: Complete privacy mode (no AI access whatsoever)
+     * - excludeFromAiChat: Excluded from AI chat context
+     *
+     * When isPrivate is true, AI cannot see, search, modify, or reference this note.
+     *
+     * Note: This is a computed property (no backing field) so Room ignores it automatically.
+     */
+    override val isPrivate: Boolean
+        get() = isFullPrivacy || excludeFromAiChat
+
+    // Gson logic REMOVED from Domain Model.
+    // It belongs in Infrastructure/Serialization layer, or Extension methods in :app.
+}

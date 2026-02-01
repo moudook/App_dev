@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import com.example.smarty.agent.*
 import com.example.smarty.agent.models.ScreenContext
+import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
@@ -17,6 +18,8 @@ import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.service.CommandResult
 import com.example.smarty.service.LocalCommandProcessor
 import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.util.AndroidLogger
+import com.example.smarty.util.AndroidStringProvider
 import com.example.smarty.util.CompletionSoundManager
 import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.FileStorageHelper
@@ -81,10 +84,310 @@ class ChatFeatureManager(
         private const val TAG = "ChatFeatureManager"
         private const val KEY_IS_CHAT_MODE = "isChatMode"
         private const val KEY_CURRENT_SESSION_ID = "currentSessionId"
+        private const val COMMAND_LOG_BUFFER_SIZE = 20
     }
 
+    // =========================================================================
+    // TASK 5: Command Observability
+    // =========================================================================
+
+    /**
+     * Log entry for emitted AgentCommand objects.
+     * Contains only metadata and summaries - never full user content.
+     * Task 6: Added rejected flag for validation failures.
+     */
+    data class CommandLogEntry(
+        val timestamp: Long,
+        val commandType: String,
+        val commandId: String,
+        val summary: String,  // Safe summary: lengths, IDs, enums, booleans only
+        val rejected: Boolean = false,
+        val rejectionReason: String? = null
+    ) {
+        fun toLogString(): String {
+            val prefix = if (rejected) "REJECTED " else ""
+            val suffix = if (rejected && rejectionReason != null) " | reason=$rejectionReason" else ""
+            return "$prefix[$commandType] id=${commandId.take(8)} | $summary$suffix"
+        }
+    }
+
+    // =========================================================================
+    // TASK 6: Command Validation & Guardrails
+    // =========================================================================
+
+    /**
+     * Result of command validation.
+     * Commands are either Valid or Invalid with a reason.
+     */
+    sealed class CommandValidationResult {
+        object Valid : CommandValidationResult()
+        data class Invalid(val reason: String, val field: String? = null) : CommandValidationResult() {
+            fun toLogString(): String = if (field != null) "$field: $reason" else reason
+        }
+    }
+
+    // Validation constants
+    private companion object ValidationLimits {
+        const val MAX_CONTENT_LENGTH = 100_000  // 100KB max for note content
+        const val MAX_TITLE_LENGTH = 500
+        const val MAX_QUERY_LENGTH = 1_000
+        val ALLOWED_AUDIO_ACTIONS = setOf("pause", "resume", "stop", "next", "prev", "toggle")
+    }
+
+    /**
+     * Validate an AgentCommand before execution.
+     *
+     * TOTAL FUNCTION: Every AgentCommand subtype is explicitly handled.
+     * No default else branch - unknown commands are rejected.
+     *
+     * @param command The command to validate
+     * @return Valid if command passes all checks, Invalid with reason otherwise
+     */
+    private fun validateCommand(command: AgentCommand): CommandValidationResult {
+        return when (command) {
+            // === NOTE OPERATIONS ===
+            is AgentCommand.AddNote -> {
+                when {
+                    command.content.isBlank() -> CommandValidationResult.Invalid("content cannot be blank", "content")
+                    command.content.length > MAX_CONTENT_LENGTH -> CommandValidationResult.Invalid("content exceeds max length ($MAX_CONTENT_LENGTH)", "content")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.UpdateNote -> {
+                when {
+                    command.noteId.isBlank() -> CommandValidationResult.Invalid("noteId cannot be blank", "noteId")
+                    command.content != null && command.content.length > MAX_CONTENT_LENGTH -> CommandValidationResult.Invalid("content exceeds max length", "content")
+                    command.title != null && command.title.length > MAX_TITLE_LENGTH -> CommandValidationResult.Invalid("title exceeds max length", "title")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.DeleteNote -> {
+                when {
+                    command.noteId.isBlank() -> CommandValidationResult.Invalid("noteId cannot be blank", "noteId")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.ArchiveNote -> {
+                when {
+                    command.noteId.isBlank() -> CommandValidationResult.Invalid("noteId cannot be blank", "noteId")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.SearchNotes -> {
+                when {
+                    command.query.length > MAX_QUERY_LENGTH -> CommandValidationResult.Invalid("query exceeds max length", "query")
+                    command.limit <= 0 -> CommandValidationResult.Invalid("limit must be positive", "limit")
+                    command.limit > 100 -> CommandValidationResult.Invalid("limit exceeds maximum (100)", "limit")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.GetActiveNotes -> {
+                CommandValidationResult.Valid  // No params to validate
+            }
+
+            // === SYSTEM & APP CONTROL ===
+            is AgentCommand.LaunchApp -> {
+                when {
+                    command.packageName.isBlank() -> CommandValidationResult.Invalid("packageName cannot be blank", "packageName")
+                    command.packageName.contains(" ") -> CommandValidationResult.Invalid("packageName cannot contain whitespace", "packageName")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.GetSystemStatus -> {
+                CommandValidationResult.Valid  // No params to validate
+            }
+
+            is AgentCommand.GetScreenContext -> {
+                CommandValidationResult.Valid  // No params to validate
+            }
+
+            is AgentCommand.SetTimer -> {
+                when {
+                    command.name.isBlank() -> CommandValidationResult.Invalid("name cannot be blank", "name")
+                    command.timeStr.isBlank() -> CommandValidationResult.Invalid("timeStr cannot be blank", "timeStr")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            // === AUDIO CONTROL ===
+            is AgentCommand.PlayAudio -> {
+                when {
+                    command.query.isBlank() -> CommandValidationResult.Invalid("query cannot be blank", "query")
+                    command.query.length > MAX_QUERY_LENGTH -> CommandValidationResult.Invalid("query exceeds max length", "query")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.ControlAudio -> {
+                when {
+                    command.action.isBlank() -> CommandValidationResult.Invalid("action cannot be blank", "action")
+                    command.action.lowercase() !in ALLOWED_AUDIO_ACTIONS -> CommandValidationResult.Invalid("action must be one of: $ALLOWED_AUDIO_ACTIONS", "action")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            // === CALENDAR ===
+            is AgentCommand.AddCalendarEvent -> {
+                when {
+                    command.title.isBlank() -> CommandValidationResult.Invalid("title cannot be blank", "title")
+                    command.title.length > MAX_TITLE_LENGTH -> CommandValidationResult.Invalid("title exceeds max length", "title")
+                    command.start.isBlank() -> CommandValidationResult.Invalid("start cannot be blank", "start")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.QueryCalendar -> {
+                when {
+                    command.query != null && command.query.length > MAX_QUERY_LENGTH -> CommandValidationResult.Invalid("query exceeds max length", "query")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            // === UI NOTIFICATIONS ===
+            is AgentCommand.NotifyToolStarted -> {
+                when {
+                    command.toolName.isBlank() -> CommandValidationResult.Invalid("toolName cannot be blank", "toolName")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.NotifyToolCompleted -> {
+                when {
+                    command.toolName.isBlank() -> CommandValidationResult.Invalid("toolName cannot be blank", "toolName")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.NotifyStatus -> {
+                when {
+                    command.status.isBlank() -> CommandValidationResult.Invalid("status cannot be blank", "status")
+                    else -> CommandValidationResult.Valid
+                }
+            }
+
+            is AgentCommand.NotifyCitations -> {
+                CommandValidationResult.Valid  // Empty list is valid
+            }
+
+            // NO else BRANCH - Kotlin exhaustive when ensures all subtypes handled
+            // If a new AgentCommand subtype is added, this will fail to compile
+        }
+    }
+
+    // In-memory ring buffer for recent commands (debugging only, no persistence)
+    private val commandHistory = ArrayDeque<CommandLogEntry>(COMMAND_LOG_BUFFER_SIZE)
+    private val commandHistoryLock = Any()
+
+    /**
+     * Log a command with safe summary (no user content).
+     * Task 6: Updated to support rejected commands.
+     *
+     * @param command The command to log
+     * @param rejected Whether the command was rejected by validation
+     * @param rejectionReason The reason for rejection (if rejected)
+     */
+    private fun logCommand(
+        command: AgentCommand,
+        rejected: Boolean = false,
+        rejectionReason: String? = null
+    ) {
+        val entry = CommandLogEntry(
+            timestamp = System.currentTimeMillis(),
+            commandType = command::class.simpleName ?: "Unknown",
+            commandId = command.commandId,
+            summary = summarizeCommand(command),
+            rejected = rejected,
+            rejectionReason = rejectionReason
+        )
+
+        // Add to ring buffer
+        synchronized(commandHistoryLock) {
+            if (commandHistory.size >= COMMAND_LOG_BUFFER_SIZE) {
+                commandHistory.removeFirst()
+            }
+            commandHistory.addLast(entry)
+        }
+
+        // Structured log output - use warning level for rejected commands
+        if (rejected) {
+            Log.w("AgentCommand", entry.toLogString())
+        } else {
+            Log.d("AgentCommand", entry.toLogString())
+        }
+    }
+
+    /**
+     * Generate safe summary for a command (no user-generated content).
+     * Only includes: lengths, IDs, enums, booleans, counts.
+     */
+    private fun summarizeCommand(command: AgentCommand): String = when (command) {
+        // Note operations - content lengths only
+        is AgentCommand.AddNote -> "content.len=${command.content.length} | category=${command.category != null}"
+        is AgentCommand.UpdateNote -> "noteId=${command.noteId} | hasTitle=${command.title != null} | hasContent=${command.content != null}"
+        is AgentCommand.DeleteNote -> "noteId=${command.noteId}"
+        is AgentCommand.ArchiveNote -> "noteId=${command.noteId}"
+        is AgentCommand.SearchNotes -> "query.len=${command.query.length} | category=${command.category != null} | limit=${command.limit}"
+        is AgentCommand.GetActiveNotes -> "(no params)"
+
+        // System & app control
+        is AgentCommand.LaunchApp -> "packageName.len=${command.packageName.length}"
+        is AgentCommand.GetSystemStatus -> "(no params)"
+        is AgentCommand.GetScreenContext -> "(no params)"
+        is AgentCommand.SetTimer -> "name.len=${command.name.length} | timeStr.len=${command.timeStr.length} | isAlarm=${command.isAlarm}"
+
+        // Audio control
+        is AgentCommand.PlayAudio -> "query.len=${command.query.length} | service=${command.service != null}"
+        is AgentCommand.ControlAudio -> "action=${command.action}"
+
+        // Calendar
+        is AgentCommand.AddCalendarEvent -> "title.len=${command.title.length} | hasEnd=${command.end != null} | hasDesc=${command.description != null}"
+        is AgentCommand.QueryCalendar -> "hasQuery=${command.query != null}"
+
+        // UI notifications
+        is AgentCommand.NotifyToolStarted -> "toolName.len=${command.toolName.length}"
+        is AgentCommand.NotifyToolCompleted -> "toolName.len=${command.toolName.length}"
+        is AgentCommand.NotifyStatus -> "status.len=${command.status.length}"
+        is AgentCommand.NotifyCitations -> "count=${command.citations.size}"
+    }
+
+    /**
+     * Get recent command log entries for debugging.
+     * Returns a copy of the buffer (thread-safe).
+     */
+    fun getRecentCommands(): List<CommandLogEntry> {
+        synchronized(commandHistoryLock) {
+            return commandHistory.toList()
+        }
+    }
+
+    /**
+     * Clear command history buffer.
+     */
+    fun clearCommandHistory() {
+        synchronized(commandHistoryLock) {
+            commandHistory.clear()
+        }
+        Log.d("AgentCommand", "Command history cleared")
+    }
+
+    private val androidLogger by lazy { AndroidLogger() }
+    private val historyCompressor by lazy { com.example.smarty.util.HistoryCompressor(androidLogger) }
+    private val piiMasker by lazy { com.example.smarty.util.PIIMasker(androidLogger) }
+
     // Reuse existing ChatManager for basic state and session management
-    private val chatManager = ChatManager(application, chatRepository, scope)
+    private val chatManager = ChatManager(
+        application,
+        chatRepository,
+        scope,
+        historyCompressor,
+        piiMasker
+    )
 
     // --- Internal Managers ---
 
@@ -113,31 +416,170 @@ class ChatFeatureManager(
         SmartyAgentProvider(securePreferences, groqKeyManager)
     }
 
-    private val smartyAgent: SmartyAgentOptimized by lazy {
-        SmartyAgentOptimized(
-            context = application,
-            agentProvider = agentProvider,
-            repository = repository,
-            tavilySearchProvider = tavilySearchProvider,
-            alarmScheduler = alarmScheduler,
-            callbacks = agentCallbacks,
-            aiMemoryDao = database.aiMemoryDao(),
-            executionPlanManager = executionPlanManager,
-            rateLimiter = rateLimiter
-        )
+    // Agent Event Sink for Koog tools notifications
+    private val agentEventSink = object : AgentEventSink {
+        override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
+            val finalName = resolveResourceString(toolDisplayName) ?: toolDisplayName
+            this@ChatFeatureManager.onToolExecutionStarted(finalName)
+        }
+
+        override fun onToolExecutionCompleted(toolName: String) {
+            this@ChatFeatureManager.onToolExecutionCompleted()
+        }
+
+        override fun onStatusUpdate(status: String) {
+            val finalStatus = resolveResourceString(status) ?: status
+            this@ChatFeatureManager.onToolExecutionStarted(finalStatus)
+        }
+
+        override fun onCitationsFound(citations: List<WebCitation>) {
+            this@ChatFeatureManager.onCitationsFound(citations)
+        }
+
+        override fun onDisplayImages(images: List<ImageDisplayItem>) {
+            this@ChatFeatureManager.onDisplayImages(images)
+        }
+
+        override fun onPlanStatusChanged(status: String?) {
+            this@ChatFeatureManager.onPlanStatusChanged(status)
+        }
+
+        /**
+         * Command emission handler - routes AgentCommand to ClientCommandExecutor.
+         *
+         * This is the bridge between Agent decisions and Android execution.
+         * The Agent emits commands, this method executes them on the device.
+         *
+         * Command → Executor Mapping:
+         * - AddNote → clientCommandExecutor.addNote()
+         * - UpdateNote → clientCommandExecutor.updateNote()
+         * - DeleteNote → clientCommandExecutor.deleteNoteById()
+         * - ArchiveNote → clientCommandExecutor.archiveNote()
+         * - LaunchApp → clientCommandExecutor.launchApp()
+         * - PlayAudio → clientCommandExecutor.requestAudioPlayback()
+         * - ControlAudio → clientCommandExecutor.pauseAudioPlayback() / resumeAudioPlayback() / etc.
+         * - SetTimer → clientCommandExecutor.setTimer()
+         * - AddCalendarEvent → clientCommandExecutor.addCalendarEvent()
+         * - NotifyToolStarted → onToolExecutionStarted()
+         * - NotifyStatus → onStatusUpdate()
+         */
+        override fun emit(command: AgentCommand) {
+            // Task 6: Validate command before execution
+            val validation = validateCommand(command)
+
+            if (validation is CommandValidationResult.Invalid) {
+                // Log rejected command with reason (remains observable)
+                logCommand(
+                    command = command,
+                    rejected = true,
+                    rejectionReason = validation.toLogString()
+                )
+                // Do not execute - silent rejection, no exception, no feedback to Agent
+                return
+            }
+
+            // Task 5: Log valid command with safe summaries (no user content)
+            logCommand(command)
+
+            when (command) {
+                // === NOTE OPERATIONS ===
+                is AgentCommand.AddNote -> {
+                    clientCommandExecutor.addNote(command.content, command.category)
+                }
+                is AgentCommand.UpdateNote -> {
+                    clientCommandExecutor.updateNote(command.noteId, command.title, command.content)
+                }
+                is AgentCommand.DeleteNote -> {
+                    clientCommandExecutor.deleteNoteById(command.noteId)
+                }
+                is AgentCommand.ArchiveNote -> {
+                    clientCommandExecutor.archiveNote(command.noteId)
+                }
+                is AgentCommand.SearchNotes -> {
+                    // Search is typically a read operation that returns data
+                    // For command emission, we log but don't execute (needs result callback)
+                    Log.d("AgentEventSink", "SearchNotes command received - read operations should use direct calls")
+                }
+                is AgentCommand.GetActiveNotes -> {
+                    Log.d("AgentEventSink", "GetActiveNotes command received - read operations should use direct calls")
+                }
+
+                // === SYSTEM & APP CONTROL ===
+                is AgentCommand.LaunchApp -> {
+                    clientCommandExecutor.launchApp(command.packageName)
+                }
+                is AgentCommand.GetSystemStatus -> {
+                    Log.d("AgentEventSink", "GetSystemStatus command received - read operations should use direct calls")
+                }
+                is AgentCommand.GetScreenContext -> {
+                    Log.d("AgentEventSink", "GetScreenContext command received - read operations should use direct calls")
+                }
+                is AgentCommand.SetTimer -> {
+                    clientCommandExecutor.setTimer(command.name, command.timeStr, command.isAlarm)
+                }
+
+                // === AUDIO CONTROL ===
+                is AgentCommand.PlayAudio -> {
+                    // PlayAudio requires finding the track first, then playing
+                    val result = clientCommandExecutor.findMatchingAudio(command.query)
+                    when (result) {
+                        is AudioFeatureManager.AudioSearchResult.ExactMatch -> {
+                            clientCommandExecutor.requestAudioPlayback(result.track)
+                        }
+                        is AudioFeatureManager.AudioSearchResult.Fallback -> {
+                            if (result.tracks.isNotEmpty()) {
+                                clientCommandExecutor.playAudioList(result.tracks)
+                            }
+                        }
+                    }
+                }
+                is AgentCommand.ControlAudio -> {
+                    when (command.action.lowercase()) {
+                        "pause" -> clientCommandExecutor.pauseAudioPlayback()
+                        "resume" -> clientCommandExecutor.resumeAudioPlayback()
+                        "stop" -> clientCommandExecutor.stopAudioPlayback()
+                        "next" -> { /* Not implemented in current executor */ }
+                        "prev" -> { /* Not implemented in current executor */ }
+                    }
+                }
+
+                // === CALENDAR ===
+                is AgentCommand.AddCalendarEvent -> {
+                    clientCommandExecutor.addCalendarEvent(
+                        title = command.title,
+                        startTimeStr = command.start,
+                        endTimeStr = command.end,
+                        description = command.description,
+                        location = command.location,
+                        isPrivate = false
+                    )
+                }
+                is AgentCommand.QueryCalendar -> {
+                    Log.d("AgentEventSink", "QueryCalendar command received - read operations should use direct calls")
+                }
+
+                // === UI NOTIFICATIONS ===
+                is AgentCommand.NotifyToolStarted -> {
+                    onToolExecutionStarted(command.toolName, command.displayName)
+                }
+                is AgentCommand.NotifyToolCompleted -> {
+                    onToolExecutionCompleted(command.toolName)
+                }
+                is AgentCommand.NotifyStatus -> {
+                    onStatusUpdate(command.status)
+                }
+                is AgentCommand.NotifyCitations -> {
+                    val citations = command.citations.map { proto ->
+                        WebCitation(proto.title, proto.url, proto.snippet)
+                    }
+                    onCitationsFound(citations)
+                }
+            }
+        }
     }
 
-    private val localCommandProcessor: LocalCommandProcessor by lazy {
-        LocalCommandProcessor(
-            context = application,
-            getNotes = { allNotes.value }, // This might need adjustment if notes are handled elsewhere
-            systemFeatureManager = systemFeatureManager,
-            getDeviceAudio = { systemFeatureManager.getDeviceAudio() }
-        )
-    }
-
-    // Agent callbacks for Smarty tools
-    private val agentCallbacks = object : AgentCallbacks {
+    // Client Command Executor for Koog tools actions
+    private val clientCommandExecutor = object : ClientCommandExecutor {
         override fun getActiveNotes(): List<Note> {
             val rawNotes = allNotes.value
             return PrivacyGuard.getAiVisibleNotes(rawNotes)
@@ -160,24 +602,6 @@ class ChatFeatureManager(
             systemFeatureManager.playAudio(track)
         }
 
-        override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
-            val finalName = resolveResourceString(toolDisplayName) ?: toolDisplayName
-            this@ChatFeatureManager.onToolExecutionStarted(finalName)
-        }
-
-        override fun onToolExecutionCompleted(toolName: String) {
-            this@ChatFeatureManager.onToolExecutionCompleted()
-        }
-
-        override fun onStatusUpdate(status: String) {
-            val finalStatus = resolveResourceString(status) ?: status
-            this@ChatFeatureManager.onToolExecutionStarted(finalStatus)
-        }
-
-        override fun onCitationsFound(citations: List<WebCitation>) {
-            this@ChatFeatureManager.onCitationsFound(citations)
-        }
-
         override fun launchApp(packageName: String) {
             systemFeatureManager.launchApp(packageName)
         }
@@ -198,14 +622,6 @@ class ChatFeatureManager(
                     "current_screen" to currentScreen.value
                 )
             )
-        }
-
-        override fun onDisplayImages(images: List<ImageDisplayItem>) {
-            this@ChatFeatureManager.onDisplayImages(images)
-        }
-
-        override fun onPlanStatusChanged(status: String?) {
-            this@ChatFeatureManager.onPlanStatusChanged(status)
         }
 
         override suspend fun markNoteAsAnalyzedForMemory(noteId: String) {
@@ -500,6 +916,23 @@ class ChatFeatureManager(
         ): com.example.smarty.agent.tools.base.WebSearchResult {
             return searchFeatureManager.performParallelWebSearch(queries, maxResults, topic, onCitationsFound)
         }
+    }
+
+    private val smartyAgent: SmartyAgentOptimized by lazy {
+        SmartyAgentOptimized(
+            agentProvider = agentProvider,
+            repository = repository,
+            tavilySearchProvider = tavilySearchProvider,
+            eventSink = agentEventSink,
+            commandExecutor = clientCommandExecutor,
+            aiMemoryDao = database.aiMemoryDao(),
+            executionPlanManager = executionPlanManager,
+            logger = androidLogger,
+            stringProvider = AndroidStringProvider(application),
+            historyCompressor = historyCompressor,
+            piiMasker = piiMasker,
+            rateLimiter = rateLimiter
+        )
     }
 
     // Exposed flows from ChatManager

@@ -46,8 +46,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-data class CategoryStatInfo(val name: String, val count: Int)
-
 /**
  * Manages all note CRUD operations.
  */

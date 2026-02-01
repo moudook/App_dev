@@ -1,15 +1,15 @@
 package com.example.smarty.data.model
 
-import android.net.Uri
-import java.util.UUID
+// import android.net.Uri // REMOVED: Android dependency
+// import java.util.UUID // REMOVED: Java dependency
 
 /**
  * Represents a file attachment for a note
  * Used for in-memory attachment handling before note submission
  */
 data class Attachment(
-    val id: String = UUID.randomUUID().toString(),
-    val uri: Uri,
+    val id: String, // = UUID.randomUUID().toString(), // Managed by caller
+    val uri: String, // Changed from Uri to String for KMP
     val fileName: String,
     val mimeType: String,
     val fileSize: Long

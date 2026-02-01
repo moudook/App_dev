@@ -1,6 +1,5 @@
 package com.example.smarty.util
 
-import android.util.Log
 import com.example.smarty.data.model.Note
 
 /**
@@ -29,26 +28,10 @@ import com.example.smarty.data.model.Note
  * ============================================================================
  */
 
-/**
- * Interface for entities that support privacy filtering.
- * Implement this on any entity that should be invisible to AI when private.
- *
- * Entities implementing this interface:
- * - Note (isFullPrivacy || excludeFromAiChat)
- * - CalendarEvent (future)
- * - Meeting (future)
- * - Any other entity that can be marked as private
- */
-interface PrivacyAware {
-    /**
-     * Whether this entity is private and should be hidden from AI.
-     * When true, AI cannot see, search, modify, or reference this entity.
-     */
-    val isPrivate: Boolean
-}
-
-object PrivacyGuard {
-    private const val TAG = "PrivacyGuard"
+class PrivacyGuard(private val logger: Logger, private val messageProvider: SecurityMessageProvider) {
+    companion object {
+        private const val TAG = "PrivacyGuard"
+    }
 
     /**
      * Check if a note is private (blocked from AI)
@@ -65,7 +48,7 @@ object PrivacyGuard {
     fun isAiAccessible(note: Note): Boolean {
         val accessible = !note.isFullPrivacy && !note.excludeFromAiChat && !note.isArchived
         if (!accessible && (note.isFullPrivacy || note.excludeFromAiChat)) {
-            Log.d(TAG, "BLOCKED: AI access denied for private note ${note.id.take(8)}...")
+            logger.d(TAG, "BLOCKED: AI access denied for private note ${note.id.take(8)}...")
         }
         return accessible
     }
@@ -83,7 +66,7 @@ object PrivacyGuard {
         val visible = notes.filter { isAiAccessible(it) }
         val blocked = notes.size - visible.size
         if (blocked > 0) {
-            Log.d(TAG, "AI ACCESS: $blocked private notes blocked, ${visible.size} notes visible to AI")
+            logger.d(TAG, "AI ACCESS: $blocked private notes blocked, ${visible.size} notes visible to AI")
         }
         return visible
     }
@@ -120,7 +103,7 @@ object PrivacyGuard {
         val note = notes.find { it.id == noteId }
         if (note != null && isPrivate(note)) {
             // PRIVACY FIX (CRIT-002): Don't log note IDs to prevent data leakage via logcat
-            Log.w(TAG, "SECURITY: AI attempted to access private note by ID")
+            logger.w(TAG, "SECURITY: AI attempted to access private note by ID")
             return null // Note is invisible to AI
         }
         return note?.takeIf { isAiAccessible(it) }
@@ -133,7 +116,7 @@ object PrivacyGuard {
     fun canAiProcess(note: Note): Boolean {
         if (isPrivate(note)) {
             // PRIVACY FIX (CRIT-002): Don't log note IDs to prevent data leakage via logcat
-            Log.w(TAG, "SECURITY: AI processing blocked for private note")
+            logger.w(TAG, "SECURITY: AI processing blocked for private note")
             return false
         }
         return true
@@ -143,12 +126,13 @@ object PrivacyGuard {
      * Security check before any AI operation on a note
      * Throws SecurityException if note is private
      */
-    fun requireAiAccess(note: Note, operation: String, context: android.content.Context) {
+    fun requireAiAccess(note: Note, operation: String) {
         if (isPrivate(note)) {
             // PRIVACY FIX (CRIT-002): Don't include note IDs in exception messages
-            val message = context.getString(com.example.smarty.R.string.security_violation_detail, operation)
-            Log.e(TAG, message)
-            throw SecurityException(message)
+            val message = messageProvider.getViolationDetail(operation)
+            logger.e(TAG, message)
+            // throw SecurityException(message) // Cannot throw java.lang.SecurityException in KMP common
+            throw IllegalArgumentException("Security Violation: $message")
         }
     }
 
@@ -158,7 +142,7 @@ object PrivacyGuard {
      */
     @Suppress("UNUSED_PARAMETER")
     fun logSecurityEvent(noteId: String, operation: String) {
-        Log.w(TAG, "SECURITY EVENT: Blocked AI $operation for private note")
+        logger.w(TAG, "SECURITY EVENT: Blocked AI $operation for private note")
     }
 
     /**
@@ -182,7 +166,7 @@ object PrivacyGuard {
     fun sanitizeForAi(notes: List<Note>): List<Note> {
         val sanitized = getAiVisibleNotes(notes)
         if (containsPrivateNotes(notes)) {
-            Log.d(TAG, "Sanitized ${notes.size - sanitized.size} private notes from AI access")
+            logger.d(TAG, "Sanitized ${notes.size - sanitized.size} private notes from AI access")
         }
         return sanitized
     }
@@ -244,7 +228,7 @@ object PrivacyGuard {
         val visible = items.filter { !it.isPrivate }
         val blocked = items.size - visible.size
         if (blocked > 0) {
-            Log.d(TAG, "GENERIC FILTER: $blocked private items blocked, ${visible.size} visible to AI")
+            logger.d(TAG, "GENERIC FILTER: $blocked private items blocked, ${visible.size} visible to AI")
         }
         return visible
     }
@@ -259,7 +243,7 @@ object PrivacyGuard {
     fun <T : PrivacyAware> findForAi(item: T?): T? {
         if (item == null) return null
         if (item.isPrivate) {
-            Log.d(TAG, "GENERIC FILTER: Private item blocked from AI access")
+            logger.d(TAG, "GENERIC FILTER: Private item blocked from AI access")
             return null
         }
         return item
@@ -302,7 +286,7 @@ object PrivacyGuard {
 
         val removed = noteIds.size - sanitized.size
         if (removed > 0) {
-            Log.d(TAG, "SANITIZED: Removed $removed private note IDs from chat reference")
+            logger.d(TAG, "SANITIZED: Removed $removed private note IDs from chat reference")
         }
 
         return sanitized
@@ -336,14 +320,14 @@ object PrivacyGuard {
 
     /**
      * Assert that no private note IDs are present.
-     * Throws SecurityException if validation fails.
+     * Throws Exception if validation fails.
      * Use for critical security checkpoints.
      */
-    fun assertNoPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>, operation: String, context: android.content.Context) {
+    fun assertNoPrivateNoteIds(noteIds: List<String>, allNotes: List<Note>, operation: String) {
         if (containsPrivateNoteIds(noteIds, allNotes)) {
-            val message = context.getString(com.example.smarty.R.string.security_violation_ids, operation)
-            Log.e(TAG, message)
-            throw SecurityException(message)
+            val message = messageProvider.getViolationIds(operation)
+            logger.e(TAG, message)
+            throw IllegalArgumentException("Security Violation: $message")
         }
     }
 
@@ -370,20 +354,20 @@ object PrivacyGuard {
         // Check for private note titles in response
         for (note in privateNotes) {
             if (note.title.length >= 5 && sanitized.contains(note.title, ignoreCase = true)) {
-                Log.e(TAG, "SECURITY ALERT: Private note title detected in AI response!")
+                logger.e(TAG, "SECURITY ALERT: Private note title detected in AI response!")
                 leakDetected = true
             }
 
             // Check for private note IDs
             if (sanitized.contains(note.id)) {
-                Log.e(TAG, "SECURITY ALERT: Private note ID detected in AI response!")
+                logger.e(TAG, "SECURITY ALERT: Private note ID detected in AI response!")
                 sanitized = sanitized.replace(note.id, "[REDACTED]")
                 leakDetected = true
             }
         }
 
         if (leakDetected) {
-            Log.e(TAG, "PRIVACY BREACH DETECTED - Response may contain private data")
+            logger.e(TAG, "PRIVACY BREACH DETECTED - Response may contain private data")
             // Note: We don't block the response as the AI shouldn't have access
             // to private notes in the first place. This is defense in depth.
         }

@@ -1,14 +1,13 @@
 package com.example.smarty.agent
 
-import android.content.Context
-import android.util.Log
-import ai.koog.agents.core.agent.AIAgent
-import ai.koog.agents.core.tools.ToolRegistry
 import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.agent.tools.consolidated.*
 import com.example.smarty.agent.tools.base.NotifyingTool
+import com.example.smarty.agent.AgentEventSink
+import com.example.smarty.agent.ClientCommandExecutor
 import com.example.smarty.agent.routing.ModelTierRegistry  // NEW: Tiered Architecture
 import com.example.smarty.agent.routing.ContextManager     // NEW: Universal Context Caching
+import com.example.smarty.protocol.AgentCommand            // Task 4: Command emission
 import com.example.smarty.viewmodel.managers.*
 import com.example.smarty.data.model.ThinkingModeContext
 import com.example.smarty.agent.prompts.ToolExampleStore
@@ -23,15 +22,17 @@ import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.local.AIMemoryDao
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
-import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.util.HistoryCompressor
 import com.example.smarty.util.PIIMasker
 import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.util.Logger
+import com.example.smarty.util.StringProvider
 import com.example.smarty.util.api.ApiErrorCategory
 import com.example.smarty.util.api.RateLimiter
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
+import java.util.UUID
 
 
 /**
@@ -239,125 +240,6 @@ data class ImageDisplayItem(
 )
 
 /**
- * Callbacks for agent operations that need ViewModel state or actions.
- */
-interface AgentCallbacks {
-    fun getActiveNotes(): List<Note>
-    fun getArchivedNotes(): List<Note>
-    fun getCategories(): List<Category>
-    fun getTavilyApiKey(): String?
-    fun getOpenAiApiKey(): String?  // For AgentOptimizer semantic cache (OpenAI embeddings)
-    fun getGeminiApiKey(): String?  // For AgentOptimizer semantic cache (Gemini embeddings fallback)
-    suspend fun processNoteWithAi(note: Note)
-    suspend fun findNoteByDescription(description: String, notes: List<Note>): Note?
-    fun requestAudioPlayback(track: AudioTrack)
-    fun onToolExecutionStarted(toolName: String, toolDisplayName: String)
-    fun onToolExecutionCompleted(toolName: String)
-    fun onStatusUpdate(status: String)
-    fun onCitationsFound(citations: List<WebCitation>)
-
-    // New callbacks for OpenApp and SaveScreen tools
-    fun launchApp(packageName: String)
-    fun getScreenContext(): ScreenContext?
-
-    // Callback for ViewImageTool to display images inline in chat
-    fun onDisplayImages(images: List<ImageDisplayItem>)
-
-    // Callback for status updates from internal planning system
-    fun onPlanStatusChanged(status: String?)
-
-    // Callback to mark a note as analyzed for AI memory learning
-    suspend fun markNoteAsAnalyzedForMemory(noteId: String)
-
-    // NEW: Get audio files from device storage (MediaStore)
-    fun getDeviceAudio(): List<AudioTrack> = emptyList()  // Default empty for backward compatibility
-
-    // HYBRID-CONTROL: Internal app navigation
-    fun navigateTo(screen: String)
-    fun getCurrentScreen(): String = "unknown"
-    fun getSystemStatus(): Map<String, String> = emptyMap()
-
-    // HYBRID-CONTROL: Note Operations (Delegated to NoteOperationsManager)
-    fun addNote(content: String, category: String? = null)
-    fun updateNote(noteId: String, title: String? = null, content: String? = null)
-    fun deleteNoteById(noteId: String)
-    fun archiveNote(noteId: String)
-    fun unarchiveNote(noteId: String)
-    fun summarizeNote(noteId: String)
-    suspend fun onCreateCategory(name: String): Category
-    suspend fun getCategoryStats(): List<com.example.smarty.viewmodel.managers.CategoryStatInfo>
-
-    // HYBRID-CONTROL: App Settings
-    fun toggleTheme(isDark: Boolean)
-    fun clearCache()
-    fun syncMemory()
-    fun backupData()
-    fun setPrivacyMode(mode: String)
-
-    // HYBRID-CONTROL: Intelligence Operations
-    suspend fun storeMemory(content: String, scope: String? = null)
-    suspend fun updateMemory(id: String, content: String? = null, type: String? = null, confidence: Float? = null): Boolean
-    suspend fun deleteMemory(id: String): Boolean
-    suspend fun retrieveMemories(query: String?, limit: Int = 10): List<com.example.smarty.data.model.AIMemory>
-    fun consolidateMemories()
-    suspend fun getMemoryStats(): Map<String, Any> = emptyMap()
-    suspend fun analyzePatterns(): com.example.smarty.viewmodel.managers.UserPatternsReport
-    suspend fun learnFromNotes(maxNotes: Int = 20): com.example.smarty.viewmodel.managers.LearningReport
-
-    // HYBRID-CONTROL: Search Operations
-    suspend fun searchNotes(query: String, category: String? = null, noteType: String? = null, timeRange: String = "all", limit: Int = 10): List<com.example.smarty.viewmodel.managers.SearchResultItem>
-    suspend fun advancedSearch(query: String, algorithm: String = "hybrid", limit: Int = 10, minScore: Double = 0.3): List<com.example.smarty.viewmodel.managers.SearchResultItem>
-    fun analyzeQuery(query: String): com.example.smarty.viewmodel.managers.SearchQueryAnalysis
-    suspend fun performRecall(query: String, minScore: Double = 0.3): List<com.example.smarty.viewmodel.managers.RecallResult>
-
-    // HYBRID-CONTROL: Intent Bridge (Cross-app communication)
-    fun shareContent(text: String, title: String? = null)
-
-    // HYBRID-CONTROL: System Lookups
-    fun findPackageName(appName: String): String?
-    fun findMatchingAudio(query: String): AudioSearchResult
-
-    // HYBRID-CONTROL: Audio Playback Control (NEW)
-    fun playAudioList(tracks: List<AudioTrack>)
-    fun pauseAudioPlayback()
-    fun resumeAudioPlayback()
-    fun stopAudioPlayback()
-    fun seekAudioTo(positionMs: Long)
-    fun toggleAudioPlayback()
-    fun getCurrentAudioTrack(): AudioTrack?
-    fun getCurrentAudioPosition(): Long
-    fun getAudioDuration(): Long
-    fun isAudioPlaying(): Boolean
-
-    // HYBRID-CONTROL: Time Operations (Delegated to Managers)
-    fun addCalendarEvent(
-        title: String,
-        startTimeStr: String,
-        endTimeStr: String?,
-        description: String?,
-        location: String?,
-        isPrivate: Boolean
-    )
-    fun deleteCalendarEvent(eventId: String)
-    suspend fun queryCalendarEvents(query: String?): List<com.example.smarty.data.model.CalendarEvent>
-    fun bulkDeleteEvents(eventIds: List<String>)
-    fun setTimer(name: String, timeStr: String, isAlarm: Boolean)
-    fun cancelTimer(timerId: String)
-    fun addTodoToNote(noteId: String, text: String)
-
-    // HYBRID-CONTROL: Orchestration (Bulk actions & Workflows)
-    fun bulkArchiveNotes(noteIds: List<String>)
-    fun bulkDeleteNotes(noteIds: List<String>)
-    fun bulkMoveToCategory(noteIds: List<String>, categoryName: String)
-    fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int)
-
-    // HYBRID-CONTROL: Specialized Analytics
-    fun onAnalyzeStyle(limit: Int): com.example.smarty.viewmodel.managers.StyleAnalysisReport
-    suspend fun onWebSearch(query: String, maxResults: Int, topic: String, onCitationsFound: (List<WebCitation>) -> Unit): com.example.smarty.agent.tools.base.WebSearchResult
-    suspend fun onParallelWebSearch(queries: List<String>, maxResults: Int, topic: String, onCitationsFound: (List<WebCitation>) -> Unit): com.example.smarty.agent.tools.base.WebSearchResult
-}
-
-/**
  * Main Smarty AI Agent wrapper using JetBrains Koog framework.
  *
  * This agent can:
@@ -370,14 +252,17 @@ interface AgentCallbacks {
  * All operations respect PrivacyGuard - private notes are invisible to AI.
  */
 class SmartyAgentOptimized(
-    private val context: Context,  // For OpenAppTool
     private val agentProvider: SmartyAgentProvider,
     private val repository: SmartyRepository,
     private val tavilySearchProvider: TavilySearchProvider,
-    private val alarmScheduler: AlarmScheduler,
-    private val callbacks: AgentCallbacks,
+    private val eventSink: AgentEventSink,
+    private val commandExecutor: ClientCommandExecutor,
     private val aiMemoryDao: AIMemoryDao,
     private val executionPlanManager: ExecutionPlanManager,
+    private val logger: Logger,
+    private val stringProvider: StringProvider,
+    private val historyCompressor: HistoryCompressor,
+    private val piiMasker: PIIMasker,
     private val rateLimiter: RateLimiter? = null
 ) {
     companion object {
@@ -480,6 +365,9 @@ class SmartyAgentOptimized(
      */
     private val agentOptimizer by lazy {
         val optimizer = AgentOptimizer(
+            logger = logger,
+            historyCompressor = historyCompressor,
+            piiMasker = piiMasker,
             enableCache = true,
             enablePiiMasking = true,
             enableHistoryCompression = true,
@@ -489,10 +377,10 @@ class SmartyAgentOptimized(
         // Log cache status for debugging
         when (optimizer.getCacheMode()) {
             AgentOptimizer.CacheMode.HASH_BASED -> {
-                Log.i(TAG, "AgentOptimizer: On-device hash-based cache ENABLED")
+                logger.i(TAG, "AgentOptimizer: On-device hash-based cache ENABLED")
             }
             AgentOptimizer.CacheMode.DISABLED -> {
-                Log.w(TAG, "AgentOptimizer: Caching DISABLED")
+                logger.w(TAG, "AgentOptimizer: Caching DISABLED")
             }
         }
 
@@ -553,122 +441,162 @@ You are Smarty, a calm, professional, and concise intelligence.
     private fun buildToolRegistry(): ToolRegistry {
         return ToolRegistry {
             // === CONSOLIDATED TOOLS (6) ===
+            // Task 4: KnowledgeMasterTool write callbacks migrated to command emission
             tool(NotifyingTool(KnowledgeMasterTool(
-                onAddNote = callbacks::addNote,
-                onUpdateNote = callbacks::updateNote,
-                onDeleteNote = callbacks::deleteNoteById,
-                onArchiveNote = callbacks::archiveNote,
-                onUnarchiveNote = callbacks::unarchiveNote,
-                onSummarizeNote = callbacks::summarizeNote,
-                onSearchNotes = { query, category, noteType, timeRange, limit ->
-                    callbacks.searchNotes(query ?: "", category, noteType, timeRange, limit)
+                onAddNote = { content, category ->
+                    eventSink.emit(AgentCommand.AddNote(
+                        commandId = UUID.randomUUID().toString(),
+                        content = content,
+                        category = category
+                    ))
                 },
-                onCreateCategory = callbacks::onCreateCategory,
-                onGetCategoryStats = callbacks::getCategoryStats,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                onUpdateNote = { noteId, title, content ->
+                    eventSink.emit(AgentCommand.UpdateNote(
+                        commandId = UUID.randomUUID().toString(),
+                        noteId = noteId,
+                        title = title,
+                        content = content
+                    ))
+                },
+                onDeleteNote = { noteId ->
+                    eventSink.emit(AgentCommand.DeleteNote(
+                        commandId = UUID.randomUUID().toString(),
+                        noteId = noteId
+                    ))
+                },
+                onArchiveNote = { noteId ->
+                    eventSink.emit(AgentCommand.ArchiveNote(
+                        commandId = UUID.randomUUID().toString(),
+                        noteId = noteId
+                    ))
+                },
+                onUnarchiveNote = commandExecutor::unarchiveNote,  // Not in protocol yet
+                onSummarizeNote = commandExecutor::summarizeNote,  // Not in protocol yet
+                onSearchNotes = { query, category, noteType, timeRange, limit ->
+                    commandExecutor.searchNotes(query ?: "", category, noteType, timeRange, limit)
+                },
+                onCreateCategory = commandExecutor::onCreateCategory,
+                onGetCategoryStats = commandExecutor::getCategoryStats,
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
             tool(NotifyingTool(BatchOperationsTool(
                 onSearchNotes = { query, category, noteType, timeRange, limit ->
-                    callbacks.searchNotes(query ?: "", category, noteType, timeRange, limit)
+                    commandExecutor.searchNotes(query ?: "", category, noteType, timeRange, limit)
                 },
-                onBulkArchive = callbacks::bulkArchiveNotes,
-                onBulkDelete = callbacks::bulkDeleteNotes,
-                onBulkMove = callbacks::bulkMoveToCategory,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                onBulkArchive = commandExecutor::bulkArchiveNotes,
+                onBulkDelete = commandExecutor::bulkDeleteNotes,
+                onBulkMove = commandExecutor::bulkMoveToCategory,
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
             tool(NotifyingTool(AppControllerTool(
-                onToggleTheme = callbacks::toggleTheme,
-                onClearCache = callbacks::clearCache,
-                onSyncMemory = callbacks::syncMemory,
-                onBackupData = callbacks::backupData,
-                onSetPrivacyMode = callbacks::setPrivacyMode,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                onToggleTheme = commandExecutor::toggleTheme,
+                onClearCache = commandExecutor::clearCache,
+                onSyncMemory = commandExecutor::syncMemory,
+                onBackupData = commandExecutor::backupData,
+                onSetPrivacyMode = commandExecutor::setPrivacyMode,
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
+            // Task 4: TimeManagerTool write callbacks migrated to command emission
             tool(NotifyingTool(TimeManagerTool(
-                onAddTodo = callbacks::addTodoToNote,
-                onAddEvent = callbacks::addCalendarEvent,
-                onDeleteEvent = callbacks::deleteCalendarEvent,
-                onBulkDeleteEvents = callbacks::bulkDeleteEvents,
-                onQueryEvents = callbacks::queryCalendarEvents,
-                onSetTimer = callbacks::setTimer,
-                onCancelTimer = callbacks::cancelTimer,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                onAddTodo = commandExecutor::addTodoToNote,  // Not in protocol yet
+                onAddEvent = { title, startTime, endTime, description, location, _ ->
+                    eventSink.emit(AgentCommand.AddCalendarEvent(
+                        commandId = UUID.randomUUID().toString(),
+                        title = title,
+                        start = startTime,
+                        end = endTime,
+                        description = description,
+                        location = location
+                    ))
+                },
+                onDeleteEvent = commandExecutor::deleteCalendarEvent,  // Not in protocol yet
+                onBulkDeleteEvents = commandExecutor::bulkDeleteEvents,
+                onQueryEvents = commandExecutor::queryCalendarEvents,
+                onSetTimer = { name, timeStr, isAlarm ->
+                    eventSink.emit(AgentCommand.SetTimer(
+                        commandId = UUID.randomUUID().toString(),
+                        name = name,
+                        timeStr = timeStr,
+                        isAlarm = isAlarm
+                    ))
+                },
+                onCancelTimer = commandExecutor::cancelTimer,  // Not in protocol yet
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
             tool(NotifyingTool(SystemInterfaceTool(
-                onLaunchApp = callbacks::launchApp,
-                onFindPackage = callbacks::findPackageName,
-                onPlayAudio = callbacks::requestAudioPlayback,
-                onFindAudio = callbacks::findMatchingAudio,
-                onDisplayImages = callbacks::onDisplayImages,
-                getScreenContext = callbacks::getScreenContext,
-                onStatusUpdate = callbacks::onStatusUpdate,
-                onNavigate = callbacks::navigateTo,
-                onShare = callbacks::shareContent,
-                onPlayList = callbacks::playAudioList
-            ), callbacks))
+                onLaunchApp = commandExecutor::launchApp,
+                onFindPackage = commandExecutor::findPackageName,
+                onPlayAudio = commandExecutor::requestAudioPlayback,
+                onFindAudio = commandExecutor::findMatchingAudio,
+                onDisplayImages = eventSink::onDisplayImages,
+                getScreenContext = commandExecutor::getScreenContext,
+                onStatusUpdate = eventSink::onStatusUpdate,
+                onNavigate = commandExecutor::navigateTo,
+                onShare = commandExecutor::shareContent,
+                onPlayList = commandExecutor::playAudioList
+            ), eventSink))
 
             tool(NotifyingTool(AudioControlTool(
-                context = context,
-                onPlay = callbacks::requestAudioPlayback,
-                onPause = callbacks::pauseAudioPlayback,
-                onResume = callbacks::resumeAudioPlayback,
-                onStop = callbacks::stopAudioPlayback,
-                onSeek = callbacks::seekAudioTo,
-                onToggle = callbacks::toggleAudioPlayback,
-                onFindAudio = callbacks::findMatchingAudio,
-                getCurrentTrack = callbacks::getCurrentAudioTrack,
-                getCurrentPosition = callbacks::getCurrentAudioPosition,
-                getDuration = callbacks::getAudioDuration,
-                isPlaying = callbacks::isAudioPlaying,
-                onStatusUpdate = callbacks::onStatusUpdate,
-                onPlayList = callbacks::playAudioList
-            ), callbacks))
+                onPlay = commandExecutor::requestAudioPlayback,
+                onPause = commandExecutor::pauseAudioPlayback,
+                onResume = commandExecutor::resumeAudioPlayback,
+                onStop = commandExecutor::stopAudioPlayback,
+                onSeek = commandExecutor::seekAudioTo,
+                onToggle = commandExecutor::toggleAudioPlayback,
+                onFindAudio = commandExecutor::findMatchingAudio,
+                getCurrentTrack = commandExecutor::getCurrentAudioTrack,
+                getCurrentPosition = commandExecutor::getCurrentAudioPosition,
+                getDuration = commandExecutor::getAudioDuration,
+                isPlaying = commandExecutor::isAudioPlaying,
+                onStatusUpdate = eventSink::onStatusUpdate,
+                onPlayList = commandExecutor::playAudioList
+            ), eventSink))
 
             tool(NotifyingTool(SmartyCoreTool(
-                onStoreMemory = callbacks::storeMemory,
-                onRetrieveMemories = callbacks::retrieveMemories,
-                onGetMemoryStats = callbacks::getMemoryStats,
-                onConsolidate = callbacks::consolidateMemories,
-                onSyncMemory = callbacks::syncMemory,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                onStoreMemory = commandExecutor::storeMemory,
+                onRetrieveMemories = commandExecutor::retrieveMemories,
+                onGetMemoryStats = commandExecutor::getMemoryStats,
+                onConsolidate = commandExecutor::consolidateMemories,
+                onSyncMemory = commandExecutor::syncMemory,
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
             tool(NotifyingTool(AgentOrchestratorTool(
                 onSearchNotes = { query, category, noteType, timeRange, limit ->
-                    callbacks.searchNotes(query ?: "", category, noteType, timeRange, limit)
+                    commandExecutor.searchNotes(query ?: "", category, noteType, timeRange, limit)
                 },
-                getTavilyApiKey = callbacks::getTavilyApiKey,
-                onBulkArchive = callbacks::bulkArchiveNotes,
-                onBulkDelete = callbacks::bulkDeleteNotes,
-                onDeepResearch = callbacks::onDeepResearch,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                getTavilyApiKey = commandExecutor::getTavilyApiKey,
+                onBulkArchive = commandExecutor::bulkArchiveNotes,
+                onBulkDelete = commandExecutor::bulkDeleteNotes,
+                onDeepResearch = commandExecutor::onDeepResearch,
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
             // === SEARCH TOOLS (CONSOLIDATED) ===
             tool(NotifyingTool(UniversalSearchTool(
-                onSearchInternal = callbacks::searchNotes,
-                onAdvancedSearch = callbacks::advancedSearch,
-                onWebSearch = callbacks::onWebSearch,
-                onParallelWebSearch = callbacks::onParallelWebSearch,
-                onAnalyzeQuery = callbacks::analyzeQuery,
-                onRecall = callbacks::performRecall,
-                onCitationsFound = callbacks::onCitationsFound,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                onSearchInternal = commandExecutor::searchNotes,
+                onAdvancedSearch = commandExecutor::advancedSearch,
+                onWebSearch = commandExecutor::onWebSearch,
+                onParallelWebSearch = commandExecutor::onParallelWebSearch,
+                onAnalyzeQuery = commandExecutor::analyzeQuery,
+                onRecall = commandExecutor::performRecall,
+                onCitationsFound = eventSink::onCitationsFound,
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
             tool(NotifyingTool(ReadAndAnalyzeStyleTool(
-                onAnalyzeStyle = callbacks::onAnalyzeStyle,
-                onStatusUpdate = callbacks::onStatusUpdate
-            ), callbacks))
+                onAnalyzeStyle = commandExecutor::onAnalyzeStyle,
+                onStatusUpdate = eventSink::onStatusUpdate
+            ), eventSink))
 
             // === PLANNING TOOLS ===
-            tool(NotifyingTool(CreatePlanTool(executionPlanManager), callbacks))
-            tool(NotifyingTool(MarkStepCompleteTool(executionPlanManager), callbacks))
-            tool(NotifyingTool(CancelPlanTool(executionPlanManager), callbacks))
+            tool(NotifyingTool(CreatePlanTool(executionPlanManager), eventSink))
+            tool(NotifyingTool(MarkStepCompleteTool(executionPlanManager), eventSink))
+            tool(NotifyingTool(CancelPlanTool(executionPlanManager), eventSink))
         }
     }
 
@@ -677,10 +605,10 @@ You are Smarty, a calm, professional, and concise intelligence.
      * SLIM VERSION: Minimal context to fit smaller LLM context windows.
      */
     private fun buildContext(): String {
-        val activeNotes = callbacks.getActiveNotes()
+        val activeNotes = commandExecutor.getActiveNotes()
         val visibleNotes = PrivacyGuard.getAiVisibleNotes(activeNotes)
-        val currentScreen = callbacks.getCurrentScreen()
-        val systemStatus = callbacks.getSystemStatus()
+        val currentScreen = commandExecutor.getCurrentScreen()
+        val systemStatus = commandExecutor.getSystemStatus()
 
         // Get current time for context
         val now = java.time.LocalDateTime.now()
@@ -726,7 +654,7 @@ You are Smarty, a calm, professional, and concise intelligence.
                 appendLine("</user_memory>")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error building memory context: ${e.message}")
+            logger.e(TAG, "Error building memory context: ${e.message}")
             ""
         }
     }
@@ -749,18 +677,18 @@ You are Smarty, a calm, professional, and concise intelligence.
         thinkingModeContext: ThinkingModeContext? = null,
         isThinkingModeEnabled: Boolean = false // Default to false (flash mode)
     ): AgentResult {
-        Log.d(TAG, "Running agent with message: ${userMessage.take(50)}... (history: ${conversationHistory.size} messages)")
+        logger.d(TAG, "Running agent with message: ${userMessage.take(50)}... (history: ${conversationHistory.size} messages)")
 
         // Get all available executors for fallback (already filtered by health)
         // Now includes multiple executors per provider (one per healthy key)
         val availableExecutors = agentProvider.getAllAvailableExecutors()
 
         if (availableExecutors.isEmpty()) {
-            Log.w(TAG, "No healthy AI provider available")
-            return AgentResult.NoProvider(context.getString(com.example.smarty.R.string.error_all_providers_disabled))
+            // logger.w(TAG, "No healthy AI provider available")
+            return AgentResult.NoProvider("All AI providers are currently unavailable or disabled.")
         }
 
-        Log.i(TAG, "Available executors: ${availableExecutors.size} (across ${availableExecutors.map { it.provider }.distinct().size} providers)")
+        logger.i(TAG, "Available executors: ${availableExecutors.size} (across ${availableExecutors.map { it.provider }.distinct().size} providers)")
 
         // BATCH-3C: Convert conversation history to ChatMessage format for optimizer
         val historyMessages = conversationHistory.map { (role, content) ->
@@ -775,9 +703,9 @@ You are Smarty, a calm, professional, and concise intelligence.
             agentOptimizer.preProcess(userMessage, historyMessages)
         } catch (e: Exception) {
             // CRITICAL FIX (AGENT-004): Use backup PII masking to prevent unmasked PII from reaching LLM
-            Log.e(TAG, "AgentOptimizer preProcess failed - using backup PII masking", e)
-            val backupMasked = PIIMasker.mask(userMessage)
-            Log.d(TAG, "Backup PII masking applied. Original length: ${userMessage.length}, Masked length: ${backupMasked.length}")
+            logger.e(TAG, "AgentOptimizer preProcess failed - using backup PII masking", e)
+            val backupMasked = piiMasker.mask(userMessage)
+            logger.d(TAG, "Backup PII masking applied. Original length: ${userMessage.length}, Masked length: ${backupMasked.length}")
             AgentOptimizer.ProcessedQuery(
                 maskedQuery = backupMasked,
                 compressedHistory = historyMessages.takeLast(4), // Basic compression fallback
@@ -787,32 +715,32 @@ You are Smarty, a calm, professional, and concise intelligence.
 
         // BATCH-3C: Check for semantic cache hit - skip API call entirely!
         if (processed.cacheHit != null) {
-            Log.d(TAG, "AgentOptimizer semantic cache HIT - skipping API call")
+            logger.d(TAG, "AgentOptimizer semantic cache HIT - skipping API call")
             return AgentResult.Success(
                 processed.cacheHit,
                 availableExecutors.firstOrNull()?.provider ?: AIProvider.GEMINI
             )
         } else if (!agentOptimizer.isCacheAvailable()) {
-            Log.d(TAG, "Semantic cache lookup skipped - cache not available (OpenAI API key required)")
+            logger.d(TAG, "Semantic cache lookup skipped - cache not available (OpenAI API key required)")
         }
 
         // BATCH-3C: Use HistoryCompressor for additional compression if needed
         // Replaces hardcoded takeLast(8) with intelligent compression
         val compressedHistory = if (processed.compressedHistory.isNotEmpty()) {
-            val estimatedTokens = HistoryCompressor.estimateTokens(processed.compressedHistory)
-            Log.d(TAG, "History tokens before compression: ~$estimatedTokens")
+            val estimatedTokens = historyCompressor.estimateTokens(processed.compressedHistory)
+            logger.d(TAG, "History tokens before compression: ~$estimatedTokens")
 
             // Force aggressive compression if tokens exceed threshold
             // AGENT-009: Increased from 2 to 3 to preserve more context
             if (estimatedTokens > 3000) {
-                Log.d(TAG, "Forcing aggressive history compression (>3000 tokens)")
-                HistoryCompressor.compress(
+                logger.d(TAG, "Forcing aggressive history compression (>3000 tokens)")
+                historyCompressor.compress(
                     messages = processed.compressedHistory,
                     recentExchanges = 3,  // AGENT-009: Keep 3 exchanges minimum (was 2)
                     forceCompress = true
                 )
-            } else if (HistoryCompressor.shouldCompress(processed.compressedHistory)) {
-                HistoryCompressor.compress(
+            } else if (historyCompressor.shouldCompress(processed.compressedHistory)) {
+                historyCompressor.compress(
                     messages = processed.compressedHistory,
                     recentExchanges = 3  // Standard: keep last 3 exchanges
                 )
@@ -823,8 +751,8 @@ You are Smarty, a calm, professional, and concise intelligence.
             emptyList()
         }
 
-        val compressedTokens = HistoryCompressor.estimateTokens(compressedHistory)
-        Log.d(TAG, "History tokens after compression: ~$compressedTokens")
+        val compressedTokens = historyCompressor.estimateTokens(compressedHistory)
+        logger.d(TAG, "History tokens after compression: ~$compressedTokens")
 
         // Build history section from compressed ChatMessage list
         // Use symbols instead of role names to prevent LLM from mimicking "USER:" format
@@ -852,7 +780,7 @@ You are Smarty, a calm, professional, and concise intelligence.
         // The ContextManager will be applied dynamically based on the chosen executor for each step.
         val thinkingContextSection = if (thinkingModeContext != null && thinkingModeContext.isThinkingMode) {
             // Raw thinking content - will be optimized later
-            Log.d(TAG, "@THINKING MODE: Preparing analysis context (${thinkingModeContext.totalChars} chars)")
+            logger.d(TAG, "@THINKING MODE: Preparing analysis context (${thinkingModeContext.totalChars} chars)")
              buildString {
                 appendLine("\n\n=== DEEP THINKING MODE ===")
                 appendLine("You are in DEEP THINKING mode. Analyze the following document content THOROUGHLY.")
@@ -877,11 +805,11 @@ You are Smarty, a calm, professional, and concise intelligence.
         val mentionContextSection = if (thinkingModeContext?.isThinkingMode != true && taggedNoteContext != null && taggedNoteContext.totalChars > 0) {
             if (taggedNoteContext.needsChunking) {
                 // Large context - include chunk summary
-                Log.d(TAG, "Including chunked mention context (${taggedNoteContext.chunks.size} chunks)")
+                logger.d(TAG, "Including chunked mention context (${taggedNoteContext.chunks.size} chunks)")
                 "\n\n${taggedNoteContext.chunks.firstOrNull()?.content ?: ""}\n[Additional ${taggedNoteContext.chunks.size - 1} chunks available]\n"
             } else {
                 // Normal context - include full content
-                Log.d(TAG, "Including mention context: ${taggedNoteContext.noteCount} notes, ${taggedNoteContext.totalChars} chars")
+                logger.d(TAG, "Including mention context: ${taggedNoteContext.noteCount} notes, ${taggedNoteContext.totalChars} chars")
                 "\n\n${taggedNoteContext.contextString}\n"
             }
         } else ""
@@ -898,16 +826,16 @@ You are Smarty, a calm, professional, and concise intelligence.
         val systemPromptTokens = systemPrompt.length / 4
         val totalEstimatedTokens = contextTokens + promptTokens + systemPromptTokens
 
-        Log.d(TAG, "Token estimate: context=$contextTokens, prompt=$promptTokens, system=$systemPromptTokens, total=$totalEstimatedTokens")
+        logger.d(TAG, "Token estimate: context=$contextTokens, prompt=$promptTokens, system=$systemPromptTokens, total=$totalEstimatedTokens")
 
         if (totalEstimatedTokens > 6000) {
-            Log.w(TAG, "Token count high ($totalEstimatedTokens), may hit context limits on smaller models")
+            logger.w(TAG, "Token count high ($totalEstimatedTokens), may hit context limits on smaller models")
             // Note: The HistoryCompressor already handles aggressive compression above
         }
 
         // Max iterations removed - allow agent to run without iteration limits
         val maxIterations = Int.MAX_VALUE
-        Log.d(TAG, "Max iterations disabled - agent will run until task completion")
+        logger.d(TAG, "Max iterations disabled - agent will run until task completion")
 
         // BATCH-3C: Simple query caching is now handled by AgentOptimizer's semantic cache
         // The old AIResponseCache was incompatible (designed for note analysis, not chat responses)
@@ -922,15 +850,15 @@ You are Smarty, a calm, professional, and concise intelligence.
                     // Daily budget exceeded
                     val hours = waitTime / 3600_000
                     val minutes = (waitTime / 60_000) % 60
-                    Log.w(TAG, "Daily API limit reached. Resets in ${hours}h ${minutes}m")
+                    logger.w(TAG, "Daily API limit reached. Resets in ${hours}h ${minutes}m")
                     val timeStr = "${hours}h ${minutes}m"
-                    val message = context.getString(com.example.smarty.R.string.error_daily_limit_reached) + " " +
-                            context.getString(com.example.smarty.R.string.error_limit_reset_time, timeStr) + " " +
-                            context.getString(com.example.smarty.R.string.error_limit_chat_available)
+                    val message = stringProvider.getString(com.example.smarty.R.string.error_daily_limit_reached) + " " +
+                            stringProvider.getString(com.example.smarty.R.string.error_limit_reset_time, timeStr) + " " +
+                            stringProvider.getString(com.example.smarty.R.string.error_limit_chat_available)
                     return AgentResult.Error(message)
                 } else {
                     // Per-minute limit, wait briefly
-                    Log.d(TAG, "Rate limit: waiting ${waitTime}ms before API call")
+                    // logger.d(TAG, "Rate limit: waiting ${waitTime}ms before API call")
                     delay(waitTime)
                 }
             }
@@ -948,13 +876,13 @@ You are Smarty, a calm, professional, and concise intelligence.
             // Log when switching providers
             if (currentProvider != executorResult.provider) {
                 if (currentProvider != null) {
-                    Log.i(TAG, "All ${currentProvider} keys exhausted, trying ${executorResult.provider}")
+                    logger.i(TAG, "All ${currentProvider} keys exhausted, trying ${executorResult.provider}")
                 }
                 currentProvider = executorResult.provider
             }
 
             try {
-                Log.d(TAG, "Trying ${executorResult.provider} ($keyLabel) / ${executorResult.model}")
+                logger.d(TAG, "Trying ${executorResult.provider} ($keyLabel) / ${executorResult.model}")
 
                 // ═══════════════════════════════════════════════════════════════
                 // PLAN EXECUTION LOOP
@@ -971,7 +899,7 @@ You are Smarty, a calm, professional, and concise intelligence.
 
                 do {
                     planLoopIterations++
-                    Log.d(TAG, "Plan loop iteration $planLoopIterations")
+                    logger.d(TAG, "Plan loop iteration $planLoopIterations")
 
                     // Rebuild context with current plan state
                     // Rebuild context with current plan state
@@ -980,14 +908,14 @@ You are Smarty, a calm, professional, and concise intelligence.
                         2 -> { // Step 2: Research (Heavy reading/ingestion)
                             val ingestionExec = ModelTierRegistry.getIngestionExecutor(availableExecutors)
                             if (ingestionExec != null && ingestionExec.provider != executorResult.provider) {
-                                Log.i(TAG, "Tiered Switch: Using ${ingestionExec.provider} (Ingestion) for Research Step")
+                                logger.i(TAG, "Tiered Switch: Using ${ingestionExec.provider} (Ingestion) for Research Step")
                                 ingestionExec
                             } else executorResult
                         }
                         5 -> { // Step 5: Synthesis (High reasoning)
                             val reasoningExec = ModelTierRegistry.getReasoningExecutor(availableExecutors)
                             if (reasoningExec != null && reasoningExec.provider != executorResult.provider) {
-                                Log.i(TAG, "\uD83E\uDDE0 Tiered Switch: Using ${reasoningExec.provider} (Reasoning) for Synthesis Step")
+                                logger.i(TAG, "\uD83E\uDDE0 Tiered Switch: Using ${reasoningExec.provider} (Reasoning) for Synthesis Step")
                                 reasoningExec
                             } else executorResult
                         }
@@ -1087,16 +1015,16 @@ $stepFocus
                     }
 
                     currentResponse = response
-                    Log.d(TAG, "Agent response (iter $planLoopIterations): ${response.take(100)}...")
+                    logger.d(TAG, "Agent response (iter $planLoopIterations): ${response.take(100)}...")
 
                     // DEEP THINKING MODE: Force 5 iterations for comprehensive planning
                     if (isThinkingModeEnabled) {
                         if (planLoopIterations >= 5) {
-                            Log.d(TAG, "Deep thinking mode: Completed all 5 planning iterations")
+                            logger.d(TAG, "Deep thinking mode: Completed all 5 planning iterations")
                             break
                         }
                         // Continue to next iteration for deep thinking
-                        Log.d(TAG, "Deep thinking mode: Iteration $planLoopIterations complete, continuing...")
+                        logger.d(TAG, "Deep thinking mode: Iteration $planLoopIterations complete, continuing...")
                         delay(200) // Slightly longer delay for thinking mode
                         continue
                     }
@@ -1109,13 +1037,13 @@ $stepFocus
                         activePlan.getCurrentStep() != null
 
                     if (!hasPendingSteps) {
-                        Log.d(TAG, "Flash mode: No pending steps, exiting plan loop")
+                        logger.d(TAG, "Flash mode: No pending steps, exiting plan loop")
                         break
                     }
 
                     // Safety: Check for stuck state (same step for too many iterations)
                     if (planLoopIterations >= maxPlanLoopIterations) {
-                        Log.w(TAG, "Plan loop reached max iterations ($maxPlanLoopIterations), breaking to prevent infinite loop")
+                        logger.w(TAG, "Plan loop reached max iterations ($maxPlanLoopIterations), breaking to prevent infinite loop")
                         break
                     }
 
@@ -1130,7 +1058,7 @@ $stepFocus
                 }
 
                 // Record success with failover manager and rate limiter
-                Log.i(TAG, " Success with ${executorResult.provider} ($keyLabel) after $planLoopIterations iterations")
+                logger.i(TAG, " Success with ${executorResult.provider} ($keyLabel) after $planLoopIterations iterations")
                 agentProvider.recordSuccess(executorResult.provider)
                 rateLimiter?.recordCall()
 
@@ -1138,13 +1066,13 @@ $stepFocus
                 val finalResponse = try {
                     agentOptimizer.postProcess(userMessage, processed.maskedQuery, currentResponse)
                 } catch (e: Exception) {
-                    Log.w(TAG, "AgentOptimizer postProcess failed, using raw response", e)
+                    logger.w(TAG, "AgentOptimizer postProcess failed, using raw response", e)
                     currentResponse
                 }
 
                 // BATCH-3C: Caching is now handled by AgentOptimizer's semantic cache
                 if (isSimpleQuery) {
-                    Log.d(TAG, "Simple query processed - cached via AgentOptimizer semantic cache")
+                    logger.d(TAG, "Simple query processed - cached via AgentOptimizer semantic cache")
                 }
 
                 return AgentResult.Success(finalResponse, executorResult.provider)
@@ -1154,7 +1082,7 @@ $stepFocus
                 // Agent took too long - try next provider
                 val timeoutUsed = getTimeoutForProvider(executorResult.provider)
                 val errorMsg = "Request timed out after ${timeoutUsed / 1000}s"
-                Log.w(TAG, "${executorResult.provider} $keyLabel: $errorMsg")
+                logger.w(TAG, "${executorResult.provider} $keyLabel: $errorMsg")
                 errors.add(Triple(executorResult.provider, executorResult.keyIndex, errorMsg))
 
                 // Record failure for this key/provider
@@ -1164,7 +1092,7 @@ $stepFocus
                 agentProvider.recordFailure(executorResult.provider, e)
 
                 if (availableExecutors.indexOf(executorResult) < availableExecutors.lastIndex) {
-                    Log.d(TAG, "↻ Falling back to next provider/key...")
+                    logger.d(TAG, "↻ Falling back to next provider/key...")
                 }
 
             } catch (e: IllegalArgumentException) {
@@ -1177,7 +1105,7 @@ $stepFocus
                         .trim()
 
                     if (conversationalResponse.isNotEmpty()) {
-                        Log.i(TAG, " Conversational response from ${executorResult.provider} ($keyLabel)")
+                        logger.i(TAG, " Conversational response from ${executorResult.provider} ($keyLabel)")
                         agentProvider.recordSuccess(executorResult.provider)
 
                         // BATCH-3C: Post-process conversational response (unmask PII, cache)
@@ -1185,13 +1113,13 @@ $stepFocus
                         val finalConversationalResponse = try {
                             agentOptimizer.postProcess(userMessage, processed.maskedQuery, conversationalResponse)
                         } catch (ex: Exception) {
-                            Log.w(TAG, "AgentOptimizer postProcess failed for conversational response", ex)
+                            logger.w(TAG, "AgentOptimizer postProcess failed for conversational response", ex)
                             conversationalResponse
                         }
 
                         // BATCH-3C: Caching is now handled by AgentOptimizer's semantic cache
                         if (isSimpleQuery) {
-                            Log.d(TAG, "Conversational response cached via AgentOptimizer semantic cache")
+                            logger.d(TAG, "Conversational response cached via AgentOptimizer semantic cache")
                         }
 
                         return AgentResult.Success(finalConversationalResponse, executorResult.provider)
@@ -1201,7 +1129,7 @@ $stepFocus
                 // Not a recoverable action format error, treat as normal failure
                 // SECURITY: Sanitize error messages to prevent API key leakage
                 val sanitizedError = sanitizeErrorMessage(errorMsg)
-                Log.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
+                logger.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
                 errors.add(Triple(executorResult.provider, executorResult.keyIndex, sanitizedError))
 
                 if (executorResult.apiKey.isNotEmpty()) {
@@ -1210,7 +1138,7 @@ $stepFocus
                 agentProvider.recordFailure(executorResult.provider, e)
 
                 if (availableExecutors.indexOf(executorResult) < availableExecutors.lastIndex) {
-                    Log.d(TAG, "↻ Falling back to next provider/key...")
+                    logger.d(TAG, "↻ Falling back to next provider/key...")
                 }
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "unknown error"
@@ -1222,17 +1150,17 @@ $stepFocus
                 val errorType = ToolErrorType.classify(e)
 
                 // Log the classified error type for debugging
-                Log.d(TAG, "Error classified as: ${errorType::class.simpleName}")
+                logger.d(TAG, "Error classified as: ${errorType::class.simpleName}")
 
                 if (!errorType.shouldFailover()) {
                     // Tool error - return to user immediately without failover
                     val userMsg = errorType.toUserMessage()
                     // AGENT-007: Include error type in log for easier debugging
-                    Log.w(TAG, "Tool error [${errorType::class.simpleName}] (no failover): $userMsg")
-                    return AgentResult.Error(context.getString(com.example.smarty.R.string.error_action_failed_detail, userMsg))
+                    // logger.w(TAG, "Tool error [${errorType::class.simpleName}] (no failover): $userMsg")
+                    return AgentResult.Error("Action failed: $userMsg")
                 }
 
-                Log.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
+                logger.w(TAG, "${executorResult.provider} $keyLabel failed: $sanitizedError")
                 errors.add(Triple(executorResult.provider, executorResult.keyIndex, sanitizedError))
 
                 // Record key-specific failure for proper cooldowns
@@ -1246,18 +1174,18 @@ $stepFocus
 
                 // Continue to next provider/key
                 if (availableExecutors.indexOf(executorResult) < availableExecutors.lastIndex) {
-                    Log.d(TAG, "↻ Falling back to next provider/key...")
+                    logger.d(TAG, "↻ Falling back to next provider/key...")
                 }
             }
         }
 
         // All providers/keys failed - return combined error
         val errorSummary = if (errors.size == 1) {
-            context.getString(com.example.smarty.R.string.error_prefix, errors.first().third)
+            "Error: ${errors.first().third}"
         } else {
             // Group errors by provider for cleaner output
             val grouped = errors.groupBy { it.first }
-            context.getString(com.example.smarty.R.string.error_attempts_failed, errors.size) + "\n" + grouped.entries.joinToString("\n") { (provider, providerErrors) ->
+            "Multiple attempts failed (${errors.size}):\n" + grouped.entries.joinToString("\n") { (provider, providerErrors) ->
                 if (providerErrors.size == 1) {
                     "• ${provider.name.lowercase()}: ${providerErrors.first().third}"
                 } else {
@@ -1266,9 +1194,8 @@ $stepFocus
             }
         }
 
-        Log.e(TAG, "All providers failed: $errorSummary")
-        val finalMessage = context.getString(com.example.smarty.R.string.error_request_failed_detail, errorSummary) + "\n\n" +
-                context.getString(com.example.smarty.R.string.error_retry_after_cooldown)
+        // logger.e(TAG, "All providers failed: $errorSummary")
+        val finalMessage = "Request failed details: $errorSummary\n\nPlease try again later."
         return AgentResult.Error(finalMessage)
     }
 
@@ -1318,7 +1245,7 @@ $stepFocus
         val hasLongHorizon = longHorizonIndicators.count { lowerMessage.contains(it) } >= 1
 
         if (actionCount >= 3 || hasLongHorizon) {
-            Log.d(TAG, "Complex multi-step task detected: actionCount=$actionCount, hasLongHorizon=$hasLongHorizon")
+            logger.d(TAG, "Complex multi-step task detected: actionCount=$actionCount, hasLongHorizon=$hasLongHorizon")
             return MAX_ITERATIONS_COMPLEX
         }
 

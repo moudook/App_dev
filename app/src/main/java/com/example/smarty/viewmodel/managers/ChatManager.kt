@@ -15,6 +15,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+import com.example.smarty.util.HistoryCompressor
+import com.example.smarty.util.PIIMasker
+
 /**
  * Manages chat mode state and session lifecycle.
  * Extracted from SmartyViewModel for better separation of concerns.
@@ -28,7 +31,9 @@ import kotlinx.coroutines.sync.withLock
 class ChatManager(
     private val context: android.content.Context,
     private val chatRepository: ChatRepository,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val historyCompressor: HistoryCompressor,
+    private val piiMasker: PIIMasker
 ) {
     companion object {
         private const val TAG = "ChatManager"
@@ -206,7 +211,7 @@ class ChatManager(
             lastApiCallSuccessful = false
 
             // BUG FIX (Issue #38): Clear PII masker session to prevent memory leak
-            com.example.smarty.util.PIIMasker.clearSession()
+            piiMasker.clearSession()
 
             Log.d(TAG, "Created new chat session: ${newSession.id}")
         }
@@ -387,7 +392,7 @@ class ChatManager(
      * @return Compressed chat messages suitable for agent context
      */
     fun getCompressedHistory(): List<ChatMessage> {
-        return com.example.smarty.util.HistoryCompressor.compress(_chatMessages.value)
+        return historyCompressor.compress(_chatMessages.value)
     }
 
     /**

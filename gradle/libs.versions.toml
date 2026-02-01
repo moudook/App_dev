@@ -61,6 +61,7 @@ androidx-material-icons-extended = { group = "androidx.compose.material", name =
 google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts", version = "1.7.6" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "roomVersion" }
+androidx-room-common = { group = "androidx.room", name = "room-common", version.ref = "roomVersion" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomVersion" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomVersion" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }
@@ -107,7 +108,9 @@ firebase-config = { group = "com.google.firebase", name = "firebase-config" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

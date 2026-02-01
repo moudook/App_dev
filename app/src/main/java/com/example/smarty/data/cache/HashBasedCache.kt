@@ -1,8 +1,6 @@
 package com.example.smarty.data.cache
 
 import android.util.Log
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -39,23 +37,20 @@ class HashBasedCache(
     data class CacheEntry(
         val originalQuery: String,
         val response: String,
-        val timestamp: Long = System.currentTimeMillis(),
+        val timestamp: Long,
         var accessCount: Int = 0,
         val containsNoteData: Boolean = false
     ) {
-        fun isExpired(ttlMs: Long): Boolean =
-            System.currentTimeMillis() - timestamp > ttlMs
+        fun isExpired(currentTime: Long, ttlMs: Long): Boolean =
+            currentTime - timestamp > ttlMs
     }
 
-    // Thread-safe cache storage using normalized query hash as key
+    // Cache storage using normalized query hash as key
     private val cache = ConcurrentHashMap<String, CacheEntry>()
 
-    // Mutex for thread-safe operations
-    private val mutex = Mutex()
-
     // Statistics
-    private var hits = 0
-    private var misses = 0
+    @Volatile private var hits = 0
+    @Volatile private var misses = 0
 
     /**
      * Normalize a query for consistent matching.
@@ -79,61 +74,49 @@ class HashBasedCache(
      * @param query The user's query
      * @return Cached response if found, null otherwise
      */
-    suspend fun get(query: String): String? = mutex.withLock {
-        if (query.isBlank()) return@withLock null
+    fun get(query: String): String? {
+        if (query.isBlank()) return null
 
         // CRITICAL FIX: Never return cached results for action-oriented queries
         // These depend on dynamic data (notes, audio, etc.) and must always execute fresh
         if (isActionQuery(query)) {
-            Log.d(TAG, "Cache BYPASS: Action query detected - '$query' will execute fresh")
-            return@withLock null
+            return null
         }
 
+        val currentTime = System.currentTimeMillis()
+
         // Clean expired entries
-        evictExpired()
+        evictExpired(currentTime)
 
         val normalizedKey = normalizeQuery(query)
         val entry = cache[normalizedKey]
 
-        if (entry != null && !entry.isExpired(ttlMs)) {
+        if (entry != null && !entry.isExpired(currentTime, ttlMs)) {
             entry.accessCount++
             hits++
-            Log.d(TAG, "Cache HIT: query='${query.take(50)}'")
-            return@withLock entry.response
+            Log.d(TAG, "Cache HIT for: ${query.take(30)}...")
+            return entry.response
         }
 
         misses++
-        Log.d(TAG, "Cache MISS: query='${query.take(50)}'")
-        return@withLock null
+        return null
     }
 
     // Action keywords that should NOT be cached (depend on dynamic data)
     // These queries involve operations on user data that can change at any time
     private val ACTION_KEYWORDS = setOf(
-        // Playback/media actions
         "play", "pause", "stop", "resume",
-        // Search/query actions
         "search", "find", "look", "check",
-        // Display actions
         "show", "display", "tell", "give", "list",
-        // Data retrieval
         "get", "fetch", "read", "open",
-        // Data modification
         "archive", "unarchive", "delete", "update", "create", "add", "remove", "edit", "modify",
-        // Counting/analytics (depend on current note count)
         "count", "how many", "total", "number of",
-        // Note-specific queries (always depend on dynamic data)
         "notes", "note", "audio", "document", "image", "file"
     )
 
     /**
      * Check if a query is action-oriented (should not be cached).
      * Action queries depend on dynamic note/audio data that can change.
-     *
-     * EXPANDED CRITERIA:
-     * - Commands that perform operations (play, delete, archive, etc.)
-     * - Queries about user data (notes, audio, documents)
-     * - Count/quantity queries (how many notes, etc.)
      */
     private fun isActionQuery(query: String): Boolean {
         val normalizedQuery = query.lowercase().trim()
@@ -164,14 +147,14 @@ class HashBasedCache(
      * @param response The AI response to cache
      * @param containsNoteData Whether the response contains user note data
      */
-    suspend fun put(query: String, response: String, containsNoteData: Boolean = false) = mutex.withLock {
-        if (query.isBlank() || response.isBlank()) return@withLock
+    fun put(query: String, response: String, containsNoteData: Boolean = false) {
+        if (query.isBlank() || response.isBlank()) return
 
         // CRITICAL FIX: Don't cache action-oriented queries that depend on dynamic data
         // These queries (play, search, find, etc.) should always execute fresh
         if (isActionQuery(query)) {
-            Log.d(TAG, "SKIP CACHE: Action query detected - '$query' will not be cached")
-            return@withLock
+            Log.d(TAG, "Skipping cache for action query: ${query.take(30)}...")
+            return
         }
 
         // Evict if at capacity
@@ -183,17 +166,17 @@ class HashBasedCache(
         val entry = CacheEntry(
             originalQuery = query,
             response = response,
+            timestamp = System.currentTimeMillis(),
             containsNoteData = containsNoteData
         )
         cache[normalizedKey] = entry
-
-        Log.d(TAG, "Cached response for query='${query.take(50)}' (noteData=$containsNoteData)")
+        Log.d(TAG, "Cached response for: ${query.take(30)}...")
     }
 
     /**
      * Clear all cached entries.
      */
-    suspend fun clear() = mutex.withLock {
+    fun clear() {
         cache.clear()
         hits = 0
         misses = 0
@@ -204,13 +187,10 @@ class HashBasedCache(
      * Invalidate all cache entries that contain note data.
      * Call this when note privacy changes.
      */
-    suspend fun invalidateNoteDataEntries() = mutex.withLock {
-        val sizeBefore = cache.size
-        cache.entries.removeIf { it.value.containsNoteData }
-        val removed = sizeBefore - cache.size
-        if (removed > 0) {
-            Log.d(TAG, "Privacy change: invalidated $removed cache entries containing note data")
-        }
+    fun invalidateNoteDataEntries() {
+        val keysToRemove = cache.filterValues { it.containsNoteData }.keys
+        keysToRemove.forEach { cache.remove(it) }
+        Log.d(TAG, "Invalidated ${keysToRemove.size} entries containing note data")
     }
 
     /**
@@ -226,8 +206,12 @@ class HashBasedCache(
     /**
      * Evict expired entries from cache.
      */
-    private fun evictExpired() {
-        cache.entries.removeIf { it.value.isExpired(ttlMs) }
+    private fun evictExpired(currentTime: Long) {
+        val keysToRemove = cache.filterValues { it.isExpired(currentTime, ttlMs) }.keys
+        keysToRemove.forEach { cache.remove(it) }
+        if (keysToRemove.isNotEmpty()) {
+            Log.d(TAG, "Evicted ${keysToRemove.size} expired entries")
+        }
     }
 
     /**
@@ -243,6 +227,7 @@ class HashBasedCache(
             .map { it.key }
 
         keysToRemove.forEach { cache.remove(it) }
+        Log.d(TAG, "Evicted $toRemove least used entries")
     }
 
     /**

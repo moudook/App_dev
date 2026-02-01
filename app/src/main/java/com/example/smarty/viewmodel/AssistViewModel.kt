@@ -8,7 +8,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.R
-import com.example.smarty.agent.AgentCallbacks
+import com.example.smarty.agent.AgentEventSink
+import com.example.smarty.agent.ClientCommandExecutor
 import com.example.smarty.agent.AgentResult
 import com.example.smarty.agent.SmartyAgentOptimized
 import com.example.smarty.agent.SmartyAgentProvider
@@ -204,14 +205,47 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val _archivedNotes = MutableStateFlow<List<Note>>(emptyList())
     private val _categories = MutableStateFlow<List<Category>>(emptyList())
 
+import com.example.smarty.agent.AgentEventSink
+import com.example.smarty.agent.ClientCommandExecutor
+
     // Temporary storage for citations during agent execution (thread-safe)
     private val pendingCitations = java.util.concurrent.CopyOnWriteArrayList<WebCitation>()
 
     // Temporary storage for inline images during agent execution (thread-safe)
     private val pendingInlineImages = java.util.concurrent.CopyOnWriteArrayList<InlineChatImage>()
 
-    // Agent callbacks for Koog tools that need ViewModel state
-    private val agentCallbacks = object : AgentCallbacks {
+    // Agent Event Sink for Koog tools notifications
+    private val agentEventSink = object : AgentEventSink {
+        override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
+            _toolStatus.value = resolveResourceString(toolDisplayName)
+        }
+
+        override fun onToolExecutionCompleted(toolName: String) {
+            _toolStatus.value = null
+        }
+
+        override fun onStatusUpdate(status: String) {
+            _toolStatus.value = resolveResourceString(status)
+        }
+
+        override fun onCitationsFound(citations: List<WebCitation>) {
+            pendingCitations.addAll(citations)
+        }
+
+        override fun onDisplayImages(images: List<ImageDisplayItem>) {
+            pendingInlineImages.clear()
+            pendingInlineImages.addAll(images.map {
+                InlineChatImage(uri = it.uri, fileName = it.fileName, noteTitle = it.noteTitle)
+            })
+        }
+
+        override fun onPlanStatusChanged(status: String?) {
+            // Not displayed in assist mode
+        }
+    }
+
+    // Client Command Executor for Koog tools actions
+    private val clientCommandExecutor = object : ClientCommandExecutor {
         override fun getActiveNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_notes.value)
         override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_archivedNotes.value)
         override fun getCategories(): List<Category> = _categories.value
@@ -241,18 +275,6 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             systemFeatureManager.playAudio(track)
         }
 
-        override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
-            _toolStatus.value = resolveResourceString(toolDisplayName)
-        }
-
-        override fun onToolExecutionCompleted(toolName: String) {
-            _toolStatus.value = null
-        }
-
-        override fun onCitationsFound(citations: List<com.example.smarty.agent.WebCitation>) {
-            pendingCitations.addAll(citations)
-        }
-
         override fun launchApp(packageName: String) {
             systemFeatureManager.launchApp(packageName)
         }
@@ -264,21 +286,6 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                 referringApp = ctx?.referringPackage ?: application.packageName,
                 capturedAt = System.currentTimeMillis()
             )
-        }
-
-        override fun onDisplayImages(images: List<ImageDisplayItem>) {
-            pendingInlineImages.clear()
-            pendingInlineImages.addAll(images.map {
-                InlineChatImage(uri = it.uri, fileName = it.fileName, noteTitle = it.noteTitle)
-            })
-        }
-
-        override fun onPlanStatusChanged(status: String?) {
-            // Not displayed in assist mode
-        }
-
-        override fun onStatusUpdate(status: String) {
-            _toolStatus.value = resolveResourceString(status)
         }
 
         override fun getDeviceAudio(): List<AudioTrack> {
@@ -341,6 +348,10 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
 
         override fun isAudioPlaying(): Boolean {
             return audioPlaybackManager.isPlaying
+        }
+
+        override fun findMatchingAudio(query: String): AudioSearchResult {
+            return systemFeatureManager.findMatchingAudio(query)
         }
 
         override fun addNote(content: String, category: String?) {
@@ -469,10 +480,6 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             return systemFeatureManager.findPackageName(appName)
         }
 
-        override fun findMatchingAudio(query: String): AudioSearchResult {
-            return systemFeatureManager.findMatchingAudio(query)
-        }
-
         override fun playAudioList(tracks: List<AudioTrack>) {
             audioPlaybackManager.playList(tracks)
         }
@@ -595,7 +602,8 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             repository = repository,
             tavilySearchProvider = tavilySearchProvider,
             alarmScheduler = alarmScheduler,
-            callbacks = agentCallbacks,
+            eventSink = agentEventSink,
+            commandExecutor = clientCommandExecutor,
             aiMemoryDao = database.aiMemoryDao(),
             executionPlanManager = executionPlanManager // HYBRID: Shared state machine
         )

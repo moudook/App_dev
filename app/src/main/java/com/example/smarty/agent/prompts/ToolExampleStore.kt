@@ -1,6 +1,6 @@
 package com.example.smarty.agent.prompts
 
-import android.util.Log
+import com.example.smarty.util.Logger
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -21,7 +21,7 @@ import kotlinx.coroutines.sync.withLock
  * 3. System prompt includes: "Example: 'remind me about meeting' -> create_event(title=...)"
  * 4. LLM sees concrete usage patterns before responding
  */
-class ToolExampleStore {
+class ToolExampleStore(private val logger: Logger) {
     companion object {
         private const val TAG = "ToolExampleStore"
         private const val MAX_EXAMPLES_PER_TOOL = 20
@@ -78,7 +78,7 @@ class ToolExampleStore {
             .take(count)
             .map { it.first }
 
-        Log.d(TAG, "Retrieved ${scoredExamples.size} examples for query: '${query.take(50)}'")
+        logger.d(TAG, "Retrieved ${scoredExamples.size} examples for query: '${query.take(50)}'")
         return@withLock scoredExamples
     }
 
@@ -89,15 +89,15 @@ class ToolExampleStore {
     suspend fun addExample(example: ToolExample) = mutex.withLock {
         // AGENT-011: Validate inputs to prevent garbage data
         if (example.toolName.isBlank()) {
-            Log.w(TAG, "Rejecting example with blank toolName")
+            logger.w(TAG, "Rejecting example with blank toolName")
             return@withLock
         }
         if (example.userQuery.isBlank()) {
-            Log.w(TAG, "Rejecting example with blank userQuery for tool: ${example.toolName}")
+            logger.w(TAG, "Rejecting example with blank userQuery for tool: ${example.toolName}")
             return@withLock
         }
         if (example.userQuery.length < 3) {
-            Log.w(TAG, "Rejecting example with too short userQuery: ${example.userQuery}")
+            logger.w(TAG, "Rejecting example with too short userQuery: ${example.userQuery}")
             return@withLock
         }
 
@@ -487,7 +487,7 @@ class ToolExampleStore {
             )
         )
 
-        Log.d(TAG, "Initialized ${examples.values.sumOf { it.size }} default tool examples")
+        logger.d(TAG, "Initialized ${examples.values.sumOf { it.size }} default tool examples")
     }
 
     /**

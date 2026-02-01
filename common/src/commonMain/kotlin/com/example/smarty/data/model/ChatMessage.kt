@@ -1,6 +1,6 @@
 package com.example.smarty.data.model
 
-import java.util.UUID
+// import java.util.UUID
 
 /**
  * Role in a chat conversation
@@ -44,11 +44,11 @@ data class InlineChatImage(
  * A single message in the chat conversation
  */
 data class ChatMessage(
-    val id: String = UUID.randomUUID().toString(),
+    val id: String, // = UUID.randomUUID().toString(),
     val role: ChatRole,
     val content: String,
     val attachments: List<Attachment> = emptyList(),
-    val timestamp: Long = System.currentTimeMillis(),
+    val timestamp: Long = 0L, // System.currentTimeMillis(),
     val executedActions: List<AgentActionResult> = emptyList(),
     val referencedNoteIds: List<String> = emptyList(),
     val isAudioRelated: Boolean = false,  // True when user asked about audio/music playback

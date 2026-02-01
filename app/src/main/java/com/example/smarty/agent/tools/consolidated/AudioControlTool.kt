@@ -2,7 +2,6 @@ package com.example.smarty.agent.tools.consolidated
 
 import ai.koog.agents.core.tools.Tool
 import ai.koog.agents.core.tools.annotations.LLMDescription
-import android.content.Context
 import com.example.smarty.data.model.AudioTrack
 import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
 import kotlinx.serialization.Serializable
@@ -43,7 +42,6 @@ data class AudioControlResult(
  * - AudioPlayerService (indirectly via manager)
  */
 class AudioControlTool(
-    private val context: Context,
     private val onPlay: (AudioTrack) -> Unit,
     private val onPause: () -> Unit,
     private val onResume: () -> Unit,
@@ -84,10 +82,10 @@ class AudioControlTool(
                 "play" -> {
                     val query = args.target ?: return AudioControlResult(
                         success = false,
-                        message = context.getString(com.example.smarty.R.string.error_specify_audio)
+                        message = "Please specify what audio to play."
                     )
 
-                    onStatusUpdate(context.getString(com.example.smarty.R.string.status_finding_notes))
+                    onStatusUpdate("Finding audio...")
                     val result = onFindAudio(query)
 
                     when (result) {
@@ -96,7 +94,7 @@ class AudioControlTool(
                             onPlay(track)
                             AudioControlResult(
                                 success = true,
-                                message = context.getString(com.example.smarty.R.string.now_playing_detail, track.title),
+                                message = "Now playing: ${track.title}",
                                 currentTrack = track.title,
                                 isPlaying = true
                             )
@@ -128,7 +126,7 @@ class AudioControlTool(
                     val track = getCurrentTrack()
                     AudioControlResult(
                         success = true,
-                        message = context.getString(com.example.smarty.R.string.playback_paused),
+                        message = "Playback paused.",
                         currentTrack = track?.title,
                         isPlaying = false
                     )
@@ -139,7 +137,7 @@ class AudioControlTool(
                     val track = getCurrentTrack()
                     AudioControlResult(
                         success = true,
-                        message = context.getString(com.example.smarty.R.string.playback_resumed),
+                        message = "Playback resumed.",
                         currentTrack = track?.title,
                         isPlaying = true
                     )
@@ -149,7 +147,7 @@ class AudioControlTool(
                     onStop()
                     AudioControlResult(
                         success = true,
-                        message = context.getString(com.example.smarty.R.string.playback_stopped),
+                        message = "Playback stopped.",
                         isPlaying = false
                     )
                 }
@@ -160,7 +158,7 @@ class AudioControlTool(
                     val track = getCurrentTrack()
                     AudioControlResult(
                         success = true,
-                        message = if (playing) context.getString(com.example.smarty.R.string.playback_resumed) else context.getString(com.example.smarty.R.string.playback_paused),
+                        message = if (playing) "Playback resumed." else "Playback paused.",
                         currentTrack = track?.title,
                         isPlaying = playing
                     )
@@ -171,7 +169,7 @@ class AudioControlTool(
                     if (duration <= 0) {
                         return AudioControlResult(
                             success = false,
-                            message = context.getString(com.example.smarty.R.string.error_no_audio_loaded)
+                            message = "No audio loaded to seek."
                         )
                     }
 
@@ -184,13 +182,13 @@ class AudioControlTool(
                             // Parse as seconds
                             val seconds = args.target.toIntOrNull() ?: return AudioControlResult(
                                 success = false,
-                                message = context.getString(com.example.smarty.R.string.error_invalid_seek, args.target)
+                                message = "Invalid seek target: ${args.target}"
                             )
                             (seconds * 1000L).coerceIn(0, duration)
                         }
                         else -> return AudioControlResult(
                             success = false,
-                            message = context.getString(com.example.smarty.R.string.error_seek_params)
+                            message = "Missing seek parameters."
                         )
                     }
 
@@ -199,7 +197,7 @@ class AudioControlTool(
 
                     AudioControlResult(
                         success = true,
-                        message = context.getString(com.example.smarty.R.string.seeked_to, formatTime(targetPosition)),
+                        message = "Seeked to ${formatTime(targetPosition)}",
                         currentTrack = track?.title,
                         position = formatTime(targetPosition),
                         isPlaying = isPlaying()
@@ -208,13 +206,13 @@ class AudioControlTool(
 
                 else -> AudioControlResult(
                     success = false,
-                    message = context.getString(com.example.smarty.R.string.error_unknown_action, args.action)
+                    message = "Unknown action: ${args.action}"
                 )
             }
         } catch (e: Exception) {
             AudioControlResult(
                 success = false,
-                message = context.getString(com.example.smarty.R.string.error_audio_control, e.message ?: "")
+                message = "Audio control error: ${e.message ?: "Unknown"}"
             )
         }
     }

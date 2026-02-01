@@ -17,7 +17,8 @@ errors.txt
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 .DS_Store
-/build
+build/
+**/build/
 /captures
 .externalNativeBuild
 .cxx
@@ -47,6 +48,7 @@ _private/
 # Reference/Notes file types
 *.notes
 *.reference
+refrences/
 *.pdf
 
 # Temporary files

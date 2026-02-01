@@ -153,6 +153,10 @@ dependencies {
     // Firebase - Only auth is actively used (BATCH-10 optimization)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+
+    // Shared Common Module
+    implementation(project(":common"))
+
     // REMOVED: Unused Firebase modules identified in BATCH-10 analysis
     // Firestore not used - app uses Room for local storage, Google Drive for backup
     // implementation(libs.firebase.firestore)

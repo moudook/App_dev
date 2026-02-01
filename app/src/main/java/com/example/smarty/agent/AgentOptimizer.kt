@@ -1,10 +1,10 @@
 package com.example.smarty.agent
 
-import android.util.Log
 import com.example.smarty.agent.prompts.ToolExampleStore
 import com.example.smarty.data.cache.HashBasedCache
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.util.HistoryCompressor
+import com.example.smarty.util.Logger
 import com.example.smarty.util.PIIMasker
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -36,6 +36,9 @@ import java.util.concurrent.atomic.AtomicLong
  * ```
  */
 class AgentOptimizer(
+    private val logger: Logger,
+    private val historyCompressor: HistoryCompressor,
+    private val piiMasker: PIIMasker,
     enableCache: Boolean = true,
     enablePiiMasking: Boolean = true,
     enableHistoryCompression: Boolean = true,
@@ -61,8 +64,8 @@ class AgentOptimizer(
         hashBasedCache = if (enableCache) HashBasedCache() else null
 
         when (cacheMode) {
-            CacheMode.HASH_BASED -> Log.i(TAG, "Using on-device hash-based cache")
-            CacheMode.DISABLED -> Log.i(TAG, "Caching disabled")
+            CacheMode.HASH_BASED -> logger.i(TAG, "Using on-device hash-based cache")
+            CacheMode.DISABLED -> logger.i(TAG, "Caching disabled")
         }
     }
 
@@ -77,9 +80,9 @@ class AgentOptimizer(
     // Dynamic few-shot example store
     private val toolExampleStore: ToolExampleStore? = if (fewShotEnabled) {
         try {
-            ToolExampleStore()
+            ToolExampleStore(logger)
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to initialize tool example store: ${e.message}")
+            logger.w(TAG, "Failed to initialize tool example store: ${e.message}")
             null
         }
     } else {
@@ -113,7 +116,7 @@ class AgentOptimizer(
             CacheMode.HASH_BASED -> {
                 hashBasedCache?.get(query)?.let { cachedResponse ->
                     cacheHits.incrementAndGet()
-                    Log.d(TAG, "Hash-based cache HIT - skipping API call")
+                    logger.d(TAG, "Hash-based cache HIT - skipping API call")
                     return ProcessedQuery(
                         maskedQuery = query,
                         compressedHistory = history,
@@ -126,10 +129,10 @@ class AgentOptimizer(
 
         // 2. Mask PII in query
         val maskedQuery = if (piiEnabled) {
-            val masked = PIIMasker.mask(query)
+            val masked = piiMasker.mask(query)
             if (masked != query) {
                 piiMasked.incrementAndGet()
-                Log.d(TAG, "PII masked in query")
+                logger.d(TAG, "PII masked in query")
             }
             masked
         } else {
@@ -138,13 +141,13 @@ class AgentOptimizer(
 
         // 3. Compress history
         val compressedHistory = if (compressionEnabled && history.isNotEmpty()) {
-            val compressed = HistoryCompressor.compress(history)
-            val originalTokens = HistoryCompressor.estimateTokens(history)
-            val compressedTokens = HistoryCompressor.estimateTokens(compressed)
+            val compressed = historyCompressor.compress(history)
+            val originalTokens = historyCompressor.estimateTokens(history)
+            val compressedTokens = historyCompressor.estimateTokens(compressed)
             val saved = originalTokens - compressedTokens
             if (saved > 0) {
                 tokensSaved.addAndGet(saved.toLong())
-                Log.d(TAG, "History compressed: saved ~$saved tokens")
+                logger.d(TAG, "History compressed: saved ~$saved tokens")
             }
             compressed
         } else {
@@ -173,7 +176,7 @@ class AgentOptimizer(
     ): String {
         // 1. Unmask PII in response
         val unmaskedResponse = if (piiEnabled) {
-            PIIMasker.unmask(response)
+            piiMasker.unmask(response)
         } else {
             response
         }
@@ -275,7 +278,7 @@ class AgentOptimizer(
      * Clear PII masking session (call when starting new conversation).
      */
     fun clearSession() {
-        PIIMasker.clearSession()
+        piiMasker.clearSession()
     }
 
     /**

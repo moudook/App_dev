@@ -1,6 +1,5 @@
 package com.example.smarty.util
 
-import android.util.Log
 import com.example.smarty.data.model.ChatMessage
 import com.example.smarty.data.model.ChatRole
 
@@ -19,20 +18,25 @@ import com.example.smarty.data.model.ChatRole
  *
  * Expected impact: 50-70% token reduction for long conversations
  */
-object HistoryCompressor {
+class HistoryCompressor(private val logger: Logger) {
 
-    private const val DEFAULT_RECENT_EXCHANGES = 3  // Keep 3 most recent exchanges verbatim
-    private const val MAX_SUMMARY_CHARS = 300       // Max chars for summary section (reduced for small models)
-    private const val MAX_MESSAGE_EXCERPT = 80      // Max chars per message in summary
+    companion object {
+        private const val DEFAULT_RECENT_EXCHANGES = 3  // Keep 3 most recent exchanges verbatim
+        private const val MAX_SUMMARY_CHARS = 300       // Max chars for summary section (reduced for small models)
+        private const val MAX_MESSAGE_EXCERPT = 80      // Max chars per message in summary
 
-    // Compression trigger thresholds
-    private const val MESSAGE_COUNT_THRESHOLD = 10  // Compress when > 10 messages (reduced)
-    private const val TOKEN_COUNT_THRESHOLD = 2000  // Compress when > 2000 estimated tokens (reduced for small models)
+        // Compression trigger thresholds
+        private const val MESSAGE_COUNT_THRESHOLD = 10  // Compress when > 10 messages (reduced)
+        private const val TOKEN_COUNT_THRESHOLD = 2000  // Compress when > 2000 estimated tokens (reduced for small models)
 
-    // CRITICAL: Hard limit for small model compatibility
-    // Most free tier models have 4k-8k context windows
-    private const val MAX_TOTAL_TOKENS = 3000       // Absolute max tokens to return
-    private const val MAX_TOTAL_CHARS = 12000       // ~3000 tokens (4 chars per token)
+        // CRITICAL: Hard limit for small model compatibility
+        // Most free tier models have 4k-8k context windows
+        private const val MAX_TOTAL_TOKENS = 3000       // Absolute max tokens to return
+        private const val MAX_TOTAL_CHARS = 12000       // ~3000 tokens (4 chars per token)
+
+        private const val MAX_COMPRESSION_ITERATIONS = 50  // Safety limit to prevent infinite loops
+        private const val TAG = "HistoryCompressor"
+    }
 
     // Pre-compiled patterns for extracting key information
     private val ENTITY_PATTERNS = listOf(
@@ -109,6 +113,7 @@ object HistoryCompressor {
         }
 
         val contextMessage = ChatMessage(
+            id = "ctx_${System.currentTimeMillis()}", // Generated ID
             role = ChatRole.SYSTEM,
             content = contextContent.trim()
         )
@@ -116,9 +121,6 @@ object HistoryCompressor {
         val result = listOf(contextMessage) + recent
         return enforceSizeLimit(result)
     }
-
-    private const val MAX_COMPRESSION_ITERATIONS = 50  // Safety limit to prevent infinite loops
-    private const val TAG = "HistoryCompressor"
 
     /**
      * Enforce hard size limit by trimming older messages.
@@ -135,7 +137,7 @@ object HistoryCompressor {
 
             // Safety: prevent infinite loop with iteration limit
             if (iterations > MAX_COMPRESSION_ITERATIONS) {
-                Log.w(TAG, "enforceSizeLimit: Hit max iterations ($MAX_COMPRESSION_ITERATIONS), " +
+                logger.w(TAG, "enforceSizeLimit: Hit max iterations ($MAX_COMPRESSION_ITERATIONS), " +
                     "forcing truncation. Remaining messages: ${result.size}, totalChars: $totalChars")
                 break
             }
@@ -144,7 +146,7 @@ object HistoryCompressor {
             val indexToDrop = result.indexOfFirst { it.role != ChatRole.SYSTEM }
             if (indexToDrop == -1) {
                 // Only system messages left - cannot drop any more non-system messages
-                Log.d(TAG, "enforceSizeLimit: All remaining ${result.size} messages are system messages, " +
+                logger.d(TAG, "enforceSizeLimit: All remaining ${result.size} messages are system messages, " +
                     "truncating first message")
                 val first = result.first()
                 val truncated = first.copy(content = first.content.take(MAX_TOTAL_CHARS / 2) + "...[truncated]")
