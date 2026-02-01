@@ -83,14 +83,14 @@ class TavilySearchProvider(
     data class TavilyRequest(
         val query: String,
         @SerializedName("search_depth")
-        val searchDepth: String = "advanced",      // Changed to advanced for better results
+        val searchDepth: String = "basic",      // Changed to basic for speed and lower cost
         @SerializedName("max_results")
         val maxResults: Int = 5,                // 0-20, default 5
         @SerializedName("include_answer")
         val includeAnswer: Boolean = true,      // Get AI summary
         @SerializedName("include_raw_content")
-        val includeRawContent: Boolean = true,  // Get full content
-        val topic: String = "general"           // general, news, finance (NOT research/code)
+        val includeRawContent: Boolean = false, // Disable raw content by default to save tokens
+        val topic: String = "general"           // general, news, finance
     )
 
     /**
@@ -158,10 +158,10 @@ class TavilySearchProvider(
 
             val request = TavilyRequest(
                 query = query,
-                searchDepth = "advanced",          // Use advanced for better depth
+                searchDepth = "basic",             // Use basic for speed/cost balance
                 maxResults = maxResults.coerceIn(1, 10),
                 includeAnswer = true,
-                includeRawContent = true,
+                includeRawContent = false,         // Disable raw content to prevent token overflow
                 topic = topic
             )
 
@@ -216,7 +216,7 @@ class TavilySearchProvider(
 
                     SearchResult(
                         title = result.title,
-                        snippet = fullContent.take(8000),  // Limit snippet length (approx 1000-1500 words, hard limit 8k)
+                        snippet = fullContent.take(1500),  // limit to 1500 chars (~350 tokens) per result
                         url = result.url,
                         score = result.score ?: 0f
                     )

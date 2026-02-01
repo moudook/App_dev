@@ -148,22 +148,7 @@ fun ChatModeContent(
                         )
 
                         val statusText = if (!currentToolName.isNullOrBlank()) {
-                            // Map tool names to friendly names and icons
-                            val icon = when {
-                                currentToolName.contains("knowledge", ignoreCase = true) -> "📚"
-                                currentToolName.contains("master", ignoreCase = true) -> "🧠"
-                                currentToolName.contains("time", ignoreCase = true) -> "📅"
-                                currentToolName.contains("manager", ignoreCase = true) -> "🛠️"
-                                currentToolName.contains("system", ignoreCase = true) -> "⚙️"
-                                currentToolName.contains("interface", ignoreCase = true) -> "🖥️"
-                                currentToolName.contains("intelligence", ignoreCase = true) -> "🧠"
-                                currentToolName.contains("core", ignoreCase = true) -> "💎"
-                                currentToolName.contains("orchestrator", ignoreCase = true) -> "🎼"
-                                currentToolName.contains("search", ignoreCase = true) -> "🔍"
-                                currentToolName.contains("research", ignoreCase = true) -> "🔬"
-                                else -> "✨"
-                            }
-                            "$icon $currentToolName"
+                            currentToolName
                         } else {
                             stringResource(R.string.thinking)
                         }

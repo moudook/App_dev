@@ -324,8 +324,9 @@ class SearchFeatureManager(
 
                     if (result.success) {
                         val webResults = result.results.map {
-                            // Map the raw/full snippet directly without extra truncation here
-                            WebResult(title = it.title, url = it.url, snippet = it.snippet)
+                            // Limit content to first 300 words to prevent context overflow
+                            val truncatedSnippet = truncateContent(it.snippet, 300)
+                            WebResult(title = it.title, url = it.url, snippet = truncatedSnippet)
                         }
 
                         // Don't trigger callback here to avoid UI race conditions,
@@ -407,7 +408,9 @@ class SearchFeatureManager(
             val result = tavilySearchProvider.search(apiKey, query, maxResults, topic)
             if (result.success) {
                 val webResults = result.results.map {
-                    WebResult(title = it.title, url = it.url, snippet = it.snippet)
+                    // Limit content to first 300 words
+                    val truncatedSnippet = truncateContent(it.snippet, 300)
+                    WebResult(title = it.title, url = it.url, snippet = truncatedSnippet)
                 }
 
                 if (webResults.isNotEmpty()) {
@@ -428,6 +431,16 @@ class SearchFeatureManager(
         } catch (e: Exception) {
             Log.e(TAG, "Web search error", e)
             WebSearchResult(success = false, query = query, reason = "Error: ${e.message}")
+        }
+    }
+
+    private fun truncateContent(content: String?, wordCount: Int): String {
+        if (content.isNullOrBlank()) return ""
+        val words = content.trim().split("\\s+".toRegex())
+        return if (words.size <= wordCount) {
+            content
+        } else {
+            words.take(wordCount).joinToString(" ") + "..."
         }
     }
 

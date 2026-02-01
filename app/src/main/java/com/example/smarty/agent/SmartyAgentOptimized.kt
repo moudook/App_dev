@@ -7,6 +7,8 @@ import ai.koog.agents.core.tools.ToolRegistry
 import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.agent.tools.consolidated.*
 import com.example.smarty.agent.tools.base.NotifyingTool
+import com.example.smarty.agent.routing.ModelTierRegistry  // NEW: Tiered Architecture
+import com.example.smarty.agent.routing.ContextManager     // NEW: Universal Context Caching
 import com.example.smarty.viewmodel.managers.*
 import com.example.smarty.data.model.ThinkingModeContext
 import com.example.smarty.agent.prompts.ToolExampleStore
@@ -845,19 +847,19 @@ You are Smarty, a calm, professional, and concise intelligence.
         // ═══════════════════════════════════════════════════════════════
         // @THINKING MODE - Deep document analysis with full content
         // ═══════════════════════════════════════════════════════════════
+        // TIERED ARCHITECTURE: Optimization happens just-in-time inside the plan loop now,
+        // but for the initial context build, we prepare the raw content.
+        // The ContextManager will be applied dynamically based on the chosen executor for each step.
         val thinkingContextSection = if (thinkingModeContext != null && thinkingModeContext.isThinkingMode) {
-            Log.d(TAG, "@THINKING MODE: Analyzing ${thinkingModeContext.documentFileName ?: "document"} (${thinkingModeContext.totalChars} chars, ${thinkingModeContext.documentChunks.size} chunks)")
-            buildString {
+            // Raw thinking content - will be optimized later
+            Log.d(TAG, "@THINKING MODE: Preparing analysis context (${thinkingModeContext.totalChars} chars)")
+             buildString {
                 appendLine("\n\n=== DEEP THINKING MODE ===")
                 appendLine("You are in DEEP THINKING mode. Analyze the following document content THOROUGHLY.")
                 thinkingModeContext.documentFileName?.let { appendLine("Document: $it") }
-                thinkingModeContext.targetNote?.let { appendLine("Note Title: ${it.title}") }
                 appendLine("Total Content: ${thinkingModeContext.totalChars} characters")
                 appendLine()
-                appendLine("USER'S QUESTION: ${thinkingModeContext.userQuery.ifBlank { "Analyze this document in depth." }}")
-                appendLine()
                 appendLine("=== FULL DOCUMENT CONTENT ===")
-                appendLine()
                 // Include all document chunks
                 thinkingModeContext.documentChunks.forEach { chunk ->
                     appendLine("[SECTION ${chunk.index + 1}/${chunk.totalChunks}]")
@@ -865,9 +867,6 @@ You are Smarty, a calm, professional, and concise intelligence.
                     appendLine()
                 }
                 appendLine("=== END OF DOCUMENT ===")
-                appendLine()
-                appendLine("INSTRUCTIONS: Analyze the ENTIRE document above to thoroughly answer the user's question. Consider all sections and provide a comprehensive response.")
-                appendLine()
             }
         } else ""
 
@@ -975,8 +974,34 @@ You are Smarty, a calm, professional, and concise intelligence.
                     Log.d(TAG, "Plan loop iteration $planLoopIterations")
 
                     // Rebuild context with current plan state
+                    // Rebuild context with current plan state
+                    // TIERED ARCHITECTURE: Select best model for this step
+                    val currentStepExecutor = when (planLoopIterations) {
+                        2 -> { // Step 2: Research (Heavy reading/ingestion)
+                            val ingestionExec = ModelTierRegistry.getIngestionExecutor(availableExecutors)
+                            if (ingestionExec != null && ingestionExec.provider != executorResult.provider) {
+                                Log.i(TAG, "Tiered Switch: Using ${ingestionExec.provider} (Ingestion) for Research Step")
+                                ingestionExec
+                            } else executorResult
+                        }
+                        5 -> { // Step 5: Synthesis (High reasoning)
+                            val reasoningExec = ModelTierRegistry.getReasoningExecutor(availableExecutors)
+                            if (reasoningExec != null && reasoningExec.provider != executorResult.provider) {
+                                Log.i(TAG, "\uD83E\uDDE0 Tiered Switch: Using ${reasoningExec.provider} (Reasoning) for Synthesis Step")
+                                reasoningExec
+                            } else executorResult
+                        }
+                        else -> executorResult // Default to the user's primary choice
+                    }
+
+                    // PHASE 3: Universal Context Caching
+                    // Use ContextManager to optimize the HEAVY sections (Thinking/Mention) for the current executor.
+                    
+                    val ingestionExecForOptimization = ModelTierRegistry.getIngestionExecutor(availableExecutors)
+                    val optimizedThinking = ContextManager.optimizeContextForModel(thinkingContextSection, currentStepExecutor, ingestionExecForOptimization)
+                    
                     val currentPrompt = buildContext() + memorySection + examplesSection + historySection +
-                        thinkingContextSection + mentionContextSection +
+                        optimizedThinking + mentionContextSection +
                         "USER: ${processed.maskedQuery}"
 
                     // Rebuild tool registry (in case state changed)
@@ -1045,9 +1070,12 @@ $stepFocus
                     }
                     val finalSystemPrompt = systemPrompt + thinkingModeInstruction
 
+
+// Executor definition moved up for Context Optimization
+
                     val agent = AIAgent(
-                        promptExecutor = executorResult.executor,
-                        llmModel = executorResult.model,
+                        promptExecutor = currentStepExecutor.executor,
+                        llmModel = currentStepExecutor.model,
                         systemPrompt = finalSystemPrompt,
                         toolRegistry = currentToolRegistry,
                         maxIterations = maxIterations

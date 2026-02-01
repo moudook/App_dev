@@ -1329,6 +1329,18 @@ internal fun AIConfigBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Local LLM Section
+            LocalServerSection(
+                isEnabled = isLocalPCEnabled,
+                onSetEnabled = onSetLocalPCEnabled,
+                serverIP = localServerIP,
+                serverPort = localServerPort,
+                useHttps = localServerUseHttps,
+                onSetServerIP = onSetLocalServerIP,
+                onSetServerPort = onSetLocalServerPort,
+                onSetUseHttps = onSetLocalServerUseHttps
+            )
+
             // Other Sections
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),

@@ -118,7 +118,8 @@ class WorkflowManager(
 
                 results.forEach { (query, result) ->
                     if (result != null) {
-                        val content = result.answer ?: result.results.firstOrNull()?.snippet ?: context.getString(com.example.smarty.R.string.no_summary_found)
+                        val rawContent = result.answer ?: result.results.firstOrNull()?.snippet ?: context.getString(com.example.smarty.R.string.no_summary_found)
+                        val content = truncateContent(rawContent, 300)
                         findings.add("### Focus: $query\n$content")
                         result.results.forEach { sources.add(it.url) }
                     }
@@ -228,6 +229,16 @@ class WorkflowManager(
             } catch (e: Exception) {
                 Log.e(TAG, "Scheduled workflow failed: ${e.message}")
             }
+        }
+    }
+
+    private fun truncateContent(content: String, wordCount: Int): String {
+        if (content.isBlank()) return ""
+        val words = content.trim().split("\\s+".toRegex())
+        return if (words.size <= wordCount) {
+            content
+        } else {
+            words.take(wordCount).joinToString(" ") + "..."
         }
     }
 }

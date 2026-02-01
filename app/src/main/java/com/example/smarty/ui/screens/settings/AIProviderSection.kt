@@ -196,7 +196,7 @@ fun ProviderSection(
 
                     // Model selector - only shown when API keys are configured and enabled
                     AnimatedVisibility(
-                        visible = apiKeys.isNotEmpty() && isEnabled,
+                        visible = apiKeys.isNotEmpty() && isEnabled && availableModels.isNotEmpty(),
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically()
                     ) {

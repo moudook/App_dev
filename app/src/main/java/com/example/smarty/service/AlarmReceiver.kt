@@ -67,6 +67,20 @@ class AlarmReceiver : BroadcastReceiver() {
         wakeLock.acquire(WAKELOCK_TIMEOUT_MS)
 
         try {
+            // BUG FIX: Check if timer still exists in DB before playing
+            // This prevents zombie alarms if cancellation didn't clear the PendingIntent
+            val db = com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
+            val timerExists = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                db.timerDao().getTimerById(timerId) != null
+            }
+
+            if (!timerExists) {
+                Log.d(TAG, "Timer $timerId not found in DB - skipping alarm (zombie alarm prevention)")
+                if (wakeLock.isHeld) wakeLock.release()
+                pendingResult.finish()
+                return
+            }
+
             // Play alarm audio for 5 seconds
             AlarmAudioPlayer.play(context, duration = 5000)
 
