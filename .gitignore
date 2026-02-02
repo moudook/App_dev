@@ -4,8 +4,11 @@
 *.log
 build_*
 errors.txt
-# Keep README.md tracked
+
+# project docs
 !README.md
+!DEPLOYMENT.md
+
 
 *.iml
 .gradle
@@ -195,3 +198,8 @@ secrets.*
 # OS
 .DS_Store
 Thumbs.db
+
+
+# Ktor / Server secrets
+application-*.conf
+!application.conf
