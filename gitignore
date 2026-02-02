@@ -1,0 +1,210 @@
+#info
+# Ignore all markdown files globally
+*.md
+*.log
+build_*
+errors.txt
+
+# project docs
+!README.md
+!DEPLOYMENT.md
+
+
+
+
+
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+build/
+**/build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Windows device names
+nul
+NUL
+con
+CON
+aux
+AUX
+prn
+PRN
+
+
+# ============================================
+# PRIVATE FILES DIRECTORY
+# ============================================
+# All sensitive files (issues, solutions, screenshots, 
+# reference docs, personal notes, etc.) go in _private/
+_private/
+
+# ============================================
+# GENERAL FILE TYPE IGNORES
+# ============================================
+# Reference/Notes file types
+*.notes
+*.reference
+refrences/
+*.pdf
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+temp.txt
+instructions.txt
+
+# Screenshot patterns (general)
+thread-*.png
+screenshot*.png
+*.png
+
+# ============================================
+# PROJECT-SPECIFIC DIRECTORIES
+# ============================================
+# AI Agent Documentation (local reference only)
+.agent/
+# .agent/*.md (now allowed for workflows)
+
+# Speech Recognition Models (see README for download instructions)
+vosk-model-*/
+vosk-model-small-hi-0.22/
+vosk-model-small-en-us-0.15/
+app/src/main/assets/vosk-model-*/
+!app/src/main/assets/vosk-model-*/uuid
+
+# Text-to-Speech Models (downloadable)
+app/src/main/assets/tts_models/
+
+# Experiment directories
+AUDIO_effects/
+
+
+for_my_reference/
+system-prompts-and-models-of-ai-tools-main
+optimization-analysis-report/
+
+# LLM Server Binaries (Ignore all except startup scripts)
+LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/
+
+
+
+# ============================================
+# IDE & BUILD FILES
+# ============================================
+# IDE specific
+.idea/
+*.ipr
+*.iws
+
+# Build outputs
+app/release/
+app/debug/
+*.apk
+*.aab
+build_output.txt
+build_errors_utf8.txt
+build_errors_2.txt
+build_errors_3.txt
+build_errors_4.txt
+build_errors_5.txt
+build_errors.txt
+build_log.txt
+tasks_and_issues.txt
+
+# Compiled files
+*.class
+*.dex
+*.ap_
+*.jar
+*.war
+*.ear
+*.aar
+# Keep sherpa-onnx AAR for TTS
+!app/libs/sherpa-onnx.aar
+*.so
+
+bin/
+gen/
+out/
+release/
+
+# ============================================
+# SECURITY & CREDENTIALS
+# ============================================
+# Login & Credentials - COMPREHENSIVE PROTECTION
+*.keystore
+*.jks
+keystore.properties
+google-services.json
+firebase-config.json
+api-keys.properties
+secrets.properties
+auth.properties
+login.properties
+credentials.json
+*.pem
+*.p12
+*.key
+*.crt
+*.cer
+
+# Service accounts & tokens
+**/service_account*.json
+**/*-service-account.json
+**/*token*.json
+**/*tokens*.json
+
+# Environment files (all variations)
+.env
+.env.*
+*.env
+.envrc
+
+# API keys in any format
+**/api_key*
+**/apikey*
+**/*_secret*
+**/*_credentials*
+
+# Debug/Development database files
+*.db
+*.sqlite
+*.sqlite3
+# Gradle
+.gradle/
+build/
+
+# Android
+local.properties
+*.keystore
+*.jks
+
+# Environment
+.env
+.env.*
+secrets.*
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+
+# Ktor / Server secrets
+application-*.conf
+!application.conf
