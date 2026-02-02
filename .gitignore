@@ -10,6 +10,9 @@ errors.txt
 !DEPLOYMENT.md
 
 
+
+
+
 *.iml
 .gradle
 /local.properties
@@ -76,6 +79,8 @@ screenshot*.png
 
 # Speech Recognition Models (see README for download instructions)
 vosk-model-*/
+vosk-model-small-hi-0.22/
+vosk-model-small-en-us-0.15/
 app/src/main/assets/vosk-model-*/
 !app/src/main/assets/vosk-model-*/uuid
 
