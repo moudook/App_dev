@@ -25,4 +25,5 @@ dependencyResolutionManagement {
 rootProject.name = "Smarty"
 include(":app")
 include(":common")
+include(":server")
  

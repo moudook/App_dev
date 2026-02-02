@@ -10,9 +10,6 @@ import com.example.smarty.agent.models.ScreenContext
 import com.example.smarty.R
 import com.example.smarty.agent.AgentEventSink
 import com.example.smarty.agent.ClientCommandExecutor
-import com.example.smarty.agent.AgentResult
-import com.example.smarty.agent.SmartyAgentOptimized
-import com.example.smarty.agent.SmartyAgentProvider
 import com.example.smarty.agent.ImageDisplayItem
 import com.example.smarty.agent.WebCitation
 import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
@@ -27,6 +24,7 @@ import com.example.smarty.data.model.ChatRole
 import com.example.smarty.data.model.Citation
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.getTodos
+import com.example.smarty.data.remote.RemoteAgentService
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
@@ -41,6 +39,11 @@ import com.example.smarty.viewmodel.managers.SystemFeatureManager
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.api.GroqKeyManager
 import com.google.gson.Gson
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.sse.SSE
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +56,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -104,9 +108,6 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     // Device audio repository for MediaStore access
     private val deviceAudioRepository: DeviceAudioRepository by lazy {
         DeviceAudioRepository(application)
-    }
-    private val agentProvider: SmartyAgentProvider by lazy {
-        SmartyAgentProvider(securePreferences, groqKeyManager)
     }
 
     // Hybridized Feature Managers
@@ -595,18 +596,23 @@ import com.example.smarty.agent.ClientCommandExecutor
         }
     }
 
-    private val smartyAgent: SmartyAgentOptimized by lazy {
-        SmartyAgentOptimized(
-            context = application,
-            agentProvider = agentProvider,
-            repository = repository,
-            tavilySearchProvider = tavilySearchProvider,
-            alarmScheduler = alarmScheduler,
-            eventSink = agentEventSink,
-            commandExecutor = clientCommandExecutor,
-            aiMemoryDao = database.aiMemoryDao(),
-            executionPlanManager = executionPlanManager // HYBRID: Shared state machine
-        )
+    // Task 15: Remote Agent Service (Thin Client)
+    private val remoteAgentService: RemoteAgentService by lazy {
+        // Initialize Ktor client
+        val client = HttpClient(OkHttp) {
+            install(SSE)
+            install(ContentNegotiation) {
+                json(Json {
+                    prettyPrint = true
+                    isLenient = true
+                    ignoreUnknownKeys = true
+                })
+            }
+        }
+
+        // Connect to local server (reverse forwarded port)
+        // Ensure you run: adb reverse tcp:7860 tcp:7860
+        RemoteAgentService(client, agentEventSink, serverUrl = "http://10.0.2.2:7860")
     }
 
     // State observed from managers
@@ -763,29 +769,33 @@ import com.example.smarty.agent.ClientCommandExecutor
      * REASONING-PATH: AI Agent execution for complex intent.
      */
     private suspend fun processReasoningPath(content: String, userMessage: ChatMessage) {
-        // Build conversation history for context using manager
-        val conversationHistory = chatManager.getHistoryForAgent().takeLast(10)
-
-        // Get AI response
-        val result = smartyAgent.run(
-            userMessage = content,
-            conversationHistory = conversationHistory
-        )
-
-        // Mark success if agent execution succeeded
-        if (result is AgentResult.Success) {
-            chatManager.markApiCallSuccessful()
-        }
-
-        // Get inline images and clear pending
-        val inlineImages = pendingInlineImages.toList()
+        // Clear previous state
+        pendingCitations.clear()
         pendingInlineImages.clear()
+        _toolStatus.value = null
 
-        // Create assistant message from result
-        val assistantMessage = when (result) {
-            is AgentResult.Success -> ChatMessage(
+        try {
+            // Collect chunks from the remote stream
+            val responseBuilder = StringBuilder()
+
+            remoteAgentService.sendQuery(content)
+                .collect { chunk ->
+                    responseBuilder.append(chunk)
+                    // Optional: Stream partial response if needed
+                }
+
+            val fullResponse = responseBuilder.toString()
+
+            // Handle success
+            chatManager.markApiCallSuccessful()
+
+            // Get inline images and clear pending
+            val inlineImages = pendingInlineImages.toList()
+            pendingInlineImages.clear()
+
+            val assistantMessage = ChatMessage(
                 role = ChatRole.ASSISTANT,
-                content = result.response,
+                content = fullResponse,
                 citations = pendingCitations.map { citation ->
                     Citation(
                         title = citation.title,
@@ -795,19 +805,18 @@ import com.example.smarty.agent.ClientCommandExecutor
                 },
                 inlineImages = inlineImages
             )
-            is AgentResult.Error -> ChatMessage(
-                role = ChatRole.ASSISTANT,
-                content = result.message,
-                isError = true
-            )
-            is AgentResult.NoProvider -> ChatMessage(
-                role = ChatRole.ASSISTANT,
-                content = result.message,
-                isError = true
-            )
-        }
 
-        addAssistantMessage(assistantMessage, userMessage)
+            addAssistantMessage(assistantMessage, userMessage)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Remote agent execution failed", e)
+            val errorMessage = ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = getApplication<Application>().getString(R.string.error_prefix, e.message ?: "Connection error"),
+                isError = true
+            )
+            addAssistantMessage(errorMessage, userMessage)
+        }
     }
 
     /**
@@ -970,7 +979,6 @@ class AssistViewModelFactory(
     private val application: Application,
     private val repository: SmartyRepository,
     private val chatRepository: ChatRepository,
-    private val agentProvider: SmartyAgentProvider,
     private val tavilySearchProvider: TavilySearchProvider,
     private val alarmScheduler: AlarmScheduler,
     private val aiMemoryDao: com.example.smarty.data.local.AIMemoryDao

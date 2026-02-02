@@ -174,3 +174,24 @@ credentials.json
 *.db
 *.sqlite
 *.sqlite3
+# Gradle
+.gradle/
+build/
+
+# Android
+local.properties
+*.keystore
+*.jks
+
+# Environment
+.env
+.env.*
+secrets.*
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

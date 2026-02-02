@@ -33,10 +33,14 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Task 16: Production Server URL
+            buildConfigField("String", "SERVER_URL", "\"https://your-space-name.hf.space\"")
         }
         debug {
             // Keep debug builds fast - no minification
             isMinifyEnabled = false
+            // Task 16: Local Server URL (Emulator Loopback)
+            buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:7860\"")
         }
     }
     compileOptions {

@@ -6,12 +6,16 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import com.example.smarty.agent.*
 import com.example.smarty.agent.models.ScreenContext
+import com.example.smarty.agent.transport.CommandTransport
+import com.example.smarty.agent.transport.CompositeTransport
+import com.example.smarty.agent.transport.LocalCommandTransport
+import com.example.smarty.agent.transport.ShadowRemoteTransport
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.*
-import com.example.smarty.data.remote.AIService
+import com.example.smarty.data.remote.RemoteAgentService
 import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.service.AlarmScheduler
@@ -33,15 +37,20 @@ import com.example.smarty.util.mention.ThinkingModeProcessor
 import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
 import com.example.smarty.R
 import com.google.gson.Gson
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.sse.SSE
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.Json
 
 /**
  * Orchestrates the Chat feature, including AI agent interaction,
@@ -412,8 +421,24 @@ class ChatFeatureManager(
         NoteContextBuilder(mentionManager)
     }
 
-    private val agentProvider: SmartyAgentProvider by lazy {
-        SmartyAgentProvider(securePreferences, groqKeyManager)
+    // Task 15: Remote Agent Service (Thin Client)
+    // Replaces local SmartyAgentOptimized and SmartyAgentProvider
+    private val remoteAgentService: RemoteAgentService by lazy {
+        // Initialize Ktor client
+        val client = HttpClient(OkHttp) {
+            install(SSE)
+            install(ContentNegotiation) {
+                json(Json {
+                    prettyPrint = true
+                    isLenient = true
+                    ignoreUnknownKeys = true
+                })
+            }
+        }
+
+        // Connect to local server (reverse forwarded port)
+        // Ensure you run: adb reverse tcp:7860 tcp:7860
+        RemoteAgentService(client, agentEventSink, serverUrl = "http://10.0.2.2:7860")
     }
 
     // Agent Event Sink for Koog tools notifications
@@ -481,84 +506,10 @@ class ChatFeatureManager(
             // Task 5: Log valid command with safe summaries (no user content)
             logCommand(command)
 
+            // Task 7: Route commands through transport abstraction
+            // UI notifications are handled here; action commands go through transport
             when (command) {
-                // === NOTE OPERATIONS ===
-                is AgentCommand.AddNote -> {
-                    clientCommandExecutor.addNote(command.content, command.category)
-                }
-                is AgentCommand.UpdateNote -> {
-                    clientCommandExecutor.updateNote(command.noteId, command.title, command.content)
-                }
-                is AgentCommand.DeleteNote -> {
-                    clientCommandExecutor.deleteNoteById(command.noteId)
-                }
-                is AgentCommand.ArchiveNote -> {
-                    clientCommandExecutor.archiveNote(command.noteId)
-                }
-                is AgentCommand.SearchNotes -> {
-                    // Search is typically a read operation that returns data
-                    // For command emission, we log but don't execute (needs result callback)
-                    Log.d("AgentEventSink", "SearchNotes command received - read operations should use direct calls")
-                }
-                is AgentCommand.GetActiveNotes -> {
-                    Log.d("AgentEventSink", "GetActiveNotes command received - read operations should use direct calls")
-                }
-
-                // === SYSTEM & APP CONTROL ===
-                is AgentCommand.LaunchApp -> {
-                    clientCommandExecutor.launchApp(command.packageName)
-                }
-                is AgentCommand.GetSystemStatus -> {
-                    Log.d("AgentEventSink", "GetSystemStatus command received - read operations should use direct calls")
-                }
-                is AgentCommand.GetScreenContext -> {
-                    Log.d("AgentEventSink", "GetScreenContext command received - read operations should use direct calls")
-                }
-                is AgentCommand.SetTimer -> {
-                    clientCommandExecutor.setTimer(command.name, command.timeStr, command.isAlarm)
-                }
-
-                // === AUDIO CONTROL ===
-                is AgentCommand.PlayAudio -> {
-                    // PlayAudio requires finding the track first, then playing
-                    val result = clientCommandExecutor.findMatchingAudio(command.query)
-                    when (result) {
-                        is AudioFeatureManager.AudioSearchResult.ExactMatch -> {
-                            clientCommandExecutor.requestAudioPlayback(result.track)
-                        }
-                        is AudioFeatureManager.AudioSearchResult.Fallback -> {
-                            if (result.tracks.isNotEmpty()) {
-                                clientCommandExecutor.playAudioList(result.tracks)
-                            }
-                        }
-                    }
-                }
-                is AgentCommand.ControlAudio -> {
-                    when (command.action.lowercase()) {
-                        "pause" -> clientCommandExecutor.pauseAudioPlayback()
-                        "resume" -> clientCommandExecutor.resumeAudioPlayback()
-                        "stop" -> clientCommandExecutor.stopAudioPlayback()
-                        "next" -> { /* Not implemented in current executor */ }
-                        "prev" -> { /* Not implemented in current executor */ }
-                    }
-                }
-
-                // === CALENDAR ===
-                is AgentCommand.AddCalendarEvent -> {
-                    clientCommandExecutor.addCalendarEvent(
-                        title = command.title,
-                        startTimeStr = command.start,
-                        endTimeStr = command.end,
-                        description = command.description,
-                        location = command.location,
-                        isPrivate = false
-                    )
-                }
-                is AgentCommand.QueryCalendar -> {
-                    Log.d("AgentEventSink", "QueryCalendar command received - read operations should use direct calls")
-                }
-
-                // === UI NOTIFICATIONS ===
+                // === UI NOTIFICATIONS (handled locally, not through transport) ===
                 is AgentCommand.NotifyToolStarted -> {
                     onToolExecutionStarted(command.toolName, command.displayName)
                 }
@@ -573,6 +524,11 @@ class ChatFeatureManager(
                         WebCitation(proto.title, proto.url, proto.snippet)
                     }
                     onCitationsFound(citations)
+                }
+
+                // === ALL OTHER COMMANDS (delegated to transport) ===
+                else -> {
+                    commandTransport.dispatch(command)
                 }
             }
         }
@@ -918,20 +874,13 @@ class ChatFeatureManager(
         }
     }
 
-    private val smartyAgent: SmartyAgentOptimized by lazy {
-        SmartyAgentOptimized(
-            agentProvider = agentProvider,
-            repository = repository,
-            tavilySearchProvider = tavilySearchProvider,
-            eventSink = agentEventSink,
-            commandExecutor = clientCommandExecutor,
-            aiMemoryDao = database.aiMemoryDao(),
-            executionPlanManager = executionPlanManager,
-            logger = androidLogger,
-            stringProvider = AndroidStringProvider(application),
-            historyCompressor = historyCompressor,
-            piiMasker = piiMasker,
-            rateLimiter = rateLimiter
+    // Task 7: Command transport for delivering validated commands to execution
+    // Task 8: CompositeTransport with shadow mode disabled by default
+    // To enable shadow mode for debugging, change shadow = null to shadow = ShadowRemoteTransport()
+    private val commandTransport: CommandTransport by lazy {
+        CompositeTransport(
+            primary = LocalCommandTransport(clientCommandExecutor),
+            shadow = null  // Disabled by default; set to ShadowRemoteTransport() for debugging
         )
     }
 
@@ -1043,9 +992,8 @@ class ChatFeatureManager(
     }
 
     fun syncGroqKeys() {
-        scope.launch {
-            agentProvider.syncGroqKeys()
-        }
+        // Keys managed on server or via GroqKeyManager directly if needed locally
+        // scope.launch { agentProvider.syncGroqKeys() }
     }
 
     fun updateMentionState(text: String, cursorPosition: Int) {
@@ -1177,123 +1125,60 @@ class ChatFeatureManager(
     }
 
     private suspend fun processReasoningPath(content: String, userMessage: ChatMessage) {
-        val history = chatManager.chatMessages.value
-            .filter { it.role != ChatRole.SYSTEM }
-            .map { msg ->
-                val role = when (msg.role) {
-                    ChatRole.USER -> "User"
-                    ChatRole.ASSISTANT -> "Assistant"
-                    else -> "System"
-                }
-
-                // ENHANCEMENT: Include citations in history so agent can "remember" sources
-                val contentWithContext = buildString {
-                    append(msg.content)
-                    if (msg.citations.isNotEmpty()) {
-                        append("\n\n[Context: Referenced Sources]")
-                        msg.citations.take(5).forEach { citation ->
-                            append("\n- ${citation.title}: ${citation.url}")
-                        }
-                    }
-                }
-
-                Pair(role, contentWithContext)
-            }
-
+        // Clear previous state
         pendingCitations.clear()
+        pendingInlineImages.clear()
         _mentionState.value = MentionState()
 
-        val parsedMentions = MentionParser.parseAllMentions(content)
-        val taggedNoteContext = if (parsedMentions.isNotEmpty()) {
-            val resolvedMentions = mentionManager.resolveMentions(parsedMentions)
-            noteContextBuilder.buildContext(resolvedMentions)
-        } else null
+        // Prepare UI for thinking
+        chatManager.setProcessing(true)
 
-        val thinkingModeContext = if (thinkingModeProcessor.hasThinkingCommand(content) && taggedNoteContext != null) {
-            thinkingModeProcessor.processThinkingMode(content, taggedNoteContext.resolvedMentions.flatMap { it.notes })
-        } else null
+        // Task 15: Thin Client Mode
+        // We delegate all reasoning to the Remote Agent Service via SSE.
+        // Local logic (history compression, context building) is handled by the server now.
 
-        val cleanedContent = if (parsedMentions.isNotEmpty()) MentionParser.cleanMessage(content, parsedMentions) else content
-        val finalUserMessage = if (!_isThinkingModeEnabled.value) "/no_think $cleanedContent" else cleanedContent
+        try {
+            // Collect chunks from the remote stream
+            val responseBuilder = StringBuilder()
 
-        val result = smartyAgent.run(
-            userMessage = finalUserMessage,
-            conversationHistory = history,
-            taggedNoteContext = taggedNoteContext,
-            thinkingModeContext = thinkingModeContext,
-            isThinkingModeEnabled = _isThinkingModeEnabled.value
-        )
-
-        handleAgentResult(result, userMessage)
-    }
-
-    private suspend fun handleAgentResult(result: AgentResult, userMessage: ChatMessage) {
-        when (result) {
-            is AgentResult.Success -> {
-                chatManager.markApiCallSuccessful()
-                val filteredResponse = filterPlanningText(result.response) ?: return
-                val (responseWithoutSuggestions, suggestions) = extractSuggestionsFromResponse(filteredResponse)
-                val (cleanedResponse, clarificationRequest) = extractClarificationFromResponse(responseWithoutSuggestions)
-
-                val citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) }
-                pendingCitations.clear()
-                val inlineImages = pendingInlineImages.toList()
-                pendingInlineImages.clear()
-
-                val parsedThinking = ThinkingParser.parse(cleanedResponse)
-
-                val assistantMessage = ChatMessage(
-                    role = ChatRole.ASSISTANT,
-                    content = parsedThinking.answer,
-                    thinkingContent = parsedThinking.thinking,
-                    suggestions = suggestions,
-                    citations = citations,
-                    inlineImages = inlineImages,
-                    clarificationRequest = clarificationRequest
-                )
-
-                chatManager.addAssistantMessage(assistantMessage)
-                chatManager.saveMessagePair(userMessage, assistantMessage, true)
-
-                if (settingsFeatureManager.isSoundEnabled()) {
-                    completionSoundManager.playAgentCompletionSound(true)
+            remoteAgentService.sendQuery(content)
+                .collect { chunk ->
+                    responseBuilder.append(chunk)
+                    // Optional: Stream partial response to UI if supported by chatManager
                 }
+
+            val fullResponse = responseBuilder.toString()
+
+            // Handle success
+            chatManager.markApiCallSuccessful()
+
+            val assistantMessage = ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = fullResponse,
+                citations = pendingCitations.toList(),
+                inlineImages = pendingInlineImages.toList()
+            )
+
+            chatManager.addAssistantMessage(assistantMessage)
+            chatManager.saveMessagePair(userMessage, assistantMessage, true)
+
+            if (settingsFeatureManager.isSoundEnabled()) {
+                completionSoundManager.playAgentCompletionSound(true)
             }
-            is AgentResult.Error -> {
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = application.getString(R.string.error_prefix, result.message), isError = true))
-            }
-            is AgentResult.NoProvider -> {
-                chatManager.addAssistantMessage(ChatMessage(role = ChatRole.ASSISTANT, content = application.getString(com.example.smarty.R.string.api_key_required)))
-            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Remote agent execution failed", e)
+            chatManager.addAssistantMessage(ChatMessage(
+                role = ChatRole.ASSISTANT,
+                content = application.getString(R.string.error_prefix, e.message ?: "Connection error"),
+                isError = true
+            ))
         }
     }
 
-    private fun filterPlanningText(text: String): String? {
-        if (text.isBlank()) return null
-        return text.replace(Regex("<plan>.*?</plan>", RegexOption.DOT_MATCHES_ALL), "").trim()
-    }
-
-    private fun extractSuggestionsFromResponse(text: String): Pair<String, List<String>> {
-        val suggestions = mutableListOf<String>()
-        val suggestionRegex = Regex("\\[suggestion:(.*?)\\]")
-        val cleanedText = suggestionRegex.replace(text) { matchResult ->
-            suggestions.add(matchResult.groupValues[1].trim())
-            ""
-        }.trim()
-        return Pair(cleanedText, suggestions)
-    }
-
-    private fun extractClarificationFromResponse(text: String): Pair<String, ClarificationRequest?> {
-        val clarificationRegex = Regex("\\[clarification:(.*?)\\]")
-        val match = clarificationRegex.find(text)
-        return if (match != null) {
-            val question = match.groupValues[1].trim()
-            val cleanedText = text.replace(match.value, "").trim()
-            Pair(cleanedText, ClarificationRequest(question = question, options = emptyList()))
-        } else {
-            Pair(text, null)
-        }
-    }
+    // Removed handleAgentResult as it's specific to the old SmartyAgentOptimized return type
+    // Removed legacy helper methods (filterPlanningText, extractSuggestions, etc.)
+    // as the server now handles response formatting.
 
     fun navigateTo(screen: String) {
         scope.launch {

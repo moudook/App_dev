@@ -10,7 +10,6 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
-import com.example.smarty.agent.SmartyAgentProvider
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.remote.providers.TavilySearchProvider
@@ -56,7 +55,6 @@ class AssistActivity : ComponentActivity() {
         TavilySearchProvider(httpClient, Gson())
     }
     private val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler.getInstance(application) }
-    private val agentProvider: SmartyAgentProvider by lazy { SmartyAgentProvider(securePreferences, groqKeyManager) }
 
     // Use ViewModel factory for dependency injection
     private val viewModel: AssistViewModel by viewModels {
@@ -64,7 +62,6 @@ class AssistActivity : ComponentActivity() {
             application,
             repository,
             chatRepository,
-            agentProvider,
             tavilySearchProvider,
             alarmScheduler,
             database.aiMemoryDao()
