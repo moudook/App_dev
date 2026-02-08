@@ -4,7 +4,6 @@ import android.util.Log
 import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.SmartyRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -34,142 +33,11 @@ import java.util.UUID
  */
 class WorkflowManager(
     private val repository: SmartyRepository,
-    private val tavilySearchProvider: TavilySearchProvider,
     private val scope: CoroutineScope,
     private val onStatusUpdate: (String) -> Unit = {}
 ) {
     companion object {
         private const val TAG = "WorkflowManager"
-        private const val MAX_PARALLEL_SEARCHES = 5 // Limit concurrent API calls
-        private const val SEARCH_TIMEOUT_MS = 30_000L // 30 seconds per search
-    }
-
-    /**
-     * Conduct multi-step web research and save a synthesized report as a note.
-     * OPTIMIZATION: Parallel search execution with concurrency limits for 3x-5x faster research.
-     *
-     * @param topic Main research topic
-     * @param apiKey Tavily API key for web search
-     * @param focusAreas Optional list of specific aspects to research
-     * @param searchDepth Number of queries to execute (default 3, max 10)
-     * @param onComplete Callback with the generated note
-     */
-    fun performDeepResearch(
-        topic: String,
-        apiKey: String,
-        focusAreas: List<String>? = null,
-        searchDepth: Int = 3,
-        onComplete: (Note) -> Unit = {}
-    ) {
-        val context = com.example.smarty.SmartyApplication.appInstance
-        scope.launch {
-            try {
-                if (topic.isBlank()) {
-                    onStatusUpdate(context.getString(com.example.smarty.R.string.error_enter_topic))
-                    return@launch
-                }
-
-                if (apiKey.isBlank()) {
-                    onStatusUpdate(context.getString(com.example.smarty.R.string.error_web_search_key))
-                    return@launch
-                }
-
-                onStatusUpdate(context.getString(com.example.smarty.R.string.status_researching, topic))
-                Log.i(TAG, "Deep research initiated: $topic (depth: $searchDepth)")
-
-                // Generate diverse queries for comprehensive research
-                val queries = mutableListOf(topic)
-                focusAreas?.forEach { queries.add("$topic $it") }
-
-                // Safety limit on query count
-                val safeDepth = searchDepth.coerceIn(1, 10)
-                val targetQueries = queries.distinct().take(safeDepth)
-                onStatusUpdate(context.getString(com.example.smarty.R.string.status_executing_queries, targetQueries.size))
-
-                // Execute searches in parallel with concurrency limit
-                val results = coroutineScope {
-                    targetQueries.chunked(MAX_PARALLEL_SEARCHES).flatMap { batch ->
-                        batch.map { query ->
-                            async {
-                                try {
-                                    kotlinx.coroutines.withTimeout(SEARCH_TIMEOUT_MS) {
-                                        val result = tavilySearchProvider.search(apiKey, query)
-                                        if (result.success) {
-                                            query to result
-                                        } else {
-                                            Log.w(TAG, "Search failed for: $query - ${result.error}")
-                                            query to null
-                                        }
-                                    }
-                                } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                                    Log.e(TAG, "Search timeout for: $query")
-                                    query to null
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Search query failed: $query", e)
-                                    query to null
-                                }
-                            }
-                        }.awaitAll()
-                    }
-                }
-
-                val findings = mutableListOf<String>()
-                val sources = mutableSetOf<String>()
-
-                results.forEach { (query, result) ->
-                    if (result != null) {
-                        val rawContent = result.answer ?: result.results.firstOrNull()?.snippet ?: context.getString(com.example.smarty.R.string.no_summary_found)
-                        val content = truncateContent(rawContent, 300)
-                        findings.add("### Focus: $query\n$content")
-                        result.results.forEach { sources.add(it.url) }
-                    }
-                }
-
-                if (findings.isEmpty()) {
-                    Log.w(TAG, "No findings for research topic: $topic")
-                    onStatusUpdate(context.getString(com.example.smarty.R.string.error_no_results))
-                    return@launch
-                }
-
-                // Synthesize the report with better formatting
-                val reportContent = buildString {
-                    appendLine(context.getString(com.example.smarty.R.string.research_report_title, topic))
-                    appendLine(context.getString(com.example.smarty.R.string.research_executive_summary))
-                    appendLine(context.getString(com.example.smarty.R.string.research_synthesis_info, targetQueries.size))
-
-                    appendLine(context.getString(com.example.smarty.R.string.research_key_findings))
-                    findings.forEach { finding ->
-                        appendLine(finding)
-                        appendLine()
-                    }
-
-                    appendLine(context.getString(com.example.smarty.R.string.research_reference_sources))
-                    sources.forEach { appendLine("- $it") }
-
-                    appendLine(context.getString(com.example.smarty.R.string.research_footer, java.time.LocalDateTime.now().toString()))
-                }
-
-                // Save as a new note
-                val note = Note(
-                    id = UUID.randomUUID().toString(),
-                    title = context.getString(com.example.smarty.R.string.research_note_title, topic),
-                    content = reportContent,
-                    type = NoteType.DOCUMENT,
-                    isAiCreated = true,
-                    processingStatus = ProcessingStatus.COMPLETED,
-                    updatedAt = System.currentTimeMillis()
-                )
-
-                repository.insertNote(note)
-                Log.i(TAG, "Deep research completed: ${note.title}")
-                onStatusUpdate(context.getString(com.example.smarty.R.string.status_report_generated, note.title))
-                onComplete(note)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "Deep research failed", e)
-                onStatusUpdate(context.getString(com.example.smarty.R.string.error_research_failed))
-            }
-        }
     }
 
     /**

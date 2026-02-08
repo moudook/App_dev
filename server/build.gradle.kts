@@ -45,6 +45,7 @@ dependencies {
 
     // KOOG Framework (for future agent hosting)
     implementation(libs.koog.agents)
+    implementation(libs.koog.agents.planner)
 
     // Kotlinx
     implementation(libs.kotlinx.serialization.json)

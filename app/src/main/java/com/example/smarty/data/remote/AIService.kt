@@ -4,12 +4,9 @@ import android.app.Application
 import android.util.Log
 import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SecurePreferences
-import com.google.gson.annotations.SerializedName
 import com.example.smarty.util.HttpClientProvider
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.TimeoutCancellationException
+import com.google.gson.annotations.SerializedName
+import kotlinx.coroutines.*
 import java.io.IOException
 
 // ==================== Response Models ====================
@@ -57,39 +54,6 @@ data class KeyTerm(
 
 // ==================== API Request/Response Models ====================
 
-data class GeminiRequest(
-    val contents: List<GeminiContent>,
-    val generationConfig: GeminiGenerationConfig = GeminiGenerationConfig()
-)
-
-data class GeminiContent(
-    val parts: List<GeminiPart>
-)
-
-data class GeminiPart(
-    val text: String
-)
-
-data class GeminiGenerationConfig(
-    val temperature: Float = 0.4f,
-    val maxOutputTokens: Int = 300,
-    val topP: Float = 0.8f,
-    val topK: Int = 40
-)
-
-data class HuggingFaceRequest(
-    val inputs: String,
-    val parameters: HuggingFaceParams = HuggingFaceParams()
-)
-
-data class HuggingFaceParams(
-    @SerializedName("max_new_tokens")
-    val maxNewTokens: Int = 300,
-    val temperature: Float = 0.4f,
-    @SerializedName("return_full_text")
-    val returnFullText: Boolean = false
-)
-
 data class OpenAIRequest(
     val model: String,
     val messages: List<OpenAIMessage>,
@@ -97,8 +61,8 @@ data class OpenAIRequest(
     @SerializedName("max_tokens")
     val maxTokens: Int = 300,
     @SerializedName("enable_thinking")
-    val enableThinking: Boolean? = null,  // For reasoning models like Falcon-H1R-7B
-    val stream: Boolean? = null  // Enable SSE streaming for real-time token output
+    val enableThinking: Boolean? = null,
+    val stream: Boolean? = null
 )
 
 data class OpenAIMessage(
@@ -122,14 +86,14 @@ data class OpenAIMessageResponse(
 
 /**
  * AI Service facade that coordinates AI operations.
+ * Thin Client Version: Cloud operations are offloaded to the server.
+ * Local operations are restricted to LOCAL_PC.
  *
  * This is a thin facade that delegates to specialized handlers:
- * - [AIProviderOrchestrator]: Provider management and key rotation
+ * - [AIProviderOrchestrator]: Provider management
  * - [ContentAnalyzer]: Content and document analysis
  *
- * Note: Agent chat is now handled by SmartyAgent using Koog framework.
- *
- * @property securePreferences Secure storage for API keys and settings
+ * @property securePreferences Secure storage for settings
  */
 class AIService(private val application: Application, private val securePreferences: SecurePreferences) {
 
@@ -172,7 +136,7 @@ class AIService(private val application: Application, private val securePreferen
 
     /**
      * Simple chat for non-agent AI interactions (summarization, title compression, etc.).
-     * Uses the first available provider with API key.
+     * Thin Client: Restricted to LOCAL_PC for local execution.
      *
      * @param systemPrompt The system instructions
      * @param userPrompt The user's message
@@ -186,39 +150,38 @@ class AIService(private val application: Application, private val securePreferen
                 val providers = orchestrator.getOrderedProviders()
                 val configs = orchestrator.getAllProviderConfigs()
 
-                for (provider in providers) {
-                    val config = configs[provider]
-                    
-                    // Respect the user's "Enabled" setting
-                    if (!orchestrator.isProviderAvailable(config)) {
-                        continue
-                    }
+                // Thin Client only supports LOCAL_PC for local simpleChat
+                val provider = providers.find { it == AIProvider.LOCAL_PC } ?: throw IllegalStateException("No local AI provider available")
 
-                    val providerInstance = orchestrator.getProvider(provider)
-                    val model = orchestrator.getModelForProvider(provider)
-                    
-                    val keys = config?.apiKeys ?: emptyList()
-                    val keyToUse = if (provider == AIProvider.LOCAL_PC) "local_pc_no_key" else keys.firstOrNull() ?: continue
-                    
-                    Log.i(TAG, "simpleChat: Attempting $provider with model $model")
+                val config = configs[provider]
 
-                    val result = providerInstance.chat(
-                        context = application,
-                        systemPrompt = systemPrompt,
-                        userPrompt = userPrompt,
-                        apiKey = keyToUse,
-                        model = model
-                    )
-
-                    if (result != null) {
-                        Log.d(TAG, "simpleChat succeeded with $provider")
-                        return@withTimeout result
-                    } else {
-                        Log.w(TAG, "simpleChat: $provider returned null result")
-                    }
+                // Respect the user's "Enabled" setting
+                if (!orchestrator.isProviderAvailable(config)) {
+                    throw IllegalStateException("Local AI provider is disabled")
                 }
 
-                throw IllegalStateException("No AI provider available for chat")
+                val providerInstance = orchestrator.getProvider(provider)
+                val model = orchestrator.getModelForProvider(provider)
+
+                val keyToUse = "local_pc_no_key"
+
+                Log.i(TAG, "simpleChat: Attempting $provider with model $model")
+
+                val result = providerInstance.chat(
+                    context = application,
+                    systemPrompt = systemPrompt,
+                    userPrompt = userPrompt,
+                    apiKey = keyToUse,
+                    model = model
+                )
+
+                if (result != null) {
+                    Log.d(TAG, "simpleChat succeeded with $provider")
+                    return@withTimeout result
+                } else {
+                    Log.w(TAG, "simpleChat: $provider returned null result")
+                    throw IllegalStateException("Local AI provider returned no result")
+                }
             }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "simpleChat timed out after ${HttpClientProvider.READ_TIMEOUT_SECONDS} seconds")
@@ -228,44 +191,41 @@ class AIService(private val application: Application, private val securePreferen
 
     /**
      * Check if any AI provider is available for processing.
-     * Returns true if at least one provider is enabled and available.
-     * LOCAL_PC doesn't need API keys - it uses local server.
+     * Thin Client: Checks if LOCAL_PC is enabled and available.
      */
     fun isAiAvailable(): Boolean {
-        val providers = orchestrator.getOrderedProviders()
-        val configs = orchestrator.getAllProviderConfigs()
-
-        return providers.any { provider ->
-            val config = configs[provider]
-            // Use orchestrator's availability check which handles LOCAL_PC correctly
-            orchestrator.isProviderAvailable(config)
-        }
+        // Thin Client primarily relies on server-side AI, but locally we only care about LOCAL_PC
+        val config = orchestrator.getAllProviderConfigs()[AIProvider.LOCAL_PC]
+        return orchestrator.isProviderAvailable(config)
     }
 
     /**
-     * Test if an API key is valid by making a simple analysis request.
+     * Test if an API key is valid.
+     * Thin Client: Not applicable for cloud providers on the client.
      */
     suspend fun testApiKey(provider: AIProvider, apiKey: String): Boolean = withContext(Dispatchers.IO) {
-        Log.i(TAG, "Testing $provider API key...")
+        if (provider != AIProvider.LOCAL_PC) return@withContext false
+
+        Log.i(TAG, "Testing LOCAL_PC connection...")
 
         try {
             val providerInstance = orchestrator.getProvider(provider)
             val model = orchestrator.getModelForProvider(provider)
-            val testContent = "Test: Remember to buy groceries tomorrow"
+            val testContent = "Test connection"
 
             val result = providerInstance.analyzeContent(
                 context = application,
                 content = testContent,
                 apiKey = apiKey,
                 model = model,
-                systemPrompt = ContentAnalyzer.SYSTEM_PROMPT
+                systemPrompt = "Respond with 'ok'"
             )
 
             val success = result?.success == true
-            Log.i(TAG, "API key test result: ${if (success) "VALID" else "INVALID"}")
+            Log.i(TAG, "Connection test result: ${if (success) "SUCCESS" else "FAILED"}")
             success
         } catch (e: Exception) {
-            Log.e(TAG, "API key test failed: ${e.message}")
+            Log.e(TAG, "Connection test failed: ${e.message}")
             false
         }
     }

@@ -12,13 +12,11 @@ import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.local.SmartyDatabase
-import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.ui.screens.AssistOverlayScreen
 import com.example.smarty.ui.theme.SmartyTheme
-import com.example.smarty.util.api.GroqKeyManager
 import com.example.smarty.viewmodel.AssistViewModel
 import com.example.smarty.viewmodel.AssistViewModelFactory
 import com.google.gson.Gson
@@ -46,14 +44,6 @@ class AssistActivity : ComponentActivity() {
         SmartyRepository(database.noteDao(), database.categoryDao(), database.calendarDao(), database.noteVersionDao())
     }
     private val chatRepository by lazy { ChatRepository(database.chatDao()) }
-    private val groqKeyManager: GroqKeyManager by lazy { GroqKeyManager.getInstance(application) }
-    private val tavilySearchProvider: TavilySearchProvider by lazy {
-        val httpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .build()
-        TavilySearchProvider(httpClient, Gson())
-    }
     private val alarmScheduler: AlarmScheduler by lazy { AlarmScheduler.getInstance(application) }
 
     // Use ViewModel factory for dependency injection
@@ -62,7 +52,6 @@ class AssistActivity : ComponentActivity() {
             application,
             repository,
             chatRepository,
-            tavilySearchProvider,
             alarmScheduler,
             database.aiMemoryDao()
         )

@@ -173,13 +173,9 @@ object ServiceLocator {
     fun provideSettingsFeatureManager(application: Application): SettingsFeatureManager {
         return settingsFeatureManager ?: synchronized(this) {
             val securePreferences = SecurePreferences.getInstance(application)
-            val aiService = AIService(application, securePreferences)
-            val rateLimiter = com.example.smarty.util.api.RateLimiter.getInstance(application)
 
             SettingsFeatureManager(
                 securePreferences = securePreferences,
-                aiService = aiService,
-                rateLimiter = rateLimiter,
                 scope = applicationScope
             ).also { settingsFeatureManager = it }
         }
@@ -210,23 +206,11 @@ object ServiceLocator {
     // ChatFeatureManager requires a lot of dependencies and ViewModelScope usually
     // We might need to factory it per ViewModel or keep it shared if it holds state
     fun provideChatFeatureManager(application: Application, scope: CoroutineScope): ChatFeatureManager {
-        // ChatFeatureManager is complex and often tied to specific scopes/lifecycles
-        // For shared state, we might want a singleton holder, but for scope we need to be careful.
-        // Given the existing architecture, it was lazy in SmartyViewModel.
-        // Let's create a new one if null, using the provided scope (usually ViewModelScope)
-        // OR better, use the applicationScope for the manager itself if it survives screens.
-
         return chatFeatureManager ?: synchronized(this) {
             val database = SmartyDatabase.getDatabase(application)
             val securePreferences = SecurePreferences.getInstance(application)
             val repo = provideRepository(application)
             val chatRepo = com.example.smarty.data.repository.ChatRepository(database.chatDao())
-            val groqKeyManager = com.example.smarty.util.api.GroqKeyManager.getInstance(application)
-            val httpClient = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-            val tavily = com.example.smarty.data.remote.providers.TavilySearchProvider(httpClient, com.google.gson.Gson())
 
             val settingsFM = provideSettingsFeatureManager(application)
             val noteOps = provideNoteOperationsManager(application)
@@ -234,15 +218,13 @@ object ServiceLocator {
             val completionSound = com.example.smarty.util.CompletionSoundManager.getInstance(application)
             val alarmScheduler = com.example.smarty.service.AlarmScheduler.getInstance(application)
             val executionPlan = com.example.smarty.viewmodel.managers.ExecutionPlanManager()
-            val rateLimiter = com.example.smarty.util.api.RateLimiter.getInstance(application)
             val memoryFM = provideMemoryFeatureManager(application)
-            val searchFM = provideSearchFeatureManager(application) // Need to implement this
+            val searchFM = provideSearchFeatureManager(application)
             val audioFM = provideAudioFeatureManager(application)
             val calendarFM = provideCalendarFeatureManager(application)
             val styleFM = com.example.smarty.viewmodel.managers.StyleFeatureManager()
             val workflowManager = com.example.smarty.viewmodel.managers.WorkflowManager(
                 repository = repo,
-                tavilySearchProvider = tavily,
                 scope = applicationScope,
                 onStatusUpdate = { /* handled via callback later */ }
             )
@@ -258,15 +240,12 @@ object ServiceLocator {
                 repository = repo,
                 database = database,
                 securePreferences = securePreferences,
-                groqKeyManager = groqKeyManager,
-                tavilySearchProvider = tavily,
                 settingsFeatureManager = settingsFM,
                 noteOperationsManager = noteOps,
                 systemFeatureManager = systemFM,
                 completionSoundManager = completionSound,
                 alarmScheduler = alarmScheduler,
                 executionPlanManager = executionPlan,
-                rateLimiter = rateLimiter,
                 memoryFeatureManager = memoryFM,
                 searchFeatureManager = searchFM,
                 audioFeatureManager = audioFM,
@@ -295,18 +274,12 @@ object ServiceLocator {
 
             val searchHistory = com.example.smarty.data.local.SearchHistoryManager(application)
             val securePreferences = SecurePreferences.getInstance(application)
-            val httpClient = okhttp3.OkHttpClient.Builder()
-                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .build()
-            val tavily = com.example.smarty.data.remote.providers.TavilySearchProvider(httpClient, com.google.gson.Gson())
 
             SearchFeatureManager(
                 repository = repo,
                 allNotes = allNotesFlow,
                 searchHistoryManager = searchHistory,
-                securePreferences = securePreferences,
-                tavilySearchProvider = tavily
+                securePreferences = securePreferences
             ).also { searchFeatureManager = it }
         }
     }

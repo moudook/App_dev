@@ -257,15 +257,6 @@ data class PreferencesBackup(
     @SerializedName("auto_backup_interval_days")
     val autoBackupIntervalDays: Int,
 
-    @SerializedName("provider_priority_order")
-    val providerPriorityOrder: List<String>? = null,
-
-    @SerializedName("provider_configs")
-    val providerConfigs: Map<String, AIProviderConfigBackup>? = null,
-
-    @SerializedName("tavily_api_keys")
-    val tavilyApiKeys: List<String>? = null,
-
     @SerializedName("local_pc_ip")
     val localPcIp: String? = null,
 
@@ -279,17 +270,7 @@ data class PreferencesBackup(
     val shakeSensitivity: Float? = null,
 
     @SerializedName("sound_enabled")
-    val soundEnabled: Boolean? = null,
-
-    @SerializedName("groq_dynamic_models")
-    val groqDynamicModels: List<Pair<String, String>>? = null,
-
-    // Legacy fields for backward compatibility
-    @SerializedName("encrypted_gemini_keys")
-    val encryptedGeminiKeys: List<String>? = null,
-
-    @SerializedName("encrypted_hugging_face_keys")
-    val encryptedHuggingFaceKeys: List<String>? = null
+    val soundEnabled: Boolean? = null
 )
 
 /**

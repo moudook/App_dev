@@ -26,6 +26,7 @@ data class HealthResponse(
  *
  * Endpoints:
  * - GET /health - Returns server health status
+ * - GET /v1/models - Compatibility endpoint for client connection tests
  */
 fun Application.configureHealthRoutes() {
     routing {
@@ -49,6 +50,25 @@ fun Application.configureHealthRoutes() {
                     protocolVersion = "AgentCommand.$protocolCheck"
                 )
             )
+        }
+
+        /**
+         * Compatibility endpoint for Android App's "Test Connection" feature.
+         * The app expects an OpenAI-compatible /v1/models endpoint to verify connectivity.
+         */
+        get("/v1/models") {
+            val response = mapOf(
+                "object" to "list",
+                "data" to listOf(
+                    mapOf(
+                        "id" to "smarty-server-agent",
+                        "object" to "model",
+                        "created" to System.currentTimeMillis() / 1000,
+                        "owned_by" to "smarty-server"
+                    )
+                )
+            )
+            call.respond(response)
         }
     }
 }

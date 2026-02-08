@@ -7,12 +7,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.AIProviderConfig
-import com.example.smarty.ui.screens.SettingsScreen
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar
-import com.example.smarty.util.api.KeyUsageStats
+import com.example.smarty.ui.screens.SettingsScreen
 
 /**
  * Settings as a full-page overlay.
@@ -24,30 +21,13 @@ fun SettingsSheet(
     sheetState: SheetState, // Keep for API compatibility, but not used
     onDismiss: () -> Unit,
     // All settings props
-    providerConfigs: Map<AIProvider, AIProviderConfig>,
-    providerPriorityOrder: List<AIProvider>,
     isDarkTheme: Boolean,
-    onAddApiKey: (AIProvider, String) -> Unit,
-    onRemoveApiKey: (AIProvider, String) -> Unit,
-    onUpdateApiKey: (AIProvider, String, String) -> Unit,
-    onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
-    onSetSelectedModel: (AIProvider, String) -> Unit,
-    onSetProviderPriority: (List<AIProvider>) -> Unit,
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     onToggleTheme: (Boolean) -> Unit,
-    tavilyApiKeys: List<String>,
-    onAddTavilyApiKey: (String) -> Unit,
-    onRemoveTavilyApiKey: (String) -> Unit,
-    isTavilyEnabled: Boolean = true,
-    onSetTavilyEnabled: (Boolean) -> Unit = {},
     cacheSizeBytes: Long,
     onClearCache: () -> Unit,
     isClearingCache: Boolean,
     shakeSensitivity: Float,
     onShakeSensitivityChange: (Float) -> Unit,
-    groqKeyUsageStats: List<KeyUsageStats>,
-    onRefreshModels: (AIProvider) -> Unit,
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
     onSignOut: () -> Unit,
     // AI Memory
     aiMemories: List<AIMemory> = emptyList(),
@@ -65,6 +45,8 @@ fun SettingsSheet(
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
+    onNavigateToCoinToss: () -> Unit = {},
+    onNavigateToTicTacToe: () -> Unit = {},
     // Local LLM Server
     isLocalPCEnabled: Boolean = false,
     onSetLocalPCEnabled: (Boolean) -> Unit = {},
@@ -74,6 +56,7 @@ fun SettingsSheet(
     onSetLocalServerIP: (String) -> Unit = {},
     onSetLocalServerPort: (String) -> Unit = {},
     onSetLocalServerUseHttps: (Boolean) -> Unit = {},
+    onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _, _, _ -> },
     // Embedded content for sub-sheets
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
 ) {
@@ -89,34 +72,16 @@ fun SettingsSheet(
             .background(MaterialTheme.colorScheme.background)
     ) {
         SettingsScreen(
-            providerConfigs = providerConfigs,
-            providerPriorityOrder = providerPriorityOrder,
             isDarkTheme = isDarkTheme,
             onBackClick = onDismiss,
-            onAddApiKey = onAddApiKey,
-            onRemoveApiKey = onRemoveApiKey,
-            onUpdateApiKey = onUpdateApiKey,
-            onSetProviderEnabled = onSetProviderEnabled,
-            onSetSelectedModel = onSetSelectedModel,
-            onSetProviderPriority = onSetProviderPriority,
-            onTestApiKey = onTestApiKey,
             onToggleTheme = onToggleTheme,
-            tavilyApiKeys = tavilyApiKeys,
-            onAddTavilyApiKey = onAddTavilyApiKey,
-            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
-            isTavilyEnabled = isTavilyEnabled,
-            onSetTavilyEnabled = onSetTavilyEnabled,
             cacheSizeBytes = cacheSizeBytes,
             onClearCache = onClearCache,
             isClearingCache = isClearingCache,
             shakeSensitivity = shakeSensitivity,
             onShakeSensitivityChange = onShakeSensitivityChange,
-            groqKeyUsageStats = groqKeyUsageStats,
-            onRefreshModels = onRefreshModels,
-            getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,
             backupContent = backupContent,
-            // AI Memory
             aiMemories = aiMemories,
             onDeleteAIMemory = onDeleteAIMemory,
             onClearAllAIMemories = onClearAllAIMemories,
@@ -140,7 +105,8 @@ fun SettingsSheet(
             localServerUseHttps = localServerUseHttps,
             onSetLocalServerIP = onSetLocalServerIP,
             onSetLocalServerPort = onSetLocalServerPort,
-            onSetLocalServerUseHttps = onSetLocalServerUseHttps
+            onSetLocalServerUseHttps = onSetLocalServerUseHttps,
+            onTestLocalServer = onTestLocalServer
         )
     }
 }

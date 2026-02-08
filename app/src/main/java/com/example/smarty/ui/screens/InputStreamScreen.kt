@@ -91,7 +91,6 @@ import com.example.smarty.ui.components.sheets.SettingsSheet
 import com.example.smarty.ui.components.AnimatedCategoryFilterChip
 import com.example.smarty.ui.components.AddEventDialog
 import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.local.AIProvider
 import com.example.smarty.ui.screens.inputstream.CalendarContent
 import com.example.smarty.ui.screens.inputstream.ChatHistoryContent
 import com.example.smarty.ui.screens.inputstream.ChatModeContent
@@ -100,8 +99,6 @@ import com.example.smarty.ui.screens.inputstream.SelectionModeToolbar
 import com.example.smarty.ui.screens.inputstream.StacksContent
 import com.example.smarty.ui.screens.inputstream.ArchiveContent
 import com.example.smarty.ui.screens.inputstream.SettingsContent
-import com.example.smarty.data.local.AIProviderConfig
-import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.util.SpeechToTextState
 import com.example.smarty.util.rememberSpeechToText
 import com.example.smarty.data.model.SmartyTimer
@@ -240,32 +237,14 @@ fun InputStreamScreen(
     onCategoryClick: (Category) -> Unit = {},
     onSyncCategoryCounts: () -> Unit = {},  // Sync category counts when entering stacks view
 
-    // Settings props for Settings sheet
-    providerConfigs: Map<AIProvider, AIProviderConfig> = emptyMap(),
-    providerPriorityOrder: List<AIProvider> = emptyList(),
-    onAddApiKey: (AIProvider, String) -> Unit = { _, _ -> },
-    onRemoveApiKey: (AIProvider, String) -> Unit = { _, _ -> },
-    onUpdateApiKey: (AIProvider, String, String) -> Unit = { _, _, _ -> },
-    onSetProviderEnabled: (AIProvider, Boolean) -> Unit = { _, _ -> },
-    onSetSelectedModel: (AIProvider, String) -> Unit = { _, _ -> },
-    onSetProviderPriority: (List<AIProvider>) -> Unit = {},
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit = { _, _, _ -> },
-    tavilyApiKeys: List<String> = emptyList(),
-    onAddTavilyApiKey: (String) -> Unit = {},
-    onRemoveTavilyApiKey: (String) -> Unit = {},
-    isTavilyEnabled: Boolean = true,
-    onSetTavilyEnabled: (Boolean) -> Unit = {},
+    // Settings props
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
     shakeSensitivity: Float = 0.63f,
     onShakeSensitivityChange: (Float) -> Unit = {},
-    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
-    onRefreshModels: (AIProvider) -> Unit = {},
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { emptyList() },
     onSignOut: () -> Unit = {},
     // Settings sub-sheet content
-    aiConfigContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit = {},
     // AI Memory
     aiMemories: List<AIMemory> = emptyList(),
@@ -294,6 +273,7 @@ fun InputStreamScreen(
     onSetLocalServerPort: (String) -> Unit = {},
     onSetLocalServerUseHttps: (Boolean) -> Unit = {},
     onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _, _, _ -> },
+
     // Shake Blocking
     onSetShakeBlocked: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
@@ -1245,51 +1225,31 @@ fun InputStreamScreen(
                     "settings" -> {
                         // Settings inline view
                         SettingsContent(
-                            providerConfigs = providerConfigs,
-                            providerPriorityOrder = providerPriorityOrder,
-                            onAddApiKey = onAddApiKey,
-                            onRemoveApiKey = onRemoveApiKey,
-                            onUpdateApiKey = onUpdateApiKey,
-                            onSetProviderEnabled = onSetProviderEnabled,
-                            onSetSelectedModel = onSetSelectedModel,
-                            onSetProviderPriority = onSetProviderPriority,
-                            onTestApiKey = onTestApiKey,
                             isDarkTheme = isDarkTheme,
                             onToggleTheme = onToggleTheme,
-                            tavilyApiKeys = tavilyApiKeys,
-                            onAddTavilyApiKey = onAddTavilyApiKey,
-                            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
                             cacheSizeBytes = cacheSizeBytes,
                             onClearCache = onClearCache,
                             isClearingCache = isClearingCache,
                             shakeSensitivity = shakeSensitivity,
                             onShakeSensitivityChange = onShakeSensitivityChange,
-                            groqKeyUsageStats = groqKeyUsageStats,
-                            onRefreshModels = onRefreshModels,
-                            getAvailableModels = getAvailableModels,
                             onSignOut = onSignOut,
-                            aiConfigContent = aiConfigContent,
                             backupContent = backupContent,
-                            // AI Memory
+                            contentPadding = contentPaddingWithTop,
+                            modifier = Modifier.fillMaxSize(),
                             aiMemories = aiMemories,
                             onDeleteAIMemory = onDeleteAIMemory,
                             onClearAllAIMemories = onClearAllAIMemories,
-                            // Memory sync
                             onSyncAIMemories = onSyncAIMemories,
                             isMemorySyncInProgress = isMemorySyncInProgress,
                             memorySyncResult = memorySyncResult,
                             unreadForMemoryCount = unreadForMemoryCount,
                             onClearMemorySyncResult = onClearMemorySyncResult,
-                            onNavigateToTicTacToe = onNavigateToTicTacToe,
-                            onNavigateToCoinToss = onNavigateToCoinToss,
-                            // Google Calendar Two-Way Sync
                             isCalendarSyncEnabled = isCalendarSyncEnabled,
                             onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
                             deviceCalendars = deviceCalendars,
                             targetCalendarId = targetCalendarId,
                             onSetTargetCalendarId = onSetTargetCalendarId,
                             onLoadDeviceCalendars = onLoadDeviceCalendars,
-                            // Local PC
                             isLocalPCEnabled = isLocalPCEnabled,
                             onSetLocalPCEnabled = onSetLocalPCEnabled,
                             localServerIP = localServerIP,
@@ -1299,8 +1259,8 @@ fun InputStreamScreen(
                             onSetLocalServerPort = onSetLocalServerPort,
                             onSetLocalServerUseHttps = onSetLocalServerUseHttps,
                             onTestLocalServer = onTestLocalServer,
-                            contentPadding = contentPaddingWithTop,
-                            modifier = Modifier.fillMaxSize()
+                            onNavigateToTicTacToe = onNavigateToTicTacToe,
+                            onNavigateToCoinToss = onNavigateToCoinToss
                         )
                     }
                     "calendar" -> {
@@ -1873,30 +1833,13 @@ fun InputStreamScreen(
         SettingsSheet(
             sheetState = settingsSheetState,
             onDismiss = { showSettingsSheet = false },
-            providerConfigs = providerConfigs,
-            providerPriorityOrder = providerPriorityOrder,
             isDarkTheme = isDarkTheme,
-            onAddApiKey = onAddApiKey,
-            onRemoveApiKey = onRemoveApiKey,
-            onUpdateApiKey = onUpdateApiKey,
-            onSetProviderEnabled = onSetProviderEnabled,
-            onSetSelectedModel = onSetSelectedModel,
-            onSetProviderPriority = onSetProviderPriority,
-            onTestApiKey = onTestApiKey,
             onToggleTheme = onToggleTheme,
-            tavilyApiKeys = tavilyApiKeys,
-            onAddTavilyApiKey = onAddTavilyApiKey,
-            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
-            isTavilyEnabled = isTavilyEnabled,
-            onSetTavilyEnabled = onSetTavilyEnabled,
             cacheSizeBytes = cacheSizeBytes,
             onClearCache = onClearCache,
             isClearingCache = isClearingCache,
             shakeSensitivity = shakeSensitivity,
             onShakeSensitivityChange = onShakeSensitivityChange,
-            groqKeyUsageStats = groqKeyUsageStats,
-            onRefreshModels = onRefreshModels,
-            getAvailableModels = getAvailableModels,
             onSignOut = onSignOut,
             backupContent = backupContent,
             // AI Memory
@@ -1923,7 +1866,10 @@ fun InputStreamScreen(
             localServerUseHttps = localServerUseHttps,
             onSetLocalServerIP = onSetLocalServerIP,
             onSetLocalServerPort = onSetLocalServerPort,
-            onSetLocalServerUseHttps = onSetLocalServerUseHttps
+            onSetLocalServerUseHttps = onSetLocalServerUseHttps,
+            onTestLocalServer = onTestLocalServer,
+            onNavigateToCoinToss = onNavigateToCoinToss,
+            onNavigateToTicTacToe = onNavigateToTicTacToe
         )
     }
 

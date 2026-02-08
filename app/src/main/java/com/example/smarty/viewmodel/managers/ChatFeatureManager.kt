@@ -18,7 +18,6 @@ import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.*
 import com.example.smarty.data.remote.RemoteAgentService
-import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.service.AlarmScheduler
 import com.example.smarty.service.CommandResult
@@ -31,8 +30,6 @@ import com.example.smarty.util.ContentTypeDetector
 import com.example.smarty.util.FileStorageHelper
 import com.example.smarty.util.PrivacyGuard
 import com.example.smarty.util.ThinkingParser
-import com.example.smarty.util.api.GroqKeyManager
-import com.example.smarty.util.api.RateLimiter
 import com.example.smarty.util.mention.MentionParser
 import com.example.smarty.util.mention.NoteContextBuilder
 import com.example.smarty.util.mention.ThinkingModeProcessor
@@ -41,6 +38,8 @@ import com.example.smarty.R
 import com.google.gson.Gson
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.DefaultRequest
+import io.ktor.client.request.header
 // import io.ktor.client.plugins.contentnegotiation.ContentNegotiation // Removed - not available in minimal Ktor
 import io.ktor.client.plugins.sse.SSE
 // import io.ktor.serialization.kotlinx.json.json // Removed - not available in minimal Ktor
@@ -67,15 +66,12 @@ class ChatFeatureManager(
     private val repository: SmartyRepository,
     private val database: SmartyDatabase,
     private val securePreferences: SecurePreferences,
-    private val groqKeyManager: GroqKeyManager,
-    private val tavilySearchProvider: TavilySearchProvider,
     private val settingsFeatureManager: SettingsFeatureManager,
     private val noteOperationsManager: NoteOperationsManager,
     private val systemFeatureManager: SystemFeatureManager,
     private val completionSoundManager: CompletionSoundManager,
     private val alarmScheduler: AlarmScheduler,
     private val executionPlanManager: ExecutionPlanManager,
-    private val rateLimiter: RateLimiter,
     private val memoryFeatureManager: MemoryFeatureManager,
     private val searchFeatureManager: SearchFeatureManager,
     private val audioFeatureManager: AudioFeatureManager,
@@ -570,13 +566,21 @@ class ChatFeatureManager(
         // Initialize Ktor client - SSE only (JSON parsing done manually in RemoteAgentService)
         val client = HttpClient(OkHttp) {
             install(SSE)
+            // Add header to bypass ngrok browser warning for public internet access
+            install(DefaultRequest) {
+                header("ngrok-skip-browser-warning", "true")
+            }
         }
 
         // Connect to local server via USB Reverse Tethering or Emulator Loopback
         // For physical device: Run 'connect_via_usb.bat' (adb reverse tcp:7860 tcp:7860)
         // For emulator: adb reverse is also recommended, but 10.0.2.2 works natively
         // We use 127.0.0.1 to support both provided port forwarding is active
-        RemoteAgentService(client, agentEventSink, serverUrl = "http://127.0.0.1:7860")
+        RemoteAgentService(
+            client = client,
+            eventSink = agentEventSink,
+            serverUrlProvider = { securePreferences.getSmartyServerUrl() }
+        )
     }
 
     // Agent Event Sink for Koog tools notifications
@@ -697,26 +701,6 @@ class ChatFeatureManager(
         }
         override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(archivedNotes.value)
         override fun getCategories(): List<Category> = allCategories.value
-        override fun getTavilyApiKey(): String? = settingsFeatureManager.getTavilyApiKeySync()
-        override fun getOpenAiApiKey(): String? = settingsFeatureManager.getProviderKeys(AIProvider.OPENAI).firstOrNull()
-        override fun getGeminiApiKey(): String? = settingsFeatureManager.getProviderKeys(AIProvider.GEMINI).firstOrNull()
-
-        override suspend fun processNoteWithAi(note: Note) {
-            noteOperationsManager.processNoteWithAi(note)
-        }
-
-        override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
-            return noteOperationsManager.findNoteByDescription(description, notes)
-        }
-
-        override fun requestAudioPlayback(track: AudioTrack) {
-            systemFeatureManager.playAudio(track)
-        }
-
-        override fun launchApp(packageName: String) {
-            systemFeatureManager.launchApp(packageName)
-        }
-
         override fun getScreenContext(): ScreenContext? {
             val activeId = activeNoteId.value ?: return null
             val note = allNotes.value.find { it.id == activeId } ?: return null
@@ -803,6 +787,19 @@ class ChatFeatureManager(
 
         override fun summarizeNote(noteId: String) {
             noteOperationsManager.summarizeNote(noteId, allNotes.value, archivedNotes.value)
+        }
+
+        override suspend fun processNoteWithAi(note: Note) {
+            noteOperationsManager.processNoteWithAi(note)
+        }
+
+        override suspend fun findNoteByDescription(description: String, notes: List<Note>): Note? {
+            // Use semantic search logic from searchFeatureManager to find the best match
+            val results = searchFeatureManager.search(
+                query = description,
+                limit = 1
+            )
+            return results.firstOrNull()?.note
         }
 
         override suspend fun onCreateCategory(name: String): Category {
@@ -901,8 +898,16 @@ class ChatFeatureManager(
             return searchFeatureManager.performRecall(query, minScore)
         }
 
+        override fun requestAudioPlayback(track: AudioTrack) {
+            audioFeatureManager.play(track)
+        }
+
         override fun shareContent(text: String, title: String?) {
             systemFeatureManager.shareContent(text, title)
+        }
+
+        override fun launchApp(packageName: String) {
+            systemFeatureManager.launchApp(packageName)
         }
 
         override fun findPackageName(appName: String): String? {
@@ -1061,37 +1066,6 @@ class ChatFeatureManager(
         override fun bulkMoveToCategory(noteIds: List<String>, categoryName: String) {
             noteOperationsManager.bulkMoveToCategory(noteIds, categoryName)
         }
-
-        override fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int) {
-            workflowManager.performDeepResearch(topic, apiKey, focusAreas, searchDepth)
-        }
-
-        override fun onAnalyzeStyle(limit: Int): StyleAnalysisReport {
-            return styleFeatureManager.analyzeStyle(allNotes.value, limit)
-        }
-
-        override suspend fun onWebSearch(
-            query: String,
-            maxResults: Int,
-            topic: String,
-            onCitationsFound: (List<WebCitation>) -> Unit
-        ): com.example.smarty.agent.WebSearchResult {
-            val apiKey = settingsFeatureManager.getTavilyApiKeySync() ?: return com.example.smarty.agent.WebSearchResult(
-                success = false,
-                query = query,
-                reason = "Web search not configured"
-            )
-            return searchFeatureManager.performWebSearch(query, apiKey, maxResults, topic, onCitationsFound)
-        }
-
-        override suspend fun onParallelWebSearch(
-            queries: List<String>,
-            maxResults: Int,
-            topic: String,
-            onCitationsFound: (List<WebCitation>) -> Unit
-        ): com.example.smarty.agent.WebSearchResult {
-            return searchFeatureManager.performParallelWebSearch(queries, maxResults, topic, onCitationsFound)
-        }
     }
 
     // Task 7: Command transport for delivering validated commands to execution
@@ -1211,11 +1185,6 @@ class ChatFeatureManager(
         _isThinkingModeEnabled.value = !_isThinkingModeEnabled.value
     }
 
-    fun syncGroqKeys() {
-        // Keys managed on server or via GroqKeyManager directly if needed locally
-        // scope.launch { agentProvider.syncGroqKeys() }
-    }
-
     fun updateMentionState(text: String, cursorPosition: Int) {
         chatInputCursorPosition = cursorPosition
         scope.launch {
@@ -1301,8 +1270,7 @@ class ChatFeatureManager(
                         chatManager.addAssistantMessage(assistantMessage)
                         chatManager.saveMessagePair(
                             userMessage = userMessage,
-                            assistantMessage = assistantMessage,
-                            hasApiKeys = settingsFeatureManager.hasAnyApiKeys()
+                            assistantMessage = assistantMessage
                         )
                         return@launch
                     }
@@ -1314,8 +1282,7 @@ class ChatFeatureManager(
                         chatManager.addAssistantMessage(assistantMessage)
                         chatManager.saveMessagePair(
                             userMessage = userMessage,
-                            assistantMessage = assistantMessage,
-                            hasApiKeys = settingsFeatureManager.hasAnyApiKeys()
+                            assistantMessage = assistantMessage
                         )
                         return@launch
                     }
@@ -1336,8 +1303,7 @@ class ChatFeatureManager(
                         chatManager.addAssistantMessage(assistantMessage)
                         chatManager.saveMessagePair(
                             userMessage = userMessage,
-                            assistantMessage = assistantMessage,
-                            hasApiKeys = settingsFeatureManager.hasAnyApiKeys()
+                            assistantMessage = assistantMessage
                         )
                         return@launch
                     }
@@ -1392,36 +1358,17 @@ class ChatFeatureManager(
             // Collect chunks from the remote stream
             val responseBuilder = StringBuilder()
 
-            // Determine provider, model, and optional URL override
-            val providerPair = if (_isThinkingModeEnabled.value) {
-                // If in thinking mode, we try to find a provider but default to "reasoning" if none found
-                securePreferences.getFirstAvailableKey()
-            } else {
-                securePreferences.getFirstAvailableKey()
-            }
-
-            val providerName = if (_isThinkingModeEnabled.value && providerPair == null) {
-                "reasoning"
-            } else {
-                providerPair?.first?.name
-            }
-
-            val providerUrl = if (providerPair?.first == AIProvider.LOCAL_PC) {
-                securePreferences.getLocalPCBaseUrl()
-            } else {
-                null
-            }
-
-            val selectedModel = providerPair?.first?.let { securePreferences.getSelectedModel(it) }
-            val apiKey = providerPair?.second
+            // Task 15: Thin Client Mode
+            // We delegate all reasoning to the Remote Agent Service via SSE.
+            // Local logic (history compression, context building) is handled by the server now.
             val sessionId = currentSessionId.value
 
             remoteAgentService.sendQuery(
                 query = content,
-                provider = providerName,
-                providerUrl = providerUrl,
-                model = selectedModel,
-                apiKey = apiKey,
+                provider = null, // Let server decide
+                providerUrl = null,
+                model = null,
+                apiKey = null,
                 sessionId = sessionId
             )
                 .collect { chunk ->
@@ -1444,7 +1391,7 @@ class ChatFeatureManager(
             )
 
             chatManager.addAssistantMessage(assistantMessage)
-            chatManager.saveMessagePair(userMessage, assistantMessage, true)
+            chatManager.saveMessagePair(userMessage, assistantMessage)
 
             if (settingsFeatureManager.isSoundEnabled()) {
                 completionSoundManager.playAgentCompletionSound(true)

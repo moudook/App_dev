@@ -39,17 +39,13 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.R
-import com.example.smarty.data.local.AIModels
-import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.ShakeSensitivityControl
 import com.example.smarty.ui.screens.settings.AIMemorySettingsContent
-import com.example.smarty.ui.screens.settings.formatCacheSize
+import com.example.smarty.ui.screens.formatCacheSize
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.softCardShadow
-import com.example.smarty.util.api.KeyUsageStats
 import com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar
 
 /**
@@ -59,23 +55,9 @@ import com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsContent(
-    // AI & Provider settings
-    providerConfigs: Map<AIProvider, AIProviderConfig>,
-    providerPriorityOrder: List<AIProvider>,
-    onAddApiKey: (AIProvider, String) -> Unit,
-    onRemoveApiKey: (AIProvider, String) -> Unit,
-    onUpdateApiKey: (AIProvider, String, String) -> Unit,
-    onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
-    onSetSelectedModel: (AIProvider, String) -> Unit,
-    onSetProviderPriority: (List<AIProvider>) -> Unit,
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     // Theme
     isDarkTheme: Boolean,
     onToggleTheme: (Boolean) -> Unit,
-    // Tavily
-    tavilyApiKeys: List<String>,
-    onAddTavilyApiKey: (String) -> Unit,
-    onRemoveTavilyApiKey: (String) -> Unit,
     // Cache
     cacheSizeBytes: Long,
     onClearCache: () -> Unit,
@@ -83,15 +65,9 @@ fun SettingsContent(
     // Shake
     shakeSensitivity: Float,
     onShakeSensitivityChange: (Float) -> Unit,
-    // Groq stats
-    groqKeyUsageStats: List<KeyUsageStats>,
-    // Models
-    onRefreshModels: (AIProvider) -> Unit,
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
     // Sign out
     onSignOut: () -> Unit,
     // Embedded content for sub-sheets
-    aiConfigContent: @Composable (() -> Unit) -> Unit, // Unused now, but kept for signature compatibility
     backupContent: @Composable (() -> Unit) -> Unit,
     // Content padding
     contentPadding: PaddingValues,
@@ -137,8 +113,8 @@ fun SettingsContent(
     var showAIMemorySheet by remember { mutableStateOf(false) }
     var showCalendarSelectorSheet by remember { mutableStateOf(false) }
 
-    // Inline Expansion States for AI Providers
-    val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
+    // Inline Expansion States
+    val expandedSections = remember { mutableStateMapOf<String, Boolean>() }
 
     val subSettingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -159,26 +135,10 @@ fun SettingsContent(
                 )
 
                 SettingsCard {
-                    // 1. Web Search (Tavily)
-                    InlineTavilyConfig(
-                        isExpanded = expandedProviders["tavily"] == true,
-                        onExpandChange = { expandedProviders["tavily"] = it },
-                        isEnabled = tavilyApiKeys.isNotEmpty(), // Simplified enable check based on key presence
-                        onEnabledChange = { /* No-op, driven by key presence */ },
-                        apiKeys = tavilyApiKeys,
-                        onAddKey = onAddTavilyApiKey,
-                        onRemoveKey = onRemoveTavilyApiKey
-                    )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 56.dp, end = 20.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                    )
-
-                    // 2. Local LLM
+                    // Local LLM
                     InlineLocalPCConfig(
-                        isExpanded = expandedProviders["local"] == true,
-                        onExpandChange = { expandedProviders["local"] = it },
+                        isExpanded = expandedSections["local"] == true,
+                        onExpandChange = { expandedSections["local"] = it },
                         isEnabled = isLocalPCEnabled,
                         onEnabledChange = onSetLocalPCEnabled,
                         ip = localServerIP,
@@ -189,41 +149,6 @@ fun SettingsContent(
                         onHttpsChange = onSetLocalServerUseHttps,
                         onTestConnection = onTestLocalServer
                     )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 56.dp, end = 20.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                    )
-
-                    // 3. Cloud Providers
-                    val providers = (providerPriorityOrder.filter { it != AIProvider.LOCAL_PC } +
-                                   (AIProvider.entries - providerPriorityOrder - AIProvider.LOCAL_PC)).distinct()
-
-                    providers.forEachIndexed { index, provider ->
-                        val config = providerConfigs[provider]
-                        if (config != null) {
-                            InlineProviderConfig(
-                                provider = provider,
-                                config = config,
-                                isExpanded = expandedProviders[provider.name] == true,
-                                onExpandChange = { expandedProviders[provider.name] = it },
-                                onEnabledChange = { onSetProviderEnabled(provider, it) },
-                                onAddKey = { onAddApiKey(provider, it) },
-                                onRemoveKey = { onRemoveApiKey(provider, it) },
-                                onUpdateKey = { old, new -> onUpdateApiKey(provider, old, new) },
-                                onSelectModel = { onSetSelectedModel(provider, it) },
-                                availableModels = getAvailableModels(provider),
-                                onRefreshModels = { onRefreshModels(provider) }
-                            )
-
-                            if (index < providers.size - 1) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = 56.dp, end = 20.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -518,63 +443,6 @@ fun SettingsContent(
 // --- Inline AI Config Components ---
 
 @Composable
-fun InlineTavilyConfig(
-    isExpanded: Boolean,
-    onExpandChange: (Boolean) -> Unit,
-    isEnabled: Boolean,
-    onEnabledChange: (Boolean) -> Unit,
-    apiKeys: List<String>,
-    onAddKey: (String) -> Unit,
-    onRemoveKey: (String) -> Unit
-) {
-    Column {
-        InlineHeader(
-            icon = Icons.Default.Public,
-            title = "Web Search (Tavily)",
-            isExpanded = isExpanded,
-            onExpandChange = onExpandChange,
-            isEnabled = isEnabled,
-            onEnabledChange = onEnabledChange,
-            hasSwitch = false // Always on if key present
-        )
-
-        AnimatedVisibility(visible = isExpanded) {
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
-                Text("API Key", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (apiKeys.isEmpty()) {
-                    ApiKeyInput(
-                        value = "",
-                        onValueChange = { if(it.isNotEmpty()) onAddKey(it) },
-                        placeholder = "tvly-..."
-                    )
-                } else {
-                    apiKeys.forEach { key ->
-                        ApiKeyRow(key = key, onRemove = { onRemoveKey(key) })
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    var newKey by remember { mutableStateOf("") }
-                    if (newKey.isNotEmpty() || apiKeys.size < 5) {
-                        ApiKeyInput(
-                            value = newKey,
-                            onValueChange = { newKey = it },
-                            placeholder = "Add another key",
-                            onDone = {
-                                if (newKey.isNotBlank()) {
-                                    onAddKey(newKey)
-                                    newKey = ""
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun InlineLocalPCConfig(
     isExpanded: Boolean,
     onExpandChange: (Boolean) -> Unit,
@@ -751,105 +619,6 @@ fun InlineLocalPCConfig(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun InlineProviderConfig(
-    provider: AIProvider,
-    config: AIProviderConfig,
-    isExpanded: Boolean,
-    onExpandChange: (Boolean) -> Unit,
-    onEnabledChange: (Boolean) -> Unit,
-    onAddKey: (String) -> Unit,
-    onRemoveKey: (String) -> Unit,
-    onUpdateKey: (String, String) -> Unit,
-    onSelectModel: (String) -> Unit,
-    availableModels: List<Pair<String, String>>,
-    onRefreshModels: () -> Unit
-) {
-    Column {
-        InlineHeader(
-            icon = when(provider) {
-                AIProvider.OPENAI -> Icons.Default.SmartToy
-                AIProvider.ANTHROPIC -> Icons.Default.Psychology
-                AIProvider.GEMINI -> Icons.Default.AutoAwesome
-                else -> Icons.Default.SmartToy
-            },
-            title = provider.displayName,
-            isExpanded = isExpanded,
-            onExpandChange = onExpandChange,
-            isEnabled = config.isEnabled,
-            onEnabledChange = onEnabledChange
-        )
-
-        AnimatedVisibility(visible = isExpanded) {
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
-                // API Keys
-                Text("API Key", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (config.apiKeys.isEmpty()) {
-                     ApiKeyInput(
-                        value = "",
-                        onValueChange = { if(it.isNotBlank()) onAddKey(it) },
-                        placeholder = "sk-..."
-                    )
-                } else {
-                    config.apiKeys.forEach { key ->
-                         ApiKeyRow(key = key, onRemove = { onRemoveKey(key) })
-                         Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    var newKey by remember { mutableStateOf("") }
-                    // Simple logic: show input if < 1 key or if typing new one
-                    if (config.apiKeys.isEmpty() || newKey.isNotEmpty()) {
-                         ApiKeyInput(
-                            value = newKey,
-                            onValueChange = { newKey = it },
-                            onDone = {
-                                if(newKey.isNotBlank()) { onAddKey(newKey); newKey = "" }
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Model Selector
-                Text("Model", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                var expanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-                    OutlinedTextField(
-                        value = availableModels.find { it.first == config.selectedModel }?.second ?: config.selectedModel,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable, true).fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        textStyle = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                            cursorColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
-                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        availableModels.forEach { (id, name) ->
-                            DropdownMenuItem(
-                                text = { Text(name) },
-                                onClick = {
-                                    onSelectModel(id)
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 fun InlineHeader(
     icon: ImageVector,
@@ -900,50 +669,6 @@ fun InlineHeader(
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-    }
-}
-
-@Composable
-fun ApiKeyInput(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String = "Enter API Key",
-    onDone: () -> Unit = {}
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onDone() }),
-        shape = RoundedCornerShape(12.dp),
-        textStyle = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-        colors = OutlinedTextFieldDefaults.colors(
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            cursorColor = MaterialTheme.colorScheme.primary
-        )
-    )
-}
-
-@Composable
-fun ApiKeyRow(key: String, onRemove: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "••••••••${key.takeLast(4)}",
-            modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 12.dp),
-            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        IconButton(onClick = onRemove) {
-            Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error)
-        }
     }
 }
 

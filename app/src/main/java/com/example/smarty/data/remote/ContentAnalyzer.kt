@@ -3,6 +3,7 @@ package com.example.smarty.data.remote
 import android.app.Application
 import android.util.Log
 import com.example.smarty.R
+import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.model.AttachmentMetadata
 import com.example.smarty.util.ContentSecurityFilter
@@ -191,19 +192,11 @@ class ContentAnalyzer(private val application: Application, private val orchestr
 
         val configs = orchestrator.getAllProviderConfigs()
 
-        // Debug: Log all provider configs
-        configs.forEach { (provider, config) ->
-            Log.i(TAG, "Provider $provider: enabled=${config.isEnabled}, keys=${config.apiKeys.size}")
-        }
+        // Thin Client: Only attempt LOCAL_PC if enabled
+        val provider = AIProvider.LOCAL_PC
+        val config = configs[provider]
 
-        // Try each provider in order
-        for (provider in orchestrator.getOrderedProviders()) {
-            val config = configs[provider] ?: continue
-            if (!orchestrator.isProviderAvailable(config)) {
-                Log.d(TAG, "$provider not available or disabled")
-                continue
-            }
-
+        if (config != null && orchestrator.isProviderAvailable(config)) {
             val providerInstance = orchestrator.getProvider(provider)
             val model = orchestrator.getModelForProvider(provider)
 
@@ -224,8 +217,8 @@ class ContentAnalyzer(private val application: Application, private val orchestr
             }
         }
 
-        // All providers failed - use smart fallback
-        Log.w(TAG, " All AI providers failed, using smart categorization")
+        // All local providers (LOCAL_PC) failed or were disabled - use smart fallback
+        Log.w(TAG, "Local AI unavailable, using smart categorization fallback")
         val fallbackResponse = AIResponseParser.smartFallbackCategorization(application, contentWithMetadata)
         // Cache fallback response too to avoid repeated failures
         AIResponseCache.put(cacheKey, fallbackResponse)
@@ -296,14 +289,10 @@ class ContentAnalyzer(private val application: Application, private val orchestr
 
         val fullContent = contextPrefix + sanitizedDocumentText
 
-        // Try each provider in order
-        for (provider in orchestrator.getOrderedProviders()) {
-            val config = configs[provider] ?: continue
-            if (!orchestrator.isProviderAvailable(config)) {
-                Log.d(TAG, "$provider not available for document analysis")
-                continue
-            }
+        val provider = AIProvider.LOCAL_PC
+        val config = configs[provider]
 
+        if (config != null && orchestrator.isProviderAvailable(config)) {
             val providerInstance = orchestrator.getProvider(provider)
             val model = orchestrator.getModelForProvider(provider)
 
@@ -322,8 +311,8 @@ class ContentAnalyzer(private val application: Application, private val orchestr
             }
         }
 
-        // Fallback response when AI is unavailable
-        Log.w(TAG, " All providers failed for document analysis, using fallback")
+        // Fallback response when local AI is unavailable
+        Log.w(TAG, "Local AI unavailable for document analysis, using fallback")
         return@withContext DocumentAnalysisResponse(
             title = fileName ?: application.getString(R.string.document),
             summary = application.getString(R.string.error_ai_unavailable_keys),

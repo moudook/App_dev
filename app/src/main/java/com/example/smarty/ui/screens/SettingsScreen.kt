@@ -55,9 +55,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import com.example.smarty.R
-import com.example.smarty.data.local.AIModels
-import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.model.AIMemory
 import com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar
 import com.example.smarty.ui.components.CompactEmptyState
@@ -69,13 +66,7 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import com.example.smarty.ui.LocalAccentColor
 import androidx.compose.ui.graphics.Brush
-import com.example.smarty.ui.screens.settings.ProviderSection
-import com.example.smarty.ui.screens.settings.maskApiKey
 import com.example.smarty.ui.screens.settings.AIMemorySettingsContent
-import com.example.smarty.ui.screens.settings.DataManagementSection
-import com.example.smarty.ui.screens.settings.formatCacheSize
-import com.example.smarty.util.api.ApiMetrics
-import com.example.smarty.util.api.KeyUsageStats
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -96,7 +87,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 
 @OptIn(ExperimentalMaterial3Api::class)
 enum class SettingsView {
-    Main, AIConfig, Backup, About, ShakeSensitivity, AIMemory, CalendarSelector
+    Main, Backup, About, ShakeSensitivity, AIMemory, CalendarSelector, ServerConfig
 }
 
 /**
@@ -106,24 +97,9 @@ enum class SettingsView {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    providerConfigs: Map<AIProvider, AIProviderConfig>,
-    providerPriorityOrder: List<AIProvider>,
     isDarkTheme: Boolean,
     onBackClick: () -> Unit,
-    onAddApiKey: (AIProvider, String) -> Unit,
-    onRemoveApiKey: (AIProvider, String) -> Unit,
-    onUpdateApiKey: (AIProvider, String, String) -> Unit,
-    onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
-    onSetSelectedModel: (AIProvider, String) -> Unit,
-    onSetProviderPriority: (List<AIProvider>) -> Unit,
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     onToggleTheme: (Boolean) -> Unit,
-    // Tavily Web Search API
-    tavilyApiKeys: List<String> = emptyList(),
-    onAddTavilyApiKey: (String) -> Unit = {},
-    onRemoveTavilyApiKey: (String) -> Unit = {},
-    isTavilyEnabled: Boolean = true,
-    onSetTavilyEnabled: (Boolean) -> Unit = {},
     // Embedded Content Slots
     backupContent: @Composable (() -> Unit) -> Unit,
     lastBackupTime: Long = 0L,
@@ -136,8 +112,6 @@ fun SettingsScreen(
     // Shake sensitivity
     shakeSensitivity: Float = 0.5f,
     onShakeSensitivityChange: (Float) -> Unit = {},
-    // GROQ key usage stats
-    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     // Local LLM Server (USB/WiFi)
     isLocalPCEnabled: Boolean = false,
     onSetLocalPCEnabled: (Boolean) -> Unit = {},
@@ -149,8 +123,6 @@ fun SettingsScreen(
     onSetLocalServerUseHttps: (Boolean) -> Unit = {},
     onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _, _, _ -> },
     modifier: Modifier = Modifier,
-    onRefreshModels: (AIProvider) -> Unit = {},
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { AIModels.getModelsForProvider(it) },
     onSignOut: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
@@ -270,10 +242,10 @@ fun SettingsScreen(
                                 onToggle = { expandedSection = if (expandedSection == "ai") null else "ai" }
                             ) {
                                 SettingsRow(
-                                    title = stringResource(R.string.ai_providers),
-                                    icon = Icons.Default.Assistant,
-                                    subtitle = stringResource(R.string.models_and_api_keys),
-                                    onClick = { currentView = SettingsView.AIConfig },
+                                    title = "Smarty Server",
+                                    icon = Icons.Default.Cloud,
+                                    subtitle = "Configure remote connection",
+                                    onClick = { currentView = SettingsView.ServerConfig },
                                     iconColor = LocalAccentColor.current,
                                     containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
                                 )
@@ -452,26 +424,8 @@ fun SettingsScreen(
                     }
 
                     // SUB-VIEWS (Replaces Bottom Sheets)
-                    SettingsView.AIConfig -> {
-                        AIConfigView(
-                            providerConfigs = providerConfigs,
-                            providerPriorityOrder = providerPriorityOrder,
-                            onBack = { currentView = SettingsView.Main },
-                            onAddApiKey = onAddApiKey,
-                            onRemoveApiKey = onRemoveApiKey,
-                            onUpdateApiKey = onUpdateApiKey,
-                            onSetProviderEnabled = onSetProviderEnabled,
-                            onSetSelectedModel = onSetSelectedModel,
-                            onSetProviderPriority = onSetProviderPriority,
-                            onTestApiKey = onTestApiKey,
-                            onRefreshModels = onRefreshModels,
-                            getAvailableModels = getAvailableModels,
-                            tavilyApiKeys = tavilyApiKeys,
-                            onAddTavilyApiKey = onAddTavilyApiKey,
-                            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
-                            isTavilyEnabled = isTavilyEnabled,
-                            onSetTavilyEnabled = onSetTavilyEnabled,
-                            groqKeyUsageStats = groqKeyUsageStats,
+                    SettingsView.ServerConfig -> {
+                        ServerConfigView(
                             isLocalPCEnabled = isLocalPCEnabled,
                             onSetLocalPCEnabled = onSetLocalPCEnabled,
                             localServerIP = localServerIP,
@@ -480,7 +434,8 @@ fun SettingsScreen(
                             onSetLocalServerIP = onSetLocalServerIP,
                             onSetLocalServerPort = onSetLocalServerPort,
                             onSetLocalServerUseHttps = onSetLocalServerUseHttps,
-                            onTestLocalServer = onTestLocalServer
+                            onTestLocalServer = onTestLocalServer,
+                            onBack = { currentView = SettingsView.Main }
                         )
                     }
                     SettingsView.ShakeSensitivity -> {
@@ -594,74 +549,6 @@ private fun SettingsHeader(
         HorizontalDivider(
             modifier = Modifier.padding(top = 16.dp),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-        )
-    }
-}
-
-@Composable
-private fun AIConfigView(
-    providerConfigs: Map<AIProvider, AIProviderConfig>,
-    providerPriorityOrder: List<AIProvider>,
-    onBack: () -> Unit,
-    onAddApiKey: (AIProvider, String) -> Unit,
-    onRemoveApiKey: (AIProvider, String) -> Unit,
-    onUpdateApiKey: (AIProvider, String, String) -> Unit,
-    onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
-    onSetSelectedModel: (AIProvider, String) -> Unit,
-    onSetProviderPriority: (List<AIProvider>) -> Unit,
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
-    onRefreshModels: (AIProvider) -> Unit,
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
-    tavilyApiKeys: List<String>,
-    onAddTavilyApiKey: (String) -> Unit,
-    onRemoveTavilyApiKey: (String) -> Unit,
-    isTavilyEnabled: Boolean,
-    onSetTavilyEnabled: (Boolean) -> Unit,
-    groqKeyUsageStats: List<KeyUsageStats>,
-    isLocalPCEnabled: Boolean,
-    onSetLocalPCEnabled: (Boolean) -> Unit,
-    localServerIP: String,
-    localServerPort: String,
-    localServerUseHttps: Boolean,
-    onSetLocalServerIP: (String) -> Unit,
-    onSetLocalServerPort: (String) -> Unit,
-    onSetLocalServerUseHttps: (Boolean) -> Unit,
-    onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        SettingsHeader(
-            title = stringResource(R.string.ai_providers),
-            subtitle = stringResource(R.string.models_and_api_keys),
-            onBack = onBack
-        )
-        // Reuse existing content function
-        AIConfigBottomSheetContent(
-            providerConfigs = providerConfigs,
-            providerPriorityOrder = providerPriorityOrder,
-            onAddApiKey = onAddApiKey,
-            onRemoveApiKey = onRemoveApiKey,
-            onUpdateApiKey = onUpdateApiKey,
-            onSetProviderEnabled = onSetProviderEnabled,
-            onSetSelectedModel = onSetSelectedModel,
-            onSetProviderPriority = onSetProviderPriority,
-            onTestApiKey = onTestApiKey,
-            tavilyApiKeys = tavilyApiKeys,
-            onAddTavilyApiKey = onAddTavilyApiKey,
-            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
-            isTavilyEnabled = isTavilyEnabled,
-            onSetTavilyEnabled = onSetTavilyEnabled,
-            groqKeyUsageStats = groqKeyUsageStats,
-            onRefreshModels = onRefreshModels,
-            getAvailableModels = getAvailableModels,
-            isLocalPCEnabled = isLocalPCEnabled,
-            onSetLocalPCEnabled = onSetLocalPCEnabled,
-            localServerIP = localServerIP,
-            localServerPort = localServerPort,
-            localServerUseHttps = localServerUseHttps,
-            onSetLocalServerIP = onSetLocalServerIP,
-            onSetLocalServerPort = onSetLocalServerPort,
-            onSetLocalServerUseHttps = onSetLocalServerUseHttps,
-            onTestLocalServer = onTestLocalServer
         )
     }
 }
@@ -1056,611 +943,6 @@ private fun SettingsToggleItem(
                     checkedTrackColor = iconColor.copy(alpha = 0.3f)
                 )
             )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun AIConfigBottomSheetContent(
-    providerConfigs: Map<AIProvider, AIProviderConfig>,
-    providerPriorityOrder: List<AIProvider>,
-    onAddApiKey: (AIProvider, String) -> Unit,
-    onRemoveApiKey: (AIProvider, String) -> Unit,
-    onUpdateApiKey: (AIProvider, String, String) -> Unit,
-    onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
-    onSetSelectedModel: (AIProvider, String) -> Unit,
-    onSetProviderPriority: (List<AIProvider>) -> Unit,
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
-    tavilyApiKeys: List<String> = emptyList(),
-    onAddTavilyApiKey: (String) -> Unit = {},
-    onRemoveTavilyApiKey: (String) -> Unit = {},
-    isTavilyEnabled: Boolean = true,
-    onSetTavilyEnabled: (Boolean) -> Unit = {},
-    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
-    onRefreshModels: (AIProvider) -> Unit,
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>>,
-    // Local LLM
-    isLocalPCEnabled: Boolean = false,
-    onSetLocalPCEnabled: (Boolean) -> Unit = {},
-    localServerIP: String = "",
-    localServerPort: String = "1234",
-    localServerUseHttps: Boolean = false,
-    onSetLocalServerIP: (String) -> Unit = {},
-    onSetLocalServerPort: (String) -> Unit = {},
-    onSetLocalServerUseHttps: (Boolean) -> Unit = {},
-    onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit
-) {
-    // Local state for drag-and-drop reordering
-    // Include all providers including LOCAL_PC for consistent UI treatment
-    var localProviderOrder by remember {
-        mutableStateOf(providerPriorityOrder)
-    }
-
-    // Drag state variables
-    var draggedItemIndex by remember { mutableStateOf<Int?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
-
-    // Sync with external state when it changes
-    LaunchedEffect(providerPriorityOrder) {
-        localProviderOrder = providerPriorityOrder
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 32.dp)
-    ) {
-            // Header - Centralized and Minimal
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Box(modifier = Modifier.size(56.dp)) {
-                    Surface(
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = LocalAccentColor.current.copy(alpha = 0.1f),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Assistant,
-                                contentDescription = null,
-                                tint = LocalAccentColor.current,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-                    // Directional inner glow from bottom-right
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                    ) {
-                        val radius = size.minDimension / 2
-                        val centerX = size.width * 0.7f
-                        val centerY = size.height * 0.7f
-                        
-                        drawCircle(
-                            brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.25f),
-                                    Color.Transparent
-                                ),
-                                center = androidx.compose.ui.geometry.Offset(centerX, centerY),
-                                radius = radius * 0.8f
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = stringResource(R.string.ai_intelligence),
-                    style = MaterialTheme.typography.headlineSmall.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = stringResource(R.string.configure_ai_providers_and_models),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
-
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 16.dp, horizontal = 24.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp) // Consistent padding
-                    .padding(bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Drag Hint
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 4.dp),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DragIndicator,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(12.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = stringResource(R.string.drag_providers_to_reorder_priority),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-
-                val providerInfo = mapOf(
-                    AIProvider.GEMINI to Triple("gemini", "google's_fastest_ai", "https://aistudio.google.com/apikey"),
-                    AIProvider.DEEPSEEK to Triple("deepseek", "cost-effective", "https://platform.deepseek.com"),
-                    AIProvider.GROQ to Triple("groq", "ultra-fast", "https://console.groq.com"),
-                    AIProvider.CEREBRAS to Triple("cerebras", "2000+_tokens/sec", "https://cloud.cerebras.ai"),
-                    AIProvider.COHERE to Triple("cohere", "command_models", "https://dashboard.cohere.com/api-keys"),
-                    AIProvider.OPENAI to Triple("openai", "gpt-4o", "https://platform.openai.com/api-keys"),
-                    AIProvider.ANTHROPIC to Triple("anthropic", "claude_models", "https://console.anthropic.com/settings/keys"),
-                    AIProvider.OPENROUTER to Triple("openrouter", "multi-model", "https://openrouter.ai/keys"),
-                    AIProvider.HUGGINGFACE to Triple("huggingface", "open_source", "https://huggingface.co/settings/tokens"),
-                    AIProvider.GITHUB to Triple("github_models", "free_with_github", "https://github.com/settings/tokens"),
-                    AIProvider.LOCAL_PC to Triple("local_llm", "run_ai_locally", "")
-                )
-
-            // Iterate through providers with drag-and-drop reordering
-            localProviderOrder.forEachIndexed { index, provider ->
-                val (name, description, _) = providerInfo[provider] ?: Triple("unknown", "", "")
-                val config = providerConfigs[provider]
-                val isDragging = draggedItemIndex == index
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .graphicsLayer {
-                            if (isDragging) {
-                                translationY = dragOffsetY
-                                scaleX = 1.02f
-                                scaleY = 1.02f
-                                shadowElevation = 8.dp.toPx()
-                            }
-                        }
-                        .zIndex(if (isDragging) 1f else 0f)
-                        .background(
-                            if (isDragging) MaterialTheme.colorScheme.surfaceContainerHigh
-                            else Color.Transparent,
-                            RoundedCornerShape(16.dp)
-                        )
-                ) {
-                    // Drag Handle
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .pointerInput(index) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = {
-                                        draggedItemIndex = index
-                                        dragOffsetY = 0f
-                                    },
-                                    onDragEnd = {
-                                        val itemHeight = 100f // Approx height
-                                        val moveBy = (dragOffsetY / itemHeight).toInt()
-                                        val targetIndex = (index + moveBy).coerceIn(0, localProviderOrder.size - 1)
-
-                                        if (targetIndex != index) {
-                                            val newList = localProviderOrder.toMutableList()
-                                            val item = newList.removeAt(index)
-                                            newList.add(targetIndex, item)
-                                            localProviderOrder = newList
-                                            onSetProviderPriority(newList)
-                                        }
-
-                                        draggedItemIndex = null
-                                        dragOffsetY = 0f
-                                    },
-                                    onDragCancel = {
-                                        draggedItemIndex = null
-                                        dragOffsetY = 0f
-                                    },
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        dragOffsetY += dragAmount.y
-                                    }
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DragHandle,
-                            contentDescription = stringResource(R.string.drag_to_reorder),
-                            tint = if (isDragging) LocalAccentColor.current
-                                   else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        if (provider == AIProvider.LOCAL_PC) {
-                            LocalServerSection(
-                                isEnabled = isLocalPCEnabled,
-                                onSetEnabled = onSetLocalPCEnabled,
-                                serverIP = localServerIP,
-                                serverPort = localServerPort,
-                                useHttps = localServerUseHttps,
-                                onSetServerIP = onSetLocalServerIP,
-                                onSetServerPort = onSetLocalServerPort,
-                                onSetUseHttps = onSetLocalServerUseHttps,
-                                onTestConnection = onTestLocalServer
-                            )
-                        } else {
-                            // Build usage stats map for GROQ keys
-                            val keyUsageStatsMap = if (provider == AIProvider.GROQ) {
-                                groqKeyUsageStats.associateBy { it.key }
-                            } else {
-                                emptyMap()
-                            }
-
-                            ProviderSection(
-                                provider = provider,
-                                providerName = name,
-                                providerDescription = description,
-                                apiKeys = config?.apiKeys ?: emptyList(),
-                                isEnabled = config?.isEnabled ?: true,
-                                selectedModel = config?.selectedModel ?: AIModels.getDefaultModel(provider),
-                                availableModels = getAvailableModels(provider),
-                                onAddKey = { onAddApiKey(provider, it) },
-                                onRemoveKey = { onRemoveApiKey(provider, it) },
-                                onUpdateKey = { old, new -> onUpdateApiKey(provider, old, new) },
-                                onToggleEnabled = { onSetProviderEnabled(provider, it) },
-                                onSelectModel = { onSetSelectedModel(provider, it) },
-                                onTestKey = { key, callback -> onTestApiKey(provider, key, callback) },
-                                keyUsageStats = keyUsageStatsMap,
-                                onRefreshModels = if (provider == AIProvider.GROQ) { { onRefreshModels(provider) } } else null
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Other Sections
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(top = 8.dp)
-            ) {
-                TavilyApiSection(
-                    apiKeys = tavilyApiKeys,
-                    isEnabled = isTavilyEnabled,
-                    onToggleEnabled = onSetTavilyEnabled,
-                    onAddKey = onAddTavilyApiKey,
-                    onRemoveKey = onRemoveTavilyApiKey
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Status Footer
-            val hasAnyKeys = providerConfigs.values.any { it.apiKeys.isNotEmpty() }
-            val configuredCount = providerConfigs.values.count { it.apiKeys.isNotEmpty() }
-
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                ) {
-                    Icon(
-                        imageVector = if (hasAnyKeys) Icons.Default.Verified else Icons.Default.Info,
-                        contentDescription = null,
-                        tint = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (hasAnyKeys) stringResource(R.string.providers_configured, configuredCount) else stringResource(R.string.no_api_keys_demo_mode),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (hasAnyKeys) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Tavily Web Search API configuration section.
- * Simplified UI: Toggle to enable/disable + API key management only.
- * No model selection (Engine Hub) needed for search tool.
- */
-@Composable
-private fun TavilyApiSection(
-    apiKeys: List<String>,
-    isEnabled: Boolean,
-    onToggleEnabled: (Boolean) -> Unit,
-    onAddKey: (String) -> Unit,
-    onRemoveKey: (String) -> Unit
-) {
-    var isExpanded by remember { mutableStateOf(false) }
-    var newKeyInput by remember { mutableStateOf("") }
-    var showNewKeyInput by remember { mutableStateOf(false) }
-    val accentColor = LocalAccentColor.current
-
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .softCardShadow(
-                elevation = if (isExpanded) 8.dp else 2.dp,
-                shape = RoundedCornerShape(26.dp),
-                spotColor = Color.Black.copy(alpha = 0.08f)
-            ),
-        shape = RoundedCornerShape(26.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = 0.5.dp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Header Row with Toggle
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = null
-                    ) { isExpanded = !isExpanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.tavily_web_search).uppercase(),
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        ),
-                        color = if (isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Text(
-                        text = stringResource(R.string.enable_ai_web_search_capabilities),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-
-                // Toggle Switch with Icon
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (isEnabled) accentColor.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = null,
-                                tint = if (isEnabled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Switch(
-                        checked = isEnabled,
-                        onCheckedChange = onToggleEnabled,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = accentColor,
-                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                        ),
-                        modifier = Modifier.scale(0.8f)
-                    )
-                }
-            }
-
-            // Expandable API Key Management
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
-                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
-
-                    // API Keys List
-                    if (apiKeys.isNotEmpty()) {
-                        apiKeys.forEachIndexed { index, key ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Key,
-                                    contentDescription = null,
-                                    tint = accentColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = "tvly-****${key.takeLast(4)}",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = MonoFont,
-                                        letterSpacing = 0.5.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (index == 0) {
-                                    Surface(
-                                        shape = RoundedCornerShape(4.dp),
-                                        color = accentColor.copy(alpha = 0.1f)
-                                    ) {
-                                        Text(
-                                            text = "PRIMARY",
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                letterSpacing = 0.5.sp
-                                            ),
-                                            color = accentColor,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-                                IconButton(
-                                    onClick = { onRemoveKey(key) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = stringResource(R.string.remove),
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Add new key section
-                    if (showNewKeyInput) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            BasicTextField(
-                                value = newKeyInput,
-                                onValueChange = { newKeyInput = it },
-                                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = MonoFont,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                ),
-                                cursorBrush = SolidColor(accentColor),
-                                modifier = Modifier.weight(1f),
-                                decorationBox = { innerTextField ->
-                                    Box {
-                                        if (newKeyInput.isEmpty()) {
-                                            Text(
-                                                text = "tvly-...",
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontFamily = MonoFont
-                                                ),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                            )
-                                        }
-                                        innerTextField()
-                                    }
-                                }
-                            )
-                            IconButton(
-                                onClick = {
-                                    if (newKeyInput.isNotBlank()) {
-                                        onAddKey(newKeyInput.trim())
-                                        newKeyInput = ""
-                                        showNewKeyInput = false
-                                    }
-                                },
-                                enabled = newKeyInput.isNotBlank()
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = stringResource(R.string.add),
-                                    tint = if (newKeyInput.isNotBlank()) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    newKeyInput = ""
-                                    showNewKeyInput = false
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.cancel),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    } else {
-                        // Add Key Button
-                        Surface(
-                            onClick = { showNewKeyInput = true },
-                            shape = RoundedCornerShape(12.dp),
-                            color = accentColor.copy(alpha = 0.1f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    tint = accentColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = stringResource(R.string.add_api_key),
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.SemiBold
-                                    ),
-                                    color = accentColor
-                                )
-                            }
-                        }
-                    }
-
-                    // Info text
-                    Text(
-                        text = stringResource(R.string.tavily_info),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
         }
     }
 }
@@ -2172,6 +1454,49 @@ private fun SettingsToggleRow(
 // formatCacheSize is now imported from DataManagementSection
 
 @Composable
+private fun ServerConfigView(
+    isLocalPCEnabled: Boolean,
+    onSetLocalPCEnabled: (Boolean) -> Unit,
+    localServerIP: String,
+    localServerPort: String,
+    localServerUseHttps: Boolean,
+    onSetLocalServerIP: (String) -> Unit,
+    onSetLocalServerPort: (String) -> Unit,
+    onSetLocalServerUseHttps: (Boolean) -> Unit,
+    onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        SettingsHeader(
+            title = stringResource(R.string.local_llm_server),
+            subtitle = stringResource(R.string.configure_local_pc_connection),
+            onBack = onBack
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            LocalServerSection(
+                isEnabled = isLocalPCEnabled,
+                onSetEnabled = onSetLocalPCEnabled,
+                serverIP = localServerIP,
+                serverPort = localServerPort,
+                useHttps = localServerUseHttps,
+                onSetServerIP = onSetLocalServerIP,
+                onSetServerPort = onSetLocalServerPort,
+                onSetUseHttps = onSetLocalServerUseHttps,
+                onTestConnection = onTestLocalServer
+            )
+            Spacer(modifier = Modifier.height(180.dp))
+        }
+    }
+}
+
+@Composable
 private fun HideSystemBars() {
     val view = LocalView.current
     LaunchedEffect(view) {
@@ -2182,6 +1507,20 @@ private fun HideSystemBars() {
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         }
+    }
+}
+
+/**
+ * Format cache size for display.
+ */
+@Composable
+fun formatCacheSize(bytes: Long): String {
+    return when {
+        bytes <= 0 -> stringResource(R.string.no_cache)
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+        bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+        else -> "%.1f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
     }
 }
 

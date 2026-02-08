@@ -12,8 +12,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assistant
-import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.model.Attachment
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.ui.components.ConnectionStatus
@@ -33,7 +31,6 @@ import com.example.smarty.data.model.TodoItem
 import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.screens.*
 import com.example.smarty.viewmodel.BackupViewModel
-import com.example.smarty.util.api.KeyUsageStats
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -74,16 +71,6 @@ fun SmartyNavHost(
     selectedNote: Note?,
     selectedCategory: Category?,
     isProcessing: Boolean,
-    // API Key management
-    providerConfigs: Map<AIProvider, AIProviderConfig>,
-    providerPriorityOrder: List<AIProvider>,
-    onAddApiKey: (AIProvider, String) -> Unit,
-    onRemoveApiKey: (AIProvider, String) -> Unit,
-    onUpdateApiKey: (AIProvider, String, String) -> Unit,
-    onSetProviderEnabled: (AIProvider, Boolean) -> Unit,
-    onSetSelectedModel: (AIProvider, String) -> Unit,
-    onSetProviderPriority: (List<AIProvider>) -> Unit,
-    onTestApiKey: (AIProvider, String, (Boolean) -> Unit) -> Unit,
     // Notes management
     onAddNote: (String, List<Attachment>) -> Unit,
     onSelectNote: (Note?) -> Unit,
@@ -178,17 +165,9 @@ fun SmartyNavHost(
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
-    // Tavily Web Search API
-    tavilyApiKeys: List<String> = emptyList(),
-    onAddTavilyApiKey: (String) -> Unit = {},
-    onRemoveTavilyApiKey: (String) -> Unit = {},
-    isTavilyEnabled: Boolean = true,
-    onSetTavilyEnabled: (Boolean) -> Unit = {},
     // Shake sensitivity
     shakeSensitivity: Float = 0.63f,
     onShakeSensitivityChange: (Float) -> Unit = {},
-    // GROQ key usage stats
-    groqKeyUsageStats: List<KeyUsageStats> = emptyList(),
     // Shake mode switch animation
     wasShakeTriggered: Boolean = false,
     // Network status (Phase 7)
@@ -219,9 +198,6 @@ fun SmartyNavHost(
     externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
 
-    // Dynamic Models
-    onRefreshModels: (AIProvider) -> Unit = {},
-    getAvailableModels: (AIProvider) -> List<Pair<String, String>> = { com.example.smarty.data.local.AIModels.getModelsForProvider(it) },
     // Screen change callback for shake detection
     onScreenChange: (String) -> Unit = {},
     // Shake blocking control
@@ -441,73 +417,12 @@ fun SmartyNavHost(
                     navController.navigate(Screen.CategoryNotes.route)
                 },
 
-                // Settings props
-                providerConfigs = providerConfigs,
-                providerPriorityOrder = providerPriorityOrder,
-                onAddApiKey = onAddApiKey,
-                onRemoveApiKey = onRemoveApiKey,
-                onUpdateApiKey = onUpdateApiKey,
-                onSetProviderEnabled = onSetProviderEnabled,
-                onSetSelectedModel = onSetSelectedModel,
-                onSetProviderPriority = onSetProviderPriority,
-                onTestApiKey = onTestApiKey,
-                tavilyApiKeys = tavilyApiKeys,
-                onAddTavilyApiKey = onAddTavilyApiKey,
-                onRemoveTavilyApiKey = onRemoveTavilyApiKey,
-                isTavilyEnabled = isTavilyEnabled,
-                onSetTavilyEnabled = onSetTavilyEnabled,
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,
                 isClearingCache = isClearingCache,
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
-                groqKeyUsageStats = groqKeyUsageStats,
-                onRefreshModels = onRefreshModels,
-                getAvailableModels = getAvailableModels,
                 onSignOut = onSignOut,
-                // Settings sub-sheet content
-                aiConfigContent = @androidx.compose.runtime.Composable { onDismiss ->
-                    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-                    val aiConfigSheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-                    com.example.smarty.ui.components.UnifiedBottomSheet(
-                        sheetState = aiConfigSheetState,
-                        onDismiss = onDismiss,
-                        title = "AI Providers",
-                        subtitle = "Models and API Keys",
-                        icon = Icons.Filled.Assistant,
-                        heightFraction = 0.9f
-                    ) {
-                        com.example.smarty.ui.screens.AIConfigBottomSheetContent(
-                            providerConfigs = providerConfigs,
-                            providerPriorityOrder = providerPriorityOrder,
-                            onAddApiKey = onAddApiKey,
-                            onRemoveApiKey = onRemoveApiKey,
-                            onUpdateApiKey = onUpdateApiKey,
-                            onSetProviderEnabled = onSetProviderEnabled,
-                            onSetSelectedModel = onSetSelectedModel,
-                            onSetProviderPriority = onSetProviderPriority,
-                            onTestApiKey = onTestApiKey,
-                            tavilyApiKeys = tavilyApiKeys,
-                            onAddTavilyApiKey = onAddTavilyApiKey,
-                            onRemoveTavilyApiKey = onRemoveTavilyApiKey,
-                            isTavilyEnabled = isTavilyEnabled,
-                            onSetTavilyEnabled = onSetTavilyEnabled,
-                            groqKeyUsageStats = groqKeyUsageStats,
-                            onRefreshModels = onRefreshModels,
-                            getAvailableModels = getAvailableModels,
-                            isLocalPCEnabled = isLocalPCEnabled,
-                            onSetLocalPCEnabled = onSetLocalPCEnabled,
-                            localServerIP = localServerIP,
-                            localServerPort = localServerPort,
-                            localServerUseHttps = localServerUseHttps,
-                            onSetLocalServerIP = onSetLocalServerIP,
-                            onSetLocalServerPort = onSetLocalServerPort,
-                            onSetLocalServerUseHttps = onSetLocalServerUseHttps,
-                            onTestLocalServer = onTestLocalServer
-                        )
-                    }
-                },
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
                         onBackClick = onDismiss,
@@ -602,26 +517,11 @@ fun SmartyNavHost(
 
         composable(Screen.Settings.route) { _ ->
             SettingsScreen(
-                providerConfigs = providerConfigs,
-                providerPriorityOrder = providerPriorityOrder,
                 isDarkTheme = isDarkTheme,
                 onBackClick = {
                     navController.safePopBackStack()
                 },
-                onAddApiKey = onAddApiKey,
-                onRemoveApiKey = onRemoveApiKey,
-                onUpdateApiKey = onUpdateApiKey,
-                onSetProviderEnabled = onSetProviderEnabled,
-                onSetSelectedModel = onSetSelectedModel,
-                onSetProviderPriority = onSetProviderPriority,
-                onTestApiKey = onTestApiKey,
                 onToggleTheme = onToggleTheme,
-                // Tavily Web Search API
-                tavilyApiKeys = tavilyApiKeys,
-                onAddTavilyApiKey = onAddTavilyApiKey,
-                onRemoveTavilyApiKey = onRemoveTavilyApiKey,
-                isTavilyEnabled = isTavilyEnabled,
-                onSetTavilyEnabled = onSetTavilyEnabled,
                 // Cache management
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,
@@ -629,11 +529,6 @@ fun SmartyNavHost(
                 // Shake sensitivity
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
-                // GROQ key usage stats
-                groqKeyUsageStats = groqKeyUsageStats,
-                // Dynamic Models
-                onRefreshModels = onRefreshModels,
-                getAvailableModels = getAvailableModels,
                 // Embedded Sheets
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
@@ -664,14 +559,15 @@ fun SmartyNavHost(
                 localServerIP = localServerIP,
                 localServerPort = localServerPort,
                 localServerUseHttps = localServerUseHttps,
-                                            onSetLocalServerIP = onSetLocalServerIP,
-                                            onSetLocalServerPort = onSetLocalServerPort,
-                                            onSetLocalServerUseHttps = onSetLocalServerUseHttps,
-                                            onTestLocalServer = onTestLocalServer,
-                                            onSignOut = onSignOut,
-                                            onNavigateToCoinToss = {
-                                                navController.navigate(Screen.CoinToss.route)
-                                            },                onNavigateToTicTacToe = {
+                onSetLocalServerIP = onSetLocalServerIP,
+                onSetLocalServerPort = onSetLocalServerPort,
+                onSetLocalServerUseHttps = onSetLocalServerUseHttps,
+                onTestLocalServer = onTestLocalServer,
+                onSignOut = onSignOut,
+                onNavigateToCoinToss = {
+                    navController.navigate(Screen.CoinToss.route)
+                },
+                onNavigateToTicTacToe = {
                     navController.navigate(Screen.TicTacToe.route)
                 }
             )

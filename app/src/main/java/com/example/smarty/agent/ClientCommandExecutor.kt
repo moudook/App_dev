@@ -43,9 +43,6 @@ interface ClientCommandExecutor {
     fun getActiveNotes(): List<Note>
     fun getArchivedNotes(): List<Note>
     fun getCategories(): List<Category>
-    fun getTavilyApiKey(): String?
-    fun getOpenAiApiKey(): String?
-    fun getGeminiApiKey(): String?
     fun getScreenContext(): ScreenContext?
     suspend fun getDeviceAudio(): List<AudioTrack> = emptyList()
     fun getCurrentScreen(): String = "unknown"
@@ -97,10 +94,6 @@ interface ClientCommandExecutor {
     suspend fun advancedSearch(query: String, algorithm: String = "hybrid", limit: Int = 10, minScore: Double = 0.3): List<SearchResultItem>
     fun analyzeQuery(query: String): SearchQueryAnalysis
     suspend fun performRecall(query: String, minScore: Double = 0.3): List<RecallResult>
-    fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int)
-    fun onAnalyzeStyle(limit: Int): StyleAnalysisReport
-    suspend fun onWebSearch(query: String, maxResults: Int, topic: String, onCitationsFound: (List<WebCitation>) -> Unit): WebSearchResult
-    suspend fun onParallelWebSearch(queries: List<String>, maxResults: Int, topic: String, onCitationsFound: (List<WebCitation>) -> Unit): WebSearchResult
 
     // Audio Control
     fun requestAudioPlayback(track: AudioTrack)

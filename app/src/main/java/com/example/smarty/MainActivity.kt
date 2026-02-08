@@ -170,10 +170,6 @@ class MainActivity : ComponentActivity() {
                 val isCalendarLoading by viewModel.isCalendarLoading.collectAsState()
                 val isNoteVersionsLoading by viewModel.isNoteVersionsLoading.collectAsState()
 
-                // API Key states
-                val providerConfigs by viewModel.providerConfigs.collectAsState()
-                val providerPriorityOrder by viewModel.providerPriorityOrder.collectAsState()
-
                 // Pending share state
                 val pendingShare by viewModel.pendingShare.collectAsState()
                 val isShareFullPrivacy by viewModel.pendingShareFullPrivacy.collectAsState()
@@ -231,16 +227,8 @@ class MainActivity : ComponentActivity() {
                 // Search History (BATCH 5C)
                 val recentSearches by viewModel.recentSearches.collectAsState()
 
-
-                // Tavily Web Search API state
-                val tavilyApiKeys by viewModel.tavilyApiKeys.collectAsState()
-                val isTavilyEnabled by viewModel.isTavilyEnabled.collectAsState()
-
                 // Shake sensitivity state
                 val shakeSensitivity by viewModel.shakeSensitivity.collectAsState()
-
-                // GROQ key usage stats for UI display
-                val groqKeyUsageStats by viewModel.groqKeyUsageStats.collectAsState()
 
                 // Local LLM Server IP/Port state (USB/WiFi)
                 val localServerIP by viewModel.localServerIP.collectAsState()
@@ -440,29 +428,6 @@ class MainActivity : ComponentActivity() {
                                     selectedNote = selectedNote,
                                     selectedCategory = selectedCategory,
                                     isProcessing = isProcessing,
-                                    providerConfigs = providerConfigs,
-                                    providerPriorityOrder = providerPriorityOrder,
-                                    onAddApiKey = { provider, key ->
-                                        viewModel.addApiKey(provider, key)
-                                    },
-                                    onRemoveApiKey = { provider, key ->
-                                        viewModel.removeApiKey(provider, key)
-                                    },
-                                    onUpdateApiKey = { provider, oldKey, newKey ->
-                                        viewModel.updateApiKey(provider, oldKey, newKey)
-                                    },
-                                    onSetProviderEnabled = { provider, enabled ->
-                                        viewModel.setProviderEnabled(provider, enabled)
-                                    },
-                                    onSetSelectedModel = { provider, model ->
-                                        viewModel.setSelectedModel(provider, model)
-                                    },
-                                    onSetProviderPriority = { priority ->
-                                        viewModel.setProviderPriority(priority)
-                                    },
-                                    onTestApiKey = { provider, key, callback ->
-                                        viewModel.testApiKey(provider, key, callback)
-                                    },
                                     // Notes management
                                     onAddNote = { content, attachments ->
                                         viewModel.addNoteWithAttachments(content, attachments)
@@ -666,26 +631,11 @@ class MainActivity : ComponentActivity() {
                                         viewModel.clearCache()
                                     },
                                     isClearingCache = isClearingCache,
-                                    // Tavily Web Search API
-                                    // Tavily Web Search API
-                                    tavilyApiKeys = tavilyApiKeys,
-                                    onAddTavilyApiKey = { key ->
-                                        viewModel.addTavilyApiKey(key)
-                                    },
-                                    onRemoveTavilyApiKey = { key ->
-                                        viewModel.removeTavilyApiKey(key)
-                                    },
-                                    isTavilyEnabled = isTavilyEnabled,
-                                    onSetTavilyEnabled = { enabled ->
-                                        viewModel.setTavilyEnabled(enabled)
-                                    },
                                     // Shake sensitivity
                                     shakeSensitivity = shakeSensitivity,
                                     onShakeSensitivityChange = { value ->
                                         viewModel.setShakeSensitivity(value)
                                     },
-                                    // GROQ key usage stats
-                                    groqKeyUsageStats = groqKeyUsageStats,
                                     // Shake mode switch animation
                                     wasShakeTriggered = wasShakeTriggered,
                                     connectionStatus = connectionStatus,
@@ -722,7 +672,7 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate(Screen.CoinToss.route)
                                     },
                                     onCancelTimer = { timer ->
-                                        viewModel.cancelTimer(timer.id)
+                                        viewModel.cancelTimer(timer)
                                     },
                                     bottomContentPadding = androidx.compose.animation.core.animateDpAsState(
                                         targetValue = if (isMiniPlayerVisible && !isFullPlayerVisible && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) == 0) 84.dp else 0.dp,
@@ -731,15 +681,6 @@ class MainActivity : ComponentActivity() {
                                     externalSpeechState = globalSpeechState,
                                     speechResults = viewModel.speechResults,
 
-                                    // Dynamic Models - Only Groq supported for refresh now
-                                    onRefreshModels = { provider ->
-                                        if (provider == AIProvider.GROQ) {
-                                            viewModel.refreshGroqModels()
-                                        }
-                                    },
-                                    getAvailableModels = { provider ->
-                                        viewModel.getAvailableModels(provider)
-                                    },
                                     // Track screen changes for shake gesture (only works on main screen)
                                     onScreenChange = { route ->
                                         viewModel.setCurrentScreen(route)

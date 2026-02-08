@@ -26,7 +26,6 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.data.remote.AIService
-import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.SmartyRepository
@@ -36,9 +35,6 @@ import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.util.CompletionSoundManager
 import com.example.smarty.util.NetworkMonitor
 import com.example.smarty.util.ShakeDetector
-import com.example.smarty.util.api.GroqKeyManager
-import com.example.smarty.util.api.KeyUsageStats
-import com.example.smarty.util.api.RateLimiter
 import com.example.smarty.data.model.MentionState
 import com.example.smarty.ui.components.AttachmentOption
 import android.content.Context
@@ -166,60 +162,6 @@ class SmartyViewModel(
         ChatRepository(database.chatDao())
     }
 
-    // Web search provider for agent actions
-    private val tavilySearchProvider: TavilySearchProvider by lazy {
-        val httpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .build()
-        TavilySearchProvider(httpClient, Gson())
-    }
-
-    // Calendar Sync Manager - handles synchronization with device calendars
-    // DEPRECATED: Use ServiceLocator.provideCalendarFeatureManager which handles this internally
-    // Kept for now if accessed directly, but should be removed in favor of FeatureManager
-    private val googleCalendarSyncManager by lazy {
-        com.example.smarty.calendar.GoogleCalendarSyncManager(application, repository)
-    }
-
-    // Calendar Feature Manager - handles calendar logic and sync
-    // Uses ServiceLocator to share instance with CalendarViewModel
-    private val calendarFeatureManager by lazy {
-        com.example.smarty.di.ServiceLocator.provideCalendarFeatureManager(getApplication())
-    }
-
-    // Google Calendar Sync State - delegated to CalendarFeatureManager
-    val deviceCalendars: StateFlow<List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar>> by lazy {
-        calendarFeatureManager.deviceCalendars
-    }
-
-    val isCalendarSyncEnabled: StateFlow<Boolean> by lazy {
-        calendarFeatureManager.isCalendarSyncEnabled
-    }
-
-    val targetCalendarId: StateFlow<Long> by lazy {
-        calendarFeatureManager.targetCalendarId
-    }
-
-    fun loadDeviceCalendars() {
-        calendarFeatureManager.loadDeviceCalendars()
-    }
-
-    fun setCalendarSyncEnabled(enabled: Boolean) {
-        calendarFeatureManager.setCalendarSyncEnabled(enabled)
-    }
-
-    fun setTargetCalendarId(id: Long) {
-        calendarFeatureManager.setTargetCalendarId(id)
-    }
-
-    /**
-     * Cancel a timer by ID.
-     */
-    fun cancelTimer(timerId: String) {
-        calendarFeatureManager.cancelTimer(timerId)
-    }
-
     // Alarm scheduler for timer/alarm tools - lazy to avoid blocking
     private val alarmScheduler: AlarmScheduler by lazy {
         AlarmScheduler.getInstance(application)
@@ -230,16 +172,6 @@ class SmartyViewModel(
         DeviceAudioRepository(application)
     }
 
-    // Rate limiter for API call management (30 calls/min, 14.4k/day) - lazy
-    private val rateLimiter: RateLimiter by lazy {
-        RateLimiter.getInstance(application)
-    }
-
-    // GROQ Key Manager for per-key usage tracking - lazy
-    private val groqKeyManager: GroqKeyManager by lazy {
-        GroqKeyManager.getInstance(application)
-    }
-
     // Completion sound manager for AI agent and notecard processing
     private val completionSoundManager: CompletionSoundManager by lazy {
         CompletionSoundManager.getInstance(application)
@@ -248,6 +180,16 @@ class SmartyViewModel(
     // Cache manager for memory management
     private val cacheManager: com.example.smarty.data.cache.CacheManager by lazy {
         com.example.smarty.data.cache.CacheManager.getInstance(application)
+    }
+
+    // Calendar Feature Manager - handles calendar logic and sync
+    private val calendarFeatureManager by lazy {
+        com.example.smarty.di.ServiceLocator.provideCalendarFeatureManager(getApplication())
+    }
+
+    // Settings Feature Manager - Centralized preferences and keys
+    private val settingsFeatureManager: SettingsFeatureManager by lazy {
+        SettingsFeatureManager(securePreferences, viewModelScope)
     }
 
     // System Feature Manager - Hybridized action layer for UI, Local Commands, and AI
@@ -263,19 +205,13 @@ class SmartyViewModel(
         )
     }
 
-    // Settings Feature Manager - Centralized preferences and keys
-    private val settingsFeatureManager: SettingsFeatureManager by lazy {
-        SettingsFeatureManager(securePreferences, aiService, rateLimiter, viewModelScope)
-    }
-
     // Search Feature Manager - Centralized retrieval for UI and AI
     private val searchFeatureManager: com.example.smarty.viewmodel.managers.SearchFeatureManager by lazy {
         com.example.smarty.viewmodel.managers.SearchFeatureManager(
             repository = repository,
             allNotes = _allNotesForAgent,
             searchHistoryManager = SearchHistoryManager(application),
-            securePreferences = securePreferences,
-            tavilySearchProvider = tavilySearchProvider
+            securePreferences = securePreferences
         )
     }
 
@@ -288,7 +224,6 @@ class SmartyViewModel(
     private val workflowManager: com.example.smarty.viewmodel.managers.WorkflowManager by lazy {
         com.example.smarty.viewmodel.managers.WorkflowManager(
             repository = repository,
-            tavilySearchProvider = tavilySearchProvider,
             scope = viewModelScope,
             onStatusUpdate = { status -> chatFeatureManager.updateCurrentToolName(status) }
         )
@@ -313,9 +248,6 @@ class SmartyViewModel(
 
     /** Expose reactive plan state to UI */
     val activeExecutionPlan: StateFlow<com.example.smarty.viewmodel.managers.ExecutionPlan?> = executionPlanManager.activePlan
-
-    // GROQ key usage stats exposed for UI - lazy
-    val groqKeyUsageStats: StateFlow<List<KeyUsageStats>> by lazy { groqKeyManager.usageStats }
 
     // Local LLM Server IP/Port/HTTPS state (USB/WiFi connectivity)
     val isLocalPCEnabled: StateFlow<Boolean> = settingsFeatureManager.isLocalPCEnabled
@@ -482,12 +414,6 @@ class SmartyViewModel(
         _activeNoteId.value = noteId
     }
 
-    // Cache management
-    private val _cacheSizeBytes = MutableStateFlow(0L)
-    val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
-    private val _isClearingCache = MutableStateFlow(false)
-    val isClearingCache: StateFlow<Boolean> = _isClearingCache.asStateFlow()
-
     // Network monitoring (Phase 7)
     private val networkMonitor: NetworkMonitor by lazy { NetworkMonitor(application) }
     val connectionStatus: StateFlow<ConnectionStatus> = networkMonitor.connectionStatus
@@ -503,15 +429,12 @@ class SmartyViewModel(
             repository = repository,
             database = database,
             securePreferences = securePreferences,
-            groqKeyManager = groqKeyManager,
-            tavilySearchProvider = tavilySearchProvider,
             settingsFeatureManager = settingsFeatureManager,
             noteOperationsManager = noteOperationsManager,
             systemFeatureManager = systemFeatureManager,
             completionSoundManager = completionSoundManager,
             alarmScheduler = alarmScheduler,
             executionPlanManager = executionPlanManager,
-            rateLimiter = rateLimiter,
             memoryFeatureManager = memoryFeatureManager,
             searchFeatureManager = searchFeatureManager,
             audioFeatureManager = audioFeatureManager,
@@ -690,22 +613,27 @@ class SmartyViewModel(
 
 
 
-    // Expose settings state for UI
-    val geminiKeys: StateFlow<List<String>> = settingsFeatureManager.geminiKeys
-    val huggingFaceKeys: StateFlow<List<String>> = settingsFeatureManager.huggingFaceKeys
-    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> = settingsFeatureManager.providerConfigs
-    val providerPriorityOrder: StateFlow<List<AIProvider>> = settingsFeatureManager.providerPriorityOrder
+    // --- Calendar & Timer State ---
+    val isCalendarSyncEnabled: StateFlow<Boolean> = calendarFeatureManager.isCalendarSyncEnabled
+    val deviceCalendars: StateFlow<List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar>> = calendarFeatureManager.deviceCalendars
+    val targetCalendarId: StateFlow<Long> = calendarFeatureManager.targetCalendarId
 
-    fun setProviderPriority(priority: List<AIProvider>) {
-        settingsFeatureManager.setProviderPriority(priority)
-    }
+    fun setCalendarSyncEnabled(enabled: Boolean) = calendarFeatureManager.setCalendarSyncEnabled(enabled)
+    fun setTargetCalendarId(id: Long) = calendarFeatureManager.setTargetCalendarId(id)
+    fun loadDeviceCalendars() = calendarFeatureManager.loadDeviceCalendars()
+    fun cancelTimer(timer: SmartyTimer) = calendarFeatureManager.cancelTimer(timer.id)
 
     // Cache management
-    // MOVED ABOVE CHAT FEATURE MANAGER TO FIX INIT ORDER
-    // private val _cacheSizeBytes = MutableStateFlow(0L)
-    // val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
-    // private val _isClearingCache = MutableStateFlow(false)
-    // val isClearingCache: StateFlow<Boolean> = _isClearingCache.asStateFlow()
+    val cacheSizeBytes: StateFlow<Long> = settingsFeatureManager.cacheSizeBytes
+    val isClearingCache: StateFlow<Boolean> = settingsFeatureManager.isClearingCache
+
+    fun refreshCacheSize() {
+        settingsFeatureManager.updateCacheSize()
+    }
+
+    fun clearCache() {
+        settingsFeatureManager.clearCache()
+    }
 
     // Audio playback request from AI agent (observed by MainActivity to trigger playback)
     // Delegated to AudioPlaybackManager for centralized control - single source of truth
@@ -1535,54 +1463,6 @@ class SmartyViewModel(
 
     // Helper methods delegated to NoteOperationsManager or ContentTypeDetector
 
-    // API Key Management
-    fun addApiKey(provider: AIProvider, apiKey: String) {
-        settingsFeatureManager.addProviderKey(provider, apiKey)
-        // Sync GROQ keys with manager for usage tracking
-        if (provider == AIProvider.GROQ) {
-            chatFeatureManager.syncGroqKeys()
-        }
-        // Trigger queue processing - provider just became available
-        noteProcessingQueueManager.onProviderAvailable()
-    }
-
-    fun removeApiKey(provider: AIProvider, apiKey: String) {
-        settingsFeatureManager.removeProviderKey(provider, apiKey)
-        // Sync GROQ keys with manager for usage tracking
-        if (provider == AIProvider.GROQ) {
-            chatFeatureManager.syncGroqKeys()
-        }
-    }
-
-    fun updateApiKey(provider: AIProvider, oldKey: String, newKey: String) {
-        settingsFeatureManager.updateProviderKey(provider, oldKey, newKey)
-        // Sync GROQ keys with manager for usage tracking
-        if (provider == AIProvider.GROQ) {
-            chatFeatureManager.syncGroqKeys()
-        }
-        // Trigger queue processing - provider config changed
-        noteProcessingQueueManager.onProviderAvailable()
-    }
-
-    fun setProviderEnabled(provider: AIProvider, enabled: Boolean) {
-        settingsFeatureManager.setProviderEnabled(provider, enabled)
-        // If provider was enabled, trigger queue processing
-        if (enabled) {
-            noteProcessingQueueManager.onProviderAvailable()
-        }
-    }
-
-    fun setSelectedModel(provider: AIProvider, model: String) {
-        settingsFeatureManager.setSelectedModel(provider, model)
-    }
-
-    fun testApiKey(provider: AIProvider, apiKey: String, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
-            val isValid = settingsFeatureManager.testApiKey(provider, apiKey)
-            onResult(isValid)
-        }
-    }
-
     // Theme Management
     val isDarkTheme: StateFlow<Boolean> = settingsFeatureManager.isDarkTheme
 
@@ -1591,49 +1471,13 @@ class SmartyViewModel(
     }
 
     // Rate Limit Stats (exposed for UI monitoring)
-    fun getRateLimitStats() = settingsFeatureManager.getRateLimitStats()
-
-    // Tavily Web Search API Management (supports multiple keys)
-    val tavilyApiKey: StateFlow<String?> = settingsFeatureManager.tavilyApiKey
-    val tavilyApiKeys: StateFlow<List<String>> = settingsFeatureManager.tavilyApiKeys
-    val isTavilyEnabled: StateFlow<Boolean> = settingsFeatureManager.isTavilyEnabled
-
-    fun setTavilyApiKey(key: String?) {
-        settingsFeatureManager.setTavilyApiKey(key)
-    }
-
-    fun addTavilyApiKey(key: String) {
-        settingsFeatureManager.addTavilyApiKey(key)
-    }
-
-    fun removeTavilyApiKey(key: String) {
-        settingsFeatureManager.removeTavilyApiKey(key)
-    }
-
-    fun setTavilyEnabled(enabled: Boolean) {
-        settingsFeatureManager.setTavilyEnabled(enabled)
-    }
+    fun getRateLimitStats() = emptyMap<String, String>() // Placeholder as it was removed from manager
 
     // Shake Sensitivity Management
     val shakeSensitivity: StateFlow<Float> = settingsFeatureManager.shakeSensitivity
 
     fun setShakeSensitivity(value: Float) {
         settingsFeatureManager.setShakeSensitivity(value)
-    }
-
-    // Cache Management
-    fun refreshCacheSize() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _cacheSizeBytes.value = systemFeatureManager.getCacheSize()
-        }
-    }
-
-    fun clearCache() {
-        _isClearingCache.value = true
-        systemFeatureManager.clearCache { newSize ->
-            _cacheSizeBytes.value = newSize
-            _isClearingCache.value = false
-        }
     }
 
     // User Category Creation
@@ -2367,8 +2211,6 @@ class SmartyViewModel(
      * Hybridizes fast-path rule execution with deep-path agentic reasoning.
      */
     fun dispatchQuery(content: String, attachments: List<Attachment> = emptyList()) {
-        // Ensure GROQ keys are synced before first AI request
-        chatFeatureManager.syncGroqKeys()
         chatFeatureManager.dispatchQuery(content, attachments)
     }
 
@@ -2440,20 +2282,6 @@ class SmartyViewModel(
     suspend fun getAiVisibleUpcomingEvents(limit: Int = 10): List<CalendarEvent> =
         calendarFeatureManager.getAiVisibleUpcomingEvents(limit)
 
-    // ==================== Dynamic Model Management ====================
-
-    fun getAvailableModels(provider: AIProvider): List<Pair<String, String>> {
-        return settingsFeatureManager.getAvailableModels(provider)
-    }
-
-    fun refreshGroqModels() {
-        settingsFeatureManager.refreshGroqModels { success ->
-            if (success) {
-                // Trigger queue processing - provider config changed
-                noteProcessingQueueManager.onProviderAvailable()
-            }
-        }
-    }
     // ==================== Resource Optimization ====================
 
     // Track if resource-intensive operations are paused

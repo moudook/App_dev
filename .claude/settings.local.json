@@ -207,7 +207,11 @@
       "Bash(git config:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git merge:*)",
+      "Bash(docker --version:*)",
+      "Bash(.\\\\gradlew.bat :server:build:*)",
+      "Bash(del:*)"
     ],
     "deny": []
   },

@@ -1251,4 +1251,5 @@ Thank you for using Smarty.</string>
     <string name="tictactoe_play_again">Play Again</string>
     <string name="tictactoe_x_turn">X\'s turn</string>
     <string name="tictactoe_o_turn">O\'s turn</string>
+    <string name="configure_local_pc_connection">Configure local PC connection</string>
 </resources>

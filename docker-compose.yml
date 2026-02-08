@@ -1,0 +1,15 @@
+services:
+  db:
+    image: ankane/pgvector
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=smarty_db
+      - POSTGRES_USER=smarty_user
+      - POSTGRES_PASSWORD=smarty_pass
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+volumes:
+  db_data:

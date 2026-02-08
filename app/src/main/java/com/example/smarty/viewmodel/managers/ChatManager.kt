@@ -313,12 +313,9 @@ class ChatManager(
     /**
      * Determine if chat should be saved based on conditions
      */
-    fun shouldSaveChat(hasApiKeys: Boolean): Boolean {
+    fun shouldSaveChat(): Boolean {
         if (_currentSessionId.value == null) return false
         if (!lastApiCallSuccessful) return false
-        // FIX: Don't check hasApiKeys here. If lastApiCallSuccessful is true, 
-        // it means we got a response (local LLM or cloud), so we should ALWAYS save it.
-        // if (!hasApiKeys) return false 
         return true
     }
 
@@ -360,8 +357,7 @@ class ChatManager(
      */
     suspend fun saveMessagePair(
         userMessage: ChatMessage,
-        assistantMessage: ChatMessage,
-        hasApiKeys: Boolean
+        assistantMessage: ChatMessage
     ): Result<Unit> {
         return chatMutex.withLock {
             try {
@@ -370,7 +366,7 @@ class ChatManager(
                         sessionId = sessionId,
                         userMessage = userMessage,
                         assistantMessage = assistantMessage,
-                        shouldSave = shouldSaveChat(hasApiKeys)
+                        shouldSave = shouldSaveChat()
                     )
                 }
                 Result.success(Unit)

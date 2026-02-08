@@ -104,18 +104,8 @@ class ProviderFailoverManager private constructor() {
         private const val RATE_LIMIT_COOLDOWN_MS = 60_000L  // 1 minute for rate limits
         private const val AUTH_ERROR_COOLDOWN_MS = 600_000L // 10 minutes for auth errors
 
-        // Provider-specific rate limit cooldowns (based on API documentation)
+        // Provider-specific rate limit cooldowns
         private val PROVIDER_RATE_LIMIT_COOLDOWNS = mapOf(
-            AIProvider.GEMINI to 60_000L,      // Gemini typically suggests 30-60s retry
-            AIProvider.GROQ to 60_000L,         // Groq uses retry-after header
-            AIProvider.OPENAI to 60_000L,       // OpenAI standard rate limit
-            AIProvider.ANTHROPIC to 60_000L,    // Anthropic standard rate limit
-            AIProvider.CEREBRAS to 30_000L,     // Cerebras faster retry
-            AIProvider.COHERE to 60_000L,       // Cohere standard
-            AIProvider.DEEPSEEK to 60_000L,     // DeepSeek standard
-            AIProvider.OPENROUTER to 60_000L,   // OpenRouter standard
-            AIProvider.HUGGINGFACE to 120_000L, // HuggingFace free tier is slower
-            AIProvider.GITHUB to 60_000L,       // GitHub Models standard rate limit
             AIProvider.LOCAL_PC to 5_000L       // Local PC - short cooldown for local testing
         )
 

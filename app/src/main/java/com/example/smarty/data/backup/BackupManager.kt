@@ -487,33 +487,15 @@ class BackupManager(
     // Helper functions
 
     private fun createPreferencesBackup(): PreferencesBackup {
-        val allConfigs = securePreferences.getAllProviderConfigs()
-        val providerConfigsBackup = allConfigs.map { (provider, config) ->
-            provider.name to AIProviderConfigBackup(
-                isEnabled = config.isEnabled,
-                selectedModel = config.selectedModel,
-                apiKeys = config.apiKeys
-            )
-        }.toMap()
-
-        val priorityOrder = securePreferences.getProviderPriority().map { it.name }
-
         return PreferencesBackup(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
-            providerPriorityOrder = priorityOrder,
-            providerConfigs = providerConfigsBackup,
-            tavilyApiKeys = securePreferences.getTavilyApiKeys(),
             localPcIp = securePreferences.getLocalPCIP(),
             localPcPort = securePreferences.getLocalPCPort(),
             localPcUseHttps = securePreferences.getLocalPCUseHttps(),
             shakeSensitivity = securePreferences.getShakeSensitivity(),
-            soundEnabled = securePreferences.isSoundEnabled(),
-            groqDynamicModels = securePreferences.getDynamicModels(com.example.smarty.data.local.AIProvider.GROQ),
-            // Legacy support for older backups
-            encryptedGeminiKeys = securePreferences.getProviderKeys(AIProvider.GEMINI),
-            encryptedHuggingFaceKeys = securePreferences.getProviderKeys(AIProvider.HUGGINGFACE)
+            soundEnabled = securePreferences.isSoundEnabled()
         )
     }
 
@@ -521,13 +503,6 @@ class BackupManager(
         securePreferences.setDarkTheme(backup.isDarkTheme)
         securePreferences.setAutoBackupEnabled(backup.autoBackupEnabled)
         securePreferences.setAutoBackupIntervalDays(backup.autoBackupIntervalDays)
-
-        // Restore Tavily API keys
-        backup.tavilyApiKeys?.let { keys ->
-            if (keys.isNotEmpty()) {
-                securePreferences.setTavilyApiKeys(keys)
-            }
-        }
 
         // Restore Local PC settings
         backup.localPcIp?.let { securePreferences.setLocalPCIP(it) }
@@ -537,42 +512,6 @@ class BackupManager(
         // Restore UI and interaction settings
         backup.shakeSensitivity?.let { securePreferences.setShakeSensitivity(it) }
         backup.soundEnabled?.let { securePreferences.setSoundEnabled(it) }
-
-        // Restore dynamic models
-        backup.groqDynamicModels?.let { models ->
-            if (models.isNotEmpty()) {
-                securePreferences.setDynamicModels(AIProvider.GROQ, models)
-            }
-        }
-
-        // Restore provider configurations (models, enabled state, and keys)
-        backup.providerConfigs?.forEach { (providerName, configBackup) ->
-            try {
-                val provider = AIProvider.valueOf(providerName)
-                securePreferences.setProviderEnabled(provider, configBackup.isEnabled)
-                securePreferences.setSelectedModel(provider, configBackup.selectedModel)
-                configBackup.apiKeys?.let { keys ->
-                    if (keys.isNotEmpty()) {
-                        securePreferences.setProviderKeys(provider, keys)
-                    }
-                }
-            } catch (e: Exception) {
-                // Ignore unknown providers or malformed data
-            }
-        }
-
-        // Restore priority order
-        backup.providerPriorityOrder?.let { priorityNames ->
-            val priorityList = priorityNames.mapNotNull { name ->
-                try { AIProvider.valueOf(name) } catch (e: Exception) { null }
-            }
-            if (priorityList.isNotEmpty()) {
-                securePreferences.setProviderPriority(priorityList)
-            }
-        }
-
-        // Fallback for legacy backups that used the old providerConfigs Map<String, Boolean>
-        // Note: This is mostly handled by the current BackupData.kt structure but good to keep in mind
     }
 
     /**

@@ -27,8 +27,12 @@ import kotlinx.serialization.json.Json
 class RemoteAgentService(
     private val client: HttpClient,
     private val eventSink: AgentEventSink,
-    private val serverUrl: String = BuildConfig.SERVER_URL // Configurable via buildConfigField
+    private val serverUrlProvider: () -> String
 ) {
+    // Secondary constructor for fixed URL
+    constructor(client: HttpClient, eventSink: AgentEventSink, serverUrl: String) :
+        this(client, eventSink, { serverUrl })
+
     private val json = Json { ignoreUnknownKeys = true }
 
     private val _connectionState = MutableStateFlow(ConnectionStatus.DISCONNECTED)
@@ -41,8 +45,9 @@ class RemoteAgentService(
      * Side effects (Commands, UI status updates) are dispatched to [eventSink].
      */
     fun sendQuery(query: String, provider: String? = null, providerUrl: String? = null, model: String? = null, apiKey: String? = null, sessionId: String? = null): Flow<String> = flow {
+        val baseUrl = serverUrlProvider()
         val url = buildString {
-            append("$serverUrl/chat/stream")
+            append("$baseUrl/chat/stream")
             append("?query=${query.encodeURLParameter()}")
             if (provider != null) append("&provider=${provider.encodeURLParameter()}")
             if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
@@ -85,7 +90,8 @@ class RemoteAgentService(
     suspend fun sendEvent(sessionId: String, event: ClientEvent) {
         try {
             Log.d(TAG, "Sending client event: $event")
-            val response = client.post("$serverUrl/chat/events") {
+            val baseUrl = serverUrlProvider()
+            val response = client.post("$baseUrl/chat/events") {
                 parameter("sessionId", sessionId)
                 contentType(ContentType.Application.Json)
                 setBody(event)

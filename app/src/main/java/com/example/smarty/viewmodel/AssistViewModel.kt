@@ -27,7 +27,6 @@ import com.example.smarty.data.model.Note
 import com.example.smarty.data.model.NoteType
 import com.example.smarty.data.model.getTodos
 import com.example.smarty.data.remote.RemoteAgentService
-import com.example.smarty.data.remote.providers.TavilySearchProvider
 import com.example.smarty.data.repository.ChatRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.data.repository.SmartyRepository
@@ -39,10 +38,11 @@ import com.example.smarty.viewmodel.managers.NoteOperationsManager
 import com.example.smarty.viewmodel.managers.SearchFeatureManager
 import com.example.smarty.viewmodel.managers.SystemFeatureManager
 import com.example.smarty.util.PrivacyGuard
-import com.example.smarty.util.api.GroqKeyManager
 import com.google.gson.Gson
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.DefaultRequest
+import io.ktor.client.request.header
 // import io.ktor.client.plugins.contentnegotiation.ContentNegotiation // Removed - not available in minimal Ktor setup
 import io.ktor.client.plugins.sse.SSE
 // import io.ktor.serialization.kotlinx.json.json // Removed - not available in minimal Ktor setup
@@ -93,15 +93,9 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val chatRepository: ChatRepository by lazy {
         ChatRepository(database.chatDao())
     }
-    private val groqKeyManager: GroqKeyManager by lazy {
-        GroqKeyManager.getInstance(application)
-    }
     // Use shared HttpClientProvider to avoid connection pool duplication
     private val httpClient: OkHttpClient by lazy {
         com.example.smarty.util.HttpClientProvider.default
-    }
-    private val tavilySearchProvider: TavilySearchProvider by lazy {
-        TavilySearchProvider(httpClient, Gson())
     }
     private val alarmScheduler: AlarmScheduler by lazy {
         AlarmScheduler.getInstance(application)
@@ -133,8 +127,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
             repository = repository,
             allNotes = _notes,
             searchHistoryManager = com.example.smarty.data.local.SearchHistoryManager(application),
-            securePreferences = securePreferences,
-            tavilySearchProvider = tavilySearchProvider
+            securePreferences = securePreferences
         )
     }
 
@@ -174,7 +167,6 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val workflowManager: com.example.smarty.viewmodel.managers.WorkflowManager by lazy {
         com.example.smarty.viewmodel.managers.WorkflowManager(
             repository = repository,
-            tavilySearchProvider = tavilySearchProvider,
             scope = viewModelScope,
             onStatusUpdate = { status -> _toolStatus.value = status }
         )
@@ -303,11 +295,6 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         override fun getActiveNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_notes.value)
         override fun getArchivedNotes(): List<Note> = PrivacyGuard.getAiVisibleNotes(_archivedNotes.value)
         override fun getCategories(): List<Category> = _categories.value
-        override fun getTavilyApiKey(): String? = securePreferences.getTavilyApiKey()
-        // BATCH-3C: OpenAI API key for AgentOptimizer semantic cache (embeddings)
-        override fun getOpenAiApiKey(): String? = securePreferences.getProviderKeys(com.example.smarty.data.local.AIProvider.OPENAI).firstOrNull()
-        // Gemini API key for AgentOptimizer semantic cache fallback
-        override fun getGeminiApiKey(): String? = securePreferences.getProviderKeys(com.example.smarty.data.local.AIProvider.GEMINI).firstOrNull()
 
         override suspend fun processNoteWithAi(note: Note) {
             noteOperationsManager.processNoteWithAi(note)
@@ -681,36 +668,6 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         override fun bulkMoveToCategory(noteIds: List<String>, categoryName: String) {
             noteOperationsManager.bulkMoveToCategory(noteIds, categoryName)
         }
-
-        override fun onDeepResearch(topic: String, apiKey: String, focusAreas: List<String>?, searchDepth: Int) {
-            workflowManager.performDeepResearch(topic, apiKey, focusAreas, searchDepth)
-        }
-
-        override fun onAnalyzeStyle(limit: Int): com.example.smarty.viewmodel.managers.StyleAnalysisReport {
-            return styleFeatureManager.analyzeStyle(_notes.value, limit)
-        }
-
-        override suspend fun onWebSearch(
-            query: String,
-            maxResults: Int,
-            topic: String,
-            onCitationsFound: (List<WebCitation>) -> Unit
-        ): com.example.smarty.agent.WebSearchResult {
-            val apiKey = securePreferences.getTavilyApiKey() ?: return com.example.smarty.agent.WebSearchResult(
-                results = emptyList(),
-                totalResults = 0
-            )
-            return searchFeatureManager.performWebSearch(query, apiKey, maxResults, topic, onCitationsFound)
-        }
-
-        override suspend fun onParallelWebSearch(
-            queries: List<String>,
-            maxResults: Int,
-            topic: String,
-            onCitationsFound: (List<WebCitation>) -> Unit
-        ): com.example.smarty.agent.WebSearchResult {
-            return searchFeatureManager.performParallelWebSearch(queries, maxResults, topic, onCitationsFound)
-        }
     }
 
     // Task 15: Remote Agent Service (Thin Client)
@@ -718,11 +675,19 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         // Initialize Ktor client - SSE only (JSON parsing done manually in RemoteAgentService)
         val client = HttpClient(OkHttp) {
             install(SSE)
+            // Add header to bypass ngrok browser warning for public internet access
+            install(DefaultRequest) {
+                header("ngrok-skip-browser-warning", "true")
+            }
         }
 
         // Connect to local server (reverse forwarded port)
         // Ensure you run: adb reverse tcp:7860 tcp:7860
-        RemoteAgentService(client, agentEventSink, serverUrl = "http://10.0.2.2:7860")
+        RemoteAgentService(
+            client = client,
+            eventSink = agentEventSink,
+            serverUrlProvider = { securePreferences.getSmartyServerUrl() }
+        )
     }
 
     // State observed from managers
@@ -909,7 +874,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         try {
             // Collect chunks from the remote stream
             val responseBuilder = StringBuilder()
-            val provider = securePreferences.getFirstAvailableKey()?.first?.name
+            val provider = "LOCAL_PC" // Thin client defaults to local or server-managed
             val sessionId = chatManager.currentSessionId.value
 
             remoteAgentService.sendQuery(content, provider, sessionId)
@@ -968,8 +933,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
         withContext(NonCancellable) {
             chatManager.saveMessagePair(
                 userMessage = userMessage,
-                assistantMessage = assistantMessage,
-                hasApiKeys = true
+                assistantMessage = assistantMessage
             )
         }
     }
@@ -1021,8 +985,7 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
                     withContext(NonCancellable) {
                         chatManager.saveMessagePair(
                             userMessage = userMsg,
-                            assistantMessage = message,
-                            hasApiKeys = true
+                            assistantMessage = message
                         )
                         Log.d(TAG, "Message pair saved to current session")
                     }
@@ -1117,7 +1080,6 @@ class AssistViewModelFactory(
     private val application: Application,
     private val repository: SmartyRepository,
     private val chatRepository: ChatRepository,
-    private val tavilySearchProvider: TavilySearchProvider,
     private val alarmScheduler: AlarmScheduler,
     private val aiMemoryDao: com.example.smarty.data.local.AIMemoryDao
 ) : ViewModelProvider.Factory {
