@@ -1,0 +1,27 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Run daily at midnight UTC
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping-db:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Ping Supabase Database
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "DB_URL secret is not set. Skipping ping."
+            exit 0
+          fi
+
+          echo "Executing heartbeat query..."
+          psql "$DB_URL" -c "SELECT 1 as heartbeat;"

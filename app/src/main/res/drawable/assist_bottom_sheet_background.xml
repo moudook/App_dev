@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Rounded top corners like Gemini pill -->
+    <corners
+        android:topLeftRadius="28dp"
+        android:topRightRadius="28dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="0dp" />
+
+    <!-- Surface color - will be overridden by theme in code -->
+    <solid android:color="@color/assist_surface" />
+
+</shape>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:interpolator/decelerate_quint"
+    android:duration="350">
+
+    <!-- Slide up from bottom like Gemini -->
+    <translate
+        android:fromYDelta="100%"
+        android:toYDelta="0" />
+
+    <!-- Subtle fade in -->
+    <alpha
+        android:fromAlpha="0.85"
+        android:toAlpha="1.0" />
+</set>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Backup rules for Android 11 and below.
+   SECURITY: Excludes sensitive data from Android Auto-Backup
+   See https://developer.android.com/guide/topics/data/autobackup
+-->
+<full-backup-content>
+    <!-- EXCLUDE ALL SENSITIVE DATA FROM CLOUD BACKUP -->
+
+    <!-- Encrypted SharedPreferences containing API keys -->
+    <exclude domain="sharedpref" path="smarty_secure_prefs.xml"/>
+    <exclude domain="sharedpref" path="smarty_secure_prefs.xml.bak"/>
+
+    <!-- Database containing user notes (privacy-sensitive) -->
+    <exclude domain="database" path="Smarty_database"/>
+    <exclude domain="database" path="Smarty_database-shm"/>
+    <exclude domain="database" path="Smarty_database-wal"/>
+
+    <!-- Attachments directory (user files) -->
+    <exclude domain="file" path="attachments/"/>
+    <exclude domain="file" path="voice_notes/"/>
+    <exclude domain="file" path="compressed/"/>
+    <exclude domain="file" path="screenshots/"/>
+
+    <!-- Vosk speech model (large, re-downloadable) -->
+    <exclude domain="file" path="vosk-model-small-hi-0.22/"/>
+</full-backup-content>
