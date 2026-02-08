@@ -572,9 +572,11 @@ class ChatFeatureManager(
             install(SSE)
         }
 
-        // Connect to local server (reverse forwarded port)
-        // Ensure you run: adb reverse tcp:7860 tcp:7860
-        RemoteAgentService(client, agentEventSink, serverUrl = "http://10.0.2.2:7860")
+        // Connect to local server via USB Reverse Tethering or Emulator Loopback
+        // For physical device: Run 'connect_via_usb.bat' (adb reverse tcp:7860 tcp:7860)
+        // For emulator: adb reverse is also recommended, but 10.0.2.2 works natively
+        // We use 127.0.0.1 to support both provided port forwarding is active
+        RemoteAgentService(client, agentEventSink, serverUrl = "http://127.0.0.1:7860")
     }
 
     // Agent Event Sink for Koog tools notifications
