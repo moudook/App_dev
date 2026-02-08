@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration - PRODUCTION
+
+    Security Strategy:
+    1. HTTPS required for ALL internet traffic (API providers)
+    2. HTTP allowed for local network connections (private IPs)
+    
+    IMPORTANT: Android's domain-config does NOT work with raw IP addresses.
+    The <domain> tag is for DNS hostnames only (e.g., "example.com").
+    IP addresses like "192.168.1.100" are NOT matched by domain patterns.
+    
+    Solution: Enable cleartext globally, but the app validates that:
+    - HTTP is only used for RFC 1918 private IPs (10.x, 172.16-31.x, 192.168.x)
+    - All cloud API providers use HTTPS (hardcoded URLs)
+    
+    This is secure because:
+    - Private IPs are NOT routable on the internet
+    - Traffic stays within user's local network
+    - User explicitly configures their own PC's IP
+    - All cloud providers (Groq, OpenAI, etc.) use HTTPS by default
+    
+    Reference: https://developer.android.com/privacy-and-security/security-config
+-->
+<network-security-config>
+    <!-- 
+        Allow cleartext traffic GLOBALLY.
+        This is required because Android's domain matching does NOT work with IP addresses.
+        
+        Security is maintained because:
+        1. All cloud AI provider URLs are hardcoded as HTTPS
+        2. Local PC connections are validated in code to only use private IPs
+        3. The localServer OkHttpClient handles self-signed certs for HTTPS
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- Trust user-installed certificates for local HTTPS with self-signed certs -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- AI Provider domains - Explicitly enforce HTTPS (redundant but clear) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">openai.com</domain>
+        <domain includeSubdomains="true">anthropic.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">google.com</domain>
+        <domain includeSubdomains="true">groq.com</domain>
+        <domain includeSubdomains="true">deepseek.com</domain>
+        <domain includeSubdomains="true">cerebras.ai</domain>
+        <domain includeSubdomains="true">cohere.ai</domain>
+        <domain includeSubdomains="true">huggingface.co</domain>
+        <domain includeSubdomains="true">github.com</domain>
+        <domain includeSubdomains="true">openrouter.ai</domain>
+        <domain includeSubdomains="true">tavily.com</domain>
+    </domain-config>
+</network-security-config>

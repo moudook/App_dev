@@ -1,0 +1,1103 @@
+package com.example.smarty.ui.components
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Launch
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.zIndex
+import com.example.smarty.R
+import com.example.smarty.data.model.ChatMessage
+import com.example.smarty.data.model.ChatRole
+import com.example.smarty.data.model.Citation
+import com.example.smarty.data.model.ClarificationRequest
+import com.example.smarty.data.model.Note
+import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.viewers.FullScreenImageViewer
+import com.example.smarty.ui.theme.Alpha
+import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.IconSize
+import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.ui.theme.softCardShadow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/**
+ * Pre-compiled regex patterns for markdown parsing.
+ */
+private object MarkdownPatterns {
+    val bold = Regex("\\*\\*(.+?)\\*\\*")
+    val italic = Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)")
+    val inlineCode = Regex("`([^`]+)`")
+    val link = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
+    val underline = Regex("__(.+?)__")
+}
+
+/**
+ * Position of a message within a grouped burst of messages.
+ */
+enum class MessageGroupPosition {
+    SINGLE,  // Isolated message
+    TOP,     // First in a group
+    MIDDLE,  // Middle of a group
+    BOTTOM   // Last in a group
+}
+
+/**
+ * Unified Chat Message Bubble Component
+ *
+ * Design Philosophy: "Soft Tech"
+ * - Organic Geometry: Continuous curvature (32dp) with small anchors
+ * - Refined Depth: Subtle borders/shadows
+ * - Chromatic Calm: Desaturated accents
+ */
+@Composable
+fun ChatMessageItem(
+    message: ChatMessage,
+    modifier: Modifier = Modifier,
+    groupPosition: MessageGroupPosition = MessageGroupPosition.SINGLE,
+    getNote: (String) -> Note? = { null },
+    onNoteClick: (Note) -> Unit = {},
+    onSuggestionClick: (String) -> Unit = {},
+    onClarificationSubmit: (String) -> Unit = {}
+) {
+    val isUser = message.role == ChatRole.USER
+    val accentColor = LocalAccentColor.current
+
+    // "Soft Tech" Shape Logic
+    val largeCorner = 24.dp
+    val smallCorner = 4.dp
+
+    val bubbleShape = when (groupPosition) {
+        MessageGroupPosition.SINGLE -> RoundedCornerShape(
+            topStart = largeCorner,
+            topEnd = largeCorner,
+            bottomStart = if (isUser) largeCorner else smallCorner,
+            bottomEnd = if (isUser) smallCorner else largeCorner
+        )
+        MessageGroupPosition.TOP -> RoundedCornerShape(
+            topStart = largeCorner,
+            topEnd = largeCorner,
+            bottomStart = if (isUser) largeCorner else smallCorner,
+            bottomEnd = if (isUser) smallCorner else largeCorner
+        )
+        MessageGroupPosition.MIDDLE -> RoundedCornerShape(
+            topStart = if (isUser) largeCorner else smallCorner,
+            topEnd = if (isUser) smallCorner else largeCorner,
+            bottomStart = if (isUser) largeCorner else smallCorner,
+            bottomEnd = if (isUser) smallCorner else largeCorner
+        )
+        MessageGroupPosition.BOTTOM -> RoundedCornerShape(
+            topStart = if (isUser) largeCorner else smallCorner,
+            topEnd = if (isUser) smallCorner else largeCorner,
+            bottomStart = largeCorner,
+            bottomEnd = largeCorner
+        )
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 2.dp),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+    ) {
+        // Content Logic
+        @Composable
+        fun MessageContent() {
+            Column(
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+            ) {
+                if (isUser) {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                } else {
+                    val isDark = isSystemInDarkTheme()
+                    val normalColor = MaterialTheme.colorScheme.onSurface
+                    val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
+
+                    // Split content by code blocks
+                    val parts = message.content.split("```")
+
+                    parts.forEachIndexed { index, part ->
+                        if (index % 2 == 1) {
+                            val lines = part.trim().lines()
+                            val language = if (lines.firstOrNull()?.all { it.isLetterOrDigit() } == true) lines.first() else ""
+                            val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            CodeBlock(code = codeContent, language = language)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        } else {
+                            if (part.isNotBlank()) {
+                                val annotatedText = parseMarkdownToAnnotatedString(
+                                    content = part,
+                                    normalColor = normalColor,
+                                    boldColor = boldColor,
+                                    italicColor = normalColor,
+                                    linkColor = if (isDark) Color(0xFFCE93D8) else Color(0xFF7B1FA2),
+                                    codeColor = MaterialTheme.colorScheme.primary
+                                )
+
+                                Text(
+                                    text = annotatedText,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 16.sp,
+                                        lineHeight = 26.sp,
+                                        letterSpacing = 0.sp,
+                                        fontWeight = FontWeight.Normal
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // Inline Image Preview
+                    if (!isUser && message.hasInlineImages) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        var showFullScreen by remember { mutableStateOf(false) }
+                        var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
+
+                        InlineImagePreview(
+                            images = message.inlineImages,
+                            onExpandImage = { index ->
+                                fullScreenIndex = index
+                                showFullScreen = true
+                            },
+                            modifier = Modifier
+                                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                .clip(RoundedCornerShape(16.dp))
+                        )
+
+                        if (showFullScreen && message.inlineImages.isNotEmpty()) {
+                            val currentImage = message.inlineImages.getOrNull(fullScreenIndex)
+                                ?: message.inlineImages.first()
+                            FullScreenImageViewer(
+                                imageUri = currentImage.uri,
+                                onDismiss = { showFullScreen = false },
+                                contentDescription = currentImage.fileName
+                            )
+                        }
+                    }
+
+                    // Referenced Notes
+                    if (!isUser && message.referencedNoteIds.isNotEmpty()) {
+                        val actionNoteIds = message.executedActions.flatMap { it.affectedNoteIds }.toSet()
+                        val relevantNotes = message.referencedNoteIds
+                            .filter { it !in actionNoteIds }
+                            .mapNotNull { getNote(it) }
+
+                        if (relevantNotes.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            InlineNotePreview(
+                                notes = relevantNotes,
+                                onNoteClick = { onNoteClick(it) },
+                                modifier = Modifier
+                                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                    .clip(RoundedCornerShape(16.dp))
+                            )
+                        }
+                    }
+
+                    // Attachments Count
+                    if (message.attachments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            color = if (isUser) accentColor.copy(alpha = Alpha.medium) else MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            val count = message.attachments.size
+                            Text(
+                                text = if (count == 1) stringResource(R.string.one_attachment) else stringResource(R.string.x_attachments, count),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.4.sp
+                                ),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Action Results
+                    if (!isUser && message.hasActions) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        message.executedActions.forEach { actionResult ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = Alpha.half),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = Alpha.soft))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    ActionResultChip(
+                                        actionName = actionResult.action,
+                                        success = actionResult.success,
+                                        summary = actionResult.resultSummary
+                                    )
+                                    if (actionResult.affectedNoteIds.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        actionResult.affectedNoteIds.forEach { noteId ->
+                                            val note = getNote(noteId)
+                                            if (note != null) {
+                                                NoteCard(
+                                                    note = note,
+                                                    onClick = { onNoteClick(note) },
+                                                    onDelete = {},
+                                                    onOpenTodo = {},
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    isSelectionMode = true,
+                                                    onLongPress = { /* Disabled in chat */ }
+                                                )
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+
+                    // Clarification request
+                    message.clarificationRequest?.let { request ->
+                        Spacer(modifier = Modifier.height(12.dp))
+                        ClarificationBubble(
+                            request = request,
+                            onSubmit = onClarificationSubmit,
+                            accentColor = accentColor
+                        )
+                    }
+                }
+            }
+        }
+
+        // Apply Bubble only for User
+        if (isUser) {
+            Surface(
+                shape = bubbleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.15f)),
+                shadowElevation = 0.dp,
+                modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth)
+            ) {
+                MessageContent()
+            }
+        } else {
+            // AI Response renders directly without bubble
+            Box(
+                modifier = Modifier
+                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                    .fillMaxWidth()
+            ) {
+                MessageContent()
+            }
+        }
+
+        // Suggestions
+        if (!isUser && message.hasSuggestions) {
+            Row(
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .widthIn(max = ComponentSpacing.bubbleMaxWidth),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                message.suggestions.take(2).forEach { suggestion ->
+                    Surface(
+                        onClick = { onSuggestionClick(suggestion) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = accentColor.copy(alpha = Alpha.hint),
+                        border = BorderStroke(1.dp, accentColor.copy(alpha = Alpha.moderate))
+                    ) {
+                        Text(
+                            text = suggestion,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = accentColor,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+
+        // Timestamp
+        if (isUser) {
+            Row(
+                modifier = Modifier.padding(top = 6.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formatTimestamp(message.timestamp),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Medium
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.prominent),
+                    fontSize = 11.sp
+                )
+            }
+        } else {
+            val clipboardManager = LocalClipboardManager.current
+            var showCopied by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+
+            LaunchedEffect(showCopied) {
+                if (showCopied) {
+                    delay(1500)
+                    showCopied = false
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .padding(top = 6.dp, start = 12.dp, end = 4.dp)
+                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Actions (Copy on Left)
+                Icon(
+                    imageVector = if (showCopied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
+                    contentDescription = stringResource(R.string.copy),
+                    modifier = Modifier
+                        .size(IconSize.small)
+                        .clickable {
+                            clipboardManager.setText(AnnotatedString(message.content))
+                            showCopied = true
+                        },
+                    tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
+                )
+
+                // Context (Time on Right)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (message.hasCitations) {
+                        CitationsInline(
+                            citations = message.citations,
+                            accentColor = accentColor
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+
+                    Text(
+                        text = formatTimestamp(message.timestamp),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.prominent),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CitationsInline(
+    citations: List<Citation>,
+    accentColor: Color
+) {
+    var showSelectionPopup by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+
+    Surface(
+        onClick = { showSelectionPopup = true },
+        shape = RoundedCornerShape(50),
+        color = accentColor.copy(alpha = 0.1f),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.2f)),
+        modifier = Modifier.height(28.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Description,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = stringResource(R.string.sources_count, citations.size),
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                    letterSpacing = 0.5.sp
+                ),
+                color = accentColor
+            )
+        }
+    }
+
+    if (showSelectionPopup) {
+        Popup(
+            alignment = Alignment.Center,
+            onDismissRequest = { showSelectionPopup = false },
+            properties = PopupProperties(
+                focusable = true,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true
+            )
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .widthIn(min = 300.dp, max = 360.dp)
+                    .heightIn(max = 520.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 20.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = accentColor.copy(alpha = 0.1f),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Assistant,
+                                    contentDescription = null,
+                                    tint = accentColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = stringResource(R.string.sources),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    letterSpacing = (-0.5).sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = stringResource(R.string.references_found, citations.size),
+                                style = MaterialTheme.typography.bodySmall.copy(letterSpacing = 0.2.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(bottom = 20.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        citations.forEachIndexed { index, citation ->
+                            SourceCard(
+                                citation = citation,
+                                index = index + 1,
+                                onClick = {
+                                    try {
+                                        uriHandler.openUri(citation.url)
+                                        showSelectionPopup = false
+                                    } catch (e: Exception) { }
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Text(
+                        text = stringResource(R.string.tap_outside_to_close),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.4.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceCard(
+    citation: Citation,
+    index: Int,
+    onClick: () -> Unit
+) {
+    val domain = try {
+        java.net.URI(citation.url).host?.removePrefix("www.") ?: "link"
+    } catch (e: Exception) { "link" }
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .softCardShadow(shape = RoundedCornerShape(24.dp))
+            .zIndex(1f)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = index.toString(),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Text(
+                    text = citation.title.ifBlank { stringResource(R.string.untitled_source) }.lowercase(),
+                    style = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 20.sp,
+                        letterSpacing = 0.1.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Launch,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = domain,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
+            if (citation.snippet.isNotBlank()) {
+                 Text(
+                    text = citation.snippet,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionResultChip(
+    actionName: String,
+    success: Boolean,
+    summary: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            shape = CircleShape,
+            color = if (success) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+            modifier = Modifier.size(IconSize.standard)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = if (success) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(IconSize.micro),
+                    tint = if (success) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+            Text(
+                text = formatActionName(actionName).lowercase().replace(" ", "_"),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.3.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (summary.isNotBlank()) {
+                Text(
+                    text = summary.lowercase(),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 10.sp,
+                        letterSpacing = 0.2.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+        }
+    }
+}
+
+private fun formatActionName(actionName: String): String {
+    return actionName
+        .replace("Action", "")
+        .replace(Regex("([A-Z])"), " $1")
+        .trim()
+}
+
+@Composable
+fun CodeBlock(
+    code: String,
+    language: String
+) {
+    val clipboardManager = LocalClipboardManager.current
+    var isCopied by remember { mutableStateOf(false) }
+    val isDark = isSystemInDarkTheme()
+
+    val backgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF5F5F5)
+    val borderColor = if (isDark) Color(0xFF333333) else Color(0xFFE0E0E0)
+    val textColor = if (isDark) Color(0xFFD4D4D4) else Color(0xFF333333)
+    val headerColor = if (isDark) Color(0xFF2D2D2D) else Color(0xFFEEEEEE)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(headerColor)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = language.ifBlank { "code" }.lowercase(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                ),
+                color = if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666)
+            )
+
+            Row(
+                modifier = Modifier
+                    .clickable {
+                        clipboardManager.setText(AnnotatedString(code))
+                        isCopied = true
+                    }
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                    contentDescription = "Copy code",
+                    tint = if (isCopied) MaterialTheme.colorScheme.primary else if (isDark) Color(0xFFAAAAAA) else Color(0xFF666666),
+                    modifier = Modifier.size(14.dp)
+                )
+                if (isCopied) {
+                    Text(
+                        text = "Copied",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    LaunchedEffect(Unit) {
+                        delay(2000)
+                        isCopied = false
+                    }
+                }
+            }
+        }
+
+        Box(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = code,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                ),
+                color = textColor,
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            )
+        }
+    }
+}
+
+@Composable
+private fun formatTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+
+    return when {
+        diff < 60_000 -> stringResource(R.string.just_now)
+        diff < 3600_000 -> stringResource(R.string.minutes_ago, diff / 60_000)
+        diff < 86400_000 -> stringResource(R.string.hours_ago, diff / 3600_000)
+        else -> {
+            val date = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
+            date.format(java.util.Date(timestamp)).lowercase()
+        }
+    }
+}
+
+private fun parseMarkdownToAnnotatedString(
+    content: String,
+    normalColor: Color,
+    boldColor: Color,
+    italicColor: Color,
+    linkColor: Color,
+    codeColor: Color
+): AnnotatedString {
+    return buildAnnotatedString {
+        var text = content
+        var currentIndex = 0
+
+        data class MarkdownMatch(
+            val range: IntRange,
+            val displayText: String,
+            val style: SpanStyle,
+            val isLink: Boolean = false,
+            val url: String? = null
+        )
+
+        val matches = mutableListOf<MarkdownMatch>()
+
+        MarkdownPatterns.bold.findAll(text).forEach { match ->
+            matches.add(MarkdownMatch(
+                range = match.range,
+                displayText = match.groupValues[1],
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold)
+            ))
+        }
+
+        MarkdownPatterns.italic.findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(color = italicColor, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                ))
+            }
+        }
+
+        MarkdownPatterns.inlineCode.findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(
+                        color = codeColor,
+                        fontFamily = FontFamily.Monospace,
+                        background = codeColor.copy(alpha = 0.1f)
+                    )
+                ))
+            }
+        }
+
+        MarkdownPatterns.link.findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(
+                        color = linkColor,
+                        fontWeight = FontWeight.SemiBold,
+                        textDecoration = TextDecoration.Underline
+                    ),
+                    isLink = true,
+                    url = match.groupValues[2]
+                ))
+            }
+        }
+
+        MarkdownPatterns.underline.findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(
+                        color = normalColor,
+                        textDecoration = TextDecoration.Underline
+                    )
+                ))
+            }
+        }
+
+        val sortedMatches = matches.sortedBy { it.range.first }
+
+        for (match in sortedMatches) {
+            if (match.range.first > currentIndex) {
+                withStyle(SpanStyle(color = normalColor)) {
+                    append(text.substring(currentIndex, match.range.first))
+                }
+            }
+
+            if (match.isLink && match.url != null) {
+                withLink(LinkAnnotation.Url(match.url)) {
+                    withStyle(match.style) {
+                        append(match.displayText)
+                    }
+                }
+            } else {
+                withStyle(match.style) {
+                    append(match.displayText)
+                }
+            }
+
+            currentIndex = match.range.last + 1
+        }
+
+        if (currentIndex < text.length) {
+            withStyle(SpanStyle(color = normalColor)) {
+                append(text.substring(currentIndex))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClarificationBubble(
+    request: ClarificationRequest,
+    onSubmit: (String) -> Unit,
+    accentColor: Color
+) {
+    var customInput by remember { mutableStateOf("") }
+    var isSubmitted by remember { mutableStateOf(false) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Assistant,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.clarification_needed),
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    color = accentColor
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = request.question,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                request.options.forEach { option ->
+                    Surface(
+                        onClick = {
+                            if (!isSubmitted) {
+                                isSubmitted = true
+                                onSubmit(option)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSubmitted) MaterialTheme.colorScheme.surfaceVariant else accentColor.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, if (isSubmitted) Color.Transparent else accentColor.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSubmitted
+                    ) {
+                        Text(
+                            text = option,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isSubmitted) MaterialTheme.colorScheme.onSurfaceVariant else accentColor,
+                            modifier = Modifier.padding(12.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            if (request.allowCustomInput) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = customInput,
+                        onValueChange = { customInput = it },
+                        placeholder = { Text(stringResource(R.string.other), fontSize = 14.sp) },
+                        modifier = Modifier.weight(1f),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isSubmitted,
+                        trailingIcon = {
+                            if (customInput.isNotBlank() && !isSubmitted) {
+                                IconButton(
+                                    onClick = {
+                                        isSubmitted = true
+                                        onSubmit(customInput)
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = stringResource(R.string.submit),
+                                        tint = accentColor
+                                    )
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
