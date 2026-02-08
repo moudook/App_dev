@@ -19,23 +19,11 @@
         </trust-anchors>
     </base-config>
 
-    <!-- AI Provider domains - explicitly HTTPS (these use HTTPS anyway) -->
+    <!-- Service domains - explicitly HTTPS (these use HTTPS anyway) -->
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">openai.com</domain>
-        <domain includeSubdomains="true">api.openai.com</domain>
-        <domain includeSubdomains="true">anthropic.com</domain>
-        <domain includeSubdomains="true">api.anthropic.com</domain>
         <domain includeSubdomains="true">googleapis.com</domain>
-        <domain includeSubdomains="true">generativelanguage.googleapis.com</domain>
         <domain includeSubdomains="true">google.com</domain>
         <domain includeSubdomains="true">googleusercontent.com</domain>
-        <domain includeSubdomains="true">groq.com</domain>
-        <domain includeSubdomains="true">api.groq.com</domain>
-        <domain includeSubdomains="true">deepseek.com</domain>
-        <domain includeSubdomains="true">api.deepseek.com</domain>
-        <domain includeSubdomains="true">cerebras.ai</domain>
-        <domain includeSubdomains="true">api.cerebras.ai</domain>
-        <domain includeSubdomains="true">cohere.ai</domain>
-        <domain includeSubdomains="true">api.cohere.ai</domain>
+        <domain includeSubdomains="true">github.com</domain>
     </domain-config>
 </network-security-config>

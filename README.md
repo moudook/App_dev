@@ -39,26 +39,27 @@ We live in an age of information abundance, yet spend disproportionate time cura
 
 Smarty transcends traditional chatbot interactions through the **Koog Framework**, functioning as a genuine agent capable of multi-step reasoning and action:
 
-- **Contextual Research**: Synthesize personal notes with real-time web data to answer complex queries
-- **Task Orchestration**: Manage todos, reminders, and workflows across your knowledge graph
-- **Content Generation**: Draft communications, summaries, and creative work informed by your existing knowledge
-- **Media Intelligence**: Navigate, search, and extract insights from audio recordings and multimedia content
+- **Contextual Research**: Synthesize personal notes with real-time web data to answer complex queries.
+- **Task Orchestration**: Manage todos, reminders, and workflows across your knowledge graph.
+- **Content Generation**: Draft communications, summaries, and creative work informed by your existing knowledge.
+- **Media Intelligence**: Navigate, search, and extract insights from audio recordings and multimedia content.
 
 ### Frictionless Capture
 
 Information enters Smarty through the path of least resistance:
 
-- **Universal Integration**: Share content from any Android application directly into your knowledge base
-- **Intelligent Detection**: Automatically recognizes and processes 15+ content types—from YouTube videos and social media posts to PDFs and code snippets
-- **Voice-First Design**: Offline wake-word detection enables hands-free capture, ideal for driving, exercise, or spontaneous ideation
+- **Universal Integration**: Share content from any Android application directly into your knowledge base.
+- **Intelligent Detection**: Automatically recognizes and processes 15+ content types—from videos and social media posts to PDFs and code snippets.
+- **Voice-First Design**: Offline wake-word detection enables hands-free capture, ideal for driving, exercise, or spontaneous ideation.
 
 ### Privacy-Centric Architecture
 
 Your data sovereignty is non-negotiable:
 
-- **Local LLM Support**: Connect to models like Llama 3 or Mistral running on your local infrastructure via USB or network connection
-- **Zero-Knowledge Operation**: When using local models, no data traverses external networks
-- **Selective Isolation**: Privacy mode cryptographically separates sensitive notes from AI context with a simple gesture
+- **Local LLM Support**: Connect to models like Llama 3 or Mistral running on your local hardware via USB or network connection.
+- **Thin Client Design**: Cloud-based intelligence is managed via the **Smarty Server**, ensuring the mobile app remains lightweight and secure.
+- **Zero-Knowledge Operation**: When using local models, no data traverses external networks.
+- **Selective Isolation**: Privacy mode cryptographically separates sensitive notes from AI context with a simple gesture.
 
 ### Advanced Audio Processing
 
@@ -109,7 +110,8 @@ For comprehensive architectural documentation, refer to [AGENT_DOCUMENTATION.md]
 ### System Requirements
 
 - Android 8.0 (Oreo) or higher
-- (Optional) API credentials for Gemini, OpenAI, or local LLM infrastructure
+- **Smarty Server**: Required for AI features. The app acts as a **Thin Client**, connecting to a single Smarty Server (Local LLM or Remote) via a secure connection.
+- **Connection Credentials**: Access tokens or connection keys are configured once to establish the server link. Cloud provider keys (OpenAI, Anthropic, etc.) are managed entirely on the **Server**.
 
 ### Installation
 

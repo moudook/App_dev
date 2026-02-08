@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Unlike SemanticCache which uses embeddings for similarity matching,
  * this cache uses exact query matching with normalized text.
  *
- * This is used as a fallback when no embedding API keys are available.
+ * This is used as a fallback when no embedding connection keys are available.
  * While it won't match semantically similar queries, it still provides
  * caching benefits for exact or near-exact repeated queries.
  *

@@ -6,7 +6,7 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
-    <!-- Gemini-Style Transparent Overlay - Crystal Clear Background -->
+    <!-- Assistant-Style Transparent Overlay - Crystal Clear Background -->
     <style name="Theme.Smarty.Assistant" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>

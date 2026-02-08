@@ -7,7 +7,7 @@
 <full-backup-content>
     <!-- EXCLUDE ALL SENSITIVE DATA FROM CLOUD BACKUP -->
 
-    <!-- Encrypted SharedPreferences containing API keys -->
+    <!-- Encrypted SharedPreferences containing connection keys -->
     <exclude domain="sharedpref" path="smarty_secure_prefs.xml"/>
     <exclude domain="sharedpref" path="smarty_secure_prefs.xml.bak"/>
 

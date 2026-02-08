@@ -4,7 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 import java.util.UUID
 
 /**
@@ -35,7 +35,7 @@ import java.util.UUID
     ],
     indices = [
         Index(value = ["sessionId"]),
-        Index(value = ["provider"]),
+        Index(value = ["connection"]),
         Index(value = ["modelId"]),
         Index(value = ["executedAt"]),
         Index(value = ["status"])
@@ -51,9 +51,9 @@ data class AgentExecution(
     val sessionId: String,
 
     /**
-     * AI provider used for this execution.
+     * AI connection used for this execution.
      */
-    val provider: String,  // Stored as string for Room compatibility
+    val connection: String,  // Stored as string for Room compatibility
 
     /**
      * Model ID used for this execution.
@@ -124,16 +124,16 @@ data class AgentExecution(
     val executedAt: Long = System.currentTimeMillis(),
 
     /**
-     * API key index used (for multi-key rotation tracking).
+     * Token index used (for multi-token rotation tracking).
      */
-    val keyIndex: Int = 0
+    val tokenIndex: Int = 0
 ) {
     /**
-     * Get provider as enum.
+     * Get connection as enum.
      */
-    fun getProviderEnum(): AIProvider? {
+    fun getConnectionEnum(): AIConnection? {
         return try {
-            AIProvider.valueOf(provider)
+            AIConnection.valueOf(connection)
         } catch (e: Exception) {
             null
         }
@@ -141,16 +141,10 @@ data class AgentExecution(
 
     /**
      * Estimated cost based on token usage (rough approximation).
-     * Returns 0 for free tier providers.
+     * Thin Client: Returns 0.0 as Local LLM is free. Cloud costs are managed on the server.
      */
     fun estimatedCostCents(): Double {
-        return when (getProviderEnum()) {
-            AIProvider.GROQ, AIProvider.CEREBRAS, AIProvider.OPENROUTER -> 0.0  // Free tier
-            AIProvider.OPENAI -> (inputTokens * 0.00001 + outputTokens * 0.00003) * 100  // GPT-4o-mini pricing
-            AIProvider.ANTHROPIC -> (inputTokens * 0.000003 + outputTokens * 0.000015) * 100  // Claude 3.5 Sonnet
-            AIProvider.GEMINI -> 0.0  // Free tier
-            else -> 0.0
-        }
+        return 0.0
     }
 }
 
@@ -166,27 +160,27 @@ enum class ExecutionStatus {
 }
 
 /**
- * Daily usage summary per provider/model combination.
+ * Daily usage summary per connection/model combination.
  * Used for rate limiting and quota tracking.
  */
 @Entity(
-    tableName = "provider_usage",
-    primaryKeys = ["date", "provider", "modelId"],
+    tableName = "connection_usage",
+    primaryKeys = ["date", "connection", "modelId"],
     indices = [
         Index(value = ["date"]),
-        Index(value = ["provider"])
+        Index(value = ["connection"])
     ]
 )
-data class ProviderUsage(
+data class ConnectionUsage(
     /**
      * Date in YYYYMMDD format for easy querying.
      */
     val date: Int,
 
     /**
-     * Provider name.
+     * Connection name.
      */
-    val provider: String,
+    val connection: String,
 
     /**
      * Model ID.

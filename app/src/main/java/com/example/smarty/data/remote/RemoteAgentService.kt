@@ -44,7 +44,7 @@ class RemoteAgentService(
      *
      * Side effects (Commands, UI status updates) are dispatched to [eventSink].
      */
-    fun sendQuery(query: String, provider: String? = null, providerUrl: String? = null, model: String? = null, apiKey: String? = null, sessionId: String? = null): Flow<String> = flow {
+    fun sendQuery(query: String, provider: String? = null, providerUrl: String? = null, model: String? = null, accessToken: String? = null, sessionId: String? = null): Flow<String> = flow {
         val baseUrl = serverUrlProvider()
         val url = buildString {
             append("$baseUrl/chat/stream")
@@ -52,7 +52,7 @@ class RemoteAgentService(
             if (provider != null) append("&provider=${provider.encodeURLParameter()}")
             if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
             if (model != null) append("&model=${model.encodeURLParameter()}")
-            if (apiKey != null) append("&apiKey=${apiKey.encodeURLParameter()}")
+            if (accessToken != null) append("&token=${accessToken.encodeURLParameter()}")
             if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
         }
 

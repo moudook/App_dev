@@ -18,7 +18,7 @@
     - Private IPs are NOT routable on the internet
     - Traffic stays within user's local network
     - User explicitly configures their own PC's IP
-    - All cloud providers (Groq, OpenAI, etc.) use HTTPS by default
+    - All cloud services use HTTPS by default
     
     Reference: https://developer.android.com/privacy-and-security/security-config
 -->
@@ -40,19 +40,8 @@
         </trust-anchors>
     </base-config>
 
-    <!-- AI Provider domains - Explicitly enforce HTTPS (redundant but clear) -->
+    <!-- Local PC and Server domains - Explicitly enforce HTTPS (redundant but clear) -->
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">openai.com</domain>
-        <domain includeSubdomains="true">anthropic.com</domain>
-        <domain includeSubdomains="true">googleapis.com</domain>
-        <domain includeSubdomains="true">google.com</domain>
-        <domain includeSubdomains="true">groq.com</domain>
-        <domain includeSubdomains="true">deepseek.com</domain>
-        <domain includeSubdomains="true">cerebras.ai</domain>
-        <domain includeSubdomains="true">cohere.ai</domain>
-        <domain includeSubdomains="true">huggingface.co</domain>
         <domain includeSubdomains="true">github.com</domain>
-        <domain includeSubdomains="true">openrouter.ai</domain>
-        <domain includeSubdomains="true">tavily.com</domain>
     </domain-config>
 </network-security-config>

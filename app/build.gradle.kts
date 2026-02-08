@@ -146,13 +146,10 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Koog AI Agent Framework - TEMPORARILY DISABLED due to Kotlin 2.2 requirement
-    // The koog library 0.6.0 requires Kotlin 2.2 which is not publicly available yet
     // TODO: Re-enable when koog releases a version compatible with Kotlin 2.1.x
     // implementation(libs.koog.agents)
     // implementation(libs.koog.agents.planner)
-    // implementation(libs.koog.executor.google)
-    // implementation(libs.koog.executor.anthropic)
-    // implementation(libs.koog.executor.openai)
+    // implementation(libs.koog.executor.compatible)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)

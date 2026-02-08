@@ -264,30 +264,3 @@ object NoteBatcher {
         instance = null
     }
 }
-
-/**
- * Pre-configured batcher for embedding operations.
- * Useful for batching multiple embedding requests to OpenAI.
- *
- * BUG FIX (TECH-001): Now requires a lifecycle-aware scope to prevent memory leaks.
- */
-object EmbeddingBatcher {
-    private var instance: RequestBatcher<String, FloatArray?>? = null
-
-    fun getInstance(
-        scope: CoroutineScope,  // BUG FIX (TECH-001): Required lifecycle-aware scope
-        embedder: suspend (List<String>) -> Map<String, FloatArray?>
-    ): RequestBatcher<String, FloatArray?> {
-        return instance ?: RequestBatcher(
-            batchWindowMs = 100,  // Longer window for API calls
-            maxBatchSize = 50,    // OpenAI supports up to 2048 inputs
-            batchLoader = embedder,
-            scope = scope
-        ).also { instance = it }
-    }
-
-    fun stop() {
-        instance?.stop()
-        instance = null
-    }
-}

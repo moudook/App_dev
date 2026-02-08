@@ -19,8 +19,8 @@ import javax.net.ssl.X509TrustManager
  * Always use these shared instances instead of creating new clients.
  *
  * TODO: For production, consider implementing SSL certificate pinning for API providers
- *       (Anthropic, OpenAI, Google, Groq, OpenRouter, Tavily) to prevent MITM attacks.
- *       Use OkHttp's CertificatePinner with real SHA-256 pins from the certificate chain.
+ *       to prevent MITM attacks. Use OkHttp's CertificatePinner with real SHA-256 pins
+ *       from the certificate chain.
  */
 object HttpClientProvider {
 
@@ -116,16 +116,6 @@ object HttpClientProvider {
         }
     }
 
-    /**
-     * Client for local LAN server connections (USB tethering, WiFi).
-     * Trusts self-signed certificates for HTTPS connections.
-     *
-     * SECURITY: This client trusts ALL certificates. Only use for:
-     * - Local PC connections via private IP addresses
-     * - Self-signed certificates from Caddy reverse proxy
-     *
-     * DO NOT use for internet traffic!
-     */
     /**
      * Client for local LAN server connections (USB tethering, WiFi).
      * Trusts self-signed certificates for HTTPS connections.

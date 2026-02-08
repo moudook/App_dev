@@ -237,7 +237,7 @@ class MemorySyncManager(
         try {
             // 1. Check if AI is available
             if (!aiService.isAiAvailable()) {
-                val msg = context.getString(com.example.smarty.R.string.no_ai_provider_configured)
+                val msg = context.getString(com.example.smarty.R.string.no_server_connection_configured)
                 _syncResult.value = context.getString(com.example.smarty.R.string.sync_failed_prefix, msg)
                 return@withContext SyncResult.Error(msg)
             }

@@ -13,11 +13,11 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * Network connectivity monitor for Phase 7.
+ * Network connectivity monitor.
  * Observes network state changes and exposes as a Flow.
- * 
- * IMPORTANT: Supports BOTH cloud APIs AND local LLM servers:
- * - Cloud APIs: Requires validated internet (NET_CAPABILITY_VALIDATED)
+ *
+ * IMPORTANT: Supports both server-side AI and local LLM servers:
+ * - Server-side AI: Requires validated internet (NET_CAPABILITY_VALIDATED)
  * - Local LLM: Only requires WiFi/USB/Ethernet transport (no internet validation needed)
  */
 class NetworkMonitor(context: Context) {
@@ -120,7 +120,7 @@ class NetworkMonitor(context: Context) {
         return when {
             caps == null -> ConnectionStatus.OFFLINE
             
-            // Fully validated internet (for cloud AI providers like OpenAI, Gemini, etc.)
+            // Fully validated internet (for server-side AI processing)
             caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) ->
                 ConnectionStatus.CONNECTED
             

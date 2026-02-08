@@ -39,7 +39,7 @@ import androidx.compose.material3.Surface
  * Displays the thinking/reasoning process from AI models.
  *
  * Shows a collapsible card with the model's step-by-step reasoning.
- * Used for responses from thinking-enabled models like Falcon-H1R-7B.
+ * Used for responses from thinking-enabled models.
  *
  * Design: "Soft Tech" - Clean surface with subtle border, distinct from chat bubbles.
  *

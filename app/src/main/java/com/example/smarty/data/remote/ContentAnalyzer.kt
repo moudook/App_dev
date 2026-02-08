@@ -3,7 +3,7 @@ package com.example.smarty.data.remote
 import android.app.Application
 import android.util.Log
 import com.example.smarty.R
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.model.AttachmentMetadata
 import com.example.smarty.util.ContentSecurityFilter
@@ -19,9 +19,9 @@ import kotlinx.coroutines.withContext
  * - Document analysis (PDFs, long-form content)
  * - Security filtering before AI processing
  *
- * @property orchestrator Provider orchestrator for API calls
+ * @property orchestrator Connection orchestrator for API calls
  */
-class ContentAnalyzer(private val application: Application, private val orchestrator: AIProviderOrchestrator) {
+class ContentAnalyzer(private val application: Application, private val orchestrator: AIConnectionOrchestrator) {
 
     companion object {
         private const val TAG = "ContentAnalyzer"
@@ -133,7 +133,7 @@ class ContentAnalyzer(private val application: Application, private val orchestr
     }
 
     /**
-     * Analyzes content using available AI providers with fallback and retry logic.
+     * Analyzes content using available AI connections with fallback and retry logic.
      * Applies security filtering before sending to AI to prevent prompt injection.
      * Uses caching to minimize redundant API calls for similar content.
      *
@@ -190,21 +190,17 @@ class ContentAnalyzer(private val application: Application, private val orchestr
 
         Log.d(TAG, "Content preview: ${contentWithMetadata.take(100)}...")
 
-        val configs = orchestrator.getAllProviderConfigs()
-
         // Thin Client: Only attempt LOCAL_PC if enabled
-        val provider = AIProvider.LOCAL_PC
-        val config = configs[provider]
+        if (orchestrator.getOrderedConnections().contains(AIConnection.LOCAL_PC)) {
+            val connection = AIConnection.LOCAL_PC
+            val connectionInstance = orchestrator.getConnection(connection)
+            val model = orchestrator.getModelForConnection(connection)
 
-        if (config != null && orchestrator.isProviderAvailable(config)) {
-            val providerInstance = orchestrator.getProvider(provider)
-            val model = orchestrator.getModelForProvider(provider)
-
-            val result = orchestrator.executeWithContentAnalysisRetry(application, provider, config) { apiKey ->
-                providerInstance.analyzeContent(
+            val result = orchestrator.executeWithContentAnalysisRetry(application) { connectionToken ->
+                connectionInstance.analyzeContent(
                     context = application,
                     content = contentWithMetadata,
-                    apiKey = apiKey,
+                    connectionToken = connectionToken,
                     model = model,
                     systemPrompt = SYSTEM_PROMPT
                 )
@@ -217,7 +213,7 @@ class ContentAnalyzer(private val application: Application, private val orchestr
             }
         }
 
-        // All local providers (LOCAL_PC) failed or were disabled - use smart fallback
+        // All local connections (LOCAL_PC) failed or were disabled - use smart fallback
         Log.w(TAG, "Local AI unavailable, using smart categorization fallback")
         val fallbackResponse = AIResponseParser.smartFallbackCategorization(application, contentWithMetadata)
         // Cache fallback response too to avoid repeated failures
@@ -272,8 +268,6 @@ class ContentAnalyzer(private val application: Application, private val orchestr
             else contextCheck.sanitizedContent
         }
 
-        val configs = orchestrator.getAllProviderConfigs()
-
         // Build enhanced prompt with context
         val contextPrefix = buildString {
             if (fileName != null) {
@@ -289,18 +283,17 @@ class ContentAnalyzer(private val application: Application, private val orchestr
 
         val fullContent = contextPrefix + sanitizedDocumentText
 
-        val provider = AIProvider.LOCAL_PC
-        val config = configs[provider]
+        // Thin Client: Only attempt LOCAL_PC if enabled
+        if (orchestrator.getOrderedConnections().contains(AIConnection.LOCAL_PC)) {
+            val connection = AIConnection.LOCAL_PC
+            val connectionInstance = orchestrator.getConnection(connection)
+            val model = orchestrator.getModelForConnection(connection)
 
-        if (config != null && orchestrator.isProviderAvailable(config)) {
-            val providerInstance = orchestrator.getProvider(provider)
-            val model = orchestrator.getModelForProvider(provider)
-
-            val result = orchestrator.executeWithDocumentAnalysisRetry(application, provider, config) { apiKey ->
-                providerInstance.analyzeDocument(
+            val result = orchestrator.executeWithDocumentAnalysisRetry(application) { connectionToken ->
+                connectionInstance.analyzeDocument(
                     context = application,
                     content = fullContent,
-                    apiKey = apiKey,
+                    connectionToken = connectionToken,
                     model = model,
                     systemPrompt = DOCUMENT_ANALYSIS_PROMPT
                 )
@@ -315,7 +308,7 @@ class ContentAnalyzer(private val application: Application, private val orchestr
         Log.w(TAG, "Local AI unavailable for document analysis, using fallback")
         return@withContext DocumentAnalysisResponse(
             title = fileName ?: application.getString(R.string.document),
-            summary = application.getString(R.string.error_ai_unavailable_keys),
+            summary = application.getString(R.string.error_ai_unavailable_connection),
             keyPoints = listOf(application.getString(R.string.x_attachments, 1)), // Use 1 as dummy count
             category = AIResponseParser.validateCategory(null), // Use validateCategory instead of infer
             actionItems = emptyList(),

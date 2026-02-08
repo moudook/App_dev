@@ -112,7 +112,7 @@ fun ChatModeContent(
                 }
 
                 // ═══════════════════════════════════════════════════════════════════════════
-                // INLINE TOOL INDICATOR (ChatGPT-style)
+                // INLINE TOOL INDICATOR
                 // Appears as the last item in the chat while the agent is working
                 // Logic: Show if (Tool Active) OR (Processing AND Last message is NOT from Assistant)
                 // This prevents the indicator from persisting after the assistant has replied.

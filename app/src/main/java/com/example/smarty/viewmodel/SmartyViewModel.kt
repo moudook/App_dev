@@ -11,8 +11,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.savedstate.SavedStateRegistryOwner
-import com.example.smarty.data.local.AIProvider
-import com.example.smarty.data.local.AIProviderConfig
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SearchHistoryManager
 import com.example.smarty.data.local.SecurePreferences
@@ -905,11 +903,7 @@ class SmartyViewModel(
             }
         }
 
-        // DEFERRED: Category count sync moved to lazy initialization
-        // This saves 500-2000ms on startup. Will sync when categories are first accessed.
-
-        // DEFERRED: GROQ key sync moved to first AI request
-
+        // Initialize feature managers and settings logic here if needed
         // DEFERRED: Chat manager initialization moved to when chat mode is entered
 
         // Set up NoteOperationsManager callback for AI processing
@@ -1469,9 +1463,6 @@ class SmartyViewModel(
     fun setDarkTheme(isDark: Boolean) {
         settingsFeatureManager.setDarkTheme(isDark)
     }
-
-    // Rate Limit Stats (exposed for UI monitoring)
-    fun getRateLimitStats() = emptyMap<String, String>() // Placeholder as it was removed from manager
 
     // Shake Sensitivity Management
     val shakeSensitivity: StateFlow<Float> = settingsFeatureManager.shakeSensitivity

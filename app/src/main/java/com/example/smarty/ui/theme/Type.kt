@@ -42,8 +42,8 @@ val provider = GoogleFont.Provider(
 )
 
 // Using Inter - designed specifically for screen readability with excellent x-height,
-// optical sizing, and a clean neutral feel. Used by GitHub, Figma, and many modern apps.
-val GoogleSans = FontFamily(
+// optical sizing, and a clean neutral feel. Used by many modern apps.
+val BrandSans = FontFamily(
     Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Light),
     Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Normal),
     Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Medium),
@@ -51,7 +51,7 @@ val GoogleSans = FontFamily(
     Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Bold),
 )
 
-val InterFont = GoogleSans  // Alias maintained for compatibility
+val InterFont = BrandSans  // Alias maintained for compatibility
 val MonoFont = FontFamily.Monospace   // For code/terminal elements
 
 val SmartyTypography = Typography(

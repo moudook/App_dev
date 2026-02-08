@@ -8,7 +8,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.example.smarty.BuildConfig
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.google.gson.Gson

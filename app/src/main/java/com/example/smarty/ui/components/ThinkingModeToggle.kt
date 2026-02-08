@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
  * When enabled: Shows assistant icon (Filled) - model displays reasoning
  * When disabled: Shows assistant icon (Outlined) - model skips thinking for speed
  *
- * Used with reasoning models like Falcon-H1R-7B that support <think> tags.
+ * Used with reasoning-capable models that support <think> tags.
  *
  * @param isEnabled Current state of thinking mode
  * @param onToggle Callback when user toggles the mode

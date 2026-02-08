@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.example.smarty.data.model.PlaybackState
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 import com.example.smarty.ui.screens.LoginScreen
 import com.google.firebase.auth.FirebaseAuth
 import com.example.smarty.util.rememberSpeechToText
@@ -201,7 +201,7 @@ class MainActivity : ComponentActivity() {
                 val aiPlanStatus by viewModel.aiPlanStatus.collectAsState()
                 val currentToolName by viewModel.currentToolName.collectAsState()
                 
-                // Thinking mode toggle (Chat mode - for reasoning models like Falcon-H1R-7B)
+                // Thinking mode toggle (Chat mode - for reasoning-capable models)
                 val isThinkingModeEnabled by viewModel.isThinkingModeEnabled.collectAsState()
 
                 // AI exclusion state

@@ -6,7 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import com.example.smarty.BuildConfig
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.DriveService

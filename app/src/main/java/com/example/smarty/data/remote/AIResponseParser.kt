@@ -4,12 +4,10 @@ import android.util.Log
 import com.google.gson.JsonParser
 
 /**
- * Utility object for parsing AI responses from various providers.
+ * Utility object for parsing AI responses from standardized compatible providers.
  *
- * This parser handles response formats from:
- * - Gemini API (Google)
- * - OpenAI-compatible APIs (DeepSeek, Groq, OpenAI, OpenRouter)
- * - HuggingFace Inference API
+ * This parser primarily handles responses from the Local LLM server and
+ * other standardized endpoints used in the Thin Client architecture.
  *
  * It extracts JSON from AI response text, handles markdown code blocks,
  * and provides fallback categorization when AI is unavailable.
@@ -133,85 +131,12 @@ object AIResponseParser {
         }
     }
 
-    // ==================== Gemini Response Parsing ====================
+    // ==================== Compatible Response Parsing ====================
 
     /**
-     * Parse Gemini API response body.
+     * Parse standardized API response.
      *
-     * Gemini response structure:
-     * ```json
-     * {
-     *   "candidates": [{
-     *     "content": {
-     *       "parts": [{ "text": "..." }]
-     *     }
-     *   }]
-     * }
-     * ```
-     *
-     * @param responseBody The raw HTTP response body from Gemini
-     * @return Parsed AIResponse or null if parsing fails
-     */
-    fun parseGeminiResponse(context: android.content.Context, responseBody: String?): AIResponse? {
-        if (responseBody.isNullOrBlank()) {
-            Log.e(TAG, "Empty Gemini response")
-            return null
-        }
-
-        return try {
-            Log.d(TAG, "Parsing Gemini response: ${responseBody.take(500)}")
-
-            val json = JsonParser.parseString(responseBody).asJsonObject
-
-            // Check for error in response
-            if (json.has("error")) {
-                val errorMsg = json.getAsJsonObject("error").get("message")?.asString
-                Log.e(TAG, "Gemini API error: $errorMsg")
-                return null
-            }
-
-            // Navigate to text content
-            val candidates = json.getAsJsonArray("candidates")
-            if (candidates == null || candidates.size() == 0) {
-                Log.w(TAG, "No candidates in Gemini response")
-                return null
-            }
-
-            val content = candidates[0].asJsonObject.getAsJsonObject("content")
-            val parts = content.getAsJsonArray("parts")
-            val text = parts[0].asJsonObject.get("text").asString
-
-            Log.d(TAG, "Gemini text output: ${text.take(200)}")
-
-            // Extract and parse JSON from response
-            extractAndParseJson(context, text)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse Gemini response: ${e.message}", e)
-            null
-        }
-    }
-
-    /**
-     * Parse error message from Gemini API response.
-     *
-     * @param responseBody The error response body
-     * @return Human-readable error message
-     */
-    fun parseGeminiError(responseBody: String?): String {
-        return try {
-            val json = JsonParser.parseString(responseBody).asJsonObject
-            json.getAsJsonObject("error")?.get("message")?.asString ?: "Unknown error"
-        } catch (e: Exception) {
-            responseBody?.take(100) ?: "Unknown error"
-        }
-    }
-
-    // ==================== OpenAI-Compatible Response Parsing ====================
-
-    /**
-     * Parse OpenAI-compatible API response.
-     *
-     * Works with DeepSeek, Groq, OpenAI, and OpenRouter APIs.
+     * Works with Local PC and server-managed LLMs.
      *
      * Response structure:
      * ```json
@@ -222,11 +147,12 @@ object AIResponseParser {
      * }
      * ```
      *
+     * @param context Android context for localization
      * @param responseBody The raw HTTP response body
      * @param providerName Name of the provider for logging
      * @return Parsed AIResponse or null if parsing fails
      */
-    fun parseOpenAIResponse(context: android.content.Context, responseBody: String?, providerName: String): AIResponse? {
+    fun parseCompatibleResponse(context: android.content.Context, responseBody: String?, providerName: String): AIResponse? {
         if (responseBody.isNullOrBlank()) {
             Log.e(TAG, "Empty $providerName response")
             return null
@@ -258,77 +184,11 @@ object AIResponseParser {
             extractAndParseJson(context, text ?: "")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse $providerName response: ${e.message}", e)
-            null
-        }
-    }
-
-    // ==================== HuggingFace Response Parsing ====================
-
-    /**
-     * Parse HuggingFace Inference API response.
-     *
-     * Response structure:
-     * ```json
-     * [{ "generated_text": "..." }]
-     * ```
-     *
-     * @param responseBody The raw HTTP response body
-     * @return Parsed AIResponse or null if parsing fails
-     */
-    fun parseHuggingFaceResponse(context: android.content.Context, responseBody: String?): AIResponse? {
-        if (responseBody.isNullOrBlank()) {
-            Log.e(TAG, "Empty HuggingFace response")
             return null
-        }
-
-        return try {
-            Log.d(TAG, "Parsing HuggingFace response: ${responseBody.take(500)}")
-
-            val jsonArray = JsonParser.parseString(responseBody).asJsonArray
-            if (jsonArray.size() == 0) {
-                Log.w(TAG, "Empty HuggingFace array")
-                return null
-            }
-
-            val generatedText = jsonArray[0].asJsonObject
-                .get("generated_text")?.asString ?: ""
-
-            Log.d(TAG, "HuggingFace text output: ${generatedText.take(200)}")
-
-            extractAndParseJson(context, generatedText)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse HuggingFace response: ${e.message}", e)
-            null
         }
     }
 
     // ==================== Document Analysis Parsing ====================
-
-    /**
-     * Parse document analysis response from Gemini API.
-     *
-     * @param responseBody The raw HTTP response body from Gemini
-     * @return Parsed DocumentAnalysisResponse or null if parsing fails
-     */
-    fun parseDocumentAnalysisResponse(context: android.content.Context, responseBody: String?): DocumentAnalysisResponse? {
-        if (responseBody.isNullOrBlank()) return null
-
-        return try {
-            val json = JsonParser.parseString(responseBody).asJsonObject
-            val candidates = json.getAsJsonArray("candidates")
-            if (candidates == null || candidates.size() == 0) return null
-
-            val text = candidates[0].asJsonObject
-                .getAsJsonObject("content")
-                .getAsJsonArray("parts")[0].asJsonObject
-                .get("text").asString
-
-            parseDocumentAnalysisFromText(context, text)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse document analysis response: ${e.message}")
-            null
-        }
-    }
 
     /**
      * Parse document analysis JSON from AI response text.
@@ -378,43 +238,13 @@ object AIResponseParser {
     // ==================== Agent Response Parsing ====================
 
     /**
-     * Extract text content from Gemini response for agent chat.
-     *
-     * @param responseBody The raw HTTP response body
-     * @return Extracted text content or null
-     */
-    fun extractGeminiAgentText(responseBody: String?): String? {
-        if (responseBody.isNullOrBlank()) return null
-
-        return try {
-            val json = JsonParser.parseString(responseBody).asJsonObject
-
-            if (json.has("error")) {
-                Log.e(TAG, "Gemini agent error: ${json.getAsJsonObject("error")}")
-                return null
-            }
-
-            val candidates = json.getAsJsonArray("candidates")
-            if (candidates == null || candidates.size() == 0) return null
-
-            candidates[0].asJsonObject
-                .getAsJsonObject("content")
-                .getAsJsonArray("parts")[0].asJsonObject
-                .get("text").asString
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to extract Gemini agent text: ${e.message}")
-            null
-        }
-    }
-
-    /**
-     * Extract text content from OpenAI-compatible response for agent chat.
+     * Extract text content from compatible response for agent chat.
      *
      * @param responseBody The raw HTTP response body
      * @param providerName Name of the provider for logging
      * @return Extracted text content or null
      */
-    fun extractOpenAIAgentText(responseBody: String?, providerName: String): String? {
+    fun extractCompatibleAgentText(responseBody: String?, providerName: String): String? {
         if (responseBody.isNullOrBlank()) return null
 
         return try {
@@ -438,26 +268,6 @@ object AIResponseParser {
     }
 
     /**
-     * Extract text content from HuggingFace response for agent chat.
-     *
-     * @param responseBody The raw HTTP response body
-     * @return Extracted text content or null
-     */
-    fun extractHuggingFaceAgentText(responseBody: String?): String? {
-        if (responseBody.isNullOrBlank()) return null
-
-        return try {
-            val jsonArray = JsonParser.parseString(responseBody).asJsonArray
-            if (jsonArray.size() == 0) return null
-
-            jsonArray[0].asJsonObject.get("generated_text")?.asString
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to extract HuggingFace agent text: ${e.message}")
-            null
-        }
-    }
-
-    /**
      * Infer category from document text.
      * Used by AIService for simple category inference.
      *
@@ -476,7 +286,7 @@ object AIResponseParser {
      * Used when all AI providers fail.
      *
      * Analyzes:
-     * 1. URL patterns (YouTube, Twitter, GitHub, etc.)
+     * 1. Common URL patterns
      * 2. Keyword patterns (todo, idea, learn, buy, etc.)
      *
      * @param context Android context for resource resolution

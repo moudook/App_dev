@@ -13,7 +13,6 @@ import com.example.smarty.agent.transport.CompositeTransport
 import com.example.smarty.agent.transport.LocalCommandTransport
 import com.example.smarty.agent.transport.ShadowRemoteTransport
 import com.example.smarty.protocol.AgentCommand
-import com.example.smarty.data.local.AIProvider
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.model.*
@@ -1368,7 +1367,7 @@ class ChatFeatureManager(
                 provider = null, // Let server decide
                 providerUrl = null,
                 model = null,
-                apiKey = null,
+                accessToken = null,
                 sessionId = sessionId
             )
                 .collect { chunk ->

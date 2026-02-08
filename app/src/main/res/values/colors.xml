@@ -16,15 +16,15 @@
     <color name="assist_scrim">#33000000</color>
     <color name="assist_accent">#FF0066FF</color>
 
-    <!-- Google Brand Colors for Gemini-style Glow Animation -->
-    <color name="gemini_red">#FFEA4335</color>
-    <color name="gemini_yellow">#FFFBBC05</color>
-    <color name="gemini_green">#FF34A853</color>
-    <color name="gemini_blue">#FF4285F4</color>
+    <!-- Assistant Brand Colors for Glow Animation -->
+    <color name="assist_brand_red">#FFEA4335</color>
+    <color name="assist_brand_yellow">#FFFBBC05</color>
+    <color name="assist_brand_green">#FF34A853</color>
+    <color name="assist_brand_blue">#FF4285F4</color>
 
-    <!-- Gemini Surface Colors (Material 3) -->
-    <color name="gemini_surface_light">#FFFEFBFF</color>
-    <color name="gemini_surface_dark">#FF121212</color>
-    <color name="gemini_surface_container">#FFF3EDF7</color>
-    <color name="gemini_surface_container_dark">#FF1D1B20</color>
+    <!-- Assistant Surface Colors (Material 3) -->
+    <color name="assist_surface_light_m3">#FFFEFBFF</color>
+    <color name="assist_surface_dark_m3">#FF121212</color>
+    <color name="assist_surface_container_m3">#FFF3EDF7</color>
+    <color name="assist_surface_container_dark_m3">#FF1D1B20</color>
 </resources>

@@ -116,7 +116,7 @@ sealed class AgentAction {
     ) : AgentAction()
 
     /**
-     * Search the web for real-time information using Tavily API.
+     * Search the web for real-time information.
      * Only use when information is external or time-sensitive.
      * NEVER use for casual conversation or questions answerable from notes.
      *

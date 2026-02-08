@@ -2,7 +2,7 @@ package com.example.smarty.data.remote
 
 import android.app.Application
 import android.util.Log
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.util.HttpClientProvider
 import com.google.gson.annotations.SerializedName
@@ -54,9 +54,9 @@ data class KeyTerm(
 
 // ==================== API Request/Response Models ====================
 
-data class OpenAIRequest(
+data class CompatibleAIRequest(
     val model: String,
-    val messages: List<OpenAIMessage>,
+    val messages: List<CompatibleAIMessage>,
     val temperature: Float = 0.4f,
     @SerializedName("max_tokens")
     val maxTokens: Int = 300,
@@ -65,20 +65,20 @@ data class OpenAIRequest(
     val stream: Boolean? = null
 )
 
-data class OpenAIMessage(
+data class CompatibleAIMessage(
     val role: String,
     val content: String
 )
 
-data class OpenAIResponse(
-    val choices: List<OpenAIChoice>?
+data class CompatibleApiResponse(
+    val choices: List<CompatibleAIChoice>?
 )
 
-data class OpenAIChoice(
-    val message: OpenAIMessageResponse?
+data class CompatibleAIChoice(
+    val message: CompatibleAIMessageResponse?
 )
 
-data class OpenAIMessageResponse(
+data class CompatibleAIMessageResponse(
     val content: String?
 )
 
@@ -90,7 +90,7 @@ data class OpenAIMessageResponse(
  * Local operations are restricted to LOCAL_PC.
  *
  * This is a thin facade that delegates to specialized handlers:
- * - [AIProviderOrchestrator]: Provider management
+ * - [AIConnectionOrchestrator]: Connection management
  * - [ContentAnalyzer]: Content and document analysis
  *
  * @property securePreferences Secure storage for settings
@@ -102,11 +102,11 @@ class AIService(private val application: Application, private val securePreferen
     }
 
     // Specialized handlers
-    private val orchestrator = AIProviderOrchestrator(securePreferences)
+    private val orchestrator = AIConnectionOrchestrator(securePreferences)
     private val contentAnalyzer = ContentAnalyzer(application, orchestrator)
 
     /**
-     * Analyzes content using available AI providers with fallback and retry logic.
+     * Analyzes content using available AI connections with fallback and retry logic.
      * Applies security filtering before sending to AI to prevent prompt injection.
      *
      * @param content The text content to analyze
@@ -147,40 +147,35 @@ class AIService(private val application: Application, private val securePreferen
         val timeoutMs = HttpClientProvider.READ_TIMEOUT_SECONDS * 1000
         try {
             withTimeout(timeoutMs) {
-                val providers = orchestrator.getOrderedProviders()
-                val configs = orchestrator.getAllProviderConfigs()
-
                 // Thin Client only supports LOCAL_PC for local simpleChat
-                val provider = providers.find { it == AIProvider.LOCAL_PC } ?: throw IllegalStateException("No local AI provider available")
-
-                val config = configs[provider]
+                val connection = AIConnection.LOCAL_PC
 
                 // Respect the user's "Enabled" setting
-                if (!orchestrator.isProviderAvailable(config)) {
-                    throw IllegalStateException("Local AI provider is disabled")
+                if (!orchestrator.getOrderedConnections().contains(connection)) {
+                    throw IllegalStateException("Local AI connection is disabled")
                 }
 
-                val providerInstance = orchestrator.getProvider(provider)
-                val model = orchestrator.getModelForProvider(provider)
+                val connectionInstance = orchestrator.getConnection(connection)
+                val model = orchestrator.getModelForConnection(connection)
 
-                val keyToUse = "local_pc_no_key"
+                val tokenToUse = "local_pc_no_token"
 
-                Log.i(TAG, "simpleChat: Attempting $provider with model $model")
+                Log.i(TAG, "simpleChat: Attempting LOCAL_PC with model $model")
 
-                val result = providerInstance.chat(
+                val result = connectionInstance.chat(
                     context = application,
                     systemPrompt = systemPrompt,
                     userPrompt = userPrompt,
-                    apiKey = keyToUse,
+                    connectionToken = tokenToUse,
                     model = model
                 )
 
                 if (result != null) {
-                    Log.d(TAG, "simpleChat succeeded with $provider")
+                    Log.d(TAG, "simpleChat succeeded with LOCAL_PC")
                     return@withTimeout result
                 } else {
-                    Log.w(TAG, "simpleChat: $provider returned null result")
-                    throw IllegalStateException("Local AI provider returned no result")
+                    Log.w(TAG, "simpleChat: LOCAL_PC returned null result")
+                    throw IllegalStateException("Local AI connection returned no result")
                 }
             }
         } catch (e: TimeoutCancellationException) {
@@ -190,33 +185,32 @@ class AIService(private val application: Application, private val securePreferen
     }
 
     /**
-     * Check if any AI provider is available for processing.
+     * Check if any AI connection is available for processing.
      * Thin Client: Checks if LOCAL_PC is enabled and available.
      */
     fun isAiAvailable(): Boolean {
         // Thin Client primarily relies on server-side AI, but locally we only care about LOCAL_PC
-        val config = orchestrator.getAllProviderConfigs()[AIProvider.LOCAL_PC]
-        return orchestrator.isProviderAvailable(config)
+        return orchestrator.getOrderedConnections().contains(AIConnection.LOCAL_PC)
     }
 
     /**
-     * Test if an API key is valid.
-     * Thin Client: Not applicable for cloud providers on the client.
+     * Test if a connection is valid.
+     * Thin Client: Primarily used to verify LOCAL_PC connectivity.
      */
-    suspend fun testApiKey(provider: AIProvider, apiKey: String): Boolean = withContext(Dispatchers.IO) {
-        if (provider != AIProvider.LOCAL_PC) return@withContext false
+    suspend fun testConnection(connection: AIConnection, connectionToken: String): Boolean = withContext(Dispatchers.IO) {
+        if (connection != AIConnection.LOCAL_PC) return@withContext false
 
         Log.i(TAG, "Testing LOCAL_PC connection...")
 
         try {
-            val providerInstance = orchestrator.getProvider(provider)
-            val model = orchestrator.getModelForProvider(provider)
+            val connectionInstance = orchestrator.getConnection(connection)
+            val model = orchestrator.getModelForConnection(connection)
             val testContent = "Test connection"
 
-            val result = providerInstance.analyzeContent(
+            val result = connectionInstance.analyzeContent(
                 context = application,
                 content = testContent,
-                apiKey = apiKey,
+                connectionToken = connectionToken,
                 model = model,
                 systemPrompt = "Respond with 'ok'"
             )

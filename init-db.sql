@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS agent_memory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,
-    embedding VECTOR(1536),  -- 1536 dimensions for OpenAI/compatible models
+    embedding VECTOR(1536),  -- 1536 dimensions for standardized embedding models
     metadata JSONB,          -- Context: source, timestamp, tags, type
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

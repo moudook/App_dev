@@ -60,7 +60,7 @@ import java.util.*
 import kotlinx.coroutines.launch
 
 /**
- * Reimagined Calendar - Anthropic Style
+ * Reimagined Calendar
  *
  * Design Philosophy:
  * - Warm, minimal, and focused

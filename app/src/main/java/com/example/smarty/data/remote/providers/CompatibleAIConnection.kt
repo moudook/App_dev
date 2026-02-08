@@ -4,8 +4,8 @@ import android.util.Log
 import com.example.smarty.data.remote.AIResponse
 import com.example.smarty.data.remote.AIResponseParser
 import com.example.smarty.data.remote.DocumentAnalysisResponse
-import com.example.smarty.data.remote.OpenAIMessage
-import com.example.smarty.data.remote.OpenAIRequest
+import com.example.smarty.data.remote.CompatibleAIMessage
+import com.example.smarty.data.remote.CompatibleAIRequest
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -16,50 +16,42 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
- * AI provider implementation for OpenAI-compatible APIs.
+ * AI connection implementation for standardized compatible APIs.
  *
- * This provider works with any API that follows the OpenAI chat completions format:
- * - OpenAI (api.openai.com)
- * - DeepSeek (api.deepseek.com)
- * - Groq (api.groq.com)
- *
- * All these APIs use the same request/response format with messages array.
+ * This implementation works with any API that follows the chat completions protocol format,
+ * primarily used for Local LLM servers and server-side managed endpoints.
  *
  * @property client OkHttp client for making requests
  * @property gson Gson instance for JSON serialization
  * @property baseUrl The API endpoint URL
  * @property name Display name for logging
  */
-class OpenAICompatibleProvider(
+class CompatibleAIConnection(
     private val client: OkHttpClient,
     private val gson: Gson,
     private val baseUrl: String,
     private val name: String
-) : AIProviderContract {
+) : AIConnectionContract {
 
-    override val providerName: String = name
+    override val connectionName: String = name
 
     companion object {
-        private const val TAG = "OpenAIProvider"
+        private const val TAG = "CompatibleAIConnection"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         /**
-         * Mask sensitive API key for safe logging.
-         * Shows first 4 and last 4 characters with **** in between.
+         * Mask sensitive connection token for safe logging.
          */
-        private fun maskApiKey(key: String?): String {
-            if (key == null || key.length < 8) return "****"
-            return key.take(4) + "****" + key.takeLast(4)
+        private fun maskConnectionToken(token: String?): String {
+            if (token == null || token.length < 8) return "****"
+            return token.take(4) + "****" + token.takeLast(4)
         }
 
         /**
          * Sanitize response body for logging by removing potential sensitive data.
-         * Masks any API keys, tokens, or authorization headers that might be echoed in error responses.
          */
         private fun sanitizeForLogging(responseBody: String?): String {
             if (responseBody.isNullOrBlank()) return "[empty response]"
-            // Mask common patterns for API keys/tokens in responses
-            // Patterns: "api_key": "...", "token": "...", "authorization": "...", "Bearer ..."
             return responseBody
                 .replace(Regex(""""(api[_-]?key|token|authorization|secret|password|bearer)"\\s*:\\s*"[^"]+"""", RegexOption.IGNORE_CASE)) { match ->
                     val keyName = match.groupValues.getOrNull(1) ?: "key"
@@ -67,79 +59,24 @@ class OpenAICompatibleProvider(
                 }
                 .replace(Regex("""Bearer\s+[A-Za-z0-9\-_.]+""", RegexOption.IGNORE_CASE), "Bearer ****")
                 .replace(Regex("""sk-[A-Za-z0-9]{20,}"""), "sk-****")
-                .replace(Regex("""gsk_[A-Za-z0-9]{20,}"""), "gsk_****")
-                .replace(Regex("""xai-[A-Za-z0-9]{20,}"""), "xai-****")
-                .take(500) // Limit log length to prevent large dumps
+                .take(500)
         }
 
-        // API Base URLs for different providers
-        const val OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-        const val DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
-        const val GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-        const val CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions"
-        const val COHERE_URL = "https://api.cohere.ai/compatibility/v1/chat/completions"
-        const val GITHUB_URL = "https://models.github.ai/inference/chat/completions"
-        // FOR TESTING ONLY - Remove before publishing!
-        // Note: USB tethering IP can change - run ipconfig on PC to find it
-        // The PC's IP (not the phone's gateway IP) should be used
-        // LOCAL_PC_URL is now dynamically read from SecurePreferences.getLocalPCUrl()
-
         /**
-         * Create an OpenAI provider instance.
-         */
-        fun openAI(client: OkHttpClient, gson: Gson) =
-            OpenAICompatibleProvider(client, gson, OPENAI_URL, "OpenAI")
-
-        /**
-         * Create a DeepSeek provider instance.
-         */
-        fun deepSeek(client: OkHttpClient, gson: Gson) =
-            OpenAICompatibleProvider(client, gson, DEEPSEEK_URL, "DeepSeek")
-
-        /**
-         * Create a Groq provider instance.
-         */
-        fun groq(client: OkHttpClient, gson: Gson) =
-            OpenAICompatibleProvider(client, gson, GROQ_URL, "Groq")
-
-        /**
-         * Create a Cerebras provider instance.
-         * Ultra-fast inference with 2000+ tokens/second.
-         */
-        fun cerebras(client: OkHttpClient, gson: Gson) =
-            OpenAICompatibleProvider(client, gson, CEREBRAS_URL, "Cerebras")
-
-        /**
-         * Create a Cohere provider instance.
-         * OpenAI-compatible API with Command models.
-         */
-        fun cohere(client: OkHttpClient, gson: Gson) =
-            OpenAICompatibleProvider(client, gson, COHERE_URL, "Cohere")
-
-        /**
-         * Create a GitHub Models provider instance.
-         * Free with GitHub account (requires PAT with models scope).
-         * Access to GPT-4o, Llama, DeepSeek, Phi, Mistral models.
-         */
-        fun github(client: OkHttpClient, gson: Gson) =
-            OpenAICompatibleProvider(client, gson, GITHUB_URL, "GitHub")
-
-        /**
-         * Create a Local PC provider instance (USB tethering).
-         * FOR TESTING ONLY - Remove before publishing!
-         * @param url Dynamic URL from SecurePreferences.getLocalPCUrl() - IP can change with each USB tethering session
+         * Create a Local PC connection instance (USB/WiFi connection to local LLM server).
+         * @param url Dynamic URL from SecurePreferences.getLocalPCUrl()
          */
         fun localPC(client: OkHttpClient, gson: Gson, url: String) =
-            OpenAICompatibleProvider(client, gson, url, "Local PC")
+            CompatibleAIConnection(client, gson, url, "Local PC")
     }
 
     /**
-     * Analyze content using OpenAI-compatible API.
+     * Analyze content using compatible API.
      *
      * Request format:
      * ```json
      * {
-     *   "model": "gpt-4",
+     *   "model": "model-name",
      *   "messages": [
      *     { "role": "system", "content": "..." },
      *     { "role": "user", "content": "..." }
@@ -152,15 +89,15 @@ class OpenAICompatibleProvider(
     override suspend fun analyzeContent(
         context: android.content.Context,
         content: String,
-        apiKey: String,
+        connectionToken: String,
         model: String,
         systemPrompt: String
     ): AIResponse? {
-        val requestBody = OpenAIRequest(
+        val requestBody = CompatibleAIRequest(
             model = model,
             messages = listOf(
-                OpenAIMessage(role = "system", content = systemPrompt),
-                OpenAIMessage(role = "user", content = content)
+                CompatibleAIMessage(role = "system", content = systemPrompt),
+                CompatibleAIMessage(role = "user", content = content)
             ),
             temperature = AIRequestConfig.ANALYSIS.temperature,
             maxTokens = AIRequestConfig.ANALYSIS.maxTokens
@@ -173,7 +110,7 @@ class OpenAICompatibleProvider(
         val request = Request.Builder()
             .url(baseUrl)
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Authorization", "Bearer $connectionToken")
             .addHeader("Content-Type", "application/json")
             .build()
 
@@ -198,7 +135,7 @@ class OpenAICompatibleProvider(
                 )
             }
 
-            AIResponseParser.parseOpenAIResponse(context, responseBody, name)
+            AIResponseParser.parseCompatibleResponse(context, responseBody, name)
         } catch (e: Exception) {
             Log.e(TAG, "$name network error: ${e.message}", e)
             null
@@ -206,20 +143,20 @@ class OpenAICompatibleProvider(
     }
 
     /**
-     * Analyze document using OpenAI-compatible API with extended limits.
+     * Analyze document using compatible API with extended limits.
      */
     override suspend fun analyzeDocument(
         context: android.content.Context,
         content: String,
-        apiKey: String,
+        connectionToken: String,
         model: String,
         systemPrompt: String
     ): DocumentAnalysisResponse? {
-        val requestBody = OpenAIRequest(
+        val requestBody = CompatibleAIRequest(
             model = model,
             messages = listOf(
-                OpenAIMessage(role = "system", content = systemPrompt),
-                OpenAIMessage(role = "user", content = content)
+                CompatibleAIMessage(role = "system", content = systemPrompt),
+                CompatibleAIMessage(role = "user", content = content)
             ),
             temperature = AIRequestConfig.DOCUMENT.temperature,
             maxTokens = AIRequestConfig.DOCUMENT.maxTokens
@@ -230,7 +167,7 @@ class OpenAICompatibleProvider(
         val request = Request.Builder()
             .url(baseUrl)
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Authorization", "Bearer $connectionToken")
             .addHeader("Content-Type", "application/json")
             .build()
 
@@ -256,20 +193,20 @@ class OpenAICompatibleProvider(
     }
 
     /**
-     * Chat using OpenAI-compatible API with conversational settings.
+     * Chat using compatible API with conversational settings.
      */
     override suspend fun chat(
         context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
-        apiKey: String,
+        connectionToken: String,
         model: String
     ): String? {
-        val requestBody = OpenAIRequest(
+        val requestBody = CompatibleAIRequest(
             model = model,
             messages = listOf(
-                OpenAIMessage(role = "system", content = systemPrompt),
-                OpenAIMessage(role = "user", content = userPrompt)
+                CompatibleAIMessage(role = "system", content = systemPrompt),
+                CompatibleAIMessage(role = "user", content = userPrompt)
             ),
             temperature = AIRequestConfig.CHAT.temperature,
             maxTokens = AIRequestConfig.CHAT.maxTokens
@@ -282,7 +219,7 @@ class OpenAICompatibleProvider(
         val request = Request.Builder()
             .url(baseUrl)
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
-            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Authorization", "Bearer $connectionToken")
             .addHeader("Content-Type", "application/json")
             .build()
 
@@ -308,7 +245,7 @@ class OpenAICompatibleProvider(
     }
 
     /**
-     * Extract text content from OpenAI-compatible response.
+     * Extract text content from compatible response.
      *
      * Response structure:
      * ```json

@@ -820,7 +820,7 @@ private fun BackupStatusCard(
                             ) {
                                 Icon(Icons.Default.VpnKey, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(R.string.fix_permissions_key))
+                                Text(stringResource(R.string.fix_permissions_token))
                             }
                         }
                     }

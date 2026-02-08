@@ -10,12 +10,11 @@ import kotlinx.coroutines.launch
 
 /**
  * Centralized manager for application settings and user preferences.
- * Hybridizes logic for:
- * - AI Provider configuration and key management
+ * Handles logic for:
+ * - Connection to the Smarty Server
  * - Local LLM server connectivity (USB/WiFi)
  * - UI preferences (Theme, Shake sensitivity)
  * - App lifecycle flags (First launch)
- * - API rate limiting and key testing
  *
  * This manager ensures that UI settings screens and the AI Agent use the same preference source.
  */

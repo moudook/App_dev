@@ -230,22 +230,19 @@ data class CategoryBackup(
 }
 
 /**
- * Serializable representation of an AI Provider configuration for backup.
+ * Serializable representation of an AI Connection configuration for backup.
  */
-data class AIProviderConfigBackup(
+data class AIConnectionConfigBackup(
     @SerializedName("is_enabled")
     val isEnabled: Boolean,
 
     @SerializedName("selected_model")
-    val selectedModel: String,
-
-    @SerializedName("api_keys")
-    val apiKeys: List<String>? = null
+    val selectedModel: String
 )
 
 /**
  * Backup-safe preferences.
- * API keys are included only if they are not considered highly sensitive or if encrypted.
+ * Connection tokens are included only if they are not considered highly sensitive or if encrypted.
  */
 data class PreferencesBackup(
     @SerializedName("is_dark_theme")

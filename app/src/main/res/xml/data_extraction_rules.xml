@@ -8,7 +8,7 @@
     <cloud-backup>
         <!-- EXCLUDE ALL SENSITIVE DATA FROM CLOUD BACKUP -->
 
-        <!-- Encrypted SharedPreferences containing API keys -->
+        <!-- Encrypted SharedPreferences containing connection keys -->
         <exclude domain="sharedpref" path="smarty_secure_prefs.xml"/>
         <exclude domain="sharedpref" path="smarty_secure_prefs.xml.bak"/>
 
@@ -29,7 +29,7 @@
 
     <device-transfer>
         <!-- Allow device-to-device transfer for user convenience -->
-        <!-- But STILL exclude API keys (they should be re-entered) -->
+        <!-- But STILL exclude connection keys (they should be re-entered) -->
         <exclude domain="sharedpref" path="smarty_secure_prefs.xml"/>
         <exclude domain="sharedpref" path="smarty_secure_prefs.xml.bak"/>
     </device-transfer>

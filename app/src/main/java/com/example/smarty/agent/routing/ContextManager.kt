@@ -1,7 +1,7 @@
 package com.example.smarty.agent.routing
 
 import android.util.Log
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
  * Universal Context Manager.
  *
  * Implements "Context Caching" strategy:
- * 1. **Native Native**: For models with huge context (Gemini 1.5+), pass full content.
+ * 1. **Native Pass**: For models with very large context windows, pass full content.
  * 2. **Compression**: Stubbed for now.
  */
 object ContextManager {
@@ -20,23 +20,8 @@ object ContextManager {
         currentExecutor: Any,  // ExecutorResult.Success
         ingestionExecutor: Any? = null  // Optional ingestion executor
     ): String {
-        // Extract provider from executor using reflection or casting
-        val provider = try {
-            val providerField = currentExecutor::class.java.getDeclaredField("provider")
-            providerField.isAccessible = true
-            providerField.get(currentExecutor) as? AIProvider
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not extract provider from executor: ${e.message}")
-            null
-        }
-
-        // Strategy 1: Direct Pass for Gemini (Native Caching support)
-        if (provider == AIProvider.GEMINI) {
-            Log.d(TAG, "Direct Pass: Using native context for Gemini")
-            return content
-        }
-
-        // Fallback: Return content as is (relies on truncation upstream if needed, or future compression impl)
+        // Thin Client: Context optimization is primarily handled server-side.
+        // Locally we pass the content as is for the Local LLM.
         return content
     }
 

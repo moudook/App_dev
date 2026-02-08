@@ -2,7 +2,7 @@
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
 
-    <!-- Rounded top corners like Gemini pill -->
+    <!-- Rounded top corners like assistant pill -->
     <corners
         android:topLeftRadius="28dp"
         android:topRightRadius="28dp"

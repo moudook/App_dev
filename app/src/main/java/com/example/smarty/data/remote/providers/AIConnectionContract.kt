@@ -4,29 +4,26 @@ import com.example.smarty.data.remote.AIResponse
 import com.example.smarty.data.remote.DocumentAnalysisResponse
 
 /**
- * Contract interface for AI provider implementations.
+ * Contract interface for AI connection implementations.
  *
- * This interface defines the standard operations that all AI providers must support.
- * Each provider (Gemini, OpenAI, DeepSeek, Groq, OpenRouter, HuggingFace) implements
- * this contract with their specific API details.
+ * This interface defines the standard operations that all AI connections must support.
+ * The primary implementation is CompatibleAIConnection for Local PC and server-managed LLMs.
  *
  * Usage:
  * ```kotlin
- * val provider: AIProviderContract = GeminiProvider(client, gson)
- * val response = provider.analyzeContent("Hello world", apiKey, model)
+ * val connection: AIConnectionContract = CompatibleAIConnection.localPC(...)
+ * val response = connection.analyzeContent(context, "Hello world", connectionToken, model, systemPrompt)
  * ```
  *
- * @see GeminiProvider
- * @see OpenAICompatibleProvider
- * @see HuggingFaceProvider
+ * @see CompatibleAIConnection
  */
-interface AIProviderContract {
+interface AIConnectionContract {
 
     /**
-     * The display name of this provider.
+     * The display name of this connection.
      * Used for logging and debugging.
      */
-    val providerName: String
+    val connectionName: String
 
     /**
      * Analyze content and return categorization with summary.
@@ -40,7 +37,7 @@ interface AIProviderContract {
      * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
      *
      * @param content The text content to analyze
-     * @param apiKey The API key for authentication
+     * @param connectionToken The connection token for authentication
      * @param model The model identifier to use
      * @param systemPrompt The system prompt with instructions
      * @return AIResponse with categorization, or null if failed
@@ -48,7 +45,7 @@ interface AIProviderContract {
     suspend fun analyzeContent(
         context: android.content.Context,
         content: String,
-        apiKey: String,
+        connectionToken: String,
         model: String,
         systemPrompt: String
     ): AIResponse?
@@ -63,7 +60,7 @@ interface AIProviderContract {
      *
      * @param context Android context for localization
      * @param content The document text to analyze
-     * @param apiKey The API key for authentication
+     * @param connectionToken The connection token for authentication
      * @param model The model identifier to use
      * @param systemPrompt The system prompt with document analysis instructions
      * @return DocumentAnalysisResponse with detailed analysis, or null if failed
@@ -71,7 +68,7 @@ interface AIProviderContract {
     suspend fun analyzeDocument(
         context: android.content.Context,
         content: String,
-        apiKey: String,
+        connectionToken: String,
         model: String,
         systemPrompt: String
     ): DocumentAnalysisResponse?
@@ -87,7 +84,7 @@ interface AIProviderContract {
      * @param context Android context for localization
      * @param systemPrompt The system instructions for the conversation
      * @param userPrompt The user's message with context
-     * @param apiKey The API key for authentication
+     * @param connectionToken The connection token for authentication
      * @param model The model identifier to use
      * @return Raw text response from the AI, or null if failed
      */
@@ -95,26 +92,24 @@ interface AIProviderContract {
         context: android.content.Context,
         systemPrompt: String,
         userPrompt: String,
-        apiKey: String,
+        connectionToken: String,
         model: String
     ): String?
 
     /**
-     * Test if an API key is valid by making a simple request.
-     *
-     * BUG-005 FIX: Changed to suspend function to avoid runBlocking ANR risk.
+     * Test if the provider connection is valid by making a simple request.
      *
      * @param context Android context for localization
-     * @param apiKey The API key to test
+     * @param connectionToken The connection token to test
      * @param model The model to use for testing
-     * @return true if the key is valid and the request succeeds
+     * @return true if the connection is valid and the request succeeds
      */
-    suspend fun testApiKey(context: android.content.Context, apiKey: String, model: String): Boolean {
+    suspend fun testConnection(context: android.content.Context, connectionToken: String, model: String): Boolean {
         return try {
             val result = analyzeContent(
                 context = context,
                 content = "Test: Remember to buy groceries tomorrow",
-                apiKey = apiKey,
+                connectionToken = connectionToken,
                 model = model,
                 systemPrompt = "Respond with JSON: {\"category\":\"Todo\",\"summary\":\"Test\",\"whySaved\":\"Test\"}"
             )

@@ -51,7 +51,7 @@
     <string name="restore_backup">Restore data</string>
     <string name="delete_cloud_backup">Remove cloud backup</string>
     <string name="delete_local_archive">Remove device archive</string>
-    <string name="cloud_backup_info">Cloud backups include your notes, categories, and attachments. API keys are never shared for your security.</string>
+    <string name="cloud_backup_info">Cloud backups include your notes, categories, and attachments. Connection tokens are never shared for your security.</string>
     <string name="local_backup_info">Device archives are stored locally and can be shared. Use these to move your data between devices privately.</string>
     <string name="restore_warning">This will replace your current data with the backup from %1$s.
 
@@ -69,9 +69,9 @@ This action cannot be reversed.</string>
     <!-- Settings Strings -->
     <string name="settings_">Settings</string>
     <string name="ai_voice">Smarty and voice</string>
-    <string name="ai_providers">AI Providers</string>
-    <string name="ai_models">AI Models</string>
-    <string name="models_and_api_keys">Models and API Keys</string>
+    <string name="ai_connection">AI Connection</string>
+    <string name="ai_models">Model Settings</string>
+    <string name="models_and_connection">Server Connection</string>
     <string name="ai_memory">Smarty insights</string>
     <string name="no_memories">No insights gathered yet</string>
     <string name="memories">Insights</string>
@@ -100,7 +100,7 @@ This action cannot be reversed.</string>
     <string name="about_smarty">About Smarty</string>
     <string name="hello_smarty">Hello, I am Smarty. How can I assist you?</string>
     <string name="active">Active</string>
-    <string name="adjust_your_ai_and_voice_settings">API configurations</string>
+    <string name="adjust_your_ai_and_voice_settings">Connection configurations</string>
     <string name="managed_models">Configure Smarty models</string>
     <string name="memory_label">Insights</string>
     <string name="select_label">Select</string>
@@ -121,12 +121,12 @@ This action cannot be reversed.</string>
     <string name="suggestions">Suggestions</string>
     <string name="filter_prefix">Filter: %1$s</string>
     <string name="ai_badge">Smarty</string>
-    <string name="tavily_key_placeholder">tvly-xxxxx</string>
+    <string name="search_token_placeholder">Search token</string>
     <string name="ip_address_placeholder">192.168.1.100</string>
     <string name="port_placeholder">8000</string>
     <string name="server_url_display">URL: %1$s://%2$s:%3$s/v1/chat/completions</string>
-    <string name="show_key">Show key</string>
-    <string name="hide_key">Hide key</string>
+    <string name="show_token">Show token</string>
+    <string name="hide_token">Hide token</string>
     <string name="sessions_count">%1$d sessions</string>
     <string name="pagination_format">%1$d/%2$d</string>
     <string name="percentage_format">%1$d%%</string>
@@ -414,9 +414,9 @@ This action cannot be reversed.</string>
     <string name="smarty">Smarty</string>
     <string name="stacks">Stacks</string>
     <string name="intelligence">Intelligence</string>
-    <string name="api_keys">API keys</string>
-    <string name="no_keys_configured">No keys configured</string>
-    <string name="add_an_api_key_to_enable_features">Add an API key to enable %1$s features</string>
+    <string name="connection_label">Connection</string>
+    <string name="no_connections_configured">No connection configured</string>
+    <string name="add_connection_to_enable_features">Configure a connection to enable %1$s features</string>
     <string name="description">Description</string>
     <string name="add_location">Add location</string>
     <string name="reminder">Reminder</string>
@@ -448,24 +448,23 @@ Smarty is agentic, capable of retrieving notes, creating new ones, editing or de
 
 Smarty features smart reminders where the intelligence highlights important notes with visual cues. You can also set expiration dates on reminders to keep your workspace clean.
 
-The assistant uses Koog (Kotlin Object-Oriented Graphs) to execute structured tool calls and complex function chains, making it truly agentic. It supports multiple intelligence providers including Google Gemini, OpenAI, Anthropic, Groq, and more, with features like automatic key rotation and rate limit handling.
+The assistant uses Koog (Kotlin Object-Oriented Graphs) to execute structured tool calls and complex function chains, making it truly agentic. It connects to a Smarty Server for processing, ensuring privacy and control.
 
-Web search is integrated via Tavily for real-time information, and a daily digest notification summarizes the last 24 hours of activity every morning at 6:30 AM.
+Web search is integrated for real-time information, and a daily digest notification summarizes the last 24 hours of activity every morning at 6:30 AM.
 
-Voice features include high-quality recording with real-time visualizers and speech-to-text using Google Speech Recognition. The music player features a reactive orb visualizer that responds to your audio.
+Voice features include high-quality recording with real-time visualizers and speech-to-text. The music player features a reactive orb visualizer that responds to your audio.
 
-Calendar integration allows you to sync with Google Calendar and other providers, with Smarty able to manage events while respecting your privacy. Shake-to-private mode lets you toggle note privacy with a simple movement.
+Calendar integration allows you to sync with your schedule, with Smarty able to manage events while respecting your privacy. Shake-to-private mode lets you toggle note privacy with a simple movement.
 
-Privacy is fundamental: all data is stored locally, and API keys are encrypted using Android\'s Keystore system. Only necessary API calls leave the device.
+Privacy is fundamental: all data is stored locally, and sensitive configuration is managed securely. Only necessary API calls leave the device.
 
 Thank you for using Smarty.</string>
     <string name="smarty_version">Smarty v1.1.0</string>
-    <string name="ai_intelligence">Smarty intelligence</string>
-    <string name="configure_ai_providers_and_models">Configure intelligence providers and models</string>
-    <string name="drag_providers_to_reorder_priority">Drag providers to reorder priority</string>
-    <string name="tavily_web_search">Tavily web search</string>
+    <string name="ai_intelligence">Smarty Intelligence</string>
+    <string name="configure_server_connection_and_models">Configure connection and model settings</string>
+    <string name="web_search_label">Web search</string>
     <string name="enable_ai_web_search_capabilities">Enable Smarty web search capabilities</string>
-    <string name="tavily_info">Tavily provides real-time web search for Smarty. Get your free API key from tavily.com.</string>
+    <string name="web_search_info">Web search provides real-time information for Smarty.</string>
     <string name="local_llm_server">Local LLM server</string>
     <string name="local_llm_info">Connect to your local LLM server via USB tethering or Wi-Fi.</string>
     <string name="ip_address">IP address</string>
@@ -479,12 +478,12 @@ Thank you for using Smarty.</string>
     <string name="backup_sync_info">Keep your notes safe with automatic backups.</string>
     <string name="backups_include_info">Backups include notes, categories, settings, chat history, insights, calendar events, and attachments.</string>
     <string name="model">Model</string>
-    <string name="api_key_label">Key #%1$d</string>
+    <string name="connection_token_label">Token #%1$d</string>
     <string name="rate">Rate</string>
     <string name="calls_per_minute">%1$d/%2$d per min</string>
     <string name="calls_today">%1$d/%2$d today</string>
-    <string name="new_api_key">New API key</string>
-    <string name="paste_api_key_here">Paste API key here</string>
+    <string name="new_connection_token">New connection token</string>
+    <string name="paste_connection_token_here">Paste connection token here</string>
     <string name="personal_intelligence">Personal intelligence</string>
     <string name="insights_extracted">%1$d insights extracted</string>
     <string name="analyzing_notes">Analyzing notes…</string>
@@ -497,30 +496,30 @@ Thank you for using Smarty.</string>
     <string name="clear_learning_data">Clear learning data</string>
     <string name="forget">Forget</string>
     <string name="reset_all">Reset all</string>
-    <string name="add_key">Add key</string>
-    <string name="add_tavily_api_key">Add Tavily API key</string>
+    <string name="add_token">Add token</string>
+    <string name="add_search_token">Add search token</string>
     <string name="test_and_save">Test and save</string>
     <string name="backup_stats">%1$d notes, %2$d stacks • %3$s</string>
     <string name="local_backup_stats">%1$d notes, %2$d categories • %3$s</string>
     <string name="local_backup_device_info">%1$s • %2$s</string>
-    <string name="delete_key">Delete</string>
-    <string name="test_and_save_key">Test and save</string>
+    <string name="delete_token">Delete</string>
+    <string name="test_and_save_token">Test and save</string>
     <string name="every_30_days">Every 30 days</string>
     <string name="every_60_days">Every 60 days</string>
     <string name="every_100_days">Every 100 days</string>
     <string name="every_180_days">Every 180 days</string>
     <string name="every_365_days">Every 365 days</string>
-    <string name="fix_permissions_key">Fix permissions</string>
+    <string name="fix_permissions_token">Fix permissions</string>
     <string name="notes_will_be_unfiled">%1$d notes will be unfiled</string>
     <string name="collapse">Collapse</string>
     <string name="expand">Expand</string>
-    <string name="add_backup_key">Add backup key</string>
+    <string name="add_backup_token">Add backup token</string>
     <string name="refresh">Refresh</string>
     <string name="test">Test</string>
     <string name="rate_limited">Rate limited</string>
     <string name="daily_limit">Daily limit</string>
     <string name="cooldown">Cooldown</string>
-    <string name="valid_api_key">Valid API key</string>
+    <string name="valid_token">Valid token</string>
     <string name="last_synced">Last: %1$s</string>
     <string name="no_cache">No cache</string>
     <string name="backing_up">Backing up…</string>
@@ -540,7 +539,6 @@ Thank you for using Smarty.</string>
     <string name="hide">Hide</string>
     <string name="show">Show</string>
     <string name="recurring_event">Recurring event</string>
-    <string name="drag_to_reorder">Drag to reorder</string>
     <string name="configured">Configured</string>
     <string name="success">Action completed</string>
     <string name="failed">Unable to complete</string>
@@ -550,19 +548,8 @@ Thank you for using Smarty.</string>
     <string name="forget_insight">Forget insight</string>
     <string name="traffic_is_encrypted">Traffic is encrypted</string>
     <string name="traffic_is_unencrypted">Traffic is unencrypted</string>
-    <string name="no_api_keys_demo_mode">No API keys • Using demo mode</string>
-    <string name="providers_configured">%1$d provider(s) configured</string>
-    <string name="provider_gemini_desc">Google\'s highly capable and fast models</string>
-    <string name="provider_deepseek_desc">Efficient and cost-effective intelligence</string>
-    <string name="provider_groq_desc">Ultra-low latency inference</string>
-    <string name="provider_cerebras_desc">Extreme speed for real-time interaction</string>
-    <string name="provider_cohere_desc">Focused on command models</string>
-    <string name="provider_openai_desc">Industry standard highly capable models</string>
-    <string name="provider_anthropic_desc">Safety-focused high-reasoning models</string>
-    <string name="provider_openrouter_desc">Unified access to various models</string>
-    <string name="provider_huggingface_desc">Access to open-source community models</string>
-    <string name="provider_github_desc">Free model access for GitHub developers</string>
-    <string name="provider_local_llm_desc">Run models privately on local hardware</string>
+    <string name="no_connection_tokens_demo_mode">Offline mode</string>
+    <string name="connection_local_llm_desc">Run models privately on local hardware</string>
 
     <string name="local_server_returned">Server returned: %1$d</string>
     <string name="local_server_refused">Connection refused. Ensure the server is active.</string>
@@ -668,7 +655,7 @@ Thank you for using Smarty.</string>
     <string name="mic_permission_needed">Mic permission needed</string>
     <string name="mic_in_use_retry">Mic in use - tap to retry</string>
     <string name="starting_voice">Starting voice…</string>
-    <string name="no_ai_provider_configured">Please set up an AI provider in settings.</string>
+    <string name="no_server_connection_configured">Please set up a server connection in settings.</string>
     <string name="no_internet_connection">No internet connection. Please check your network.</string>
     <string name="request_timed_out">Request timed out. Please try again.</string>
     <string name="shared_from_smarty">Shared from Smarty</string>
@@ -715,7 +702,7 @@ Thank you for using Smarty.</string>
     <string name="error_pdf_ocr_no_text">No text could be extracted via OCR.</string>
     <string name="error_pdf_ocr_failed">OCR analysis failed.</string>
     <string name="error_security_blocked">Content was blocked for security reasons.</string>
-    <string name="error_ai_unavailable_keys">AI analysis is unavailable. Please check your API keys.</string>
+    <string name="error_ai_unavailable_connection">AI analysis is unavailable. Please check your server connection.</string>
     <string name="error_plan_empty">Plan cannot be empty. Please provide at least one step.</string>
     <string name="plan_created">Plan \"%1$s\" created with %2$d steps. Execution started.</string>
     <string name="immediate_action">Immediate action: %1$s. Execute this now.</string>
@@ -738,7 +725,7 @@ Thank you for using Smarty.</string>
     <string name="all_steps_completed">All steps completed. Plan finished.</string>
     <string name="deep_research_title">Deep Research: %1$s</string>
     <string name="error_enter_topic">Please enter a research topic.</string>
-    <string name="error_web_search_key">Web search API key is required.</string>
+    <string name="error_web_search_token">Web search token is required.</string>
     <string name="status_researching">Researching %1$s…</string>
     <string name="status_executing_queries">Executing %1$d research queries…</string>
     <string name="error_no_results">No findings for this topic.</string>
@@ -833,7 +820,7 @@ Thank you for using Smarty.</string>
     <string name="thanks_response">You’re welcome!</string>
     <string name="goodbye_response">Goodbye! Have a great day!</string>
     <string name="limited_overlay_mode">Limited in overlay mode</string>
-    <string name="error_no_api_key">No API key</string>
+    <string name="error_no_connection_token">No connection token</string>
     <string name="search_successful">Search completed</string>
     <string name="search_failed">Search failed</string>
     <string name="error_deep_research_unsupported">Deep research not supported in overlay mode</string>
@@ -856,19 +843,18 @@ Thank you for using Smarty.</string>
     <string name="security_violation_detail">Security violation: AI attempted %1$s on private note</string>
     <string name="security_violation_ids">Security violation: Private note IDs in %1$s</string>
     <string name="unknown">Unknown</string>
-    <string name="error_no_healthy_provider">No healthy AI provider available</string>
-    <string name="error_all_providers_disabled">No AI provider available. All providers may be temporarily disabled due to errors.</string>
+    <string name="error_no_healthy_connection">No healthy connection available</string>
+    <string name="error_all_connections_disabled">No connection available. The server may be temporarily unreachable.</string>
     <string name="error_daily_limit_reached">I’ve reached my daily thinking limit to help manage resources.</string>
     <string name="error_limit_reset_time">I’ll be back at full capacity in %1$s.</string>
     <string name="error_limit_chat_available">Feel free to continue chatting - I can still help with simpler questions!</string>
     <string name="error_action_failed_detail">i couldn’t complete that action: %1$s</string>
     <string name="error_request_failed_detail">i couldn’t complete your request. %1$s</string>
-    <string name="error_retry_after_cooldown">providers will automatically retry after a cooldown period.</string>
-    <string name="error_api_key_required">Please set up an API key in settings to enable this feature.</string>
-    <string name="error_provider_failover">↻ Falling back to next provider…</string>
-    <string name="error_attempts_failed">all %1$d attempts failed:</string>
+    <string name="error_retry_after_cooldown">Connections will automatically retry after a cooldown period.</string>
+    <string name="error_connection_required">Please check your connection settings to enable this feature.</string>
+    <string name="error_attempts_failed">Request failed:</string>
     <string name="error_formatting_failed">invalid input: %1$s</string>
-    <string name="api_key_required">Please set up an API key in settings.</string>
+    <string name="connection_required">Please check your connection settings.</string>
     <string name="no_summary_found">No summary found</string>
     <string name="research_report_title"># Research Report: %1$s</string>
     <string name="research_executive_summary">\n## Executive Summary</string>
@@ -1213,10 +1199,10 @@ Thank you for using Smarty.</string>
     <string name="seeked_to">Seeked to %1$s</string>
     <string name="date">Date</string>
     <string name="archives">Archives</string>
-    <string name="add_api_key">Add API key</string>
+    <string name="add_connection">Configure Connection</string>
     <string name="error">Error</string>
     <string name="dark_mode">Theme</string>
-    <string name="invalid_api_key">Invalid API key</string>
+    <string name="invalid_connection_token">Invalid connection token</string>
     <string name="adjust_shake_gesture">Adjust shake gesture sensitivity</string>
     <string name="less_sensitive">Less sensitive</string>
     <string name="more_sensitive">More sensitive</string>
@@ -1228,7 +1214,7 @@ Thank you for using Smarty.</string>
     <string name="connect_via_usb_tethering_or_wifi">Connect via USB tethering or WiFi</string>
     <string name="connect_to_your_local_llm_server_use_usb_ip_for_usb_tethering_or_wifi_ip_for_wireless">Connect to your local LLM server. Use USB IP for USB tethering or WiFi IP for wireless.</string>
     <string name="enable_local_connection">Enable local connection</string>
-    <string name="add_new_api_key">Add new API key</string>
+    <string name="add_new_connection_token">Add new connection token</string>
     <string name="ai_status">AI Status</string>
 
     <string name="active_timers">Active timers</string>

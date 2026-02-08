@@ -145,7 +145,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Assistant Overlay Activity - Gemini-style transparent overlay -->
+        <!-- Assistant Overlay Activity - Standardized transparent overlay -->
         <activity
             android:name=".AssistActivity"
             android:theme="@style/Theme.Smarty.Assistant"
@@ -210,7 +210,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Voice Interaction Service - Creates transparent overlay like Gemini -->
+        <!-- Voice Interaction Service - Creates transparent overlay like assistant -->
         <service
             android:name=".service.AssistInteractionService"
             android:permission="android.permission.BIND_VOICE_INTERACTION"

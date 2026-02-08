@@ -57,7 +57,7 @@ data class ChatMessage(
     val citations: List<Citation> = emptyList(),  // Sources from web research
     val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
     val clarificationRequest: ClarificationRequest? = null,  // Interactive clarification request
-    val thinkingContent: String? = null  // Reasoning process from thinking-enabled models (Falcon-H1R-7B)
+    val thinkingContent: String? = null  // Reasoning process from thinking-enabled models
 ) {
     /**
      * Check if this is a user message

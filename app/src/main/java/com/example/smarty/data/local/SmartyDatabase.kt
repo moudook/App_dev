@@ -15,7 +15,7 @@ import com.example.smarty.data.model.ChatMessageEntity
 import com.example.smarty.data.model.ChatSession
 import com.example.smarty.data.model.ImpressedEntry
 import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.ProviderUsage
+import com.example.smarty.data.model.ConnectionUsage
 import com.example.smarty.data.model.SmartyTimer
 import com.example.smarty.data.model.NoteVersion
 
@@ -29,7 +29,7 @@ import com.example.smarty.data.model.NoteVersion
         ImpressedEntry::class,
         CalendarEvent::class,
         AgentExecution::class,      // AI agent execution tracking
-        ProviderUsage::class,       // Provider usage for rate limiting
+        ConnectionUsage::class,       // Connection usage for rate limiting
         NoteVersion::class,         // Note version history for git-like versioning
         SmartyTimer::class          // Persisted timers and alarms
     ],

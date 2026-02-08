@@ -105,15 +105,13 @@ val ArchiveYellow = Color(0xFFFFE082)
 val ApkGreen = Color(0xFFA5D6A7)
 val FileGray = SystemGray
 
-// =============================================================================
-// GEMINI-STYLE COLORS - For Assistant Overlay
-// =============================================================================
+// ==================== ASSISTANT COLORS ====================
 
 /**
- * Softened Technical Palette for Gemini-style four-color glow animation.
+ * Softened Technical Palette for assistant-related UI elements (glows, overlays).
  * Optimized for the Calm Aesthetic.
  */
-object GeminiColors {
+object AssistantColors {
     val Red = Color(0xFFEF9A9A)    // Soft Red
     val Yellow = Color(0xFFFFE082) // Soft Yellow
     val Green = Color(0xFFA5D6A7)  // Soft Green
@@ -125,7 +123,7 @@ object GeminiColors {
     /** Dominant color after initial glow animation */
     val dominantBlue = Blue
 
-    // Surface colors (Material 3 from Gemini)
+    // Surface colors (Material 3 style)
     val SurfaceLight = Color(0xFFFEFBFF)
     val SurfaceDark = Color(0xFF121212)  // True black for dark mode
     val SurfaceContainer = Color(0xFFF3EDF7)

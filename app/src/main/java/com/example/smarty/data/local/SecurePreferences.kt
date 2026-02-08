@@ -8,10 +8,10 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import com.example.smarty.data.local.AIProvider
+import com.example.smarty.data.local.AIConnection
 
 /**
- * Available models for the Local LLM provider.
+ * Available models for the Local LLM connection.
  */
 object AIModels {
     // Local PC models - Run AI locally on your computer
@@ -27,31 +27,22 @@ object AIModels {
     )
     const val LOCAL_PC_DEFAULT = "chatglm3-6b-128k"
 
-    fun getModelsForProvider(provider: AIProvider): List<Pair<String, String>> {
-        return when (provider) {
-            AIProvider.LOCAL_PC -> LOCAL_PC_MODELS
-            else -> emptyList()
+    fun getModelsForConnection(connection: AIConnection): List<Pair<String, String>> {
+        return when (connection) {
+            AIConnection.LOCAL_PC -> LOCAL_PC_MODELS
         }
     }
 
-    fun getDefaultModel(provider: AIProvider): String {
-        return when (provider) {
-            AIProvider.LOCAL_PC -> LOCAL_PC_DEFAULT
-            else -> ""
+    fun getDefaultModel(connection: AIConnection): String {
+        return when (connection) {
+            AIConnection.LOCAL_PC -> LOCAL_PC_DEFAULT
         }
     }
 }
 
-data class AIProviderConfig(
-    val provider: AIProvider,
-    val apiKeys: List<String> = emptyList(),
-    val isEnabled: Boolean = true,
-    val selectedModel: String = AIModels.getDefaultModel(provider)
-)
-
 /**
  * Secure storage for application preferences and sensitive settings.
- * Thin Client Version: Only manages local settings and Local LLM configuration.
+ * Thin Client Version: Only manages local settings and Local LLM connection configuration.
  */
 class SecurePreferences(private val context: Context) {
     fun getContext(): Context = context
@@ -74,14 +65,6 @@ class SecurePreferences(private val context: Context) {
 
     private val gson = Gson()
 
-    // Multi-provider API key states - Kept for LOCAL_PC consistency
-    private val _providerConfigs: MutableStateFlow<Map<AIProvider, AIProviderConfig>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
-        MutableStateFlow(getAllProviderConfigs())
-    }
-    val providerConfigs: StateFlow<Map<AIProvider, AIProviderConfig>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
-        _providerConfigs.asStateFlow()
-    }
-
     // Theme preference
     private val _isDarkTheme: MutableStateFlow<Boolean> by lazy(LazyThreadSafetyMode.PUBLICATION) {
         MutableStateFlow(getDarkThemePreference())
@@ -90,15 +73,14 @@ class SecurePreferences(private val context: Context) {
         _isDarkTheme.asStateFlow()
     }
 
-    fun getProviderPriority(): List<AIProvider> {
-        return listOf(AIProvider.LOCAL_PC)
+    fun getConnectionPriority(): List<AIConnection> {
+        return listOf(AIConnection.LOCAL_PC)
     }
 
     companion object {
         private const val KEY_FIRST_LAUNCH = "first_launch"
         private const val KEY_SHAKE_SENSITIVITY = "shake_sensitivity"
-        private const val KEY_PROVIDER_ENABLED_PREFIX = "provider_enabled_"
-        private const val KEY_PROVIDER_MODEL_PREFIX = "provider_model_"
+        private const val KEY_LOCAL_PC_MODEL = "local_pc_model"
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
         private const val KEY_HAPTIC_ENABLED = "haptic_enabled"
@@ -162,35 +144,20 @@ class SecurePreferences(private val context: Context) {
     fun isHapticEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_HAPTIC_ENABLED, true)
     fun setHapticEnabled(enabled: Boolean) = encryptedPrefs.edit().putBoolean(KEY_HAPTIC_ENABLED, enabled).apply()
 
-    // Provider Management
-    fun isProviderEnabled(provider: AIProvider): Boolean {
-        if (provider == AIProvider.LOCAL_PC) return isLocalPCEnabled()
-        return false // Thin Client: cloud providers disabled by default
+    // Connection Management
+    fun isConnectionEnabled(connection: AIConnection): Boolean {
+        return isLocalPCEnabled()
     }
 
-    fun getSelectedModel(provider: AIProvider): String {
+    fun getSelectedModel(connection: AIConnection): String {
         return encryptedPrefs.getString(
-            "${KEY_PROVIDER_MODEL_PREFIX}${provider.name}",
-            AIModels.getDefaultModel(provider)
-        ) ?: AIModels.getDefaultModel(provider)
+            KEY_LOCAL_PC_MODEL,
+            AIModels.getDefaultModel(connection)
+        ) ?: AIModels.getDefaultModel(connection)
     }
 
-    fun setSelectedModel(provider: AIProvider, model: String) {
-        encryptedPrefs.edit().putString("${KEY_PROVIDER_MODEL_PREFIX}${provider.name}", model).apply()
-        _providerConfigs.value = getAllProviderConfigs()
-    }
-
-    fun getProviderConfig(provider: AIProvider): AIProviderConfig {
-        return AIProviderConfig(
-            provider = provider,
-            apiKeys = emptyList(),
-            isEnabled = isProviderEnabled(provider),
-            selectedModel = getSelectedModel(provider)
-        )
-    }
-
-    fun getAllProviderConfigs(): Map<AIProvider, AIProviderConfig> {
-        return mapOf(AIProvider.LOCAL_PC to getProviderConfig(AIProvider.LOCAL_PC))
+    fun setSelectedModel(connection: AIConnection, model: String) {
+        encryptedPrefs.edit().putString(KEY_LOCAL_PC_MODEL, model).apply()
     }
 
     // Theme Management
@@ -246,7 +213,6 @@ class SecurePreferences(private val context: Context) {
     fun isLocalPCEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_LOCAL_PC_ENABLED, DEFAULT_LOCAL_PC_ENABLED)
     fun setLocalPCEnabled(enabled: Boolean) {
         encryptedPrefs.edit().putBoolean(KEY_LOCAL_PC_ENABLED, enabled).apply()
-        _providerConfigs.value = getAllProviderConfigs()
     }
 
     fun getLocalPCUrl(): String {
@@ -259,7 +225,7 @@ class SecurePreferences(private val context: Context) {
         return "$protocol://${getLocalPCIP()}:${getLocalPCPort()}"
     }
 
-    fun getAvailableModels(provider: AIProvider): List<Pair<String, String>> {
-        return AIModels.getModelsForProvider(provider)
+    fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> {
+        return AIModels.getModelsForConnection(connection)
     }
 }

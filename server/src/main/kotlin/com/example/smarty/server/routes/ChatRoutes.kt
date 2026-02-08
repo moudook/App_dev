@@ -151,13 +151,13 @@ fun Application.configureChatRoutes() {
             val providerParam = call.request.queryParameters["provider"]
             val providerUrlParam = call.request.queryParameters["providerUrl"]
             val modelParam = call.request.queryParameters["model"]
-            val apiKeyParam = call.request.queryParameters["apiKey"]
+            val tokenParam = call.request.queryParameters["token"] ?: call.request.queryParameters["apiKey"]
 
             // Log the incoming request
             call.application.log.info("SSE stream started for query: $query (Session: $sessionId, Provider: $providerParam, Model: $modelParam, URL: $providerUrlParam)")
 
             // Create provider and summarizer for this specific request
-            val streamProvider = LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, apiKeyParam)
+            val streamProvider = LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, tokenParam)
             val streamSummarizer = ConversationSummarizer(streamProvider)
 
             // Handle Session Persistence
