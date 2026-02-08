@@ -1,0 +1,151 @@
+[versions]
+agp = "8.5.2"
+kotlin = "2.1.0"
+coreKtx = "1.15.0"
+junit = "4.13.2"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+appcompat = "1.7.0"
+material = "1.12.0"
+lifecycleRuntimeKtx = "2.8.7"
+activityCompose = "1.9.3"
+composeBom = "2024.12.01"
+navigationCompose = "2.8.5"
+roomVersion = "2.6.1"
+coilCompose = "2.7.0"
+ksp = "2.1.0-1.0.29"
+zxing = "3.5.3"
+gson = "2.11.0"
+okhttp = "4.12.0"
+securityCrypto = "1.1.0-alpha06"
+datastorePreferences = "1.1.1"
+# Google Drive Backup
+playServicesAuth = "21.3.0"
+googleApiServicesDrive = "v3-rev20241206-2.0.0"
+googleApiClientAndroid = "2.7.0"
+googleHttpClientGson = "1.45.1"
+workRuntimeKtx = "2.10.0"
+paging = "3.3.5"
+pdfboxAndroid = "2.0.27.0"
+media3 = "1.5.1"
+# Koog AI Agent Framework
+koog = "0.5.0"
+kotlinxCoroutines = "1.9.0"
+kotlinxSerialization = "1.7.3"
+ktor = "3.0.0"
+# Code Quality
+detekt = "1.23.7"
+googleServices = "4.4.4"
+firebaseBom = "34.7.0"
+crashlyticsPlugin = "3.0.2"
+leakcanary = "2.14"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+google-fonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts", version = "1.7.6" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "roomVersion" }
+androidx-room-common = { group = "androidx.room", name = "room-common", version.ref = "roomVersion" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomVersion" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomVersion" }
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
+# Google Drive Backup
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+google-api-services-drive = { group = "com.google.apis", name = "google-api-services-drive", version.ref = "googleApiServicesDrive" }
+google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClientAndroid" }
+google-http-client-gson = { group = "com.google.http-client", name = "google-http-client-gson", version.ref = "googleHttpClientGson" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
+# Paging3 for large list pagination
+androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
+androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "paging" }
+androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "roomVersion" }
+pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref = "pdfboxAndroid" }
+# Media3 ExoPlayer for audio playback
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
+androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
+# Koog AI Agent Framework
+koog-agents = { group = "ai.koog", name = "koog-agents", version.ref = "koog" }
+koog-agents-planner = { group = "ai.koog", name = "agents-planner", version.ref = "koog" }
+koog-executor-google = { group = "ai.koog", name = "prompt-executor-google-client", version.ref = "koog" }
+koog-executor-anthropic = { group = "ai.koog", name = "prompt-executor-anthropic-client", version.ref = "koog" }
+koog-executor-openai = { group = "ai.koog", name = "prompt-executor-openai-client", version.ref = "koog" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
+# Ktor Client
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-client-sse = { group = "io.ktor", name = "ktor-client-sse", version.ref = "ktor" }
+
+# Ktor Server
+ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref = "ktor" }
+ktor-server-netty = { group = "io.ktor", name = "ktor-server-netty", version.ref = "ktor" }
+ktor-server-content-negotiation = { group = "io.ktor", name = "ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-server-sse = { group = "io.ktor", name = "ktor-server-sse", version.ref = "ktor" }
+ktor-server-cors = { group = "io.ktor", name = "ktor-server-cors", version.ref = "ktor" }
+ktor-server-call-logging = { group = "io.ktor", name = "ktor-server-call-logging", version.ref = "ktor" }
+# KOOG Ktor integration
+koog-ktor = { group = "ai.koog", name = "koog-ktor", version.ref = "koog" }
+# Ktor Server Plugins
+ktor-server-call-id = { group = "io.ktor", name = "ktor-server-call-id", version.ref = "ktor" }
+ktor-server-rate-limit = { group = "io.ktor", name = "ktor-server-rate-limit", version.ref = "ktor" }
+
+# Logging for server
+logback-classic = { group = "ch.qos.logback", name = "logback-classic", version = "1.4.14" }
+logstash-logback-encoder = { group = "net.logstash.logback", name = "logstash-logback-encoder", version = "7.4" }
+
+# Metrics
+micrometer-registry-prometheus = { group = "io.micrometer", name = "micrometer-registry-prometheus", version = "1.12.2" }
+ktor-server-metrics-micrometer = { group = "io.ktor", name = "ktor-server-metrics-micrometer", version.ref = "ktor" }
+# Code Quality
+leakcanary = { group = "com.squareup.leakcanary", name = "leakcanary-android", version.ref = "leakcanary" }
+
+# Firebase
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
+firebase-config = { group = "com.google.firebase", name = "firebase-config" }
+
+# Database
+postgresql = { module = "org.postgresql:postgresql", version = "42.7.1" }
+pgvector = { module = "com.pgvector:pgvector", version = "0.1.4" }
+hikaricp = { module = "com.zaxxer:HikariCP", version = "5.1.0" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "crashlyticsPlugin" }
+ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
