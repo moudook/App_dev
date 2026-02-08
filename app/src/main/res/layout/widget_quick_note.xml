@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ultra-Compact Smarty Widget - Single Row -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/widget_glass_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <!-- App Icon -->
+    <ImageView
+        android:id="@+id/widget_icon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/app_name"
+        android:src="@mipmap/ic_launcher_round" />
+
+    <!-- Title + Subtitle -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="normal"
+            android:fontFamily="sans-serif-medium" />
+
+        <TextView
+            android:id="@+id/widget_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_capture_anything"
+            android:textColor="#80FFFFFF"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Plus Button -->
+    <ImageButton
+        android:id="@+id/widget_add_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="8dp"
+        android:background="@drawable/widget_secondary_button"
+        android:contentDescription="@string/widget_add_note"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_add_white"
+        android:tint="#2979FF" />
+
+    <!-- Mic Button -->
+    <ImageButton
+        android:id="@+id/widget_voice_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="8dp"
+        android:background="@drawable/widget_secondary_button"
+        android:contentDescription="@string/widget_voice_note"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_mic_white"
+        android:tint="#2979FF" />
+
+    <!-- Camera Button -->
+    <ImageButton
+        android:id="@+id/widget_camera_button"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:background="@drawable/widget_secondary_button"
+        android:contentDescription="@string/widget_camera_note"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_camera_white"
+        android:tint="#2979FF" />
+
+</LinearLayout>

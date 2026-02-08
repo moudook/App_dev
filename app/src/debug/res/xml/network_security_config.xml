@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration - DEBUG BUILD
+
+    FOR DEVELOPMENT ONLY - Allows cleartext (HTTP) traffic to ANY IP.
+    This enables connecting to local LLM servers via USB/WiFi without
+    needing to whitelist specific IPs.
+
+    SECURITY NOTE: This is safe for debug builds only.
+    Release builds use a separate strict config.
+-->
+<network-security-config>
+    <!-- DEBUG: Allow cleartext traffic to ALL destinations -->
+    <!-- This enables LOCAL_PC provider to work with any IP address -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- AI Provider domains - explicitly HTTPS (these use HTTPS anyway) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">openai.com</domain>
+        <domain includeSubdomains="true">api.openai.com</domain>
+        <domain includeSubdomains="true">anthropic.com</domain>
+        <domain includeSubdomains="true">api.anthropic.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">generativelanguage.googleapis.com</domain>
+        <domain includeSubdomains="true">google.com</domain>
+        <domain includeSubdomains="true">googleusercontent.com</domain>
+        <domain includeSubdomains="true">groq.com</domain>
+        <domain includeSubdomains="true">api.groq.com</domain>
+        <domain includeSubdomains="true">deepseek.com</domain>
+        <domain includeSubdomains="true">api.deepseek.com</domain>
+        <domain includeSubdomains="true">cerebras.ai</domain>
+        <domain includeSubdomains="true">api.cerebras.ai</domain>
+        <domain includeSubdomains="true">cohere.ai</domain>
+        <domain includeSubdomains="true">api.cohere.ai</domain>
+    </domain-config>
+</network-security-config>

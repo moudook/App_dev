@@ -4,6 +4,7 @@
 *.log
 build_*
 errors.txt
+logs/
 
 # project docs
 !README.md
