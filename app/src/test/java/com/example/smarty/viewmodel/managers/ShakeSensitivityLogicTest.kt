@@ -21,13 +21,11 @@ class ShakeSensitivityLogicTest {
     @Before
     fun setup() {
         securePreferences = mockk(relaxed = true)
-        val aiService = mockk<AIService>()
-        val rateLimiter = mockk<RateLimiter>()
 
         // Mock default behavior
         every { securePreferences.getShakeSensitivity() } returns 2.75f // Default mid value (logic)
 
-        settingsManager = SettingsFeatureManager(securePreferences, aiService, rateLimiter, scope)
+        settingsManager = SettingsFeatureManager(securePreferences, scope)
     }
 
     @Test
@@ -62,8 +60,6 @@ class ShakeSensitivityLogicTest {
         // Re-init manager to trigger init block
         val newManager = SettingsFeatureManager(
             securePreferences,
-            mockk(),
-            mockk(),
             scope
         )
 

@@ -101,19 +101,13 @@ object ContentSecurityFilter {
     private val EXCESSIVE_SPACES_PATTERN = Regex(""" {10,}""")
 
     /**
-     * Emoji pattern - ONLY matches actual emoji faces and symbols
-     * Does NOT touch any language scripts (Hindi, Arabic, Chinese, etc.)
-     * Uses surrogate pairs which are in the emoji-specific Unicode ranges
+     * Check if a code point is an emoji or symbol
      */
-    private val EMOJI_PATTERN = Regex(
-        "[" +
-        "\uD83D\uDE00-\uD83D\uDE4F" +             // Emoticons (faces)
-        "\uD83D\uDE80-\uD83D\uDEFF" +             // Transport, map symbols
-        "\uD83E\uDD00-\uD83E\uDDFF" +             // Supplemental symbols (hands, etc.)
-        "\u2764" +                                // Heart
-        "\u2728" +                                // Sparkles
-        "]+"
-    )
+    private fun isEmojiOrSymbol(codePoint: Int): Boolean {
+        return (codePoint > 0xFFFF) || // Supplementary characters (Emojis, rare CJK)
+               (codePoint in 0x2600..0x27BF) || // BMP Symbols (Dingbats, etc)
+               (codePoint == 0x200D) || (codePoint == 0xFE0F) // ZWJ, Variant Selectors
+    }
 
     /**
      * Result of content security check
@@ -200,7 +194,7 @@ object ContentSecurityFilter {
         // Step 6: Remove emojis if requested (for cleaner AI chat responses)
         if (removeEmojis) {
             val beforeEmoji = sanitized
-            sanitized = sanitized.replace(EMOJI_PATTERN, "")
+            sanitized = removeEmojis(sanitized)
             if (sanitized != beforeEmoji) {
                 issues.add("Emojis removed")
                 riskLevel = maxOf(riskLevel, RiskLevel.LOW)
@@ -300,13 +294,30 @@ object ContentSecurityFilter {
      * Check if content contains emojis
      */
     fun hasEmojis(content: String): Boolean {
-        return EMOJI_PATTERN.containsMatchIn(content)
+        var i = 0
+        while (i < content.length) {
+            val codePoint = content.codePointAt(i)
+            if (isEmojiOrSymbol(codePoint)) {
+                return true
+            }
+            i += Character.charCount(codePoint)
+        }
+        return false
     }
 
     /**
      * Remove emojis from content without full sanitization
      */
     fun removeEmojis(content: String): String {
-        return content.replace(EMOJI_PATTERN, "")
+        val sb = StringBuilder()
+        var i = 0
+        while (i < content.length) {
+            val codePoint = content.codePointAt(i)
+            if (!isEmojiOrSymbol(codePoint)) {
+                sb.appendCodePoint(codePoint)
+            }
+            i += Character.charCount(codePoint)
+        }
+        return sb.toString()
     }
 }
