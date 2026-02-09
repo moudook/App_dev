@@ -19,8 +19,7 @@ import com.example.smarty.ui.screens.AssistOverlayScreen
 import com.example.smarty.ui.theme.SmartyTheme
 import com.example.smarty.viewmodel.AssistViewModel
 import com.example.smarty.viewmodel.AssistViewModelFactory
-import com.google.gson.Gson
-import okhttp3.OkHttpClient
+import com.example.smarty.voice.VoskWakeWordManager
 import java.util.concurrent.TimeUnit
 
 /**
@@ -59,6 +58,9 @@ class AssistActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Pause wake word detection while overlay is active to avoid mic conflict
+        VoskWakeWordManager.isGloballyPaused = true
 
         // CRITICAL: Setup transparent window BEFORE setContentView
         setupTransparentWindow()
@@ -119,9 +121,17 @@ class AssistActivity : ComponentActivity() {
      * Finish activity with smooth transition (no animation)
      */
     private fun finishWithAnimation() {
+        // Resume wake word detection
+        VoskWakeWordManager.isGloballyPaused = false
         finish()
         @Suppress("DEPRECATION")
         overridePendingTransition(0, android.R.anim.fade_out)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Ensure wake word detection is resumed even if destroyed by system
+        VoskWakeWordManager.isGloballyPaused = false
     }
 
     /**

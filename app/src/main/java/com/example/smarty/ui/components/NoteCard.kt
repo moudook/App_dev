@@ -241,6 +241,10 @@ fun NoteCard(
                             onDragCancel = { coroutineScope.launch { swipeOffset.animateTo(0f, snapBackSpec) }; swipeActivated = false; thresholdReached = false; accumulatedDrag = 0f },
                             onHorizontalDrag = { _, dragAmount ->
                                 accumulatedDrag += dragAmount
+                                // Clamp the drag to prevent excessive movement
+                                val maxDrag = swipeThreshold * 1.5f
+                                accumulatedDrag = accumulatedDrag.coerceIn(-maxDrag, maxDrag)
+
                                 if (!swipeActivated && abs(accumulatedDrag) > swipeActivationThreshold) {
                                     swipeActivated = true
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
