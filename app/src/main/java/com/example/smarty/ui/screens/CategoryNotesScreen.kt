@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.min
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.isSystemInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -296,11 +297,14 @@ private fun QRCodeDialog(
 
                 // QR Code
                 if (qrBitmap != null) {
+                    // Use a slightly softer white in dark mode to reduce harsh contrast, but keep it light for scanning
+                    val qrBackground = if (isSystemInDarkTheme()) androidx.compose.ui.graphics.Color(0xFFF5F5F5) else androidx.compose.ui.graphics.Color.White
+
                     Box(
                         modifier = Modifier
                             .size(200.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(androidx.compose.ui.graphics.Color.White)
+                            .background(qrBackground)
                             .padding(8.dp)
                     ) {
                         Image(

@@ -70,8 +70,24 @@ fun VoiceNoteButton(
     val isRecording = state is VoiceNoteRecorder.RecordingState.Recording
 
     when (state) {
-        is VoiceNoteRecorder.RecordingState.Idle,
         is VoiceNoteRecorder.RecordingState.Error -> {
+            // Show error state
+            MicButton(
+                onClick = {
+                    recorder.reset() // Reset error state on click
+                    if (recorder.hasRecordingPermission()) {
+                        recorder.startRecording()
+                    } else {
+                        onPermissionRequired()
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = modifier
+            )
+        }
+
+        is VoiceNoteRecorder.RecordingState.Idle -> {
             // Show mic button
             MicButton(
                 onClick = {
@@ -126,20 +142,22 @@ fun VoiceNoteButton(
 @Composable
 private fun MicButton(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer,
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
 ) {
     Box(
         modifier = modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer)
+            .background(containerColor)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = Icons.Default.Mic,
             contentDescription = stringResource(R.string.record_voice_note),
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            tint = contentColor,
             modifier = Modifier.size(24.dp)
         )
     }

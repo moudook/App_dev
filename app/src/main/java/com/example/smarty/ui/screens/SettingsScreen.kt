@@ -105,6 +105,7 @@ fun SettingsScreen(
     cacheSizeBytes: Long = 0L,
     onClearCache: () -> Unit = {},
     isClearingCache: Boolean = false,
+    onExportData: () -> Unit = {},
     // Google Calendar Sync
     lastCalendarSyncTime: Long = 0L,
     onCalendarSync: () -> Unit = {},
@@ -316,6 +317,14 @@ fun SettingsScreen(
                                         "${stringResource(R.string.last_sync_)} ${sdf.format(java.util.Date(lastCalendarSyncTime))}"
                                     } else stringResource(R.string.not_synced),
                                     onClick = onCalendarSync,
+                                    iconColor = LocalAccentColor.current,
+                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                )
+                                SettingsRow(
+                                    title = stringResource(R.string.export_data),
+                                    icon = Icons.Default.FileDownload,
+                                    subtitle = stringResource(R.string.export_all_notes_and_settings),
+                                    onClick = onExportData,
                                     iconColor = LocalAccentColor.current,
                                     containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
                                 )

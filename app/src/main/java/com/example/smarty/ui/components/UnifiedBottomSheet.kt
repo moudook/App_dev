@@ -101,11 +101,11 @@ fun UnifiedBottomSheet(
                     content()
                 }
 
-                // Top Fade Scrim (Matches PREFERRED_UI_REFERENCE logic)
+                // Top Fade Scrim (Matches PREFERRED_UI_REFERENCE logic) - Reduced height to prevent obscuration
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(32.dp)
+                        .height(16.dp)
                         .align(Alignment.TopCenter)
                         .background(
                             brush = Brush.verticalGradient(
@@ -117,11 +117,11 @@ fun UnifiedBottomSheet(
                         )
                 )
 
-                // Bottom Fade Scrim
+                // Bottom Fade Scrim - Reduced height
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
+                        .height(32.dp)
                         .align(Alignment.BottomCenter)
                         .background(
                             brush = Brush.verticalGradient(
