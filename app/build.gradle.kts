@@ -6,8 +6,8 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.detekt)
     alias(libs.plugins.google.services)
-    // REMOVED: Crashlytics plugin - not implemented (BATCH-10 optimization)
-    // alias(libs.plugins.firebase.crashlytics)
+    // Crashlytics for crash reporting
+    alias(libs.plugins.firebase.crashlytics)
     id("kotlin-parcelize")
 }
 
@@ -33,6 +33,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Upload ProGuard mapping to Crashlytics
+            configure<com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension> {
+                mappingFileUploadEnabled = true
+            }
             // Task 16: Production Server URL
             buildConfigField("String", "SERVER_URL", "\"https://your-space-name.hf.space\"")
         }
@@ -164,8 +168,8 @@ dependencies {
     // REMOVED: Unused Firebase modules identified in BATCH-10 analysis
     // Firestore for Cloud Sync
     implementation(libs.firebase.firestore)
-    // Crashlytics not implemented - no recordException() calls
-    // implementation(libs.firebase.crashlytics)
+    // Crashlytics for crash reporting
+    implementation(libs.firebase.crashlytics)
     // FCM not implemented - no FirebaseMessagingService
     // implementation(libs.firebase.messaging)
     // Analytics not implemented - no logEvent() calls

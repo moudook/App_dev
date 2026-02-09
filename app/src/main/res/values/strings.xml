@@ -1238,4 +1238,7 @@ Thank you for using Smarty.</string>
     <string name="tictactoe_x_turn">X\'s turn</string>
     <string name="tictactoe_o_turn">O\'s turn</string>
     <string name="configure_local_pc_connection">Configure local PC connection</string>
+
+    <!-- Firebase Auth Config -->
+    <string name="default_web_client_id">1056730951768-39d0p38cguf1ialdnfaqvrqtmrsp25ih.apps.googleusercontent.com</string>
 </resources>

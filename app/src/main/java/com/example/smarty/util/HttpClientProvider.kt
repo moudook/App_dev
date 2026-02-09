@@ -1,5 +1,6 @@
 package com.example.smarty.util
 
+import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -46,11 +47,34 @@ object HttpClientProvider {
     const val LONG_WRITE_TIMEOUT_SECONDS = 300L
 
     /**
+     * Certificate Pinner for key API domains.
+     * Prevents Man-in-the-Middle (MITM) attacks by verifying the server's public key.
+     *
+     * Note: These pins must be updated if the certificate authority changes or keys rotate.
+     * Currently configured with placeholders - User must add actual SHA-256 pins.
+     *
+     * To get a pin:
+     * openssl s_client -servername api.openai.com -connect api.openai.com:443 | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64
+     */
+    private val certificatePinner: CertificatePinner by lazy {
+        CertificatePinner.Builder()
+            // OpenAI (api.openai.com)
+            // .add("api.openai.com", "sha256/YOUR_PIN_HERE")
+
+            // Anthropic (api.anthropic.com)
+            // .add("api.anthropic.com", "sha256/YOUR_PIN_HERE")
+
+            // Google (generativelanguage.googleapis.com)
+            // .add("generativelanguage.googleapis.com", "sha256/YOUR_PIN_HERE")
+            .build()
+    }
+
+    /**
      * Default client for general API calls including AI providers.
      * Uses standardized timeouts:
-     * - connectTimeout: 30s (TCP connection establishment)
-     * - readTimeout: 90s (AI responses can be slow)
-     * - writeTimeout: 60s (sending request data)
+     * - connectTimeout: 60s (TCP connection establishment)
+     * - readTimeout: 300s (AI responses can be slow)
+     * - writeTimeout: 120s (sending request data)
      */
     val default: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -58,6 +82,7 @@ object HttpClientProvider {
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
+            .certificatePinner(certificatePinner)
             .build()
     }
 
