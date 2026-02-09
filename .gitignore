@@ -209,3 +209,8 @@ Thumbs.db
 # Ktor / Server secrets
 application-*.conf
 !application.conf
+
+# Local Server & Ngrok
+ngrok.exe
+ngrok.yml
+start_server.sh

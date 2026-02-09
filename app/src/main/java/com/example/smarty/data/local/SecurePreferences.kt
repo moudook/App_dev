@@ -101,9 +101,9 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_LOCAL_PC_USE_HTTPS = "local_pc_use_https"
         private const val KEY_LOCAL_PC_ENABLED = "local_pc_enabled"
 
-        private const val DEFAULT_LOCAL_PC_IP = "10.200.245.127"
-        private const val DEFAULT_LOCAL_PC_PORT = "8083"
-        private const val DEFAULT_LOCAL_PC_USE_HTTPS = false
+        private const val DEFAULT_LOCAL_PC_IP = "largest-camron-usuriously.ngrok-free.dev"
+        private const val DEFAULT_LOCAL_PC_PORT = "443"
+        private const val DEFAULT_LOCAL_PC_USE_HTTPS = true
         private const val DEFAULT_LOCAL_PC_ENABLED = true
 
         // Google Calendar Sync

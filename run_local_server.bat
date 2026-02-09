@@ -20,9 +20,11 @@ if exist .env (
 )
 
 :: Check for required keys
-if "%OPENAI_API_KEY%"=="" (
-    echo Warning: OPENAI_API_KEY is not set.
-    set /p OPENAI_API_KEY="Enter OPENAI_API_KEY: "
+if "%ACTIVE_PROVIDER%"=="OPENAI" (
+    if "%OPENAI_API_KEY%"=="" (
+        echo Warning: OPENAI_API_KEY is not set.
+        set /p OPENAI_API_KEY="Enter OPENAI_API_KEY: "
+    )
 )
 
 if "%TAVILY_API_KEY%"=="" (
