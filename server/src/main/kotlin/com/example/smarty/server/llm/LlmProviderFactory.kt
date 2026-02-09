@@ -21,9 +21,9 @@ object LlmProviderFactory {
             "GROQ" -> createGroq(client, apiKeyOverride)
             "DEEPSEEK" -> createDeepSeek(client, apiKeyOverride)
             "GEMINI" -> createGemini(client, apiKeyOverride)
-            "CLAUDE" -> createClaude(client, apiKeyOverride)
+            "CLAUDE", "ANTIGRAVITY" -> createClaude(client, baseUrlOverride, apiKeyOverride)
             "OPENROUTER" -> createOpenRouter(client, apiKeyOverride)
-            "CEREBRAS" -> createCerebras(client, apiKeyOverride)
+            "Cerebras" -> createCerebras(client, apiKeyOverride)
             "GITHUB" -> createGitHub(client, apiKeyOverride)
             "LOCAL" -> createLocal(client, baseUrlOverride, apiKeyOverride)
             "LOCAL_PC" -> createLocal(client, baseUrlOverride, apiKeyOverride)
@@ -64,9 +64,10 @@ object LlmProviderFactory {
         apiKey = apiKeyOverride ?: System.getenv("GEMINI_API_KEY") ?: ""
     )
 
-    private fun createClaude(client: HttpClient, apiKeyOverride: String? = null) = AnthropicProvider(
+    private fun createClaude(client: HttpClient, baseUrlOverride: String? = null, apiKeyOverride: String? = null) = AnthropicProvider(
         client = client,
-        apiKey = apiKeyOverride ?: System.getenv("ANTHROPIC_API_KEY") ?: ""
+        apiKey = apiKeyOverride ?: System.getenv("ANTHROPIC_API_KEY") ?: "",
+        baseUrl = baseUrlOverride ?: System.getenv("ANTHROPIC_BASE_URL") ?: "https://api.anthropic.com/v1"
     )
 
     private fun createOpenRouter(client: HttpClient, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(

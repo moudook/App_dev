@@ -20,20 +20,18 @@ class AnthropicProvider(
     private val client: HttpClient,
     override val providerName: String = "Claude",
     private val apiKey: String,
-    private val defaultModel: String = "claude-3-5-sonnet-20240620"
+    private val defaultModel: String = "claude-3-5-sonnet-20240620",
+    private val baseUrl: String = "https://api.anthropic.com/v1"
 ) : LlmProvider {
 
     private val logger = LoggerFactory.getLogger(AnthropicProvider::class.java)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val baseUrl = "https://api.anthropic.com/v1"
 
     override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?
     ): LlmResponse {
-        // Non-streaming implementation reused from stream for simplicity in this task scope
-        // Ideally would use a separate call
         throw NotImplementedError("Use stream() for AnthropicProvider")
     }
 

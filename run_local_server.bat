@@ -19,6 +19,9 @@ if exist .env (
     for /f "tokens=*" %%a in (.env) do set %%a
 )
 
+:: Default to OPENAI if not specified
+if "%ACTIVE_PROVIDER%"=="" set ACTIVE_PROVIDER=OPENAI
+
 :: Check for required keys
 if "%ACTIVE_PROVIDER%"=="OPENAI" (
     if "%OPENAI_API_KEY%"=="" (
