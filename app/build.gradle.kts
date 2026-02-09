@@ -162,8 +162,8 @@ dependencies {
     implementation(project(":common"))
 
     // REMOVED: Unused Firebase modules identified in BATCH-10 analysis
-    // Firestore not used - app uses Room for local storage, Google Drive for backup
-    // implementation(libs.firebase.firestore)
+    // Firestore for Cloud Sync
+    implementation(libs.firebase.firestore)
     // Crashlytics not implemented - no recordException() calls
     // implementation(libs.firebase.crashlytics)
     // FCM not implemented - no FirebaseMessagingService

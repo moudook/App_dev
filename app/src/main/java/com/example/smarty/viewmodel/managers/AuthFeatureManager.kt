@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.activity.result.ActivityResult
 import com.example.smarty.R
 import com.example.smarty.data.repository.AuthRepository
+import com.example.smarty.data.repository.SmartyRepository
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -34,7 +35,8 @@ class AuthFeatureManager(
     private val application: Application,
     private val scope: CoroutineScope,
     private val authRepository: AuthRepository,
-    private val securePreferences: SecurePreferences? = null
+    private val securePreferences: SecurePreferences? = null,
+    private val repository: SmartyRepository? = null
 ) {
     private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
@@ -83,6 +85,8 @@ class AuthFeatureManager(
                 // Sync email to SecurePreferences for other features (Calendar, Backup)
                 if (user != null && user.email != null) {
                     securePreferences?.setGoogleAccountEmail(user.email)
+                    // Initialize Firestore Sync
+                    repository?.initializeSync(user.uid)
                 }
             }
         }

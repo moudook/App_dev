@@ -18,14 +18,80 @@ import com.example.smarty.data.cache.ToolResultCache
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class SmartyRepository(
     private val noteDao: NoteDao,
     private val categoryDao: CategoryDao,
     private val calendarDao: CalendarDao,  // Required for calendar functionality
     private val noteVersionDao: NoteVersionDao? = null,  // Optional for backwards compatibility
-    private val context: android.content.Context? = null
+    private val context: android.content.Context? = null,
+    private val syncRepository: SyncRepository? = null
 ) {
+    private val scope = CoroutineScope(Dispatchers.IO)
+
+    /**
+     * Initialize synchronization for a specific user.
+     * Starts observing remote changes and merging them into local database.
+     */
+    fun initializeSync(userId: String) {
+        syncRepository?.let { repo ->
+            repo.initializeForUser(userId)
+
+            // Observe Remote Notes
+            scope.launch {
+                repo.getRemoteNotesFlow().collect { remoteNotes ->
+                    if (remoteNotes.isNotEmpty()) {
+                        upsertRemoteNotes(remoteNotes)
+                    }
+                }
+            }
+
+            // Observe Remote Categories
+            scope.launch {
+                repo.getRemoteCategoriesFlow().collect { remoteCategories ->
+                    if (remoteCategories.isNotEmpty()) {
+                        remoteCategories.forEach { category ->
+                            val existing = categoryDao.getCategoryById(category.id)
+                            // Simple Last-Write-Wins based on lastUpdated
+                            if (existing == null || category.lastUpdated > existing.lastUpdated) {
+                                categoryDao.insertCategory(category)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Insert/Update notes coming from remote sync.
+     * Does NOT trigger sync back to cloud (prevents infinite loop).
+     * Maintains category counts.
+     */
+    private suspend fun upsertRemoteNotes(notes: List<Note>) {
+        if (notes.isEmpty()) return
+
+        // 1. Insert/Update in DAO (OnConflictStrategy.REPLACE)
+        noteDao.insertNotes(notes)
+
+        // 2. Update category counts locally
+        notes.mapNotNull { it.categoryId }
+            .groupingBy { it }
+            .eachCount()
+            .forEach { (categoryId, count) ->
+                // This might be inaccurate if we're replacing notes that moved categories
+                // A full recalculate might be safer but more expensive.
+                // For now, let's trigger a recalc for affected categories
+                categoryDao.recalculateCategoryCount(categoryId)
+            }
+
+        // 3. Invalidate cache
+        ToolResultCache.invalidateNoteCache()
+    }
+
     /**
      * Get application context.
      * Required for some AI fallback logic and resource resolution.
@@ -263,6 +329,11 @@ class SmartyRepository(
     suspend fun insertNote(note: Note) {
         noteDao.insertNote(note)
         note.categoryId?.let { categoryDao.incrementNoteCount(it) }
+
+        // Cloud Sync
+        syncRepository?.let { repo ->
+            scope.launch { repo.syncNote(note) }
+        }
     }
 
     @Transaction
@@ -276,6 +347,13 @@ class SmartyRepository(
             .forEach { (categoryId, count) ->
                 categoryDao.updateNoteCount(categoryId, count)
             }
+
+        // Cloud Sync
+        syncRepository?.let { repo ->
+            scope.launch {
+                notes.forEach { repo.syncNote(it) }
+            }
+        }
     }
 
     /**
@@ -302,6 +380,11 @@ class SmartyRepository(
 
         // SECURITY: Invalidate AI tool cache - privacy state may have changed
         ToolResultCache.invalidateNoteCache()
+
+        // Cloud Sync
+        syncRepository?.let { repo ->
+            scope.launch { repo.syncNote(note) }
+        }
     }
 
     /**
@@ -358,6 +441,11 @@ class SmartyRepository(
         calendarDao.clearNoteLinkForNote(note.id)
         // SECURITY: Invalidate AI tool cache - note no longer exists
         ToolResultCache.invalidateNoteCache()
+
+        // Cloud Sync
+        syncRepository?.let { repo ->
+            scope.launch { repo.deleteNote(note.id) }
+        }
     }
 
     @Transaction
@@ -554,11 +642,29 @@ class SmartyRepository(
 
     suspend fun getCategoryByName(name: String): Category? = categoryDao.getCategoryByName(name)
 
-    suspend fun insertCategory(category: Category) = categoryDao.insertCategory(category)
+    suspend fun insertCategory(category: Category) {
+        categoryDao.insertCategory(category)
+        // Cloud Sync
+        syncRepository?.let { repo ->
+            scope.launch { repo.syncCategory(category) }
+        }
+    }
 
-    suspend fun updateCategory(category: Category) = categoryDao.updateCategory(category)
+    suspend fun updateCategory(category: Category) {
+        categoryDao.updateCategory(category)
+        // Cloud Sync
+        syncRepository?.let { repo ->
+            scope.launch { repo.syncCategory(category) }
+        }
+    }
 
-    suspend fun deleteCategory(category: Category) = categoryDao.deleteCategory(category)
+    suspend fun deleteCategory(category: Category) {
+        categoryDao.deleteCategory(category)
+        // Cloud Sync
+        syncRepository?.let { repo ->
+            scope.launch { repo.deleteCategory(category.id) }
+        }
+    }
 
     /**
      * Safely delete a category with proper cleanup (BUG-028 fix).

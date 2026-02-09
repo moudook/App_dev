@@ -5,6 +5,8 @@ import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.repository.SmartyRepository
+import com.example.smarty.data.repository.SyncRepository
+import com.example.smarty.data.repository.FirestoreSyncRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.viewmodel.managers.AudioFeatureManager
 import com.example.smarty.viewmodel.managers.AudioPlaybackManager
@@ -43,17 +45,28 @@ object ServiceLocator {
     @Volatile
     private var repository: SmartyRepository? = null
 
+    @Volatile
+    private var syncRepository: SyncRepository? = null
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    fun provideSyncRepository(): SyncRepository {
+        return syncRepository ?: synchronized(this) {
+            FirestoreSyncRepository().also { syncRepository = it }
+        }
+    }
 
     fun provideRepository(application: Application): SmartyRepository {
         return repository ?: synchronized(this) {
             val database = SmartyDatabase.getDatabase(application)
+            val syncRepo = provideSyncRepository()
             SmartyRepository(
                 noteDao = database.noteDao(),
                 categoryDao = database.categoryDao(),
                 calendarDao = database.calendarDao(),
                 noteVersionDao = database.noteVersionDao(),
-                context = application
+                context = application,
+                syncRepository = syncRepo
             ).also { repository = it }
         }
     }

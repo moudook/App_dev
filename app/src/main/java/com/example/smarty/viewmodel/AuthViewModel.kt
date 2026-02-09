@@ -26,6 +26,8 @@ import com.example.smarty.viewmodel.managers.AuthFeatureManager
 
 import com.example.smarty.data.local.SecurePreferences
 
+import com.example.smarty.di.ServiceLocator
+
 /**
  * ViewModel for Authentication
  * Delegated to AuthFeatureManager for centralized logic.
@@ -41,7 +43,8 @@ class AuthViewModel(
             application,
             viewModelScope,
             authRepository,
-            SecurePreferences.getInstance(application)
+            SecurePreferences.getInstance(application),
+            ServiceLocator.provideRepository(application)
         )
     }
 
