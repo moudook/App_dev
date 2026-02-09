@@ -69,7 +69,12 @@ import kotlinx.serialization.json.Json
  * - Voice input state
  * - Saving conversations to main app's chat history
  */
-class AssistViewModel(application: Application) : AndroidViewModel(application) {
+class AssistViewModel(
+    application: Application,
+    private val repository: SmartyRepository,
+    private val chatRepository: ChatRepository,
+    private val alarmScheduler: AlarmScheduler
+) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "AssistViewModel"
@@ -82,24 +87,15 @@ class AssistViewModel(application: Application) : AndroidViewModel(application) 
     private val database: SmartyDatabase by lazy {
         SmartyDatabase.getDatabase(application)
     }
-    private val repository: SmartyRepository by lazy {
-        SmartyRepository(
-            database.noteDao(),
-            database.categoryDao(),
-            database.calendarDao(),
-            database.noteVersionDao()
-        )
-    }
-    private val chatRepository: ChatRepository by lazy {
-        ChatRepository(database.chatDao())
-    }
+    // Repository injected via constructor
+
+    // ChatRepository injected via constructor
+
     // Use shared HttpClientProvider to avoid connection pool duplication
     private val httpClient: OkHttpClient by lazy {
         com.example.smarty.util.HttpClientProvider.default
     }
-    private val alarmScheduler: AlarmScheduler by lazy {
-        AlarmScheduler.getInstance(application)
-    }
+    // AlarmScheduler injected via constructor
     // Device audio repository for MediaStore access
     private val deviceAudioRepository: DeviceAudioRepository by lazy {
         DeviceAudioRepository(application)
@@ -1086,11 +1082,7 @@ class AssistViewModelFactory(
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AssistViewModel::class.java)) {
-            // We still just pass application because AssistViewModel injects its own dependencies lazily
-            // But we need this factory signature to match what AssistActivity is trying to pass.
-            // Ideally, we should refactor AssistViewModel to accept these in constructor for better testing,
-            // but for now we'll just ignore them to fix the compilation error while keeping the lazy injection logic.
-            return AssistViewModel(application) as T
+            return AssistViewModel(application, repository, chatRepository, alarmScheduler) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
