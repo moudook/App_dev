@@ -41,11 +41,11 @@ build/
 *.apk
 *.aab
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.ear
 *.aar
-# Keep sherpa-onnx AAR for TTS
-!app/libs/sherpa-onnx.aar
+# !app/libs/sherpa-onnx.aar
 *.so
 bin/
 gen/
