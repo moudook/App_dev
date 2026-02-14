@@ -18,6 +18,7 @@ import com.example.smarty.server.plugins.configureFirewall
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.routes.configureProcessingRoutes
 import com.example.smarty.server.plugins.configureMonitoring
+import com.example.smarty.server.routes.configureHandshakeRoutes
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
