@@ -1,3 +1,43 @@
+---
+title: Friday Server
+emoji: 🧠
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+license: creative-ml-openrail-m
+---
+
+# 🧠 Friday Server (Ktor Backend)
+
+> **The Intelligent Brain for the Friday Android App**
+
+Friday Server is a high-performance Ktor-based backend designed to orchestrate the **KOOG Agent Framework**. It transforms the Friday Android app into a powerful Thin Client by handling heavyweight AI reasoning, long-term memory retrieval (RAG), and complex tool execution in the cloud.
+
+---
+
+## 🚀 Key Responsibilities
+- **Agent Orchestration**: Hosts the Friday AI Agent (KOOG) for multi-step reasoning.
+- **Semantic Memory**: Integrates with Supabase (PostgreSQL + pgvector) for private knowledge retrieval.
+- **Multi-Model Support**: Bridges connections to Anthropic, Gemini, OpenAI, and Local LLMs.
+- **Frictionless Sync**: Provides a unified API for syncing notes, tasks, and media across sessions.
+
+---
+
+## 🛠️ Deployment & Setup
+This Space is configured to run as a Dockerized service.
+
+### Environment Secrets Required:
+| Secret | Description |
+| --- | --- |
+| `DB_URL` | Supabase JDBC connection string |
+| `DB_USER` | Database username (default: `postgres`) |
+| `DB_PASSWORD` | Database password |
+| `FIREBASE_CREDENTIALS` | Raw service-account.json content |
+
+---
+
 <p align="center">
   <img src="Smarty_Icon.svg" width="120" height="120" alt="Friday Logo">
 </p>
