@@ -90,6 +90,8 @@ tasks.register<Jar>("fatJar") {
     manifest {
         attributes["Main-Class"] = "com.example.smarty.server.ApplicationKt"
     }
+    // Include compiled classes from this project
+    from(sourceSets.main.get().output)
+    // Include all dependencies
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
-    with(tasks.jar.get())
 }
