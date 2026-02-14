@@ -1,7 +1,7 @@
 # =============================================================================
 # Stage 1: Build the server fat JAR
 # =============================================================================
-FROM gradle:8.5-jdk17 AS builder
+FROM gradle:8.12.1-jdk17 AS builder
 
 WORKDIR /project
 
