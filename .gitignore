@@ -35,23 +35,22 @@ build/
 .vscode/
 
 # ============================================
-# BINARIES, MODELS & MEDIA (HF Safe)
-# ============================================
-# Core Android/Java binaries
-*.exe
-*.apk
-*.aab
-*.jar
-!gradle/wrapper/gradle-wrapper.jar
-*.war
-*.ear
-*.aar
-*.so
-*.klib
-*.dex
-*.class
+# Media & Audio (Voices)
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+*.aac
+*.mp4
+*.mov
+*.avi
+*.wmv
+*.webm
+*.raw
+*.pcm
 
-# Machine Learning & Large Data
+# ML Models & Large Binaries
 *.bin
 *.onnx
 *.weights
@@ -68,39 +67,28 @@ build/
 *.rar
 *.tar
 *.gz
+*.exe
+*.apk
+*.aab
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.aar
+*.so
+*.dex
+*.class
 
-# Media (Analogue/Big Files)
-*.wav
-*.mp3
-*.m4a
-*.ogg
-*.flac
-*.aac
-*.mp4
-*.mov
-*.avi
-*.wmv
-*.webm
-*.raw
-*.pcm
-
-# Images (General)
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.webp
-*.tiff
-*.ico
-
-# Specific problematic files mentioned by user
-app/src/main/res/raw/completion_sound.mp3
-app/src/main/res/raw/welcome_intro.wav
-
-# Speech recognition models
+# Voice & Speech Specific Folders
+app/src/main/java/com/example/smarty/features/voice/
+app/src/main/res/raw/
+app/src/main/assets/vosk-model-*/
+app/src/main/assets/tts_models/
 vosk-model-*/
 **/vosk-model-*/
+AUDIO_effects/
+
+# Specific files mentioned by user
+app/src/main/res/raw/completion_sound.mp3
+app/src/main/res/raw/welcome_intro.wav
 
 bin/
 gen/
