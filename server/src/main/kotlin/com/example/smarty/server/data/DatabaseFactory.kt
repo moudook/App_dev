@@ -4,6 +4,7 @@ import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.slf4j.LoggerFactory
 import javax.sql.DataSource
+import org.jetbrains.exposed.sql.Database
 
 /**
  * Singleton factory for managing the database connection pool.
@@ -11,13 +12,17 @@ import javax.sql.DataSource
 object DatabaseFactory {
     private val logger = LoggerFactory.getLogger(DatabaseFactory::class.java)
     private var dataSource: HikariDataSource? = null
+    private var database: Database? = null
 
     fun init() {
         val ds = getDataSource()
         if (ds != null) {
+            database = org.jetbrains.exposed.sql.Database.connect(ds)
             runMigrations(ds)
         }
     }
+
+    fun getDatabase(): org.jetbrains.exposed.sql.Database? = database
 
     /**
      * Apply schema migrations to ensure all required columns exist.

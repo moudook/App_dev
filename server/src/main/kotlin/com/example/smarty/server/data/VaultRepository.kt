@@ -3,6 +3,7 @@ package com.example.smarty.server.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.transactions.transaction
 
@@ -32,20 +33,20 @@ class VaultRepository(private val database: Database) {
     }
 
     suspend fun get(userId: String): E2EVaultData? = dbQuery {
-        UserVaults.select { UserVaults.userId eq userId }
-            .map {
+        UserVaults.selectAll().where { UserVaults.userId eq userId }
+            .map { row ->
                 E2EVaultData(
-                    userId = it[UserVaults.userId],
-                    encryptedBlob = it[UserVaults.encryptedBlob],
-                    version = it[UserVaults.version],
-                    updatedAt = it[UserVaults.updatedAt]
+                    userId = row[UserVaults.userId],
+                    encryptedBlob = row[UserVaults.encryptedBlob],
+                    version = row[UserVaults.version],
+                    updatedAt = row[UserVaults.updatedAt]
                 )
             }
             .singleOrNull()
     }
 
     suspend fun store(userId: String, encryptedBlob: String, version: Int): Boolean = dbQuery {
-        val existing = UserVaults.select { UserVaults.userId eq userId }.count() > 0
+        val existing = UserVaults.selectAll().where { UserVaults.userId eq userId }.count() > 0
         if (existing) {
             UserVaults.update({ UserVaults.userId eq userId }) {
                 it[UserVaults.encryptedBlob] = encryptedBlob

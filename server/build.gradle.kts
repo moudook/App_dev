@@ -39,6 +39,7 @@ dependencies {
     implementation(libs.ktor.server.rate.limit)
     implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.call.logging)
+    implementation(libs.ktor.server.auth)
 
     // Ktor Client (for external APIs)
     implementation(libs.ktor.client.okhttp)
@@ -67,6 +68,12 @@ dependencies {
     implementation(libs.postgresql)
     implementation(libs.pgvector)
     implementation(libs.hikaricp)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.dao)
+    implementation(libs.exposed.jdbc)
+
+    // Firebase Admin
+    implementation(libs.firebase.admin)
 
     // Testing
     testImplementation(kotlin("test"))

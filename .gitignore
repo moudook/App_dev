@@ -202,6 +202,8 @@ temp.txt
 instructions.txt
 errors.txt
 build_*.txt
+server_*_feature.txt
+server_log*.txt
 thread-*.png
 screenshot*.png
 *.png

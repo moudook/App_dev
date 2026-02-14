@@ -40,6 +40,8 @@ firebaseBom = "34.7.0"
 crashlyticsPlugin = "3.0.2"
 leakcanary = "2.14"
 javaxInject = "1"
+firebaseAdmin = "9.2.0"
+exposed = "0.58.0"
 
 [libraries]
 javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "javaxInject" }
@@ -109,6 +111,7 @@ ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serializatio
 ktor-server-sse = { group = "io.ktor", name = "ktor-server-sse", version.ref = "ktor" }
 ktor-server-cors = { group = "io.ktor", name = "ktor-server-cors", version.ref = "ktor" }
 ktor-server-call-logging = { group = "io.ktor", name = "ktor-server-call-logging", version.ref = "ktor" }
+ktor-server-auth = { group = "io.ktor", name = "ktor-server-auth", version.ref = "ktor" }
 # KOOG Ktor integration
 koog-ktor = { group = "ai.koog", name = "koog-ktor", version.ref = "koog" }
 # Ktor Server Plugins
@@ -133,11 +136,15 @@ firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashly
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
 firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
 firebase-config = { group = "com.google.firebase", name = "firebase-config" }
+firebase-admin = { group = "com.google.firebase", name = "firebase-admin", version.ref = "firebaseAdmin" }
 
 # Database
 postgresql = { module = "org.postgresql:postgresql", version = "42.7.1" }
 pgvector = { module = "com.pgvector:pgvector", version = "0.1.4" }
 hikaricp = { module = "com.zaxxer:HikariCP", version = "5.1.0" }
+exposed-core = { group = "org.jetbrains.exposed", name = "exposed-core", version.ref = "exposed" }
+exposed-dao = { group = "org.jetbrains.exposed", name = "exposed-dao", version.ref = "exposed" }
+exposed-jdbc = { group = "org.jetbrains.exposed", name = "exposed-jdbc", version.ref = "exposed" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

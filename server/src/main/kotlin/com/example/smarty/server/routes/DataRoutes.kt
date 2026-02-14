@@ -40,7 +40,8 @@ fun Application.configureDataRoutes() {
     val noteRepository = dataSource?.let { NoteRepository(it) }
     val calendarRepository = dataSource?.let { CalendarRepository(it) }
     val timerRepository = dataSource?.let { TimerRepository(it) }
-    val vaultRepository = dataSource?.let { com.example.smarty.server.data.VaultRepository(it) }
+    val database = DatabaseFactory.getDatabase()
+    val vaultRepository = database?.let { com.example.smarty.server.data.VaultRepository(it) }
 
     routing {
         authenticate("firebase") {

@@ -2,6 +2,9 @@ package com.example.smarty.server.agent
 
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.protocol.TimerInfo
+import com.example.smarty.protocol.NoteInfo
+import com.example.smarty.protocol.CalendarEventInfo
 import com.example.smarty.server.data.EmbeddingClient
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.ConversationSummarizer
@@ -11,17 +14,32 @@ import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.ToolDefinition
+import com.example.smarty.server.llm.ToolParameters
+import com.example.smarty.server.llm.ToolProperty
+import com.example.smarty.server.llm.LlmCache
+import com.example.smarty.server.llm.LlmCacheKey
+import com.example.smarty.server.llm.LlmUsage
 import com.example.smarty.core.common.util.PIIMasker
 import com.example.smarty.server.tools.TavilySearchTool
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 import net.logstash.logback.argument.StructuredArguments.kv
 import io.micrometer.core.instrument.Metrics
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
+
+/**
+ * Local representation of a chat session.
+ */
+data class ChatSession(
+    val sessionId: String,
+    val messages: MutableList<LlmMessage> = mutableListOf(),
+    var lastInteractedAt: Long = System.currentTimeMillis()
+)
 
 /**
  * Server-side AI Agent with agentic tool loop.
@@ -49,7 +67,7 @@ class ServerAgent(
     private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
         override fun d(tag: String, message: String) = logger.debug("[$tag] $message")
         override fun i(tag: String, message: String) = logger.info("[$tag] $message")
-        override fun w(tag: String, message: String) = logger.warn("[$tag] $message")
+        override fun w(tag: String, message: String, throwable: Throwable?) = logger.warn("[$tag] $message", throwable)
         override fun e(tag: String, message: String, throwable: Throwable?) = logger.error("[$tag] $message", throwable)
     })
 
@@ -905,8 +923,8 @@ class ServerAgent(
                     val info = TimerInfo(
                         id = timerId,
                         name = args.name,
-                        durationMs = 0,
-                        triggerAt = System.currentTimeMillis() + 3600000, // Placeholder matching create call
+                        durationMs = 0L,
+                        triggerAt = System.currentTimeMillis() + 3600000L, // Placeholder matching create call
                         isAlarm = true,
                         isActive = true,
                         createdAt = System.currentTimeMillis()
