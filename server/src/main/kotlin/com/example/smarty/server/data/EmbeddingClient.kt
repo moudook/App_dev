@@ -31,8 +31,8 @@ class EmbeddingClient {
     }
 
     suspend fun embed(text: String): List<Float> {
-        if (apiKey.isNullOrBlank() || apiKey == "dummy") {
-            logger.info("Embeddings disabled (Key: ${if (apiKey.isNullOrBlank()) "Missing" else "Dummy"}). Returning zero vector.")
+        if (apiKey.isNullOrBlank()) {
+            logger.warn("OPENAI_API_KEY is not set. Returning zero vector.")
             return List(1536) { 0f }
         }
 
