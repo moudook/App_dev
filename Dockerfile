@@ -20,9 +20,9 @@ RUN chmod +x ./gradlew && \
 COPY common/src/ common/src/
 COPY server/src/ server/src/
 
-# Build the fat JAR (skip tests for faster builds)
+# Build the shadow JAR (skip tests for faster builds)
 # --no-daemon prevents Gradle daemon from consuming memory after build
-RUN ./gradlew :server:fatJar --no-daemon -x test \
+RUN ./gradlew :server:shadowJar --no-daemon -x test \
     -Dorg.gradle.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=512m"
 
 # =============================================================================

@@ -2,6 +2,7 @@ plugins {
     application
     kotlin("jvm")
     alias(libs.plugins.kotlin.serialization)
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "com.example.smarty.server"
@@ -83,15 +84,17 @@ tasks.test {
     useJUnitPlatform()
 }
 
-// Fat JAR task for deployment
-tasks.register<Jar>("fatJar") {
+// Shadow JAR configuration for fat JAR deployment
+tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
     archiveClassifier.set("all")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes["Main-Class"] = "com.example.smarty.server.ApplicationKt"
     }
-    // Include compiled classes from this project
-    from(sourceSets.main.get().output)
-    // Include all dependencies
-    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    // Merge service files for proper META-INF handling
+    mergeServiceFiles()
+}
+
+// Make the default build task depend on shadowJar
+tasks.build {
+    dependsOn(tasks.named("shadowJar"))
 }
