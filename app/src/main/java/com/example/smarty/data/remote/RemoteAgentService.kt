@@ -542,6 +542,42 @@ class RemoteAgentService(
         }
     }
 
+    /**
+     * Perform a security/capability handshake with the remote agent.
+     * Establishes the authoritative session and gets the tool execution policy.
+     */
+    suspend fun performHandshake(request: com.example.smarty.protocol.HandshakeRequest): com.example.smarty.protocol.HandshakeResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
+
+            Log.d(TAG, "Initiating handshake with Cloud Agent: $baseUrl")
+            
+            val response = client.post("$baseUrl/api/v1/session/init") {
+                if (token != null) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+                // Add security handshake headers
+                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                header("X-Smarty-Device-Id", getDeviceId())
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+
+            if (response.status.isSuccess()) {
+                val handshakeResponse = response.body<com.example.smarty.protocol.HandshakeResponse>()
+                Log.i(TAG, "Handshake successful. Session ID: ${handshakeResponse.sessionId}")
+                handshakeResponse
+            } else {
+                Log.e(TAG, "Handshake failed: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Handshake error: ${e.message}", e)
+            null
+        }
+    }
+
     companion object {
         private const val TAG = "RemoteAgentService"
     }

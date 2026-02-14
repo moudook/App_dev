@@ -26,8 +26,9 @@ data class FirebaseUserPrincipal(
 /**
  * Initializes Firebase Admin SDK from service account credentials.
  * Looks for credentials in:
- * 1. GOOGLE_APPLICATION_CREDENTIALS environment variable
- * 2. server/src/main/resources/firebase-service-account.json
+ * 1. FIREBASE_CREDENTIALS environment variable (Raw JSON string)
+ * 2. GOOGLE_APPLICATION_CREDENTIALS environment variable (File path)
+ * 3. server/src/main/resources/firebase-service-account.json
  */
 fun initializeFirebase() {
     val logger = LoggerFactory.getLogger("FirebaseInit")
@@ -38,9 +39,20 @@ fun initializeFirebase() {
         return
     }
 
+    val credentialsJson = System.getenv("FIREBASE_CREDENTIALS")
     val credentialsPath = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
-    val options = if (!credentialsPath.isNullOrBlank()) {
+    val options = if (!credentialsJson.isNullOrBlank()) {
+        logger.info("Initializing Firebase with raw JSON from FIREBASE_CREDENTIALS")
+        try {
+            FirebaseOptions.builder()
+                .setCredentials(GoogleCredentials.fromStream(credentialsJson.byteInputStream()))
+                .build()
+        } catch (e: Exception) {
+            logger.warn("Failed to load Firebase credentials from JSON string: ${e.message}")
+            return
+        }
+    } else if (!credentialsPath.isNullOrBlank()) {
         logger.info("Initializing Firebase with service account from: $credentialsPath")
         try {
             FirebaseOptions.builder()
@@ -48,12 +60,11 @@ fun initializeFirebase() {
                 .build()
         } catch (e: Exception) {
             logger.warn("Failed to load Firebase credentials from path: ${e.message}")
-            logger.info("Firebase auth will be disabled - all requests will be allowed")
             return
         }
     } else {
-        logger.warn("GOOGLE_APPLICATION_CREDENTIALS not set. Firebase auth disabled.")
-        logger.info("Set GOOGLE_APPLICATION_CREDENTIALS to enable Firebase JWT verification")
+        logger.warn("Neither FIREBASE_CREDENTIALS nor GOOGLE_APPLICATION_CREDENTIALS set. Firebase auth disabled.")
+        logger.info("Set FIREBASE_CREDENTIALS to enable Firebase JWT verification")
         return
     }
 

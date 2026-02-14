@@ -1360,6 +1360,9 @@ class SmartyViewModel(
      * - After STT completes, call restartWakeWordDetection()
      */
     fun initVoskWakeWord(context: Context) {
+        // PERF: Vosk disabled for cloud migration (Phase 0)
+        Log.d(TAG, "Vosk wake word is DISABLED for cloud migration.")
+        /*
         // Prevent double initialization, but allow re-initialization if destroyed
         if (voskWakeWordManager != null && !voskWakeWordManager!!.isDestroyed) {
             Log.d(TAG, "Vosk wake word manager already initialized and active, skipping")
@@ -1398,6 +1401,7 @@ class SmartyViewModel(
         initAudioFocusListener(context)
 
         Log.i(TAG, "Vosk wake word manager initialized with call and audio focus detection")
+        */
     }
 
     /**
@@ -1406,6 +1410,8 @@ class SmartyViewModel(
      */
     @Suppress("DEPRECATION")
     private fun initPhoneCallListener(context: Context) {
+        // PERF: Vosk disabled - no need to listen for calls
+        /*
         try {
             telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
             phoneStateListener = object : PhoneStateListener() {
@@ -1438,6 +1444,7 @@ class SmartyViewModel(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize phone call listener: ${e.message}")
         }
+        */
     }
 
     /**
@@ -1448,6 +1455,8 @@ class SmartyViewModel(
      * Instead we check isMusicActive and observe in-app audio state.
      */
     private fun initAudioFocusListener(context: Context) {
+        // PERF: Vosk disabled - no need for audio focus listener
+        /*
         try {
             audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
@@ -1470,6 +1479,7 @@ class SmartyViewModel(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize audio manager: ${e.message}")
         }
+        */
     }
 
     /**
@@ -1547,6 +1557,8 @@ class SmartyViewModel(
      * Try to resume Vosk if all conditions allow.
      */
     private fun maybeResumeVosk() {
+        // PERF: Vosk disabled
+        /*
         if (!_isAppInForeground.value) {
             Log.d(TAG, "Cannot resume Vosk - app in background")
             return
@@ -1584,6 +1596,7 @@ class SmartyViewModel(
 
         Log.d(TAG, "All conditions met - resuming Vosk wake word detection")
         voskWakeWordManager?.restartListening()
+        */
     }
 
     /**
@@ -1601,6 +1614,8 @@ class SmartyViewModel(
      * Also checks audio playback state - won't start if audio is playing.
      */
     fun startWakeWordDetection() {
+        // PERF: Vosk disabled
+        /*
         // MED-007: Don't start Vosk if in privacy mode (during share flow with full privacy)
         if (pendingShareFullPrivacy.value) {
             Log.d(TAG, "Skipping wake word start - privacy mode active")
@@ -1623,6 +1638,7 @@ class SmartyViewModel(
 
         isAudioFocusLost = false
         voskWakeWordManager?.startListening()
+        */
     }
 
     /**
@@ -1630,9 +1646,12 @@ class SmartyViewModel(
      * Call this from Activity.onPause().
      */
     fun stopWakeWordDetection() {
+        // PERF: Vosk disabled
+        /*
         voskWakeWordManager?.stopListening()
         // Stop music check when going to background (will restart on resume if needed)
         stopMusicCheck()
+        */
     }
 
     /**
@@ -1685,6 +1704,8 @@ class SmartyViewModel(
      * MED-007: Also respects privacy mode.
      */
     fun restartWakeWordDetection() {
+        // PERF: Vosk disabled for cloud migration (Phase 0)
+        /*
         _wakeWordTriggered.value = false
         // Always start the music check to monitor for music starting/stopping
         startMusicCheck()
@@ -1722,6 +1743,7 @@ class SmartyViewModel(
             return
         }
         voskWakeWordManager?.restartListening()
+        */
     }
 
     /**

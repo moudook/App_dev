@@ -63,11 +63,17 @@ class VoiceFeatureManager(
     private var audioManager: AudioManager? = null
 
     init {
+        // PERF: Vosk disabled
+        /*
         initPhoneCallListener()
         initAudioFocusListener()
+        */
     }
 
     fun initVoskWakeWord() {
+        // PERF: Vosk disabled
+        Log.d(TAG, "Vosk wake word is DISABLED for cloud migration.")
+        /*
         if (voskWakeWordManager != null && !voskWakeWordManager!!.isDestroyed) return
 
         if (voskWakeWordManager?.isDestroyed == true) {
@@ -90,9 +96,12 @@ class VoiceFeatureManager(
                 _isWakeWordActive.value = isListening
             }
         }
+        */
     }
 
     fun startWakeWordDetection(isPrivacyModeActive: Boolean) {
+        // PERF: Vosk disabled
+        /*
         startMusicCheck()
 
         if (isPrivacyModeActive) {
@@ -108,11 +117,15 @@ class VoiceFeatureManager(
 
         isAudioFocusLost = false
         voskWakeWordManager?.startListening()
+        */
     }
 
     fun stopWakeWordDetection() {
+        // PERF: Vosk disabled
+        /*
         voskWakeWordManager?.stopListening()
         stopMusicCheck()
+        */
     }
 
     fun resetWakeWordTrigger() {
@@ -142,12 +155,15 @@ class VoiceFeatureManager(
     }
 
     private fun maybeResumeVosk() {
+        // PERF: Vosk disabled
+        /*
         if (!_isAppInForeground.value || isPhoneCallActive || isAudioFocusLost ||
             isInAppAudioPlaying || isMicInUseByOther || VoskWakeWordManager.isGloballyPaused ||
             audioManager?.isMusicActive == true) {
             return
         }
         voskWakeWordManager?.restartListening()
+        */
     }
 
     private fun initPhoneCallListener() {
@@ -192,6 +208,8 @@ class VoiceFeatureManager(
     }
 
     private fun startInAppAudioObserver() {
+        // PERF: Vosk disabled
+        /*
         audioPlayerCollectorJob?.cancel()
         audioPlayerCollectorJob = scope.launch {
             AudioPlayerService.playerState.collect { state ->
@@ -205,9 +223,12 @@ class VoiceFeatureManager(
                 }
             }
         }
+        */
     }
 
     private fun startMusicCheck() {
+        // PERF: Vosk disabled
+        /*
         musicCheckJob?.cancel()
         musicCheckJob = scope.launch {
             while (isActive) {
@@ -224,6 +245,7 @@ class VoiceFeatureManager(
                 }
             }
         }
+        */
     }
 
     private fun stopMusicCheck() {

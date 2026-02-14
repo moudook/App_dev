@@ -142,6 +142,7 @@ fun Application.module() {
     configureHealthRoutes()
     configureChatRoutes()
     configureProcessingRoutes()
+    configureHandshakeRoutes()
 
     // Configure Monitoring
     configureMonitoring()
