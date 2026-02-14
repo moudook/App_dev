@@ -60,7 +60,7 @@ class FileProcessingService(
         try {
             val document = Loader.loadPDF(pdfBytes)
             document.use { pdf ->
-                val pageCount = minOf(pdf.numberOfPages, MAX_PDF_PAGES)
+                val pageCount = minOf(pdf.getNumberOfPages(), MAX_PDF_PAGES)
                 val textStripper = PDFTextStripper()
 
                 // Extract text from all pages
@@ -164,7 +164,7 @@ class FileProcessingService(
         val renderer = PDFRenderer(document)
         val texts = mutableListOf<String>()
 
-        for (pageIndex in 0 until minOf(document.numberOfPages, maxPages)) {
+        for (pageIndex in 0 until minOf(document.getNumberOfPages(), maxPages)) {
             try {
                 // Render page at 150 DPI
                 val image = renderer.renderImageWithDPI(pageIndex, 150f)

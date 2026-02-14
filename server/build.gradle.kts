@@ -43,6 +43,10 @@ dependencies {
     // Ktor Client (for external APIs)
     implementation(libs.ktor.client.okhttp)
 
+    // PDF Processing
+    implementation("org.apache.pdfbox:pdfbox:3.0.1")
+    implementation("org.apache.pdfbox:pdfbox-tools:3.0.1")
+
     // KOOG Framework (for future agent hosting)
     implementation(libs.koog.agents)
     implementation(libs.koog.agents.planner)
