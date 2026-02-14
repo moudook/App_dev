@@ -28,11 +28,19 @@ data class CreateEventRequest(val title: String, val startTime: Long, val endTim
 @Serializable
 data class CreateTimerRequest(val name: String, val durationMs: Long, val isAlarm: Boolean = false)
 
+// --- VAULT DTOs ---
+@Serializable
+data class VaultStoreRequest(val encryptedBlob: String, val version: Int)
+
+@Serializable
+data class VaultResponse(val encryptedBlob: String, val version: Int, val updatedAt: Long)
+
 fun Application.configureDataRoutes() {
     val dataSource = DatabaseFactory.getDataSource()
     val noteRepository = dataSource?.let { NoteRepository(it) }
     val calendarRepository = dataSource?.let { CalendarRepository(it) }
     val timerRepository = dataSource?.let { TimerRepository(it) }
+    val vaultRepository = dataSource?.let { com.example.smarty.server.data.VaultRepository(it) }
 
     routing {
         authenticate("firebase") {
@@ -156,6 +164,48 @@ fun Application.configureDataRoutes() {
                         val deleted = timerRepository.delete(user.userId, id)
                         if (deleted) call.respond(HttpStatusCode.OK)
                         else call.respond(HttpStatusCode.NotFound)
+                    }
+                }
+
+                // --- ZERO-KNOWLEDGE VAULT ---
+                route("/vault") {
+                    get {
+                        val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                        if (vaultRepository == null) return@get call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+
+                        val data = vaultRepository.get(user.userId)
+                        if (data != null) {
+                            call.respond(VaultResponse(data.encryptedBlob, data.version, data.updatedAt))
+                        } else {
+                            call.respond(HttpStatusCode.NotFound)
+                        }
+                    }
+
+                    post {
+                        val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                        if (vaultRepository == null) return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+
+                        try {
+                            val request = call.receive<VaultStoreRequest>()
+                            // Basic valid checks (e.g. max size 10MB)
+                            if (request.encryptedBlob.length > 10_000_000) { 
+                                return@post call.respond(HttpStatusCode.PayloadTooLarge, "Vault blob exceeds 10MB limit")
+                            }
+                            
+                            vaultRepository.store(user.userId, request.encryptedBlob, request.version)
+                            call.respond(HttpStatusCode.OK)
+                        } catch (e: Exception) {
+                            call.application.log.error("Failed to update vault", e)
+                            call.respond(HttpStatusCode.BadRequest)
+                        }
+                    }
+
+                    delete {
+                        val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                        if (vaultRepository == null) return@delete call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+
+                        vaultRepository.delete(user.userId)
+                        call.respond(HttpStatusCode.OK)
                     }
                 }
             }

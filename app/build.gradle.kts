@@ -168,11 +168,8 @@ dependencies {
     // ML Kit Text Recognition (Removed - Server side)
     // implementation("com.google.mlkit:text-recognition:16.0.1")
 
-    // Koog AI Agent Framework - TEMPORARILY DISABLED due to Kotlin 2.2 requirement
-    // TODO: Re-enable when koog releases a version compatible with Kotlin 2.1.x
-    // implementation(libs.koog.agents)
-    // implementation(libs.koog.agents.planner)
-    // implementation(libs.koog.executor.compatible)
+    // Koog AI Agent Framework (Removed - Migrated to Server)
+    
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)

@@ -55,6 +55,42 @@ class PostgresVectorStore : VectorStore {
     }
 
     /**
+     * Update existing context content and re-calculate embedding.
+     */
+    suspend fun update(userId: String, contextId: String, content: String, embedding: List<Float>) {
+        if (dataSource == null) return
+        withContext(Dispatchers.IO) {
+            dataSource.connection.use { conn ->
+                val sql = "UPDATE agent_context SET content = ?, embedding = ?, updated_at = NOW() WHERE id = ?::uuid AND user_id = ?"
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, content)
+                    stmt.setObject(2, PGvector(embedding))
+                    stmt.setString(3, contextId)
+                    stmt.setString(4, userId)
+                    stmt.executeUpdate()
+                }
+            }
+        }
+    }
+
+    /**
+     * Delete context by ID.
+     */
+    suspend fun delete(userId: String, contextId: String) {
+        if (dataSource == null) return
+        withContext(Dispatchers.IO) {
+            dataSource.connection.use { conn ->
+                val sql = "DELETE FROM agent_context WHERE id = ?::uuid AND user_id = ?"
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setString(1, contextId)
+                    stmt.setString(2, userId)
+                    stmt.executeUpdate()
+                }
+            }
+        }
+    }
+
+    /**
      * Searches for similar content, scoped to a specific user.
      *
      * @param userId The authenticated user's ID

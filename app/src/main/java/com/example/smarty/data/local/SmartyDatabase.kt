@@ -7,7 +7,9 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.example.smarty.core.domain.model.AgentExecution
+import androidx.sqlite.db.SupportSQLiteDatabase
+// import com.example.smarty.core.domain.model.AgentExecution (Removed)
+import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.ChatMessageEntity
@@ -27,7 +29,8 @@ import com.example.smarty.data.local.CachedAIResponse
         ChatMessageEntity::class,
         ImpressedEntry::class,
         CalendarEvent::class,
-        AgentExecution::class,      // AI agent execution tracking
+        CalendarEvent::class,
+        // AgentExecution::class, (Removed in Phase 5)
         ConnectionUsage::class,       // Connection usage for rate limiting
         NoteVersion::class,         // Note version history for git-like versioning
         SmartyTimer::class,         // Persisted timers and alarms
@@ -44,7 +47,9 @@ abstract class SmartyDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
     abstract fun impressedLogDao(): ImpressedLogDao
     abstract fun calendarDao(): CalendarDao
-    abstract fun agentExecutionDao(): AgentExecutionDao
+    abstract fun calendarDao(): CalendarDao
+    // abstract fun agentExecutionDao(): AgentExecutionDao (Removed)
+    abstract fun noteVersionDao(): NoteVersionDao
     abstract fun noteVersionDao(): NoteVersionDao
     abstract fun timerDao(): TimerDao
     abstract fun aiCacheDao(): AICacheDao

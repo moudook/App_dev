@@ -72,7 +72,15 @@ object DatabaseFactory {
                             reminder_minutes INT DEFAULT 15,
                             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                         )""",
-                        "CREATE INDEX IF NOT EXISTS idx_calendar_user ON calendar_events(user_id)"
+                        "CREATE INDEX IF NOT EXISTS idx_calendar_user ON calendar_events(user_id)",
+
+                        // Ultra-Secure Zero-Knowledge Vault (encrypted blobs only)
+                        """CREATE TABLE IF NOT EXISTS user_vaults (
+                            user_id VARCHAR(128) PRIMARY KEY,
+                            encrypted_blob TEXT NOT NULL,
+                            version INT DEFAULT 1,
+                            updated_at BIGINT NOT NULL
+                        )"""
                     )
                     for (sql in migrations) {
                         try {

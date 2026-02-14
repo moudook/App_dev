@@ -8,8 +8,10 @@ import com.example.smarty.server.data.ConversationSummarizer
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.CalendarRepository
-import com.example.smarty.server.llm.*
-import com.example.smarty.protocol.*
+import com.example.smarty.server.llm.LlmProvider
+import com.example.smarty.server.llm.LlmMessage
+import com.example.smarty.server.llm.ToolDefinition
+import com.example.smarty.core.common.util.PIIMasker
 import com.example.smarty.server.tools.TavilySearchTool
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
@@ -42,6 +44,18 @@ class ServerAgent(
     private val logger = LoggerFactory.getLogger(ServerAgent::class.java)
     private val json = Json { ignoreUnknownKeys = true }
     private val toolExampleStore = ToolExampleStore()
+    
+    // Initialize PIIMasker securely
+    private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
+        override fun d(tag: String, message: String) = logger.debug("[$tag] $message")
+        override fun i(tag: String, message: String) = logger.info("[$tag] $message")
+        override fun w(tag: String, message: String) = logger.warn("[$tag] $message")
+        override fun e(tag: String, message: String, throwable: Throwable?) = logger.error("[$tag] $message", throwable)
+    })
+
+    // Session cache (simplified for example)
+    private val sessions = ConcurrentHashMap<String, ChatSession>()
+
     
     // KOOG-inspired infrastructure
     private val tracer: AgentTracer = PostgresTracer(userId)
@@ -336,7 +350,6 @@ class ServerAgent(
             throw IllegalArgumentException("Query too long")
         }
 
-        // Wrap entire execution in timeout to prevent infinite loops
         return try {
             withTimeout(MAX_EXECUTION_TIME_MS) {
                 runInternal(query, sessionId, history, modelOverride, clientTimezone, clientTimeMillis)
@@ -366,31 +379,32 @@ class ServerAgent(
         val startTime = System.currentTimeMillis()
         logger.info("Agent starting for query: $query (Session: $sessionId)")
         
+        // PII: Mask the query immediately
+        val maskedQuery = piiMasker.mask(query)
+
         // KOOG Tracking
         tracer.trace(AgentTraceEvent(
             sessionId = sessionId,
             stepType = AgentStepType.THOUGHT,
             content = "Starting execution",
-            metadata = mapOf("query" to query)
+            metadata = mapOf("query" to maskedQuery) // Log masked query
         ))
 
         // Session Recovery
         val checkpoint = persistenceManager.loadCheckpoint(sessionId)
         val initialHistory = checkpoint?.messages ?: history
-        if (checkpoint != null) {
-            tracer.trace(AgentTraceEvent(
-                sessionId = sessionId,
-                stepType = AgentStepType.THOUGHT,
-                content = "Recovered session from checkpoint"
-            ))
+        
+        // PII: Mask history (re-masking ensures safety even if DB has raw data)
+        val maskedHistory = initialHistory.map { msg -> 
+            msg.copy(content = piiMasker.mask(msg.content)) 
         }
 
         // Build time context for the agent
         val timeContext = buildTimeContext(clientTimezone, clientTimeMillis)
 
-        // 1. RAG - Query-specific context (non-fatal: works without vector store)
+        // 1. RAG - Query-specific context
         val queryContext = try {
-            val embedding = embeddingClient.embed(query)
+            val embedding = embeddingClient.embed(query) // Query uses raw text for semantic search
             val contextResults = vectorStore.hybridSearch(userId, query, embedding, limit = 5)
             if (contextResults.isNotEmpty()) {
                 contextResults.joinToString("\n") { "- ${it.content}" }
@@ -399,8 +413,9 @@ class ServerAgent(
             logger.warn("RAG query context failed (non-fatal): ${e.message}")
             "No relevant context for this query."
         }
+        val maskedQueryContext = piiMasker.mask(queryContext)
 
-        // 1.1 Fetch baseline user context (preferences, facts) for continuity
+        // 1.1 Fetch baseline user context
         val userProfile = try {
             val recentContext = vectorStore.getRecentContext(userId, limit = 5)
             if (recentContext.isNotEmpty()) {
@@ -413,6 +428,7 @@ class ServerAgent(
             logger.warn("RAG user profile failed (non-fatal): ${e.message}")
             "No stored preferences or facts about this user yet."
         }
+        val maskedUserProfile = piiMasker.mask(userProfile)
 
         // 1.5 Fetch Tool Examples
         val toolExamples = toolExampleStore.getRelevantExamples(query)
@@ -432,20 +448,20 @@ class ServerAgent(
                 5. SEARCH: Summarize web_search results conversationally; never dump raw data.
 
                 CONTEXT:
-                - Profile: $userProfile
-                - Query Context: $queryContext
+                - Profile: $maskedUserProfile
+                - Query Context: $maskedQueryContext
                 - Time: $timeContext
 
                 User input is in <user_input> tags. Execute intent now.
             """.trimIndent()
         )
 
-        val userMessage = if (query.isNotBlank()) {
-            LlmMessage(role = LlmMessage.Role.USER, content = "<user_input>\n$query\n</user_input>")
+        val userMessage = if (maskedQuery.isNotBlank()) {
+            LlmMessage(role = LlmMessage.Role.USER, content = "<user_input>\n$maskedQuery\n</user_input>")
         } else null
 
         // Apply Intelligent Sliding Window with Summarization
-        val fullHistory = if (userMessage != null) initialHistory + userMessage else initialHistory
+        val fullHistory = if (userMessage != null) maskedHistory + userMessage else maskedHistory
         val messages = if (fullHistory.size > MAX_HISTORY) {
             val splitIndex = fullHistory.size - RECENT_WINDOW
             val older = fullHistory.subList(0, splitIndex)
@@ -453,9 +469,11 @@ class ServerAgent(
 
             logger.info("History threshold exceeded (${fullHistory.size}). Summarizing ${older.size} older messages.")
 
+            // Summarize MASKED older messages to protect PII
             val summary = summarizer.generateSummary(older) ?: "No summary generated."
 
-            // Store summary in vector store as episodic history (non-fatal)
+            // Store summary in vector store as episodic history
+            // We store the MASKED summary to avoid persisting PII in summaries
             try {
                 val summaryEmbedding = embeddingClient.embed(summary)
                 vectorStore.store(
@@ -478,16 +496,17 @@ class ServerAgent(
             listOf(systemMessage) + fullHistory
         }
 
-        // 3. Agentic Loop: Cache Check → Stream LLM → tool call? → execute → feed result → repeat
+        // 3. Agentic Loop
         val messagesForAgent = messages.toMutableList()
         
-        // KOOG Optimization: LlmCache Check (only on first iteration for text responses)
+        // KOOG Optimization: LlmCache Check
         val cacheKey = LlmCacheKey(messagesForAgent, tools, modelOverride)
         LlmCache.get(cacheKey)?.let { cached ->
+            val unmaskedCached = piiMasker.unmask(cached)
             emit(AgentEvent.Processing(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
-                content = cached
+                content = unmaskedCached
             ))
             emit(AgentEvent.Result(
                 eventId = UUID.randomUUID().toString(),
@@ -498,14 +517,14 @@ class ServerAgent(
             tracer.trace(AgentTraceEvent(
                 sessionId = sessionId,
                 stepType = AgentStepType.FINAL,
-                content = cached,
+                content = cached, // Log masked
                 metadata = mapOf("cache" to "hit")
             ))
-            return cached
+            return unmaskedCached
         }
 
         var agentIteration = 0
-        val maxAgentIterations = 5 // Max tool round-trips per query
+        val maxAgentIterations = 5
 
         while (agentIteration < maxAgentIterations) {
             agentIteration++
@@ -523,13 +542,14 @@ class ServerAgent(
                     // Handle Content
                     if (!chunk.content.isNullOrEmpty()) {
                         currentContent += chunk.content
-                        // Only stream to UI if this is NOT a tool-result follow-up iteration
-                        // (In the first iteration or final text reply, stream to UI)
+                        // PII: Unmask for UI display
+                        val unmaskedChunk = piiMasker.unmask(chunk.content)
+                        
                         if (agentIteration == 1 || !isToolCallInProgress) {
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
-                                content = chunk.content
+                                content = unmaskedChunk
                             ))
                         }
                     }
@@ -573,7 +593,7 @@ class ServerAgent(
                             message = "I've made too many actions in this session. Let me summarize what I've done.",
                             code = "TOOL_LIMIT_EXCEEDED"
                         ))
-                        return currentContent.ifEmpty { "Execution limit reached." }
+                        return piiMasker.unmask(currentContent.ifEmpty { "Execution limit reached." })
                     }
 
                     val toolStartTime = System.currentTimeMillis()
@@ -582,16 +602,22 @@ class ServerAgent(
                             sessionId = sessionId,
                             stepType = AgentStepType.TOOL_CALL,
                             content = "Calling tool: $currentToolName",
-                            metadata = mapOf("args" to currentToolArgs)
+                            metadata = mapOf("args" to currentToolArgs) // Log masked
                         ))
+                        
+                        // PII: Unmask arguments before execution to use real data
+                        val unmaskedArgs = piiMasker.unmask(currentToolArgs)
+                        val toolResult = executeTool(currentToolName, unmaskedArgs, messagesForAgent)
+                        
+                        // PII: Mask result before feeding back to LLM
+                        val maskedToolResult = piiMasker.mask(toolResult)
 
-                        val toolResult = executeTool(currentToolName, currentToolArgs, messagesForAgent)
                         val toolDuration = System.currentTimeMillis() - toolStartTime
                         
                         tracer.trace(AgentTraceEvent(
                             sessionId = sessionId,
                             stepType = AgentStepType.TOOL_RESULT,
-                            content = "Result: $toolResult",
+                            content = "Result: $maskedToolResult",
                             metadata = mapOf("tool" to currentToolName, "duration_ms" to toolDuration.toString())
                         ))
                         logger.info("Tool execution summary",
@@ -609,16 +635,12 @@ class ServerAgent(
                             status = "completed"
                         ))
 
-                        // Feed tool result back to LLM as TOOL message
                         messagesForAgent += LlmMessage(
                             role = LlmMessage.Role.TOOL,
-                            content = "[Tool Result for $currentToolName]: $toolResult"
+                            content = "[Tool Result for $currentToolName]: $maskedToolResult"
                         )
                         
-                        // KOOG Persistence: Save state before continuing
                         persistenceManager.saveCheckpoint(sessionId, messagesForAgent, currentToolName)
-                        
-                        // Continue loop — LLM will see the tool result and produce final reply
                         continue
                     } catch (e: Exception) {
                         val toolDuration = System.currentTimeMillis() - toolStartTime
@@ -634,7 +656,7 @@ class ServerAgent(
                             metadata = mapOf("tool" to currentToolName)
                         ))
                         Metrics.counter("agent.tool.error", "tool", currentToolName).increment()
-                        // Feed error back to LLM so it can respond gracefully
+                        
                         messagesForAgent += LlmMessage(
                             role = LlmMessage.Role.TOOL,
                             content = "[Tool Error for $currentToolName]: ${e.message}"
@@ -643,9 +665,8 @@ class ServerAgent(
                         continue
                     }
                 } else if (currentContent.isNotEmpty()) {
-                    // LLM produced a text reply — this is the final answer
                     // Final answer reached
-                    LlmCache.put(cacheKey, currentContent) // Save to cache
+                    LlmCache.put(cacheKey, currentContent)
                     emit(AgentEvent.Result(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
@@ -655,10 +676,12 @@ class ServerAgent(
                     tracer.trace(AgentTraceEvent(
                         sessionId = sessionId,
                         stepType = AgentStepType.FINAL,
-                        content = currentContent
+                        content = currentContent // Log masked
                     ))
-                    persistenceManager.clearCheckpoint(sessionId) // Final answer reached, clear checkpoint
-                    return currentContent
+                    persistenceManager.clearCheckpoint(sessionId)
+                    
+                    // PII: Unmask final return
+                    return piiMasker.unmask(currentContent)
                 } else {
                     logger.warn("LLM stream completed with no content for user: $userId")
                     tracer.trace(AgentTraceEvent(
@@ -900,6 +923,11 @@ class ServerAgent(
                 val args = json.decodeFromString<StoreContextArgs>(argsJson)
                 try {
                     val embedding = embeddingClient.embed(args.content)
+                    // Note: We need the ID to emit sync. store() doesn't return ID currently.
+                    // Ideally database generates ID. But VectorStore interface might differ.
+                    // PostgresVectorStore generates UUID.
+                    // Limitation: generic store() doesn't return ID.
+                    // Workaround: For now, we just acknowledge. Real sync would require refactoring store() to return ID.
                     vectorStore.store(userId, args.content, embedding, mapOf("type" to args.type))
                     "Context stored: '${args.content.take(50)}...' as ${args.type}"
                 } catch (e: Exception) {
@@ -910,24 +938,25 @@ class ServerAgent(
 
             "update_context" -> {
                 val args = json.decodeFromString<UpdateContextArgs>(argsJson)
-                // Vector store update not yet implemented, fall back to device
-                emitDeviceCommand(AgentCommand.UpdateContext(
-                    commandId = UUID.randomUUID().toString(),
-                    id = args.id,
-                    content = args.content,
-                    type = args.type
-                ))
-                "Context update sent to device."
+                try {
+                    val embedding = embeddingClient.embed(args.content)
+                    vectorStore.update(userId, args.id, args.content, embedding)
+                    emitStateSync("context_updated", """{"id":"${args.id}","content":"${args.content.replace("\"","\\\"")}","type":"${args.type}"}""")
+                    "Context ${args.id} updated."
+                } catch (e: Exception) {
+                    "Failed to update context: ${e.message}"
+                }
             }
 
             "delete_context" -> {
                 val args = json.decodeFromString<DeleteContextArgs>(argsJson)
-                // Vector store delete not yet implemented, fall back to device
-                emitDeviceCommand(AgentCommand.DeleteContext(
-                    commandId = UUID.randomUUID().toString(),
-                    id = args.id
-                ))
-                "Context deletion sent to device."
+                try {
+                    vectorStore.delete(userId, args.id)
+                    emitStateSync("context_deleted", """{"id":"${args.id}"}""")
+                    "Context ${args.id} deleted."
+                } catch (e: Exception) {
+                    "Failed to delete context: ${e.message}"
+                }
             }
 
             "query_knowledge" -> {
