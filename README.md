@@ -6,7 +6,7 @@ colorTo: indigo
 sdk: docker
 app_port: 7860
 pinned: false
-license: creative-ml-openrail-m
+license: apache-2.0
 ---
 
 # 🧠 Friday Server (Ktor Backend)
