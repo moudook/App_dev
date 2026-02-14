@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,12 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.Note
+import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.components.OrganicThinkingIndicator
 import com.example.smarty.ui.components.CalmLoadingState
-import com.example.smarty.util.PrivacyGuard
-import com.example.smarty.util.RelatedNotesProvider
+import com.example.smarty.core.common.util.PrivacyGuard
+import com.example.smarty.core.common.util.RelatedNotesProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -96,7 +95,7 @@ fun RelatedNotesSection(
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        imageVector = Icons.Default.Assistant,
+                        imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(18.dp)
@@ -117,8 +116,10 @@ fun RelatedNotesSection(
             
             if (isLoading) {
                 Spacer(modifier = Modifier.width(12.dp))
-                OrganicThinkingIndicator(
-                    size = 18.dp
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = accentColor,
+                    strokeWidth = 2.dp
                 )
             }
         }

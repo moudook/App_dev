@@ -2,10 +2,10 @@ package com.example.smarty.service
 
 import android.content.Context
 import android.util.Log
-import com.example.smarty.data.model.AudioTrack
-import com.example.smarty.data.model.Note
-import com.example.smarty.viewmodel.managers.SystemFeatureManager
-import com.example.smarty.viewmodel.managers.AudioFeatureManager.AudioSearchResult
+import com.example.smarty.core.domain.model.AudioTrack
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.features.system.domain.SystemFeatureManager
+import com.example.smarty.features.audio.domain.AudioFeatureManager.AudioSearchResult
 import com.example.smarty.R
 import java.util.Locale
 
@@ -421,19 +421,44 @@ class LocalCommandProcessor(
                             CommandResult.Handled(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
                         }
                     }
-                    is AudioSearchResult.Fallback -> {
-                        // No exact match found, but we could play the first fallback track
-                        if (result.tracks.isNotEmpty()) {
-                            val track = result.tracks.first()
+                    is AudioSearchResult.FuzzyMatch -> {
+                        // Fuzzy match with high confidence - auto-play
+                        if (result.confidence >= 1.5) {
+                            val track = result.track
                             systemFeatureManager.playAudio(track)
-                            val hasTaskWords = TASK_WORDS.any { normalizedInput.contains(Regex("\\b${Regex.escape(it)}\\b")) }
-
-                            return if (hasTaskWords) {
-                                CommandResult.HandledAndPassToLLM(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
-                            } else {
-                                CommandResult.Handled(context.getString(R.string.playing_track, track.title), CommandAction.PlayAudio(track))
-                            }
+                            return CommandResult.Handled(
+                                context.getString(R.string.playing_track, track.title),
+                                CommandAction.PlayAudio(track)
+                            )
+                        } else {
+                            // Lower confidence - pass to LLM to confirm
+                            return CommandResult.HandledAndPassToLLM(
+                                "Found a possible match: '${result.track.title}'. Should I play it?",
+                                null
+                            )
                         }
+                    }
+                    is AudioSearchResult.Suggestions -> {
+                        // Multiple matches - let LLM help user choose
+                        val trackList = result.tracks.take(3).joinToString(", ") { it.title }
+                        return CommandResult.HandledAndPassToLLM(
+                            "I found several options: $trackList. Which one would you like to play?",
+                            null
+                        )
+                    }
+                    is AudioSearchResult.NoMatch -> {
+                        // No match - do NOT play random music
+                        return CommandResult.HandledAndPassToLLM(
+                            "I couldn't find any audio matching '$audioQuery' on your device.",
+                            null
+                        )
+                    }
+                    is AudioSearchResult.Fallback -> {
+                        // Legacy fallback - now treat as NoMatch (don't play random)
+                        return CommandResult.HandledAndPassToLLM(
+                            "I couldn't find an exact match for '$audioQuery'.",
+                            null
+                        )
                     }
                 }
             }

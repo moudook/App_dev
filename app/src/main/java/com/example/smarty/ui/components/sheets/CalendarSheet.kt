@@ -8,9 +8,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.ui.components.AddEventDialog
-import com.example.smarty.ui.screens.CalendarScreen
+import com.example.smarty.features.calendar.ui.CalendarScreen
 import java.util.Calendar
 
 /**
@@ -23,7 +23,7 @@ import java.util.Calendar
 @Composable
 fun CalendarSheet(
     events: List<CalendarEvent>,
-    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
+    activeTimers: List<com.example.smarty.core.domain.model.SmartyTimer> = emptyList(),
     sheetState: SheetState, // Keep for API compatibility, but not used
     onDismiss: () -> Unit,
     onAddEvent: () -> Unit, // Legacy callback - still used for actual event creation

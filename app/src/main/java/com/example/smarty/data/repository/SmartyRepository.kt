@@ -10,10 +10,10 @@ import com.example.smarty.data.local.CategoryDao
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.NoteDao
 import com.example.smarty.data.local.NoteVersionDao
-import com.example.smarty.data.model.NoteVersion
-import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.Note
+import com.example.smarty.core.domain.model.NoteVersion
+import com.example.smarty.core.domain.model.CalendarEvent
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.cache.ToolResultCache
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -132,13 +132,62 @@ class SmartyRepository(
     fun getNoteByIdFlow(id: String): Flow<Note?> = noteDao.getNoteByIdFlow(id)
         .distinctUntilChanged()
 
-    fun searchNotes(query: String, types: List<com.example.smarty.data.model.NoteType>): Flow<List<Note>> {
+    fun searchNotes(query: String, types: List<com.example.smarty.core.domain.model.NoteType>): Flow<List<Note>> {
         val hasTypeFilter = types.isNotEmpty()
         // If types list is empty, Room requires a non-empty list for IN clause even if we use the boolean flag logic.
         // We pass a dummy list in that case, but hasTypeFilter=false ensures it's ignored.
-        val effectiveTypes = if (types.isEmpty()) listOf(com.example.smarty.data.model.NoteType.BRAIN_DUMP) else types
+        val effectiveTypes = if (types.isEmpty()) listOf(com.example.smarty.core.domain.model.NoteType.BRAIN_DUMP) else types
         return noteDao.searchNotes(query, effectiveTypes, hasTypeFilter)
             .distinctUntilChanged()
+    }
+
+    // =========================================================================
+    // PROCESSING QUEUE OPERATIONS
+    // =========================================================================
+
+    suspend fun getStuckProcessingNotes(timeoutThreshold: Long): List<Note> {
+        return noteDao.getStuckProcessingNotes(timeoutThreshold)
+    }
+
+    suspend fun getNotesByProcessingStatus(status: com.example.smarty.core.domain.model.ProcessingStatus): List<Note> {
+        return noteDao.getNotesByProcessingStatus(status)
+    }
+
+    suspend fun updateProcessingStatus(noteId: String, status: com.example.smarty.core.domain.model.ProcessingStatus) {
+        noteDao.updateProcessingStatus(noteId, status)
+    }
+
+    suspend fun resetStuckNotes(timeoutThreshold: Long): Int {
+        return noteDao.resetStuckNotes(timeoutThreshold)
+    }
+
+    suspend fun getNextPendingNote(): Note? {
+        return noteDao.getNextPendingNote()
+    }
+
+    suspend fun getPendingProcessingCount(): Int {
+        return noteDao.getPendingProcessingCount()
+    }
+
+    /**
+     * Optimize the search index for better performance.
+     */
+    suspend fun optimizeFtsIndex() {
+        try {
+            // Only FTS5 supports the 'optimize' command
+            if (SmartyDatabase.getFtsVersion() == 5) {
+                noteDao.optimizeFtsIndex()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Search index optimization failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Legacy alias for optimizeFtsIndex
+     */
+    suspend fun optimizeSearchIndex() {
+        optimizeFtsIndex()
     }
 
     // =========================================================================
@@ -153,7 +202,7 @@ class SmartyRepository(
      * - LIKE: Fallback if no FTS available
      */
     suspend fun searchNotesFts(query: String): List<Note> {
-        val sanitizedQuery = sanitizeFtsQuery(query)
+        val sanitizedQuery = NoteDao.sanitizeFtsQuery(query)
         if (sanitizedQuery.isBlank()) return emptyList()
 
         return try {
@@ -180,8 +229,8 @@ class SmartyRepository(
     /**
      * FTS search with type filter.
      */
-    suspend fun searchNotesFtsWithType(query: String, types: List<com.example.smarty.data.model.NoteType>): List<Note> {
-        val sanitizedQuery = sanitizeFtsQuery(query)
+    suspend fun searchNotesFtsWithType(query: String, types: List<com.example.smarty.core.domain.model.NoteType>): List<Note> {
+        val sanitizedQuery = NoteDao.sanitizeFtsQuery(query)
         if (sanitizedQuery.isBlank()) return emptyList()
 
         return try {
@@ -200,7 +249,7 @@ class SmartyRepository(
      * Reactive FTS search as Flow.
      */
     fun searchNotesFtsFlow(query: String): Flow<List<Note>> {
-        val sanitizedQuery = sanitizeFtsQuery(query)
+        val sanitizedQuery = NoteDao.sanitizeFtsQuery(query)
         if (sanitizedQuery.isBlank()) {
             return kotlinx.coroutines.flow.flowOf(emptyList())
         }
@@ -215,22 +264,6 @@ class SmartyRepository(
             Log.w(TAG, "FTS flow search failed, falling back: ${e.message}")
             noteDao.searchNotes(query, emptyList(), false).distinctUntilChanged()
         }
-    }
-
-    /**
-     * Sanitize query for FTS5 to prevent syntax errors and INJECTION ATTACKS.
-     * Delegates to NoteDao.sanitizeFtsQuery for consistent sanitization across the codebase.
-     *
-     * SECURITY: FTS5 has special syntax that can be exploited to bypass filters.
-     *
-     * Attack vectors prevented:
-     * - Boolean injection: 'OR 1=1' -> matches everything
-     * - Column filter bypass: 'title:*' -> wildcard all titles
-     * - Phrase manipulation: '"secret" OR "password"'
-     * - Quote injection: Escapes quotes and wraps each term
-     */
-    private fun sanitizeFtsQuery(query: String): String {
-        return NoteDao.sanitizeFtsQuery(query)
     }
 
     // =========================================================================
@@ -306,9 +339,9 @@ class SmartyRepository(
     /**
      * Search notes with pagination.
      */
-    fun searchNotesPaged(query: String?, types: List<com.example.smarty.data.model.NoteType>): Flow<PagingData<Note>> {
+    fun searchNotesPaged(query: String?, types: List<com.example.smarty.core.domain.model.NoteType>): Flow<PagingData<Note>> {
         val hasTypeFilter = types.isNotEmpty()
-        val effectiveTypes = if (types.isEmpty()) listOf(com.example.smarty.data.model.NoteType.BRAIN_DUMP) else types
+        val effectiveTypes = if (types.isEmpty()) listOf(com.example.smarty.core.domain.model.NoteType.BRAIN_DUMP) else types
         return Pager(
             config = DEFAULT_PAGING_CONFIG,
             pagingSourceFactory = { noteDao.searchNotesPaged(query, effectiveTypes, hasTypeFilter) }
@@ -783,15 +816,8 @@ class SmartyRepository(
             .filter { !it.isEventPrivate }
     }
 
-    // =========================================================================
-    // MEMORY LEARNING SUPPORT
-    // =========================================================================
-
-    /**
-     * Mark a note as read/analyzed for memory learning.
-     */
-    suspend fun markNoteAsReadForMemory(noteId: String) {
-        noteDao.markNoteAsReadForMemory(noteId)
+    suspend fun getNoteCount(): Int {
+        return noteDao.getNoteCount()
     }
 
     /**
@@ -814,15 +840,109 @@ class SmartyRepository(
         }
     }
 
+    // =========================================================================
+    // CALENDAR OPERATIONS
+    // =========================================================================
+
+    fun getAllEvents(): Flow<List<CalendarEvent>> {
+        return calendarDao.getAllEvents()
+    }
+
+    suspend fun getEventById(id: String): CalendarEvent? {
+        return calendarDao.getEventById(id)
+    }
+
+    suspend fun insertEvent(event: CalendarEvent) {
+        calendarDao.insertEvent(event)
+    }
+
+    suspend fun updateEvent(event: CalendarEvent) {
+        calendarDao.updateEvent(event)
+    }
+
+    suspend fun deleteEvent(event: CalendarEvent) {
+        calendarDao.deleteEvent(event)
+    }
+
+    suspend fun deleteEventById(id: String) {
+        calendarDao.deleteEventById(id)
+    }
+
+    suspend fun deleteEventsByIds(ids: List<String>) {
+        calendarDao.deleteEventsByIds(ids)
+    }
+
+    fun getEventsInRange(startMillis: Long, endMillis: Long): Flow<List<CalendarEvent>> {
+        return calendarDao.getEventsInRange(startMillis, endMillis)
+    }
+
+    suspend fun getEventsForDay(dayStartMillis: Long, dayEndMillis: Long): List<CalendarEvent> {
+        return calendarDao.getEventsForDay(dayStartMillis, dayEndMillis)
+    }
+
+    fun getUpcomingEvents(nowMillis: Long = System.currentTimeMillis(), limit: Int = 20): Flow<List<CalendarEvent>> {
+        return calendarDao.getUpcomingEvents(nowMillis, limit)
+    }
+
+    suspend fun getTodayEvents(dayStart: Long, dayEnd: Long): List<CalendarEvent> {
+        return calendarDao.getTodayEvents(dayStart, dayEnd)
+    }
+
+    fun getEventsForNote(noteId: String): Flow<List<CalendarEvent>> {
+        return calendarDao.getEventsForNote(noteId)
+    }
+
+    suspend fun clearNoteLinkForNote(noteId: String) {
+        calendarDao.clearNoteLinkForNote(noteId)
+    }
+
+    fun getAiVisibleEvents(): Flow<List<CalendarEvent>> {
+        return calendarDao.getAiVisibleEvents()
+    }
+
+    suspend fun getAiVisibleUpcomingEvents(nowMillis: Long = System.currentTimeMillis(), limit: Int = 10): List<CalendarEvent> {
+        return calendarDao.getAiVisibleUpcomingEvents(nowMillis, limit)
+    }
+
+    suspend fun getAllEventsOnce(): List<CalendarEvent> {
+        return calendarDao.getAllEventsOnce()
+    }
+
+    suspend fun getActiveTimersOnce(): List<com.example.smarty.core.domain.model.SmartyTimer> {
+        return calendarDao.getActiveTimersOnce()
+    }
+
+    suspend fun deleteAllEvents() {
+        calendarDao.deleteAllEvents()
+    }
+
+    suspend fun getEventCount(): Int {
+        return calendarDao.getEventCount()
+    }
+
+    suspend fun hasEventsOnDay(dayStart: Long, dayEnd: Long): Boolean {
+        return calendarDao.hasEventsOnDay(dayStart, dayEnd)
+    }
+
     /**
-     * Optimize the FTS search index.
-     * This is a maintenance operation that should be called periodically.
+     * Clear all user data from local storage.
+     * CRITICAL: This must be called on sign-out to prevent data leakage to next user.
      */
-    suspend fun optimizeSearchIndex() {
-        try {
-            noteDao.optimizeFtsIndex()
-        } catch (e: Exception) {
-            Log.w(TAG, "FTS optimization not available: ${e.message}")
-        }
+    suspend fun clearAllUserData() {
+        // Clear all tables to prevent data leakage between users
+        noteDao.deleteAllNotes()
+        categoryDao.deleteAllCategories()
+
+        // Access DAOs not passed in constructor via database instance
+        val database = SmartyDatabase.getDatabase(getApplicationContext())
+
+        database.chatDao().deleteAllMessages()
+        database.chatDao().deleteAllSessions()
+        calendarDao.deleteAllEvents()
+        calendarDao.deleteAllTimers()
+        database.aiCacheDao().clearAll()
+        database.impressedLogDao().deleteAllLogs()
+        database.agentExecutionDao().deleteAllExecutions()
+        noteVersionDao?.deleteAllVersions()
     }
 }

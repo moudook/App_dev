@@ -51,7 +51,7 @@ enum class NavigationTab(
     val label: String,
     val opensSheet: Boolean = false
 ) {
-    CHAT(Icons.Outlined.Psychology, "assistant"),
+    CHAT(Icons.Outlined.AutoAwesome, "ai"),
     NOTES(Icons.Outlined.HistoryEdu, "notes"),
     CALENDAR(Icons.Outlined.Explore, "calendar", opensSheet = true),
     STACKS(Icons.Outlined.Hub, "stacks", opensSheet = true),

@@ -24,7 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Code
@@ -53,9 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.MentionState
-import com.example.smarty.data.model.MentionSuggestion
-import com.example.smarty.data.model.NoteType
+import com.example.smarty.core.domain.model.MentionState
+import com.example.smarty.core.domain.model.MentionSuggestion
+import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
@@ -234,7 +234,7 @@ private fun NoteSuggestionContent(
         // match score indicator (subtle)
         if (suggestion.score >= 0.8) {
             Icon(
-                imageVector = Icons.Default.Assistant,
+                imageVector = Icons.Default.AutoAwesome,
                 contentDescription = null,
                 tint = accentColor.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
@@ -293,7 +293,7 @@ private fun CategorySuggestionContent(
         // match score indicator (subtle)
         if (suggestion.score >= 0.8) {
             Icon(
-                imageVector = Icons.Default.Assistant,
+                imageVector = Icons.Default.AutoAwesome,
                 contentDescription = null,
                 tint = accentColor.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
@@ -397,7 +397,7 @@ private fun SpecialFilterContent(
 }
 
 /**
- * Content for command suggestion item (like @thinking).
+ * Content for command suggestion item (like @analyze).
  */
 @Composable
 private fun CommandSuggestionContent(
@@ -464,9 +464,8 @@ private fun CommandSuggestionContent(
  */
 private fun getCommandIcon(iconName: String): ImageVector {
     return when (iconName.lowercase()) {
-        "thinking", "think" -> Icons.Default.Assistant
         "analytics", "analyze" -> Icons.Default.Analytics
-        else -> Icons.Default.Assistant
+        else -> Icons.Default.AutoAwesome
     }
 }
 

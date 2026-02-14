@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.Note
+import com.example.smarty.core.domain.model.Note
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 

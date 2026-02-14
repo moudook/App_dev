@@ -14,9 +14,9 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.smarty.R
-import com.example.smarty.util.CompressedFileResult
-import com.example.smarty.util.FileCompressor
-import com.example.smarty.util.ResourceManager
+import com.example.smarty.core.common.util.CompressedFileResult
+import com.example.smarty.core.common.util.FileCompressor
+import com.example.smarty.core.common.util.ResourceManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

@@ -9,8 +9,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.smarty.data.model.Category
-import com.example.smarty.ui.screens.StacksScreen
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.features.notes.ui.StacksScreen
 
 /**
  * Stacks/Categories as a full-page overlay.

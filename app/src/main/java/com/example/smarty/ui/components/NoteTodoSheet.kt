@@ -44,9 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.TodoItem
-import com.example.smarty.data.model.getTodos
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.TodoItem
+import com.example.smarty.core.domain.model.getTodos
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.softCardShadow
@@ -100,9 +100,9 @@ fun NoteTodoSheet(
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 24.dp)
         ) {
-            // ═══════════════════════════════════════════════════════════════
+            // 
             // HEADER with accent styling
-            // ═══════════════════════════════════════════════════════════════
+            // 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -148,9 +148,9 @@ fun NoteTodoSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ═══════════════════════════════════════════════════════════════
+            // 
             // PROGRESS BAR - Visual completion status
-            // ═══════════════════════════════════════════════════════════════
+            // 
             val completedCount = todos.count { it.isCompleted }
             val totalCount = todos.size
             val progress by animateFloatAsState(
@@ -209,9 +209,9 @@ fun NoteTodoSheet(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // ═══════════════════════════════════════════════════════════════
+            // 
             // ORIGINAL NOTE - Card with icon (dark mode optimized)
-            // ═══════════════════════════════════════════════════════════════
+            // 
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -248,9 +248,9 @@ fun NoteTodoSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ═══════════════════════════════════════════════════════════════
+            // 
             // TASKS SECTION LABEL
-            // ═══════════════════════════════════════════════════════════════
+            // 
 
             // Todo items list - all actions auto-save
             if (todos.isNotEmpty()) {

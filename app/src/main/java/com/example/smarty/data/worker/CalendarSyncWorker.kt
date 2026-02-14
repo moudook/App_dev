@@ -3,7 +3,7 @@ package com.example.smarty.data.worker
 import android.content.Context
 import android.util.Log
 import androidx.work.*
-import com.example.smarty.calendar.GoogleCalendarSyncManager
+import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.repository.SmartyRepository

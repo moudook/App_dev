@@ -1,7 +1,7 @@
-package com.example.smarty.data.model
+package com.example.smarty.core.domain.model
 
 import kotlinx.serialization.Serializable
-import com.example.smarty.util.PrivacyAware
+import com.example.smarty.core.common.util.PrivacyAware
 import java.util.UUID
 
 /**

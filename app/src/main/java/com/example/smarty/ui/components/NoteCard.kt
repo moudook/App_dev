@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Edit
@@ -50,11 +51,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.model.getAttachmentCount
-import com.example.smarty.data.model.getAttachments
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
+import com.example.smarty.core.domain.model.getAttachmentCount
+import com.example.smarty.core.domain.model.getAttachments
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.animateCardTilt
@@ -65,7 +66,7 @@ import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.AnimationDuration
 import com.example.smarty.ui.theme.Alpha
-import com.example.smarty.util.ContentTypeDetector
+import com.example.smarty.core.common.util.ContentTypeDetector
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -392,8 +393,8 @@ fun NoteCard(
                         // AI Generation Pill
                         if (note.isAiCreated) {
                             NoteCardPill(
-                                text = stringResource(R.string.assistant),
-                                icon = Icons.Default.Assistant,
+                                text = stringResource(R.string.smarty_label),
+                                icon = Icons.Default.AutoAwesome,
                                 backgroundColor = Color.Black.copy(alpha = 0.05f),
                                 contentColor = Color.Black,
                                 darkBackgroundColor = Color.White.copy(alpha = 0.1f),
@@ -520,3 +521,4 @@ fun CategoryChip(
         )
     }
 }
+

@@ -1,10 +1,9 @@
 package com.example.smarty.data.local
 
 import androidx.room.TypeConverter
-import com.example.smarty.data.model.ExecutionStatus
-import com.example.smarty.data.model.MemoryType
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
+import com.example.smarty.core.domain.model.ExecutionStatus
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
 
 class Converters {
     @TypeConverter
@@ -32,18 +31,6 @@ class Converters {
     }
 
     @TypeConverter
-    fun fromMemoryType(type: MemoryType): String = type.name
-
-    @TypeConverter
-    fun toMemoryType(value: String?): MemoryType {
-        return try {
-            value?.let { MemoryType.valueOf(it) } ?: MemoryType.PREFERENCE
-        } catch (e: IllegalArgumentException) {
-            MemoryType.PREFERENCE  // Fallback to default
-        }
-    }
-
-    @TypeConverter
     fun fromExecutionStatus(status: ExecutionStatus): String = status.name
 
     @TypeConverter
@@ -52,6 +39,18 @@ class Converters {
             value?.let { ExecutionStatus.valueOf(it) } ?: ExecutionStatus.FAILED
         } catch (e: IllegalArgumentException) {
             ExecutionStatus.FAILED  // Fallback to default
+        }
+    }
+
+    @TypeConverter
+    fun fromMemoryType(type: com.example.smarty.data.model.MemoryType): String = type.name
+
+    @TypeConverter
+    fun toMemoryType(value: String?): com.example.smarty.data.model.MemoryType {
+        return try {
+            value?.let { com.example.smarty.data.model.MemoryType.valueOf(it) } ?: com.example.smarty.data.model.MemoryType.OTHER
+        } catch (e: IllegalArgumentException) {
+            com.example.smarty.data.model.MemoryType.OTHER  // Fallback to default
         }
     }
 }

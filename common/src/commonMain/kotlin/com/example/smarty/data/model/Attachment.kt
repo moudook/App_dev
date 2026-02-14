@@ -1,4 +1,4 @@
-package com.example.smarty.data.model
+package com.example.smarty.core.domain.model
 
 // import android.net.Uri // REMOVED: Android dependency
 // import java.util.UUID // REMOVED: Java dependency

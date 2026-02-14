@@ -1,7 +1,7 @@
 package com.example.smarty.data.local
 
 import androidx.room.*
-import com.example.smarty.data.model.ImpressedEntry
+import com.example.smarty.core.domain.model.ImpressedEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -204,6 +204,13 @@ interface ImpressedLogDao {
         )
     """)
     suspend fun keepRecentEntries(keepCount: Int)
+
+    /**
+     * Delete all log entries.
+     * Used for user data cleanup on sign-out.
+     */
+    @Query("DELETE FROM impressed_log")
+    suspend fun deleteAllLogs()
 }
 
 /**

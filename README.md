@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="Smarty_Icon.svg" width="120" height="120" alt="Smarty Logo">
+  <img src="Smarty_Icon.svg" width="120" height="120" alt="Friday Logo">
 </p>
 
-<h1 align="center">Smarty</h1>
+<h1 align="center">Friday</h1>
 
 <p align="center">
   <strong>An AI-Powered Knowledge Companion for Android</strong>
@@ -12,24 +12,24 @@
   <img src="https://img.shields.io/badge/version-1.2.0-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/platform-Android-pink?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Privacy-First-32a852?style=flat-square" alt="Privacy">
-  <img src="https://img.shields.io/badge/Local-AI-orange?style=flat-square" alt="Local AI">
+  <img src="https://img.shields.io/badge/Thin--Client-AI-orange?style=flat-square" alt="Thin Client AI">
 </p>
 
 <p align="center">
-  Smarty transforms how you interact with information—capturing what matters, organizing it intelligently, and surfacing insights through natural conversation. Think less about managing knowledge, and more about using it.
+  Friday transforms how you interact with information—capturing what matters, organizing it intelligently, and surfacing insights through natural conversation. Think less about managing knowledge, and more about using it.
 </p>
 
 ---
 
 ## Philosophy
 
-We live in an age of information abundance, yet spend disproportionate time curating rather than creating. Smarty addresses this fundamental inefficiency by inverting the traditional knowledge management paradigm.
+We live in an age of information abundance, yet spend disproportionate time curating rather than creating. Friday addresses this fundamental inefficiency by inverting the traditional knowledge management paradigm.
 
-**Capture without constraint.** The moment an idea strikes, preserve it—no taxonomies, no metadata, no friction. Whether it's a fleeting thought, a web article, or a two-hour lecture recording, Smarty accepts it all.
+**Capture without constraint.** The moment an idea strikes, preserve it—no taxonomies, no metadata, no friction. Whether it's a fleeting thought, a web article, or a two-hour lecture recording, Friday accepts it all.
 
-**Intelligence that works for you.** Your notes shouldn't require active maintenance. Smarty autonomously categorizes, synthesizes, and surfaces connections across your knowledge base, transforming static information into dynamic understanding.
+**Intelligence that works for you.** Your notes shouldn't require active maintenance. Friday autonomously categorizes, synthesizes, and surfaces connections across your knowledge base, transforming static information into dynamic understanding.
 
-**Privacy as a foundation.** Your intellectual work deserves protection. Smarty operates entirely on-device or through your own infrastructure, ensuring your thoughts remain yours. Sensitive information can be cryptographically isolated from even the AI's context.
+**Privacy as a foundation.** Your intellectual work deserves protection. Friday operates as a Thin Client, ensuring the mobile app remains lightweight and secure. All AI reasoning is handled by the Friday Server (Local or Remote), ensuring your thoughts remain yours. Sensitive information can be cryptographically isolated from even the AI's context.
 
 ---
 
@@ -37,7 +37,7 @@ We live in an age of information abundance, yet spend disproportionate time cura
 
 ### Autonomous Agency
 
-Smarty transcends traditional chatbot interactions through the **Koog Framework**, functioning as a genuine agent capable of multi-step reasoning and action:
+Friday transcends traditional chatbot interactions through the **Koog Framework**, functioning as a genuine agent capable of multi-step reasoning and action:
 
 - **Contextual Research**: Synthesize personal notes with real-time web data to answer complex queries.
 - **Task Orchestration**: Manage todos, reminders, and workflows across your knowledge graph.
@@ -46,24 +46,24 @@ Smarty transcends traditional chatbot interactions through the **Koog Framework*
 
 ### Frictionless Capture
 
-Information enters Smarty through the path of least resistance:
+Information enters Friday through the path of least resistance:
 
 - **Universal Integration**: Share content from any Android application directly into your knowledge base.
 - **Intelligent Detection**: Automatically recognizes and processes 15+ content types—from videos and social media posts to PDFs and code snippets.
 - **Voice-First Design**: Offline wake-word detection enables hands-free capture, ideal for driving, exercise, or spontaneous ideation.
 
-### Privacy-Centric Architecture
+### Privacy-Centric Thin Client Architecture
 
 Your data sovereignty is non-negotiable:
 
+- **Thin Client Design**: The mobile app acts as a secure interface, offloading AI reasoning to the **Friday Server**. This keeps the app fast, lightweight, and focused on your experience.
 - **Local LLM Support**: Connect to models like Llama 3 or Mistral running on your local hardware via USB or network connection.
-- **Thin Client Design**: Cloud-based intelligence is managed via the **Smarty Server**, ensuring the mobile app remains lightweight and secure.
 - **Zero-Knowledge Operation**: When using local models, no data traverses external networks.
 - **Selective Isolation**: Privacy mode cryptographically separates sensitive notes from AI context with a simple gesture.
 
 ### Advanced Audio Processing
 
-Audio is a first-class citizen in Smarty's ecosystem:
+Audio is a first-class citizen in Friday's ecosystem:
 
 - Native playback with waveform visualization and precise navigation
 - Background playback with system media controls
@@ -93,7 +93,7 @@ Capture inspiration in the moment and develop it when ready. Query: *"Find all m
 
 ## Technical Architecture
 
-Smarty employs a sophisticated agentic loop that orchestrates multiple capabilities:
+Friday employs a sophisticated agentic loop that orchestrates multiple capabilities:
 
 **Reasoning Phase**: Analyzes user intent and decomposes requests into actionable steps, determining which tools—search, calendar, database queries, or external APIs—are necessary.
 
@@ -110,7 +110,7 @@ For comprehensive architectural documentation, refer to [AGENT_DOCUMENTATION.md]
 ### System Requirements
 
 - Android 8.0 (Oreo) or higher
-- **Smarty Server**: Required for AI features. The app acts as a **Thin Client**, connecting to a single Smarty Server (Local LLM or Remote) via a secure connection.
+- **Friday Server**: Required for AI features. The app acts as a **Thin Client**, connecting to a single Friday Server (Local LLM or Remote) via a secure connection.
 - **Connection Credentials**: Access tokens or connection keys are configured once to establish the server link. Cloud provider keys (OpenAI, Anthropic, etc.) are managed entirely on the **Server**.
 
 ### Installation
@@ -136,7 +136,7 @@ app/src/main/assets/vosk-model-small-en-us-0.15/
 
 ## Development
 
-Smarty is architected with contemporary Android development practices:
+Friday is architected with contemporary Android development practices:
 
 - **Kotlin** with **Jetpack Compose** for reactive, declarative UI
 - **Room Database** with full-text search (FTS5) for performant local storage

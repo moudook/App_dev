@@ -1,50 +1,53 @@
 # Smarty Project Documentation
 
-Welcome to the technical documentation for **Smarty**, a high-performance, privacy-centric digital assistant for Android. Smarty is designed with a "Local-First" philosophy, ensuring data sovereignty while providing a sophisticated, agentic AI experience.
+Welcome to the technical documentation for **Smarty**, a high-performance, privacy-centric digital assistant for Android. Smarty is built on a **Three-Tier "Thin Client" Architecture**, ensuring data sovereignty while providing a sophisticated, agentic AI experience.
 
-## 🚀 Project Overview
+##  Project Overview
 
-Smarty represents a new category of personal assistants that unify note-taking, task management, and generative AI into a single, cohesive **Input Stream**.
+Smarty represents a new category of personal assistants that unify note-taking, task management, and generative AI into a single, cohesive **Input Stream**. The project has evolved from a monolithic Android app into a distributed system:
 
-- **Privacy-First**: Built-in PII masking and local-first storage ensure your data stays yours.
-- **Hybrid Intelligence**: Intelligent routing between local models and cloud providers (Gemini, Anthropic, OpenAI) for the best balance of speed and power.
-- **System Integration**: Deeply integrated into Android as a Default Digital Assistant with screen context awareness.
-- **Organic Design**: A minimalist monochrome aesthetic powered by physics-based animations and custom-built UI components.
+- **Thin Client (Android Body)**: Handles UI rendering, high-performance animations, local I/O (voice, screen capture), and device-specific actions.
+- **Remote Brain (Ktor Server)**: Manages all AI reasoning, tool selection, context retrieval (RAG), and memory persistence.
+- **Privacy-First**: Built-in PII masking, secure storage in PostgreSQL/pgvector, and abstract conversation summarization.
+- **Agentic Logic**: Intelligent routing between local servers and cloud providers (Gemini, Anthropic, OpenAI) using a state-of-the-art tool-use protocol.
 
-## ✨ Key Features
+##  Key Features
 
-- **Organic Thinking Indicator (Living Orb)**: A fluid, morphing visualization that provides intuitive feedback on the AI's internal state and voice activity.
-- **Offline Wake Word**: Privacy-preserving "hear me out" trigger powered by a local Vosk engine.
-- **CO-STAR Prompt Framework**: High-precision agent behavior guided by a structured Context-Objective-Style-Tone-Audience-Response framework.
-- **Hybrid Intent Routing**: A dual-path system that routes tasks through "FAST-PATH" for speed or "REASONING-PATH" for complex problem-solving.
-- **PII Masking & Privacy Guard**: Automated redaction and isolation layers that prevent sensitive data from being shared with external LLMs.
-- **Liquid Loader**: A high-performance particle engine using custom canvas rendering for organic loading states.
-- **AI System Architecture**: Comprehensive technical mapping of the Smarty Agent orchestrator, tool-use protocols, and cross-platform communication.
+- **Agentic Tool Loop**: A sophisticated "Remote Brain" that can plan, execute tools, and reason over results before responding to the user.
+- **Observability & Durability (KOOG)**: Integrated step-by-step tracing (`PostgresTracer`) and session checkpointing (`PersistenceManager`) for industrial-grade reliability.
+- **LLM Performance Caching**: Transparent response caching (`LlmCache`) to eliminate redundant API calls and latency.
+- **Atomic Workflow Tools**: A library of specialized tools (Notes, Calendar, Knowledge Query, Web Search) that perform precise actions.    
+- **Hybrid Context & Memory (RAG)**: Uses PostgreSQL with `pgvector` for semantic recall of user facts and episodic history.
+- **Intelligent Sliding Window**: Manages large context windows by automatically summarizing older conversation turns.
+- **Living Orb (Visual Feedback)**: A fluid, morphing visualization that provides intuitive feedback on the AI's internal state.
+- **Offline Wake Word**: Privacy-preserving "Friday" trigger powered by a local Vosk engine.
+- **SSE-Based Streaming**: Real-time communication between the Body and Brain using a polymorphic protocol.
+- **PII Guard & Privacy-First Summarization**: Redaction layers that prevent sensitive data leakage to external LLMs.
 
 ---
 
-## 📂 Documentation Index
+##  Documentation Index
 
 ### [Architecture & Core Logic](./architecture/)
 Deep dives into the structural foundations of the application.
-- [**App Architecture**](./architecture/App_Architecture.md): MVVM patterns, ServiceLocator, and the three-tier Agent Transport Layer.
+- [**App Architecture**](./architecture/App_Architecture.md): The Three-Tier Architecture, ServiceLocator, and the Agent Transport Layer.
 - [**Business Logic**](./architecture/Business_Logic.md): Feature managers, Execution Planning, and Context Management.
-- [**Common & Server**](./architecture/Common_and_Server.md): Kotlin Multiplatform shared logic, Ktor backend, and Vector Store implementation.
+- [**Common & Server**](./architecture/Common_and_Server.md): Kotlin Multiplatform shared protocols and the Ktor backend implementation.
 
 ### [AI Deep Dives](./ai/)
 Technical specifications of the agentic engine.
-- [**AI System Architecture & Tools**](./ai/AI_System_Architecture.md): Comprehensive breakdown of agent orchestration, tool definitions, and system-wide AI integration.
+- [**AI System Architecture & Tools**](./ai/AI_System_Architecture.md): Comprehensive breakdown of the ServerAgent, tool definitions, and RAG implementation.
 
 ### [Features](./features/)
 Detailed explorations of user-facing capabilities.
-- [**AI & Agents**](./features/AI_Agents.md): Multi-provider orchestrator, tool-use protocol, and memory systems.
+- [**AI & Agents**](./features/AI_Agents.md): Multi-provider orchestrator, tool-use protocol, and history/context systems.
 - [**UI & UX**](./features/UI_UX.md): Design system, custom components, and advanced animations.
 - [**Voice Features**](./features/Voice_Features.md): Offline wake word, continuous transcription, and audio visualization.
 
 ### [Data & Services](./data/)
 Technical details on persistence and background operations.
-- [**Data Storage**](./data/Data_Storage.md): Room DB schema, FTS5 indexing, and encrypted preferences.
-- [**Services**](./data/Services.md): Foreground services (Audio, Assistant) and background WorkManager tasks.
+- [**Data Storage**](./data/Data_Storage.md): PostgreSQL/Room schema, FTS5 indexing, and pgvector storage.
+- [**Services**](./data/Services.md): Foreground services (Audio, Assistant) and server-side background tasks.
 
 ### [High-Level Overviews](./overviews/)
 Quick reference guides for specific domains.
@@ -53,4 +56,5 @@ Quick reference guides for specific domains.
 - [**UI & Screens**](./overviews/UI_Components_and_Screens.md)
 
 ---
-🤖 *Generated and maintained by the Smarty Documentation Agent.*
+ *Generated and maintained by the Smarty Documentation Agent.*
+

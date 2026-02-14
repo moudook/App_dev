@@ -7,9 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.smarty.data.model.AIMemory
-import com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar
-import com.example.smarty.ui.screens.SettingsScreen
+import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
+import com.example.smarty.features.settings.ui.SettingsScreen
 
 /**
  * Settings as a full-page overlay.
@@ -29,15 +28,6 @@ fun SettingsSheet(
     shakeSensitivity: Float,
     onShakeSensitivityChange: (Float) -> Unit,
     onSignOut: () -> Unit,
-    // AI Memory
-    aiMemories: List<AIMemory> = emptyList(),
-    onDeleteAIMemory: (AIMemory) -> Unit = {},
-    onClearAllAIMemories: () -> Unit = {},
-    onSyncAIMemories: () -> Unit = {},
-    isMemorySyncInProgress: Boolean = false,
-    memorySyncResult: String? = null,
-    unreadForMemoryCount: Int = 0,
-    onClearMemorySyncResult: () -> Unit = {},
     // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
@@ -47,16 +37,10 @@ fun SettingsSheet(
     onLoadDeviceCalendars: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
-    // Local LLM Server
-    isLocalPCEnabled: Boolean = false,
-    onSetLocalPCEnabled: (Boolean) -> Unit = {},
-    localServerIP: String = "",
-    localServerPort: String = "1234",
-    localServerUseHttps: Boolean = false,
-    onSetLocalServerIP: (String) -> Unit = {},
-    onSetLocalServerPort: (String) -> Unit = {},
-    onSetLocalServerUseHttps: (Boolean) -> Unit = {},
-    onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _, _, _ -> },
+    // Remote Server
+    serverUrl: String = "",
+    onSetServerUrl: (String) -> Unit = {},
+    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> },
     // Embedded content for sub-sheets
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
 ) {
@@ -82,14 +66,6 @@ fun SettingsSheet(
             onShakeSensitivityChange = onShakeSensitivityChange,
             onSignOut = onSignOut,
             backupContent = backupContent,
-            aiMemories = aiMemories,
-            onDeleteAIMemory = onDeleteAIMemory,
-            onClearAllAIMemories = onClearAllAIMemories,
-            onSyncAIMemories = onSyncAIMemories,
-            isMemorySyncInProgress = isMemorySyncInProgress,
-            memorySyncResult = memorySyncResult,
-            unreadForMemoryCount = unreadForMemoryCount,
-            onClearMemorySyncResult = onClearMemorySyncResult,
             // Google Calendar Two-Way Sync
             isCalendarSyncEnabled = isCalendarSyncEnabled,
             onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
@@ -97,16 +73,14 @@ fun SettingsSheet(
             targetCalendarId = targetCalendarId,
             onSetTargetCalendarId = onSetTargetCalendarId,
             onLoadDeviceCalendars = onLoadDeviceCalendars,
-            // Local LLM
-            isLocalPCEnabled = isLocalPCEnabled,
-            onSetLocalPCEnabled = onSetLocalPCEnabled,
-            localServerIP = localServerIP,
-            localServerPort = localServerPort,
-            localServerUseHttps = localServerUseHttps,
-            onSetLocalServerIP = onSetLocalServerIP,
-            onSetLocalServerPort = onSetLocalServerPort,
-            onSetLocalServerUseHttps = onSetLocalServerUseHttps,
-            onTestLocalServer = onTestLocalServer
+            // Remote Server
+            serverUrl = serverUrl,
+            onSetServerUrl = onSetServerUrl,
+            onTestServerConnection = onTestServerConnection,
+            onNavigateToCoinToss = onNavigateToCoinToss,
+            onNavigateToTicTacToe = onNavigateToTicTacToe
         )
     }
 }
+
+

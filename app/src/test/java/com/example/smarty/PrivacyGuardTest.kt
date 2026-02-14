@@ -1,9 +1,9 @@
 package com.example.smarty
 
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.util.PrivacyAware
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
+import com.example.smarty.core.common.util.PrivacyAware
 import org.junit.Assert.*
 import org.junit.Test
 

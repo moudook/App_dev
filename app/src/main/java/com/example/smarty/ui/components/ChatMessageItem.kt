@@ -3,6 +3,11 @@ package com.example.smarty.ui.components
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -27,6 +32,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -35,13 +41,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Launch
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -72,6 +81,7 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,11 +94,11 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import com.example.smarty.R
-import com.example.smarty.data.model.ChatMessage
-import com.example.smarty.data.model.ChatRole
-import com.example.smarty.data.model.Citation
-import com.example.smarty.data.model.ClarificationRequest
-import com.example.smarty.data.model.Note
+import com.example.smarty.core.domain.model.ChatMessage
+import com.example.smarty.core.domain.model.ChatRole
+import com.example.smarty.core.domain.model.Citation
+import com.example.smarty.core.domain.model.ClarificationRequest
+import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.theme.Alpha
@@ -182,6 +192,7 @@ fun ChatMessageItem(
         // Content Logic
         @Composable
         fun MessageContent() {
+            var actionsExpanded by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
             ) {
@@ -197,6 +208,49 @@ fun ChatMessageItem(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 } else {
+                    // Streaming/thinking indicator
+                    if (message.isStreaming && message.content.isEmpty()) {
+                        // Show animated thinking dots
+                        val infiniteTransition = rememberInfiniteTransition(label = "thinking")
+                        val dotAlpha1 by infiniteTransition.animateFloat(
+                            initialValue = 0.2f, targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(600, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ), label = "dot1"
+                        )
+                        val dotAlpha2 by infiniteTransition.animateFloat(
+                            initialValue = 0.2f, targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(600, delayMillis = 200, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ), label = "dot2"
+                        )
+                        val dotAlpha3 by infiniteTransition.animateFloat(
+                            initialValue = 0.2f, targetValue = 1f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(600, delayMillis = 400, easing = LinearEasing),
+                                repeatMode = RepeatMode.Reverse
+                            ), label = "dot3"
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Thinking",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 14.sp,
+                                    fontStyle = FontStyle.Italic
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha1), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha2), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha3), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
                     val isDark = isSystemInDarkTheme()
                     val normalColor = MaterialTheme.colorScheme.onSurface
                     val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
@@ -285,14 +339,51 @@ fun ChatMessageItem(
                         }
                     }
 
-                    // Attachments Count
-                    if (message.attachments.isNotEmpty()) {
+                    // User Images (Inline)
+                    val imageAttachments = message.attachments.filter { it.getAttachmentType() == com.example.smarty.core.domain.model.AttachmentType.IMAGE }
+                    if (isUser && imageAttachments.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val inlineImages = imageAttachments.map {
+                            com.example.smarty.core.domain.model.InlineChatImage(
+                                uri = it.uri,
+                                fileName = it.fileName,
+                                noteTitle = ""
+                            )
+                        }
+
+                        var showFullScreen by remember { mutableStateOf(false) }
+                        var fullScreenIndex by rememberSaveable { mutableIntStateOf(0) }
+
+                        InlineImagePreview(
+                            images = inlineImages,
+                            onExpandImage = { index ->
+                                fullScreenIndex = index
+                                showFullScreen = true
+                            },
+                            modifier = Modifier
+                                .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                                .clip(RoundedCornerShape(16.dp))
+                        )
+
+                        if (showFullScreen) {
+                             val currentImage = inlineImages.getOrNull(fullScreenIndex) ?: inlineImages.first()
+                             FullScreenImageViewer(
+                                 imageUri = currentImage.uri,
+                                 onDismiss = { showFullScreen = false },
+                                 contentDescription = currentImage.fileName
+                             )
+                        }
+                    }
+
+                    // Other Attachments Count
+                    val otherAttachments = message.attachments.filter { it.getAttachmentType() != com.example.smarty.core.domain.model.AttachmentType.IMAGE }
+                    if (otherAttachments.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Surface(
                             color = if (isUser) accentColor.copy(alpha = Alpha.medium) else MaterialTheme.colorScheme.surfaceVariant,
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            val count = message.attachments.size
+                            val count = otherAttachments.size
                             Text(
                                 text = if (count == 1) stringResource(R.string.one_attachment) else stringResource(R.string.x_attachments, count),
                                 style = MaterialTheme.typography.labelSmall.copy(
@@ -305,43 +396,77 @@ fun ChatMessageItem(
                         }
                     }
 
-                    // Action Results
+                    // Agent Activity (Collapsible)
                     if (!isUser && message.hasActions) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        message.executedActions.forEach { actionResult ->
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = Alpha.half),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = Alpha.soft))
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    ActionResultChip(
-                                        actionName = actionResult.action,
-                                        success = actionResult.success,
-                                        summary = actionResult.resultSummary
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                // Clickable header
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { actionsExpanded = !actionsExpanded },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AutoAwesome,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "${message.executedActions.size} action${if (message.executedActions.size > 1) "s" else ""} performed",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = if (actionsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = if (actionsExpanded) "Collapse" else "Expand",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    if (actionResult.affectedNoteIds.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                        actionResult.affectedNoteIds.forEach { noteId ->
-                                            val note = getNote(noteId)
-                                            if (note != null) {
-                                                NoteCard(
-                                                    note = note,
-                                                    onClick = { onNoteClick(note) },
-                                                    onDelete = {},
-                                                    onOpenTodo = {},
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    isSelectionMode = true,
-                                                    onLongPress = { /* Disabled in chat */ }
-                                                )
-                                                Spacer(modifier = Modifier.height(8.dp))
+                                }
+                                // Expandable content
+                                AnimatedVisibility(visible = actionsExpanded) {
+                                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                                        message.executedActions.forEach { actionResult ->
+                                            ActionResultChip(
+                                                actionName = actionResult.action,
+                                                success = actionResult.success,
+                                                summary = actionResult.resultSummary
+                                            )
+                                            if (actionResult.affectedNoteIds.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                actionResult.affectedNoteIds.forEach { noteId ->
+                                                    val note = getNote(noteId)
+                                                    if (note != null) {
+                                                        NoteCard(
+                                                            note = note,
+                                                            onClick = { onNoteClick(note) },
+                                                            onDelete = {},
+                                                            onOpenTodo = {},
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            isSelectionMode = true,
+                                                            onLongPress = { }
+                                                        )
+                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                    }
+                                                }
                                             }
+                                            Spacer(modifier = Modifier.height(6.dp))
                                         }
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
 
@@ -354,6 +479,7 @@ fun ChatMessageItem(
                             accentColor = accentColor
                         )
                     }
+                    } // end streaming content else
                 }
             }
         }
@@ -556,7 +682,7 @@ private fun CitationsInline(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.Assistant,
+                                    imageVector = Icons.Default.AutoAwesome,
                                     contentDescription = null,
                                     tint = accentColor,
                                     modifier = Modifier.size(20.dp)
@@ -1014,7 +1140,7 @@ private fun ClarificationBubble(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Default.Assistant,
+                    imageVector = Icons.Default.AutoAwesome,
                     contentDescription = null,
                     tint = accentColor,
                     modifier = Modifier.size(16.dp)

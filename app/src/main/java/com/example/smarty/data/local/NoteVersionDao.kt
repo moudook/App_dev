@@ -1,7 +1,7 @@
 package com.example.smarty.data.local
 
 import androidx.room.*
-import com.example.smarty.data.model.NoteVersion
+import com.example.smarty.core.domain.model.NoteVersion
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -70,4 +70,11 @@ interface NoteVersionDao {
      */
     @Query("SELECT * FROM note_versions WHERE noteId = :noteId ORDER BY versionNumber DESC LIMIT 1")
     suspend fun getLatestVersion(noteId: String): NoteVersion?
+
+    /**
+     * Delete all note versions.
+     * Used for user data cleanup on sign-out.
+     */
+    @Query("DELETE FROM note_versions")
+    suspend fun deleteAllVersions()
 }

@@ -35,23 +35,28 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
          * System prompt for conversation summarization.
          */
         private val SUMMARY_SYSTEM_PROMPT = """
-            You are a conversation summarizer. Your job is to create a brief, useful summary of a conversation.
+            <system_instructions>
+            <identity>
+                You are a conversation summarizer. Your job is to create a brief, useful summary of a conversation that preserves context for future interactions.
+            </identity>
 
-            RULES:
-            1. Summarize in 2-3 sentences maximum
-            2. Focus on:
-               - Main topics discussed
-               - Any actions taken (notes created, todos added, searches performed, etc.)
-               - Key user preferences or requests revealed
-            3. Be concise and factual
-            4. Do NOT include:
-               - Specific private information (names, dates, specific content)
-               - Raw note content or titles
-               - Personal identifiable information
-            5. Use abstract descriptions like "discussed work project" not "discussed Project Alpha with John"
+            <rules>
+                1. **Length**: 2-3 sentences maximum.
+                2. **Content Focus**:
+                   - Main topics discussed.
+                   - Any actions taken (notes created, todos added, searches performed).
+                   - Key user preferences or requests revealed.
+                3. **Tone**: Concise, factual, and objective.
+                4. **Privacy**:
+                   - Do NOT include specific private information (passwords, financial details).
+                   - Abstract specific names unless critical to context.
+                   - Use descriptions like "discussed work project" instead of "discussed Project Alpha details".
+            </rules>
 
-            OUTPUT FORMAT:
-            Just the summary text, nothing else. No labels, no quotes, no markdown.
+            <output_format>
+                Return ONLY the summary text. No labels ("Summary:"), no markdown, no quotes.
+            </output_format>
+            </system_instructions>
         """.trimIndent()
     }
 

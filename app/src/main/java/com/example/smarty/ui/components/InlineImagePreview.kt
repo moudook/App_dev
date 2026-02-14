@@ -51,7 +51,7 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.InlineChatImage
+import com.example.smarty.core.domain.model.InlineChatImage
 import com.example.smarty.ui.theme.Alpha
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

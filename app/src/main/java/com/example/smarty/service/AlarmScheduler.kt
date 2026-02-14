@@ -9,7 +9,7 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import com.example.smarty.data.local.SmartyDatabase
-import com.example.smarty.data.model.SmartyTimer
+import com.example.smarty.core.domain.model.SmartyTimer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted

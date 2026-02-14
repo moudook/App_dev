@@ -34,8 +34,8 @@ import androidx.compose.ui.text.font.FontWeight
 import com.example.smarty.R
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.smarty.data.model.Attachment
-import com.example.smarty.data.model.AttachmentType
+import com.example.smarty.core.domain.model.Attachment
+import com.example.smarty.core.domain.model.AttachmentType
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.StaggerCalculator

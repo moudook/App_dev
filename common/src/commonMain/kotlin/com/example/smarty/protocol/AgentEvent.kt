@@ -8,14 +8,14 @@ import com.example.smarty.protocol.AgentCommand
  * Events streamed from the Cloud Agent to the Android Client via SSE.
  *
  * These events provide real-time feedback during agent execution:
- * - Thinking: Agent reasoning/processing updates
+ * - Processing: Agent activity updates (renamed from Thinking)
  * - ToolCall: Tool execution status (started/completed/failed)
  * - Result: Response content (partial or final)
  * - Error: Processing errors
  *
  * SSE Format:
  * ```
- * event: thinking
+ * event: processing
  * data: {"eventId":"...","timestamp":...,"content":"..."}
  * ```
  */
@@ -25,12 +25,12 @@ sealed class AgentEvent {
     abstract val timestamp: Long
 
     /**
-     * Agent is reasoning/thinking.
+     * Agent is processing/working.
      * Streamed as partial updates during processing.
      */
     @Serializable
-    @SerialName("thinking")
-    data class Thinking(
+    @SerialName("processing")
+    data class Processing(
         override val eventId: String,
         override val timestamp: Long,
         val content: String
@@ -85,5 +85,20 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         val command: AgentCommand
+    ) : AgentEvent()
+
+    /**
+     * Server-side state change notification.
+     * Sent after a tool executes on the server so the client can cache data locally.
+     * syncType examples: "note_created", "note_updated", "timer_set", "event_scheduled"
+     * data: JSON payload with full entity data for local caching.
+     */
+    @Serializable
+    @SerialName("state_sync")
+    data class StateSync(
+        override val eventId: String,
+        override val timestamp: Long,
+        @SerialName("sync_type") val syncType: String,
+        val data: String
     ) : AgentEvent()
 }

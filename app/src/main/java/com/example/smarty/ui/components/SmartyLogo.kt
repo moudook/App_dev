@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -22,7 +23,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.ui.components.OrganicThinkingIndicator
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
@@ -333,9 +333,10 @@ fun DecompressionPlaceholder(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            OrganicThinkingIndicator(
-                size = 28.dp,
-                baseColor = accentColor
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = accentColor,
+                strokeWidth = 2.dp
             )
 
             Text(

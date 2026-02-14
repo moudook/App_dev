@@ -1,226 +1,118 @@
 package com.example.smarty.data.remote
 
-import android.app.Application
+import android.content.Context
 import android.util.Log
-import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.local.SecurePreferences
-import com.example.smarty.util.HttpClientProvider
-import com.google.gson.annotations.SerializedName
-import kotlinx.coroutines.*
-import java.io.IOException
-
-// ==================== Response Models ====================
-
-data class AIResponse(
-    val title: String,
-    val category: String,
-    val summary: String,
-    val whySaved: String,
-    val tags: List<String> = emptyList(),  // AI-generated tags for the note
-    val todos: List<String> = emptyList(),  // AI-extracted todo items
-    val success: Boolean = true,
-    val error: String? = null
-)
-
-data class DocumentAnalysisResponse(
-    val title: String,
-    val summary: String,
-    val keyPoints: List<String>,
-    val category: String,
-    val actionItems: List<String>,
-    val userRelevance: String,
-    val references: DocumentReferences? = null,  // Formulas, key terms, recurring topics
-    val success: Boolean = true,
-    val error: String? = null
-)
-
-/**
- * References extracted from document analysis.
- * Contains formulas, key terms with definitions, and recurring topics.
- */
-data class DocumentReferences(
-    val formulas: List<String> = emptyList(),
-    val keyTerms: List<KeyTerm> = emptyList(),
-    val recurringTopics: List<String> = emptyList()
-)
-
-/**
- * A key term with its definition.
- */
-data class KeyTerm(
-    val term: String,
-    val definition: String
-)
-
-// ==================== API Request/Response Models ====================
-
-data class CompatibleAIRequest(
-    val model: String,
-    val messages: List<CompatibleAIMessage>,
-    val temperature: Float = 0.4f,
-    @SerializedName("max_tokens")
-    val maxTokens: Int = 300,
-    @SerializedName("enable_thinking")
-    val enableThinking: Boolean? = null,
-    val stream: Boolean? = null
-)
-
-data class CompatibleAIMessage(
-    val role: String,
-    val content: String
-)
-
-data class CompatibleApiResponse(
-    val choices: List<CompatibleAIChoice>?
-)
-
-data class CompatibleAIChoice(
-    val message: CompatibleAIMessageResponse?
-)
-
-data class CompatibleAIMessageResponse(
-    val content: String?
-)
-
-// ==================== AI Service Facade ====================
+import com.example.smarty.core.domain.model.AttachmentMetadata
 
 /**
  * AI Service facade that coordinates AI operations.
- * Thin Client Version: Cloud operations are offloaded to the server.
- * Local operations are restricted to LOCAL_PC.
- *
- * This is a thin facade that delegates to specialized handlers:
- * - [AIConnectionOrchestrator]: Connection management
- * - [ContentAnalyzer]: Content and document analysis
- *
- * @property securePreferences Secure storage for settings
+ * Thin Client Version: All operations are offloaded to the server via RemoteAgentService.
  */
-class AIService(private val application: Application, private val securePreferences: SecurePreferences) {
+class AIService(
+    private val context: Context,
+    private val securePreferences: SecurePreferences,
+    private val remoteAgentService: RemoteAgentService,
+    private val aiResponseCache: com.example.smarty.data.cache.AIResponseCache
+) {
 
     companion object {
         private const val TAG = "AIService"
     }
 
-    // Specialized handlers
-    private val orchestrator = AIConnectionOrchestrator(securePreferences)
-    private val contentAnalyzer = ContentAnalyzer(application, orchestrator)
-
     /**
-     * Analyzes content using available AI connections with fallback and retry logic.
-     * Applies security filtering before sending to AI to prevent prompt injection.
-     *
-     * @param content The text content to analyze
-     * @param attachmentMetadata Optional list of attachment metadata (file names and types only)
+     * Analyzes content using the remote server with local caching.
      */
     suspend fun analyzeContent(
         content: String,
-        attachmentMetadata: List<com.example.smarty.data.model.AttachmentMetadata>? = null
+        attachmentMetadata: List<AttachmentMetadata>? = null
     ): AIResponse {
-        return contentAnalyzer.analyzeContent(content, attachmentMetadata)
+        // 1. Check Cache
+        val cacheKey = aiResponseCache.generateKey(content)
+        val cachedResponse = aiResponseCache.get(cacheKey)
+        if (cachedResponse != null) {
+            Log.d(TAG, "Cache hit for content analysis")
+            return cachedResponse
+        }
+
+        // 2. Call Remote Service
+        val response = remoteAgentService.analyzeContent(content, attachmentMetadata?.map {
+            AttachmentInfo(it.fileName, it.fileType)
+        })
+
+        // 3. Cache and Return
+        return if (response != null && response.success) {
+            aiResponseCache.put(cacheKey, response)
+            response
+        } else {
+            response ?: AIResponse(
+                title = "Analysis Failed",
+                category = "general",
+                summary = "Could not connect to server.",
+                whySaved = "Error",
+                success = false,
+                error = "Server unavailable"
+            )
+        }
     }
 
     /**
-     * Analyzes document content (PDFs, long-form text) with comprehensive summarization.
-     *
-     * @param documentText The extracted text from the document
-     * @param fileName Optional filename for context
-     * @param userContext Optional additional context about the user's intent
+     * Analyzes document content on the server.
      */
     suspend fun analyzeDocument(
         documentText: String,
         fileName: String? = null,
         userContext: String? = null
     ): DocumentAnalysisResponse {
-        return contentAnalyzer.analyzeDocument(documentText, fileName, userContext)
+        return remoteAgentService.analyzeDocument(documentText, fileName, userContext) ?: DocumentAnalysisResponse(
+            title = fileName ?: "Document",
+            summary = "Analysis failed",
+            keyPoints = emptyList(),
+            category = "document",
+            actionItems = emptyList(),
+            userRelevance = "Error",
+            success = false,
+            error = "Server unavailable"
+        )
     }
 
     /**
-     * Simple chat for non-agent AI interactions (summarization, title compression, etc.).
-     * Thin Client: Restricted to LOCAL_PC for local execution.
-     *
-     * @param systemPrompt The system instructions
-     * @param userPrompt The user's message
-     * @return The AI response text, or throws if no provider available
+     * Simple chat for non-agent AI interactions.
      */
-    suspend fun simpleChat(systemPrompt: String, userPrompt: String): String = withContext(Dispatchers.IO) {
-        // Use standardized read timeout from HttpClientProvider (AI responses can be slow)
-        val timeoutMs = HttpClientProvider.READ_TIMEOUT_SECONDS * 1000
-        try {
-            withTimeout(timeoutMs) {
-                // Thin Client only supports LOCAL_PC for local simpleChat
-                val connection = AIConnection.LOCAL_PC
+    suspend fun simpleChat(systemPrompt: String, userPrompt: String): String {
+        // For thin client, we can treat this as a briefing or single-turn chat
+        // using the remote service.
+        // Or we can use sendQuery and collect the first result.
+        // For now, let's use a specific briefing endpoint if available, or just chat.
 
-                // Respect the user's "Enabled" setting
-                if (!orchestrator.getOrderedConnections().contains(connection)) {
-                    throw IllegalStateException("Local AI connection is disabled")
-                }
-
-                val connectionInstance = orchestrator.getConnection(connection)
-                val model = orchestrator.getModelForConnection(connection)
-
-                val tokenToUse = "local_pc_no_token"
-
-                Log.i(TAG, "simpleChat: Attempting LOCAL_PC with model $model")
-
-                val result = connectionInstance.chat(
-                    context = application,
-                    systemPrompt = systemPrompt,
-                    userPrompt = userPrompt,
-                    connectionToken = tokenToUse,
-                    model = model
-                )
-
-                if (result != null) {
-                    Log.d(TAG, "simpleChat succeeded with LOCAL_PC")
-                    return@withTimeout result
-                } else {
-                    Log.w(TAG, "simpleChat: LOCAL_PC returned null result")
-                    throw IllegalStateException("Local AI connection returned no result")
-                }
-            }
-        } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "simpleChat timed out after ${HttpClientProvider.READ_TIMEOUT_SECONDS} seconds")
-            throw IOException("Request timed out. Please try again.")
-        }
+        // Using generateBriefing as a proxy for simple Q&A if appropriate,
+        // or falling back to a simplified chat query.
+        return remoteAgentService.generateBriefing("$systemPrompt\n\nUser: $userPrompt")
+            ?: "Server unavailable"
     }
 
     /**
-     * Check if any AI connection is available for processing.
-     * Thin Client: Checks if LOCAL_PC is enabled and available.
+     * Process an image on the server (OCR/Description).
+     */
+    suspend fun processImage(imageBytes: ByteArray, mimeType: String): String {
+        return remoteAgentService.processImage(imageBytes, mimeType)?.text
+            ?: "Image processing failed"
+    }
+
+    /**
+     * Process a PDF on the server.
+     */
+    suspend fun processPdf(pdfBytes: ByteArray, fileName: String?): String {
+        return remoteAgentService.processPdf(pdfBytes, fileName)?.text
+            ?: "PDF processing failed"
+    }
+
+    /**
+     * Check if AI connection is available.
      */
     fun isAiAvailable(): Boolean {
-        // Thin Client primarily relies on server-side AI, but locally we only care about LOCAL_PC
-        return orchestrator.getOrderedConnections().contains(AIConnection.LOCAL_PC)
-    }
-
-    /**
-     * Test if a connection is valid.
-     * Thin Client: Primarily used to verify LOCAL_PC connectivity.
-     */
-    suspend fun testConnection(connection: AIConnection, connectionToken: String): Boolean = withContext(Dispatchers.IO) {
-        if (connection != AIConnection.LOCAL_PC) return@withContext false
-
-        Log.i(TAG, "Testing LOCAL_PC connection...")
-
-        try {
-            val connectionInstance = orchestrator.getConnection(connection)
-            val model = orchestrator.getModelForConnection(connection)
-            val testContent = "Test connection"
-
-            val result = connectionInstance.analyzeContent(
-                context = application,
-                content = testContent,
-                connectionToken = connectionToken,
-                model = model,
-                systemPrompt = "Respond with 'ok'"
-            )
-
-            val success = result?.success == true
-            Log.i(TAG, "Connection test result: ${if (success) "SUCCESS" else "FAILED"}")
-            success
-        } catch (e: Exception) {
-            Log.e(TAG, "Connection test failed: ${e.message}")
-            false
-        }
+        // Always true for thin client (assumes network might work)
+        // Real check happens on request
+        return true
     }
 }

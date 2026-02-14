@@ -1,8 +1,8 @@
-package com.example.smarty.viewmodel.managers
+package com.example.smarty.core.domain.model
 
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.AIService
-import com.example.smarty.util.api.RateLimiter
+import com.example.smarty.core.common.util.api.RateLimiter
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -66,3 +66,5 @@ class ShakeSensitivityLogicTest {
         assertEquals(1.0f, newManager.shakeSensitivity.value, 0.01f)
     }
 }
+
+

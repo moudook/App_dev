@@ -2,8 +2,8 @@ package com.example.smarty.protocol
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.Category
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.Category
 
 /**
  * Events sent from the Android Client (Body) to the Cloud Agent (Brain).
@@ -68,18 +68,10 @@ sealed class ClientEvent {
     ) : ClientEvent()
 
     @Serializable
-    @SerialName("data_memories")
-    data class MemoriesResponse(
-        @SerialName("command_id") val commandId: String,
-        val memories: List<com.example.smarty.data.model.AIMemory>,
-        override val timestamp: Long = 0L
-    ) : ClientEvent()
-
-    @Serializable
     @SerialName("data_calendar_events")
     data class CalendarEventsResponse(
         @SerialName("command_id") val commandId: String,
-        val events: List<com.example.smarty.data.model.CalendarEvent>,
+        val events: List<com.example.smarty.core.domain.model.CalendarEvent>,
         override val timestamp: Long = 0L
     ) : ClientEvent()
 
@@ -87,7 +79,7 @@ sealed class ClientEvent {
     @SerialName("data_recall_results")
     data class RecallResultsResponse(
         @SerialName("command_id") val commandId: String,
-        val results: List<com.example.smarty.viewmodel.managers.RecallResult>,
+        val results: List<com.example.smarty.core.domain.model.RecallResult>,
         override val timestamp: Long = 0L
     ) : ClientEvent()
 
@@ -95,7 +87,7 @@ sealed class ClientEvent {
     @SerialName("data_screen_context")
     data class ScreenContextResponse(
         @SerialName("command_id") val commandId: String,
-        val context: com.example.smarty.agent.models.ScreenContext?,
+        val context: com.example.smarty.features.chat.agent.models.ScreenContext?,
         override val timestamp: Long = 0L
     ) : ClientEvent()
 }

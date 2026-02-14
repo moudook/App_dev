@@ -1,10 +1,10 @@
 package com.example.smarty.data.backup
 
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
-import com.example.smarty.data.model.TodoItem
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
+import com.example.smarty.core.domain.model.TodoItem
 import com.google.gson.annotations.SerializedName
 
 /**

@@ -33,19 +33,19 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.Assistant
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.StopCircle
-import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -83,9 +83,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.Attachment
-import com.example.smarty.data.model.MentionState
-import com.example.smarty.data.model.MentionSuggestion
+import com.example.smarty.core.domain.model.Attachment
+import com.example.smarty.core.domain.model.MentionState
+import com.example.smarty.core.domain.model.MentionSuggestion
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.SmartyMotion
@@ -93,11 +93,11 @@ import com.example.smarty.ui.theme.SmartyShadow
 import com.example.smarty.ui.animation.halftoneShimmer
 import com.example.smarty.ui.animation.directionalShimmer
 import com.example.smarty.ui.animation.ShimmerDirection
-import com.example.smarty.util.ContentTypeDetector
+import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
-import com.example.smarty.util.rememberSpeechToText
+import com.example.smarty.features.voice.rememberSpeechToText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -120,7 +120,7 @@ private val ELEMENT_SPACING = 12.dp
 private val HORIZONTAL_PADDING = 16.dp
 
 /**
- * ═══════════════════════════════════════════════════════════════════════════════
+ * 
  * REDESIGNED INPUT BLOCK
  * 
  * Design Principles:
@@ -130,13 +130,13 @@ private val HORIZONTAL_PADDING = 16.dp
  * - Perfect circles, horizontal pill shape
  *
  * NORMAL MODE Layout (Left to Right):
- * [Search Circle] [Input Pill ─────────── (Send Arrow)]
+ * [Search Circle] [Input Pill  (Send Arrow)]
  *
  * CHAT MODE Layout (Left to Right):
- * [Voice Circle] [Input Pill ───────────────────── (Send Arrow)]
+ * [Voice Circle] [Input Pill  (Send Arrow)]
  *
  * Send Arrow appears only when: text is present OR attachment is present
- * ═══════════════════════════════════════════════════════════════════════════════
+ * 
  */
 @Composable
 fun SmartyInputField(
@@ -158,8 +158,6 @@ fun SmartyInputField(
     isChatMode: Boolean = false,
     isHistoryMode: Boolean = false, // New parameter
     chatPlaceholder: String = stringResource(R.string.add_note_or_ask_ai),
-    aiPlanStatus: String? = null, // e.g. "Smarty is planning..."
-    currentTool: String? = null,
     isProcessing: Boolean = false,
     onOpenChatHistory: () -> Unit = {},
     showHistoryOption: Boolean = true, // New parameter to control history visibility
@@ -189,10 +187,7 @@ fun SmartyInputField(
     onClearFilters: () -> Unit = {},
     // @Mention support (Chat mode only)
     mentionState: MentionState = MentionState(),
-    onMentionSelected: (MentionSuggestion) -> Unit = {},
-    // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
-    isThinkingModeEnabled: Boolean = false,
-    onToggleThinkingMode: () -> Unit = {}
+    onMentionSelected: (MentionSuggestion) -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -226,7 +221,6 @@ fun SmartyInputField(
     val currentPlaceholder = when {
         isVoiceListening -> stringResource(R.string.listening)
         isSearchMode -> stringResource(R.string.find_notes)
-        !aiPlanStatus.isNullOrBlank() -> aiPlanStatus.lowercase()
         isChatMode -> stringResource(R.string.ask_smarty)
         else -> stringResource(R.string.add_note)
     }
@@ -260,9 +254,9 @@ fun SmartyInputField(
         if (attachments.isEmpty()) showAttachmentPreview = false
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     // ANIMATIONS
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     
     val pillBorderColor by animateColorAsState(
         targetValue = if (isFocused) LocalAccentColor.current else Color.Transparent,
@@ -276,9 +270,9 @@ fun SmartyInputField(
         label = "sendScale"
     )
 
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     // UI STRUCTURE
-    // ═══════════════════════════════════════════════════════════════════
+    // 
 
     Column(modifier = modifier.fillMaxWidth()) {
 
@@ -424,9 +418,9 @@ fun SmartyInputField(
         }
 
 
-        // ═══════════════════════════════════════════════════════════════════
+        // 
         // @MENTION AUTOCOMPLETE DROPDOWN (Chat mode only, above input)
-        // ═══════════════════════════════════════════════════════════════════
+        // 
         if (isChatMode) {
             val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
             MentionDropdown(
@@ -436,9 +430,9 @@ fun SmartyInputField(
             )
         }
 
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             // MAIN INPUT ROW
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -447,9 +441,9 @@ fun SmartyInputField(
                 horizontalArrangement = Arrangement.spacedBy(ELEMENT_SPACING)
             ) {
                 if (isChatMode) {
-                    // ═══════════════════════════════════════════════════════════════════
+                    // 
                     // CHAT MODE: [Voice Circle] [Input Pill]
-                    // ═══════════════════════════════════════════════════════════════════
+                    // 
 
                     // Voice Circle (Chat Mode only - triggers STT)
                     ActionCircle(
@@ -463,9 +457,9 @@ fun SmartyInputField(
                         activeColor = LocalAccentColor.current
                     )
                 } else {
-                    // ═══════════════════════════════════════════════════════════════════
+                    // 
                     // NORMAL MODE: [Search Circle] [Input Pill]
-                    // ═══════════════════════════════════════════════════════════════════
+                    // 
 
                     // Search Circle
                     ActionCircle(
@@ -488,9 +482,9 @@ fun SmartyInputField(
                     )
                 }
 
-                // ═══════════════════════════════════════════════════════════════════
+                // 
                 // INPUT PILL (Both modes)
-                // ═══════════════════════════════════════════════════════════════════
+                // 
                 InputPill(
                     value = value,
                     onValueChange = onValueChange,
@@ -532,8 +526,6 @@ fun SmartyInputField(
                     isAgentWorking = isAgentWorking,
                     autoSendActive = autoSendActive,
                     isChatMode = isChatMode,
-                    isThinkingModeEnabled = isThinkingModeEnabled,
-                    onToggleThinkingMode = onToggleThinkingMode,
                     onPickFile = {
                         onPickFile()
                     },
@@ -547,9 +539,9 @@ fun SmartyInputField(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 // ACTION CIRCLE COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 @Composable
 private fun ActionCircle(
@@ -650,9 +642,9 @@ private fun ActionCircle(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 // INPUT PILL COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 @Composable
 private fun InputPill(
@@ -670,8 +662,6 @@ private fun InputPill(
     isAgentWorking: Boolean,
     autoSendActive: Boolean,
     isChatMode: Boolean,
-    isThinkingModeEnabled: Boolean,
-    onToggleThinkingMode: () -> Unit,
     onPickFile: () -> Unit,
     onOpenCamera: () -> Unit,
     modifier: Modifier = Modifier
@@ -686,7 +676,7 @@ private fun InputPill(
 
     // Border: Subtle normally, colored when focused
     val currentBorderColor by animateColorAsState(
-        targetValue = if (isThinkingModeEnabled) accentColor.copy(alpha = 0.8f) else if (isFocused) accentColor.copy(alpha = 0.5f) else borderColor,
+        targetValue = if (isFocused) accentColor.copy(alpha = 0.5f) else borderColor,
         animationSpec = tween(200),
         label = "pillBorder"
     )
@@ -701,18 +691,18 @@ private fun InputPill(
             .softCardShadow(shape = RoundedCornerShape(PILL_CORNER_RADIUS), elevation = elevation),
         shape = RoundedCornerShape(PILL_CORNER_RADIUS),
         color = backgroundColor,
-        border = BorderStroke(if (isThinkingModeEnabled) 1.5.dp else 0.5.dp, currentBorderColor)
+        border = BorderStroke(0.5.dp, currentBorderColor)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Shimmer overlay for voice/agent states
-            val showShimmer = autoSendActive || isVoiceListening || isAgentWorking || isThinkingModeEnabled
+            val showShimmer = autoSendActive || isVoiceListening || isAgentWorking
             if (showShimmer) {
                 val shimmerDirection = when {
                     isAgentWorking && !isVoiceListening && !autoSendActive -> ShimmerDirection.RIGHT_TO_LEFT
                     else -> ShimmerDirection.LEFT_TO_RIGHT
                 }
-                val shimmerColor = if (isThinkingModeEnabled) accentColor.copy(alpha = 0.15f) else LocalAccentColor.current.copy(alpha = 0.1f)
-                val shimmerSpeed = if (autoSendActive) 3.5f else if (isThinkingModeEnabled) 0.5f else 1f
+                val shimmerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                val shimmerSpeed = if (autoSendActive) 3.5f else 1f
 
                 Box(
                     modifier = Modifier
@@ -749,46 +739,6 @@ private fun InputPill(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Thinking Mode Indicator inside Pill
-                        if (isThinkingModeEnabled) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = accentColor.copy(alpha = 0.15f),
-                                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.3f)),
-                                modifier = Modifier
-                                    .padding(end = 8.dp)
-                                    .height(28.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .padding(horizontal = 8.dp)
-                                        .clickable { onToggleThinkingMode() }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Psychology,
-                                        contentDescription = null,
-                                        tint = accentColor,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        text = stringResource(R.string.reasoning_on),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = accentColor
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    // Cancel 'X'
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Cancel Thinking",
-                                        tint = accentColor.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                }
-                            }
-                        }
-
                         Box(modifier = Modifier.weight(1f)) {
                             var lineCount by remember { mutableIntStateOf(1) }
 
@@ -814,7 +764,7 @@ private fun InputPill(
 
                             // Placeholder
                             androidx.compose.animation.AnimatedVisibility(
-                                visible = value.text.isEmpty() && !isThinkingModeEnabled,
+                                visible = value.text.isEmpty(),
                                 enter = fadeIn(tween(150)),
                                 exit = fadeOut(tween(50))
                             ) {
@@ -957,21 +907,6 @@ private fun InputPill(
                                         onOpenCamera()
                                     }
                                 )
-
-                                // Option 3: Thinking Mode (Chat only)
-                                if (isChatMode) {
-                                    val thinkingLabel = if (isThinkingModeEnabled) "Disable Thinking" else "Thinking Mode"
-                                    DropdownMenuItem(
-                                        text = { Text(thinkingLabel, fontSize = 14.sp) },
-                                        leadingIcon = {
-                                            Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(20.dp), tint = if (isThinkingModeEnabled) accentColor else LocalContentColor.current)
-                                        },
-                                        onClick = {
-                                            showMenu = false
-                                            onToggleThinkingMode()
-                                        }
-                                    )
-                                }
                             }
                         }
                     }

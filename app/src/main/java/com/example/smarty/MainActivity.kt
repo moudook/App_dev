@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.DisposableEffect
@@ -37,26 +38,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
-import com.example.smarty.data.model.PlaybackState
-import com.example.smarty.data.local.AIConnection
-import com.example.smarty.ui.screens.LoginScreen
+import com.example.smarty.core.domain.model.PlaybackState
+import com.example.smarty.features.auth.ui.LoginScreen
 import com.google.firebase.auth.FirebaseAuth
-import com.example.smarty.util.rememberSpeechToText
+import com.example.smarty.features.voice.rememberSpeechToText
 import com.example.smarty.ui.components.audio.AnimatedMiniPlayer
 import com.example.smarty.ui.components.audio.FullAudioPlayer
 
 import com.example.smarty.ui.theme.SmartyTheme
 import com.example.smarty.data.worker.CacheCleanupWorker
 import com.example.smarty.service.AudioPlayerService
-import com.example.smarty.viewmodel.AudioPlayerViewModel
-import com.example.smarty.viewmodel.SmartyViewModel
-import com.example.smarty.viewmodel.SmartyViewModelFactory
-import com.example.smarty.viewmodel.AuthViewModel
-import com.example.smarty.viewmodel.AuthViewModelFactory
-import com.example.smarty.viewmodel.SharedContent
-import com.example.smarty.viewmodel.SharedFileInfo
-import com.example.smarty.ui.components.AttachmentOption
-import com.example.smarty.ui.components.OrganicThinkingIndicator
+import com.example.smarty.features.audio.domain.AudioPlayerViewModel
+import com.example.smarty.features.notes.domain.SmartyViewModel
+import com.example.smarty.features.notes.domain.SmartyViewModelFactory
+import com.example.smarty.features.auth.domain.AuthViewModel
+import com.example.smarty.features.auth.domain.AuthViewModelFactory
+import com.example.smarty.core.domain.model.SharedContent
+import com.example.smarty.core.domain.model.SharedFileInfo
 import com.example.smarty.navigation.Screen
 import com.example.smarty.navigation.SmartyNavHost
 
@@ -188,6 +186,7 @@ class MainActivity : ComponentActivity() {
                 val isChatMode by viewModel.isChatMode.collectAsState()
                 val chatMessages by viewModel.chatMessages.collectAsState()
                 val isChatProcessing by viewModel.isChatProcessing.collectAsState()
+                val agentActivity by viewModel.agentActivity.collectAsState()
 
                 // Chat history state
                 val chatSessions by viewModel.chatSessions.collectAsState()
@@ -196,13 +195,6 @@ class MainActivity : ComponentActivity() {
                 // @Mention autocomplete state
                 val mentionState by viewModel.mentionState.collectAsState()
                 val pendingChatText by viewModel.pendingChatText.collectAsState()
-                
-                // AI Planning Status (Progress UI)
-                val aiPlanStatus by viewModel.aiPlanStatus.collectAsState()
-                val currentToolName by viewModel.currentToolName.collectAsState()
-                
-                // Thinking mode toggle (Chat mode - for reasoning-capable models)
-                val isThinkingModeEnabled by viewModel.isThinkingModeEnabled.collectAsState()
 
                 // AI exclusion state
                 val isAiExcluded by viewModel.pendingNoteAiExcluded.collectAsState()
@@ -230,10 +222,8 @@ class MainActivity : ComponentActivity() {
                 // Shake sensitivity state
                 val shakeSensitivity by viewModel.shakeSensitivity.collectAsState()
 
-                // Local LLM Server IP/Port state (USB/WiFi)
-                val localServerIP by viewModel.localServerIP.collectAsState()
-                val localServerPort by viewModel.localServerPort.collectAsState()
-                val localServerUseHttps by viewModel.localServerUseHttps.collectAsState()
+                // Remote Server URL
+                val serverUrl by viewModel.serverUrl.collectAsState()
 
                 // Shake mode switch animation trigger
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
@@ -251,19 +241,8 @@ class MainActivity : ComponentActivity() {
                 // Audio playback request from AI agent
                 val pendingAudioPlayback by viewModel.pendingAudioPlayback.collectAsState()
 
-                // AI Memory state for settings UI
-                val aiMemories by viewModel.aiMemories.collectAsState()
-                val isMemorySyncInProgress by viewModel.isMemorySyncInProgress.collectAsState()
-                val memorySyncResult by viewModel.memorySyncResult.collectAsState()
-                val unreadForMemoryCount by viewModel.unreadForMemoryCount.collectAsState()
-
                 // AI Navigation state
                 val navigationRequest by viewModel.navigationRequest.collectAsState()
-
-                // Refresh count when notes change (in case notes are added/modified)
-                LaunchedEffect(notes) {
-                    viewModel.refreshUnreadForMemoryCount()
-                }
 
                 // Trigger audio playback when AI agent requests it
                 LaunchedEffect(pendingAudioPlayback) {
@@ -384,9 +363,9 @@ class MainActivity : ComponentActivity() {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     // Minimal loading indicator
-                                    OrganicThinkingIndicator(
-                                        baseColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                                        size = 32.dp
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                                        modifier = androidx.compose.ui.Modifier.size(32.dp)
                                     )
                                 }
                             }
@@ -537,11 +516,7 @@ class MainActivity : ComponentActivity() {
                                     isChatMode = isChatMode,
                                     chatMessages = chatMessages,
                                     isChatProcessing = isChatProcessing,
-                                    aiPlanStatus = aiPlanStatus,
-                                    currentToolName = currentToolName,
-                                    // Thinking mode toggle (Chat mode only)
-                                    isThinkingModeEnabled = isThinkingModeEnabled,
-                                    onToggleThinkingMode = { viewModel.toggleThinkingMode() },
+                                    agentActivity = agentActivity,
                                     onSendChatMessage = { content, attachments ->
                                         viewModel.sendChatMessage(content, attachments)
                                     },
@@ -688,24 +663,6 @@ class MainActivity : ComponentActivity() {
                                     onSetShakeBlocked = { blocked ->
                                         viewModel.setShakeBlocked(blocked)
                                     },
-                                    // AI Memory for settings UI
-                                    aiMemories = aiMemories,
-                                    onDeleteAIMemory = { memory ->
-                                        viewModel.deleteAIMemory(memory)
-                                    },
-                                    onClearAllAIMemories = {
-                                        viewModel.clearAllAIMemories()
-                                    },
-                                    // Memory sync
-                                    onSyncAIMemories = {
-                                        viewModel.syncAIMemoriesFromNotes()
-                                    },
-                                    isMemorySyncInProgress = isMemorySyncInProgress,
-                                    memorySyncResult = memorySyncResult,
-                                    unreadForMemoryCount = unreadForMemoryCount,
-                                    onClearMemorySyncResult = {
-                                        viewModel.clearMemorySyncResult()
-                                    },
                                     // Google Calendar Two-Way Sync
                                     isCalendarSyncEnabled = viewModel.isCalendarSyncEnabled.collectAsState().value,
                                     onSetCalendarSyncEnabled = { enabled ->
@@ -719,25 +676,13 @@ class MainActivity : ComponentActivity() {
                                     onLoadDeviceCalendars = {
                                         viewModel.loadDeviceCalendars()
                                     },
-                                    // Local LLM Server
-                                    isLocalPCEnabled = viewModel.isLocalPCEnabled.collectAsState().value,
-                                    onSetLocalPCEnabled = { enabled ->
-                                        viewModel.setLocalPCEnabled(enabled)
+                                    // Remote Server
+                                    serverUrl = serverUrl,
+                                    onSetServerUrl = { url ->
+                                        viewModel.setServerUrl(url)
                                     },
-                                    localServerIP = viewModel.localServerIP.collectAsState().value,
-                                    localServerPort = viewModel.localServerPort.collectAsState().value,
-                                    localServerUseHttps = viewModel.localServerUseHttps.collectAsState().value,
-                                    onSetLocalServerIP = { ip ->
-                                        viewModel.setLocalServerIP(ip)
-                                    },
-                                    onSetLocalServerPort = { port ->
-                                        viewModel.setLocalServerPort(port)
-                                    },
-                                    onSetLocalServerUseHttps = { useHttps ->
-                                        viewModel.setLocalServerUseHttps(useHttps)
-                                    },
-                                    onTestLocalServer = { ip, port, useHttps, callback ->
-                                        viewModel.testLocalServer(ip, port, useHttps, callback)
+                                    onTestServerConnection = { url, callback ->
+                                        viewModel.testServerConnection(url, callback)
                                     },
                                     navigationRequest = navigationRequest,
                                     onClearNavigationRequest = {

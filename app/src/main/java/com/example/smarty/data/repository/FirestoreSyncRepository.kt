@@ -1,10 +1,11 @@
 package com.example.smarty.data.repository
 
 import android.util.Log
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
+import com.example.smarty.core.common.util.PrivacyGuard
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
@@ -40,6 +41,12 @@ class FirestoreSyncRepository : SyncRepository {
 
     override suspend fun syncNote(note: Note): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(IllegalStateException("User not initialized"))
+
+        // PRIVACY ENFORCEMENT: Private notes must NEVER sync to cloud
+        if (note.isPrivate) {
+            Log.d(TAG, "PrivacyGuard: Blocking sync for private note ${note.id}")
+            return deleteNote(note.id)
+        }
 
         return try {
             val noteMap = noteToMap(note)
@@ -213,8 +220,7 @@ class FirestoreSyncRepository : SyncRepository {
             "isPinned" to note.isPinned,
             "reminderText" to note.reminderText,
             "reminderExpiresAt" to note.reminderExpiresAt,
-            "chunkAnalysesJson" to note.chunkAnalysesJson,
-            "isReadForMemory" to note.isReadForMemory
+            "chunkAnalysesJson" to note.chunkAnalysesJson
         )
     }
 
@@ -248,8 +254,7 @@ class FirestoreSyncRepository : SyncRepository {
             isPinned = map["isPinned"] as? Boolean ?: false,
             reminderText = map["reminderText"] as? String,
             reminderExpiresAt = (map["reminderExpiresAt"] as? Number)?.toLong(),
-            chunkAnalysesJson = map["chunkAnalysesJson"] as? String,
-            isReadForMemory = map["isReadForMemory"] as? Boolean ?: false
+            chunkAnalysesJson = map["chunkAnalysesJson"] as? String
         )
     }
 

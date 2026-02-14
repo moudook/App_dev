@@ -297,10 +297,10 @@ object AIResponseParser {
         val lower = content.lowercase()
 
         // Generate a fallback title
-        val fallbackTitle = com.example.smarty.util.ContentTypeDetector.extractTitle(
+        val fallbackTitle = com.example.smarty.core.common.util.ContentTypeDetector.extractTitle(
             context,
             content,
-            com.example.smarty.util.ContentTypeDetector.detectContentType(content)
+            com.example.smarty.core.common.util.ContentTypeDetector.detectContentType(content)
         )
 
         // URL-based categorization

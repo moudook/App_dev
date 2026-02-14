@@ -10,53 +10,74 @@ import org.slf4j.LoggerFactory
 object LlmProviderFactory {
     private val logger = LoggerFactory.getLogger(LlmProviderFactory::class.java)
 
-    fun create(client: HttpClient, providerOverride: String? = null, baseUrlOverride: String? = null, apiKeyOverride: String? = null): LlmProvider {
+    fun create(client: HttpClient, providerOverride: String? = null, baseUrlOverride: String? = null, apiKeyOverride: String? = null, modelIdOverride: String? = null): LlmProvider {
         val activeProvider = providerOverride?.uppercase()
             ?: System.getenv("ACTIVE_PROVIDER")?.uppercase()
             ?: "GEMINI"
-        logger.info("Initializing LLM Provider: $activeProvider (URL: $baseUrlOverride)")
+        
+        // Universal overrides from environment
+        val envBaseUrl = System.getenv("LLM_BASE_URL")?.takeIf { it.isNotBlank() }
+        val envModelId = System.getenv("LLM_MODEL_ID")?.takeIf { it.isNotBlank() }
+        
+        // Effective values (Function args > Env Vars > Default)
+        val finalBaseUrl = baseUrlOverride ?: envBaseUrl
+        val finalModelId = modelIdOverride ?: envModelId
+        logger.info("Initializing LLM Provider: $activeProvider")
 
         return when (activeProvider) {
-            "OPENAI" -> createOpenAi(client, apiKeyOverride)
-            "GROQ" -> createGroq(client, apiKeyOverride)
-            "DEEPSEEK" -> createDeepSeek(client, apiKeyOverride)
-            "GEMINI" -> createGemini(client, apiKeyOverride)
-            "CLAUDE", "ANTIGRAVITY" -> createClaude(client, baseUrlOverride, apiKeyOverride)
-            "OPENROUTER" -> createOpenRouter(client, apiKeyOverride)
-            "Cerebras" -> createCerebras(client, apiKeyOverride)
-            "GITHUB" -> createGitHub(client, apiKeyOverride)
-            "LOCAL" -> createLocal(client, baseUrlOverride, apiKeyOverride)
-            "LOCAL_PC" -> createLocal(client, baseUrlOverride, apiKeyOverride)
+            "GEMINI" -> {
+                val key = apiKeyOverride ?: System.getenv("GEMINI_API_KEY")
+                require(!key.isNullOrBlank()) { "ERROR: GEMINI_API_KEY is missing in your .env file. Please add it to use the GEMINI provider." }
+                createGemini(client, key)
+            }
+            "OPENAI" -> {
+                val key = apiKeyOverride ?: System.getenv("OPENAI_API_KEY")
+                require(!key.isNullOrBlank()) { "ERROR: OPENAI_API_KEY is missing in your .env file." }
+                createOpenAi(client, key, finalBaseUrl, finalModelId)
+            }
+            "CLAUDE" -> {
+                val key = apiKeyOverride ?: System.getenv("ANTHROPIC_API_KEY")
+                require(!key.isNullOrBlank()) { "ERROR: ANTHROPIC_API_KEY is missing in your .env file." }
+                createClaude(client, finalBaseUrl, key)
+            }
+            "GROQ" -> createGroq(client, apiKeyOverride, finalBaseUrl, finalModelId)
+            "DEEPSEEK" -> createDeepSeek(client, apiKeyOverride, finalBaseUrl, finalModelId)
+            "OPENROUTER" -> createOpenRouter(client, apiKeyOverride, finalBaseUrl, finalModelId)
+            "Cerebras" -> createCerebras(client, apiKeyOverride, finalBaseUrl, finalModelId)
+            "GITHUB" -> createGitHub(client, apiKeyOverride, finalBaseUrl, finalModelId)
+            "LOCAL", "LOCAL_PC" -> createLocal(client, finalBaseUrl, apiKeyOverride, finalModelId)
             "MOCK" -> createMock(client)
             else -> {
-                logger.warn("Unknown provider: $activeProvider. Fallback to OpenAI.")
-                createOpenAi(client, apiKeyOverride)
+                logger.warn("Unknown provider: $activeProvider. Falling back to Gemini.")
+                val key = apiKeyOverride ?: System.getenv("GEMINI_API_KEY")
+                require(!key.isNullOrBlank()) { "ERROR: GEMINI_API_KEY is missing in your .env file." }
+                createGemini(client, key)
             }
         }
     }
 
-    private fun createOpenAi(client: HttpClient, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(
+    private fun createOpenAi(client: HttpClient, apiKeyOverride: String? = null, baseUrlOverride: String? = null, modelIdOverride: String? = null) = OpenAiCompatibleProvider(
         client = client,
         providerName = "OpenAI",
-        baseUrl = "https://api.openai.com/v1",
+        baseUrl = baseUrlOverride ?: "https://api.openai.com/v1",
         apiKey = apiKeyOverride ?: System.getenv("OPENAI_API_KEY") ?: "",
-        defaultModel = "gpt-4-turbo-preview"
+        defaultModel = modelIdOverride ?: "gpt-4-turbo-preview"
     )
 
-    private fun createGroq(client: HttpClient, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(
+    private fun createGroq(client: HttpClient, apiKeyOverride: String? = null, baseUrlOverride: String? = null, modelIdOverride: String? = null) = OpenAiCompatibleProvider(
         client = client,
         providerName = "Groq",
-        baseUrl = "https://api.groq.com/openai/v1",
+        baseUrl = baseUrlOverride ?: "https://api.groq.com/openai/v1",
         apiKey = apiKeyOverride ?: System.getenv("GROQ_API_KEY") ?: "",
-        defaultModel = "llama3-70b-8192"
+        defaultModel = modelIdOverride ?: "llama3-70b-8192"
     )
 
-    private fun createDeepSeek(client: HttpClient, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(
+    private fun createDeepSeek(client: HttpClient, apiKeyOverride: String? = null, baseUrlOverride: String? = null, modelIdOverride: String? = null) = OpenAiCompatibleProvider(
         client = client,
         providerName = "DeepSeek",
-        baseUrl = "https://api.deepseek.com",
+        baseUrl = baseUrlOverride ?: "https://api.deepseek.com",
         apiKey = apiKeyOverride ?: System.getenv("DEEPSEEK_API_KEY") ?: "",
-        defaultModel = "deepseek-chat"
+        defaultModel = modelIdOverride ?: "deepseek-chat"
     )
 
     private fun createGemini(client: HttpClient, apiKeyOverride: String? = null) = GeminiProvider(
@@ -70,36 +91,36 @@ object LlmProviderFactory {
         baseUrl = baseUrlOverride ?: System.getenv("ANTHROPIC_BASE_URL") ?: "https://api.anthropic.com/v1"
     )
 
-    private fun createOpenRouter(client: HttpClient, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(
+    private fun createOpenRouter(client: HttpClient, apiKeyOverride: String? = null, baseUrlOverride: String? = null, modelIdOverride: String? = null) = OpenAiCompatibleProvider(
         client = client,
         providerName = "OpenRouter",
-        baseUrl = "https://openrouter.ai/api/v1",
+        baseUrl = baseUrlOverride ?: "https://openrouter.ai/api/v1",
         apiKey = apiKeyOverride ?: System.getenv("OPENROUTER_API_KEY") ?: "",
-        defaultModel = "openai/gpt-4o" // OpenRouter requires 'provider/model' format
+        defaultModel = modelIdOverride ?: "openai/gpt-4o" // OpenRouter requires 'provider/model' format
     )
 
-    private fun createCerebras(client: HttpClient, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(
+    private fun createCerebras(client: HttpClient, apiKeyOverride: String? = null, baseUrlOverride: String? = null, modelIdOverride: String? = null) = OpenAiCompatibleProvider(
         client = client,
         providerName = "Cerebras",
-        baseUrl = "https://api.cerebras.ai/v1",
+        baseUrl = baseUrlOverride ?: "https://api.cerebras.ai/v1",
         apiKey = apiKeyOverride ?: System.getenv("CEREBRAS_API_KEY") ?: "",
-        defaultModel = "llama3.1-70b"
+        defaultModel = modelIdOverride ?: "llama3.1-70b"
     )
 
-    private fun createGitHub(client: HttpClient, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(
+    private fun createGitHub(client: HttpClient, apiKeyOverride: String? = null, baseUrlOverride: String? = null, modelIdOverride: String? = null) = OpenAiCompatibleProvider(
         client = client,
         providerName = "GitHub Models",
-        baseUrl = "https://models.inference.ai.azure.com",
+        baseUrl = baseUrlOverride ?: "https://models.inference.ai.azure.com",
         apiKey = apiKeyOverride ?: System.getenv("GITHUB_TOKEN") ?: "",
-        defaultModel = "gpt-4o"
+        defaultModel = modelIdOverride ?: "gpt-4o"
     )
 
-    private fun createLocal(client: HttpClient, baseUrlOverride: String? = null, apiKeyOverride: String? = null) = OpenAiCompatibleProvider(
+    private fun createLocal(client: HttpClient, baseUrlOverride: String?, apiKeyOverride: String? = null, modelIdOverride: String? = null) = OpenAiCompatibleProvider(
         client = client,
         providerName = "Local LLM",
         baseUrl = baseUrlOverride ?: System.getenv("LOCAL_LLM_URL") ?: "http://localhost:8000/v1",
         apiKey = apiKeyOverride ?: System.getenv("LOCAL_LLM_KEY") ?: "not-needed",
-        defaultModel = System.getenv("LOCAL_LLM_MODEL") ?: "chatglm3-6b"
+        defaultModel = modelIdOverride ?: System.getenv("LOCAL_LLM_MODEL") ?: "chatglm3-6b"
     )
 
     private fun createMock(client: HttpClient) = OpenAiCompatibleProvider(

@@ -1,82 +1,13 @@
-#info
-# Ignore all markdown files globally
-*.md
-*.log
-build_*
-errors.txt
-logs/
-
-# project docs
-!README.md
-!DEPLOYMENT.md
-
-
-
-
-
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-build/
-**/build/
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-
-# Windows device names
-nul
-NUL
-con
-CON
-aux
-AUX
-prn
-PRN
-
-
 # ============================================
-# PRIVATE FILES DIRECTORY
+# PROJECT-SPECIFIC DIRECTORIES (Metadata & AI)
 # ============================================
-# All sensitive files (issues, solutions, screenshots, 
-# reference docs, personal notes, etc.) go in _private/
-_private/
-
-# ============================================
-# GENERAL FILE TYPE IGNORES
-# ============================================
-# Reference/Notes file types
-*.notes
-*.reference
-refrences/
-*.pdf
-
-# Temporary files
-*.tmp
-*.temp
-*.bak
-*.swp
-temp.txt
-instructions.txt
-
-# Screenshot patterns (general)
-thread-*.png
-screenshot*.png
-*.png
-
-# ============================================
-# PROJECT-SPECIFIC DIRECTORIES
-# ============================================
-# AI Agent Documentation (local reference only)
+.antigravity/
+.claude/
+.qoder/
+.kotlin/
 .agent/
 # .agent/*.md (now allowed for workflows)
+AUDIO_effects/
 
 # Speech Recognition Models (see README for download instructions)
 vosk-model-*/
@@ -88,46 +19,27 @@ app/src/main/assets/vosk-model-*/
 # Text-to-Speech Models (downloadable)
 app/src/main/assets/tts_models/
 
-# Experiment directories
-AUDIO_effects/
-
-
+# ============================================
+# LARGE & REDUNDANT DIRECTORIES
+# ============================================
+original/
+do any/
 for_my_reference/
-system-prompts-and-models-of-ai-tools-main
+system-prompts-and-models-of-ai-tools-main/
 optimization-analysis-report/
-
-# LLM Server Binaries (Ignore all except startup scripts)
-LLM_THROUGH_USB_THEARING/llama-b7541-bin-win-cuda-12.4-x64/
-
-
-
-# ============================================
-# IDE & BUILD FILES
-# ============================================
-# IDE specific
+logs/
+build/
+**/build/
+.gradle/
 .idea/
-*.ipr
-*.iws
+.vscode/
 
-# Build outputs
-app/release/
-app/debug/
+# ============================================
+# BINARIES & EXECUTABLES
+# ============================================
+*.exe
 *.apk
 *.aab
-build_output.txt
-build_errors_utf8.txt
-build_errors_2.txt
-build_errors_3.txt
-build_errors_4.txt
-build_errors_5.txt
-build_errors.txt
-build_log.txt
-tasks_and_issues.txt
-
-# Compiled files
-*.class
-*.dex
-*.ap_
 *.jar
 *.war
 *.ear
@@ -135,16 +47,45 @@ tasks_and_issues.txt
 # Keep sherpa-onnx AAR for TTS
 !app/libs/sherpa-onnx.aar
 *.so
-
 bin/
 gen/
 out/
 release/
+app/release/
+app/debug/
+
+# ============================================
+# MACHINE-SPECIFIC & LOCAL SCRIPTS
+# ============================================
+*.bat
+*.sh
+*.py
+!gradlew
+!gradlew.bat
+# Note: Keep these in if they are shared, but they often contain local paths
+start_smarty.bat
+start_tunnel.bat
+run_server_public.bat
+run_local_server.bat
+run_server_build.bat
+run_server_antigravity.bat
+run_proxy.bat
+setup_ngrok.bat
+init_database.bat
+connect_via_usb.bat
+create_keystore.bat
+move_backups.py
+remove_emojis.py
+verify_backend.py
 
 # ============================================
 # SECURITY & CREDENTIALS
 # ============================================
-# Login & Credentials - COMPREHENSIVE PROTECTION
+.env
+.env.*
+*.env
+.envrc
+secrets.*
 *.keystore
 *.jks
 keystore.properties
@@ -166,51 +107,71 @@ credentials.json
 **/*-service-account.json
 **/*token*.json
 **/*tokens*.json
-
-# Environment files (all variations)
-.env
-.env.*
-*.env
-.envrc
-
-# API keys in any format
 **/api_key*
 **/apikey*
 **/*_secret*
 **/*_credentials*
 
-# Debug/Development database files
-*.db
-*.sqlite
-*.sqlite3
-# Gradle
-.gradle/
-build/
-
-# Android
-local.properties
-*.keystore
-*.jks
-
-# Environment
-.env
-.env.*
-secrets.*
-
-# IDE
-.idea/
-.vscode/
-
-# OS
-.DS_Store
-Thumbs.db
-
-
 # Ktor / Server secrets
 application-*.conf
 !application.conf
-
-# Local Server & Ngrok
-ngrok.exe
 ngrok.yml
-start_server.sh
+
+# ============================================
+# OS & IDE FILES
+# ============================================
+.DS_Store
+Thumbs.db
+*.iml
+*.ipr
+*.iws
+.externalNativeBuild
+.cxx
+local.properties
+captures/
+nul
+NUL
+con
+CON
+aux
+AUX
+prn
+PRN
+
+# ============================================
+# PRIVATE FILES DIRECTORY
+# ============================================
+_private/
+
+# ============================================
+# GENERAL FILE TYPE IGNORES
+# ============================================
+*.notes
+*.reference
+refrences/
+*.pdf
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+temp.txt
+instructions.txt
+errors.txt
+build_*.txt
+thread-*.png
+screenshot*.png
+*.png
+# Ignore all markdown files except core docs
+*.md
+!README.md
+!DEPLOYMENT.md
+!LOCAL_HOSTING.md
+
+# ============================================
+# MISC LOCAL PATHS
+# ============================================
+C:/Users/gbust/DOOMSDAY/TESTING/
+**/antigravity-claude-proxy/
+LLM_THROUGH_USB_THEARING/
+C:\Users\gbust\Smarty\LLM_THROUGH_USB_THEARING\llama-b7541-bin-win-cuda-12.4-x64/

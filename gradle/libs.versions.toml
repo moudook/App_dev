@@ -39,8 +39,10 @@ googleServices = "4.4.4"
 firebaseBom = "34.7.0"
 crashlyticsPlugin = "3.0.2"
 leakcanary = "2.14"
+javaxInject = "1"
 
 [libraries]
+javax-inject = { group = "javax.inject", name = "javax.inject", version.ref = "javaxInject" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

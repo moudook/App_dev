@@ -4,11 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.service.voice.VoiceInteractionSession
-import com.example.smarty.AssistActivity
+import com.example.smarty.features.chat.ui.AssistActivity
 
 /**
- * Session that handles the assistant interaction.
- * When the user triggers the assistant (e.g., long press home),
+ * Session that handles the Smarty interaction.
+ * When the user triggers Smarty (e.g., long press home),
  * this session is created and launches the AssistActivity.
  */
 class AssistInteractionSession(context: Context) : VoiceInteractionSession(context) {

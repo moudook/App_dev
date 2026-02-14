@@ -1,4 +1,4 @@
-package com.example.smarty.data.model
+package com.example.smarty.core.domain.model
 
 /**
  * Data models for the Note Tagging/Reference System.
@@ -36,7 +36,7 @@ enum class MentionType {
     CATEGORY,
     /** Special filter like @recent or @pinned */
     SPECIAL_FILTER,
-    /** Command like @thinking for deep document analysis */
+    /** Command like @analyze */
     COMMAND
 }
 
@@ -112,7 +112,7 @@ sealed class MentionSuggestion {
     ) : MentionSuggestion()
 
     /**
-     * Suggestion for commands like @thinking.
+     * Suggestion for commands like @analyze.
      * @param commandName Command name without @
      * @param displayName Display text
      * @param description What the command does
@@ -122,7 +122,7 @@ sealed class MentionSuggestion {
         val commandName: String,
         val displayName: String,
         val description: String,
-        val icon: String = "thinking"
+        val icon: String = "analytics"
     ) : MentionSuggestion()
 }
 
@@ -160,57 +160,6 @@ data class NoteChunk(
     val charCount: Int,
     /** Total chunks for this note */
     val totalChunksInNote: Int = 1
-)
-
-/**
- * Context for @thinking deep document analysis mode.
- * When user types @thinking with a note that has a document attached,
- * this contains the FULL document content processed in chunks for deep AI analysis.
- */
-data class ThinkingModeContext(
-    /** Whether @thinking mode is active */
-    val isThinkingMode: Boolean = false,
-    /** The note being analyzed (if any) */
-    val targetNote: Note? = null,
-    /** Full document content (extracted from PDF, etc.) */
-    val fullDocumentContent: String = "",
-    /** Document content split into processable chunks */
-    val documentChunks: List<DocumentChunk> = emptyList(),
-    /** Total character count of full document */
-    val totalChars: Int = 0,
-    /** User's question/query about the document */
-    val userQuery: String = "",
-    /** Document file name for context */
-    val documentFileName: String? = null
-) {
-    companion object {
-        /** Maximum chars per chunk for processing (~1000 tokens) */
-        const val CHARS_PER_CHUNK = 4000
-        /** Overlap between chunks for context continuity */
-        const val OVERLAP_CHARS = 300
-        /** Maximum total document size to process (~20k tokens, fits in 32k context) */
-        const val MAX_DOCUMENT_SIZE = 80000
-        /** Maximum tokens to reserve for document (leaves room for system prompt) */
-        const val MAX_CONTEXT_TOKENS = 24000
-    }
-}
-
-/**
- * A chunk of document content for sequential processing.
- */
-data class DocumentChunk(
-    /** Chunk index (0-based) */
-    val index: Int,
-    /** Total number of chunks */
-    val totalChunks: Int,
-    /** The chunk content */
-    val content: String,
-    /** Character count */
-    val charCount: Int,
-    /** Start position in original document */
-    val startPosition: Int,
-    /** End position in original document */
-    val endPosition: Int
 )
 
 /**

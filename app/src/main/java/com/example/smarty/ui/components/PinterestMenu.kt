@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.animation.SmartyMotion
 import com.example.smarty.ui.theme.*
-import com.example.smarty.util.rememberHapticHelper
+import com.example.smarty.core.common.util.rememberHapticHelper
 import kotlin.math.*
 
 /**

@@ -1,34 +1,36 @@
 package com.example.smarty.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.ui.components.OrganicThinkingIndicator
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.ElectricBlue
 
@@ -64,9 +66,10 @@ fun SmartyButton(
         )
     ) {
         if (isLoading) {
-            OrganicThinkingIndicator(
-                size = 24.dp,
-                baseColor = contentColor
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = contentColor,
+                strokeWidth = 2.dp
             )
         } else {
             Text(
@@ -159,9 +162,10 @@ fun SmartyGoogleButton(
         enabled = !isLoading
     ) {
         if (isLoading) {
-             OrganicThinkingIndicator(
-                size = 24.dp,
-                baseColor = LocalAccentColor.current
+             CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = LocalAccentColor.current,
+                strokeWidth = 2.dp
             )
         } else {
             // In a real app, use the Google G logo drawable
@@ -333,3 +337,131 @@ fun GlassySurface(
 ) {
     TechnicalSurface(modifier, shape, content)
 }
+
+// -----------------------------------------------------------------------------
+// SKELETON LOADING COMPONENTS
+// -----------------------------------------------------------------------------
+
+/**
+ * Shimmer effect modifier for skeleton loading.
+ * Animates a gradient sweep across the component.
+ */
+fun Modifier.shimmerEffect(): Modifier = composed {
+    var size by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val startOffsetX by transition.animateFloat(
+        initialValue = -2 * size.width.toFloat(),
+        targetValue = 2 * size.width.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000)
+        ),
+        label = "shimmer"
+    )
+
+    background(
+        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(
+                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.colorScheme.surface, // Lighter in middle
+                MaterialTheme.colorScheme.surfaceVariant,
+            ),
+            start = androidx.compose.ui.geometry.Offset(startOffsetX, 0f),
+            end = androidx.compose.ui.geometry.Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
+        )
+    ).onGloballyPositioned {
+        size = it.size
+    }
+}
+
+/**
+ * Generic Skeleton List.
+ */
+@Composable
+fun SkeletonList(
+    count: Int = 3,
+    modifier: Modifier = Modifier,
+    skeleton: @Composable () -> Unit
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(count) {
+            skeleton()
+        }
+    }
+}
+
+/**
+ * Skeleton for Calendar Event.
+ */
+@Composable
+fun EventCardSkeleton(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).shimmerEffect())
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Box(modifier = Modifier.fillMaxWidth(0.6f).height(16.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(modifier = Modifier.fillMaxWidth(0.4f).height(12.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
+            }
+        }
+    }
+}
+
+/**
+ * Loading state for Calendar.
+ */
+@Composable
+fun CalendarLoadingState(
+    count: Int = 4,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        repeat(count) {
+             EventCardSkeleton(modifier = Modifier.padding(horizontal = 16.dp))
+        }
+    }
+}
+
+/**
+ * Skeleton placeholder for a ChatMessage while loading history.
+ */
+@Composable
+fun ChatMessageSkeleton(isFromUser: Boolean = false) {
+    val alignment = if (isFromUser) Alignment.End else Alignment.Start
+    val bubbleShape = if (isFromUser) RoundedCornerShape(24.dp, 24.dp, 4.dp, 24.dp) else RoundedCornerShape(24.dp, 24.dp, 24.dp, 4.dp)
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalAlignment = alignment
+    ) {
+         Surface(
+            shape = bubbleShape,
+            color = if (isFromUser) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent,
+            modifier = Modifier.widthIn(min = 100.dp, max = 280.dp)
+         ) {
+             Column(modifier = Modifier.padding(16.dp)) {
+                 Box(modifier = Modifier.width(180.dp).height(16.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
+                 Spacer(modifier = Modifier.height(8.dp))
+                 Box(modifier = Modifier.width(120.dp).height(16.dp).clip(RoundedCornerShape(4.dp)).shimmerEffect())
+             }
+         }
+    }
+}
+
+/**
+ * Empty state for Stacks screen.
+ */
+// Removed StacksEmptyState as it is already defined in ChatEmptyState.kt
+
+/**
+ * Empty state for Chat History screen.
+ */
+// Removed ChatHistoryEmptyState as it is already defined in ChatEmptyState.kt

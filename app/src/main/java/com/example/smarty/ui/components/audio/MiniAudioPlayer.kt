@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.AudioPlayerUiState
+import com.example.smarty.core.domain.model.AudioPlayerUiState
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.CalmLinearProgress
 import com.example.smarty.ui.theme.ComponentSpacing

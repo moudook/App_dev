@@ -64,6 +64,15 @@ dependencies {
     implementation(libs.pgvector)
     implementation(libs.hikaricp)
 
+    // Firebase Admin SDK (for JWT verification)
+    implementation("com.google.firebase:firebase-admin:9.2.0")
+
+    // PDF Processing
+    implementation("org.apache.pdfbox:pdfbox:3.0.0")
+
+    // Ktor Authentication
+    implementation("io.ktor:ktor-server-auth:3.0.0")
+
     // Testing
     testImplementation(kotlin("test"))
 }

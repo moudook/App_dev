@@ -10,7 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,7 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.ChatSession
+import com.example.smarty.core.domain.model.ChatSession
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.rememberMonochromeAccent
@@ -198,8 +199,8 @@ private fun ChatSessionItem(
             Box(contentAlignment = Alignment.Center) {
                 // Smart Icon Logic
                 val icon = when {
-                    isNewChat -> Icons.Default.Assistant // Standard AI
-                    isSelected -> Icons.Default.Assistant // Active AI
+                    isNewChat -> Icons.Default.AutoAwesome // Standard AI
+                    isSelected -> Icons.Default.AutoAwesome // Active AI
                     else -> Icons.AutoMirrored.Filled.Chat // History
                 }
 

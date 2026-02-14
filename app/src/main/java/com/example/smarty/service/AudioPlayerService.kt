@@ -18,9 +18,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.smarty.R
-import com.example.smarty.data.model.AudioPlayerState
-import com.example.smarty.data.model.AudioTrack
-import com.example.smarty.data.model.PlaybackState
+import com.example.smarty.core.domain.model.AudioPlayerState
+import com.example.smarty.core.domain.model.AudioTrack
+import com.example.smarty.core.domain.model.PlaybackState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

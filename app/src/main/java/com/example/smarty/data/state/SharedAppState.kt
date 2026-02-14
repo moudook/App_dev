@@ -22,6 +22,9 @@ class SharedAppState {
     private val _connectionStatus = MutableStateFlow(ConnectionStatus.CONNECTED)
     val connectionStatus: StateFlow<ConnectionStatus> = _connectionStatus.asStateFlow()
 
+    private val _navigationRequest = MutableStateFlow<String?>(null)
+    val navigationRequest: StateFlow<String?> = _navigationRequest.asStateFlow()
+
     private val _cacheSizeBytes = MutableStateFlow(0L)
     val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
 
@@ -41,7 +44,12 @@ class SharedAppState {
         _connectionStatus.value = status
     }
 
+    fun setNavigationRequest(screen: String?) {
+        _navigationRequest.value = screen
+    }
+
     fun setCacheSizeBytes(size: Long) {
         _cacheSizeBytes.value = size
     }
 }
+

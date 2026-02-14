@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.example.smarty.data.local.AIConnection
 
+import java.util.UUID
+
 /**
  * Available models for the Local LLM connection.
  */
@@ -96,19 +98,21 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
 
         // Local PC USB/WiFi Tethering
-        private const val KEY_LOCAL_PC_IP = "local_pc_ip"
-        private const val KEY_LOCAL_PC_PORT = "local_pc_port"
-        private const val KEY_LOCAL_PC_USE_HTTPS = "local_pc_use_https"
-        private const val KEY_LOCAL_PC_ENABLED = "local_pc_enabled"
-
-        private const val DEFAULT_LOCAL_PC_IP = "largest-camron-usuriously.ngrok-free.dev"
-        private const val DEFAULT_LOCAL_PC_PORT = "443"
-        private const val DEFAULT_LOCAL_PC_USE_HTTPS = true
-        private const val DEFAULT_LOCAL_PC_ENABLED = true
+        private const val KEY_SERVER_URL = "server_url"
+        // Default to localhost for emulator (10.0.2.2) or USB (127.0.0.1)
+        // Users can paste ngrok URL here
+        private const val DEFAULT_SERVER_URL = "http://10.0.2.2:7860"
 
         // Google Calendar Sync
         private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
         private const val KEY_TARGET_GOOGLE_CALENDAR_ID = "target_google_calendar_id"
+
+        // AI Provider Strategy
+        private const val KEY_PROVIDER_STRATEGY = "provider_strategy"
+        private const val DEFAULT_PROVIDER_STRATEGY = "BALANCED"
+
+        // Security
+        private const val KEY_DEVICE_ID = "device_id"
 
         @Volatile
         private var INSTANCE: SecurePreferences? = null
@@ -198,34 +202,54 @@ class SecurePreferences(private val context: Context) {
     fun getLastFtsMaintenance(): Long = encryptedPrefs.getLong(KEY_LAST_FTS_MAINTENANCE, 0L)
     fun setLastFtsMaintenance(timestamp: Long) = encryptedPrefs.edit().putLong(KEY_LAST_FTS_MAINTENANCE, timestamp).apply()
 
-    // Local PC Settings
-    fun getLocalPCIP(): String = encryptedPrefs.getString(KEY_LOCAL_PC_IP, DEFAULT_LOCAL_PC_IP) ?: DEFAULT_LOCAL_PC_IP
-    fun setLocalPCIP(ip: String) = encryptedPrefs.edit().putString(KEY_LOCAL_PC_IP, ip.trim()).apply()
-    fun getLocalPCPort(): String = encryptedPrefs.getString(KEY_LOCAL_PC_PORT, DEFAULT_LOCAL_PC_PORT) ?: DEFAULT_LOCAL_PC_PORT
-    fun setLocalPCPort(port: String) {
-        val portNum = port.trim().toIntOrNull()
-        if (portNum != null && portNum in 1..65535) {
-            encryptedPrefs.edit().putString(KEY_LOCAL_PC_PORT, port.trim()).apply()
-        }
-    }
-    fun getLocalPCUseHttps(): Boolean = encryptedPrefs.getBoolean(KEY_LOCAL_PC_USE_HTTPS, DEFAULT_LOCAL_PC_USE_HTTPS)
-    fun setLocalPCUseHttps(useHttps: Boolean) = encryptedPrefs.edit().putBoolean(KEY_LOCAL_PC_USE_HTTPS, useHttps).apply()
-    fun isLocalPCEnabled(): Boolean = encryptedPrefs.getBoolean(KEY_LOCAL_PC_ENABLED, DEFAULT_LOCAL_PC_ENABLED)
-    fun setLocalPCEnabled(enabled: Boolean) {
-        encryptedPrefs.edit().putBoolean(KEY_LOCAL_PC_ENABLED, enabled).apply()
-    }
+    // Server Settings (Remote Only)
+    fun getServerUrl(): String = encryptedPrefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
 
-    fun getLocalPCUrl(): String {
-        val protocol = if (getLocalPCUseHttps()) "https" else "http"
-        return "$protocol://${getLocalPCIP()}:${getLocalPCPort()}/v1/chat/completions"
+    fun setServerUrl(url: String) {
+        // Ensure no trailing slash for consistency
+        val cleanUrl = url.trim().removeSuffix("/")
+        encryptedPrefs.edit().putString(KEY_SERVER_URL, cleanUrl).apply()
     }
 
     fun getSmartyServerUrl(): String {
-        val protocol = if (getLocalPCUseHttps()) "https" else "http"
-        return "$protocol://${getLocalPCIP()}:${getLocalPCPort()}"
+        return getServerUrl()
     }
+
+    // Compatibility methods for AIConnectionOrchestrator
+    fun getLocalPCUrl(): String = getServerUrl()
+    fun isLocalPCEnabled(): Boolean = true // Always enabled in Remote-Only mode
 
     fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> {
         return AIModels.getModelsForConnection(connection)
+    }
+
+    // AI Provider Strategy
+    fun getProviderStrategy(): String = encryptedPrefs.getString(KEY_PROVIDER_STRATEGY, DEFAULT_PROVIDER_STRATEGY) ?: DEFAULT_PROVIDER_STRATEGY
+    fun setProviderStrategy(strategy: String) = encryptedPrefs.edit().putString(KEY_PROVIDER_STRATEGY, strategy).apply()
+
+    /**
+     * Get or create a unique, persistent Device ID.
+     * Uses a random UUID that persists across app launches but is cleared on uninstall.
+     * This is safer than using hardware identifiers or user ID hashes.
+     */
+    fun getDeviceId(): String {
+        var deviceId = encryptedPrefs.getString(KEY_DEVICE_ID, null)
+        if (deviceId == null) {
+            deviceId = "smarty-" + UUID.randomUUID().toString()
+            encryptedPrefs.edit().putString(KEY_DEVICE_ID, deviceId).apply()
+        }
+        return deviceId!!
+    }
+
+    /**
+     * Clear all user-specific preferences.
+     * Called on sign-out to prevent data leakage.
+     * Note: Does not clear app-level settings like theme preference.
+     */
+    fun clearAll() {
+        encryptedPrefs.edit()
+            .remove(KEY_GOOGLE_ACCOUNT_EMAIL)
+            // Add other user-specific keys here if needed
+            .apply()
     }
 }

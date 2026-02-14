@@ -1,4 +1,4 @@
-package com.example.smarty.data.model
+package com.example.smarty.core.domain.model
 
 import androidx.room.Entity
 import androidx.room.Index

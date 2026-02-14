@@ -57,14 +57,14 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * ═══════════════════════════════════════════════════════════════════════════════
+ * 
  * PREMIUM ADD EVENT SHEET
  *
  * Design: Calm Aesthetic, theme-aware
  * - Integrated with Material 3 dynamic colors
  * - Electric Blue accent (consistent with Smarty design)
  * - Gradient accents and modern form fields
- * ═══════════════════════════════════════════════════════════════════════════════
+ * 
  */
 
 // Theme-aware color functions for composable contexts
@@ -176,9 +176,9 @@ fun AddEventSheet(
         initialMinute = endMinute
     )
 
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     // MAIN SHEET (Dark Theme)
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -206,9 +206,9 @@ fun AddEventSheet(
                 )
             }
 
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             // HEADER
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -285,9 +285,9 @@ fun AddEventSheet(
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
             )
 
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             // SCROLLABLE FORM
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             Column(
                 modifier = Modifier
                     .weight(1f, fill = false)
@@ -383,7 +383,7 @@ fun AddEventSheet(
                 DarkFormRow(
                     icon = Icons.Default.Lock,
                     title = stringResource(R.string.private_event),
-                    subtitle = stringResource(R.string.hidden_from_ai_assistant),
+                    subtitle = stringResource(R.string.hidden_from_smarty),
                     trailing = {
                         Switch(
                             checked = isPrivate,
@@ -406,9 +406,9 @@ fun AddEventSheet(
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     // DIALOGS (Using dark theme overrides)
-    // ═══════════════════════════════════════════════════════════════════
+    // 
 
     // Date Picker Dialog
     if (showDatePicker) {
@@ -527,9 +527,9 @@ fun AddEventSheet(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 // DARK THEMED FORM COMPONENTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 @Composable
 private fun DarkTextField(

@@ -564,4 +564,30 @@ object Migrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_calendar_events_googleEventId ON calendar_events(googleEventId)")
         }
     }
+
+    /**
+     * Migration 29 → 30: Add ai_cache table for persistent AI response caching.
+     * Enables cache persistence across app restarts with TTL-based expiration.
+     */
+    val MIGRATION_29_30 = object : Migration(29, 30) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Create ai_cache table
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS ai_cache (
+                    contentHash TEXT PRIMARY KEY NOT NULL,
+                    jsonResponse TEXT NOT NULL,
+                    createdAt INTEGER NOT NULL,
+                    expiresAt INTEGER NOT NULL,
+                    lastAccessedAt INTEGER NOT NULL
+                )
+            """)
+
+            // Index for cleanup queries (expired entries)
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_ai_cache_expiresAt ON ai_cache(expiresAt)")
+
+            // Index for LRU eviction
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_ai_cache_lastAccessedAt ON ai_cache(lastAccessedAt)")
+        }
+    }
 }
+

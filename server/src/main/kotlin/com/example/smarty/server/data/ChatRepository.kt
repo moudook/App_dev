@@ -10,36 +10,61 @@ import javax.sql.DataSource
 
 /**
  * Repository for managing chat sessions and persistent history in the database.
+ * All operations are isolated by userId for multi-tenant security.
  */
 class ChatRepository(private val dataSource: DataSource) {
     private val logger = LoggerFactory.getLogger(ChatRepository::class.java)
 
     /**
-     * Creates a new chat session and returns its UUID.
+     * Creates a new chat session for a specific user and returns its UUID.
+     *
+     * @param userId The authenticated user's ID
+     * @param title Optional session title
      */
-    suspend fun createSession(title: String? = null): String = withContext(Dispatchers.IO) {
+    suspend fun createSession(userId: String, title: String? = null): String = withContext(Dispatchers.IO) {
         val id = UUID.randomUUID()
         dataSource.connection.use { conn ->
-            val sql = "INSERT INTO chat_sessions (id, title) VALUES (?, ?)"
+            val sql = "INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?)"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, id)
-                stmt.setString(2, title)
+                stmt.setString(2, userId)
+                stmt.setString(3, title)
                 stmt.executeUpdate()
             }
         }
+        logger.debug("Created session {} for user {}", id, userId)
         id.toString()
     }
 
     /**
      * Saves a message to a specific session.
+     * Validates that the session belongs to the user before saving.
+     *
+     * @param userId The authenticated user's ID
+     * @param sessionId The session UUID
+     * @param role The message role (USER, SMARTY, TOOL, etc.)
+     * @param content The message content
      */
-    suspend fun saveMessage(sessionId: String, role: String, content: String) = withContext(Dispatchers.IO) {
+    suspend fun saveMessage(userId: String, sessionId: String, role: String, content: String) = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            val sql = "INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)"
+            // Verify session belongs to user before inserting message
+            val verifySql = "SELECT 1 FROM chat_sessions WHERE id = ? AND user_id = ?"
+            conn.prepareStatement(verifySql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(sessionId))
+                stmt.setString(2, userId)
+                val exists = stmt.executeQuery().next()
+                if (!exists) {
+                    logger.warn("Session {} does not belong to user {}", sessionId, userId)
+                    throw IllegalAccessException("Session does not belong to user")
+                }
+            }
+
+            val sql = "INSERT INTO chat_messages (session_id, user_id, role, content) VALUES (?, ?, ?, ?)"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, role)
-                stmt.setString(3, content)
+                stmt.setString(2, userId)
+                stmt.setString(3, role)
+                stmt.setString(4, content)
                 stmt.executeUpdate()
             }
         }
@@ -47,21 +72,28 @@ class ChatRepository(private val dataSource: DataSource) {
 
     /**
      * Retrieves the conversation history for a session, ordered by creation time.
+     * Only returns messages for sessions owned by the specified user.
+     *
+     * @param userId The authenticated user's ID
+     * @param sessionId The session UUID
+     * @param limit Maximum number of messages to return
      */
-    suspend fun getHistory(sessionId: String, limit: Int = 50): List<LlmMessage> = withContext(Dispatchers.IO) {
+    suspend fun getHistory(userId: String, sessionId: String, limit: Int = 50): List<LlmMessage> = withContext(Dispatchers.IO) {
         val history = mutableListOf<LlmMessage>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT role, content
-                FROM chat_messages
-                WHERE session_id = ?
-                ORDER BY created_at ASC
+                SELECT cm.role, cm.content
+                FROM chat_messages cm
+                JOIN chat_sessions cs ON cm.session_id = cs.id
+                WHERE cm.session_id = ? AND cs.user_id = ?
+                ORDER BY cm.created_at ASC
                 LIMIT ?
             """.trimIndent()
 
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setInt(2, limit)
+                stmt.setString(2, userId)
+                stmt.setInt(3, limit)
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         history.add(mapRowToMessage(rs))
@@ -70,6 +102,61 @@ class ChatRepository(private val dataSource: DataSource) {
             }
         }
         history
+    }
+
+    /**
+     * Lists all sessions for a user.
+     *
+     * @param userId The authenticated user's ID
+     * @param limit Maximum number of sessions to return
+     */
+    suspend fun listSessions(userId: String, limit: Int = 20): List<SessionInfo> = withContext(Dispatchers.IO) {
+        val sessions = mutableListOf<SessionInfo>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT id, title, created_at
+                FROM chat_sessions
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.setInt(2, limit)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        sessions.add(
+                            SessionInfo(
+                                id = rs.getString("id"),
+                                title = rs.getString("title"),
+                                createdAt = rs.getTimestamp("created_at").time
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        sessions
+    }
+
+    /**
+     * Deletes a session and all its messages.
+     * Only deletes if the session belongs to the user.
+     *
+     * @param userId The authenticated user's ID
+     * @param sessionId The session UUID to delete
+     * @return true if deleted, false if not found or not owned
+     */
+    suspend fun deleteSession(userId: String, sessionId: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "DELETE FROM chat_sessions WHERE id = ? AND user_id = ?"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(sessionId))
+                stmt.setString(2, userId)
+                stmt.executeUpdate() > 0
+            }
+        }
     }
 
     private fun mapRowToMessage(rs: ResultSet): LlmMessage {
@@ -86,3 +173,12 @@ class ChatRepository(private val dataSource: DataSource) {
         )
     }
 }
+
+/**
+ * Info about a chat session.
+ */
+data class SessionInfo(
+    val id: String,
+    val title: String?,
+    val createdAt: Long
+)

@@ -11,7 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
@@ -35,9 +35,9 @@ import com.example.smarty.ui.theme.Alpha
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.softCardShadow
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 // SOFT MINIMALIST STYLES
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 private val PILL_HEIGHT = 44.dp
 
@@ -101,7 +101,7 @@ fun FloatingActionBar(
                     Spacer(modifier = Modifier.width(24.dp))
 
                     FloatingActionPill(
-                        icon = Icons.Default.Assistant,
+                        icon = Icons.Default.AutoAwesome,
                         onClick = onAskSmarty,
                         tint = LocalAccentColor.current,
                         contentDescription = stringResource(R.string.ask_ai)

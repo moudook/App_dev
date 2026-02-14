@@ -1,7 +1,7 @@
 package com.example.smarty.data.local
 
 import androidx.room.*
-import com.example.smarty.data.model.Category
+import com.example.smarty.core.domain.model.Category
 import kotlinx.coroutines.flow.Flow
 
 /**

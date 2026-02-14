@@ -274,8 +274,8 @@ class BackupManager(
      */
     suspend fun restoreBackup(metadata: BackupMetadata): Result<Unit> = withContext(Dispatchers.IO) {
         // BUG-030: Create safety backup before restore for rollback capability
-        var preRestoreNotes: List<com.example.smarty.data.model.Note>? = null
-        var preRestoreCategories: List<com.example.smarty.data.model.Category>? = null
+        var preRestoreNotes: List<com.example.smarty.core.domain.model.Note>? = null
+        var preRestoreCategories: List<com.example.smarty.core.domain.model.Category>? = null
 
         try {
             // Check for network connectivity before starting cloud restore
@@ -491,9 +491,9 @@ class BackupManager(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
-            localPcIp = securePreferences.getLocalPCIP(),
-            localPcPort = securePreferences.getLocalPCPort(),
-            localPcUseHttps = securePreferences.getLocalPCUseHttps(),
+            localPcIp = null, // Deprecated: Use serverUrl
+            localPcPort = null, // Deprecated: Use serverUrl
+            localPcUseHttps = null, // Deprecated: Use serverUrl
             shakeSensitivity = securePreferences.getShakeSensitivity(),
             soundEnabled = securePreferences.isSoundEnabled()
         )
@@ -504,10 +504,12 @@ class BackupManager(
         securePreferences.setAutoBackupEnabled(backup.autoBackupEnabled)
         securePreferences.setAutoBackupIntervalDays(backup.autoBackupIntervalDays)
 
-        // Restore Local PC settings
-        backup.localPcIp?.let { securePreferences.setLocalPCIP(it) }
-        backup.localPcPort?.let { securePreferences.setLocalPCPort(it) }
-        backup.localPcUseHttps?.let { securePreferences.setLocalPCUseHttps(it) }
+        // Restore Local PC settings - DEPRECATED
+        // We no longer restore IP/Port individually as they are replaced by serverUrl
+        // If needed, we could try to construct a serverUrl from them, but for now we skip.
+        // backup.localPcIp?.let { securePreferences.setLocalPCIP(it) }
+        // backup.localPcPort?.let { securePreferences.setLocalPCPort(it) }
+        // backup.localPcUseHttps?.let { securePreferences.setLocalPCUseHttps(it) }
 
         // Restore UI and interaction settings
         backup.shakeSensitivity?.let { securePreferences.setShakeSensitivity(it) }

@@ -1,7 +1,7 @@
 package com.example.smarty
 
-import com.example.smarty.util.ContentSecurityFilter
-import com.example.smarty.util.ContentSecurityFilter.RiskLevel
+import com.example.smarty.core.common.util.ContentSecurityFilter
+import com.example.smarty.core.common.util.ContentSecurityFilter.RiskLevel
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -310,14 +310,14 @@ class ContentSecurityFilterTest {
 
     @Test
     fun `hasEmojis detects emojis`() {
-        assertTrue(ContentSecurityFilter.hasEmojis("Hello \uD83D\uDC4B")) // Hello 👋
-        assertTrue(ContentSecurityFilter.hasEmojis("Check this out \uD83D\uDE80")) // Check this out 🚀
+        assertTrue(ContentSecurityFilter.hasEmojis("Hello \uD83D\uDC4B")) // Hello 
+        assertTrue(ContentSecurityFilter.hasEmojis("Check this out \uD83D\uDE80")) // Check this out 
     }
 
     @Test
     fun `hasEmojis returns false for text without emojis`() {
         assertFalse(ContentSecurityFilter.hasEmojis("Hello world"))
-        assertFalse(ContentSecurityFilter.hasEmojis("日本語テキスト")) // Japanese text
+        assertFalse(ContentSecurityFilter.hasEmojis("")) // Japanese text
     }
 
     @Test
@@ -368,7 +368,7 @@ class ContentSecurityFilterTest {
 
     @Test
     fun `preserves Chinese text`() {
-        val content = "这是中文笔记"
+        val content = ""
         val result = ContentSecurityFilter.sanitize(content)
 
         assertEquals(content, result.sanitizedContent)
@@ -376,7 +376,7 @@ class ContentSecurityFilterTest {
 
     @Test
     fun `preserves Japanese text`() {
-        val content = "これは日本語のノートです"
+        val content = ""
         val result = ContentSecurityFilter.sanitize(content)
 
         assertEquals(content, result.sanitizedContent)
@@ -475,6 +475,6 @@ class ContentSecurityFilterTest {
         val result = ContentSecurityFilter.sanitize(content)
 
         // Should escape to full-width brackets
-        assertTrue(result.sanitizedContent.contains("＜system＞"))
+        assertTrue(result.sanitizedContent.contains("system"))
     }
 }

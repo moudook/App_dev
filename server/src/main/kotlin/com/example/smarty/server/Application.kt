@@ -13,9 +13,14 @@ import com.example.smarty.server.data.DatabaseFactory
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.http.*
 import io.ktor.server.request.path
+import com.example.smarty.server.plugins.configureSecurity
+import com.example.smarty.server.plugins.configureFirewall
+import com.example.smarty.server.plugins.FirebaseUserPrincipal
+import com.example.smarty.server.routes.configureProcessingRoutes
+import com.example.smarty.server.plugins.configureMonitoring
 
 /**
- * Smarty Server - Cloud-hosted agent runtime.
+ * Friday Server - Cloud-hosted agent runtime.
  *
  * This is the entry point for the Ktor server that will eventually
  * host the KOOG agent and serve commands to the Android client.
@@ -31,6 +36,7 @@ import io.ktor.server.request.path
 // import io.ktor.server.plugins.callloging.*
 import io.ktor.server.plugins.callid.*
 import io.ktor.server.plugins.ratelimit.*
+import io.ktor.server.auth.*
 import io.ktor.server.metrics.micrometer.*
 import io.micrometer.prometheus.*
 import org.slf4j.event.*
@@ -52,6 +58,12 @@ fun main() {
 fun Application.module() {
     // Initialize Database
     DatabaseFactory.init()
+
+    // Configure Security (Firebase JWT verification)
+    configureSecurity()
+
+    // Configure Firewall (IP restrictions, request limits)
+    configureFirewall()
 
     // Configure CORS
     install(CORS) {
@@ -80,10 +92,32 @@ fun Application.module() {
     }
     */
 
-    // Configure Rate Limiting
+    // Configure Rate Limiting - Per-user to prevent abuse
     install(RateLimit) {
+        // Chat endpoints - more generous for real-time interaction
+        register(RateLimitName("chat")) {
+            rateLimiter(limit = 120, refillPeriod = 1.minutes)
+            requestKey { call ->
+                // Use User ID from Firebase auth, fallback to IP
+                call.principal<FirebaseUserPrincipal>()?.userId
+                    ?: call.request.local.remoteHost
+            }
+        }
+        // Processing endpoints - more restrictive (expensive operations)
+        register(RateLimitName("processing")) {
+            rateLimiter(limit = 30, refillPeriod = 1.minutes)
+            requestKey { call ->
+                call.principal<FirebaseUserPrincipal>()?.userId
+                    ?: call.request.local.remoteHost
+            }
+        }
+        // Global fallback for unregistered routes
         global {
-            rateLimiter(limit = 60, refillPeriod = 1.minutes)
+            rateLimiter(limit = 100, refillPeriod = 1.minutes)
+            requestKey { call ->
+                call.principal<FirebaseUserPrincipal>()?.userId
+                    ?: call.request.local.remoteHost
+            }
         }
     }
 
@@ -107,7 +141,11 @@ fun Application.module() {
     // Configure routes
     configureHealthRoutes()
     configureChatRoutes()
+    configureProcessingRoutes()
+
+    // Configure Monitoring
+    configureMonitoring()
 
     // Log startup
-    log.info("Smarty Server started on port $serverPort")
+    log.info("Friday Server started on port $serverPort")
 }

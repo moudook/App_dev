@@ -250,7 +250,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 calendar.add(java.util.Calendar.DAY_OF_YEAR, minDaysAway)
                 val nextTriggerTime = calendar.timeInMillis
 
-                val nextTimer = com.example.smarty.data.model.SmartyTimer(
+                val nextTimer = com.example.smarty.core.domain.model.SmartyTimer(
                     id = timerId,
                     name = timerName,
                     triggerTime = nextTriggerTime,

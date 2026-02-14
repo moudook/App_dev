@@ -5,10 +5,10 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.smarty.data.local.SmartyDatabase
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.data.model.ProcessingStatus
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
+import com.example.smarty.core.domain.model.ProcessingStatus
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*

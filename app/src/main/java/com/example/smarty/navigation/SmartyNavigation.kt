@@ -12,25 +12,37 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assistant
-import com.example.smarty.data.model.Attachment
+import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.ui.components.ConnectionStatus
-import com.example.smarty.data.model.AudioTrack
-import com.example.smarty.data.model.AudioPlayerUiState
-import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.ChatMessage
-import com.example.smarty.data.model.ChatSession
-import com.example.smarty.data.model.MentionState
-import com.example.smarty.data.model.MentionSuggestion
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteAttachment
-import com.example.smarty.data.model.NoteVersion
-import com.example.smarty.data.model.SmartyTimer
-import com.example.smarty.data.model.TodoItem
+import com.example.smarty.core.domain.model.AudioTrack
+import com.example.smarty.core.domain.model.AudioPlayerUiState
+import com.example.smarty.core.domain.model.CalendarEvent
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.ChatMessage
+import com.example.smarty.core.domain.model.ChatSession
+import com.example.smarty.core.domain.model.MentionState
+import com.example.smarty.core.domain.model.MentionSuggestion
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteAttachment
+import com.example.smarty.core.domain.model.NoteVersion
+import com.example.smarty.core.domain.model.SmartyTimer
+import com.example.smarty.core.domain.model.TodoItem
 import com.example.smarty.ui.components.PendingShareData
-import com.example.smarty.ui.screens.*
-import com.example.smarty.viewmodel.BackupViewModel
+
+import com.example.smarty.features.settings.domain.BackupViewModel
+import com.example.smarty.features.settings.ui.SettingsScreen
+import com.example.smarty.features.settings.ui.BackupSettingsScreen
+import com.example.smarty.features.calendar.ui.CalendarScreen
+import com.example.smarty.features.notes.ui.ArchiveScreen
+import com.example.smarty.features.notes.ui.CategoryNotesScreen
+import com.example.smarty.features.notes.ui.KnowledgeCardScreen
+import com.example.smarty.features.notes.ui.StacksScreen
+import com.example.smarty.features.notes.ui.InputStreamScreen
+import com.example.smarty.features.games.ui.TicTacToeScreen
+import com.example.smarty.features.games.ui.CoinTossScreen
+import com.example.smarty.features.auth.ui.LoginScreen
+import com.example.smarty.features.voice.SpeechToTextState
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -112,16 +124,11 @@ fun SmartyNavHost(
     isChatMode: Boolean = false,
     chatMessages: List<ChatMessage> = emptyList(),
     isChatProcessing: Boolean = false,
+    agentActivity: com.example.smarty.features.chat.domain.ChatFeatureManager.AgentActivity? = null,
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when AI tab is clicked
     onEnterChatWithNoteReference: (String) -> Unit = {},  // @Mention: Enter chat with note pre-referenced
-    // AI Planning Status
-    aiPlanStatus: String? = null,
-    currentToolName: String? = null,
-    // Thinking mode toggle (Chat mode only - for reasoning models like Falcon-H1R-7B)
-    isThinkingModeEnabled: Boolean = false,
-    onToggleThinkingMode: () -> Unit = {},
     // Chat history management
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
@@ -177,7 +184,7 @@ fun SmartyNavHost(
     onClearCameraTrigger: () -> Unit = {},
     // Calendar management
     calendarEvents: List<CalendarEvent> = emptyList(),
-    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
+    activeTimers: List<com.example.smarty.core.domain.model.SmartyTimer> = emptyList(),
     onAddCalendarEvent: (
         title: String,
         description: String?,
@@ -195,7 +202,7 @@ fun SmartyNavHost(
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
-    externalSpeechState: com.example.smarty.util.SpeechToTextState? = null,
+    externalSpeechState: com.example.smarty.features.voice.SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
 
     // Screen change callback for shake detection
@@ -206,33 +213,17 @@ fun SmartyNavHost(
     // Auth State
     isLoggedIn: Boolean = false,
     onSignOut: () -> Unit = {},
-    // AI Memory
-    aiMemories: List<com.example.smarty.data.model.AIMemory> = emptyList(),
-    onDeleteAIMemory: (com.example.smarty.data.model.AIMemory) -> Unit = {},
-    onClearAllAIMemories: () -> Unit = {},
-    // Memory sync
-    onSyncAIMemories: () -> Unit = {},
-    isMemorySyncInProgress: Boolean = false,
-    memorySyncResult: String? = null,
-    unreadForMemoryCount: Int = 0,
-    onClearMemorySyncResult: () -> Unit = {},
     // Google Calendar Two-Way Sync
     isCalendarSyncEnabled: Boolean = false,
     onSetCalendarSyncEnabled: (Boolean) -> Unit = {},
-    deviceCalendars: List<com.example.smarty.calendar.GoogleCalendarSyncManager.DeviceCalendar> = emptyList(),
+    deviceCalendars: List<com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar> = emptyList(),
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
-    // Local LLM Server
-    isLocalPCEnabled: Boolean = false,
-    onSetLocalPCEnabled: (Boolean) -> Unit = {},
-    localServerIP: String = "",
-    localServerPort: String = "1234",
-    localServerUseHttps: Boolean = false,
-    onSetLocalServerIP: (String) -> Unit = {},
-    onSetLocalServerPort: (String) -> Unit = {},
-    onSetLocalServerUseHttps: (Boolean) -> Unit = {},
-    onTestLocalServer: (String, String, Boolean, (com.example.smarty.viewmodel.managers.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _, _, _ -> },
+    // Remote Server
+    serverUrl: String = "",
+    onSetServerUrl: (String) -> Unit = {},
+    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> },
     // AI Navigation
     navigationRequest: String? = null,
     onClearNavigationRequest: () -> Unit = {}
@@ -326,6 +317,7 @@ fun SmartyNavHost(
                 isChatMode = isChatMode,
                 chatMessages = chatMessages,
                 isChatProcessing = isChatProcessing,
+                agentActivity = agentActivity,
                 onSendChatMessage = onSendChatMessage,
                 onExitChatMode = onExitChatMode,
                 onEnterChatMode = onEnterChatMode,
@@ -338,12 +330,6 @@ fun SmartyNavHost(
                 // @Mention autocomplete
                 mentionState = mentionState,
                 onMentionSelected = onMentionSelected,
-                // AI Planning Status
-                aiPlanStatus = aiPlanStatus,
-                currentToolName = currentToolName,
-                // Thinking mode toggle (Chat mode only)
-                isThinkingModeEnabled = isThinkingModeEnabled,
-                onToggleThinkingMode = onToggleThinkingMode,
                 // Pending chat text (for "Ask AI" from note card)
                 pendingChatText = pendingChatText,
                 onClearPendingChatText = onClearPendingChatText,
@@ -382,9 +368,9 @@ fun SmartyNavHost(
                 onShareNotes = onShareNotes,
                 onNavigateToTicTacToe = onNavigateToTicTacToe,
                 onNavigateToCoinToss = onNavigateToCoinToss,
-                // ═══════════════════════════════════════════════════════════════════
+                // 
                 // CENTRALIZED UI: All features accessible from main screen
-                // ═══════════════════════════════════════════════════════════════════
+                // 
 
                 // Theme toggle
                 isDarkTheme = isDarkTheme,
@@ -423,21 +409,16 @@ fun SmartyNavHost(
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
                 onSignOut = onSignOut,
+                // Remote Server
+                serverUrl = serverUrl,
+                onSetServerUrl = onSetServerUrl,
+                onTestServerConnection = onTestServerConnection,
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
                         onBackClick = onDismiss,
                         isEmbedded = true
                     )
-                },
-                // AI Memory
-                aiMemories = aiMemories,
-                onDeleteAIMemory = onDeleteAIMemory,
-                onClearAllAIMemories = onClearAllAIMemories,
-                onSyncAIMemories = onSyncAIMemories,
-                isMemorySyncInProgress = isMemorySyncInProgress,
-                memorySyncResult = memorySyncResult,
-                unreadForMemoryCount = unreadForMemoryCount,
-                onClearMemorySyncResult = onClearMemorySyncResult
+                }
             )
         }
 
@@ -536,16 +517,6 @@ fun SmartyNavHost(
                         isEmbedded = true
                     )
                 },
-                // AI Memory
-                aiMemories = aiMemories,
-                onDeleteAIMemory = onDeleteAIMemory,
-                onClearAllAIMemories = onClearAllAIMemories,
-                // Memory sync
-                onSyncAIMemories = onSyncAIMemories,
-                isMemorySyncInProgress = isMemorySyncInProgress,
-                memorySyncResult = memorySyncResult,
-                unreadForMemoryCount = unreadForMemoryCount,
-                onClearMemorySyncResult = onClearMemorySyncResult,
                 // Google Calendar Two-Way Sync
                 isCalendarSyncEnabled = isCalendarSyncEnabled,
                 onSetCalendarSyncEnabled = onSetCalendarSyncEnabled,
@@ -553,16 +524,10 @@ fun SmartyNavHost(
                 targetCalendarId = targetCalendarId,
                 onSetTargetCalendarId = onSetTargetCalendarId,
                 onLoadDeviceCalendars = onLoadDeviceCalendars,
-                // Local LLM Server
-                isLocalPCEnabled = isLocalPCEnabled,
-                onSetLocalPCEnabled = onSetLocalPCEnabled,
-                localServerIP = localServerIP,
-                localServerPort = localServerPort,
-                localServerUseHttps = localServerUseHttps,
-                onSetLocalServerIP = onSetLocalServerIP,
-                onSetLocalServerPort = onSetLocalServerPort,
-                onSetLocalServerUseHttps = onSetLocalServerUseHttps,
-                onTestLocalServer = onTestLocalServer,
+                // Remote Server
+                serverUrl = serverUrl,
+                onSetServerUrl = onSetServerUrl,
+                onTestServerConnection = onTestServerConnection,
                 onSignOut = onSignOut,
                 onNavigateToCoinToss = {
                     navController.navigate(Screen.CoinToss.route)
@@ -739,7 +704,7 @@ fun BackupSettingsRoute(
 @Composable
 fun CalendarRoute(
     calendarEvents: List<CalendarEvent>,
-    activeTimers: List<com.example.smarty.data.model.SmartyTimer> = emptyList(),
+    activeTimers: List<com.example.smarty.core.domain.model.SmartyTimer> = emptyList(),
     onBackClick: () -> Unit,
     onAddCalendarEvent: (
         title: String,
@@ -831,3 +796,5 @@ fun CalendarRoute(
         }
     }
 }
+
+

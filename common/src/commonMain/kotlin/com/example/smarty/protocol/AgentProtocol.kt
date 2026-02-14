@@ -16,26 +16,8 @@ sealed class AgentCommand {
     abstract val commandId: String
 
     // ============================================================================================
-    // KNOWLEDGE & NOTE OPERATIONS
+    // NOTE OPERATIONS
     // ============================================================================================
-
-    @Serializable
-    @SerialName("capture_knowledge")
-    data class CaptureKnowledge(
-        override val commandId: String,
-        val title: String,
-        val content: String,
-        val source: String,
-        val category: String? = null
-    ) : AgentCommand()
-
-    @Serializable
-    @SerialName("search_knowledge")
-    data class SearchKnowledge(
-        override val commandId: String,
-        val query: String,
-        val filter: String? = null
-    ) : AgentCommand()
 
     @Serializable
     @SerialName("add_note")
@@ -83,42 +65,6 @@ sealed class AgentCommand {
     @SerialName("get_active_notes")
     data class GetActiveNotes(
         override val commandId: String
-    ) : AgentCommand()
-
-    // ============================================================================================
-    // MEMORY OPERATIONS
-    // ============================================================================================
-
-    @Serializable
-    @SerialName("store_memory")
-    data class StoreMemory(
-        override val commandId: String,
-        val content: String,
-        val scope: String? = null
-    ) : AgentCommand()
-
-    @Serializable
-    @SerialName("update_memory")
-    data class UpdateMemory(
-        override val commandId: String,
-        val id: String,
-        val content: String,
-        val type: String? = null
-    ) : AgentCommand()
-
-    @Serializable
-    @SerialName("delete_memory")
-    data class DeleteMemory(
-        override val commandId: String,
-        val id: String
-    ) : AgentCommand()
-
-    @Serializable
-    @SerialName("retrieve_memories")
-    data class RetrieveMemories(
-        override val commandId: String,
-        val query: String? = null,
-        val limit: Int = 10
     ) : AgentCommand()
 
     // ============================================================================================
@@ -184,6 +130,34 @@ sealed class AgentCommand {
     ) : AgentCommand()
 
     // ============================================================================================
+    // CONTEXT / PERSONALIZATION
+    // ============================================================================================
+
+    @Serializable
+    @SerialName("store_context")
+    data class StoreContext(
+        override val commandId: String,
+        val content: String,
+        val type: String // "factual", "preference", "episodic"
+    ) : AgentCommand()
+
+    @Serializable
+    @SerialName("update_context")
+    data class UpdateContext(
+        override val commandId: String,
+        val id: String,
+        val content: String,
+        val type: String
+    ) : AgentCommand()
+
+    @Serializable
+    @SerialName("delete_context")
+    data class DeleteContext(
+        override val commandId: String,
+        val id: String
+    ) : AgentCommand()
+
+    // ============================================================================================
     // AUDIO CONTROL
     // ============================================================================================
 
@@ -220,7 +194,8 @@ sealed class AgentCommand {
         val title: String,
         @SerialName("start_time") val startTime: Long,
         @SerialName("end_time") val endTime: Long,
-        val description: String? = null
+        val description: String? = null,
+        @SerialName("reminder_minutes") val reminderMinutes: Int? = 15 // Default 15 min reminder
     ) : AgentCommand()
 
     @Serializable
@@ -288,13 +263,6 @@ sealed class AgentCommand {
         val citations: List<ProtocolWebCitation>
     ) : AgentCommand()
 
-    @Serializable
-    @SerialName("plan_step")
-    data class PlanStep(
-        override val commandId: String,
-        @SerialName("step_id") val stepId: String,
-        val description: String
-    ) : AgentCommand()
 }
 
 @Serializable

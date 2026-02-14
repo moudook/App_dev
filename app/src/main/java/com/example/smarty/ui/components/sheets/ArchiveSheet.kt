@@ -7,8 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.smarty.data.model.Note
-import com.example.smarty.ui.screens.ArchiveScreen
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.features.notes.ui.ArchiveScreen
 
 /**
  * Archive as a full-page overlay.

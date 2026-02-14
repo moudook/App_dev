@@ -22,7 +22,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Smarty"
+rootProject.name = "Friday"
 include(":app")
 include(":common")
 include(":server")

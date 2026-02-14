@@ -27,14 +27,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * ═══════════════════════════════════════════════════════════════════════════════
+ * 
  * PREMIUM EDIT EVENT SHEET
  *
  * Design: Calm Aesthetic, theme-aware
@@ -42,7 +42,7 @@ import java.util.*
  * - Electric Blue accent (consistent with Smarty design)
  * - Pre-populated with existing event data
  * - Delete option with confirmation
- * ═══════════════════════════════════════════════════════════════════════════════
+ * 
  */
 
 // Reminder options (minutes, display text)
@@ -154,9 +154,9 @@ fun EditEventSheet(
         endMinute != existingEndCalendar.get(Calendar.MINUTE)
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     // MAIN SHEET (Dark Theme)
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -184,9 +184,9 @@ fun EditEventSheet(
                 )
             }
 
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             // HEADER
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -257,9 +257,9 @@ fun EditEventSheet(
                     .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
             )
 
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             // SCROLLABLE FORM
-            // ═══════════════════════════════════════════════════════════════════
+            // 
             Column(
                 modifier = Modifier
                     .weight(1f, fill = false)
@@ -414,9 +414,9 @@ fun EditEventSheet(
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
+    // 
     // DIALOGS (Dark themed)
-    // ═══════════════════════════════════════════════════════════════════
+    // 
 
     // Date Picker Dialog
     if (showDatePicker) {
@@ -583,9 +583,9 @@ fun EditEventSheet(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 // DARK THEMED FORM COMPONENTS FOR EDIT SHEET
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 @Composable
 private fun EditDarkTextField(

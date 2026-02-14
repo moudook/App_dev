@@ -1,7 +1,7 @@
 <resources>
     <string name="title_placeholder">Title</string>
     <string name="note_content_placeholder">Start writing your thoughts…</string>
-    <string name="app_name">Smarty</string>
+    <string name="app_name">Friday</string>
 
     <!-- Widget strings -->
     <string name="widget_description">Capture thoughts with a single tap</string>
@@ -15,7 +15,7 @@
 
     <!-- Calm Aesthetic Errors -->
     <string name="connection_lost">Waiting for connection</string>
-    <string name="permission_revoked">Smarty needs permission to continue</string>
+    <string name="permission_revoked">Friday needs permission to continue</string>
     <string name="sync_failed">Syncing paused</string>
     <string name="backup_failed">Unable to complete backup</string>
     <string name="restore_failed">Unable to restore data</string>
@@ -68,13 +68,10 @@ This action cannot be reversed.</string>
 
     <!-- Settings Strings -->
     <string name="settings_">Settings</string>
-    <string name="ai_voice">Smarty and voice</string>
+    <string name="ai_voice">Friday and voice</string>
     <string name="ai_connection">AI Connection</string>
     <string name="ai_models">Model Settings</string>
     <string name="models_and_connection">Server Connection</string>
-    <string name="ai_memory">Smarty insights</string>
-    <string name="no_memories">No insights gathered yet</string>
-    <string name="memories">Insights</string>
     <string name="calendar">Calendar</string>
     <string name="sync_to_google_calendar">Sync with Google Calendar</string>
     <string name="select_calendar">Choose calendar</string>
@@ -94,15 +91,13 @@ This action cannot be reversed.</string>
     <string name="low">Gentle</string>
     <string name="medium">Balanced</string>
     <string name="high">Responsive</string>
-    <string name="default_assistant">Assistant</string>
-    <string name="set_as_device_assistant">Enable as device assistant</string>
+    <string name="default_assistant">Friday</string>
+    <string name="set_as_device_assistant">Enable as device AI</string>
     <string name="made_with_intelligence">Crafted with intelligence</string>
-    <string name="about_smarty">About Smarty</string>
-    <string name="hello_smarty">Hello, I am Smarty. How can I assist you?</string>
+    <string name="about_smarty">About Friday</string>
+    <string name="hello_smarty">Hello, I am Friday. How can I help you?</string>
     <string name="active">Active</string>
     <string name="adjust_your_ai_and_voice_settings">Connection configurations</string>
-    <string name="managed_models">Configure Smarty models</string>
-    <string name="memory_label">Insights</string>
     <string name="select_label">Select</string>
     <string name="night_mode">Theme</string>
     <string name="archived_items">Archive</string>
@@ -120,7 +115,7 @@ This action cannot be reversed.</string>
     <string name="quick_access">Quick access</string>
     <string name="suggestions">Suggestions</string>
     <string name="filter_prefix">Filter: %1$s</string>
-    <string name="ai_badge">Smarty</string>
+    <string name="ai_badge">Friday</string>
     <string name="search_token_placeholder">Search token</string>
     <string name="ip_address_placeholder">192.168.1.100</string>
     <string name="port_placeholder">8000</string>
@@ -179,10 +174,8 @@ This action cannot be reversed.</string>
     <string name="new_conversation">New conversation</string>
     <string name="start_a_new_conversation">Start a new conversation</string>
     <string name="now">Now</string>
-    <string name="yesterday">Yesterday</string>
-    <string name="thinking">thinking</string>
 
-    <string name="assistant">Smarty</string>
+    <string name="assistant">Friday</string>
     <string name="chat_delete_warning">This chat will be permanently deleted. This action cannot be undone.</string>
 
     <!-- Stacks Content Strings -->
@@ -190,7 +183,7 @@ This action cannot be reversed.</string>
     <string name="create_stack">Create stack</string>
     <string name="stack_name">Stack name</string>
     <string name="rename_your_stack">Rename your stack to better organize your knowledge</string>
-    <string name="define_a_new_category">Define a new category for your knowledge base. Smarty will automatically route relevant notes here.</string>
+    <string name="define_a_new_category">Define a new category for your knowledge base. Friday will automatically route relevant notes here.</string>
     <string name="save">Save</string>
     <string name="stack">Stack</string>
     <string name="notes">Notes</string>
@@ -245,7 +238,7 @@ This action cannot be reversed.</string>
     <string name="pages">Pages</string>
     <string name="open">Open</string>
     <string name="private_note">Private note</string>
-    <string name="ai_cannot_access_this_note">Smarty cannot access this note</string>
+    <string name="ai_cannot_access_this_note">Friday cannot access this note</string>
     <string name="edit_note">Edit note</string>
     <string name="remove_attachment">Remove attachment</string>
     <string name="title">Title</string>
@@ -296,27 +289,26 @@ This action cannot be reversed.</string>
     <string name="sign_up">Sign up</string>
     <string name="selected_count">%1$d selected</string>
     <string name="pin">Pin</string>
-    <string name="ask_ai">Ask Smarty</string>
-    <string name="ask_smarty">Ask Smarty</string>
+    <string name="ask_ai">Ask Friday</string>
+    <string name="ask_smarty">Ask Friday</string>
     <string name="listening">Listening…</string>
     <string name="new_chat">New chat</string>
+    <string name="thinking">Thinking</string>
+    <string name="reasoning">Reasoning</string>
+    <string name="doc_truncated_notice">… [Document truncated due to size]</string>
     <string name="minimize">Minimize</string>
     <string name="sources_count">%1$d sources</string>
     <string name="find_notes">Find notes…</string>
     <string name="private_label">Private</string>
     <string name="history">History</string>
     <string name="attach">Attach</string>
-    <string name="reasoning_on">Reasoning on</string>
-    <string name="reasoning_off">Reasoning off</string>
     <string name="stop_listening">Stop listening</string>
     <string name="voice_input">Voice input</string>
-    <string name="add_attachment">Add attachment</string>
-    <string name="add_note_or_ask_ai">Add note or ask Smarty…</string>
     <string name="tasks">Tasks</string>
     <string name="tasks_completed">%1$d of %2$d completed</string>
     <string name="add_a_new_task">Add a new task…</string>
     <string name="add">Add</string>
-    <string name="task_tip">Tip: Smarty helps organize your tasks</string>
+    <string name="task_tip">Tip: Friday helps organize your tasks</string>
     <string name="remove_task">Remove task</string>
     <string name="just_now">Just now</string>
     <string name="minutes_ago">%1$dm ago</string>
@@ -371,8 +363,17 @@ This action cannot be reversed.</string>
 
     <!-- Missing Strings -->
     <string name="add_note">Add note</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="hidden_from_ai_assistant">Hidden from Friday</string>
+    <string name="smarty_label">Friday</string>
+    <string name="add_note_or_ask_ai">Add note or ask Friday...</string>
+    <string name="add_attachment">Add attachment</string>
+    <string name="cloud_and_local_archives">Cloud &amp; Local Archives</string>
+    <string name="adjust_shake_gesture">Adjust shake sensitivity</string>
+    <string name="command_analyze_display">Analyze</string>
+    <string name="command_analyze_desc">Analyze this content</string>
     <string name="search">Search</string>
-    <string name="save_to_smarty">Save to Smarty</string>
+    <string name="save_to_smarty">Save to Friday</string>
     <string name="category">Category</string>
     <string name="auto_sort">Auto sort</string>
     <string name="add_context">Add context</string>
@@ -387,7 +388,7 @@ This action cannot be reversed.</string>
 
     <!-- Empty State Strings -->
     <string name="here_to_help">Here to help</string>
-    <string name="what_can_i_help_with">How can I assist you today?</string>
+    <string name="what_can_i_help_with">How can I help you today?</string>
     <string name="tap_plus_to_add_something_to_your_schedule">Tap + to add to your schedule</string>
     <string name="try_different_keywords_or_filters">Try different keywords or filters</string>
     <string name="no_conversations_yet">No conversations yet</string>
@@ -396,7 +397,7 @@ This action cannot be reversed.</string>
     <string name="tap_plus_to_create_your_first_note">Tap + to create your first note</string>
     <string name="archived_notes_will_appear_here">Archived notes will appear here</string>
     <string name="your_collections">Your collections</string>
-    <string name="ai_will_organize_your_notes_into_smart_stacks">Smarty will organize your notes into stacks</string>
+    <string name="ai_will_organize_your_notes_into_smart_stacks">Friday will organize your notes into stacks</string>
     <string name="focused_notes">Focused notes</string>
     <string name="add_notes_to_this_category">Add notes to this category</string>
     <string name="no_associated_files">No associated files</string>
@@ -410,8 +411,8 @@ This action cannot be reversed.</string>
     <string name="create_a_backup_to_save_data_on_your_device">Create a backup to save data on your device</string>
     <string name="sign_in_and_backup_to_protect_your_data">Sign in to protect your data</string>
     <string name="no_patterns_detected_yet">No patterns detected yet</string>
-    <string name="start_interacting_with_smarty_to_build_your_profile">Interact with Smarty to build your profile</string>
-    <string name="smarty">Smarty</string>
+    <string name="start_interacting_with_smarty_to_build_your_profile">Interact with Friday to build your profile</string>
+    <string name="smarty">Friday</string>
     <string name="stacks">Stacks</string>
     <string name="intelligence">Intelligence</string>
     <string name="connection_label">Connection</string>
@@ -421,7 +422,7 @@ This action cannot be reversed.</string>
     <string name="add_location">Add location</string>
     <string name="reminder">Reminder</string>
     <string name="private_event">Private event</string>
-    <string name="hidden_from_ai_assistant">Hidden from Smarty</string>
+    <string name="hidden_from_smarty">Hidden from Friday</string>
     <string name="ok">OK</string>
     <string name="none">None</string>
     <string name="five_minutes_before">5 minutes before</string>
@@ -432,39 +433,39 @@ This action cannot be reversed.</string>
     <string name="one_day_before">1 day before</string>
     <string name="start_time">Start time</string>
     <string name="end_time">End time</string>
-    <string name="about_description">Hello, I am Smarty.
+    <string name="about_description">Hello, I am Friday.
 
-Smarty is an intelligence-powered personal knowledge management app. I created it to simplify note-taking and content management. The idea is simple: capture anything, and let Smarty assist later with organizing, searching, and recalling information when needed.
+Friday is an intelligence-powered personal knowledge management app. I created it to simplify note-taking and content management. The idea is simple: capture anything, and let Friday help later with organizing, searching, and recalling information when needed.
 
 You can add many types of content: text notes for brain dumps, images, videos (both YouTube and local), documents (PDF, DOCX, XLSX, and PPTX), website links with metadata, audio files, voice notes, code snippets, and more.
 
-For organization, Smarty provides useful features like pinning important notes, automatic smart categorization, and Smarty-generated tags for every note. You can archive items you want to keep but not see in your main view, and use bulk selection to manage multiple notes at once.
+For organization, Friday provides useful features like pinning important notes, automatic smart categorization, and Friday-generated tags for every note. You can archive items you want to keep but not see in your main view, and use bulk selection to manage multiple notes at once.
 
-Smarty also includes note versioning with a history of up to 10 versions saved automatically, allowing you to restore or compare changes instantly.
+Friday also includes note versioning with a history of up to 10 versions saved automatically, allowing you to restore or compare changes instantly.
 
 Search is a core focus, featuring full-text search with BM25 ranking for relevance and semantic search that handles typos and phonetic matching, ensuring you find what you need even if you don\'t type it perfectly.
 
-Smarty is agentic, capable of retrieving notes, creating new ones, editing or deleting existing notes, managing to-do lists, and setting smart reminders. Every response includes citations that link directly to your source notes.
+Friday is agentic, capable of retrieving notes, creating new ones, editing or deleting existing notes, managing to-do lists, and setting smart reminders. Every response includes citations that link directly to your source notes.
 
-Smarty features smart reminders where the intelligence highlights important notes with visual cues. You can also set expiration dates on reminders to keep your workspace clean.
+Friday features smart reminders where the intelligence highlights important notes with visual cues. You can also set expiration dates on reminders to keep your workspace clean.
 
-The assistant uses Koog (Kotlin Object-Oriented Graphs) to execute structured tool calls and complex function chains, making it truly agentic. It connects to a Smarty Server for processing, ensuring privacy and control.
+Friday uses Koog (Kotlin Object-Oriented Graphs) to execute structured tool calls and complex function chains, making it truly agentic. It connects to a Friday Server for processing, ensuring privacy and control.
 
 Web search is integrated for real-time information, and a daily digest notification summarizes the last 24 hours of activity every morning at 6:30 AM.
 
 Voice features include high-quality recording with real-time visualizers and speech-to-text. The music player features a reactive orb visualizer that responds to your audio.
 
-Calendar integration allows you to sync with your schedule, with Smarty able to manage events while respecting your privacy. Shake-to-private mode lets you toggle note privacy with a simple movement.
+Calendar integration allows you to sync with your schedule, with Friday able to manage events while respecting your privacy. Shake-to-private mode lets you toggle note privacy with a simple movement.
 
 Privacy is fundamental: all data is stored locally, and sensitive configuration is managed securely. Only necessary API calls leave the device.
 
-Thank you for using Smarty.</string>
-    <string name="smarty_version">Smarty v1.1.0</string>
-    <string name="ai_intelligence">Smarty Intelligence</string>
+Thank you for using Friday.</string>
+    <string name="smarty_version">Friday v1.1.0</string>
+    <string name="ai_intelligence">Friday Intelligence</string>
     <string name="configure_server_connection_and_models">Configure connection and model settings</string>
     <string name="web_search_label">Web search</string>
-    <string name="enable_ai_web_search_capabilities">Enable Smarty web search capabilities</string>
-    <string name="web_search_info">Web search provides real-time information for Smarty.</string>
+    <string name="enable_ai_web_search_capabilities">Enable Friday web search capabilities</string>
+    <string name="web_search_info">Web search provides real-time information for Friday.</string>
     <string name="local_llm_server">Local LLM server</string>
     <string name="local_llm_info">Connect to your local LLM server via USB tethering or Wi-Fi.</string>
     <string name="ip_address">IP address</string>
@@ -476,26 +477,13 @@ Thank you for using Smarty.</string>
     <string name="export_all_notes_and_settings">Export all notes and settings</string>
     <string name="clear_cache_info">This will clear %1$s of cached data. Downloaded content may need to be fetched again.</string>
     <string name="backup_sync_info">Keep your notes safe with automatic backups.</string>
-    <string name="backups_include_info">Backups include notes, categories, settings, chat history, insights, calendar events, and attachments.</string>
+    <string name="backups_include_info">Backups include notes, categories, settings, chat history, calendar events, and attachments.</string>
     <string name="model">Model</string>
     <string name="connection_token_label">Token #%1$d</string>
     <string name="rate">Rate</string>
     <string name="calls_per_minute">%1$d/%2$d per min</string>
     <string name="calls_today">%1$d/%2$d today</string>
     <string name="new_connection_token">New connection token</string>
-    <string name="paste_connection_token_here">Paste connection token here</string>
-    <string name="personal_intelligence">Personal intelligence</string>
-    <string name="insights_extracted">%1$d insights extracted</string>
-    <string name="analyzing_notes">Analyzing notes…</string>
-    <string name="forget_this_insight">Forget this insight</string>
-    <string name="forget_insight_info">Smarty will stop using this behavioral pattern for personalization.</string>
-    <string name="reset_personal_intelligence">Reset personal intelligence</string>
-    <string name="reset_intelligence_info">All extracted insights will be permanently deleted. This action cannot be reversed.</string>
-    <string name="sync_new_notes">Sync %1$d new notes</string>
-    <string name="memory_up_to_date">Insights are up to date</string>
-    <string name="clear_learning_data">Clear learning data</string>
-    <string name="forget">Forget</string>
-    <string name="reset_all">Reset all</string>
     <string name="add_token">Add token</string>
     <string name="add_search_token">Add search token</string>
     <string name="test_and_save">Test and save</string>
@@ -545,7 +533,6 @@ Thank you for using Smarty.</string>
     <string name="sign_in_subtitle">Sign in to access your workspace</string>
     <string name="sign_up_subtitle">Create your personal workspace</string>
     <string name="remove">Remove</string>
-    <string name="forget_insight">Forget insight</string>
     <string name="traffic_is_encrypted">Traffic is encrypted</string>
     <string name="traffic_is_unencrypted">Traffic is unencrypted</string>
     <string name="no_connection_tokens_demo_mode">Offline mode</string>
@@ -596,10 +583,9 @@ Thank you for using Smarty.</string>
     <string name="pause">Pause</string>
     <string name="play">Play</string>
     <string name="full_privacy_mode">Full privacy mode</string>
-    <string name="full_privacy_no_ai">Privacy active • No Smarty processing</string>
+    <string name="full_privacy_no_ai">Privacy active • No Friday processing</string>
     <string name="decompressing">Decompressing…</string>
     <string name="watch">Watch</string>
-    <string name="reasoning">reasoning</string>
 
     <string name="unknown_error">Something went wrong</string>
     <string name="error_opening_pdf">Unable to open the document</string>
@@ -613,7 +599,6 @@ Thank you for using Smarty.</string>
     <string name="zoom_percentage">%1$d%%</string>
     <string name="scale_factor">%1$.1fx</string>
     <string name="page_indicator">%1$d / %2$d</string>
-    <string name="insight">Insight</string>
     <string name="source">Source</string>
     <string name="screen_capture_ready">Screen capture ready</string>
     <string name="say_save_this_page_to_capture">Say \"save this page\" to capture</string>
@@ -658,10 +643,10 @@ Thank you for using Smarty.</string>
     <string name="no_server_connection_configured">Please set up a server connection in settings.</string>
     <string name="no_internet_connection">No internet connection. Please check your network.</string>
     <string name="request_timed_out">Request timed out. Please try again.</string>
-    <string name="shared_from_smarty">Shared from Smarty</string>
+    <string name="shared_from_smarty">Shared from Friday</string>
     <string name="error_could_not_launch_app">Unable to launch the selected application.</string>
     <string name="speech_error_audio">Audio recording error</string>
-    <string name="speech_error_client">Assistant error</string>
+    <string name="speech_error_client">Friday error</string>
     <string name="speech_error_insufficient_permissions">Microphone permission required</string>
     <string name="speech_error_network">Network connection error</string>
     <string name="speech_error_network_timeout">Network request timed out</string>
@@ -669,7 +654,7 @@ Thank you for using Smarty.</string>
     <string name="speech_error_server">Voice server error</string>
     <string name="speech_error_speech_timeout">No speech input</string>
     <string name="ai_response_ready">Smarty response ready</string>
-    <string name="ai_finished_processing">Smarty has finished processing</string>
+    <string name="ai_finished_processing">Friday has finished processing</string>
     <string name="note_processed">Note processed</string>
     <string name="note_processed_detail">\"%1$s\" has been processed</string>
     <string name="note_categorized">Your note has been categorized</string>
@@ -694,7 +679,6 @@ Thank you for using Smarty.</string>
     <string name="error_prefix">Error: %1$s</string>
     <string name="unread_notes_suggestion">You have %1$d unread notes. Should I analyze them?</string>
     <string name="large_cache_suggestion">Your app cache is large. Want me to clear it?</string>
-    <string name="detailed_memory_suggestion">Your Smarty insights are quite detailed. Should I consolidate them?</string>
     <string name="error_pdf_open">Unable to open the document.</string>
     <string name="error_pdf_no_pages">The document appears to be empty.</string>
     <string name="error_pdf_images_only">This document contains images only. Text extraction is not available.</string>
@@ -703,8 +687,6 @@ Thank you for using Smarty.</string>
     <string name="error_pdf_ocr_failed">OCR analysis failed.</string>
     <string name="error_security_blocked">Content was blocked for security reasons.</string>
     <string name="error_ai_unavailable_connection">AI analysis is unavailable. Please check your server connection.</string>
-    <string name="error_plan_empty">Plan cannot be empty. Please provide at least one step.</string>
-    <string name="plan_created">Plan \"%1$s\" created with %2$d steps. Execution started.</string>
     <string name="immediate_action">Immediate action: %1$s. Execute this now.</string>
     <string name="plan_cancelled">Plan cancelled. You are now in normal chat mode.</string>
     <string name="error_specify_audio">Please specify which audio to play.</string>
@@ -719,7 +701,6 @@ Thank you for using Smarty.</string>
     <string name="error_seeked_to">Seeked to %1$s</string>
     <string name="error_unknown_action">Unknown action: %1$s</string>
     <string name="error_audio_control">Audio control error: %1$s</string>
-    <string name="error_no_active_plan">No active plan found.</string>
     <string name="step_completed_moving">Step completed. Moving to step %1$d.</string>
     <string name="step_label">Step %1$d: %2$s</string>
     <string name="all_steps_completed">All steps completed. Plan finished.</string>
@@ -743,11 +724,8 @@ Thank you for using Smarty.</string>
     <string name="share_note_format">%1$s\n%2$s</string>
     <string name="share_note_truncated_format">%1$s…</string>
     <string name="all_notes_analyzed">All notes have been analyzed</string>
-    <string name="sync_learned_patterns">Analyzed %1$d notes. Learned %2$d new behavioral patterns.</string>
-    <string name="sync_no_patterns_found">Processed %1$d notes (%2$d failed). No new patterns identified.</string>
-    <string name="sync_no_additional_patterns">Analyzed %1$d notes. No additional patterns detected.</string>
     <string name="sync_failed_prefix">Sync failed: %1$s</string>
-    <string name="error_save_message">Unable to save message</string>
+    <string name="error_save_message">Failed to save message to history</string>
     <string name="error_model_not_loaded">Voice model not loaded</string>
     <string name="error_start_speech_service">Unable to start voice service</string>
     <string name="error_recognition">Voice recognition issue</string>
@@ -765,15 +743,6 @@ Thank you for using Smarty.</string>
     <string name="status_restoring">Restoring…</string>
     <string name="status_searching">Searching…</string>
     <string name="status_summarizing">Summarizing…</string>
-    <string name="status_creating_category">Creating stack…</string>
-    <string name="status_fetching_categories">Fetching stacks…</string>
-    <string name="status_learning">Learning…</string>
-    <string name="status_recalling">Recalling…</string>
-    <string name="status_analyzing_habits">Analyzing habits…</string>
-    <string name="status_consolidating">Consolidating…</string>
-    <string name="status_syncing_memories">Syncing memories…</string>
-    <string name="status_analyzing_style">Analyzing style…</string>
-    <string name="status_analyzing_query">Analyzing query…</string>
     <string name="status_searching_web">Searching web…</string>
     <string name="status_searching_notes">Searching notes…</string>
     <string name="status_recalling_context">Recalling context…</string>
@@ -800,13 +769,6 @@ Thank you for using Smarty.</string>
     <string name="note_unarchived_success">Note unarchived</string>
     <string name="summary_initiated_success">Summary initiated</string>
     <string name="category_created_success">Stack \"%1$s\" created</string>
-    <string name="found_notes_count">Found %1$d notes</string>
-    <string name="listing_categories_success">Listing stacks</string>
-    <string name="memory_stored_success">Memory stored</string>
-    <string name="memories_found_count">Found %1$d memories</string>
-    <string name="smarty_analysis_complete">Smarty analysis complete</string>
-    <string name="consolidation_initiated_success">Consolidation initiated</string>
-    <string name="sync_initiated_success">Note synchronization initiated</string>
     <string name="opening_app">Opening %1$s</string>
     <string name="error_app_not_found_query">I couldn’t find an app matching \"%1$s\"</string>
     <string name="playing_track">Playing %1$s</string>
@@ -822,9 +784,6 @@ Thank you for using Smarty.</string>
     <string name="limited_overlay_mode">Limited in overlay mode</string>
     <string name="error_no_connection_token">No connection token</string>
     <string name="search_successful">Search completed</string>
-    <string name="search_failed">Search failed</string>
-    <string name="error_deep_research_unsupported">Deep research not supported in overlay mode</string>
-    <string name="status_thinking">Thinking…</string>
     <string name="channel_audio_playback_name">Audio Playback</string>
     <string name="channel_audio_playback_desc">Audio playback controls and status</string>
     <string name="playback_active">Playback active</string>
@@ -845,7 +804,7 @@ Thank you for using Smarty.</string>
     <string name="unknown">Unknown</string>
     <string name="error_no_healthy_connection">No healthy connection available</string>
     <string name="error_all_connections_disabled">No connection available. The server may be temporarily unreachable.</string>
-    <string name="error_daily_limit_reached">I’ve reached my daily thinking limit to help manage resources.</string>
+    <string name="error_daily_limit_reached">I’ve reached my daily limit to help manage resources.</string>
     <string name="error_limit_reset_time">I’ll be back at full capacity in %1$s.</string>
     <string name="error_limit_chat_available">Feel free to continue chatting - I can still help with simpler questions!</string>
     <string name="error_action_failed_detail">i couldn’t complete that action: %1$s</string>
@@ -864,7 +823,7 @@ Thank you for using Smarty.</string>
     <string name="research_footer">
 
 ---
-*Generated by Smarty Autonomous Workflow Engine*
+*Generated by Friday Autonomous Workflow Engine*
 *Completed at: %1$s*</string>
     <string name="research_note_title">Deep Research: %1$s</string>
     <string name="doc_summary_header"> %1$d pages analyzed (%2$d sections)\n\n</string>
@@ -962,8 +921,8 @@ Thank you for using Smarty.</string>
     <string name="backup_finalizing">Finalizing…</string>
     <string name="backup_created_success">Local backup created</string>
     <string name="backup_failed_generic">Local backup failed</string>
-    <string name="backup_share_subject">Smarty Backup - %1$s</string>
-    <string name="backup_share_text">Smarty backup from %1$s\nContains %2$d notes and %3$d stacks</string>
+    <string name="backup_share_subject">Friday Backup - %1$s</string>
+    <string name="backup_share_text">Friday backup from %1$s\nContains %2$d notes and %3$d stacks</string>
     <string name="error_auth_not_configured">OAuth Client ID not found. Configure Firebase OAuth in console.</string>
     <string name="error_google_auth_no_token">Google Sign-In configured without ID token - Firebase Auth will not work</string>
     <string name="error_google_sign_in_code">%1$s (%2$d)</string>
@@ -1155,43 +1114,34 @@ Thank you for using Smarty.</string>
     <string name="mention_type_archives">Archives</string>
     <string name="mention_type_apks">APK Files</string>
 
-    <string name="command_thinking_display">Deep Thinking</string>
-    <string name="command_thinking_desc">Analyze full document content in depth</string>
-    <string name="command_analyze_display">Deep Analysis</string>
-    <string name="command_analyze_desc">Perform deep analysis on document</string>
 
     <string name="filter_recent_desc">Most recently created notes</string>
     <string name="filter_pinned_desc">Pinned/starred notes</string>
     <string name="filter_all_desc">All accessible notes</string>
-    <string name="doc_truncated_notice">\n\n[... Document truncated to fit context window ...]</string>
-    <string name="thinking_mode_header">=== DEEP THINKING MODE ===</string>
-    <string name="thinking_mode_doc_label">Document: %1$s</string>
-    <string name="thinking_mode_note_label">Note Title: %1$s</string>
-    <string name="thinking_mode_char_count">Total Characters: %1$d</string>
-    <string name="thinking_mode_chunks_count">Chunks: %1$d</string>
-    <string name="thinking_mode_question_header">USER\'S QUESTION:</string>
-    <string name="thinking_mode_default_query">Please analyze this document in depth.</string>
-    <string name="thinking_mode_content_header">=== FULL DOCUMENT CONTENT ===</string>
-    <string name="thinking_mode_chunk_marker">[CHUNK %1$d/%2$d]</string>
-    <string name="thinking_mode_content_footer">=== END OF DOCUMENT ===</string>
-    <string name="thinking_mode_instructions">INSTRUCTIONS: You are in DEEP THINKING mode. Analyze the ENTIRE document above thoroughly to answer the user\'s question. Consider all sections and details. Provide a comprehensive, well-structured response based on the full document content.</string>
-    <string name="ai_context_header">--- REFERENCED NOTES ---</string>
-    <string name="ai_context_footer">--- END REFERENCED NOTES ---</string>
+
+    <string name="ai_context_header">--- REFERENCED CONTEXT ---</string>
+    <string name="ai_context_footer">--- END REFERENCED CONTEXT ---</string>
     <string name="ai_context_label_referenced">Referenced</string>
     <string name="ai_context_label_category">Category: %1$s</string>
-    <string name="ai_context_label_recent">Recent Notes</string>
-    <string name="ai_context_label_pinned">Pinned Notes</string>
-    <string name="ai_context_label_all">All Notes</string>
+    <string name="ai_context_label_recent">Recent Context</string>
+    <string name="ai_context_label_pinned">Pinned Items</string>
+    <string name="ai_context_label_all">All Context</string>
     <string name="ai_context_label_notes">Notes</string>
     <string name="ai_context_note_type">Type: %1$s</string>
     <string name="ai_context_note_source">Source: %1$s</string>
     <string name="ai_context_note_category">Category: %1$s</string>
     <string name="ai_context_note_summary">Summary: %1$s</string>
+
     <string name="ai_context_note_origin">Source URL: %1$s</string>
     <string name="ai_context_note_context">Context: %1$s</string>
     <string name="ai_context_part_label"> (Part %1$d of %2$d)</string>
 
     <string name="processing_error_retries_exceeded">Processing failed after %1$d attempts</string>
+
+    <string name="command_thinking_display">Thinking</string>
+    <string name="command_thinking_desc">Deep document analysis</string>
+    <string name="command_reasoning_display">Reasoning</string>
+    <string name="command_reasoning_desc">Step-by-step logic</string>
     <string name="title_new_chat">New Chat</string>
     <string name="content_blocked">Content Blocked</string>
     <string name="recent">Recent</string>
@@ -1202,12 +1152,6 @@ Thank you for using Smarty.</string>
     <string name="add_connection">Configure Connection</string>
     <string name="error">Error</string>
     <string name="dark_mode">Theme</string>
-    <string name="invalid_connection_token">Invalid connection token</string>
-    <string name="adjust_shake_gesture">Adjust shake gesture sensitivity</string>
-    <string name="less_sensitive">Less sensitive</string>
-    <string name="more_sensitive">More sensitive</string>
-    <string name="manage_models">Manage models</string>
-    <string name="memory">Memory</string>
     <string name="select">Select</string>
     <string name="baseline_label">Baseline sensitivity</string>
     <string name="no_summary_generated">No summary generated</string>
@@ -1222,10 +1166,9 @@ Thank you for using Smarty.</string>
     <string name="timer_set_success">Timer set for %1$s</string>
     <string name="alarm_set_success">Alarm set for %1$s</string>
     <string name="timers_cancelled_success">All timers and alarms cancelled</string>
-    <string name="how_can_i_assist_you">How can I assist you today?</string>
+    <string name="how_can_i_help_you">How can I help you today?</string>
+    <string name="how_can_i_help">How can I help you today?</string>
     <string name="expired">Expired</string>
-    <string name="cloud_and_local_archives">Cloud and local archives</string>
-    <string name="context_records">Context records</string>
     <string name="confirm_password">Confirm password</string>
     <string name="error_passwords_dont_match">Passwords do not match</string>
     <string name="error_email_required_reset">Please enter your email to reset password</string>
@@ -1237,6 +1180,7 @@ Thank you for using Smarty.</string>
     <string name="tictactoe_play_again">Play Again</string>
     <string name="tictactoe_x_turn">X\'s turn</string>
     <string name="tictactoe_o_turn">O\'s turn</string>
+    <string name="tictactoe_vs_mode">Play vs Computer</string>
     <string name="configure_local_pc_connection">Configure local PC connection</string>
 
     <!-- Firebase Auth Config -->

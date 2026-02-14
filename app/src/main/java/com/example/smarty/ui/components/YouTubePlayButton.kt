@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,7 +35,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
-import com.example.smarty.ui.components.OrganicThinkingIndicator
 import com.example.smarty.R
 import com.example.smarty.ui.theme.YoutubeRed
 
@@ -97,9 +97,10 @@ fun YouTubePlayButton(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isLoading) {
-                OrganicThinkingIndicator(
-                    size = (if (isCompact) 16.dp else 20.dp),
-                    baseColor = Color.White
+                CircularProgressIndicator(
+                    modifier = Modifier.size(if (isCompact) 16.dp else 20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
                 )
             } else {
                 Icon(
@@ -172,9 +173,10 @@ fun YouTubePlayButtonCircle(
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
-            OrganicThinkingIndicator(
-                size = (size * 0.6f).dp,
-                baseColor = Color.White
+            CircularProgressIndicator(
+                modifier = Modifier.size((size * 0.6f).dp),
+                color = Color.White,
+                strokeWidth = 2.dp
             )
         } else {
             Icon(

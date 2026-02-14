@@ -4,9 +4,9 @@ import android.app.Application
 import android.util.Log
 import androidx.work.Configuration
 import androidx.work.WorkManager
-import com.example.smarty.util.LazyDecompressor
-import com.example.smarty.util.ResourceManager
-import com.example.smarty.util.api.ApiMetrics
+import com.example.smarty.core.common.util.LazyDecompressor
+import com.example.smarty.core.common.util.ResourceManager
+import com.example.smarty.core.common.util.api.ApiMetrics
 import java.lang.ref.WeakReference
 
 /**
@@ -54,8 +54,8 @@ class SmartyApplication : Application(), Configuration.Provider {
 
         // Initialize CrashLogger first to catch early startup crashes
         try {
-            com.example.smarty.util.CrashLogger.init(this)
-            com.example.smarty.util.CrashLogger.log(this, "Application onCreate started")
+            com.example.smarty.core.common.util.CrashLogger.init(this)
+            com.example.smarty.core.common.util.CrashLogger.log(this, "Application onCreate started")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to init CrashLogger", e)
         }
@@ -77,28 +77,30 @@ class SmartyApplication : Application(), Configuration.Provider {
         Log.d(TAG, "ApiMetrics initialized")
 
         // Setup app shortcuts (launcher long-press menu)
-        com.example.smarty.util.AppShortcutsManager.setupShortcuts(this)
+        com.example.smarty.core.common.util.AppShortcutsManager.setupShortcuts(this)
         Log.d(TAG, "App shortcuts initialized")
 
         // Setup daily digest notification channel and schedule worker
         try {
-            com.example.smarty.worker.DailyDigestWorker.createNotificationChannel(this)
-            com.example.smarty.worker.DailyDigestWorker.schedule(this)
+            com.example.smarty.core.common.util.NotificationHelper.createNotificationChannels(this)
+
+            com.example.smarty.core.common.worker.DailyDigestWorker.createNotificationChannel(this)
+            com.example.smarty.core.common.worker.DailyDigestWorker.schedule(this)
             Log.d(TAG, "Daily digest scheduled for 6:30 AM")
 
-            // Setup automated memory sync worker (daily)
-            com.example.smarty.worker.MemorySyncWorker.schedule(this)
-            Log.d(TAG, "Automated memory sync scheduled")
+            // Schedule daily briefing (AI-powered)
+            com.example.smarty.core.common.worker.DailyBriefingWorker.schedule(this)
+            Log.d(TAG, "Daily briefing scheduled for 7:30 AM")
 
             // Setup periodic calendar sync worker (30 min)
             com.example.smarty.data.worker.CalendarSyncWorker.schedule(this)
             Log.d(TAG, "Calendar sync scheduled")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to schedule workers", e)
-            com.example.smarty.util.CrashLogger.log(this, "Worker scheduling failed: ${e.message}")
+            com.example.smarty.core.common.util.CrashLogger.log(this, "Worker scheduling failed: ${e.message}")
         }
 
-        com.example.smarty.util.CrashLogger.log(this, "Application onCreate finished")
+        com.example.smarty.core.common.util.CrashLogger.log(this, "Application onCreate finished")
     }
 
     override fun onTerminate() {

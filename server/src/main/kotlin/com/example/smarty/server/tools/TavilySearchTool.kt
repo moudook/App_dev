@@ -11,14 +11,23 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Server-side tool for Web Search using Tavily API.
- * Returns clean Markdown/JSON results.
+ * Returns clean Markdown/JSON results with API key rotation support.
  */
 class TavilySearchTool {
     private val logger = LoggerFactory.getLogger(TavilySearchTool::class.java)
-    private val apiKey = System.getenv("TAVILY_API_KEY")
+
+    // Support multiple API keys separated by comma
+    private val apiKeys: List<String> = System.getenv("TAVILY_API_KEY")
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.filter { it.isNotBlank() }
+        ?: emptyList()
+
+    private val currentIndex = AtomicInteger(0)
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
@@ -31,28 +40,52 @@ class TavilySearchTool {
 
     /**
      * Perform a search and return a formatted markdown string.
+     * Rotates through available API keys on each call and retries on failure.
      */
     suspend fun search(query: String): String {
-        if (apiKey.isNullOrBlank()) {
+        if (apiKeys.isEmpty()) {
             return "Error: Web search is not configured (missing TAVILY_API_KEY)."
         }
 
-        return try {
-            val response: TavilyResponse = client.post("https://api.tavily.com/search") {
-                contentType(ContentType.Application.Json)
-                setBody(TavilyRequest(
-                    apiKey = apiKey,
-                    query = query,
-                    searchDepth = "basic",
-                    maxResults = 5
-                ))
-            }.body()
+        val maxAttempts = apiKeys.size
+        var lastErrorMessage = ""
 
-            formatResults(response.results)
-        } catch (e: Exception) {
-            logger.error("Tavily search failed", e)
-            "Error performing web search: ${e.message}"
+        for (attempt in 0 until maxAttempts) {
+            val index = Math.abs(currentIndex.getAndIncrement() % apiKeys.size)
+            val apiKey = apiKeys[index]
+
+            logger.info("Performing Tavily search using key at index $index (attempt ${attempt + 1}/$maxAttempts)")
+
+            try {
+                val response = client.post("https://api.tavily.com/search") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TavilyRequest(
+                        apiKey = apiKey,
+                        query = query,
+                        searchDepth = "basic",
+                        maxResults = 5
+                    ))
+                }
+
+                if (response.status.isSuccess()) {
+                    val tavilyResponse: TavilyResponse = response.body()
+                    return formatResults(tavilyResponse.results)
+                } else if (response.status == HttpStatusCode.TooManyRequests || response.status == HttpStatusCode.Unauthorized) {
+                    lastErrorMessage = "Key at index $index failed with ${response.status}"
+                    logger.warn("$lastErrorMessage. Trying next key...")
+                    continue
+                } else {
+                    val errorBody = response.status.description
+                    return "Error performing web search: $errorBody"
+                }
+            } catch (e: Exception) {
+                logger.error("Tavily search failed for key at index $index", e)
+                lastErrorMessage = e.message ?: "Unknown error"
+                if (attempt == maxAttempts - 1) break
+            }
         }
+
+        return "Error performing web search: All configured keys failed. Last error: $lastErrorMessage"
     }
 
     private fun formatResults(results: List<TavilyResult>): String {

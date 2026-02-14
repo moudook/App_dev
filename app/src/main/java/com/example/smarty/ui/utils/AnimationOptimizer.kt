@@ -36,9 +36,9 @@ import kotlin.math.abs
  * =============================================================================
  */
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // MATHEMATICAL CONSTANTS (Public for inline function access)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 const val TWO_PI_F = 2f * PI.toFloat()
 const val PI_F = PI.toFloat()
@@ -52,9 +52,9 @@ const val PERCEPTUAL_THRESHOLD = 0.02f
 const val FOUR_F = 4f
 const val FIVE_PI_SQ_F = 5f * PI.toFloat() * PI.toFloat()
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // FAST TRIGONOMETRIC FUNCTIONS (Bhaskara I Approximation)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Bhaskara I's sine approximation - O(1), 99.7% accurate
@@ -89,9 +89,9 @@ inline fun fastSin(x: Float): Float {
 @Suppress("NOTHING_TO_INLINE")
 inline fun fastCos(x: Float): Float = fastSin(x + HALF_PI_F)
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // LIFECYCLE-AWARE ANIMATION STATE
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Animation lifecycle state - controls when animations should run
@@ -146,9 +146,9 @@ fun shouldAnimationRun(): Boolean {
     return state == AnimationLifecycleState.RUNNING
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // LIFECYCLE-AWARE INFINITE TRANSITION
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * A lifecycle-aware infinite transition that automatically pauses when
@@ -207,9 +207,9 @@ fun animateFloatWithLifecycle(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // PERCEPTUAL OPTIMIZATION (Weber-Fechner Law)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Perceptual change detector using Weber-Fechner law.
@@ -273,9 +273,9 @@ class PerceptualAnimationState(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // TEMPORAL COHERENCE OPTIMIZER
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Tracks animation state across frames to detect redundant updates.
@@ -327,9 +327,9 @@ inline fun <reified T> rememberCoherenceTracker(
     return remember { TemporalCoherenceTracker(equalityCheck) }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // ADAPTIVE FRAME RATE CONTROLLER
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Adaptive frame rate controller that adjusts animation update frequency
@@ -376,9 +376,9 @@ class AdaptiveFrameController(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // COMBINED OPTIMIZED ANIMATION DRIVER
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Comprehensive animation state that combines all optimizations.
@@ -439,9 +439,9 @@ fun rememberOptimizedPhase(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // UTILITY EXTENSIONS
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Safely get animation phase value, returning a default when paused.
@@ -456,9 +456,9 @@ inline fun Float?.ifActive(block: (Float) -> Unit) {
     if (this != null) block(this)
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // CLICK DEBOUNCING (BUG-013 FIX)
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Remembers a debounced click handler that prevents rapid consecutive clicks.
@@ -510,9 +510,9 @@ fun <T> rememberDebouncedClickWithParam(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 // STATIC RENDERING CONTROLLER - Global Animation State Management
-// ═══════════════════════════════════════════════════════════════════════════
+// 
 
 /**
  * Global controller for static rendering optimization.

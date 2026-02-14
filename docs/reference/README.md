@@ -1,6 +1,6 @@
 # Private Files Directory
 
-**️ This directory is ignored by Git**
+** This directory is ignored by Git**
 
 ## Purpose
 This directory contains private, sensitive, or reference files that should **NOT** be committed to GitHub, including:
@@ -8,7 +8,7 @@ This directory contains private, sensitive, or reference files that should **NOT
 -  **Issue screenshots and documentation** (e.g., AI agent issues, audio player problems)
 -  **Solution documents** (fixes, workarounds, experimental code)
 -  **Personal notes and references** (interview info, personal todos)
-- ️ **Reference images** (UI mockups, design references)
+-  **Reference images** (UI mockups, design references)
 -  **Debug logs and error reports** (memory leaks, build issues)
 -  **Research documents** (wake word files, experiments)
 -  **Experimental code and assets**

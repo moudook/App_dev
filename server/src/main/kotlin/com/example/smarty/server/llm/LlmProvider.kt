@@ -33,10 +33,11 @@ interface LlmProvider {
 data class LlmMessage(
     val role: Role,
     val content: String,
-    val name: String? = null
+    val name: String? = null,
+    val images: List<ByteArray>? = null // Optional image attachments
 ) {
     enum class Role {
-        SYSTEM, USER, ASSISTANT, TOOL
+        SYSTEM, USER, SMARTY, TOOL
     }
 }
 

@@ -1,7 +1,7 @@
 package com.example.smarty.data.repository
 
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.Note
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.Note
 import kotlinx.coroutines.flow.Flow
 
 /**

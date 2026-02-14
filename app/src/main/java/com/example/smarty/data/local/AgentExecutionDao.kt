@@ -1,9 +1,9 @@
 package com.example.smarty.data.local
 
 import androidx.room.*
-import com.example.smarty.data.model.AgentExecution
-import com.example.smarty.data.model.ExecutionStatus
-import com.example.smarty.data.model.ConnectionUsage
+import com.example.smarty.core.domain.model.AgentExecution
+import com.example.smarty.core.domain.model.ExecutionStatus
+import com.example.smarty.core.domain.model.ConnectionUsage
 import kotlinx.coroutines.flow.Flow
 
 /**

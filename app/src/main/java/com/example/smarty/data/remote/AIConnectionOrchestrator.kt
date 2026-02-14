@@ -5,11 +5,11 @@ import com.example.smarty.data.local.AIConnection
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.remote.providers.AIConnectionContract
 import com.example.smarty.data.remote.providers.CompatibleAIConnection
-import com.example.smarty.util.api.ApiErrorCategory
-import com.example.smarty.util.api.ApiMetrics
-import com.example.smarty.util.api.ConnectionFailoverManager
-import com.example.smarty.util.HttpClientProvider
-import com.example.smarty.util.retry.RetryExecutor
+import com.example.smarty.core.common.util.api.ApiErrorCategory
+import com.example.smarty.core.common.util.api.ApiMetrics
+import com.example.smarty.core.common.util.api.ConnectionFailoverManager
+import com.example.smarty.core.common.util.HttpClientProvider
+import com.example.smarty.core.common.util.retry.RetryExecutor
 import com.google.gson.Gson
 
 /**

@@ -34,12 +34,11 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.NoteType
-import com.example.smarty.ui.components.OrganicThinkingIndicator
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.util.ContentTypeDetector
+import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.ui.theme.*
 
 /**
@@ -196,7 +195,7 @@ fun ShareBottomSheet(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Assistant,
+                            imageVector = Icons.Default.AutoAwesome,
                             contentDescription = null,
                             tint = if (letAIDecide) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f),
                             modifier = Modifier.size(16.dp)
@@ -332,9 +331,10 @@ fun ShareBottomSheet(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
                     if (isProcessing) {
-                        OrganicThinkingIndicator(
-                            size = 20.dp,
-                            baseColor = MaterialTheme.colorScheme.surface
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            strokeWidth = 2.dp
                         )
                     } else {
                         Icon(

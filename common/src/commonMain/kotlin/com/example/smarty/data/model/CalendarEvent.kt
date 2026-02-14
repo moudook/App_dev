@@ -1,9 +1,9 @@
-package com.example.smarty.data.model
+package com.example.smarty.core.domain.model
 
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.example.smarty.util.PrivacyAware
+import com.example.smarty.core.common.util.PrivacyAware
 import kotlinx.serialization.Serializable
 import java.util.Calendar
 import java.util.UUID

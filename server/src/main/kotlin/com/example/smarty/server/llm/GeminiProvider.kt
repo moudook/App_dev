@@ -20,7 +20,7 @@ class GeminiProvider(
     private val client: HttpClient,
     override val providerName: String = "Gemini",
     private val apiKey: String,
-    private val defaultModel: String = "gemini-pro"
+    private val defaultModel: String = "gemini-1.5-flash"
 ) : LlmProvider {
 
     private val logger = LoggerFactory.getLogger(GeminiProvider::class.java)
@@ -114,14 +114,30 @@ class GeminiProvider(
                 LlmMessage.Role.USER, LlmMessage.Role.TOOL -> "user"
                 else -> "model"
             }
-            val content = if (msg.role == LlmMessage.Role.TOOL) {
+
+            val parts = mutableListOf<GeminiPart>()
+
+            // Add text content
+            val contentText = if (msg.role == LlmMessage.Role.TOOL) {
                 "Tool Result: ${msg.content}"
             } else {
                 msg.content
             }
+            if (contentText.isNotEmpty()) {
+                parts.add(GeminiPart(text = contentText))
+            }
+
+            // Add images
+            msg.images?.forEach { imageData ->
+                // Defaulting to image/jpeg if not specified.
+                // In a production system, we should inspect bytes or pass mimeType in LlmMessage.
+                val base64 = java.util.Base64.getEncoder().encodeToString(imageData)
+                parts.add(GeminiPart(inlineData = GeminiBlob(mimeType = "image/jpeg", data = base64)))
+            }
+
             GeminiContent(
                 role = role,
-                parts = listOf(GeminiPart(text = content))
+                parts = parts
             )
         }
 
@@ -154,7 +170,14 @@ data class GeminiContent(
 
 @Serializable
 data class GeminiPart(
-    val text: String? = null
+    val text: String? = null,
+    val inlineData: GeminiBlob? = null
+)
+
+@Serializable
+data class GeminiBlob(
+    val mimeType: String,
+    val data: String // Base64
 )
 
 @Serializable

@@ -35,7 +35,9 @@ import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -66,11 +68,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.example.smarty.ui.components.OrganicThinkingIndicator
 import java.io.File
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
-import com.example.smarty.util.ResourceManager
+import com.example.smarty.core.common.util.ResourceManager
 
 /**
  * Full-screen document viewer supporting PDFs and text files.
@@ -348,8 +349,10 @@ private fun PdfViewerContent(
     ) {
         when {
             isLoading -> {
-                OrganicThinkingIndicator(
-                    modifier = Modifier.align(Alignment.Center)
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 2.dp
                 )
             }
             errorMessage != null -> {
@@ -655,8 +658,10 @@ private fun TextViewerContent(
 
         when {
             isLoading -> {
-                OrganicThinkingIndicator(
-                    modifier = Modifier.align(Alignment.Center)
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 2.dp
                 )
             }
             errorMessage != null -> {

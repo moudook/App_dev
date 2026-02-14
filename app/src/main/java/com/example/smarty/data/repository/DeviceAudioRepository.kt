@@ -5,8 +5,8 @@ import android.content.Context
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
-import com.example.smarty.data.model.AudioSource
-import com.example.smarty.data.model.AudioTrack
+import com.example.smarty.core.domain.model.AudioSource
+import com.example.smarty.core.domain.model.AudioTrack
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex

@@ -7,17 +7,17 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
-import com.example.smarty.data.model.AgentExecution
-import com.example.smarty.data.model.AIMemory
-import com.example.smarty.data.model.CalendarEvent
-import com.example.smarty.data.model.Category
-import com.example.smarty.data.model.ChatMessageEntity
-import com.example.smarty.data.model.ChatSession
-import com.example.smarty.data.model.ImpressedEntry
-import com.example.smarty.data.model.Note
-import com.example.smarty.data.model.ConnectionUsage
-import com.example.smarty.data.model.SmartyTimer
-import com.example.smarty.data.model.NoteVersion
+import com.example.smarty.core.domain.model.AgentExecution
+import com.example.smarty.core.domain.model.CalendarEvent
+import com.example.smarty.core.domain.model.Category
+import com.example.smarty.core.domain.model.ChatMessageEntity
+import com.example.smarty.core.domain.model.ChatSession
+import com.example.smarty.core.domain.model.ImpressedEntry
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.ConnectionUsage
+import com.example.smarty.core.domain.model.SmartyTimer
+import com.example.smarty.core.domain.model.NoteVersion
+import com.example.smarty.data.local.CachedAIResponse
 
 @Database(
     entities = [
@@ -25,15 +25,16 @@ import com.example.smarty.data.model.NoteVersion
         Category::class,
         ChatSession::class,
         ChatMessageEntity::class,
-        AIMemory::class,
         ImpressedEntry::class,
         CalendarEvent::class,
         AgentExecution::class,      // AI agent execution tracking
         ConnectionUsage::class,       // Connection usage for rate limiting
         NoteVersion::class,         // Note version history for git-like versioning
-        SmartyTimer::class          // Persisted timers and alarms
+        SmartyTimer::class,         // Persisted timers and alarms
+        CachedAIResponse::class,    // Persistent AI response cache
+        com.example.smarty.data.model.AIMemory::class // Persistent AI memory
     ],
-    version = 29,  // v29: Added index for googleEventId in calendar_events
+    version = 31,  // v31: Added ai_memories table
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -41,12 +42,13 @@ abstract class SmartyDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun categoryDao(): CategoryDao
     abstract fun chatDao(): ChatDao
-    abstract fun aiMemoryDao(): AIMemoryDao
     abstract fun impressedLogDao(): ImpressedLogDao
     abstract fun calendarDao(): CalendarDao
     abstract fun agentExecutionDao(): AgentExecutionDao
     abstract fun noteVersionDao(): NoteVersionDao
     abstract fun timerDao(): TimerDao
+    abstract fun aiCacheDao(): AICacheDao
+    abstract fun aiMemoryDao(): com.example.smarty.features.chat.domain.memory.AIMemoryDao
 
     companion object {
         private const val TAG = "SmartyDatabase"
@@ -74,9 +76,6 @@ abstract class SmartyDatabase : RoomDatabase() {
             override fun onOpen(db: SupportSQLiteDatabase) {
                 super.onOpen(db)
                 ensureFtsTableExists(db)
-                // One-time fix: Ensure all existing notes have isReadForMemory = 0
-                // This handles the case where notes existed before the AI memory feature was added
-                ensureMemoryReadFlagsReset(db)
             }
 
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -99,84 +98,6 @@ abstract class SmartyDatabase : RoomDatabase() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error checking/creating FTS table", e)
-                }
-            }
-
-            /**
-             * One-time fix: Reset isReadForMemory to 0 for ALL notes.
-             * This ensures notes created before the AI memory feature was added
-             * are properly flagged for memory learning.
-             * 
-             * Uses a marker in the database to track if this fix has been applied.
-             * We use a simple approach: always reset on first run after update.
-             */
-            private fun ensureMemoryReadFlagsReset(db: SupportSQLiteDatabase) {
-                try {
-                    // Check if there are any AI memories stored
-                    val memoryCursor = db.query("SELECT COUNT(*) FROM ai_memories")
-                    val memoryCount = memoryCursor.use {
-                        if (it.moveToFirst()) it.getInt(0) else 0
-                    }
-                    
-                    // DETAILED DIAGNOSTICS: Count notes with each flag
-                    val totalCursor = db.query("SELECT COUNT(*) FROM notes")
-                    val totalAllNotes = totalCursor.use {
-                        if (it.moveToFirst()) it.getInt(0) else 0
-                    }
-                    
-                    val archivedCursor = db.query("SELECT COUNT(*) FROM notes WHERE isArchived = 1")
-                    val archivedCount = archivedCursor.use {
-                        if (it.moveToFirst()) it.getInt(0) else 0
-                    }
-                    
-                    val fullPrivacyCursor = db.query("SELECT COUNT(*) FROM notes WHERE isFullPrivacy = 1")
-                    val fullPrivacyCount = fullPrivacyCursor.use {
-                        if (it.moveToFirst()) it.getInt(0) else 0
-                    }
-                    
-                    val excludedCursor = db.query("SELECT COUNT(*) FROM notes WHERE excludeFromAiChat = 1")
-                    val excludedCount = excludedCursor.use {
-                        if (it.moveToFirst()) it.getInt(0) else 0
-                    }
-                    
-                    val markedAsReadCursor = db.query("SELECT COUNT(*) FROM notes WHERE isReadForMemory = 1")
-                    val markedAsReadCount = markedAsReadCursor.use {
-                        if (it.moveToFirst()) it.getInt(0) else 0
-                    }
-                    
-                    Log.i(TAG, "=== MEMORY SYNC DIAGNOSTICS ===")
-                    Log.i(TAG, "Total notes in DB: $totalAllNotes")
-                    Log.i(TAG, "  - Archived: $archivedCount")
-                    Log.i(TAG, "  - Full Privacy: $fullPrivacyCount")
-                    Log.i(TAG, "  - Excluded from AI: $excludedCount")
-                    Log.i(TAG, "  - Marked as read for memory: $markedAsReadCount")
-                    Log.i(TAG, "AI Memories stored: $memoryCount")
-                    
-                    // Count eligible notes (non-archived, not private, not excluded)
-                    val eligibleCursor = db.query("SELECT COUNT(*) FROM notes WHERE isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
-                    val eligibleNotes = eligibleCursor.use {
-                        if (it.moveToFirst()) it.getInt(0) else 0
-                    }
-                    Log.i(TAG, "Eligible notes (non-archived, non-private): $eligibleNotes")
-                    
-                    // If NO memories exist AND there are eligible notes, reset them ALL for analysis
-                    if (memoryCount == 0 && eligibleNotes > 0) {
-                        Log.i(TAG, ">>> RESETTING: No memories exist, resetting $eligibleNotes notes for memory analysis")
-                        // Reset ALL notes to isReadForMemory = 0
-                        db.execSQL("UPDATE notes SET isReadForMemory = 0")
-                        
-                        // Verify the fix worked
-                        val verifyCount = db.query("SELECT COUNT(*) FROM notes WHERE isReadForMemory = 0 AND isArchived = 0 AND isFullPrivacy = 0 AND excludeFromAiChat = 0")
-                        val newUnreadCount = verifyCount.use {
-                            if (it.moveToFirst()) it.getInt(0) else 0
-                        }
-                        Log.i(TAG, ">>> After reset: $newUnreadCount notes now eligible for memory sync")
-                    } else if (eligibleNotes == 0 && totalAllNotes > 0) {
-                        Log.w(TAG, ">>> WARNING: All $totalAllNotes notes are blocked by privacy flags or archived!")
-                    }
-                    Log.i(TAG, "================================")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error in ensureMemoryReadFlagsReset", e)
                 }
             }
 
@@ -356,7 +277,8 @@ abstract class SmartyDatabase : RoomDatabase() {
                         Migrations.MIGRATION_25_26,   // Fix: @ColumnInfo defaultValue annotation
                         Migrations.MIGRATION_26_27,   // Feature: googleEventId for calendar_events sync
                         Migrations.MIGRATION_27_28,   // Feature: SmartyTimer for persistent alarms
-                        Migrations.MIGRATION_28_29    // Performance: googleEventId index for calendar sync
+                        Migrations.MIGRATION_28_29,   // Performance: googleEventId index for calendar sync
+                        Migrations.MIGRATION_29_30    // Feature: ai_cache for persistent caching
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

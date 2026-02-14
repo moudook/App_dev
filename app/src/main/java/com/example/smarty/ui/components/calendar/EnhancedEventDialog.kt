@@ -20,7 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
-import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.core.domain.model.CalendarEvent
 import java.text.SimpleDateFormat
 import java.util.*
 

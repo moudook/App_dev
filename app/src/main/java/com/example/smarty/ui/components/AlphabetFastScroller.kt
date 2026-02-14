@@ -21,7 +21,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.data.model.Note
+import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.FisheyeAnimations
 import kotlinx.coroutines.delay

@@ -1,13 +1,20 @@
-package com.example.smarty.data.model
+package com.example.smarty.core.domain.model
 
 // import java.util.UUID
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 /**
  * Role in a chat conversation
  */
+@Serializable
 enum class ChatRole {
+    @SerialName("user")
     USER,
-    ASSISTANT,
+    @SerialName("assistant")
+    SMARTY,
+    @SerialName("system")
     SYSTEM
 }
 
@@ -54,10 +61,10 @@ data class ChatMessage(
     val isAudioRelated: Boolean = false,  // True when user asked about audio/music playback
     val suggestions: List<String> = emptyList(),  // AI-provided suggestions (max 2)
     val isError: Boolean = false,  // True when this message represents an API error
+    val isStreaming: Boolean = false,  // True when AI response is still being received
     val citations: List<Citation> = emptyList(),  // Sources from web research
     val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
-    val clarificationRequest: ClarificationRequest? = null,  // Interactive clarification request
-    val thinkingContent: String? = null  // Reasoning process from thinking-enabled models
+    val clarificationRequest: ClarificationRequest? = null  // Interactive clarification request
 ) {
     /**
      * Check if this is a user message
@@ -65,9 +72,9 @@ data class ChatMessage(
     val isUser: Boolean get() = role == ChatRole.USER
 
     /**
-     * Check if this is an assistant message
+     * Check if this is a Smarty response
      */
-    val isAssistant: Boolean get() = role == ChatRole.ASSISTANT
+    val isSmarty: Boolean get() = role == ChatRole.SMARTY
 
     /**
      * Check if this is a system message
@@ -98,9 +105,4 @@ data class ChatMessage(
      * Check if inline images are available to display
      */
     val hasInlineImages: Boolean get() = inlineImages.isNotEmpty()
-
-    /**
-     * Check if thinking/reasoning content is available
-     */
-    val hasThinking: Boolean get() = !thinkingContent.isNullOrBlank()
 }

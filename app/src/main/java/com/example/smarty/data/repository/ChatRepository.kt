@@ -3,12 +3,12 @@ package com.example.smarty.data.repository
 import android.util.Log
 import androidx.room.Transaction
 import com.example.smarty.data.local.ChatDao
-import com.example.smarty.data.model.ChatMessage
-import com.example.smarty.data.model.ChatMessageEntity
-import com.example.smarty.data.model.ChatRole
-import com.example.smarty.data.model.ChatSession
-import com.example.smarty.data.model.Note
-import com.example.smarty.util.PrivacyGuard
+import com.example.smarty.core.domain.model.ChatMessage
+import com.example.smarty.core.domain.model.ChatMessageEntity
+import com.example.smarty.core.domain.model.ChatRole
+import com.example.smarty.core.domain.model.ChatSession
+import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.common.util.PrivacyGuard
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -22,7 +22,7 @@ class ChatRepository(private val chatDao: ChatDao) {
     companion object {
         private const val TAG = "ChatRepository"
         private const val MAX_SESSIONS = 20  // Maximum number of sessions to keep
-        private const val MIN_MESSAGES_TO_SAVE = 2  // Need at least user + assistant message
+        private const val MIN_MESSAGES_TO_SAVE = 2  // Need at least user + smarty response
     }
 
     // ==================== Session Operations ====================
@@ -114,7 +114,7 @@ class ChatRepository(private val chatDao: ChatDao) {
      *
      * Smart saving logic:
      * - Always save user messages
-     * - Only save assistant messages if they have content
+     * - Only save Smarty responses if they have content
      * - Skip system messages (internal use only)
      *
      * SECURITY: Referenced note IDs should be pre-sanitized before calling.
@@ -179,12 +179,12 @@ class ChatRepository(private val chatDao: ChatDao) {
     }
 
     /**
-     * Save a pair of messages (user + assistant) atomically.
+     * Save a pair of messages (user + smarty) atomically.
      * This is the primary method to use after a successful API response.
      *
      * @param sessionId The session to save to
      * @param userMessage The user's message
-     * @param assistantMessage The assistant's response
+     * @param smartyMessage The Smarty response
      * @param shouldSave Whether saving is allowed (based on API success, demo mode, etc.)
      * @return true if messages were saved
      */
@@ -192,7 +192,7 @@ class ChatRepository(private val chatDao: ChatDao) {
     suspend fun saveMessagePair(
         sessionId: String,
         userMessage: ChatMessage,
-        assistantMessage: ChatMessage,
+        smartyMessage: ChatMessage,
         shouldSave: Boolean
     ): Boolean {
         if (!shouldSave) {
@@ -200,9 +200,9 @@ class ChatRepository(private val chatDao: ChatDao) {
             return false
         }
 
-        // Assistant message must have content
-        if (assistantMessage.content.isBlank()) {
-            Log.d(TAG, "Skipping save - assistant content is empty")
+        // Smarty response must have content
+        if (smartyMessage.content.isBlank()) {
+            Log.d(TAG, "Skipping save - smarty content is empty")
             return false
         }
 
@@ -211,8 +211,8 @@ class ChatRepository(private val chatDao: ChatDao) {
             saveMessage(sessionId, userMessage)
         }
 
-        // Save assistant message
-        saveMessage(sessionId, assistantMessage)
+        // Save Smarty response
+        saveMessage(sessionId, smartyMessage)
 
         return true
     }
@@ -233,10 +233,10 @@ class ChatRepository(private val chatDao: ChatDao) {
      */
     suspend fun shouldPersistSession(sessionId: String): Boolean {
         val messageCount = chatDao.getMessageCountForSession(sessionId)
-        val assistantCount = chatDao.getAssistantMessageCount(sessionId)
+        val smartyCount = chatDao.getSmartyMessageCount(sessionId)
 
-        // Need at least one user message and one assistant response
-        return messageCount >= MIN_MESSAGES_TO_SAVE && assistantCount >= 1
+        // Need at least one user message and one Smarty response
+        return messageCount >= MIN_MESSAGES_TO_SAVE && smartyCount >= 1
     }
 
     /**

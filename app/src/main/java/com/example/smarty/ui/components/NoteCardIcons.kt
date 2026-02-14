@@ -28,7 +28,8 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Assistant
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Code
@@ -59,7 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import com.example.smarty.data.model.NoteType
+import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.*
 
@@ -204,13 +205,13 @@ object NoteCardIcons {
             "learn" to Icons.Default.School,
             "read" to Icons.Default.Description,
             "watch" to Icons.Default.PlayCircle,
-            "idea" to Icons.Default.Assistant,
+            "idea" to Icons.Default.Lightbulb,
             "todo" to Icons.Default.CheckCircle,
             "buy" to Icons.Default.ShoppingCart,
             "meet" to Icons.Default.Event,
             "code" to Icons.Default.Code,
             "quote" to Icons.Default.FormatQuote,
-            "inspo" to Icons.Default.Assistant,
+            "inspo" to Icons.Default.AutoAwesome,
             "recipe" to Icons.Default.Description,
             "health" to Icons.Default.Favorite,
             "finance" to Icons.Default.Payments,
@@ -297,3 +298,4 @@ fun getNoteTypeIcon(type: NoteType): ImageVector = NoteCardIcons.getIcon(type)
  * @return Semantic color for the note type
  */
 fun getNoteTypeColor(type: NoteType): Color = NoteCardIcons.getColor(type)
+

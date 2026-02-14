@@ -27,7 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.animateCardTilt
 import com.example.smarty.ui.animation.animatedCardTransform

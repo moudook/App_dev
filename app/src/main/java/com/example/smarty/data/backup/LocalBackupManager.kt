@@ -517,9 +517,9 @@ class LocalBackupManager(
             isDarkTheme = securePreferences.getDarkThemePreference(),
             autoBackupEnabled = securePreferences.isAutoBackupEnabled(),
             autoBackupIntervalDays = securePreferences.getAutoBackupIntervalDays(),
-            localPcIp = securePreferences.getLocalPCIP(),
-            localPcPort = securePreferences.getLocalPCPort(),
-            localPcUseHttps = securePreferences.getLocalPCUseHttps(),
+            localPcIp = null, // Deprecated
+            localPcPort = null, // Deprecated
+            localPcUseHttps = null, // Deprecated
             shakeSensitivity = securePreferences.getShakeSensitivity(),
             soundEnabled = securePreferences.isSoundEnabled()
         )

@@ -19,16 +19,30 @@ android {
         applicationId = "com.example.smarty"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("../friday-release-key.keystore")
+            storePassword = System.getenv("FRIDAY_STORE_PASSWORD") ?: "friday123"
+            keyAlias = System.getenv("FRIDAY_KEY_ALIAS") ?: "friday-key-alias"
+            keyPassword = System.getenv("FRIDAY_KEY_PASSWORD") ?: "friday123"
+        }
+    }
+    
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // IMPORTANT: R8 minification is DISABLED because the app relies on many
+            // reflection-based frameworks (Firebase, Ktor SSE, WorkManager, Room,
+            // EncryptedSharedPreferences, Kotlinx Serialization, Vosk JNI).
+            // Enabling R8 strips these classes and causes immediate crash on launch.
+            // TODO: Incrementally enable with thorough ProGuard rule testing
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -37,6 +51,8 @@ android {
             configure<com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension> {
                 mappingFileUploadEnabled = true
             }
+            // Apply the release signing config
+            signingConfig = signingConfigs.getByName("release")
             // Task 16: Production Server URL
             buildConfigField("String", "SERVER_URL", "\"https://your-space-name.hf.space\"")
         }
@@ -44,7 +60,9 @@ android {
             // Keep debug builds fast - no minification
             isMinifyEnabled = false
             // Task 16: Local Server URL (Emulator Loopback)
-            buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:7860\"")
+            // buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:7860\"")
+            // Task 16: Remote Server URL (Ngrok)
+            buildConfigField("String", "SERVER_URL", "\"https://largest-camron-usuriously.ngrok-free.dev\"")
         }
     }
     compileOptions {
@@ -127,9 +145,10 @@ dependencies {
 
     // WorkManager for scheduled backups
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.javax.inject)
 
-    // PDF text extraction
-    implementation(libs.pdfbox.android)
+    // PDF text extraction (Removed - Server side)
+    // implementation(libs.pdfbox.android)
 
     // Media3 ExoPlayer for audio playback
     implementation(libs.androidx.media3.exoplayer)
@@ -146,8 +165,8 @@ dependencies {
     // Vosk - Offline speech recognition for wake word detection
     implementation("com.alphacephei:vosk-android:0.3.75")
 
-    // ML Kit Text Recognition - OCR for images (on-device, ~5-10MB)
-    implementation("com.google.mlkit:text-recognition:16.0.1")
+    // ML Kit Text Recognition (Removed - Server side)
+    // implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Koog AI Agent Framework - TEMPORARILY DISABLED due to Kotlin 2.2 requirement
     // TODO: Re-enable when koog releases a version compatible with Kotlin 2.1.x
@@ -168,10 +187,22 @@ dependencies {
     // REMOVED: Unused Firebase modules identified in BATCH-10 analysis
     // Firestore for Cloud Sync
     implementation(libs.firebase.firestore)
+
+    // Fix for Firestore crash (InternalGlobalInterceptors)
+    // Align all gRPC dependencies to 1.66.0 to match what google-api-client pulls in
+    val grpcVersion = "1.66.0"
+    implementation("io.grpc:grpc-okhttp:$grpcVersion")
+    implementation("io.grpc:grpc-android:$grpcVersion")
+    implementation("io.grpc:grpc-protobuf-lite:$grpcVersion")
+    implementation("io.grpc:grpc-stub:$grpcVersion")
+    implementation("io.grpc:grpc-core:$grpcVersion")
+    implementation("io.grpc:grpc-api:$grpcVersion")
+    implementation("io.grpc:grpc-context:$grpcVersion")
+
     // Crashlytics for crash reporting
     implementation(libs.firebase.crashlytics)
-    // FCM not implemented - no FirebaseMessagingService
-    // implementation(libs.firebase.messaging)
+    // FCM for Push Notifications
+    implementation(libs.firebase.messaging)
     // Analytics not implemented - no logEvent() calls
     // implementation(libs.firebase.analytics)
     // Remote Config not implemented - no fetchAndActivate() calls

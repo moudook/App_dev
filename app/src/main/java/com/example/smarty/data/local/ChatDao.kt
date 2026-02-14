@@ -1,8 +1,8 @@
 package com.example.smarty.data.local
 
 import androidx.room.*
-import com.example.smarty.data.model.ChatMessageEntity
-import com.example.smarty.data.model.ChatSession
+import com.example.smarty.core.domain.model.ChatMessageEntity
+import com.example.smarty.core.domain.model.ChatSession
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -103,6 +103,9 @@ interface ChatDao {
     """)
     suspend fun getRecentSessionSummaries(limit: Int, excludeSessionId: String = ""): List<ChatSession>
 
+    @Query("SELECT * FROM chat_sessions ORDER BY updatedAt DESC LIMIT :limit")
+    suspend fun getRecentSessions(limit: Int): List<ChatSession>
+
     /**
      * Get sessions that need summary generation.
      * Returns sessions with enough messages but no summary, or outdated summaries.
@@ -147,7 +150,7 @@ interface ChatDao {
     suspend fun getMessageCountForSession(sessionId: String): Int
 
     @Query("SELECT COUNT(*) FROM chat_messages WHERE sessionId = :sessionId AND role = 'ASSISTANT'")
-    suspend fun getAssistantMessageCount(sessionId: String): Int
+    suspend fun getSmartyMessageCount(sessionId: String): Int
 
     // ==================== Cleanup Operations ====================
 

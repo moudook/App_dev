@@ -1,7 +1,7 @@
 package com.example.smarty.data.local
 
 import androidx.room.*
-import com.example.smarty.data.model.CalendarEvent
+import com.example.smarty.core.domain.model.CalendarEvent
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -67,6 +67,9 @@ interface CalendarDao {
         LIMIT :limit
     """)
     fun getUpcomingEvents(nowMillis: Long = System.currentTimeMillis(), limit: Int = 20): Flow<List<CalendarEvent>>
+
+    @Query("SELECT * FROM calendar_events WHERE startTime >= :startMillis AND startTime < :endMillis ORDER BY startTime ASC")
+    suspend fun getUpcomingEvents(startMillis: Long, endMillis: Long): List<CalendarEvent>
 
     /**
      * Get today's events
@@ -134,13 +137,19 @@ interface CalendarDao {
      * Get all active timers (one-shot)
      */
     @Query("SELECT * FROM timers WHERE isActive = 1")
-    suspend fun getActiveTimersOnce(): List<com.example.smarty.data.model.SmartyTimer>
+    suspend fun getActiveTimersOnce(): List<com.example.smarty.core.domain.model.SmartyTimer>
 
     /**
      * Delete all events
      */
     @Query("DELETE FROM calendar_events")
     suspend fun deleteAllEvents()
+
+    /**
+     * Delete all timers
+     */
+    @Query("DELETE FROM timers")
+    suspend fun deleteAllTimers()
 
     /**
      * Count total events

@@ -3,21 +3,20 @@ package com.example.smarty.di
 import android.app.Application
 import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.local.SmartyDatabase
+import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.data.repository.SyncRepository
 import com.example.smarty.data.repository.FirestoreSyncRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
-import com.example.smarty.viewmodel.managers.AudioFeatureManager
-import com.example.smarty.viewmodel.managers.AudioPlaybackManager
-import com.example.smarty.viewmodel.managers.CalendarFeatureManager
-import com.example.smarty.viewmodel.managers.ChatFeatureManager
-import com.example.smarty.viewmodel.managers.MemoryFeatureManager
-import com.example.smarty.viewmodel.managers.MemorySyncManager
-import com.example.smarty.viewmodel.managers.NoteOperationsManager
-import com.example.smarty.viewmodel.managers.SearchFeatureManager
-import com.example.smarty.viewmodel.managers.SettingsFeatureManager
-import com.example.smarty.viewmodel.managers.SystemFeatureManager
+import com.example.smarty.features.audio.domain.AudioFeatureManager
+import com.example.smarty.features.audio.domain.AudioPlaybackManager
+import com.example.smarty.features.calendar.domain.CalendarFeatureManager
+import com.example.smarty.features.chat.domain.ChatFeatureManager
+import com.example.smarty.features.notes.domain.NoteOperationsManager
+import com.example.smarty.features.search.domain.SearchFeatureManager
+import com.example.smarty.features.settings.domain.SettingsFeatureManager
+import com.example.smarty.features.system.domain.SystemFeatureManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,22 +30,16 @@ import kotlinx.coroutines.flow.stateIn
 object ServiceLocator {
 
     @Volatile
-    private var memorySyncManager: MemorySyncManager? = null
+    private var repository: SmartyRepository? = null
 
     @Volatile
-    private var memoryFeatureManager: MemoryFeatureManager? = null
-
-    @Volatile
-    private var calendarFeatureManager: CalendarFeatureManager? = null
+    private var syncRepository: SyncRepository? = null
 
     @Volatile
     private var noteOperationsManager: NoteOperationsManager? = null
 
     @Volatile
-    private var repository: SmartyRepository? = null
-
-    @Volatile
-    private var syncRepository: SyncRepository? = null
+    private var calendarFeatureManager: CalendarFeatureManager? = null
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -73,59 +66,28 @@ object ServiceLocator {
 
     fun provideNoteOperationsManager(application: Application): NoteOperationsManager {
         return noteOperationsManager ?: synchronized(this) {
-            val database = SmartyDatabase.getDatabase(application)
             val securePreferences = SecurePreferences.getInstance(application)
-            val aiService = AIService(application, securePreferences)
+            val aiService = provideAIService(application)
             val repository = provideRepository(application)
 
             NoteOperationsManager(
                 repository = repository,
                 aiService = aiService,
                 context = application,
-                scope = applicationScope, // Use app scope for singleton manager
-                noteDao = database.noteDao()
+                scope = applicationScope // Use app scope for singleton manager
             ).also { noteOperationsManager = it }
-        }
-    }
-
-    fun provideMemorySyncManager(application: Application): MemorySyncManager {
-        return memorySyncManager ?: synchronized(this) {
-            val database = SmartyDatabase.getDatabase(application)
-            val securePreferences = SecurePreferences.getInstance(application)
-            val aiService = AIService(application, securePreferences)
-
-            MemorySyncManager(
-                context = application,
-                database = database,
-                aiMemoryDao = database.aiMemoryDao(),
-                aiService = aiService
-            ).also { memorySyncManager = it }
-        }
-    }
-
-    fun provideMemoryFeatureManager(application: Application): MemoryFeatureManager {
-        return memoryFeatureManager ?: synchronized(this) {
-            val database = SmartyDatabase.getDatabase(application)
-            val syncManager = provideMemorySyncManager(application)
-
-            MemoryFeatureManager(
-                aiMemoryDao = database.aiMemoryDao(),
-                syncManager = syncManager,
-                scope = applicationScope // Use app scope for shared manager
-            ).also { memoryFeatureManager = it }
         }
     }
 
     fun provideCalendarFeatureManager(application: Application): CalendarFeatureManager {
         return calendarFeatureManager ?: synchronized(this) {
-            val database = SmartyDatabase.getDatabase(application)
             val securePreferences = SecurePreferences.getInstance(application)
             val alarmScheduler = com.example.smarty.service.AlarmScheduler.getInstance(application)
             val repository = provideRepository(application)
-            val googleCalendarSyncManager = com.example.smarty.calendar.GoogleCalendarSyncManager(application, repository)
+            val googleCalendarSyncManager = com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager(application, repository)
 
             CalendarFeatureManager(
-                calendarDao = database.calendarDao(),
+                repository = repository,
                 googleCalendarSyncManager = googleCalendarSyncManager,
                 securePreferences = securePreferences,
                 alarmScheduler = alarmScheduler,
@@ -211,8 +173,137 @@ object ServiceLocator {
                 calendarManager = calendarFM.getCalendarManager(),
                 securePreferences = securePreferences,
                 deviceAudioRepository = repo,
-                onNavigateRequest = { /* TODO: Hook up navigation */ }
+                onNavigateRequest = { screen ->
+                    provideSharedAppState().setNavigationRequest(screen)
+                }
             ).also { systemFeatureManager = it }
+        }
+    }
+
+    @Volatile
+    private var chatRepository: com.example.smarty.data.repository.ChatRepository? = null
+
+    fun provideChatRepository(application: Application): com.example.smarty.data.repository.ChatRepository {
+        return chatRepository ?: synchronized(this) {
+            val database = SmartyDatabase.getDatabase(application)
+            com.example.smarty.data.repository.ChatRepository(database.chatDao()).also { chatRepository = it }
+        }
+    }
+
+    @Volatile
+    private var aiService: AIService? = null
+
+    fun provideAIService(application: Application): AIService {
+        return aiService ?: synchronized(this) {
+            val securePreferences = SecurePreferences.getInstance(application)
+            val remoteAgentService = provideRemoteAgentService(application)
+            val aiResponseCache = provideAIResponseCache(application)
+            AIService(application, securePreferences, remoteAgentService, aiResponseCache).also { aiService = it }
+        }
+    }
+
+    fun provideRemoteAgentService(application: Application): com.example.smarty.data.remote.RemoteAgentService {
+        val securePreferences = SecurePreferences.getInstance(application)
+
+        // Create Ktor HttpClient using shared OkHttp engine
+        val ktorClient = io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
+            engine {
+                preconfigured = com.example.smarty.core.common.util.HttpClientProvider.default
+            }
+        }
+
+        return com.example.smarty.data.remote.RemoteAgentService(
+            client = ktorClient,
+            eventSink = com.example.smarty.core.common.worker.BackgroundAgentEventSink(),
+            serverUrlProvider = { securePreferences.getSmartyServerUrl() },
+            deviceIdProvider = { securePreferences.getDeviceId() }
+        )
+    }
+
+    @Volatile
+    private var alarmScheduler: com.example.smarty.service.AlarmScheduler? = null
+
+    fun provideAlarmScheduler(application: Application): com.example.smarty.service.AlarmScheduler {
+        return alarmScheduler ?: synchronized(this) {
+            com.example.smarty.service.AlarmScheduler.getInstance(application).also { alarmScheduler = it }
+        }
+    }
+
+    @Volatile
+    private var completionSoundManager: com.example.smarty.core.common.util.CompletionSoundManager? = null
+
+    fun provideCompletionSoundManager(application: Application): com.example.smarty.core.common.util.CompletionSoundManager {
+        return completionSoundManager ?: synchronized(this) {
+            com.example.smarty.core.common.util.CompletionSoundManager.getInstance(application).also { completionSoundManager = it }
+        }
+    }
+
+    @Volatile
+    private var cacheManager: com.example.smarty.data.cache.CacheManager? = null
+
+    @Volatile
+    private var aiResponseCache: AIResponseCache? = null
+
+    fun provideAIResponseCache(application: Application): AIResponseCache {
+        return aiResponseCache ?: synchronized(this) {
+            val database = SmartyDatabase.getDatabase(application)
+            AIResponseCache(
+                cacheDao = database.aiCacheDao(),
+                scope = applicationScope
+            ).also { aiResponseCache = it }
+        }
+    }
+
+    fun provideCacheManager(application: Application): com.example.smarty.data.cache.CacheManager {
+        return cacheManager ?: synchronized(this) {
+            com.example.smarty.data.cache.CacheManager.getInstance(application).also { cacheManager = it }
+        }
+    }
+
+    @Volatile
+    private var styleFeatureManager: com.example.smarty.features.chat.domain.StyleFeatureManager? = null
+
+    fun provideStyleFeatureManager(): com.example.smarty.features.chat.domain.StyleFeatureManager {
+        return styleFeatureManager ?: synchronized(this) {
+            com.example.smarty.features.chat.domain.StyleFeatureManager().also { styleFeatureManager = it }
+        }
+    }
+
+    @Volatile
+    private var workflowManager: com.example.smarty.features.chat.domain.WorkflowManager? = null
+
+    fun provideWorkflowManager(application: Application): com.example.smarty.features.chat.domain.WorkflowManager {
+        return workflowManager ?: synchronized(this) {
+            val repo = provideRepository(application)
+            com.example.smarty.features.chat.domain.WorkflowManager(
+                repository = repo,
+                scope = applicationScope,
+                onStatusUpdate = { /* Callback handling to be improved */ }
+            ).also { workflowManager = it }
+        }
+    }
+
+    @Volatile
+    private var noteProcessingQueueManager: com.example.smarty.features.notes.domain.NoteProcessingQueueManager? = null
+
+    fun provideNoteProcessingQueueManager(application: Application): com.example.smarty.features.notes.domain.NoteProcessingQueueManager {
+        return noteProcessingQueueManager ?: synchronized(this) {
+            val repo = provideRepository(application)
+            val aiService = provideAIService(application)
+            com.example.smarty.features.notes.domain.NoteProcessingQueueManager(
+                repository = repo,
+                aiService = aiService,
+                scope = applicationScope
+            ).also { noteProcessingQueueManager = it }
+        }
+    }
+
+    @Volatile
+    private var sharedAppState: com.example.smarty.data.state.SharedAppState? = null
+
+    fun provideSharedAppState(): com.example.smarty.data.state.SharedAppState {
+        return sharedAppState ?: synchronized(this) {
+            com.example.smarty.data.state.SharedAppState().also { sharedAppState = it }
         }
     }
 
@@ -223,28 +314,22 @@ object ServiceLocator {
             val database = SmartyDatabase.getDatabase(application)
             val securePreferences = SecurePreferences.getInstance(application)
             val repo = provideRepository(application)
-            val chatRepo = com.example.smarty.data.repository.ChatRepository(database.chatDao())
+            val chatRepo = provideChatRepository(application) // Use provider
 
             val settingsFM = provideSettingsFeatureManager(application)
             val noteOps = provideNoteOperationsManager(application)
             val systemFM = provideSystemFeatureManager(application)
-            val completionSound = com.example.smarty.util.CompletionSoundManager.getInstance(application)
-            val alarmScheduler = com.example.smarty.service.AlarmScheduler.getInstance(application)
-            val executionPlan = com.example.smarty.viewmodel.managers.ExecutionPlanManager()
-            val memoryFM = provideMemoryFeatureManager(application)
+            val completionSound = provideCompletionSoundManager(application)
+            val alarmScheduler = provideAlarmScheduler(application)
             val searchFM = provideSearchFeatureManager(application)
             val audioFM = provideAudioFeatureManager(application)
             val calendarFM = provideCalendarFeatureManager(application)
-            val styleFM = com.example.smarty.viewmodel.managers.StyleFeatureManager()
-            val workflowManager = com.example.smarty.viewmodel.managers.WorkflowManager(
-                repository = repo,
-                scope = applicationScope,
-                onStatusUpdate = { /* handled via callback later */ }
-            )
+            val styleFM = provideStyleFeatureManager()
+            val workflowManager = provideWorkflowManager(application)
             val savedStateHandle = androidx.lifecycle.SavedStateHandle() // Placeholder if not provided
 
             // Shared State
-            val sharedState = com.example.smarty.data.state.SharedAppState() // Should be singleton too
+            val sharedState = provideSharedAppState()
 
             ChatFeatureManager(
                 application = application,
@@ -258,8 +343,6 @@ object ServiceLocator {
                 systemFeatureManager = systemFM,
                 completionSoundManager = completionSound,
                 alarmScheduler = alarmScheduler,
-                executionPlanManager = executionPlan,
-                memoryFeatureManager = memoryFM,
                 searchFeatureManager = searchFM,
                 audioFeatureManager = audioFM,
                 calendarFeatureManager = calendarFM,
@@ -268,10 +351,10 @@ object ServiceLocator {
                 savedStateHandle = savedStateHandle,
                 currentScreen = sharedState.currentScreen,
                 activeNoteId = sharedState.activeNoteId,
-                isDarkTheme = sharedState.isDarkTheme,
+                isDarkTheme = settingsFM.isDarkTheme,
                 connectionStatus = sharedState.connectionStatus,
-                cacheSizeBytes = sharedState.cacheSizeBytes,
-                unreadForMemoryCount = provideMemorySyncManager(application).unreadCount
+                cacheSizeBytes = settingsFM.cacheSizeBytes,
+                onNavigate = { screen -> sharedState.setNavigationRequest(screen) }
             ).also { chatFeatureManager = it }
         }
     }
@@ -299,11 +382,10 @@ object ServiceLocator {
 
     // Reset for testing or cleanup
     fun reset() {
-        memorySyncManager = null
-        memoryFeatureManager = null
         calendarFeatureManager = null
         noteOperationsManager = null
         repository = null
+        chatRepository = null
         audioFeatureManager = null
         settingsFeatureManager = null
         systemFeatureManager = null
@@ -311,5 +393,27 @@ object ServiceLocator {
         audioPlaybackManager = null
         deviceAudioRepository = null
         searchFeatureManager = null
+        aiResponseCache = null
+    }
+    @Volatile
+    private var memoryFeatureManager: com.example.smarty.viewmodel.managers.MemoryFeatureManager? = null
+
+    fun provideMemoryFeatureManager(application: Application): com.example.smarty.viewmodel.managers.MemoryFeatureManager {
+        return memoryFeatureManager ?: synchronized(this) {
+            val database = SmartyDatabase.getDatabase(application)
+            com.example.smarty.viewmodel.managers.MemoryFeatureManager(database.aiMemoryDao()).also { memoryFeatureManager = it }
+        }
+    }
+
+    @Volatile
+    private var memorySyncManager: com.example.smarty.features.chat.domain.memory.MemorySyncManager? = null
+
+    fun provideMemorySyncManager(application: Application): com.example.smarty.features.chat.domain.memory.MemorySyncManager {
+        return memorySyncManager ?: synchronized(this) {
+            val featureManager = provideMemoryFeatureManager(application)
+            val noteOps = provideNoteOperationsManager(application)
+            com.example.smarty.features.chat.domain.memory.MemorySyncManager(featureManager, noteOps).also { memorySyncManager = it }
+        }
     }
 }
+

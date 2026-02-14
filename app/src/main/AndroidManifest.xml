@@ -168,6 +168,15 @@
             </intent-filter>
         </service>
 
+        <!-- Firebase Cloud Messaging Service -->
+        <service
+            android:name=".service.FCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- File Operation Service - Background file compression/copying -->
         <service
             android:name=".service.FileOperationService"

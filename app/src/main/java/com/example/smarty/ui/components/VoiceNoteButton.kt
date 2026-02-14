@@ -50,7 +50,7 @@ import androidx.compose.ui.res.stringResource
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.R
-import com.example.smarty.voice.VoiceNoteRecorder
+import com.example.smarty.features.voice.VoiceNoteRecorder
 
 /**
  * Compact voice note recording button.
@@ -339,7 +339,7 @@ fun VoiceRecordingOverlay(
             // Title
             Text(
                 text = when (state) {
-                    is VoiceNoteRecorder.RecordingState.Recording -> stringResource(R.string.thinking).replace("…", "")
+                    is VoiceNoteRecorder.RecordingState.Recording -> stringResource(R.string.processing)
                     is VoiceNoteRecorder.RecordingState.Paused -> "paused"
                     is VoiceNoteRecorder.RecordingState.Completed -> stringResource(R.string.recording_saved)
                     is VoiceNoteRecorder.RecordingState.Error -> "error"
