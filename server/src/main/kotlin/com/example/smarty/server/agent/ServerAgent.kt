@@ -326,6 +326,7 @@ class ServerAgent(
 
     suspend fun run(
         query: String,
+        sessionId: String = UUID.randomUUID().toString(),
         history: List<LlmMessage> = emptyList(),
         modelOverride: String? = null,
         clientTimezone: String? = null,
@@ -478,10 +479,10 @@ class ServerAgent(
         }
 
         // 3. Agentic Loop: Cache Check → Stream LLM → tool call? → execute → feed result → repeat
-        val mutableMessages = messages.toMutableList()
+        val messagesForAgent = messages.toMutableList()
         
         // KOOG Optimization: LlmCache Check (only on first iteration for text responses)
-        val cacheKey = LlmCacheKey(mutableMessages, tools, modelOverride)
+        val cacheKey = LlmCacheKey(messagesForAgent, tools, modelOverride)
         LlmCache.get(cacheKey)?.let { cached ->
             emit(AgentEvent.Processing(
                 eventId = UUID.randomUUID().toString(),
@@ -516,7 +517,7 @@ class ServerAgent(
             var totalUsage: LlmUsage? = null
 
             try {
-                llmProvider.stream(mutableMessages, tools, modelOverride).collect { chunk ->
+                llmProvider.stream(messagesForAgent, tools, modelOverride).collect { chunk ->
                     chunk.usage?.let { totalUsage = it }
 
                     // Handle Content
@@ -609,13 +610,13 @@ class ServerAgent(
                         ))
 
                         // Feed tool result back to LLM as TOOL message
-                        mutableMessages += LlmMessage(
+                        messagesForAgent += LlmMessage(
                             role = LlmMessage.Role.TOOL,
                             content = "[Tool Result for $currentToolName]: $toolResult"
                         )
                         
                         // KOOG Persistence: Save state before continuing
-                        persistenceManager.saveCheckpoint(sessionId, mutableMessages, currentToolName)
+                        persistenceManager.saveCheckpoint(sessionId, messagesForAgent, currentToolName)
                         
                         // Continue loop — LLM will see the tool result and produce final reply
                         continue
@@ -634,7 +635,7 @@ class ServerAgent(
                         ))
                         Metrics.counter("agent.tool.error", "tool", currentToolName).increment()
                         // Feed error back to LLM so it can respond gracefully
-                        mutableMessages += LlmMessage(
+                        messagesForAgent += LlmMessage(
                             role = LlmMessage.Role.TOOL,
                             content = "[Tool Error for $currentToolName]: ${e.message}"
                         )
