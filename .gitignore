@@ -35,8 +35,9 @@ build/
 .vscode/
 
 # ============================================
-# BINARIES & EXECUTABLES
+# BINARIES, MODELS & MEDIA (HF Safe)
 # ============================================
+# Core Android/Java binaries
 *.exe
 *.apk
 *.aab
@@ -45,8 +46,62 @@ build/
 *.war
 *.ear
 *.aar
-# !app/libs/sherpa-onnx.aar
 *.so
+*.klib
+*.dex
+*.class
+
+# Machine Learning & Large Data
+*.bin
+*.onnx
+*.weights
+*.h5
+*.pb
+*.tflite
+*.pt
+*.pth
+*.ckpt
+*.gguf
+*.safetensors
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+
+# Media (Analogue/Big Files)
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+*.aac
+*.mp4
+*.mov
+*.avi
+*.wmv
+*.webm
+*.raw
+*.pcm
+
+# Images (General)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.webp
+*.tiff
+*.ico
+
+# Specific problematic files mentioned by user
+app/src/main/res/raw/completion_sound.mp3
+app/src/main/res/raw/welcome_intro.wav
+
+# Speech recognition models
+vosk-model-*/
+**/vosk-model-*/
+
 bin/
 gen/
 out/
