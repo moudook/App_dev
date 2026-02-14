@@ -5,6 +5,7 @@ COPY . .
 # Build the fat jar (using installDist then manually creating jar, or just assemble if shadowJar is configured)
 # Since we don't have shadowJar, we use the distribution from installDist or similar.
 # But server/build.gradle.kts has a 'fatJar' task registered.
+RUN chmod +x ./gradlew
 RUN ./gradlew :server:fatJar --no-daemon
 
 # Stage 2: Runtime
