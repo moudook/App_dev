@@ -9,7 +9,7 @@ import android.telephony.PhoneStateListener
 import android.telephony.TelephonyManager
 import android.util.Log
 import com.example.smarty.service.AudioPlayerService
-import com.example.smarty.features.voice.VoskWakeWordManager
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -38,7 +38,7 @@ class VoiceFeatureManager(
         private const val TAG = "VoiceFeatureManager"
     }
 
-    private var voskWakeWordManager: VoskWakeWordManager? = null
+    // private var voskWakeWordManager: VoskWakeWordManager? = null
 
     private val _isWakeWordActive = MutableStateFlow(false)
     val isWakeWordActive: StateFlow<Boolean> = _isWakeWordActive.asStateFlow()
@@ -257,8 +257,8 @@ class VoiceFeatureManager(
      * Clean up resources when manager is no longer needed.
      */
     fun destroy() {
-        voskWakeWordManager?.destroy()
-        voskWakeWordManager = null
+        // voskWakeWordManager?.destroy()
+        // voskWakeWordManager = null
 
         wakeWordCollectorJob?.cancel()
         wakeWordCollectorJob = null

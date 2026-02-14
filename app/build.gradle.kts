@@ -41,8 +41,8 @@ android {
             // EncryptedSharedPreferences, Kotlinx Serialization, Vosk JNI).
             // Enabling R8 strips these classes and causes immediate crash on launch.
             // TODO: Incrementally enable with thorough ProGuard rule testing
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -162,8 +162,8 @@ dependencies {
     implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
     implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
 
-    // Vosk - Offline speech recognition for wake word detection
-    implementation("com.alphacephei:vosk-android:0.3.75")
+    // Vosk - Offline speech recognition for wake word detection (Values removed for Cloud Migration)
+    // implementation("com.alphacephei:vosk-android:0.3.75")
 
     // ML Kit Text Recognition (Removed - Server side)
     // implementation("com.google.mlkit:text-recognition:16.0.1")

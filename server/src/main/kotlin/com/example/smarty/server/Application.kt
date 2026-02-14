@@ -19,6 +19,7 @@ import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.routes.configureProcessingRoutes
 import com.example.smarty.server.plugins.configureMonitoring
 import com.example.smarty.server.routes.configureHandshakeRoutes
+import com.example.smarty.server.routes.configureDataRoutes
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -144,6 +145,7 @@ fun Application.module() {
     configureChatRoutes()
     configureProcessingRoutes()
     configureHandshakeRoutes()
+    configureDataRoutes()
 
     // Configure Monitoring
     configureMonitoring()

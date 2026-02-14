@@ -7,7 +7,6 @@ import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.remote.AIService
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.data.repository.SyncRepository
-import com.example.smarty.data.repository.FirestoreSyncRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
 import com.example.smarty.features.audio.domain.AudioFeatureManager
 import com.example.smarty.features.audio.domain.AudioPlaybackManager
@@ -43,16 +42,18 @@ object ServiceLocator {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    fun provideSyncRepository(): SyncRepository {
+    fun provideSyncRepository(application: Application): SyncRepository {
         return syncRepository ?: synchronized(this) {
-            FirestoreSyncRepository().also { syncRepository = it }
+            val remoteDataService = provideRemoteDataService(application)
+            val eventSink = provideEventSink()
+            com.example.smarty.data.repository.ServerSyncRepository(remoteDataService, eventSink).also { syncRepository = it }
         }
     }
 
     fun provideRepository(application: Application): SmartyRepository {
         return repository ?: synchronized(this) {
             val database = SmartyDatabase.getDatabase(application)
-            val syncRepo = provideSyncRepository()
+            val syncRepo = provideSyncRepository(application)
             SmartyRepository(
                 noteDao = database.noteDao(),
                 categoryDao = database.categoryDao(),
@@ -202,19 +203,50 @@ object ServiceLocator {
         }
     }
 
+    @Volatile
+    private var httpClient: io.ktor.client.HttpClient? = null
+
+    private fun provideHttpClient(): io.ktor.client.HttpClient {
+        return httpClient ?: synchronized(this) {
+            io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
+                engine {
+                    preconfigured = com.example.smarty.core.common.util.HttpClientProvider.default
+                }
+                install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
+                    io.ktor.serialization.kotlinx.json.json(kotlinx.serialization.json.Json {
+                        ignoreUnknownKeys = true
+                        prettyPrint = true
+                        isLenient = true
+                    })
+                }
+            }.also { httpClient = it }
+        }
+    }
+
+    fun provideRemoteDataService(application: Application): com.example.smarty.data.remote.RemoteDataService {
+        val securePreferences = SecurePreferences.getInstance(application)
+        return com.example.smarty.data.remote.RemoteDataService(
+            client = provideHttpClient(),
+            serverUrlProvider = { securePreferences.getSmartyServerUrl() },
+            deviceIdProvider = { securePreferences.getDeviceId() }
+        )
+    }
+
+    @Volatile
+    private var eventSink: com.example.smarty.core.common.worker.BackgroundAgentEventSink? = null
+
+    fun provideEventSink(): com.example.smarty.core.common.worker.BackgroundAgentEventSink {
+        return eventSink ?: synchronized(this) {
+            com.example.smarty.core.common.worker.BackgroundAgentEventSink().also { eventSink = it }
+        }
+    }
+
     fun provideRemoteAgentService(application: Application): com.example.smarty.data.remote.RemoteAgentService {
         val securePreferences = SecurePreferences.getInstance(application)
 
-        // Create Ktor HttpClient using shared OkHttp engine
-        val ktorClient = io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
-            engine {
-                preconfigured = com.example.smarty.core.common.util.HttpClientProvider.default
-            }
-        }
-
         return com.example.smarty.data.remote.RemoteAgentService(
-            client = ktorClient,
-            eventSink = com.example.smarty.core.common.worker.BackgroundAgentEventSink(),
+            client = provideHttpClient(),
+            eventSink = provideEventSink(),
             serverUrlProvider = { securePreferences.getSmartyServerUrl() },
             deviceIdProvider = { securePreferences.getDeviceId() }
         )

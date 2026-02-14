@@ -101,21 +101,9 @@
 -keep class com.example.smarty.util.PrivacyGuard { *; }
 -keep class com.example.smarty.util.ContentSecurityFilter { *; }
 
-# ============================================================================
-# Vosk Speech Recognition
-# ============================================================================
 
--keep class org.vosk.** { *; }
--keep class com.sun.jna.** { *; }
--dontwarn org.vosk.**
 
-# ============================================================================
-# Koog AI Agent Framework
-# ============================================================================
 
--keep class ai.koog.** { *; }
--keepclassmembers class ai.koog.** { *; }
--dontwarn ai.koog.**
 
 # ============================================================================
 # Kotlinx Serialization

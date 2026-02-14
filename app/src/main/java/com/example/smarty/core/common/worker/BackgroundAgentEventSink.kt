@@ -5,6 +5,7 @@ import com.example.smarty.features.chat.agent.AgentEventSink
 import com.example.smarty.features.chat.agent.models.ImageDisplayItem
 import com.example.smarty.features.chat.agent.models.WebCitation
 import com.example.smarty.protocol.AgentCommand
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * A no-op EventSink for background workers that don't need to handle UI events.
@@ -13,6 +14,9 @@ class BackgroundAgentEventSink : AgentEventSink {
     companion object {
         private const val TAG = "BackgroundAgentEventSink"
     }
+
+    private val _syncEvents = kotlinx.coroutines.flow.MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 64)
+    val syncEvents: kotlinx.coroutines.flow.Flow<String> = _syncEvents.asSharedFlow()
 
     override fun onToolExecutionStarted(toolName: String, toolDisplayName: String) {
         Log.d(TAG, "Tool started: $toolName")
@@ -40,6 +44,7 @@ class BackgroundAgentEventSink : AgentEventSink {
 
     override fun onStateSync(syncType: String, data: String) {
         Log.d(TAG, "State sync received: $syncType")
+        _syncEvents.tryEmit(syncType)
     }
 
     override fun emit(command: AgentCommand) {

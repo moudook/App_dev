@@ -56,7 +56,7 @@ import com.example.smarty.features.audio.domain.AudioFeatureManager
 import com.example.smarty.features.search.domain.SearchFeatureManager
 import com.example.smarty.features.chat.domain.StyleFeatureManager
 import com.example.smarty.features.chat.domain.WorkflowManager
-import com.example.smarty.features.voice.VoskWakeWordManager
+
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -203,8 +203,7 @@ class SmartyViewModel(
     // Shake detector for toggling chat mode
     private var shakeDetector: ShakeDetector? = null
 
-    // Vosk wake word manager for offline "Terminator" detection
-    private var voskWakeWordManager: VoskWakeWordManager? = null
+
 
     // Wake word detection state
     private val _isWakeWordActive = MutableStateFlow(false)

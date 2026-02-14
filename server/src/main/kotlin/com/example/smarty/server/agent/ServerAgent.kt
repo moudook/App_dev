@@ -585,7 +585,7 @@ class ServerAgent(
                             metadata = mapOf("args" to currentToolArgs)
                         ))
 
-                        val toolResult = executeTool(currentToolName, currentToolArgs)
+                        val toolResult = executeTool(currentToolName, currentToolArgs, messagesForAgent)
                         val toolDuration = System.currentTimeMillis() - toolStartTime
                         
                         tracer.trace(AgentTraceEvent(
@@ -639,7 +639,7 @@ class ServerAgent(
                             role = LlmMessage.Role.TOOL,
                             content = "[Tool Error for $currentToolName]: ${e.message}"
                         )
-                        persistenceManager.saveCheckpoint(sessionId, mutableMessages, "error_$currentToolName")
+                        persistenceManager.saveCheckpoint(sessionId, messagesForAgent, "error_$currentToolName")
                         continue
                     }
                 } else if (currentContent.isNotEmpty()) {
@@ -708,7 +708,7 @@ class ServerAgent(
      * Server-side tools (notes, timers, events, search, context) execute directly on PostgreSQL.
      * Device-only tools (media, settings, launch, navigate, share) emit Command events as fire-and-forget.
      */
-    private suspend fun executeTool(name: String, argsJson: String): String {
+    private suspend fun executeTool(name: String, argsJson: String, history: List<LlmMessage>): String {
         logger.info("Executing tool: $name with args: $argsJson")
 
         return when (name) {
@@ -943,7 +943,7 @@ class ServerAgent(
             }
 
             "summarize_session" -> {
-                val summary = summarizer.generateSummary(mutableMessages)
+                val summary = summarizer.generateSummary(history)
                 summary ?: "Could not summarize session at this time."
             }
 
