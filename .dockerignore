@@ -1,0 +1,31 @@
+# Android app module - not needed for server deployment
+app/
+
+# IDE files
+.idea/
+*.iml
+
+# Local build outputs
+build/
+server/build/
+common/build/
+.gradle/
+
+# Git
+.git/
+.github/
+
+# Documentation and research files
+*.txt
+*.md
+!README.md
+
+# Docker files (avoid recursive copy)
+docker-compose.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local config
+local.properties

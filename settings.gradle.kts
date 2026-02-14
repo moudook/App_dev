@@ -23,7 +23,21 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Friday"
-// include(":app") // Android app excluded for server-only deployment
+
+// Detect if Android SDK is available
+val hasAndroidSdk: Boolean = run {
+    val localProps = file("local.properties")
+    if (localProps.exists()) return@run true
+    if (System.getenv("ANDROID_HOME") != null) return@run true
+    if (System.getenv("ANDROID_SDK_ROOT") != null) return@run true
+    false
+}
+
+// Only include Android app module when SDK is available
+if (hasAndroidSdk) {
+    // include(":app") // Uncomment when needed for Android development
+}
+
 include(":common")
 include(":server")
  
