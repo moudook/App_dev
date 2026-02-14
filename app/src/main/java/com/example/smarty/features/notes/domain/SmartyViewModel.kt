@@ -1816,26 +1816,24 @@ class SmartyViewModel(
             return
         }
 
-        // Provide haptic feedback ONLY when shake is actually processed
-        // This prevents vibration on Calendar, Settings, Stacks, etc.
-        shakeDetector?.triggerHapticFeedback()
-
         when {
             // Priority 1: During share flow -> toggle full privacy mode
             shareFlowManager.isInShareMode() -> {
+                shakeDetector?.triggerHapticFeedback()
                 toggleShareFullPrivacy()
                 Log.d(TAG, "Shake: Toggled full privacy mode during share")
             }
             // Priority 2: Mic is listening OR has text OR has attachments -> toggle AI exclusion/privacy
             // This preserves the "private option" feature user requested
             _isMicListening.value || _currentInputText.value.isNotBlank() || _currentInputAttachments.value.isNotEmpty() -> {
+                shakeDetector?.triggerHapticFeedback()
                 togglePendingNoteAiExclusion()
                 Log.d(TAG, "Shake: Toggled AI exclusion (active content)")
             }
-            // Priority 3: Completely empty (no mic, no text, no attachments) -> toggle chat mode
+            // Priority 3: Completely empty (no mic, no text, no attachments)
+            // Screen toggle removed per user request.
             else -> {
-                toggleChatMode(fromShake = true)
-                Log.d(TAG, "Shake: Toggled chat mode (empty state)")
+                Log.d(TAG, "Shake ignored - screen toggle disabled (empty state)")
             }
         }
     }

@@ -1140,8 +1140,17 @@ class ChatFeatureManager(
     }
 
     /** Update the current tool name display */
+    /** Update the current tool name display */
     fun updateCurrentToolName(name: String?) {
-        // Disabled UI indicator
+        if (name != null) {
+            _agentActivity.value = AgentActivity(
+                type = AgentActivity.Type.TOOL_RUNNING,
+                displayText = "Using $name...",
+                toolName = name
+            )
+        } else {
+            _agentActivity.value = null
+        }
     }
 
     fun enterChatMode() {
@@ -1502,15 +1511,24 @@ class ChatFeatureManager(
     }
 
     fun onPlanStatusChanged(status: String?) {
-        // Disabled UI indicator
+        if (status != null) {
+             _agentActivity.value = AgentActivity(
+                type = AgentActivity.Type.THINKING,
+                displayText = status
+            )
+        }
     }
 
     fun onToolExecutionStarted(toolDisplayName: String) {
-        // Disabled UI indicator
+        _agentActivity.value = AgentActivity(
+            type = AgentActivity.Type.TOOL_RUNNING,
+            displayText = "Using $toolDisplayName...",
+            toolName = toolDisplayName
+        )
     }
 
     fun onToolExecutionCompleted() {
-        // Disabled UI indicator
+        _agentActivity.value = null
     }
 
     /**

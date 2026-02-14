@@ -206,20 +206,7 @@ object ContentTypeDetector {
      */
     private const val SIZE_THRESHOLD = 1024L
 
-    // ==================== AI Response Template resource keys ====================
 
-    private val MOCK_AI_RES_PREFIXES = arrayOf(
-        null,    // BRAIN_DUMP
-        "learn", // YOUTUBE
-        "read",  // WEBSITE
-        "visual",// IMAGE
-        "tweet", // TWITTER
-        "inspo", // INSTAGRAM
-        "docs",  // DOCUMENT
-        "data",  // SPREADSHEET
-        "slides",// PRESENTATION
-        "watch"  // VIDEO
-    )
 
     // ==================== Public API ====================
 
@@ -324,44 +311,7 @@ object ContentTypeDetector {
         }
     }
 
-    /**
-     * Generates a mock AI response for a note type.
-     */
-    fun generateMockAiResponse(context: Context, type: NoteType, content: String): Triple<String, String, String> {
-        val ordinal = type.ordinal
 
-        if (ordinal in 1..9) {
-            MOCK_AI_RES_PREFIXES[ordinal]?.let { prefix ->
-                val tag = context.getString(context.resources.getIdentifier("mock_ai_tag_$prefix", "string", context.packageName))
-                val summary = context.getString(context.resources.getIdentifier("mock_ai_summary_$prefix", "string", context.packageName))
-                val intent = context.getString(context.resources.getIdentifier("mock_ai_intent_$prefix", "string", context.packageName))
-                return Triple(tag, summary, intent)
-            }
-        }
-
-        if (!NoteType.isAnalyzable(type)) {
-            return Triple(getStorageCategoryName(context, type), "", "")
-        }
-
-        return analyzeBrainDumpContent(context, content)
-    }
-
-    private fun analyzeBrainDumpContent(context: Context, content: String): Triple<String, String, String> {
-        val prefix = when {
-            CODE_PATTERN.containsMatchIn(content) -> "code"
-            QUOTE_PATTERN.containsMatchIn(content) -> "quote"
-            BUY_PATTERN.containsMatchIn(content) -> "buy"
-            TASK_PATTERN.containsMatchIn(content) -> "todo"
-            LEARN_PATTERN.containsMatchIn(content) -> "study"
-            IDEA_PATTERN.containsMatchIn(content) -> "idea"
-            else -> "note"
-        }
-
-        val tag = context.getString(context.resources.getIdentifier("mock_ai_tag_$prefix", "string", context.packageName))
-        val summary = context.getString(context.resources.getIdentifier("mock_ai_summary_$prefix", "string", context.packageName))
-        val intent = context.getString(context.resources.getIdentifier("mock_ai_intent_$prefix", "string", context.packageName))
-        return Triple(tag, summary, intent)
-    }
 
     /**
      * Checks if content contains a URL.

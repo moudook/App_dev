@@ -10,6 +10,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assistant
 import com.example.smarty.core.domain.model.Attachment
@@ -422,13 +424,20 @@ fun SmartyNavHost(
             )
         }
 
+
+            
         composable(Screen.Stacks.route) { _ ->
+            // Clear selected category when viewing Stacks to ensure clean state
+            LaunchedEffect(Unit) {
+                 onSelectCategory(null)
+            }
+
             StacksScreen(
                 categories = categories,
                 isLoading = isStacksLoading,
                 onCategoryClick = { category ->
-                    onSelectCategory(category)
-                    navController.navigate(Screen.CategoryNotes.route)
+                    // Use route argument instead of updating global selection state
+                    navController.navigate("${Screen.CategoryNotes.route}/${category.id}")
                 },
                 onBackClick = {
                     navController.safePopBackStack()
@@ -440,14 +449,20 @@ fun SmartyNavHost(
             )
         }
 
-        composable(Screen.CategoryNotes.route) { _ ->
-            selectedCategory?.let { category ->
+        composable(
+            route = "${Screen.CategoryNotes.route}/{categoryId}",
+            arguments = listOf(navArgument("categoryId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val categoryId = backStackEntry.arguments?.getString("categoryId")
+            val category = categories.find { it.id == categoryId }
+
+            if (category != null) {
                 CategoryNotesScreen(
                     category = category,
                     notes = notes,
                     isLoading = isNotesLoading,
                     onBackClick = {
-                        onSelectCategory(null) // Clear the selected category to clear the filter
+                        // Just pop back to Stacks
                         navController.safePopBackStack()
                     },
                     onNoteClick = { note ->
