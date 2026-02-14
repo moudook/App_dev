@@ -23,7 +23,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Friday"
-include(":app")
+// include(":app") // Android app excluded for server-only deployment
 include(":common")
 include(":server")
  
