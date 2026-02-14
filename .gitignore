@@ -6,6 +6,7 @@
 .qoder/
 .kotlin/
 .agent/
+*.txt
 # .agent/*.md (now allowed for workflows)
 AUDIO_effects/
 
