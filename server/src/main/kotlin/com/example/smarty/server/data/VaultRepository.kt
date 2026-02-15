@@ -27,8 +27,14 @@ object UserVaults : Table("user_vaults") {
 class VaultRepository(private val database: Database) {
     
     init {
-        transaction(database) {
-            SchemaUtils.create(UserVaults)
+        try {
+            transaction(database) {
+                // Use createMissingTablesAndColumns to avoid prepared statement conflicts on restart
+                SchemaUtils.createMissingTablesAndColumns(UserVaults)
+            }
+        } catch (e: Exception) {
+            // Log but don't fail - table may already exist from previous run
+            println("VaultRepository init: ${e.message}")
         }
     }
 
