@@ -278,16 +278,17 @@ class DigestScheduler(
 
     private suspend fun getUsersWithDigestPreferences(): List<UserDigestPreferences> = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            val sql = """
-                SELECT user_id, daily_digest_enabled as daily_enabled, daily_digest_time as daily_time, 
-                       weekly_digest_enabled as weekly_enabled, weekly_digest_day as weekly_day, 
-                       weekly_digest_time as weekly_time, notification_enabled as push_notification, 
-                       notification_enabled as calendar_logging, 'UTC' as timezone
-                FROM digest_preferences
-                WHERE daily_digest_enabled = TRUE OR weekly_digest_enabled = TRUE
-            """
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.executeQuery().use { rs ->
+            // Use createStatement to avoid prepared statement conflicts in connection pool
+            conn.createStatement().use { stmt ->
+                val sql = """
+                    SELECT user_id, daily_enabled, daily_time, 
+                           weekly_enabled, weekly_day, 
+                           weekly_time, push_notification, 
+                           calendar_logging, 'UTC' as timezone
+                    FROM digest_preferences
+                    WHERE daily_enabled = TRUE OR weekly_enabled = TRUE
+                """.trimIndent()
+                stmt.executeQuery(sql).use { rs ->
                     val prefs = mutableListOf<UserDigestPreferences>()
                     while (rs.next()) {
                         prefs.add(UserDigestPreferences(

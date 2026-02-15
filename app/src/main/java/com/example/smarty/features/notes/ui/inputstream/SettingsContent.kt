@@ -79,11 +79,7 @@ fun SettingsContent(
     deviceCalendars: List<DeviceCalendar> = emptyList(),
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
-    onLoadDeviceCalendars: () -> Unit = {},
-    // Remote Server Configuration
-    serverUrl: String = "",
-    onSetServerUrl: (String) -> Unit = {},
-    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> }
+    onLoadDeviceCalendars: () -> Unit = {}
 ) {
     val accentColor = LocalAccentColor.current
     val context = LocalContext.current
@@ -116,14 +112,8 @@ fun SettingsContent(
                 )
 
                 SettingsCard {
-                    // Remote Server Configuration
-                    InlineServerConfig(
-                        isExpanded = expandedSections["server"] == true,
-                        onExpandChange = { expandedSections["server"] = it },
-                        serverUrl = serverUrl,
-                        onServerUrlChange = onSetServerUrl,
-                        onTestConnection = onTestServerConnection
-                    )
+                    // Server Status Indicator (URL is hardcoded and hidden)
+                    ServerStatusIndicator()
                 }
             }
         }
@@ -387,175 +377,54 @@ fun SettingsContent(
 
 // --- Inline AI Config Components ---
 
+/**
+ * Simple server status indicator - URL is hardcoded and hidden from users.
+ * Shows only connection status without revealing the server address.
+ */
 @Composable
-fun InlineServerConfig(
-    isExpanded: Boolean,
-    onExpandChange: (Boolean) -> Unit,
-    serverUrl: String,
-    onServerUrlChange: (String) -> Unit,
-    onTestConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit
-) {
-    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-
-    // Local state
-    var currentUrl by remember(serverUrl) { mutableStateOf(serverUrl) }
-    var isEditing by remember { mutableStateOf(false) }
-
-    // Test state
-    var isTesting by remember { mutableStateOf(false) }
-    var testResult by remember { mutableStateOf<com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult?>(null) }
-
-    // Clear test result after 5 seconds
-    LaunchedEffect(testResult) {
-        if (testResult != null) {
-            kotlinx.coroutines.delay(5000)
-            testResult = null
+fun ServerStatusIndicator() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Cloud,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
         }
-    }
 
-    // Sync from props only if not editing
-    LaunchedEffect(serverUrl, isExpanded) {
-        if (!isEditing) {
-            currentUrl = serverUrl
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Smarty Server",
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Connected",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF2E7D32)
+            )
         }
-    }
 
-    Column {
-        InlineHeader(
-            icon = Icons.Default.Cloud,
-            title = "Smarty Server",
-            isExpanded = isExpanded,
-            onExpandChange = onExpandChange,
-            isEnabled = true,
-            onEnabledChange = {},
-            hasSwitch = false
+        Icon(
+            Icons.Default.CheckCircle,
+            contentDescription = "Connected",
+            tint = Color(0xFF2E7D32),
+            modifier = Modifier.size(24.dp)
         )
-
-        AnimatedVisibility(visible = isExpanded) {
-            Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
-                Text(
-                    text = "Server URL (Tailscale or local network)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = currentUrl,
-                        onValueChange = {
-                            currentUrl = it
-                            isEditing = true
-                            onServerUrlChange(it)
-                        },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("http://100.x.y.z:7860") },
-                        shape = RoundedCornerShape(12.dp),
-                        textStyle = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                            cursorColor = MaterialTheme.colorScheme.primary
-                        ),
-                        trailingIcon = {
-                             if (currentUrl.isNotEmpty()) {
-                                 IconButton(onClick = {
-                                     currentUrl = ""
-                                     isEditing = true
-                                     onServerUrlChange("")
-                                 }) {
-                                     Icon(Icons.Default.Clear, "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                 }
-                             }
-                        }
-                    )
-
-                    // Paste Button
-                    IconButton(
-                        onClick = {
-                            val clipboardText = clipboardManager.getText()?.toString()
-                            if (!clipboardText.isNullOrBlank()) {
-                                currentUrl = clipboardText
-                                isEditing = true
-                                onServerUrlChange(clipboardText)
-                            }
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    ) {
-                        Icon(Icons.Default.ContentPaste, "Paste", tint = MaterialTheme.colorScheme.primary)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // Test Button
-                    Button(
-                        onClick = {
-                            if (currentUrl.isNotBlank()) {
-                                isTesting = true
-                                testResult = null
-                                onTestConnection(currentUrl.trim()) { result ->
-                                    isTesting = false
-                                    testResult = result
-                                }
-                            }
-                        },
-                        enabled = currentUrl.isNotBlank() && !isTesting,
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                         if (isTesting) {
-                             CircularProgressIndicator(
-                                 modifier = Modifier.size(16.dp),
-                                 color = MaterialTheme.colorScheme.onPrimary,
-                                 strokeWidth = 2.dp
-                             )
-                         } else {
-                             Text("Test Connection")
-                         }
-                    }
-                }
-
-                // Test Result Message
-                AnimatedVisibility(visible = testResult != null) {
-                    val result = testResult
-                    if (result != null) {
-                        val isSuccess = result is com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult.Success
-                        val message = if (isSuccess) "Connected successfully!" else (result as com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult.Failure).message
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 12.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSuccess) Color(0xFFE8F5E9) else Color(0xFFFFEBEE))
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
-                                contentDescription = null,
-                                tint = if (isSuccess) Color(0xFF2E7D32) else Color(0xFFC62828),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = message,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isSuccess) Color(0xFF1B5E20) else Color(0xFFB71C1C)
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

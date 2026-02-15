@@ -21,6 +21,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
 
 /**
  * Simple Service Locator to manage singletons and dependencies.
@@ -211,6 +213,14 @@ object ServiceLocator {
             io.ktor.client.HttpClient(io.ktor.client.engine.okhttp.OkHttp) {
                 engine {
                     preconfigured = com.example.smarty.core.common.util.HttpClientProvider.default
+                }
+                install(ContentNegotiation) {
+                    json(
+                        kotlinx.serialization.json.Json {
+                            ignoreUnknownKeys = true
+                            isLenient = true
+                        }
+                    )
                 }
             }.also { httpClient = it }
         }

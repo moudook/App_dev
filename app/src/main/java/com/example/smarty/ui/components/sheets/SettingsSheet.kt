@@ -37,10 +37,6 @@ fun SettingsSheet(
     onLoadDeviceCalendars: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
-    // Remote Server
-    serverUrl: String = "",
-    onSetServerUrl: (String) -> Unit = {},
-    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> },
     // Embedded content for sub-sheets
     backupContent: @Composable (onDismiss: () -> Unit) -> Unit
 ) {
@@ -73,10 +69,6 @@ fun SettingsSheet(
             targetCalendarId = targetCalendarId,
             onSetTargetCalendarId = onSetTargetCalendarId,
             onLoadDeviceCalendars = onLoadDeviceCalendars,
-            // Remote Server
-            serverUrl = serverUrl,
-            onSetServerUrl = onSetServerUrl,
-            onTestServerConnection = onTestServerConnection,
             onNavigateToCoinToss = onNavigateToCoinToss,
             onNavigateToTicTacToe = onNavigateToTicTacToe
         )

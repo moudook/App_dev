@@ -219,9 +219,6 @@ class MainActivity : ComponentActivity() {
                 // Shake sensitivity state
                 val shakeSensitivity by viewModel.shakeSensitivity.collectAsState()
 
-                // Remote Server URL
-                val serverUrl by viewModel.serverUrl.collectAsState()
-
                 // Shake mode switch animation trigger
                 val wasShakeTriggered by viewModel.wasShakeTriggered.collectAsState()
                 val connectionStatus by viewModel.connectionStatus.collectAsState()
@@ -655,14 +652,6 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onLoadDeviceCalendars = {
                                         viewModel.loadDeviceCalendars()
-                                    },
-                                    // Remote Server
-                                    serverUrl = serverUrl,
-                                    onSetServerUrl = { url ->
-                                        viewModel.setServerUrl(url)
-                                    },
-                                    onTestServerConnection = { url, callback ->
-                                        viewModel.testServerConnection(url, callback)
                                     },
                                     navigationRequest = navigationRequest,
                                     onClearNavigationRequest = {

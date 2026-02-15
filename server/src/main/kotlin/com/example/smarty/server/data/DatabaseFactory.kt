@@ -33,11 +33,32 @@ object DatabaseFactory {
                 conn.createStatement().use { stmt ->
                     // Add user_id column to tables that might not have it yet
                     val migrations = listOf(
+                        // User ID columns
                         "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT ''",
                         "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT ''",
                         "ALTER TABLE agent_context ADD COLUMN IF NOT EXISTS user_id TEXT NOT NULL DEFAULT ''",
+                        
+                        // New chat_sessions columns for client compatibility
+                        "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+                        "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS message_count INTEGER DEFAULT 0",
+                        "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS last_message_preview TEXT DEFAULT ''",
+                        "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true",
+                        "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS summary TEXT",
+                        "ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS summary_generated_at BIGINT",
+                        
+                        // New chat_messages columns for client compatibility
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachments_json TEXT DEFAULT '[]'",
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS executed_actions_json TEXT DEFAULT '[]'",
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS referenced_note_ids TEXT DEFAULT ''",
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS citations_json TEXT DEFAULT '[]'",
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS inline_images_json TEXT DEFAULT '[]'",
+                        
+                        // Create indexes
                         "CREATE INDEX IF NOT EXISTS idx_sessions_user ON chat_sessions(user_id)",
                         "CREATE INDEX IF NOT EXISTS idx_messages_user ON chat_messages(user_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_context_user ON agent_context(user_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_sessions_active ON chat_sessions(is_active)",
+                        "CREATE INDEX IF NOT EXISTS idx_sessions_updated ON chat_sessions(updated_at DESC)"
                         "CREATE INDEX IF NOT EXISTS idx_context_user ON agent_context(user_id)",
 
                         // Notes table (server-side source of truth)

@@ -247,10 +247,6 @@ fun InputStreamScreen(
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
-    // Remote Server
-    serverUrl: String = "",
-    onSetServerUrl: (String) -> Unit = {},
-    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> },
 
     // Shake Blocking
     onSetShakeBlocked: (Boolean) -> Unit = {},
@@ -1221,11 +1217,7 @@ fun InputStreamScreen(
                             onSetTargetCalendarId = onSetTargetCalendarId,
                             onLoadDeviceCalendars = onLoadDeviceCalendars,
                             onNavigateToTicTacToe = onNavigateToTicTacToe,
-                            onNavigateToCoinToss = onNavigateToCoinToss,
-                            // Remote Server Configuration
-                            serverUrl = serverUrl,
-                            onSetServerUrl = onSetServerUrl,
-                            onTestServerConnection = onTestServerConnection
+                            onNavigateToCoinToss = onNavigateToCoinToss
                         )
                     }
                     "calendar" -> {
@@ -1809,10 +1801,6 @@ fun InputStreamScreen(
             targetCalendarId = targetCalendarId,
             onSetTargetCalendarId = onSetTargetCalendarId,
             onLoadDeviceCalendars = onLoadDeviceCalendars,
-            // Remote Server
-            serverUrl = serverUrl,
-            onSetServerUrl = onSetServerUrl,
-            onTestServerConnection = onTestServerConnection,
             onNavigateToCoinToss = onNavigateToCoinToss,
             onNavigateToTicTacToe = onNavigateToTicTacToe
         )

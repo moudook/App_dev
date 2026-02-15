@@ -109,10 +109,6 @@ fun SettingsScreen(
     // Shake sensitivity
     shakeSensitivity: Float = 0.5f,
     onShakeSensitivityChange: (Float) -> Unit = {},
-    // Server Configuration
-    serverUrl: String = "",
-    onSetServerUrl: (String) -> Unit = {},
-    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> },
     // AI Provider Strategy
     providerStrategy: String = "BALANCED",
     onSetProviderStrategy: (String) -> Unit = {},
@@ -412,12 +408,8 @@ fun SettingsScreen(
 
                     // SUB-VIEWS (Replaces Bottom Sheets)
                     SettingsView.ServerConfig -> {
-                        ServerConfigView(
-                            serverUrl = serverUrl,
-                            onSetServerUrl = onSetServerUrl,
-                            onTestServerConnection = onTestServerConnection,
-                            onBack = { currentView = SettingsView.Main }
-                        )
+                        // Server config removed - URL is hardcoded
+                        currentView = SettingsView.Main
                     }
                     SettingsView.ProviderStrategy -> {
                         ProviderStrategyView(
@@ -1236,49 +1228,6 @@ private fun ProviderStrategyView(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun ServerConfigView(
-    serverUrl: String,
-    onSetServerUrl: (String) -> Unit,
-    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit,
-    onBack: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        SettingsHeader(
-            title = "Smarty Server",
-            subtitle = "Configure Tailscale or local network connection",
-            onBack = onBack
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Reuse the inline config component
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(2.dp)
-            ) {
-                com.example.smarty.features.notes.ui.inputstream.InlineServerConfig(
-                    isExpanded = true,
-                    onExpandChange = {}, // Always expanded in full view
-                    serverUrl = serverUrl,
-                    onServerUrlChange = onSetServerUrl,
-                    onTestConnection = onTestServerConnection
-                )
-            }
-
-            Spacer(modifier = Modifier.height(180.dp))
         }
     }
 }

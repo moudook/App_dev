@@ -1071,10 +1071,12 @@ class SmartyViewModel(
         _lastArchivedNoteIds.value = emptyList()
     }
 
-    // Archived notes for archive screen
-    val archivedNotes: StateFlow<List<Note>> = noteOperationsManager.getArchivedNotes()
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Archived notes for archive screen - lazy to ensure noteOperationsManager is initialized
+    val archivedNotes: StateFlow<List<Note>> by lazy {
+        noteOperationsManager.getArchivedNotes()
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
 
     fun deleteNote(note: Note) {
         noteOperationsManager.deleteNote(note)

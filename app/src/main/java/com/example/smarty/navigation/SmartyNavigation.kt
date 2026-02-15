@@ -222,10 +222,6 @@ fun SmartyNavHost(
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
-    // Remote Server
-    serverUrl: String = "",
-    onSetServerUrl: (String) -> Unit = {},
-    onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> },
     // AI Navigation
     navigationRequest: String? = null,
     onClearNavigationRequest: () -> Unit = {}
@@ -411,10 +407,6 @@ fun SmartyNavHost(
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
                 onSignOut = onSignOut,
-                // Remote Server
-                serverUrl = serverUrl,
-                onSetServerUrl = onSetServerUrl,
-                onTestServerConnection = onTestServerConnection,
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
                         onBackClick = onDismiss,
@@ -539,10 +531,6 @@ fun SmartyNavHost(
                 targetCalendarId = targetCalendarId,
                 onSetTargetCalendarId = onSetTargetCalendarId,
                 onLoadDeviceCalendars = onLoadDeviceCalendars,
-                // Remote Server
-                serverUrl = serverUrl,
-                onSetServerUrl = onSetServerUrl,
-                onTestServerConnection = onTestServerConnection,
                 onSignOut = onSignOut,
                 onNavigateToCoinToss = {
                     navController.navigate(Screen.CoinToss.route)

@@ -39,6 +39,7 @@ class ChatRepository(private val dataSource: DataSource) {
     /**
      * Saves a message to a specific session.
      * Validates that the session belongs to the user before saving.
+     * Updates the session's message count and last message preview.
      *
      * @param userId The authenticated user's ID
      * @param sessionId The session UUID
@@ -59,12 +60,27 @@ class ChatRepository(private val dataSource: DataSource) {
                 }
             }
 
+            // Insert the message
             val sql = "INSERT INTO chat_messages (session_id, user_id, role, content) VALUES (?, ?, ?, ?)"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
                 stmt.setString(2, userId)
                 stmt.setString(3, role)
                 stmt.setString(4, content)
+                stmt.executeUpdate()
+            }
+
+            // Update session stats (message count, last preview, updated_at)
+            val updateSessionSql = """
+                UPDATE chat_sessions 
+                SET message_count = message_count + 1,
+                    last_message_preview = ?,
+                    updated_at = NOW()
+                WHERE id = ?
+            """.trimIndent()
+            conn.prepareStatement(updateSessionSql).use { stmt ->
+                stmt.setString(1, content.take(100)) // Preview limited to 100 chars
+                stmt.setObject(2, UUID.fromString(sessionId))
                 stmt.executeUpdate()
             }
         }
@@ -114,10 +130,11 @@ class ChatRepository(private val dataSource: DataSource) {
         val sessions = mutableListOf<SessionInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, created_at
+                SELECT id, title, created_at, updated_at, message_count, 
+                       last_message_preview, is_active, summary, summary_generated_at
                 FROM chat_sessions
                 WHERE user_id = ?
-                ORDER BY created_at DESC
+                ORDER BY updated_at DESC
                 LIMIT ?
             """.trimIndent()
 
@@ -130,7 +147,13 @@ class ChatRepository(private val dataSource: DataSource) {
                             SessionInfo(
                                 id = rs.getString("id"),
                                 title = rs.getString("title"),
-                                createdAt = rs.getTimestamp("created_at").time
+                                createdAt = rs.getTimestamp("created_at").time,
+                                updatedAt = rs.getTimestamp("updated_at")?.time ?: System.currentTimeMillis(),
+                                messageCount = rs.getInt("message_count"),
+                                lastMessagePreview = rs.getString("last_message_preview") ?: "",
+                                isActive = rs.getBoolean("is_active"),
+                                summary = rs.getString("summary"),
+                                summaryGeneratedAt = rs.getLong("summary_generated_at")
                             )
                         )
                     }
@@ -176,9 +199,16 @@ class ChatRepository(private val dataSource: DataSource) {
 
 /**
  * Info about a chat session.
+ * Matches the client's ChatSession model for proper sync.
  */
 data class SessionInfo(
     val id: String,
     val title: String?,
-    val createdAt: Long
+    val createdAt: Long,
+    val updatedAt: Long = System.currentTimeMillis(),
+    val messageCount: Int = 0,
+    val lastMessagePreview: String = "",
+    val isActive: Boolean = true,
+    val summary: String? = null,
+    val summaryGeneratedAt: Long? = null
 )

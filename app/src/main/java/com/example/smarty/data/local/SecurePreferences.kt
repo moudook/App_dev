@@ -199,18 +199,16 @@ class SecurePreferences(private val context: Context) {
     fun getLastFtsMaintenance(): Long = encryptedPrefs.getLong(KEY_LAST_FTS_MAINTENANCE, 0L)
     fun setLastFtsMaintenance(timestamp: Long) = encryptedPrefs.edit().putLong(KEY_LAST_FTS_MAINTENANCE, timestamp).apply()
 
-    // Server Settings (Remote Only)
-    fun getServerUrl(): String = encryptedPrefs.getString(KEY_SERVER_URL, DEFAULT_SERVER_URL) ?: DEFAULT_SERVER_URL
+    // Server Settings (Remote Only) - Hardcoded for security
+    // Server URL is fixed and cannot be changed by users
+    fun getServerUrl(): String = DEFAULT_SERVER_URL
 
     fun setServerUrl(url: String) {
-        // Ensure no trailing slash for consistency
-        val cleanUrl = url.trim().removeSuffix("/")
-        encryptedPrefs.edit().putString(KEY_SERVER_URL, cleanUrl).apply()
+        // No-op: Server URL is hardcoded and cannot be changed
+        // This prevents users from accidentally breaking the app or leaking the server URL
     }
 
-    fun getSmartyServerUrl(): String {
-        return getServerUrl()
-    }
+    fun getSmartyServerUrl(): String = DEFAULT_SERVER_URL
 
     // Compatibility methods for AIConnectionOrchestrator
     fun getLocalPCUrl(): String = getServerUrl()
