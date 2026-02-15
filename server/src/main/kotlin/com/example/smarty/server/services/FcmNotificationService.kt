@@ -33,7 +33,7 @@ class FcmNotificationService(
     
     private val httpClient = HttpClient {
         install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-            io.ktor.serialization.kotlinx.json.json(json)
+            io.ktor.serialization.kotlinx.json.json(Json { ignoreUnknownKeys = true })
         }
     }
 
