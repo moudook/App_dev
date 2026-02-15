@@ -1,6 +1,7 @@
 package com.example.smarty.server.services
 
 import io.ktor.client.*
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -32,8 +33,8 @@ class FcmNotificationService(
     private val json = Json { ignoreUnknownKeys = true }
     
     private val httpClient = HttpClient {
-        install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-            io.ktor.serialization.kotlinx.json.json(Json { ignoreUnknownKeys = true })
+        install(ContentNegotiation) {
+            json(Json { ignoreUnknownKeys = true })
         }
     }
 
