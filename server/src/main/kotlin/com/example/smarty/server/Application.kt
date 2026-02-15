@@ -175,6 +175,7 @@ fun Application.module() {
             fcmService = fcmService
         )
         digestScheduler.start()
+    }
 
     // Log startup
     log.info("Friday Server started on port $serverPort")
