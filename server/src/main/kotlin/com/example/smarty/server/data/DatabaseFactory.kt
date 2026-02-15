@@ -58,8 +58,7 @@ object DatabaseFactory {
                         "CREATE INDEX IF NOT EXISTS idx_messages_user ON chat_messages(user_id)",
                         "CREATE INDEX IF NOT EXISTS idx_context_user ON agent_context(user_id)",
                         "CREATE INDEX IF NOT EXISTS idx_sessions_active ON chat_sessions(is_active)",
-                        "CREATE INDEX IF NOT EXISTS idx_sessions_updated ON chat_sessions(updated_at DESC)"
-                        "CREATE INDEX IF NOT EXISTS idx_context_user ON agent_context(user_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_sessions_updated ON chat_sessions(updated_at DESC)",
 
                         // Notes table (server-side source of truth)
                         """CREATE TABLE IF NOT EXISTS notes (
