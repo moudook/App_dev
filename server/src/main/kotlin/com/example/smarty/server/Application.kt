@@ -157,22 +157,24 @@ fun Application.module() {
     configureMonitoring()
 
     // Initialize Digest System
-    val digestService = DigestService(
-        dataSource = DatabaseFactory.dataSource,
-        chatRepository = ChatRepository(DatabaseFactory.dataSource),
-        vectorStore = PostgresVectorStore(DatabaseFactory.dataSource),
-        llmProvider = LlmProviderFactory.createDefault()
-    )
-    
-    val fcmService = FcmNotificationService.fromEnvironment(DatabaseFactory.dataSource)
-    
-    val digestScheduler = DigestScheduler(
-        application = this,
-        dataSource = DatabaseFactory.dataSource,
-        digestService = digestService,
-        fcmService = fcmService
-    )
-    digestScheduler.start()
+    val ds = DatabaseFactory.getDataSource()
+    if (ds != null) {
+        val digestService = DigestService(
+            dataSource = ds,
+            chatRepository = ChatRepository(ds),
+            vectorStore = PostgresVectorStore(),
+            llmProvider = LlmProviderFactory.create(io.ktor.client.HttpClient())
+        )
+        
+        val fcmService = FcmNotificationService.fromEnvironment(ds)
+        
+        val digestScheduler = DigestScheduler(
+            application = this,
+            dataSource = ds,
+            digestService = digestService,
+            fcmService = fcmService
+        )
+        digestScheduler.start()
 
     // Log startup
     log.info("Friday Server started on port $serverPort")

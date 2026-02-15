@@ -33,7 +33,7 @@ class FcmNotificationService(
     
     private val httpClient = HttpClient {
         install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-            install(json)
+            this.register(io.ktor.http.ContentType.Application.Json, io.ktor.serialization.kotlinx.json.KotlinxSerializationConverter(json))
         }
     }
 
@@ -139,7 +139,7 @@ class FcmNotificationService(
             setBody(message)
         }
 
-        response.status.isSuccess()
+        return response.status.isSuccess()
     }
 
     /**
@@ -167,7 +167,7 @@ class FcmNotificationService(
             setBody(message)
         }
 
-        response.status.isSuccess()
+        return response.status.isSuccess()
     }
 
     /**

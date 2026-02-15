@@ -298,12 +298,12 @@ class DigestService(
         }
 
         val messages = listOf(
-            LlmMessage(role = "system", content = systemPrompt),
-            LlmMessage(role = "user", content = userPrompt)
+            LlmMessage(role = LlmMessage.Role.SYSTEM, content = systemPrompt),
+            LlmMessage(role = LlmMessage.Role.USER, content = userPrompt)
         )
 
         try {
-            val response = llmProvider.complete(messages, maxTokens = 1000, temperature = 0.3)
+            val response = llmProvider.generate(messages).content ?: ""
             parseDigestResponse(response)
         } catch (e: Exception) {
             logger.error("Failed to generate digest with AI: ${e.message}", e)
@@ -535,9 +535,9 @@ class DigestService(
                 stmt.setDate(3, java.sql.Date.valueOf(digestDate))
                 stmt.setString(4, digestType)
                 stmt.setString(5, content.summary)
-                stmt.setString(6, json.encodeToString(serializer(), content.keyInsights))
-                stmt.setString(7, json.encodeToString(serializer(), content.goalsProgress))
-                stmt.setString(8, json.encodeToString(serializer(), content.priorities))
+                stmt.setString(6, json.encodeToString(content.keyInsights))
+                stmt.setString(7, json.encodeToString(content.goalsProgress))
+                stmt.setString(8, json.encodeToString(content.priorities))
                 stmt.setString(9, content.criticalInfo)
                 stmt.setInt(10, notesAnalyzed)
                 stmt.setInt(11, chatsAnalyzed)

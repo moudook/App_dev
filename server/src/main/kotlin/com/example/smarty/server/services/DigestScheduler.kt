@@ -117,7 +117,7 @@ class DigestScheduler(
     /**
      * Check if a digest is due based on current time and user preferences.
      */
-    private fun isDigestDue(
+    private suspend fun isDigestDue(
         now: ZonedDateTime,
         scheduledTime: LocalTime,
         userTimezone: String,
@@ -144,7 +144,7 @@ class DigestScheduler(
     /**
      * Check if weekly digest is due.
      */
-    private fun isWeeklyDigestDue(now: ZonedDateTime, userPref: UserDigestPreferences): Boolean {
+    private suspend fun isWeeklyDigestDue(now: ZonedDateTime, userPref: UserDigestPreferences): Boolean {
         val userNow = now.withZoneSameInstant(ZoneId.of(userPref.timezone))
         
         // Check if today is the configured day (0=Sunday, 1=Monday, etc.)
