@@ -177,7 +177,31 @@ CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id);
 CREATE INDEX IF NOT EXISTS idx_timers_user ON timers(user_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_user ON calendar_events(user_id);
 
--- 5. Hybrid Search Function (Vector + Text)
+-- 5. Agent Traces Table (for debugging/observability)
+CREATE TABLE IF NOT EXISTS agent_traces (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    session_id UUID,
+    query TEXT,
+    trace_data JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 6. Agent Checkpoints Table (for resumable agents)
+CREATE TABLE IF NOT EXISTS agent_checkpoints (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL,
+    session_id UUID NOT NULL,
+    checkpoint_data JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes for agent tables
+CREATE INDEX IF NOT EXISTS idx_agent_traces_user ON agent_traces(user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_checkpoints_session ON agent_checkpoints(session_id);
+
+-- 7. Hybrid Search Function (Vector + Text)
 CREATE OR REPLACE FUNCTION match_documents_hybrid(
   query_user_id TEXT,
   query_text TEXT,
