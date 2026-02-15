@@ -20,6 +20,12 @@ import com.example.smarty.server.routes.configureProcessingRoutes
 import com.example.smarty.server.plugins.configureMonitoring
 import com.example.smarty.server.routes.configureHandshakeRoutes
 import com.example.smarty.server.routes.configureDataRoutes
+import com.example.smarty.server.services.DigestService
+import com.example.smarty.server.services.DigestScheduler
+import com.example.smarty.server.services.FcmNotificationService
+import com.example.smarty.server.data.ChatRepository
+import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.llm.LlmProviderFactory
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -150,6 +156,25 @@ fun Application.module() {
     // Configure Monitoring
     configureMonitoring()
 
+    // Initialize Digest System
+    val digestService = DigestService(
+        dataSource = DatabaseFactory.dataSource,
+        chatRepository = ChatRepository(DatabaseFactory.dataSource),
+        vectorStore = PostgresVectorStore(DatabaseFactory.dataSource),
+        llmProvider = LlmProviderFactory.createDefault()
+    )
+    
+    val fcmService = FcmNotificationService.fromEnvironment(DatabaseFactory.dataSource)
+    
+    val digestScheduler = DigestScheduler(
+        application = this,
+        dataSource = DatabaseFactory.dataSource,
+        digestService = digestService,
+        fcmService = fcmService
+    )
+    digestScheduler.start()
+
     // Log startup
     log.info("Friday Server started on port $serverPort")
+    log.info("Digest Scheduler started - daily digests will be generated at configured times")
 }

@@ -2,9 +2,6 @@
 package com.example.smarty.features.notes.domain
 
 import android.app.Application
-import android.media.AudioManager
-import android.telephony.PhoneStateListener
-import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.lifecycle.AbstractSavedStateViewModelFactory
 import androidx.lifecycle.AndroidViewModel
@@ -205,10 +202,8 @@ class SmartyViewModel(
 
 
 
-    // Wake word detection state
-    private val _isWakeWordActive = MutableStateFlow(false)
-    val isWakeWordActive: StateFlow<Boolean> = _isWakeWordActive.asStateFlow()
-
+    // Voice input trigger (for widget voice input button - NOT Vosk wake word)
+    // This is triggered by the widget to launch Google Speech Recognizer
     private val _wakeWordTriggered = MutableStateFlow(false)
     val wakeWordTriggered: StateFlow<Boolean> = _wakeWordTriggered.asStateFlow()
 
@@ -331,33 +326,6 @@ class SmartyViewModel(
     private val _isAppInForeground = MutableStateFlow(true)
     val isAppInForeground: StateFlow<Boolean> = _isAppInForeground.asStateFlow()
 
-    // Track if mic is in use by voice enrollment or other features
-    // When true, wake word detection should not restart
-    private var isMicInUseByOther = false
-
-    // Track if phone call is active - wake word should not work during calls
-    private var isPhoneCallActive = false
-
-    // Track if another app has audio focus
-    private var isAudioFocusLost = false
-
-    // Track if in-app audio is playing
-    private var isInAppAudioPlaying = false
-
-    // Job for collecting audio player state
-    private var audioPlayerCollectorJob: Job? = null
-
-    // Phone state listener for call detection
-    @Suppress("DEPRECATION")
-    private var phoneStateListener: PhoneStateListener? = null
-    private var telephonyManager: TelephonyManager? = null
-
-    // Audio manager for checking if music is active
-    private var audioManager: AudioManager? = null
-
-    // Job for periodic music check when music was detected
-    private var musicCheckJob: Job? = null
-
     // Shake-triggered mode switch (for glow animation feedback)
     private val _wasShakeTriggered = MutableStateFlow(false)
     val wasShakeTriggered: StateFlow<Boolean> = _wasShakeTriggered.asStateFlow()
@@ -398,7 +366,7 @@ class SmartyViewModel(
 
 
 
-    // --- Remote Server Configuration (Replaces Local PC) ---
+    // --- Remote Server Configuration ---
     val serverUrl: StateFlow<String> = settingsFeatureManager.serverUrl
     fun setServerUrl(url: String) = settingsFeatureManager.setServerUrl(url)
 
@@ -1344,325 +1312,13 @@ class SmartyViewModel(
         Log.d(TAG, "Shake detector initialized with contextual handler")
     }
 
-    // Job for wake word state collection - cancelled on re-init
-    private var wakeWordCollectorJob: Job? = null
 
-    /**
-     * Initialize Vosk wake word detection (fully offline).
-     * Call this from MainActivity.onCreate() after permissions are granted.
-     * Idempotent - safe to call multiple times.
-     *
-     * When "hello reddit" is detected:
-     * - Vosk stops listening (frees mic)
-     * - wakeWordTriggered becomes true
-     * - MainActivity should launch Google Speech Recognizer
-     * - After STT completes, call restartWakeWordDetection()
-     */
-    fun initVoskWakeWord(context: Context) {
-        // PERF: Vosk disabled for cloud migration (Phase 0)
-        Log.d(TAG, "Vosk wake word is DISABLED for cloud migration.")
-        /*
-        // Prevent double initialization, but allow re-initialization if destroyed
-        if (voskWakeWordManager != null && !voskWakeWordManager!!.isDestroyed) {
-            Log.d(TAG, "Vosk wake word manager already initialized and active, skipping")
-            return
-        }
 
-        if (voskWakeWordManager?.isDestroyed == true) {
-            Log.d(TAG, "Vosk wake word manager was destroyed, re-initializing")
-            voskWakeWordManager = null
-        }
 
-        voskWakeWordManager = VoskWakeWordManager(
-            context = context.applicationContext,
-            scope = viewModelScope,
-            onWakeWordDetected = {
-                Log.i(TAG, "Wake word detected - triggering STT")
-                _wakeWordTriggered.value = true
-            }
-        )
-        voskWakeWordManager?.initialize()
 
-        // Cancel any existing collector before starting new one
-        wakeWordCollectorJob?.cancel()
 
-        // Observe listening state
-        wakeWordCollectorJob = viewModelScope.launch {
-            voskWakeWordManager?.isListening?.collect { isListening ->
-                _isWakeWordActive.value = isListening
-            }
-        }
 
-        // Initialize phone call detection
-        initPhoneCallListener(context)
 
-        // Initialize audio focus detection
-        initAudioFocusListener(context)
-
-        Log.i(TAG, "Vosk wake word manager initialized with call and audio focus detection")
-        */
-    }
-
-    /**
-     * Initialize phone call state listener.
-     * Stops wake word when user is on a call.
-     */
-    @Suppress("DEPRECATION")
-    private fun initPhoneCallListener(context: Context) {
-        // PERF: Vosk disabled - no need to listen for calls
-        /*
-        try {
-            telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
-            phoneStateListener = object : PhoneStateListener() {
-                @Deprecated("Deprecated in Java")
-                @Suppress("OVERRIDE_DEPRECATION")
-                override fun onCallStateChanged(state: Int, phoneNumber: String?) {
-                    when (state) {
-                        TelephonyManager.CALL_STATE_RINGING,
-                        TelephonyManager.CALL_STATE_OFFHOOK -> {
-                            // Call active - stop wake word
-                            if (!isPhoneCallActive) {
-                                isPhoneCallActive = true
-                                stopWakeWordDetection()
-                                Log.d(TAG, "Phone call active - stopped wake word detection")
-                            }
-                        }
-                        TelephonyManager.CALL_STATE_IDLE -> {
-                            // Call ended - can restart wake word
-                            if (isPhoneCallActive) {
-                                isPhoneCallActive = false
-                                restartWakeWordDetection()
-                                Log.d(TAG, "Phone call ended - restarting wake word detection")
-                            }
-                        }
-                    }
-                }
-            }
-            telephonyManager?.listen(phoneStateListener, PhoneStateListener.LISTEN_CALL_STATE)
-            Log.d(TAG, "Phone call listener initialized")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize phone call listener: ${e.message}")
-        }
-        */
-    }
-
-    /**
-     * Initialize audio focus listener.
-     * Stops wake word when another app takes audio focus or in-app audio plays.
-     *
-     * NOTE: We do NOT request audio focus ourselves - that would pause other apps' music.
-     * Instead we check isMusicActive and observe in-app audio state.
-     */
-    private fun initAudioFocusListener(context: Context) {
-        // PERF: Vosk disabled - no need for audio focus listener
-        /*
-        try {
-            audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-
-            // Check if music is already playing (initial state)
-            val isMusicPlaying = audioManager?.isMusicActive == true
-            if (isMusicPlaying) {
-                Log.d(TAG, "Music already playing on init - Vosk will not start")
-                isAudioFocusLost = true
-            }
-
-            // NOTE: We intentionally do NOT request audio focus here.
-            // Requesting audio focus would cause other apps (Spotify, YouTube, etc.)
-            // to pause their music when our app starts.
-            // Instead, we check isMusicActive at key points (startWakeWordDetection, maybeResumeVosk)
-
-            // Observe in-app audio player state
-            startInAppAudioObserver()
-
-            Log.d(TAG, "Audio detection initialized (passive mode - won't interrupt other apps)")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to initialize audio manager: ${e.message}")
-        }
-        */
-    }
-
-    /**
-     * Start observing in-app audio player state.
-     * Pauses Vosk when in-app audio is playing.
-     */
-    private fun startInAppAudioObserver() {
-        audioPlayerCollectorJob?.cancel()
-        audioPlayerCollectorJob = viewModelScope.launch {
-            AudioPlayerService.playerState.collect { state ->
-                val wasPlaying = isInAppAudioPlaying
-                isInAppAudioPlaying = state.playbackState == PlaybackState.PLAYING
-
-                if (isInAppAudioPlaying && !wasPlaying) {
-                    // Audio started playing - pause Vosk
-                    Log.d(TAG, "In-app audio started - pausing Vosk")
-                    voskWakeWordManager?.stopListening()
-                } else if (!isInAppAudioPlaying && wasPlaying) {
-                    // Audio stopped - try to resume Vosk
-                    Log.d(TAG, "In-app audio stopped - checking if Vosk can resume")
-                    maybeResumeVosk()
-                }
-            }
-        }
-    }
-
-    /**
-     * Start periodic check for system music.
-     * Monitors both:
-     * - Music stopping (so we can resume Vosk)
-     * - Music starting (so we can pause Vosk)
-     * Only runs when app is in foreground.
-     */
-    private fun startMusicCheck() {
-        musicCheckJob?.cancel()
-        musicCheckJob = viewModelScope.launch {
-            Log.d(TAG, "Starting periodic music check (every 2s)")
-            // BUG-001 FIX: Use isActive for proper cancellation instead of while(true)
-            while (isActive) {
-                delay(2000L) // Check every 2 seconds
-
-                // Only check when app is in foreground
-                if (!_isAppInForeground.value) {
-                    continue
-                }
-
-                val isMusicPlaying = audioManager?.isMusicActive == true
-
-                // BUG FIX: Don't treat in-app audio as lost audio focus
-                // Only set isAudioFocusLost if music is playing AND it's not us
-                if (isMusicPlaying && !isInAppAudioPlaying && !isAudioFocusLost) {
-                    // System music (not us) started - pause Vosk
-                    Log.d(TAG, "System music started mid-session - pausing Vosk")
-                    isAudioFocusLost = true
-                    voskWakeWordManager?.stopListening()
-                } else if (!isMusicPlaying && isAudioFocusLost) {
-                    // Music stopped - try to resume Vosk
-                    Log.d(TAG, "System music stopped - resuming Vosk")
-                    isAudioFocusLost = false
-                    maybeResumeVosk()
-                }
-            }
-        }
-    }
-
-    /**
-     * Stop the periodic music check.
-     */
-    private fun stopMusicCheck() {
-        musicCheckJob?.cancel()
-        musicCheckJob = null
-    }
-
-    /**
-     * Try to resume Vosk if all conditions allow.
-     */
-    private fun maybeResumeVosk() {
-        // PERF: Vosk disabled
-        /*
-        if (!_isAppInForeground.value) {
-            Log.d(TAG, "Cannot resume Vosk - app in background")
-            return
-        }
-        if (isPhoneCallActive) {
-            Log.d(TAG, "Cannot resume Vosk - phone call active")
-            return
-        }
-        if (isAudioFocusLost) {
-            Log.d(TAG, "Cannot resume Vosk - audio focus lost")
-            return
-        }
-        if (isInAppAudioPlaying) {
-            Log.d(TAG, "Cannot resume Vosk - in-app audio playing")
-            return
-        }
-        if (isMicInUseByOther) {
-            Log.d(TAG, "Cannot resume Vosk - mic in use by other")
-            return
-        }
-        if (pendingShareFullPrivacy.value) {
-            Log.d(TAG, "Cannot resume Vosk - privacy mode active")
-            return
-        }
-        // Check if any system audio is playing
-        if (audioManager?.isMusicActive == true) {
-            Log.d(TAG, "Cannot resume Vosk - system music active")
-            return
-        }
-        // Check if Vosk is globally paused (e.g., by AssistActivity)
-        if (VoskWakeWordManager.isGloballyPaused) {
-            Log.d(TAG, "Cannot resume Vosk - globally paused by AssistActivity")
-            return
-        }
-
-        Log.d(TAG, "All conditions met - resuming Vosk wake word detection")
-        voskWakeWordManager?.restartListening()
-        */
-    }
-
-    /**
-     * Check if audio is available (no call active, no audio focus lost, no audio playing).
-     */
-    private fun isAudioAvailable(): Boolean {
-        return !isPhoneCallActive && !isAudioFocusLost && !isInAppAudioPlaying
-    }
-
-    /**
-     * Start wake word detection.
-     * Call this from Activity.onResume().
-     *
-     * MED-007: Respects privacy mode - Vosk won't listen during share privacy mode.
-     * Also checks audio playback state - won't start if audio is playing.
-     */
-    fun startWakeWordDetection() {
-        // PERF: Vosk disabled
-        /*
-        // MED-007: Don't start Vosk if in privacy mode (during share flow with full privacy)
-        if (pendingShareFullPrivacy.value) {
-            Log.d(TAG, "Skipping wake word start - privacy mode active")
-            return
-        }
-        // Don't start if audio is playing (in-app or system)
-        if (isInAppAudioPlaying) {
-            Log.d(TAG, "Skipping wake word start - in-app audio playing")
-            return
-        }
-
-        // Always start the music check to monitor for music starting/stopping
-        startMusicCheck()
-
-        if (audioManager?.isMusicActive == true) {
-            Log.d(TAG, "Skipping wake word start - system music active")
-            isAudioFocusLost = true
-            return
-        }
-
-        isAudioFocusLost = false
-        voskWakeWordManager?.startListening()
-        */
-    }
-
-    /**
-     * Stop wake word detection.
-     * Call this from Activity.onPause().
-     */
-    fun stopWakeWordDetection() {
-        // PERF: Vosk disabled
-        /*
-        voskWakeWordManager?.stopListening()
-        // Stop music check when going to background (will restart on resume if needed)
-        stopMusicCheck()
-        */
-    }
-
-    /**
-     * MED-007: Pause Vosk when entering privacy-sensitive mode.
-     * Called when pendingShareFullPrivacy changes to true.
-     */
-    private fun pauseVoskForPrivacy() {
-        if (pendingShareFullPrivacy.value) {
-            Log.d(TAG, "Pausing Vosk for privacy mode")
-            voskWakeWordManager?.stopListening()
-        }
-    }
 
     /**
      * Manually trigger text input focus (e.g. from widget)
@@ -1695,59 +1351,10 @@ class SmartyViewModel(
         _cameraTriggered.value = false
     }
 
-    /**
-     * Restart wake word detection after Google STT completes.
-     * Call this from onActivityResult after speech recognition finishes.
-     *
-     * PRIVACY: Only restarts if app is in foreground to prevent background mic access.
-     * MED-007: Also respects privacy mode.
-     */
-    fun restartWakeWordDetection() {
-        // PERF: Vosk disabled for cloud migration (Phase 0)
-        /*
-        _wakeWordTriggered.value = false
-        // Always start the music check to monitor for music starting/stopping
-        startMusicCheck()
-
-        // CRITICAL: Only restart if all conditions are met
-        if (!_isAppInForeground.value) {
-            Log.d(TAG, "Skipping wake word restart - app is in background")
-            return
-        }
-        if (isMicInUseByOther) {
-            Log.d(TAG, "Skipping wake word restart - mic in use by voice enrollment or other")
-            return
-        }
-        if (isPhoneCallActive) {
-            Log.d(TAG, "Skipping wake word restart - phone call is active")
-            return
-        }
-        if (isAudioFocusLost) {
-            Log.d(TAG, "Skipping wake word restart - audio focus lost to another app")
-            return
-        }
-        if (isInAppAudioPlaying) {
-            Log.d(TAG, "Skipping wake word restart - in-app audio playing")
-            return
-        }
-        if (audioManager?.isMusicActive == true) {
-            Log.d(TAG, "Skipping wake word restart - system music active")
-            isAudioFocusLost = true
-            startMusicCheck()
-            return
-        }
-        // MED-007: Don't restart if in privacy mode
-        if (pendingShareFullPrivacy.value) {
-            Log.d(TAG, "Skipping wake word restart - privacy mode active")
-            return
-        }
-        voskWakeWordManager?.restartListening()
-        */
-    }
 
     /**
-     * Clear the wake word triggered flag.
-     * Call this if STT is cancelled.
+     * Clear the voice input trigger flag.
+     * Call this after Google Speech Recognizer is launched from widget.
      */
     fun clearWakeWordTrigger() {
         _wakeWordTriggered.value = false
@@ -1759,14 +1366,6 @@ class SmartyViewModel(
      * Forces the wake word detector to reload the embedding from disk.
      */
 
-    /**
-     * Mark mic as in use by voice enrollment or other features.
-     * Prevents wake word from auto-restarting when app resumes.
-     */
-    fun setMicInUseByOther(inUse: Boolean) {
-        isMicInUseByOther = inUse
-        Log.d(TAG, "Mic in use by other: $inUse")
-    }
 
     // Shake blocking state for inline views and critical sections
     private val _isShakeBlocked = MutableStateFlow(false)
@@ -2091,9 +1690,7 @@ class SmartyViewModel(
         // CRITICAL: Mark app as backgrounded to stop all microphone access
         _isAppInForeground.value = false
 
-        // CRITICAL: Stop wake word detection to release microphone
-        stopWakeWordDetection()
-        Log.d(TAG, "Stopped wake word detection for background")
+        // Wake word detection removed - using Google Speech Recognizer instead
 
         // Flush any pending batched database writes before going to background
         viewModelScope.launch {
@@ -2172,38 +1769,13 @@ class SmartyViewModel(
             }
         }
 
-        // Cancel wake word collector job to prevent coroutine leak
-        wakeWordCollectorJob?.cancel()
-        wakeWordCollectorJob = null
         shakeDetector?.stop()
         shakeDetector = null
-        voskWakeWordManager?.destroy()
-        voskWakeWordManager = null
 
         // Clean up completion sound manager
         completionSoundManager.shutdown()
 
-        // Clean up phone state listener to prevent memory leak
-        @Suppress("DEPRECATION")
-        try {
-            phoneStateListener?.let { listener ->
-                telephonyManager?.listen(listener, PhoneStateListener.LISTEN_NONE)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error cleaning up phone state listener: ${e.message}")
-        }
-        phoneStateListener = null
-        telephonyManager = null
 
-        // Clean up audio player observer
-        audioPlayerCollectorJob?.cancel()
-        audioPlayerCollectorJob = null
-
-        // Clean up music check job
-        musicCheckJob?.cancel()
-        musicCheckJob = null
-
-        audioManager = null
     }
 }
 

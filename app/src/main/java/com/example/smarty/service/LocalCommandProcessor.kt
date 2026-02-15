@@ -409,6 +409,7 @@ class LocalCommandProcessor(
                 val deviceAudio = getDeviceAudio()
                 val result = systemFeatureManager.findMatchingAudio(audioQuery, deviceAudio)
 
+                @Suppress("DEPRECATION")
                 when (result) {
                     is AudioSearchResult.ExactMatch -> {
                         val track = result.track

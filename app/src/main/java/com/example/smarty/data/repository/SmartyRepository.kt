@@ -942,7 +942,7 @@ class SmartyRepository(
         calendarDao.deleteAllTimers()
         database.aiCacheDao().clearAll()
         database.impressedLogDao().deleteAllLogs()
-        database.agentExecutionDao().deleteAllExecutions()
+        // agentExecutionDao removed - no longer in use
         noteVersionDao?.deleteAllVersions()
     }
 }

@@ -589,5 +589,67 @@ object Migrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_ai_cache_lastAccessedAt ON ai_cache(lastAccessedAt)")
         }
     }
+
+    /**
+     * Migration 30 → 31: Add user_id to ai_cache for multi-tenant support.
+     */
+    val MIGRATION_30_31 = object : Migration(30, 31) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add user_id column with empty default for existing entries
+            db.execSQL("ALTER TABLE ai_cache ADD COLUMN user_id TEXT NOT NULL DEFAULT ''")
+            
+            // Index for user-scoped cache queries
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_ai_cache_user_id ON ai_cache(user_id)")
+        }
+    }
+
+    /**
+     * Migration 31 → 32: Add sync_queue and conflict_archive tables for cloud-first sync.
+     * Enables offline write queueing and conflict resolution (LWW).
+     */
+    val MIGRATION_31_32 = object : Migration(31, 32) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Create sync_queue table for offline operations
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS sync_queue (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    operation TEXT NOT NULL,
+                    entityType TEXT NOT NULL,
+                    entityId TEXT NOT NULL,
+                    payloadJson TEXT NOT NULL,
+                    baseVersion INTEGER NOT NULL DEFAULT 0,
+                    createdAt INTEGER NOT NULL,
+                    retryCount INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'PENDING',
+                    lastError TEXT,
+                    serverTimestamp INTEGER
+                )
+            """)
+
+            // Indices for sync queue queries
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_queue_entityId_entityType ON sync_queue(entityId, entityType)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_queue_status ON sync_queue(status)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_sync_queue_createdAt ON sync_queue(createdAt)")
+
+            // Create conflict_archive table for tracking resolved conflicts
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS conflict_archive (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    entityId TEXT NOT NULL,
+                    entityType TEXT NOT NULL,
+                    localPayloadJson TEXT NOT NULL,
+                    serverPayloadJson TEXT NOT NULL,
+                    localTimestamp INTEGER NOT NULL,
+                    serverTimestamp INTEGER NOT NULL,
+                    resolvedAt INTEGER NOT NULL,
+                    resolution TEXT NOT NULL
+                )
+            """)
+
+            // Indices for conflict archive queries
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_conflict_archive_entityId ON conflict_archive(entityId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_conflict_archive_resolvedAt ON conflict_archive(resolvedAt)")
+        }
+    }
 }
 

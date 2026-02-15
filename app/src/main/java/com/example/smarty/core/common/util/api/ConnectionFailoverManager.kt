@@ -106,7 +106,7 @@ class ConnectionFailoverManager private constructor() {
 
         // Connection-specific rate limit cooldowns
         private val CONNECTION_RATE_LIMIT_COOLDOWNS = mapOf(
-            AIConnection.LOCAL_PC to 5_000L       // Local PC - short cooldown for local testing
+            AIConnection.LOCAL_PC to 5_000L       // Server connection - short cooldown
         )
 
         /**

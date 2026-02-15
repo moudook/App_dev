@@ -14,10 +14,10 @@ import com.google.gson.Gson
 
 /**
  * Orchestrates AI connection selection, configuration, and fallback logic.
- * Thin Client Version: Only handles LOCAL_PC. Cloud connections are managed by the server.
+ * Thin Client Version: Connects to remote Smarty Server. Cloud connections are managed by the server.
  *
  * Responsibilities:
- * - Manages LOCAL_PC connection instance
+ * - Manages server connection instance
  * - Executes operations with retry logic
  *
  * @property securePreferences Secure storage for settings
@@ -40,18 +40,17 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
 
     // ==================== Connection Instances ====================
 
-    // Local LLM connection - connects to your PC via USB/WiFi for privacy and offline use
-    private var _localPCConnection: CompatibleAIConnection? = null
-    private var _localPCUrl: String? = null
-    private val localPCConnection: AIConnectionContract
+    // Remote server connection - connects to Smarty Server for AI processing
+    private var _serverConnection: CompatibleAIConnection? = null
+    private var _serverUrl: String? = null
+    private val serverConnection: AIConnectionContract
         get() {
-            val currentUrl = securePreferences.getLocalPCUrl()
-            if (_localPCConnection == null || _localPCUrl != currentUrl) {
-                _localPCUrl = currentUrl
-                // Use localServer client that trusts self-signed certificates for HTTPS
-                _localPCConnection = CompatibleAIConnection.localPC(HttpClientProvider.localServer, gson, currentUrl)
+            val currentUrl = securePreferences.getServerUrl()
+            if (_serverConnection == null || _serverUrl != currentUrl) {
+                _serverUrl = currentUrl
+                _serverConnection = CompatibleAIConnection.localPC(HttpClientProvider.default, gson, currentUrl)
             }
-            return _localPCConnection!!
+            return _serverConnection!!
         }
 
     /**
@@ -59,7 +58,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
      */
     fun getConnection(connection: AIConnection): AIConnectionContract {
         return when (connection) {
-            AIConnection.LOCAL_PC -> localPCConnection
+            AIConnection.LOCAL_PC -> serverConnection
             else -> throw IllegalArgumentException("Connection $connection is not supported on the client (Thin Client)")
         }
     }
@@ -73,7 +72,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
 
     /**
      * Get ordered list of connections to try based on user priority.
-     * Thin Client: Only returns LOCAL_PC if enabled.
+     * Thin Client: Only returns server connection if enabled.
      */
     fun getOrderedConnections(): List<AIConnection> {
         if (securePreferences.isLocalPCEnabled() && failoverManager.isConnectionAvailable(AIConnection.LOCAL_PC)) {
@@ -126,7 +125,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
 
     /**
      * Execute an action with content analysis retry logic.
-     * Thin Client: Only supports LOCAL_PC.
+     * Thin Client: Uses server connection.
      */
     suspend fun executeWithContentAnalysisRetry(
         context: android.content.Context,
@@ -136,12 +135,12 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
 
         // Skip if connection circuit is open
         if (!failoverManager.isConnectionAvailable(connection)) {
-            Log.d(TAG, "Skipping LOCAL_PC - circuit is open")
+            Log.d(TAG, "Skipping server connection - circuit is open")
             return null
         }
 
-        // LOCAL_PC doesn't need API keys, using connectionToken terminology
-        val connectionToken = "local_pc_no_token_needed"
+        // Server connection doesn't need API keys on client side
+        val connectionToken = "server_no_token_needed"
 
         try {
             val result = RetryExecutor.withRetry(
@@ -153,7 +152,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
             }
 
             if (result != null && result.success) {
-                Log.i(TAG, " LOCAL_PC SUCCESS")
+                Log.i(TAG, " Server connection SUCCESS")
                 ApiMetrics.recordApiCall(true)
                 failoverManager.recordSuccess(connection)
                 return result
@@ -166,7 +165,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
         } catch (e: Exception) {
             ApiMetrics.recordApiCall(false)
             val category = failoverManager.categorizeError(e)
-            Log.w(TAG, "LOCAL_PC failed: ${e.message} [$category]")
+            Log.w(TAG, "Server connection failed: ${e.message} [$category]")
             failoverManager.recordFailure(connection, category)
         }
 
@@ -184,11 +183,11 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
 
         // Skip if connection circuit is open
         if (!failoverManager.isConnectionAvailable(connection)) {
-            Log.d(TAG, "Skipping LOCAL_PC for document analysis - circuit is open")
+            Log.d(TAG, "Skipping server for document analysis - circuit is open")
             return null
         }
 
-        val connectionToken = "local_pc_no_token_needed"
+        val connectionToken = "server_no_token_needed"
 
         try {
             val result = RetryExecutor.withRetry(
@@ -200,7 +199,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
             }
 
             if (result != null && result.success) {
-                Log.i(TAG, " Document analysis SUCCESS via LOCAL_PC")
+                Log.i(TAG, " Document analysis SUCCESS via server")
                 failoverManager.recordSuccess(connection)
                 return result
             }
@@ -210,7 +209,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
             }
         } catch (e: Exception) {
             val category = failoverManager.categorizeError(e)
-            Log.w(TAG, "LOCAL_PC document analysis failed: ${e.message} [$category]")
+            Log.w(TAG, "Server document analysis failed: ${e.message} [$category]")
             failoverManager.recordFailure(connection, category)
         }
 
@@ -219,7 +218,7 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
 
     /**
      * Execute a chat action.
-     * Thin Client: All chat operations use the LOCAL_PC connection.
+     * Thin Client: All chat operations use the server connection.
      */
     suspend fun executeChat(
         context: android.content.Context,
@@ -229,11 +228,11 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
 
         // Skip if connection circuit is open
         if (!failoverManager.isConnectionAvailable(connection)) {
-            Log.d(TAG, "Skipping LOCAL_PC for chat - circuit is open")
+            Log.d(TAG, "Skipping server for chat - circuit is open")
             return null
         }
 
-        val connectionToken = "local_pc_no_token_needed"
+        val connectionToken = "server_no_token_needed"
 
         try {
             val result = RetryExecutor.withStringRetry(
@@ -244,13 +243,13 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
             }
 
             if (result != null) {
-                Log.i(TAG, " Chat SUCCESS via LOCAL_PC")
+                Log.i(TAG, " Chat SUCCESS via server")
                 failoverManager.recordSuccess(connection)
                 return result
             }
         } catch (e: Exception) {
             val category = failoverManager.categorizeError(e)
-            Log.w(TAG, "LOCAL_PC chat failed: ${e.message} [$category]")
+            Log.w(TAG, "Server chat failed: ${e.message} [$category]")
             failoverManager.recordFailure(connection, category)
         }
 

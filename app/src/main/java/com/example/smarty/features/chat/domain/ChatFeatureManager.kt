@@ -533,16 +533,8 @@ class ChatFeatureManager(
         // Initialize Ktor client - SSE only (JSON parsing done manually in RemoteAgentService)
         val client = HttpClient(OkHttp) {
             install(SSE)
-            // Add header to bypass ngrok browser warning for public internet access
-            install(DefaultRequest) {
-                header("ngrok-skip-browser-warning", "true")
-            }
         }
 
-        // Connect to local server via USB Reverse Tethering or Emulator Loopback
-        // For physical device: Run 'connect_via_usb.bat' (adb reverse tcp:7860 tcp:7860)
-        // For emulator: adb reverse is also recommended, but 10.0.2.2 works natively
-        // We use 127.0.0.1 to support both provided port forwarding is active
         RemoteAgentService(
             client = client,
             eventSink = agentEventSink,

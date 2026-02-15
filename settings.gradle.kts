@@ -35,7 +35,7 @@ val hasAndroidSdk: Boolean = run {
 
 // Only include Android app module when SDK is available
 if (hasAndroidSdk) {
-    // include(":app") // Uncomment when needed for Android development
+    include(":app")
 }
 
 include(":common")

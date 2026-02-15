@@ -12,7 +12,6 @@ import kotlinx.coroutines.launch
  * Centralized manager for application settings and user preferences.
  * Handles logic for:
  * - Connection to the Smarty Server
- * - Local LLM server connectivity (USB/WiFi)
  * - UI preferences (Theme, Shake sensitivity)
  * - App lifecycle flags (First launch)
  *
@@ -218,7 +217,6 @@ class SettingsFeatureManager(
 
                 val request = okhttp3.Request.Builder()
                     .url(fullUrl)
-                    .addHeader("ngrok-skip-browser-warning", "true")
                     .get()
                     .build()
 

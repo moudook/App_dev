@@ -133,7 +133,7 @@ secrets.*
 *.keystore
 *.jks
 keystore.properties
-google-services.json
+*.json
 firebase-config.json
 api-keys.properties
 secrets.properties

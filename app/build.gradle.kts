@@ -91,6 +91,40 @@ android {
             excludes += "META-INF/io.netty.versions.properties"
         }
     }
+
+    // APK Size Optimization: ABI Splits
+    // Ship only arm64-v8a for Play Store (covers 95%+ of active devices)
+    // This reduces APK size by 8-12MB compared to universal APK
+    splits {
+        abi {
+            // Enable ABI splits for release builds
+            isEnable = true
+            // Reset to clear default ABIs
+            reset()
+            // Include only arm64-v8a (64-bit ARM devices)
+            // This covers most modern Android devices
+            include("arm64-v8a")
+            // Set to false for Play Store (they'll serve correct APK)
+            // Set to true if distributing APK directly outside Play Store
+            isUniversalApk = false
+        }
+    }
+
+    // Android App Bundle optimization for Play Store
+    bundle {
+        // Enable language split for smaller downloads
+        language {
+            enableSplit = true
+        }
+        // Enable density split for smaller downloads
+        density {
+            enableSplit = true
+        }
+        // Enable ABI split for smaller downloads
+        abi {
+            enableSplit = true
+        }
+    }
 }
 
 dependencies {
@@ -173,6 +207,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
 
     // Firebase - Only auth is actively used (BATCH-10 optimization)
     implementation(platform(libs.firebase.bom))

@@ -13,38 +13,35 @@ import com.example.smarty.data.local.AIConnection
 import java.util.UUID
 
 /**
- * Available models for the Local LLM connection.
+ * Available models for the server connection.
+ * Note: The actual model selection is handled by the server.
  */
 object AIModels {
-    // Local PC models - Run AI locally on your computer
-    val LOCAL_PC_MODELS = listOf(
-        "chatglm3-6b-128k" to "ChatGLM3 6B 128K (Full)",
-        "qwen2.5-3b-instruct" to "Qwen 2.5 3B Instruct (Default)",
-        "qwen2.5-7b-instruct" to "Qwen 2.5 7B Instruct",
-        "qwen2.5-14b-instruct" to "Qwen 2.5 14B Instruct",
-        "llama-3.2-3b-instruct" to "Llama 3.2 3B Instruct",
-        "phi-3-mini-4k-instruct" to "Phi-3 Mini 4K Instruct",
-        "gemma-2-2b-it" to "Gemma 2 2B IT",
-        "mistral-7b-instruct-v0.3" to "Mistral 7B Instruct v0.3"
+    // Server-side models - These are handled by the Smarty Server
+    val SERVER_MODELS = listOf(
+        "gpt-4o" to "GPT-4o (Default)",
+        "gpt-4o-mini" to "GPT-4o Mini",
+        "claude-3-5-sonnet" to "Claude 3.5 Sonnet",
+        "claude-3-5-haiku" to "Claude 3.5 Haiku"
     )
-    const val LOCAL_PC_DEFAULT = "chatglm3-6b-128k"
+    const val SERVER_DEFAULT = "gpt-4o"
 
     fun getModelsForConnection(connection: AIConnection): List<Pair<String, String>> {
         return when (connection) {
-            AIConnection.LOCAL_PC -> LOCAL_PC_MODELS
+            AIConnection.LOCAL_PC -> SERVER_MODELS
         }
     }
 
     fun getDefaultModel(connection: AIConnection): String {
         return when (connection) {
-            AIConnection.LOCAL_PC -> LOCAL_PC_DEFAULT
+            AIConnection.LOCAL_PC -> SERVER_DEFAULT
         }
     }
 }
 
 /**
  * Secure storage for application preferences and sensitive settings.
- * Thin Client Version: Only manages local settings and Local LLM connection configuration.
+ * Thin Client Version: Only manages local settings and server connection configuration.
  */
 class SecurePreferences(private val context: Context) {
     fun getContext(): Context = context
@@ -97,11 +94,11 @@ class SecurePreferences(private val context: Context) {
         // FTS Maintenance
         private const val KEY_LAST_FTS_MAINTENANCE = "last_fts_maintenance"
 
-        // Local PC USB/WiFi Tethering
+        // Remote Server Configuration
         private const val KEY_SERVER_URL = "server_url"
-        // Default to localhost for emulator (10.0.2.2) or USB (127.0.0.1)
-        // Users can paste ngrok URL here
-        private const val DEFAULT_SERVER_URL = "http://10.0.2.2:7860"
+        // Default to production Hugging Face Spaces server
+        // Users can change this in Settings for local development
+        private const val DEFAULT_SERVER_URL = "https://theendofstory-smarty-server.hf.space"
 
         // Google Calendar Sync
         private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
@@ -150,7 +147,7 @@ class SecurePreferences(private val context: Context) {
 
     // Connection Management
     fun isConnectionEnabled(connection: AIConnection): Boolean {
-        return isLocalPCEnabled()
+        return isServerEnabled()
     }
 
     fun getSelectedModel(connection: AIConnection): String {
@@ -217,7 +214,8 @@ class SecurePreferences(private val context: Context) {
 
     // Compatibility methods for AIConnectionOrchestrator
     fun getLocalPCUrl(): String = getServerUrl()
-    fun isLocalPCEnabled(): Boolean = true // Always enabled in Remote-Only mode
+    fun isLocalPCEnabled(): Boolean = isServerEnabled()
+    fun isServerEnabled(): Boolean = true // Always enabled in Remote-Only mode
 
     fun getAvailableModels(connection: AIConnection): List<Pair<String, String>> {
         return AIModels.getModelsForConnection(connection)

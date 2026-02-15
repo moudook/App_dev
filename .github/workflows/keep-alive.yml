@@ -1,0 +1,55 @@
+# GitHub Actions workflow to keep Hugging Face Space alive
+# This prevents cold starts by pinging the server every 10 minutes
+#
+# Setup:
+# 1. Go to your GitHub repo > Settings > Secrets and variables > Actions
+# 2. Add a new secret: SMARTY_SERVER_URL = https://your-username-smarty.hf.space
+#
+# Note: Hugging Face free tier spaces sleep after ~48 hours of inactivity
+# This workflow keeps the space active by pinging it regularly
+
+name: Keep Server Alive
+
+on:
+  schedule:
+    # Run every 10 minutes (GitHub Actions minimum interval is 5 minutes)
+    # Using cron syntax: minute hour day-of-month month day-of-week
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Check server health
+        env:
+          SERVER_URL: ${{ secrets.SMARTY_SERVER_URL }}
+        run: |
+          if [ -z "$SERVER_URL" ]; then
+            echo "ERROR: SMARTY_SERVER_URL secret not set"
+            echo "Please add SMARTY_SERVER_URL to your repository secrets"
+            exit 1
+          fi
+          
+          echo "Pinging server at $(date)"
+          echo "URL: $SERVER_URL/health"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" --max-time 30 "${SERVER_URL}/health" 2>&1)
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "SUCCESS: Server is alive"
+          else
+            echo "WARNING: Server returned non-200 status"
+            # Don't fail the workflow - just log the warning
+          fi
+          
+      - name: Log completion
+        run: |
+          echo "Keep-alive ping completed at $(date)"

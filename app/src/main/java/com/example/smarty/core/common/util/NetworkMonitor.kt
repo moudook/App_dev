@@ -16,9 +16,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * Network connectivity monitor.
  * Observes network state changes and exposes as a Flow.
  *
- * IMPORTANT: Supports both server-side AI and local LLM servers:
+ * IMPORTANT: Supports server-side AI connections:
  * - Server-side AI: Requires validated internet (NET_CAPABILITY_VALIDATED)
- * - Local LLM: Only requires WiFi/USB/Ethernet transport (no internet validation needed)
  */
 class NetworkMonitor(context: Context) {
 

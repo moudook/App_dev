@@ -7,7 +7,7 @@ import com.example.smarty.data.remote.DocumentAnalysisResponse
  * Contract interface for AI connection implementations.
  *
  * This interface defines the standard operations that all AI connections must support.
- * The primary implementation is CompatibleAIConnection for Local PC and server-managed LLMs.
+ * The primary implementation is CompatibleAIConnection for the Smarty Server.
  *
  * Usage:
  * ```kotlin

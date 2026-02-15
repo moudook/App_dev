@@ -504,12 +504,8 @@ class BackupManager(
         securePreferences.setAutoBackupEnabled(backup.autoBackupEnabled)
         securePreferences.setAutoBackupIntervalDays(backup.autoBackupIntervalDays)
 
-        // Restore Local PC settings - DEPRECATED
-        // We no longer restore IP/Port individually as they are replaced by serverUrl
-        // If needed, we could try to construct a serverUrl from them, but for now we skip.
-        // backup.localPcIp?.let { securePreferences.setLocalPCIP(it) }
-        // backup.localPcPort?.let { securePreferences.setLocalPCPort(it) }
-        // backup.localPcUseHttps?.let { securePreferences.setLocalPCUseHttps(it) }
+        // Legacy server settings are no longer restored
+        // The serverUrl is now the single source of truth for server configuration
 
         // Restore UI and interaction settings
         backup.shakeSensitivity?.let { securePreferences.setShakeSensitivity(it) }

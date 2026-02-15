@@ -1,7 +1,6 @@
 package com.example.smarty.data.local
 
 import androidx.room.TypeConverter
-import com.example.smarty.core.domain.model.ExecutionStatus
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.core.domain.model.ProcessingStatus
 
@@ -27,18 +26,6 @@ class Converters {
             value?.let { ProcessingStatus.valueOf(it) } ?: ProcessingStatus.PENDING
         } catch (e: IllegalArgumentException) {
             ProcessingStatus.PENDING  // Fallback to default
-        }
-    }
-
-    @TypeConverter
-    fun fromExecutionStatus(status: ExecutionStatus): String = status.name
-
-    @TypeConverter
-    fun toExecutionStatus(value: String?): ExecutionStatus {
-        return try {
-            value?.let { ExecutionStatus.valueOf(it) } ?: ExecutionStatus.FAILED
-        } catch (e: IllegalArgumentException) {
-            ExecutionStatus.FAILED  // Fallback to default
         }
     }
 

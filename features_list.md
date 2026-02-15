@@ -2,7 +2,23 @@
 
 A comprehensive list of features currently implemented in the Smarty application.
 
-## 🧠 Core Note-Taking
+## &#x1F4DA; Feature Managers Architecture (Modular Design)
+-   **Feature-First Modular Architecture**:
+    -   **AudioFeatureManager**: Centralized audio playback control, device audio discovery, and playback state management.
+    -   **AuthFeatureManager**: Firebase Email/Password Auth, Google Sign-In integration, password recovery, and session management.
+    -   **CalendarFeatureManager**: Calendar event CRUD, event queries, and alarm scheduling coordination.
+    -   **ChatFeatureManager**: AI agent interaction, session management, mention resolution, and command orchestration.
+    -   **SearchFeatureManager**: Semantic note search, hybrid/vector/keyword algorithms, query analysis, and semantic recall.
+    -   **SettingsFeatureManager**: Server connection settings, UI preferences, and app lifecycle flags.
+    -   **SystemFeatureManager**: App launching, internal navigation, media playback, screen capture, and device audio.
+    -   **VoiceFeatureManager**: Voice interactions, wake word detection, audio focus, and phone call state observation.
+    -   **MentionFeatureManager**: @-mention parsing, type discovery, and contextual note retrieval.
+    -   **StyleFeatureManager**: User writing style analysis and tone detection.
+    -   **WorkflowManager**: Complex multi-step AI workflows (Deep Research, Batch Processing, Scheduled Tasks).
+    -   **BackupFeatureManager**: Local and cloud backup orchestration.
+    -   **MemoryFeatureManager**: AI memory CRUD operations and retrieval.
+
+## &#x1F9E0; Core Note-Taking
 -   **Multi-Modal Notes**: Create notes with varied content types:
     -   **Text**: Quick thoughts and brain dumps.
     -   **Images**: Add images with AI-powered analysis/tagging.
@@ -14,7 +30,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Documents**: Attach PDF, DOCX, and other files.
     -   **Code**: Syntax highlighting for code snippets.
 -   **Organization & History**:
-    -   **Git-like Versioning**: Automatically saves history snapshots of notes, allowing you to track changes and revert to earlier versions (`note_versions` table).
+    -   **Git-like Versioning**: Automatically saves history snapshots of notes, allowing you to track change and revert to earlier versions (`note_versions` table).
     -   **Categories**: Custom colored categories with syncable counts.
     -   **Stacks**: Group related notes together using a specialized `NoteStackManager`.
     -   **Pinning**: Keep important notes at the top (optimized with composite indices).
@@ -24,11 +40,12 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Smart "Unread" Discovery**: Calm, non-distracting indicators (`NewNoteIndicatorDot`) for notes you haven't viewed yet.
     -   **Batch Operations**: Optimized database writing for bulk updates.
     -   **File Locking (RX-05)**: Prevents accidental deletion of files currently being processed by AI.
+    -   **Knowledge Card View**: Rich note detail view with version history, @Mention support ("Ask Smarty"), related notes discovery, and full-screen viewers for documents/images/videos (`KnowledgeCardScreen`).
 -   **Home Screen Widgets**:
     -   **Quick Note Widget**: Add notes directly from the Android Home Screen.
     -   **Auto-Syncing View**: Widgets automatically update their state whenever notes are processed or categories change.
 
-## 🤖 AI & Intelligence
+## &#x1F916; AI & Intelligence
 -   **Smarty Chat Agent (Thin Client Architecture)**:
     -   **Conversational Assistant**: Chat with your notes and external knowledge.
     -   **Iterative Reasoning Engine**: A sophisticated state machine that tracks the agent's progress through `ExecutingTool`, `WaitingForResult`, and `ProcessingResult`. Includes **Individual Tool Timeouts** (e.g., 45s for search, 60s for batch).
@@ -46,11 +63,13 @@ A comprehensive list of features currently implemented in the Smarty application
         -   **Action Set**: `CREATE_NOTE`, `SEARCH_NOTES`, `DELETE_NOTE`, `UPDATE_NOTE`, `SUMMARIZE_NOTE`, `ADD_TODOS`, `WEB_SEARCH`, `PLAY_AUDIO`, `BATCH_ACTIONS`, etc.
         -   **Strict Timings**: `BatchActions` (60s), `WebSearch` (45s), `Summarize` (30s), Default (15s).
     -   **Streaming Responses**: Real-time text generation with protocol-based feedback via Server-Sent Events (SSE).
+    -   **Command Transport Layer**: `LocalCommandTransport` for pure on-device execution, `ShadowRemoteTransport` for server coordination, `CompositeTransport` for hybrid execution.
 -   **Adaptive Semantic Search Engine**:
     -   **Dynamic Algorithm Selection**: Automatically shifts between `KEYWORD_HEAVY`, `SEMANTIC_HEAVY`, `VECTOR_HEAVY`, and `HYBRID` strategies based on content characteristics.
     -   **Content Analysis & Intent Detection**: Calculates Keyword Density, Semantic Clustering, and Diversity to adjust search weights (Keyword, Semantic, Vector) and relevance thresholds in real-time. Detects query "Complexity" to suggest optimal search strategies.
     -   **Hybrid Retrieval Strategy**: Uses a linear combination of `KEYWORD_WEIGHT` (0.3), `SEMANTIC_WEIGHT` (0.5), and `TEMPORAL_WEIGHT` (0.2) to rank results.
     -   **Fast Vector Search**: Implements TF-IDF and Cosine Similarity for document-heavy search tasks.
+    -   **SearchFeatureManager**: Centralized search orchestration with privacy filtering, attachment/mime type filtering, time-range filtering, and contextual semantic recall.
 -   **Fast-Path Heuristics (Local Processing)**:
     -   **Offline Command Intelligence**: A specialized `LocalCommandProcessor` that handles common requests (Time, Date, Battery, Flashlight, Volume, Apps) locally without ever hitting the AI server.
     -   **Fuzzy Audio Matching**: Uses a 3-stage fallback system (Exact -> High-Confidence Fuzzy -> Suggestions) to verify song requests before playing, preventing "hallucinated" playback.
@@ -64,6 +83,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Context Continuity**: AI stores "memories" about the user to provide more personalized help over time.
     -   **Confidence Scoring**: AI decreases the "confidence" of memories if the user contradicts them.
     -   **Memory Pruning**: Automatically clears old or low-confidence memories to stay efficient (`MAX_CACHE_AGE_DAYS`).
+    -   **Memory Consolidation**: Background worker that consolidates and syncs memories from notes (`MemorySyncWorker`).
 -   **Knowledge Discovery Engine**:
     -   **Semantic Relationship Engine**: Automatically finds connections between notes by generating concept-heavy queries from **Signal Prioritization** (Title > Tags > Summary > Category).
     -   **Human-Readable Match Reasons**: Explains *why* notes are related (e.g., "Sounds like...", "Exactly matches...", "Shares keywords: 'project'") instead of raw scores.
@@ -71,6 +91,8 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Large Doc Handling**: Splits huge PDFs into overlapping "chunks" (`OVERLAP_CHARS`) to ensure context isn't lost at the boundaries.
     -   **Recurrent Chunking Architecture**: Sequentially processes document segments while maintaining reference to the target note.
     -   **Reasoning Step**: Uses a specialized "ThinkingMode" to reason through complex documents before answering.
+    -   **Thinking Mode Processor**: Dedicated `ThinkingModeProcessor` for @thinking deep document analysis with PDF extraction and chunk management.
+    -   **Thinking Parser**: Parses thinking tags from reasoning models like Falcon-H1R-7B, separating reasoning process from final answer.
 -   **Style Analysis & "Voice Adoption"**:
     -   **Stylistic Fingerprinting**: Analyzes recent notes to detect if you prefer bullet points or paragraphs.
     -   **Tone Detection**: Detects "Enthusiastic" or "Inquisitive" tones based on punctuation density.
@@ -84,8 +106,18 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **RMS Energy Detection**: Uses Root Mean Square signal processing to detect when speech starts and stops.
     -   **Continuous Segment Stitching**: Breaks long audio into segments based on silence, transcribes them individually, and stitches them back together for perfectly aligned results.
     -   **Hysteresis Protection**: Uses dual thresholds (Speech vs Silence) with a 2000ms buffer to prevent rapid on/off switching.
+-   **Conversation Summarization**:
+    -   **AI-Powered Summarizer**: `ConversationSummarizer` generates concise, privacy-safe summaries of chat sessions.
+    -   **Automatic Triggers**: Summarizes on new session start, 30+ min inactivity, or 15+ messages.
+    -   **Privacy-Safe**: Never includes raw private note content, only abstract descriptions.
+    -   **Context Persistence**: Summaries stored for future conversation context.
+-   **Request Batching (DataLoader Pattern)**:
+    -   **Intelligent Aggregation**: `RequestBatcher` aggregates multiple requests within a time window (50ms) into single batch operations.
+    -   **30-50% Latency Reduction**: Significant improvement for burst requests.
+    -   **Lifecycle-Aware**: Uses external scope to prevent memory leaks (TECH-001 fix).
+    -   **Statistics Tracking**: Tracks total requests, batched requests, and batching efficiency.
 
-## 🤝 Smarty Assistant & "Assist" System
+## &#x1F44C; Smarty Assistant & "Assist" System
 -   **Native Assistant Replacement**:
     -   **Default Device Assistant**: Smarty can be set as the system-wide digital assistant, replacing Google Assistant/Gemini.
     -   **Gestural Triggering**: Trigger Smarty from any app via system gestures (Edge Swipe, Home Button Long-Press).
@@ -106,7 +138,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Global Microphone Orchestration**: A `isGloballyPaused` mechanism that allows the Assistant Overlay to "take" the microphone from the wake-word engine instantly without resource conflicts.
     -   **Self-Healing Mic Logic**: Detects when the system takes the microphone away and automatically triggers recovery/re-initialization.
 
-## 📲 System Integration
+## &#x1F4F1; System Integration
 -   **App Integration**:
     -   **Fuzzy App Discovery**: Automatically finds installed apps by display name using a search heuristic (Exact Match -> Contains Match).
     -   **Handoff Ecosystem Integration**: The AI can "hand off" content to other apps using the Android Share Sheet.
@@ -120,13 +152,13 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Battery Level**: AI can check device battery percentage.
     -   **Volume**: AI can adjust system volume (Up/Down/Mute) across various Android API versions.
 
-## 🔗 Knowledge Sharing & Transfer
+## &#x1F517; Knowledge Sharing & Transfer
 -   **Dynamic Category Sharing**:
     -   **Deep-Link Portability**: Generates Base64-encoded `smarty://import` links that contain the full JSON representation of a category and its notes.
     -   **AI-Generated QR Codes**: Instantly creates QR codes for categories using a high-speed `setPixels` batch-rendering engine.
 -   **Smart Import System**: Automatically parses shared data and re-creates local versions of categories, notes, and tags.
 
-## 🎮 Games & "Mental Breaks"
+## &#x1F3AE; Games & "Mental Breaks"
 -   **Tic-Tac-Toe (AI Enhanced)**:
     -   **Simulated Intelligence**: A computer opponent with a dynamic "Thinking..." delay (`500ms..1500ms`) to simulate real-world gameplay feel.
     -   **Pop Animations**: Uses `scaleIn` with `EaseOutBack` curves for satisfying piece placement.
@@ -135,7 +167,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Physical Orbit Logic**: Orchestrates independent axis animations (`rotationY` for spins, `translationY` for arc, `shadowScale` for depth) to land perfectly on the correct side after 5+ spins.
     -   **Perspective Distortion**: Uses `cameraDistance` to simulate real 3D depth during the toss.
 
-## 📅 Productivity Tools
+## &#x1F4C5; Productivity Tools
 -   **Calendar & Tasks**:
     -   **Google Calendar Two-Way Sync**: Deep integration via `GoogleCalendarSyncManager` for seamless event synchronization (using `googleEventId`).
     -   **Natural Language Parsing**: Understands "tomorrow at 10am", "next Friday", or "in 5 minutes".
@@ -148,8 +180,13 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Deep Research**: Multi-query web search and report synthesis.
     -   **Scheduled Tasks**: Ability to run complex AI tasks on a delay/schedule.
 -   **Todos**: Checkboxes and task lists within notes.
+-   **Local Backup Manager**:
+    -   **Complete ZIP Backups**: Database + preferences + attachments in shareable ZIP files.
+    -   **High-Performance I/O**: 64KB-256KB buffers, NIO zero-copy for large files (>5MB).
+    -   **Storage Management**: Max 5 local backups, 500MB total limit.
+    -   **FileProvider Sharing**: Secure sharing of backup files.
 
-## 🔐 Authentication & Entry
+## &#x1F510; Authentication & Entry
 -   **Immersive Login Screen**:
     -   **Audio-Reactive Atmosphere**: Features a custom `welcome_intro.mp3` loop (2.5s fade-in) that drives the UI animations via real-time RMS amplitude analysis.
     -   **Liquid Particle Core**: The central `LiquidLoader` pulses in sync with the audio, creating a living, breathing start screen.
@@ -160,7 +197,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Critical Data Wipe**: Implements a strict `signOut()` protocol that explicitly wipes all local SQLite data (`clearAllUserData`) and `SecurePreferences` *before* revoking the session token, preventing multi-tenant data leaks.
     -   **Secure Preference Sync**: Automatically syncs the authenticated email to encrypted storage for use by background services (Drive Backup, Calendar).
 
-## 🔒 Privacy & Security
+## &#x1F512; Privacy & Security
 -   **Privacy By Design**:
     -   **Metadata Stripping Engine**: Removes 70+ EXIF tags from images and privacy data from videos/audio. Features **Raw PNG Chunk Filtering** to skip metadata without decoding the full image, saving memory on edge devices.
     -   **Private Notes**: Explicitly exclude sensitive notes from AI processing.
@@ -176,7 +213,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Private-LAN Trust**: Specialized HTTP client that trusts self-signed certificates ONLY for local IP addresses (192.168.x.x), enabling secure local LLM connections.
     -   **Secure Storage**: Encrypted preferences for sensitive data (API keys) via `SecurePreferences` (`AES256_SIV` / `AES256_GCM`).
 
-## 🎧 Media & Audio
+## &#x1F3A7; Media & Audio
 -   **Universal Audio Engine (`AudioPlayerService`)**:
     -   **Multi-source Latency**: Can stream from YouTube, Spotify, or Local library based on the best match.
     -   **Foreground Service Topology**: Runs a prioritized `MediaSessionService` that manages audio focus and notification controls to prevent OS killing.
@@ -195,17 +232,17 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Fuzzy Library Search**: Searches local music by title, artist, or album with similarity scoring.
     -   **Audio Stats**: Tracks total unique artists and albums in your library.
 
-## ☁️ Backup & Cloud
+## &#x2601;&#xFE0F; Backup & Cloud
 -   **Auto Backup**:
     -   **Google Drive Integration**: Periodic backups (e.g., every 100 days) to your personal Drive.
     -   **Intelligent Scheduling**: Only runs when battery is healthy, device is charging, and WiFi is connected.
     -   **Silent Auth**: Background token refreshing via Google Silent Sign-In.
 
-## ☁️ Cloud & Server Architecture (Friday Server)
+## &#x2601;&#xFE0F; Cloud & Server Architecture (Friday Server)
 -   **Server-Side Agent Runtime (The "Remote Brain")**:
     -   **Ktor-based Microservice**: Lightweight Kotlin server hosting the heavy AI logic, keeping the Android app "thin" and battery-efficient.
     -   **KOOG-Inspired Reasoning Engine**:
-        -   **Iterative Loop**: A robust `Agentic Loop` (Cache Check → Stream LLM → Tool Call → Execute → Feed Result → Repeat) that handles complex multi-step tasks.
+        -   **Iterative Loop**: A robust `Agentic Loop` (Cache Check -> Stream LLM -> Tool Call -> Execute -> Feed Result -> Repeat) that handles complex multi-step tasks.
         -   **State Persistence**: Uses `AgentPersistenceManager` to save JSON checkpoints after every tool execution, ensuring the agent can recover exactly where it left off if the server crashes.
         -   **LLM Caching**: Implements a semantic `LlmCache` that returns instant results for identical queries/tools, bypassing expensive API calls.
         -   **Deep Tracing**: Logs every thought, tool call, and result into `agent_traces` for complete observability.
@@ -225,8 +262,19 @@ A comprehensive list of features currently implemented in the Smarty application
         -   **Chat**: 120 req/min (high interactivity).
         -   **Processing**: 30 req/min (heavy tasks).
         -   **Security**: Verifies Firebase Auth tokens on every request.
+-   **Connection Failover & Resilience**:
+    -   **Circuit Breaker Pattern**: `ConnectionFailoverManager` tracks connection health and prevents hammering failed APIs.
+    -   **Health States**: `HEALTHY`, `DEGRADED`, `CIRCUIT_OPEN`, `RECOVERING` states for intelligent routing.
+    -   **Error Categorization**: `AUTH_ERROR`, `RATE_LIMIT`, `NETWORK_ERROR`, `SERVER_ERROR`, `MODEL_ERROR`, `CONTEXT_OVERFLOW`, `UNKNOWN`.
+    -   **Automatic Recovery**: Tests recovery after cooldown period.
+    -   **Thread-Safe**: Uses `@Volatile` fields for visibility across threads (TECH-002 fix).
+-   **Global Rate Limiting**:
+    -   **Sliding Window**: Per-minute limits (30 calls/min) with sliding window tracking.
+    -   **Daily Budget**: 14,400 calls/day with persistent storage.
+    -   **Intelligent Queuing**: Automatic wait time calculation when limits reached.
+    -   **Per-Provider Distribution**: Awareness of multiple API providers.
 
-## ✨ Premium Aesthetics & Interactions
+## &#x2728; Premium Aesthetics & Interactions
 -   **Cosmic Particle Loader**:
     -   **Realistic Solar System**: A physics-based particle engine rendering the Sun, Planets (with moons and rings), and 120+ parallax "Star Dust" particles with depth simulation.
     -   **Audio-Reactive Solar Pulse**: The sun's corona pulses dynamically based on `audioAmplitude` using spring-based physics.
@@ -250,12 +298,17 @@ A comprehensive list of features currently implemented in the Smarty application
 -   **Gestural Fluidity**:
     -   **Rocket Fly-By Animation**: Custom flight path animation (Fly Right + Up + Tilt) with **FastOutSlowInEasing** for sent items.
     -   **Pinterest-style Radial Menu**: Long-press any item to trigger a radial gestural menu for one-handed pinning, sharing, and archiving.
+-   **Organic Thinking Indicator**:
+    -   **Fluid Breathing Animation**: Pulsing, breathing monochrome orb that feels alive.
+    -   **Layered Soft Glows**: Multi-layer radial gradients for depth.
+    -   **Wobble Effect**: Secondary animation for organic feel.
+    -   **Monochrome Design**: Silver/Grey color scheme for premium aesthetic.
 
-## ⚙️ Customization & Engineering (Invisible Engineering)
+## &#x2699;&#xFE0F; Customization & Engineering (Invisible Engineering)
 -   **Performance Optimization**:
     -   **7th-Century Trigonometry (FastMath)**: Uses **Bhaskara I's approximation** for sine/cosine, achieving 99.7% accuracy with O(1) constant time (3-5x faster than standard math).
-        -   *Low-Level Formula*: `sin(x) ≈ 16x(π - x) / [5π² - 4x(π - x)]`
-    -   **Padé Exponential Decay**: Optimized `fastExpDecay` for physics simulations (Physics, Shimmers), bypassing heavy standard math libraries.
+        -   *Low-Level Formula*: `sin(x) &#8776; 16x(&#x03C0; - x) / [5&#x03C0;&#xB2; - 4x(&#x03C0; - x)]`
+    -   **Pad&#x00E9; Exponential Decay**: Optimized `fastExpDecay` for physics simulations (Physics, Shimmers), bypassing heavy standard math libraries.
     -   **Audio processing GC Optimization**: Reuses `cachedByteBuffer` and pre-allocates short arrays to reduce Garbage Collection pressure during high-frequency audio/voice processing.
     -   **Lazy Decompression Engine (LazyDecompressor)**:
         -   **Wait-for-Signal Architecture**: Uses a dormant worker thread (`WorkerState.SLEEPING`) that only wakes on channel requests.
@@ -290,8 +343,19 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Lifecycle-Aware Animations**: Infinite animations automatically pause when backgrounded, consuming zero frame requests.
     -   **Foreground File Service**: Specialized Android service ensuring compression and transfers never pause even if the app process is restricted.
     -   **Parallel Processing Importer**: Uses `coroutineScope` and `async` for multi-attachment processing with mutex-locked progress reporting.
+-   **Note Processing Queue**:
+    -   **Background Queue**: `NoteProcessingQueueManager` handles pending note processing.
+    -   **Automatic Timeout**: 5-minute timeout for stuck notes (increased for slow local LLMs).
+    -   **Concurrent Processing**: Up to 3 concurrent small notes (<10KB).
+    -   **Retry Logic**: Max 3 retries with 5-second delay between attempts.
+    -   **Event Notifications**: Emits `Retry`, `Failed`, `Completed` events for UI feedback.
+-   **Share Flow Manager**:
+    -   **Preview Interception**: Intercept shared content for bottom sheet preview.
+    -   **Full Privacy Mode**: Toggle to disable all AI processing for specific shares.
+    -   **Active Share Mode Tracking**: State management during share operations.
+    -   **Related Notes Discovery**: Automatic suggestion of related notes during share.
 
-## 🛠️ Low-Level Engineering Deep-Dives
+## &#x1F6E0;&#xFE0F; Low-Level Engineering Deep-Dives
 
 ### 1. Cosmic Particle Engine (`LiquidLoader`)
 *   **Physics-Based Rendering**: A high-frequency `withFrameNanos` driver propels 120+ independent particles.
@@ -328,12 +392,24 @@ A comprehensive list of features currently implemented in the Smarty application
 *   **C2-Continuous Transitions**: Uses `smootherStep` logic (`t^3 * (t * (t * 6 - 15) + 10)`) instead of standard `smoothStep`, resulting in zero acceleration at endpoints (Zero Derivative) for a more premium, "liquid" feel.
 *   **Shortest-Arc Interpolation**: Specialized `lerp` logic for rotations that ensures transformations never take the "long way" around the circle (360-degree wrapping).
 
-### 7. Audio Engine Internals (`AudioPlayerService`)
+### 7. Request Batching Engine (`RequestBatcher`)
+*   **DataLoader Pattern**: Aggregates multiple requests within a batch window (50ms) into single operations.
+*   **Concurrent Request Handling**: Uses `CompletableDeferred` for async result delivery.
+*   **Deduplication**: Reuses pending requests for identical keys.
+*   **Statistics**: Tracks batching efficiency (0 = no batching, 1 = perfect batching).
+
+### 8. Audio Engine Internals (`AudioPlayerService`)
 *   **3-Band Frequency Analysis**: Uses `Visualizer` to capture FFT data and bucketize into Bass (20-250Hz), Mid (250-2000Hz), and Treble (2000Hz+) for precise visualization.
 *   **Psychoacoustic Boosting**: Applies frequency-dependent gain (Bass * 1.5, Treble * 1.2) to match human loudness perception curves.
 *   **Foreground/Background Resource Throttling**: Dynamically switches UI update intervals from **100ms** (foreground) to **1000ms** (background) to save battery while keeping notifications active.
 
-## 🔄 Core Workflows & Logic
+### 9. Conversation Summarization (`ConversationSummarizer`)
+*   **Privacy-Safe Summaries**: Never includes raw private content, only abstract descriptions.
+*   **Trigger Conditions**: New session, 30+ min inactivity, or 15+ messages.
+*   **Token Efficiency**: Max 200 chars per message in summary context, max 20 messages.
+*   **AI-Generated**: Uses dedicated system prompt for concise, factual summaries.
+
+### 10. Core Workflows & Logic
 
 ### 1. The "Agentic Loop" (AI Request Lifecycle)
 *   **Trigger**: User input (Text, Voice, Image) or Scheduled Task.
@@ -378,7 +454,7 @@ A comprehensive list of features currently implemented in the Smarty application
 *   **Read Path**: Server Update -> SSE Event -> Device -> Room DB (Local Cache).
 *   **Conflict Resolution**: High-Water Mark Logic (Last-Write-Wins based on Server Timestamp).
 
-## 🛠️ Technology Stack
+## &#x1F6E0;&#xFE0F; Technology Stack
 
 ### Android Client (App)
 -   **Language**: Kotlin (JDK 17)
@@ -413,11 +489,12 @@ A comprehensive list of features currently implemented in the Smarty application
 -   **Containerization**: Docker (Fat JAR deployment)
 -   **Hosting**: Compatible with any Docker-supported environment (HuggingFace Spaces, Railway, AWS ECS)
 
-## 🏗️ Comprehensive Engineering Specifications
+## &#x1F3E0; Comprehensive Engineering Specifications
 
 ### Architecture Pattern
 -   **Core**: Clean Architecture (Presentation -> Domain -> Data) with Feature-First packaging.
 -   **Dependency Injection**: Custom lightweight `ServiceLocator` (Singleton Object) enabling lazy initialization of feature managers without the overhead of Dagger/Hilt.
+-   **Feature Managers**: Modular managers for each feature domain (Audio, Auth, Calendar, Chat, Search, Settings, System, Voice, etc.).
 -   **State Management**:
     -   **SharedAppState**: A centralized singleton for cross-feature state (e.g., Navigation, Active Note ID).
     -   **Reactive Flows**: Extensive use of `StateFlow` and `SharedFlow` for UI updates.

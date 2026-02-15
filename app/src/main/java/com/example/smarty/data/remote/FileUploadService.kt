@@ -35,15 +35,7 @@ class FileUploadService(
                 val fileName = tempFile.name
                 val fileBytes = tempFile.readBytes()
 
-                // 3. Upload using RemoteAgentService or directly with client if needed
-                // Using RemoteAgentService's logic but tailored here if we need specific progress tracking
-                // For now, reuse the raw upload capability or implement multipart here.
-
-                // Let's implement direct multipart upload here to ensure we control the request
-                val baseUrl = "https://largest-camron-usuriously.ngrok-free.dev" // TODO: Get from settings
-                // Ideally we get this from a centralized config provider
-
-                // For now, delegating to RemoteAgentService which handles Auth & URL
+                // 3. Upload using RemoteAgentService which handles Auth & URL
                 val result = remoteAgentService.uploadFile(
                     fileBytes = fileBytes,
                     fileName = fileName,

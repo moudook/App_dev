@@ -63,11 +63,11 @@ class CompatibleAIConnection(
         }
 
         /**
-         * Create a Local PC connection instance (USB/WiFi connection to local LLM server).
-         * @param url Dynamic URL from SecurePreferences.getLocalPCUrl()
+         * Create a server connection instance for the Smarty Server.
+         * @param url Dynamic URL from SecurePreferences.getServerUrl()
          */
         fun localPC(client: OkHttpClient, gson: Gson, url: String) =
-            CompatibleAIConnection(client, gson, url, "Local PC")
+            CompatibleAIConnection(client, gson, url, "Smarty Server")
     }
 
     /**

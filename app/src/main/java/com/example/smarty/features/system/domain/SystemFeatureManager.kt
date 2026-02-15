@@ -207,6 +207,7 @@ class SystemFeatureManager(
         return if (match != null) {
             AudioSearchResult.ExactMatch(match)
         } else {
+            @Suppress("DEPRECATION")
             AudioSearchResult.Fallback(tracks.shuffled().take(20), "No match found")
         }
     }
@@ -366,6 +367,7 @@ class SystemFeatureManager(
                 } else {
                     @Suppress("DEPRECATION")
                     val isMuted = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) == 0
+                    @Suppress("DEPRECATION")
                     audioManager.setStreamMute(android.media.AudioManager.STREAM_MUSIC, !isMuted)
                 }
             }

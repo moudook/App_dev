@@ -80,7 +80,7 @@ fun SettingsContent(
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
     onLoadDeviceCalendars: () -> Unit = {},
-    // Remote Server (Replaces Local PC)
+    // Remote Server Configuration
     serverUrl: String = "",
     onSetServerUrl: (String) -> Unit = {},
     onTestServerConnection: (String, (com.example.smarty.features.settings.domain.SettingsFeatureManager.LocalServerTestResult) -> Unit) -> Unit = { _, _ -> }

@@ -80,23 +80,58 @@ class DailyBriefingWorker(
 
             // Get recent notes
             val recentNotes = db.noteDao().getNotesModifiedSince(threeDaysAgo)
-            val notesSummary = recentNotes.take(20).joinToString("\n") { note ->
-                "- [${note.categoryName ?: "Uncategorized"}] ${note.title}: ${note.content.take(100)}"
-            }
-
+            
             // Get upcoming calendar events
             val upcomingEvents = db.calendarDao().getUpcomingEvents(
                 System.currentTimeMillis(),
                 System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3)
             )
-            val eventsSummary = upcomingEvents.take(10).joinToString("\n") { event ->
-                "- ${event.title} at ${java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(event.startTime))}"
-            }
 
             // Get recent chat topics
             val recentSessions = db.chatDao().getRecentSessions(5)
-            val chatSummary = recentSessions.joinToString("\n") { session ->
-                "- ${session.title ?: "Untitled conversation"}"
+
+            // =============================================================================
+            // EDGE CASE: Skip briefing for fresh/inactive users
+            // =============================================================================
+            // Don't trigger briefing if user has no activity:
+            // - No notes in the last 3 days
+            // - No upcoming events
+            // - No recent chat sessions
+            // This prevents "empty" briefings for new users or inactive accounts
+            val hasNotes = recentNotes.isNotEmpty()
+            val hasEvents = upcomingEvents.isNotEmpty()
+            val hasChats = recentSessions.isNotEmpty()
+            
+            if (!hasNotes && !hasEvents && !hasChats) {
+                Log.i(TAG, "Skipping daily briefing - no user activity found (fresh/inactive user)")
+                // Return success but don't show notification
+                // This is not a failure - it's intentional behavior
+                return@withContext Result.success()
+            }
+
+            // Build summaries only if we have data
+            val notesSummary = if (hasNotes) {
+                recentNotes.take(20).joinToString("\n") { note ->
+                    "- [${note.categoryName ?: "Uncategorized"}] ${note.title}: ${note.content.take(100)}"
+                }
+            } else {
+                "No recent notes"
+            }
+
+            val eventsSummary = if (hasEvents) {
+                upcomingEvents.take(10).joinToString("\n") { event ->
+                    "- ${event.title} at ${java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault()).format(java.util.Date(event.startTime))}"
+                }
+            } else {
+                "No upcoming events"
+            }
+
+            val chatSummary = if (hasChats) {
+                recentSessions.joinToString("\n") { session ->
+                    "- ${session.title ?: "Untitled conversation"}"
+                }
+            } else {
+                "No recent conversations"
             }
 
             // Build the briefing prompt

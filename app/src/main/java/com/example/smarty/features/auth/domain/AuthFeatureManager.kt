@@ -1,3 +1,4 @@
+@file:Suppress("DEPRECATION")
 package com.example.smarty.features.auth.domain
 
 import android.app.Application

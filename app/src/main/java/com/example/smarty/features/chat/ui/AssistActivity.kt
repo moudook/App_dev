@@ -16,7 +16,6 @@ import com.example.smarty.features.chat.ui.AssistOverlayScreen
 import com.example.smarty.ui.theme.SmartyTheme
 import com.example.smarty.features.chat.domain.AssistViewModel
 import com.example.smarty.features.chat.domain.AssistViewModelFactory
-import com.example.smarty.features.voice.VoskWakeWordManager
 
 /**
  * Assistant Overlay Activity - "Soft Tech" Floating Pill
@@ -41,8 +40,7 @@ class AssistActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Pause wake word detection while overlay is active to avoid mic conflict
-        VoskWakeWordManager.isGloballyPaused = true
+        // Wake word detection removed - using Google Speech Recognizer instead
 
         // CRITICAL: Setup transparent window BEFORE setContentView
         setupTransparentWindow()
@@ -103,8 +101,7 @@ class AssistActivity : ComponentActivity() {
      * Finish activity with smooth transition (no animation)
      */
     private fun finishWithAnimation() {
-        // Resume wake word detection
-        VoskWakeWordManager.isGloballyPaused = false
+        // Wake word detection removed - using Google Speech Recognizer instead
         finish()
         @Suppress("DEPRECATION")
         overridePendingTransition(0, android.R.anim.fade_out)
@@ -112,8 +109,7 @@ class AssistActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Ensure wake word detection is resumed even if destroyed by system
-        VoskWakeWordManager.isGloballyPaused = false
+        // Wake word detection removed - using Google Speech Recognizer instead
     }
 
     /**

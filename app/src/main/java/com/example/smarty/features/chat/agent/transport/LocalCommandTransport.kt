@@ -142,6 +142,7 @@ class LocalCommandTransport(
             // === AUDIO CONTROL ===
             is AgentCommand.PlayAudio -> {
                 val result = executor.findMatchingAudio(command.query)
+                @Suppress("DEPRECATION")
                 when (result) {
                     is AudioFeatureManager.AudioSearchResult.ExactMatch -> {
                         executor.requestAudioPlayback(result.track)

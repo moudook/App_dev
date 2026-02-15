@@ -136,7 +136,7 @@ object AIResponseParser {
     /**
      * Parse standardized API response.
      *
-     * Works with Local PC and server-managed LLMs.
+     * Works with the Smarty Server API.
      *
      * Response structure:
      * ```json

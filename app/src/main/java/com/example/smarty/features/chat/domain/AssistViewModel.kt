@@ -578,14 +578,8 @@ class AssistViewModel(
         // Initialize Ktor client - SSE only (JSON parsing done manually in RemoteAgentService)
         val client = HttpClient(OkHttp) {
             install(SSE)
-            // Add header to bypass ngrok browser warning for public internet access
-            install(DefaultRequest) {
-                header("ngrok-skip-browser-warning", "true")
-            }
         }
 
-        // Connect to local server (reverse forwarded port)
-        // Ensure you run: adb reverse tcp:7860 tcp:7860
         val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(application)
         RemoteAgentService(
             client = client,

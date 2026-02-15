@@ -7,9 +7,6 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
-// import com.example.smarty.core.domain.model.AgentExecution (Removed)
-import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.ChatMessageEntity
@@ -29,15 +26,15 @@ import com.example.smarty.data.local.CachedAIResponse
         ChatMessageEntity::class,
         ImpressedEntry::class,
         CalendarEvent::class,
-        CalendarEvent::class,
-        // AgentExecution::class, (Removed in Phase 5)
-        ConnectionUsage::class,       // Connection usage for rate limiting
-        NoteVersion::class,         // Note version history for git-like versioning
-        SmartyTimer::class,         // Persisted timers and alarms
-        CachedAIResponse::class,    // Persistent AI response cache
-        com.example.smarty.data.model.AIMemory::class // Persistent AI memory
+        ConnectionUsage::class,
+        NoteVersion::class,
+        SmartyTimer::class,
+        CachedAIResponse::class,
+        com.example.smarty.data.model.AIMemory::class,
+        SyncQueueItem::class,
+        ConflictRecord::class
     ],
-    version = 31,  // v31: Added ai_memories table
+    version = 32,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -47,13 +44,11 @@ abstract class SmartyDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
     abstract fun impressedLogDao(): ImpressedLogDao
     abstract fun calendarDao(): CalendarDao
-    abstract fun calendarDao(): CalendarDao
-    // abstract fun agentExecutionDao(): AgentExecutionDao (Removed)
-    abstract fun noteVersionDao(): NoteVersionDao
     abstract fun noteVersionDao(): NoteVersionDao
     abstract fun timerDao(): TimerDao
     abstract fun aiCacheDao(): AICacheDao
     abstract fun aiMemoryDao(): com.example.smarty.features.chat.domain.memory.AIMemoryDao
+    abstract fun syncQueueDao(): SyncQueueDao
 
     companion object {
         private const val TAG = "SmartyDatabase"
@@ -283,7 +278,9 @@ abstract class SmartyDatabase : RoomDatabase() {
                         Migrations.MIGRATION_26_27,   // Feature: googleEventId for calendar_events sync
                         Migrations.MIGRATION_27_28,   // Feature: SmartyTimer for persistent alarms
                         Migrations.MIGRATION_28_29,   // Performance: googleEventId index for calendar sync
-                        Migrations.MIGRATION_29_30    // Feature: ai_cache for persistent caching
+                        Migrations.MIGRATION_29_30,   // Feature: ai_cache for persistent caching
+                        Migrations.MIGRATION_30_31,   // Feature: ai_cache user_id for multi-tenant
+                        Migrations.MIGRATION_31_32    // Feature: sync_queue for cloud-first sync
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

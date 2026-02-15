@@ -142,14 +142,14 @@ object HttpClientProvider {
     }
 
     /**
-     * Client for local LAN server connections (USB tethering, WiFi).
+     * Client for local development server connections.
      * Trusts self-signed certificates for HTTPS connections.
      *
      * SECURITY: This client trusts ALL certificates. Only use for:
-     * - Local PC connections via private IP addresses
-     * - Self-signed certificates from Caddy reverse proxy
+     * - Local development via private IP addresses
+     * - Self-signed certificates from local reverse proxy
      *
-     * DO NOT use for internet traffic!
+     * DO NOT use for production internet traffic!
      */
     val localServer: OkHttpClient by lazy {
         // Create a trust manager that does not validate certificate chains

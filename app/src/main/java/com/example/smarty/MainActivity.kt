@@ -80,10 +80,7 @@ class MainActivity : ComponentActivity() {
         permissions.entries.forEach { entry ->
             android.util.Log.d("Permissions", "${entry.key}: ${if (entry.value) "GRANTED" else "DENIED"}")
         }
-        // Initialize Vosk after permissions granted
-        if (permissions[Manifest.permission.RECORD_AUDIO] == true) {
-            viewModel.initVoskWakeWord(this)
-        }
+        // Wake word detection removed - using Google Speech Recognizer instead
         // Update state to complete splash - whether granted or denied
         // This allows the splash to complete even if user denies permission
         _micPermissionGranted.value = true
@@ -298,35 +295,18 @@ class MainActivity : ComponentActivity() {
                     audioPlayerViewModel.onSpeechListeningChanged(globalSpeechState.isListening)
 
                     if (globalSpeechState.isListening) {
-                        // Mic is in use (user tapped mic button) - pause wake word detection
-                        android.util.Log.d("WakeWord", "Mic active - pausing wake word detection")
-                        viewModel.stopWakeWordDetection()
+                        // Mic is in use (user tapped mic button) - wake word detection removed
+                        android.util.Log.d("Speech", "Mic active - speech recognition in progress")
                     } else if (isAppInForeground) {
-                        // Mic released AND app is in foreground - restart wake word detection
-                        // WAIT for SpeechToTextLauncher to release global pause (it has a 300ms safety buffer)
-                        delay(500)
-                        android.util.Log.d("WakeWord", "Mic released - resuming wake word detection")
-                        viewModel.restartWakeWordDetection()
+                        // Mic released AND app is in foreground
+                        android.util.Log.d("Speech", "Mic released - speech recognition ended")
                     } else {
-                        // App is in background - don't restart wake word detection
-                        android.util.Log.d("Privacy", "Mic released but app is in background - not restarting wake word")
+                        // App is in background
+                        android.util.Log.d("Privacy", "Mic released but app is in background")
                     }
                 }
 
-                // FIX: Restart wake word when audio playback ends (Visualizer releases mic)
-                // When audio player stops, it releases the Visualizer which was holding the mic permission/stream
-                // We must explicitly restart Vosk to reclaim the mic for wake word detection
-                LaunchedEffect(audioUiState.playbackState) {
-                    val state = audioUiState.playbackState
-                    if (state == PlaybackState.ENDED ||
-                        state == PlaybackState.IDLE) {
-                        // Only restart if we are in foreground and not actively recording speech
-                        if (isAppInForeground && !globalSpeechState.isListening) {
-                            android.util.Log.d("WakeWord", "Audio playback ended ($state) - restarting wake word detection")
-                            viewModel.restartWakeWordDetection()
-                        }
-                    }
-                }
+                // Wake word detection removed - no need to restart on audio playback end
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     // NEW FLOW:
@@ -747,17 +727,8 @@ class MainActivity : ComponentActivity() {
             // Small delay to ensure ViewModel is ready after process death
             delay(300)
 
-            // Initialize Vosk wake word detection lazily on first resume (if permission granted)
-            // This defers the 5-15s model unpacking from blocking app startup
-            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO)
-                == PackageManager.PERMISSION_GRANTED) {
-                viewModel.initVoskWakeWord(this@MainActivity)  // Handles process death internally
-            }
-
-            // Start wake word detection (Vosk) - only after foreground flag is set
-            // VoskWakeWordManager will auto-reinitialize if model was invalidated
-            // Use restartWakeWordDetection for more robust state handling on resume
-            viewModel.restartWakeWordDetection()
+            // Wake word detection removed - using Google Speech Recognizer instead
+            // No need to initialize Vosk
         }
     }
 
@@ -765,8 +736,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         // Stop shake detection to save battery when app is in background
         viewModel.stopShakeDetection()
-        // Stop wake word detection to free mic and save battery
-        viewModel.stopWakeWordDetection()
+        // Wake word detection removed - no need to stop
         // Pause resource-intensive operations
         viewModel.pauseResourceIntensiveOperations()
         // Notify audio service to reduce resource usage

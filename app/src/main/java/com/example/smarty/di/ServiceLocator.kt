@@ -212,13 +212,6 @@ object ServiceLocator {
                 engine {
                     preconfigured = com.example.smarty.core.common.util.HttpClientProvider.default
                 }
-                install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-                    io.ktor.serialization.kotlinx.json.json(kotlinx.serialization.json.Json {
-                        ignoreUnknownKeys = true
-                        prettyPrint = true
-                        isLenient = true
-                    })
-                }
             }.also { httpClient = it }
         }
     }
