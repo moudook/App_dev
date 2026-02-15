@@ -58,7 +58,7 @@ class EmbeddingClient {
             // Try to parse as success response
             return try {
                 val embeddingResponse = response.body<EmbeddingResponse>()
-                embeddingResponse.data.firstOrNull()?.embedding ?: List(1536) { 0f }
+                embeddingResponse.data?.firstOrNull()?.embedding ?: List(1536) { 0f }
             } catch (e: Exception) {
                 logger.warn("Failed to parse embedding response: ${e.message}. Returning zero vector.")
                 List(1536) { 0f }
