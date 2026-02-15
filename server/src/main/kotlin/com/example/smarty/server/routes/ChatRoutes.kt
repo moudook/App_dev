@@ -295,8 +295,23 @@ fun Application.configureChatRoutes() {
                 val history = if (chatRepository != null) {
                     try {
                         if (sessionId.isNullOrBlank()) {
+                            // No session ID provided - create new session
                             sessionId = chatRepository.createSession(userId, "New Chat")
                             call.application.log.info("Created new session: $sessionId for user: $userId")
+                        } else {
+                            // Session ID provided - verify it exists and belongs to user
+                            val existingSession = chatRepository.getSession(userId, sessionId)
+                            if (existingSession == null) {
+                                // Session doesn't exist for this user - create it with the provided ID
+                                val created = chatRepository.createSessionWithId(userId, sessionId, "Continued Chat")
+                                if (created) {
+                                    call.application.log.info("Created session with client ID: $sessionId for user: $userId")
+                                } else {
+                                    // Session exists but belongs to another user - create new session
+                                    sessionId = chatRepository.createSession(userId, "New Chat")
+                                    call.application.log.warn("Session ID conflict - created new session: $sessionId for user: $userId")
+                                }
+                            }
                         }
 
                         // Save User Message (only if not a continuation query)

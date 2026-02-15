@@ -182,6 +182,64 @@ class ChatRepository(private val dataSource: DataSource) {
         }
     }
 
+    /**
+     * Creates a session with a specific ID (for client-provided session IDs).
+     * Uses ON CONFLICT DO NOTHING to handle race conditions.
+     *
+     * @param userId The authenticated user's ID
+     * @param sessionId The session UUID to use
+     * @param title Optional session title
+     * @return true if created, false if already exists
+     */
+    suspend fun createSessionWithId(userId: String, sessionId: String, title: String? = null): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = "INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(sessionId))
+                stmt.setString(2, userId)
+                stmt.setString(3, title)
+                stmt.executeUpdate() > 0
+            }
+        }
+    }
+
+    /**
+     * Gets a session if it exists and belongs to the user.
+     *
+     * @param userId The authenticated user's ID
+     * @param sessionId The session UUID
+     * @return SessionInfo if found and owned by user, null otherwise
+     */
+    suspend fun getSession(userId: String, sessionId: String): SessionInfo? = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT id, title, created_at, updated_at, message_count, 
+                       last_message_preview, is_active, summary, summary_generated_at
+                FROM chat_sessions
+                WHERE id = ? AND user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(sessionId))
+                stmt.setString(2, userId)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) {
+                        SessionInfo(
+                            id = rs.getString("id"),
+                            title = rs.getString("title"),
+                            createdAt = rs.getTimestamp("created_at").time,
+                            updatedAt = rs.getTimestamp("updated_at")?.time ?: System.currentTimeMillis(),
+                            messageCount = rs.getInt("message_count"),
+                            lastMessagePreview = rs.getString("last_message_preview") ?: "",
+                            isActive = rs.getBoolean("is_active"),
+                            summary = rs.getString("summary"),
+                            summaryGeneratedAt = rs.getLong("summary_generated_at")
+                        )
+                    } else null
+                }
+            }
+        }
+    }
+
     private fun mapRowToMessage(rs: ResultSet): LlmMessage {
         val roleStr = rs.getString("role")
         val role = try {

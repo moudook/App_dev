@@ -178,27 +178,33 @@ CREATE INDEX IF NOT EXISTS idx_timers_user ON timers(user_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_user ON calendar_events(user_id);
 
 -- 5. Agent Traces Table (for debugging/observability)
+-- Schema matches PostgresTracer.kt expectations
 CREATE TABLE IF NOT EXISTS agent_traces (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL,
     session_id UUID,
-    query TEXT,
-    trace_data JSONB,
+    user_id TEXT NOT NULL,
+    step_type TEXT NOT NULL,
+    content TEXT,
+    metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- 6. Agent Checkpoints Table (for resumable agents)
+-- Schema matches AgentPersistenceManager.kt expectations
 CREATE TABLE IF NOT EXISTS agent_checkpoints (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL,
     session_id UUID NOT NULL,
-    checkpoint_data JSONB NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    user_id TEXT NOT NULL,
+    state_json JSONB NOT NULL,
+    last_node TEXT,
+    version INTEGER DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Indexes for agent tables
 CREATE INDEX IF NOT EXISTS idx_agent_traces_user ON agent_traces(user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_traces_session ON agent_traces(session_id);
+CREATE INDEX IF NOT EXISTS idx_agent_checkpoints_user ON agent_checkpoints(user_id);
 CREATE INDEX IF NOT EXISTS idx_agent_checkpoints_session ON agent_checkpoints(session_id);
 
 -- 7. Hybrid Search Function (Vector + Text)

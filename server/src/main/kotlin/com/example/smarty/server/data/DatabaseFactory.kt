@@ -105,7 +105,74 @@ object DatabaseFactory {
                             encrypted_blob TEXT NOT NULL,
                             version INT DEFAULT 1,
                             updated_at BIGINT NOT NULL
-                        )"""
+                        )""",
+
+                        // Agent Traces Table (for debugging/observability) - matches PostgresTracer.kt
+                        """CREATE TABLE IF NOT EXISTS agent_traces (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id UUID,
+                            user_id TEXT NOT NULL,
+                            step_type TEXT NOT NULL,
+                            content TEXT,
+                            metadata JSONB,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_traces_session ON agent_traces(session_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_traces_user ON agent_traces(user_id)",
+
+                        // Agent Checkpoints Table (for resumable agents) - matches AgentPersistenceManager.kt
+                        """CREATE TABLE IF NOT EXISTS agent_checkpoints (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id UUID NOT NULL,
+                            user_id TEXT NOT NULL,
+                            state_json JSONB NOT NULL,
+                            last_node TEXT,
+                            version INTEGER DEFAULT 1,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_checkpoints_session ON agent_checkpoints(session_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_checkpoints_user ON agent_checkpoints(user_id)",
+
+                        // Daily Digests Table
+                        """CREATE TABLE IF NOT EXISTS daily_digests (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id TEXT NOT NULL,
+                            digest_date DATE NOT NULL,
+                            digest_type TEXT NOT NULL DEFAULT 'daily',
+                            summary TEXT NOT NULL,
+                            key_insights JSONB,
+                            action_items JSONB,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                            UNIQUE(user_id, digest_date, digest_type)
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_digests_user ON daily_digests(user_id)",
+                        "CREATE INDEX IF NOT EXISTS idx_digests_date ON daily_digests(digest_date)",
+
+                        // Digest Preferences Table
+                        """CREATE TABLE IF NOT EXISTS digest_preferences (
+                            user_id TEXT PRIMARY KEY,
+                            daily_enabled BOOLEAN DEFAULT TRUE,
+                            daily_time TIME DEFAULT '07:00:00',
+                            weekly_enabled BOOLEAN DEFAULT TRUE,
+                            weekly_day INT DEFAULT 0,
+                            weekly_time TIME DEFAULT '08:00:00',
+                            push_notification BOOLEAN DEFAULT TRUE,
+                            calendar_logging BOOLEAN DEFAULT TRUE,
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        )""",
+
+                        // FCM Tokens Table
+                        """CREATE TABLE IF NOT EXISTS user_fcm_tokens (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id TEXT NOT NULL,
+                            token TEXT NOT NULL UNIQUE,
+                            device_name TEXT,
+                            device_id TEXT,
+                            last_used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                        )""",
+                        "CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON user_fcm_tokens(user_id)"
                     )
                     for (sql in migrations) {
                         try {
@@ -143,7 +210,7 @@ object DatabaseFactory {
                 minimumIdle = 1
                 idleTimeout = 30000
                 connectionTimeout = 10000
-                leakDetectionThreshold = 2000
+                leakDetectionThreshold = 30000 // Increased from 2s to 30s for migrations
             }
 
             dataSource = try {

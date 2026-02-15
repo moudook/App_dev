@@ -5,7 +5,6 @@ import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
-import org.jetbrains.exposed.sql.transactions.transaction
 
 @Serializable
 data class E2EVaultData(
@@ -26,17 +25,9 @@ object UserVaults : Table("user_vaults") {
 
 class VaultRepository(private val database: Database) {
     
-    init {
-        try {
-            transaction(database) {
-                // Use createMissingTablesAndColumns to avoid prepared statement conflicts on restart
-                SchemaUtils.createMissingTablesAndColumns(UserVaults)
-            }
-        } catch (e: Exception) {
-            // Log but don't fail - table may already exist from previous run
-            println("VaultRepository init: ${e.message}")
-        }
-    }
+    // Note: Table creation is handled by DatabaseFactory.runMigrations()
+    // SchemaUtils.createMissingTablesAndColumns() was removed to prevent
+    // "prepared statement already exists" errors on server restart with connection pooling
 
     suspend fun get(userId: String): E2EVaultData? = dbQuery {
         UserVaults.selectAll().where { UserVaults.userId eq userId }

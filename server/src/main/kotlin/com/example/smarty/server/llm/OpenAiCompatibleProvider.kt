@@ -75,7 +75,7 @@ class OpenAiCompatibleProvider(
         val requestBody = OpenAiChatRequest(
             model = model ?: defaultModel,
             messages = messages.map { it.toOpenAiMessage() },
-            tools = if (tools.isNotEmpty()) tools.map { it.toOpenAiTool() } else null,
+            tools = if (tools.isNotEmpty() && supportsTools()) tools.map { it.toOpenAiTool() } else null,
             stream = true
         )
 
@@ -87,6 +87,13 @@ class OpenAiCompatibleProvider(
                 contentType(ContentType.Application.Json)
                 setBody(requestBody)
             }.execute { httpResponse ->
+                // Check for error status before processing stream
+                if (!httpResponse.status.isSuccess()) {
+                    val errorBody = httpResponse.bodyAsText()
+                    logger.error("LLM API error for $providerName: ${httpResponse.status} - $errorBody")
+                    throw IllegalStateException("$providerName API returned ${httpResponse.status}: $errorBody")
+                }
+
                 val channel: ByteReadChannel = httpResponse.bodyAsChannel()
                 while (!channel.isClosedForRead) {
                     val line = channel.readUTF8Line() ?: continue
@@ -116,6 +123,7 @@ class OpenAiCompatibleProvider(
                             }
                         } catch (e: Exception) {
                             // Ignore parsing errors for empty/keep-alive chunks
+                            logger.debug("Failed to parse SSE chunk: ${e.message}")
                         }
                     }
                 }
@@ -123,6 +131,17 @@ class OpenAiCompatibleProvider(
         } catch (e: Exception) {
             logger.error("Stream call failed for $providerName", e)
             throw e
+        }
+    }
+
+    /**
+     * Check if the provider supports function calling / tools.
+     * Some local or specialized providers don't support this feature.
+     */
+    private fun supportsTools(): Boolean {
+        return when (providerName) {
+            "Local LLM", "Mock" -> false
+            else -> true
         }
     }
 
