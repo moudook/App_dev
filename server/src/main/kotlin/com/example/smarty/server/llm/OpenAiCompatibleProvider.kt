@@ -13,11 +13,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.encodeToJsonElement
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 
 /**
@@ -185,19 +180,15 @@ class OpenAiCompatibleProvider(
         )
     }
 
-    private fun ToolDefinition.toOpenAiTool(): Map<String, Any> {
-        val propertiesJson = buildJsonObject {
-            parameters.properties.forEach { (name, prop) ->
-                putJsonObject(name) {
-                    put("type", prop.type)
-                    prop.description?.let { put("description", it) }
-                    prop.enum?.takeIf { it.isNotEmpty() }?.let { enumValues ->
-                        putJsonArray("enum") {
-                            enumValues.forEach { add(it) }
-                        }
-                    }
-                }
+    private fun ToolDefinition.toOpenAiTool(): Map<String, Any?> {
+        val propertiesMap = mutableMapOf<String, Map<String, Any?>>()
+        parameters.properties.forEach { (name, prop) ->
+            val propMap = mutableMapOf<String, Any?>("type" to prop.type)
+            prop.description?.let { propMap["description"] = it }
+            prop.enum?.takeIf { it.isNotEmpty() }?.let { enumValues ->
+                propMap["enum"] = enumValues
             }
+            propertiesMap[name] = propMap
         }
 
         return mapOf(
@@ -207,7 +198,7 @@ class OpenAiCompatibleProvider(
                 "description" to description,
                 "parameters" to mapOf(
                     "type" to parameters.type,
-                    "properties" to propertiesJson,
+                    "properties" to propertiesMap,
                     "required" to parameters.required
                 )
             )
