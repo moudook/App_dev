@@ -150,20 +150,20 @@ class OpenAiCompatibleProvider(
         tools: List<ToolDefinition>,
         model: String?,
         stream: Boolean
-    ): Map<String, Any?> {
+    ): OpenAiChatRequest {
         val toolsList = if (tools.isNotEmpty() && supportsTools()) {
             tools.map { it.toOpenAiTool() }
         } else null
 
-        return mapOf(
-            "model" to (model ?: defaultModel),
-            "messages" to messages.map { it.toOpenAiMessageMap() },
-            "tools" to toolsList,
-            "stream" to stream
+        return OpenAiChatRequest(
+            model = model ?: defaultModel,
+            messages = messages.map { it.toOpenAiMessage() },
+            tools = toolsList,
+            stream = stream
         )
     }
 
-    private fun LlmMessage.toOpenAiMessageMap(): Map<String, Any?> {
+    private fun LlmMessage.toOpenAiMessage(): OpenAiMessage {
         val roleStr = when (role) {
             LlmMessage.Role.TOOL -> "user"
             else -> role.name.lowercase()
@@ -173,33 +173,32 @@ class OpenAiCompatibleProvider(
         } else {
             content
         }
-        return mapOf(
-            "role" to roleStr,
-            "content" to contentStr,
-            "name" to name
+        return OpenAiMessage(
+            role = roleStr,
+            content = contentStr,
+            name = name
         )
     }
 
-    private fun ToolDefinition.toOpenAiTool(): Map<String, Any?> {
-        val propertiesMap = mutableMapOf<String, Map<String, Any?>>()
+    private fun ToolDefinition.toOpenAiTool(): OpenAiTool {
+        val propertiesMap = mutableMapOf<String, ToolPropertySchema>()
         parameters.properties.forEach { (name, prop) ->
-            val propMap = mutableMapOf<String, Any?>("type" to prop.type)
-            prop.description?.let { propMap["description"] = it }
-            prop.enum?.takeIf { it.isNotEmpty() }?.let { enumValues ->
-                propMap["enum"] = enumValues
-            }
-            propertiesMap[name] = propMap
+            propertiesMap[name] = ToolPropertySchema(
+                type = prop.type,
+                description = prop.description,
+                enum = prop.enum?.takeIf { it.isNotEmpty() }
+            )
         }
 
-        return mapOf(
-            "type" to "function",
-            "function" to mapOf(
-                "name" to name,
-                "description" to description,
-                "parameters" to mapOf(
-                    "type" to parameters.type,
-                    "properties" to propertiesMap,
-                    "required" to parameters.required
+        return OpenAiTool(
+            type = "function",
+            function = OpenAiFunctionDefinition(
+                name = name,
+                description = description,
+                parameters = ToolParametersSchema(
+                    type = parameters.type,
+                    properties = propertiesMap,
+                    required = parameters.required
                 )
             )
         )
@@ -240,7 +239,21 @@ private data class OpenAiTool(
 private data class OpenAiFunctionDefinition(
     val name: String,
     val description: String,
-    val parameters: ToolParameters
+    val parameters: ToolParametersSchema
+)
+
+@Serializable
+private data class ToolParametersSchema(
+    val type: String = "object",
+    val properties: Map<String, ToolPropertySchema>,
+    val required: List<String> = emptyList()
+)
+
+@Serializable
+private data class ToolPropertySchema(
+    val type: String,
+    val description: String? = null,
+    val enum: List<String>? = null
 )
 
 @Serializable
