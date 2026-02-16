@@ -58,6 +58,14 @@ import com.example.smarty.core.domain.model.MentionSuggestion
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.TodoItem
 import com.example.smarty.ui.LocalAccentColor
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import com.example.smarty.features.voice.RecordingState
+import com.example.smarty.features.voice.formatDuration
+
+
+
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.StaggerCalculator
 import com.example.smarty.core.domain.model.ChatSession
@@ -449,12 +457,13 @@ fun InputStreamScreen(
     // Voice Recording State (Long-press on mic to record audio note)
     val voiceRecorder = remember { VoiceNoteRecorder(context, scope) }
     val recordingState by voiceRecorder.state.collectAsState()
-    val isRecording = recordingState is VoiceNoteRecorder.RecordingState.Recording
+    val isRecording = recordingState is RecordingState.Recording
+
 
     // Handle recording completion - add as audio attachment
     LaunchedEffect(recordingState) {
         when (val state = recordingState) {
-            is VoiceNoteRecorder.RecordingState.Completed -> {
+            is RecordingState.Completed -> {
                 // Add the recorded audio as an attachment
                 val file = java.io.File(state.filePath)
                 val uri = android.net.Uri.fromFile(file)
@@ -472,14 +481,16 @@ fun InputStreamScreen(
         }
     }
 
+
     // Cancel recording on dispose if still active
     DisposableEffect(Unit) {
         onDispose {
-            if (voiceRecorder.state.value is VoiceNoteRecorder.RecordingState.Recording) {
+            if (voiceRecorder.state.value is RecordingState.Recording) {
                 voiceRecorder.cancelRecording()
             }
         }
     }
+
 
     // Handle partial results for progressive text append
     // Use the mode that INITIATED the speech, not the current mode
@@ -566,6 +577,7 @@ fun InputStreamScreen(
 
             // Reset speech initiation mode after processing
             speechState.speechInitiatedInChatMode = null
+
 
             onInputTextChange(newText)
         }

@@ -1,9 +1,7 @@
 package com.example.smarty.features.auth.ui
 
 import android.app.Application
-import android.animation.ValueAnimator
-import android.media.MediaPlayer
-import android.media.audiofx.Visualizer
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -48,21 +46,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.compose.LocalLifecycleOwner
+
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.features.auth.domain.AuthViewModel
 import com.example.smarty.features.auth.domain.AuthViewModelFactory
 import com.example.smarty.features.auth.domain.AuthFeatureManager
-import com.example.smarty.ui.components.LiquidLoader
 import com.example.smarty.ui.theme.rememberMonochromeAccent
-import kotlinx.coroutines.delay
 
 // 
 // LOGIN SCREEN - STACKS / NOTECARD DESIGN
@@ -76,117 +71,6 @@ fun LoginScreen(
 ) {
     val context = LocalContext.current
     val application = context.applicationContext as Application
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    var amplitude by remember { mutableFloatStateOf(0f) }
-
-    // Play welcome intro audio in a loop while on LoginScreen
-    DisposableEffect(lifecycleOwner) {
-        var mediaPlayer: MediaPlayer? = null
-        var visualizer: Visualizer? = null
-
-        // Securely fade in audio to avoid sudden bursts
-        val fadeAnimator = ValueAnimator.ofFloat(0f, 1.0f).apply {
-            duration = 2500L // 2.5 seconds gradual fade in
-            addUpdateListener { animation ->
-                val volume = animation.animatedValue as Float
-                try {
-                    mediaPlayer?.setVolume(volume, volume)
-                } catch (e: Exception) {
-                    // Prevent crash if player is released during animation
-                }
-            }
-        }
-
-        try {
-            val assetFileDescriptor = context.resources.openRawResourceFd(R.raw.welcome_intro)
-            mediaPlayer = MediaPlayer().apply {
-                setDataSource(assetFileDescriptor.fileDescriptor, assetFileDescriptor.startOffset, assetFileDescriptor.length)
-                assetFileDescriptor.close()
-                setVolume(0f, 0f)
-                isLooping = true
-
-                setOnPreparedListener { mp ->
-                    mp.start()
-                    fadeAnimator.start()
-
-                    // Initialize Visualizer for audio reactivity
-                    try {
-                        visualizer = Visualizer(mp.audioSessionId).apply {
-                            captureSize = Visualizer.getCaptureSizeRange()[1]
-                            setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
-                                override fun onWaveFormDataCapture(v: Visualizer?, waveform: ByteArray?, samplingRate: Int) {
-                                    waveform?.let {
-                                        // Calculate RMS (Root Mean Square) for amplitude
-                                        var sum = 0.0
-                                        for (sample in it) {
-                                            val b = (sample.toInt() and 0xFF) - 128
-                                            sum += (b * b).toDouble()
-                                        }
-                                        val rms = Math.sqrt(sum / it.size)
-                                        // Normalize and smooth (0.0 to 1.0 range)
-                                        val normalized = (rms / 32.0).toFloat().coerceIn(0f, 1f)
-                                        amplitude = amplitude * 0.7f + normalized * 0.3f
-                                    }
-                                }
-                                override fun onFftDataCapture(v: Visualizer?, fft: ByteArray?, samplingRate: Int) {}
-                            }, Visualizer.getMaxCaptureRate() / 2, true, false)
-                            enabled = true
-                        }
-                    } catch (e: Exception) {
-                        // Visualizer requires RECORD_AUDIO. If not granted, we just skip it.
-                        android.util.Log.w("LoginScreen", "Visualizer initialization failed (likely permission missing)")
-                    }
-                }
-
-                prepareAsync() // Avoid blocking main thread with 5.5MB file
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("LoginScreen", "Error initializing MediaPlayer", e)
-        }
-
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> {
-                    try {
-                        mediaPlayer?.start()
-                    } catch (e: Exception) {
-                        // In case player was released or errored
-                    }
-                }
-                Lifecycle.Event.ON_PAUSE -> {
-                    try {
-                        if (mediaPlayer?.isPlaying == true) {
-                            mediaPlayer.pause()
-                        }
-                    } catch (e: Exception) {
-                        // Ignore errors during pause
-                    }
-                }
-                else -> {}
-            }
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            fadeAnimator.cancel()
-            visualizer?.release()
-            mediaPlayer?.apply {
-                try {
-                    if (isPlaying) {
-                        stop()
-                    }
-                } catch (e: Exception) {
-                    // Ignore errors during stop/release
-                } finally {
-                    release()
-                }
-            }
-        }
-    }
 
     val viewModel: AuthViewModel = viewModel(
         factory = AuthViewModelFactory(application)
@@ -236,16 +120,10 @@ fun LoginScreen(
         ) {
             // 1. DENSITY AT BOTTOM: Top section mostly empty
             // If skipping splash, we might want to adjust spacing but keeping it consistent for now
-            Spacer(modifier = Modifier.weight(1f))
+Spacer(modifier = Modifier.weight(1f))
 
-            // Animated Liquid Loader - Calm, centralized monochrome animation
-            LiquidLoader(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp) // Fixed height to ensure visibility
-                    .padding(bottom = 32.dp),
-                audioAmplitude = amplitude
-            )
+            Spacer(modifier = Modifier.height(40.dp))
+
 
             // 1. MODERN MINIMAL HEADER
             // "Same team as header section" -> Monochrome & Pill aesthetics

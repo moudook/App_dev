@@ -11,7 +11,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.Note
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
+
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -627,10 +631,11 @@ private fun GoalProgressCard(
 
     val statusIcon = when (goal.status) {
         "completed" -> Icons.Default.CheckCircle
-        "on-track" -> Icons.Default.TrendingUp
+        "on-track" -> Icons.AutoMirrored.Filled.TrendingUp
         "at-risk" -> Icons.Default.Warning
         else -> Icons.Default.Info
     }
+
 
     Card(
         modifier = modifier
@@ -663,10 +668,11 @@ private fun GoalProgressCard(
                         tint = statusColor
                     )
                     Text(
-                        text = goal.status.replace("-", " ").capitalize(),
+                        text = goal.status.replace("-", " ").replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.labelSmall,
                         color = statusColor
                     )
+
                 }
             }
             if (goal.updates.isNotEmpty()) {
@@ -755,12 +761,12 @@ private fun StatsCard(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             StatItem(
-                icon = Icons.Default.Note,
+                icon = Icons.AutoMirrored.Filled.Note,
                 label = "Notes",
                 value = digest.notesAnalyzed
             )
             StatItem(
-                icon = Icons.Default.Chat,
+                icon = Icons.AutoMirrored.Filled.Chat,
                 label = "Chats",
                 value = digest.chatsAnalyzed
             )
@@ -769,6 +775,7 @@ private fun StatsCard(
                 label = "Memories",
                 value = digest.memoriesAnalyzed
             )
+
         }
     }
 }

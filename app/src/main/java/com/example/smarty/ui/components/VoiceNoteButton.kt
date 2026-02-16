@@ -34,9 +34,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import com.example.smarty.features.voice.RecordingState
+
+
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,10 +71,11 @@ fun VoiceNoteButton(
     val amplitude by recorder.amplitude.collectAsState()
     val durationMs by recorder.durationMs.collectAsState()
 
-    val isRecording = state is VoiceNoteRecorder.RecordingState.Recording
+    val isRecording = state is RecordingState.Recording
+
 
     when (state) {
-        is VoiceNoteRecorder.RecordingState.Error -> {
+        is RecordingState.Error -> {
             // Show error state
             MicButton(
                 onClick = {
@@ -87,7 +92,7 @@ fun VoiceNoteButton(
             )
         }
 
-        is VoiceNoteRecorder.RecordingState.Idle -> {
+        is RecordingState.Idle -> {
             // Show mic button
             MicButton(
                 onClick = {
@@ -101,8 +106,8 @@ fun VoiceNoteButton(
             )
         }
 
-        is VoiceNoteRecorder.RecordingState.Recording,
-        is VoiceNoteRecorder.RecordingState.Paused -> {
+        is RecordingState.Recording,
+        is RecordingState.Paused -> {
             // Show recording UI
             RecordingInterface(
                 durationMs = durationMs,
@@ -122,7 +127,7 @@ fun VoiceNoteButton(
             )
         }
 
-        is VoiceNoteRecorder.RecordingState.Completed -> {
+        is RecordingState.Completed -> {
             // Auto-handled by onRecordingComplete callback
             MicButton(
                 onClick = {
@@ -136,7 +141,9 @@ fun VoiceNoteButton(
                 modifier = modifier
             )
         }
+        else -> {}
     }
+
 }
 
 @Composable
@@ -325,6 +332,7 @@ fun VoiceRecordingOverlay(
     val amplitude by recorder.amplitude.collectAsState()
     val durationMs by recorder.durationMs.collectAsState()
 
+
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
@@ -339,12 +347,13 @@ fun VoiceRecordingOverlay(
             // Title
             Text(
                 text = when (state) {
-                    is VoiceNoteRecorder.RecordingState.Recording -> stringResource(R.string.processing)
-                    is VoiceNoteRecorder.RecordingState.Paused -> "paused"
-                    is VoiceNoteRecorder.RecordingState.Completed -> stringResource(R.string.recording_saved)
-                    is VoiceNoteRecorder.RecordingState.Error -> "error"
+                    is RecordingState.Recording -> stringResource(R.string.processing)
+                    is RecordingState.Paused -> "paused"
+                    is RecordingState.Completed -> stringResource(R.string.recording_saved)
+                    is RecordingState.Error -> "error"
                     else -> stringResource(R.string.type_audio)
                 }.lowercase(),
+
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 0.5.sp
@@ -355,18 +364,20 @@ fun VoiceRecordingOverlay(
             Text(
                 text = recorder.formatDuration(durationMs),
                 style = MaterialTheme.typography.displayMedium,
-                color = if (state is VoiceNoteRecorder.RecordingState.Recording) {
+                color = if (state is RecordingState.Recording) {
                     MaterialTheme.colorScheme.error
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 }
+
             )
 
             // Large amplitude visualization
             LargeAmplitudeVisualizer(
                 amplitude = amplitude,
-                isRecording = state is VoiceNoteRecorder.RecordingState.Recording
+                isRecording = state is RecordingState.Recording
             )
+
 
             // Controls
             Row(
@@ -396,10 +407,10 @@ fun VoiceRecordingOverlay(
                 IconButton(
                     onClick = {
                         when (state) {
-                            is VoiceNoteRecorder.RecordingState.Idle -> {
+                            is RecordingState.Idle -> {
                                 recorder.startRecording()
                             }
-                            is VoiceNoteRecorder.RecordingState.Recording -> {
+                            is RecordingState.Recording -> {
                                 val filePath = recorder.stopRecording()
                                 if (filePath != null) {
                                     onRecordingComplete(filePath, durationMs)
@@ -409,36 +420,41 @@ fun VoiceRecordingOverlay(
                             }
                             else -> {}
                         }
+
                     },
                     modifier = Modifier
                         .size(72.dp)
                         .clip(CircleShape)
                         .background(
-                            if (state is VoiceNoteRecorder.RecordingState.Recording) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            }
+                        if (state is RecordingState.Recording) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        }
+
                         )
                 ) {
                     Icon(
-                        imageVector = if (state is VoiceNoteRecorder.RecordingState.Recording) {
+                        imageVector = if (state is RecordingState.Recording) {
                             Icons.Default.StopCircle
                         } else {
                             Icons.Default.Mic
                         },
-                        contentDescription = if (state is VoiceNoteRecorder.RecordingState.Recording) {
+
+                        contentDescription = if (state is RecordingState.Recording) {
                             "stop_recording"
                         } else {
                             "start_recording"
                         },
+
                         tint = Color.White,
                         modifier = Modifier.size(36.dp)
                     )
                 }
 
                 // Confirm (only when recording)
-                if (state is VoiceNoteRecorder.RecordingState.Recording) {
+                if (state is RecordingState.Recording) {
+
                     IconButton(
                         onClick = {
                             val filePath = recorder.stopRecording()
