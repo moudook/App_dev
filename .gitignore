@@ -79,8 +79,6 @@ build/
 *.class
 
 # Voice & Speech Specific Folders
-app/src/main/java/com/example/smarty/features/voice/
-app/src/main/res/raw/
 app/src/main/assets/vosk-model-*/
 app/src/main/assets/tts_models/
 vosk-model-*/
