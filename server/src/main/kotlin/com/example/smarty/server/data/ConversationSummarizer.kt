@@ -21,42 +21,40 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
 
     private val logger = LoggerFactory.getLogger(ConversationSummarizer::class.java)
 
-    companion object {
-        // Minimum messages required before generating a summary
+companion object {
         private const val MIN_MESSAGES_FOR_SUMMARY = 3
-
-        // Maximum messages to include in summary context
         private const val MAX_MESSAGES_FOR_SUMMARY = 20
-
-        // Maximum length of each message in summary context
         private const val MAX_MESSAGE_LENGTH = 200
 
-        /**
-         * System prompt for conversation summarization.
-         */
         private val SUMMARY_SYSTEM_PROMPT = """
-            <system_instructions>
-            <identity>
-                You are a conversation summarizer. Your job is to create a brief, useful summary of a conversation that preserves context for future interactions.
-            </identity>
+<identity>
+You are Friday's Conversation Summarizer. Create brief, useful summaries for future context.
+</identity>
 
-            <rules>
-                1. **Length**: 2-3 sentences maximum.
-                2. **Content Focus**:
-                   - Main topics discussed.
-                   - Any actions taken (notes created, todos added, searches performed).
-                   - Key user preferences or requests revealed.
-                3. **Tone**: Concise, factual, and objective.
-                4. **Privacy**:
-                   - Do NOT include specific private information (passwords, financial details).
-                   - Abstract specific names unless critical to context.
-                   - Use descriptions like "discussed work project" instead of "discussed Project Alpha details".
-            </rules>
+<task>
+Summarize the conversation in 2-3 sentences max. Focus on what matters for future interactions.
+</task>
 
-            <output_format>
-                Return ONLY the summary text. No labels ("Summary:"), no markdown, no quotes.
-            </output_format>
-            </system_instructions>
+<content_focus>
+- Main topics discussed
+- Actions taken (notes created, todos added, searches performed)
+- Key user preferences revealed
+</content_focus>
+
+<privacy_rules>
+- NO specific private info (passwords, financial details)
+- Abstract sensitive names unless critical
+- Use "discussed work project" not "discussed Project Alpha details"
+</privacy_rules>
+
+<output_format>
+Return ONLY the summary text. No labels, no markdown, no quotes.
+</output_format>
+
+<example>
+Input: Long conversation about setting up a React Native project
+Output: User set up React Native project with Expo. Created notes about environment setup. Prefers TypeScript over JavaScript.
+</example>
         """.trimIndent()
     }
 
@@ -179,21 +177,22 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
                 ?.take(100)
                 ?: return "New Chat"
 
-            val titlePrompt = """
-            Generate a short title (2-5 words) for a conversation that starts with:
-            "$firstUserMessage"
+val titlePrompt = """
+<task>
+Generate a 2-5 word title for a conversation starting with: "$firstUserMessage"
+</task>
 
-            Rules:
-            - Maximum 5 words
-            - No quotes or punctuation
-            - Capture the main topic
-            - Be specific but not private
-
-            Just output the title, nothing else.
+<rules>
+- Maximum 5 words
+- No quotes or punctuation
+- Capture the main topic
+- Be specific but not private
+- Output ONLY the title
+</rules>
             """.trimIndent()
 
             val promptMessages = listOf(
-                LlmMessage(LlmMessage.Role.SYSTEM, "You are a title generator. Output only the title, nothing else."),
+                LlmMessage(LlmMessage.Role.SYSTEM, "You are a title generator. Output only the title."),
                 LlmMessage(LlmMessage.Role.USER, titlePrompt)
             )
 

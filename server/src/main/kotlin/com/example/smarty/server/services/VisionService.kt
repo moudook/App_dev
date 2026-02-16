@@ -18,43 +18,50 @@ class VisionService(
 ) {
     private val logger = LoggerFactory.getLogger(VisionService::class.java)
 
-    companion object {
-        // Format used to pass image data to LlmProvider (specifically AnthropicProvider which parses this)
+companion object {
         private const val IMAGE_BLOCK_TEMPLATE = "[Image: data:%s;base64,%s]"
 
         private val OCR_PROMPT = """
-            <system_instructions>
-            <task>
-                Extract ALL visible text from the provided image.
-                Preserve the visual structure as much as possible.
-            </task>
+<task>
+Extract ALL visible text from the image. Preserve visual structure.
+</task>
 
-            <formatting_rules>
-                - Use `|` separators for table columns.
-                - Use `key: value` format for forms.
-                - Mark illegible text as `[unclear]`.
-                - Do not add commentary or descriptions. Just the text.
-            </formatting_rules>
-            </system_instructions>
+<formatting_rules>
+- Tables: Use `|` separators for columns
+- Forms: Use `key: value` format
+- Illegible text: Mark as `[unclear]`
+- Output: Text only, no commentary
+</formatting_rules>
+
+<example>
+Input: Screenshot of a receipt
+Output:
+Store: ABC Market
+Date: 2024-01-15
+Items:
+| Item | Price |
+| Milk | $3.99 |
+| Bread | $2.50 |
+Total: $6.49
+</example>
         """.trimIndent()
 
         private val IMAGE_ANALYSIS_PROMPT = """
-            <system_instructions>
-            <task>
-                Analyze this image and provide a comprehensive structured description.
-            </task>
+<task>
+Analyze the image and provide a structured description.
+</task>
 
-            <output_requirements>
-                1. **Subject**: What is the main subject?
-                2. **Text**: Extract any visible text relevant to the context.
-                3. **Visual Elements**: Key colors, objects, layout.
-                4. **Context**: What is the likely purpose or setting?
-            </output_requirements>
+<output_format>
+**Subject**: Main subject in 5 words or less
+**Text**: All visible text (if any)
+**Elements**: Key colors, objects, people, layout
+**Context**: Likely purpose or setting
+**Action**: Suggested next step if applicable
+</output_format>
 
-            <style>
-                Concise, objective, professional.
-            </style>
-            </system_instructions>
+<style>
+Concise, objective, actionable. No filler words.
+</style>
         """.trimIndent()
     }
 

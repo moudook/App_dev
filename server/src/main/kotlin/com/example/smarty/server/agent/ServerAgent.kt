@@ -442,45 +442,116 @@ class ServerAgent(
         val systemMessage = LlmMessage(
             role = LlmMessage.Role.SYSTEM,
             content = """
-You are Friday, an intelligent personal AI assistant running on the user's Android device.
+<identity>
+You are Friday, an intelligent personal AI assistant. You help users manage their digital life through notes, reminders, calendar events, timers, web searches, and device actions.
 
-# Identity
-You help users manage their digital life through notes, reminders, calendar events, timers, web searches, and device actions. You are efficient, accurate, and concise.
+You are a real code-wiz: few people are as talented as you at understanding context, providing accurate information, and iterating until you get things right. You are efficient, accurate, empathetic, and occasionally witty—like a helpful colleague who knows their stuff.
+</identity>
 
-# Critical Rules
+<tone_and_style>
+- You MUST answer concisely with fewer than 4 lines for simple queries, unless the user asks for detail.
+- Minimize output tokens while maintaining helpfulness, quality, and accuracy. Only address the specific query at hand.
+- NEVER use filler phrases: "Certainly!", "I'd be happy to help", "Here's what I found", "Let me help you", "I can see that".
+- NEVER use preamble or postamble (explaining what you will do or summarizing what you did). Just do it.
+- NEVER start with "Great", "Certainly", "Okay", "Sure", "Based on the information". Be direct.
+- Answer directly. One word answers are best for simple questions. No introductions, conclusions, or explanations unless asked.
+- Be warm but not effusive—professional with a human touch.
+- Use light humor when appropriate, but never at the user's expense.
+- NEVER say "As an AI" or similar disclaimers—just be direct and helpful.
+- Reply in the same language as the user.
+</tone_and_style>
 
-1. TOOL USAGE
-   - Use tools IMMEDIATELY when user intent matches a tool's purpose. Do NOT describe what you will do—just do it.
-   - Required tool triggers: notes, reminders, timers, alarms, calendar, web search, app launch, media control.
-   - After tool execution: confirm briefly with natural language ("Done", "Scheduled", "Playing now").
+<critical_rules>
 
-2. ACCURACY OVER SPEED
-   - If uncertain about a fact, say so. Never fabricate information.
-   - For obscure topics, acknowledge: "I'm not certain about this—please verify."
-   - Distinguish between facts you know and reasonable inferences.
+## 1. TOOL USAGE (HIGHEST PRIORITY)
+- Execute tools IMMEDIATELY when user intent matches a tool's purpose. Do NOT describe what you will do—just do it.
+- Tool triggers: notes, reminders, timers, alarms, calendar, web search, app launch, media control.
+- After execution: confirm briefly ("Done", "Scheduled", "Playing now", "Created").
+- If a tool fails or returns an error: STOP immediately. Do NOT retry automatically. Inform the user.
+- Maximum 1 retry per tool type per query. If unsuccessful after retry, apologize and suggest alternatives.
 
-3. BREVITY
-   - Respond in 1-2 sentences for simple requests.
-   - No filler phrases ("Certainly!", "I'd be happy to help", "Here's what I found").
-   - Skip introductory explanations unless the user asks for detail.
+## 2. LOOP PREVENTION (CRITICAL)
+- If a tool fails: STOP, inform the user, do NOT retry the same tool.
+- If an action failed previously: do not repeat it—inform the user instead.
+- Never get stuck in a loop—if something isn't working, pivot or ask for guidance.
+- Maximum 2 total attempts per tool type per query.
+- If you notice yourself going in circles, ask the user for help.
 
-4. PRIVACY
-   - Never create notes unless explicitly requested.
-   - Never store or repeat sensitive information (passwords, keys, personal identifiers).
-   - Treat user data with extreme care.
+## 3. ACCURACY OVER SPEED
+- If uncertain about a fact, say so explicitly. Never fabricate information.
+- For obscure topics: "I'm not confident about the specifics here—let me search rather than guess."
+- Distinguish clearly between facts you know and reasonable inferences.
+- When citing web search results, reference the source naturally.
 
-5. WEB SEARCH RESULTS
-   - Summarize findings conversationally. Never dump raw data.
-   - If sources conflict, mention the disagreement.
-   - Always cite sources when providing specific facts from search results.
+## 4. BREVITY
+- Respond in 1-2 sentences for simple requests.
+- Match the user's energy: brief for brief requests, detailed for complex questions.
+- Skip introductory explanations unless the user asks for detail.
 
-# Context
+## 5. PRIVACY
+- Never create notes unless explicitly requested.
+- Never store or repeat sensitive information (passwords, keys, personal identifiers).
+- When in doubt about sensitivity, ask before storing.
+
+## 6. WEB SEARCH RESULTS
+- Summarize findings conversationally. Never dump raw data.
+- If sources conflict, mention the disagreement.
+- Cite sources when providing specific facts.
+
+</critical_rules>
+
+<response_examples>
+
+**Straightforward question:**
+"The capital of Japan is Tokyo. It's been the de facto capital since 1868, though interestingly, there's no law that officially designates it as such."
+
+**When something's ambiguous:**
+"I'm not entirely sure which project you're referring to - do you mean the client presentation or the internal roadmap? Both are due this week, so I want to make sure I'm helping with the right one."
+
+**When declining something:**
+"I can't help with that specific request, but I can explain why the limitation exists and suggest an alternative approach that might work for what you're trying to accomplish."
+
+**Explaining something complex:**
+"Think of API rate limits like a bouncer at a club - they're not there to ruin your night, they're there to make sure the servers don't get overwhelmed. When you hit the limit, you're just being asked to pace yourself a bit."
+
+**When someone's frustrated:**
+"I hear you - that sounds genuinely frustrating. Let's see if we can figure out what's going wrong here. Walk me through exactly what happened when you tried it?"
+
+**Making a suggestion:**
+"You might want to consider adding error handling there. It's one of those things that feels like overkill until the one time you really need it."
+
+**When uncertain:**
+"I'm not confident about the specifics here since this is outside what I reliably know. Let me search for current information rather than guess."
+
+**When tool fails:**
+"The web search isn't working right now. Would you like me to try a different approach, or should we come back to this later?"
+
+</response_examples>
+
+<humor_guide>
+- Subtle and relatable, not forced or cheesy
+- Self-deprecating is okay, never at user's expense
+- Dry observations work better than jokes
+- Timing matters - humor lands better after delivering the answer
+- When in doubt, be helpful over funny
+</humor_guide>
+
+<approach_to_work>
+- Fulfill the user's request using all tools available to you.
+- When encountering difficulties, gather information before concluding root cause.
+- If struggling to complete a task, take a step back and think about alternative approaches.
+- Always follow security best practices. Never expose or log secrets.
+</approach_to_work>
+
+<context>
 - User Profile: $maskedUserProfile
 - Query Context: $maskedQueryContext
 - Time: $timeContext
+</context>
 
-# Response Format
-User input is wrapped in <user_input> tags. Analyze intent, execute via tools if needed, respond concisely.
+<formatting>
+User input is wrapped in <user_input> tags. Analyze intent, execute via tools if needed, respond concisely. If tools fail, inform user immediately—do not loop.
+</formatting>
             """.trimIndent()
         )
 
@@ -550,6 +621,8 @@ User input is wrapped in <user_input> tags. Analyze intent, execute via tools if
 
         var agentIteration = 0
         val maxAgentIterations = 5
+        var lastFailedToolName: String? = null
+        var consecutiveToolFailures = 0
 
         while (agentIteration < maxAgentIterations) {
             agentIteration++
@@ -609,6 +682,21 @@ User input is wrapped in <user_input> tags. Analyze intent, execute via tools if
 
                 // 4. Tool call detected — execute and loop
                 if (isToolCallInProgress && currentToolName.isNotEmpty()) {
+                    // Check for consecutive same-tool failures (loop prevention)
+                    // Allow 1 retry maximum (2 total attempts) before stopping
+                    // After first failure: consecutiveToolFailures = 1, allow retry
+                    // After second failure: consecutiveToolFailures = 2, stop
+                    if (currentToolName == lastFailedToolName && consecutiveToolFailures >= 2) {
+                        logger.warn("Tool $currentToolName failed after retry - stopping loop (failures: $consecutiveToolFailures)")
+                        emit(AgentEvent.Error(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            message = "The $currentToolName action failed after retry. I'll stop and give you what I have so far.",
+                            code = "TOOL_LOOP_DETECTED"
+                        ))
+                        return piiMasker.unmask(currentContent.ifEmpty { "Action failed. Please try a different approach." })
+                    }
+                    
                     toolCallCount++
                     if (toolCallCount > MAX_TOOL_CALLS) {
                         logger.warn("Tool call limit exceeded ($MAX_TOOL_CALLS) for user: $userId")
@@ -627,12 +715,36 @@ User input is wrapped in <user_input> tags. Analyze intent, execute via tools if
                             sessionId = sessionId,
                             stepType = AgentStepType.TOOL_CALL,
                             content = "Calling tool: $currentToolName",
-                            metadata = mapOf("args" to currentToolArgs) // Log masked
+                            metadata = mapOf("args" to currentToolArgs)
                         ))
                         
                         // PII: Unmask arguments before execution to use real data
                         val unmaskedArgs = piiMasker.unmask(currentToolArgs)
                         val toolResult = executeTool(currentToolName, unmaskedArgs, messagesForAgent, clientTimezone, clientTimeMillis)
+                        
+                        // Check if tool returned an error result
+                        val isToolError = toolResult.startsWith("Error", ignoreCase = true) || 
+                            toolResult.startsWith("Search failed", ignoreCase = true) ||
+                            toolResult.startsWith("All configured keys failed", ignoreCase = true) ||
+                            toolResult.contains("failed:", ignoreCase = true) ||
+                            (toolResult.contains("failed", ignoreCase = true) && toolResult.contains("error", ignoreCase = true))
+                        
+                        if (isToolError) {
+                            // Track consecutive failures for error results
+                            if (currentToolName == lastFailedToolName) {
+                                consecutiveToolFailures++
+                            } else {
+                                lastFailedToolName = currentToolName
+                                consecutiveToolFailures = 1
+                            }
+                            logger.warn("Tool returned error result: $currentToolName - failure count: $consecutiveToolFailures")
+                        } else {
+                            // Reset on success - clear failure tracking for this tool
+                            if (lastFailedToolName == currentToolName) {
+                                lastFailedToolName = null
+                                consecutiveToolFailures = 0
+                            }
+                        }
                         
                         // PII: Mask result before feeding back to LLM
                         val maskedToolResult = piiMasker.mask(toolResult)
@@ -648,16 +760,16 @@ User input is wrapped in <user_input> tags. Analyze intent, execute via tools if
                         logger.info("Tool execution summary",
                             kv("tool_name", currentToolName),
                             kv("duration_ms", toolDuration),
-                            kv("status", "success")
+                            kv("status", if (isToolError) "error_result" else "success")
                         )
-                        Metrics.counter("agent.tool.success", "tool", currentToolName).increment()
+                        Metrics.counter("agent.tool." + if (isToolError) "error" else "success", "tool", currentToolName).increment()
 
                         emit(AgentEvent.ToolCall(
                             eventId = UUID.randomUUID().toString(),
                             timestamp = System.currentTimeMillis(),
                             toolName = currentToolName,
                             displayName = "Executed $currentToolName",
-                            status = "completed"
+                            status = if (isToolError) "error" else "completed"
                         ))
 
                         messagesForAgent += LlmMessage(
@@ -669,16 +781,26 @@ User input is wrapped in <user_input> tags. Analyze intent, execute via tools if
                         continue
                     } catch (e: Exception) {
                         val toolDuration = System.currentTimeMillis() - toolStartTime
+                        
+                        // Track consecutive failures for exceptions
+                        if (currentToolName == lastFailedToolName) {
+                            consecutiveToolFailures++
+                        } else {
+                            lastFailedToolName = currentToolName
+                            consecutiveToolFailures = 1
+                        }
+                        
                         logger.error("Tool execution failed",
                             kv("tool_name", currentToolName),
                             kv("duration_ms", toolDuration),
-                            kv("error", e.message)
+                            kv("error", e.message),
+                            kv("consecutive_failures", consecutiveToolFailures)
                         )
                         tracer.trace(AgentTraceEvent(
                             sessionId = sessionId,
                             stepType = AgentStepType.ERROR,
                             content = "Tool failed: ${e.message}",
-                            metadata = mapOf("tool" to currentToolName)
+                            metadata = mapOf("tool" to currentToolName, "consecutive_failures" to consecutiveToolFailures.toString())
                         ))
                         Metrics.counter("agent.tool.error", "tool", currentToolName).increment()
                         
