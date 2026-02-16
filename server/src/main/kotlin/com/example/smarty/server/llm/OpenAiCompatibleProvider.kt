@@ -98,9 +98,9 @@ class OpenAiCompatibleProvider(
                             val delta = chunk.choices.firstOrNull()?.delta
 
                             if (delta != null) {
+                                val reasoning = delta.effectiveReasoning
                                 val content = delta.content
-                                val toolCall = delta.toolCalls?.firstOrNull()?.let { tc ->
-                                    // Streaming tool calls often come in fragments, but we verify basic structure
+                                val toolCall = delta.effectiveToolCalls?.firstOrNull()?.let { tc ->
                                     LlmToolCall(
                                         id = tc.id ?: "",
                                         functionName = tc.function?.name ?: "",
@@ -108,12 +108,20 @@ class OpenAiCompatibleProvider(
                                     )
                                 }
 
-                                if (content != null || toolCall != null) {
-                                    emit(LlmChunk(content, toolCall))
+                                val combinedContent = buildString {
+                                    if (!reasoning.isNullOrBlank()) {
+                                        append(reasoning)
+                                    }
+                                    if (!content.isNullOrBlank()) {
+                                        append(content)
+                                    }
+                                }
+
+                                if (combinedContent.isNotEmpty() || toolCall != null) {
+                                    emit(LlmChunk(combinedContent.ifEmpty { null }, toolCall))
                                 }
                             }
                         } catch (e: Exception) {
-                            // Ignore parsing errors for empty/keep-alive chunks
                             logger.debug("Failed to parse SSE chunk: ${e.message}")
                         }
                     }
@@ -282,11 +290,13 @@ private data class OpenAiStreamChoice(
 @Serializable
 private data class OpenAiMessageDelta(
     val content: String? = null,
+    val reasoningContent: String? = null,
+    @SerialName("reasoning_content") val reasoning_content: String? = null,
     val toolCalls: List<OpenAiToolCall>? = null,
-    @SerialName("tool_calls") val tool_calls: List<OpenAiToolCall>? = null // Handle snake_case variant
+    @SerialName("tool_calls") val tool_calls: List<OpenAiToolCall>? = null
 ) {
-    // Helper to consolidate toolCalls variants
     val effectiveToolCalls: List<OpenAiToolCall>? get() = toolCalls ?: tool_calls
+    val effectiveReasoning: String? get() = reasoningContent ?: reasoning_content
 }
 
 @Serializable
