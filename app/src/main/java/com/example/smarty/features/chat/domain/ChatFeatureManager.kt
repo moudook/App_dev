@@ -532,7 +532,7 @@ class ChatFeatureManager(
     private val remoteAgentService: RemoteAgentService by lazy {
         val client = HttpClient(OkHttp) {
             install(SSE) {
-                reconnectionTime = java.time.Duration.ofSeconds(5)
+                reconnectionTime = kotlin.time.Duration.Companion.seconds(5)
             }
             engine {
                 config {
