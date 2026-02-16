@@ -18,7 +18,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for managing audio player state and UI
@@ -105,11 +107,13 @@ class AudioPlayerViewModel(application: Application) : AndroidViewModel(applicat
                         _isMiniPlayerVisible.value = false
                         isPlaybackRequested = false
                         autoHideJob?.cancel()
-                        android.widget.Toast.makeText(
-                            getApplication(),
-                            getApplication<Application>().getString(com.example.smarty.R.string.audio_playback_error),
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(
+                                getApplication(),
+                                getApplication<Application>().getString(com.example.smarty.R.string.audio_playback_error),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                     PlaybackState.ENDED -> {
                         // Auto-hide after playback ends

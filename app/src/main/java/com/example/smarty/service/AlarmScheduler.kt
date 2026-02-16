@@ -12,6 +12,8 @@ import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.core.domain.model.SmartyTimer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -30,7 +32,11 @@ class AlarmScheduler(private val context: Context) {
 
     private val database = SmartyDatabase.getDatabase(context)
     private val timerDao = database.timerDao()
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun cancel() {
+        scope.cancel()
+    }
 
     /**
      * Observable stream of active timers.

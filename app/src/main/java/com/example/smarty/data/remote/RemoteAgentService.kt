@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
@@ -85,73 +86,85 @@ class RemoteAgentService(
      *
      * Side effects (Commands, UI status updates) are dispatched to [eventSink].
      */
-    fun sendQuery(
+fun sendQuery(
         query: String,
         provider: String? = null,
         providerUrl: String? = null,
         model: String? = null,
-        sessionId: String? = null
+        sessionId: String? = null,
+        maxRetries: Int = 3
     ): Flow<String> = flow {
-        val baseUrl = serverUrlProvider()
-        val token = getFirebaseToken()
+        var retryCount = 0
+        var lastError: Exception? = null
 
-        // Get device timezone and current time for accurate scheduling
-        val timezone = java.util.TimeZone.getDefault().id
-        val clientTime = System.currentTimeMillis()
+        while (retryCount <= maxRetries) {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
 
-        val url = buildString {
-            append("$baseUrl/chat/stream")
-            append("?query=${query.encodeURLParameter()}")
-            if (provider != null) append("&provider=${provider.encodeURLParameter()}")
-            if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
-            if (model != null) append("&model=${model.encodeURLParameter()}")
-            if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
-            append("&timezone=${timezone.encodeURLParameter()}")
-            append("&clientTime=$clientTime")
-        }
+            val timezone = java.util.TimeZone.getDefault().id
+            val clientTime = System.currentTimeMillis()
 
-        Log.d(TAG, "Connecting to Remote Agent: $url")
-        _connectionState.value = ConnectionStatus.CONNECTING
-
-        try {
-            client.sse(
-                urlString = url,
-                request = {
-                    // Add Firebase auth header
-                    if (token != null) {
-                        header(HttpHeaders.Authorization, "Bearer $token")
-                    }
-                    // Add security handshake headers
-                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                    header("X-Smarty-Device-Id", getDeviceId())
-                }
-            ) {
-                _connectionState.value = ConnectionStatus.CONNECTED
-                try {
-                    incoming.collect { event ->
-                        val data = event.data ?: return@collect
-                        try {
-                            val agentEvent = json.decodeFromString<AgentEvent>(data)
-                            val shouldStop = handleEvent(agentEvent, this@flow)
-                            if (shouldStop) {
-                                throw EndStreamException()
-                            }
-                        } catch (e: Exception) {
-                            if (e is EndStreamException) throw e
-                            Log.e(TAG, "Failed to parse SSE event: $data", e)
-                        }
-                    }
-                } catch (e: EndStreamException) {
-                    Log.d(TAG, "Stream completed normally")
-                }
+            val url = buildString {
+                append("$baseUrl/chat/stream")
+                append("?query=${query.encodeURLParameter()}")
+                if (provider != null) append("&provider=${provider.encodeURLParameter()}")
+                if (providerUrl != null) append("&providerUrl=${providerUrl.encodeURLParameter()}")
+                if (model != null) append("&model=${model.encodeURLParameter()}")
+                if (sessionId != null) append("&sessionId=${sessionId.encodeURLParameter()}")
+                append("&timezone=${timezone.encodeURLParameter()}")
+                append("&clientTime=$clientTime")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "SSE connection failed", e)
-            _connectionState.value = ConnectionStatus.OFFLINE
-            emit("\n[Connection Error: ${e.message}]")
-        } finally {
-            if (_connectionState.value != ConnectionStatus.OFFLINE) {
-                _connectionState.value = ConnectionStatus.DISCONNECTED
+
+            Log.d(TAG, "Connecting to Remote Agent: $url (attempt ${retryCount + 1}/${maxRetries + 1})")
+            _connectionState.value = ConnectionStatus.CONNECTING
+
+            try {
+                client.sse(
+                    urlString = url,
+                    request = {
+                        if (token != null) {
+                            header(HttpHeaders.Authorization, "Bearer $token")
+                        }
+                        header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                        header("X-Smarty-Device-Id", getDeviceId())
+                    }
+                ) {
+                    _connectionState.value = ConnectionStatus.CONNECTED
+                    try {
+                        incoming.collect { event ->
+                            val data = event.data ?: return@collect
+                            try {
+                                val agentEvent = json.decodeFromString<AgentEvent>(data)
+                                val shouldStop = handleEvent(agentEvent, this@flow)
+                                if (shouldStop) {
+                                    throw EndStreamException()
+                                }
+                            } catch (e: Exception) {
+                                if (e is EndStreamException) throw e
+                                Log.e(TAG, "Failed to parse SSE event: $data", e)
+                            }
+                        }
+                    } catch (e: EndStreamException) {
+                        Log.d(TAG, "Stream completed normally")
+                    }
+                }
+                if (_connectionState.value != ConnectionStatus.OFFLINE) {
+                    _connectionState.value = ConnectionStatus.DISCONNECTED
+                }
+                return@flow
+            } catch (e: Exception) {
+                Log.e(TAG, "SSE connection failed (attempt ${retryCount + 1}/${maxRetries + 1})", e)
+                _connectionState.value = ConnectionStatus.OFFLINE
+                lastError = e
+
+                if (retryCount < maxRetries) {
+                    val backoffMs = (1000L * (1 shl retryCount)).coerceAtMost(10000L)
+                    Log.d(TAG, "Retrying in ${backoffMs}ms...")
+                    delay(backoffMs)
+                    retryCount++
+                } else {
+                    emit("\n[Connection Error after ${maxRetries + 1} attempts: ${e.message}]")
+                }
             }
         }
     }
@@ -384,80 +397,91 @@ class RemoteAgentService(
      *
      * @return Flow of response content chunks
      */
-    fun sendQueryWithContext(
+fun sendQueryWithContext(
         query: String,
         sessionId: String? = null,
         fileContext: String? = null,
         attachments: List<ChatAttachment>? = null,
         provider: String? = null,
-        model: String? = null
+        model: String? = null,
+        maxRetries: Int = 3
     ): Flow<String> = flow {
-        val baseUrl = serverUrlProvider()
-        val token = getFirebaseToken()
+        var retryCount = 0
+        var lastError: Exception? = null
 
-        Log.d(TAG, "Sending query with context: hasFileContext=${!fileContext.isNullOrBlank()}, attachments=${attachments?.size ?: 0}")
-        _connectionState.value = ConnectionStatus.CONNECTING
+        while (retryCount <= maxRetries) {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken()
 
-        try {
-            // Get device timezone and current time for accurate scheduling
-            val timezone = java.util.TimeZone.getDefault().id
-            val clientTime = System.currentTimeMillis()
+            Log.d(TAG, "Sending query with context: hasFileContext=${!fileContext.isNullOrBlank()}, attachments=${attachments?.size ?: 0} (attempt ${retryCount + 1}/${maxRetries + 1})")
+            _connectionState.value = ConnectionStatus.CONNECTING
 
-            val request = ChatQueryRequest(
-                query = query,
-                sessionId = sessionId,
-                provider = provider,
-                model = model,
-                fileContext = fileContext,
-                attachments = attachments?.map {
-                    ChatQueryAttachment(type = it.type, name = it.name, mimeType = it.mimeType)
-                },
-                timezone = timezone,
-                clientTime = clientTime
-            )
+            try {
+                val timezone = java.util.TimeZone.getDefault().id
+                val clientTime = System.currentTimeMillis()
 
-            val response = client.post("$baseUrl/chat/query") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                }
-                // Add security handshake headers
-                header("X-Smarty-Version", BuildConfig.VERSION_NAME)
-                header("X-Smarty-Device-Id", getDeviceId())
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
+                val request = ChatQueryRequest(
+                    query = query,
+                    sessionId = sessionId,
+                    provider = provider,
+                    model = model,
+                    fileContext = fileContext,
+                    attachments = attachments?.map {
+                        ChatQueryAttachment(type = it.type, name = it.name, mimeType = it.mimeType)
+                    },
+                    timezone = timezone,
+                    clientTime = clientTime
+                )
 
-            _connectionState.value = ConnectionStatus.CONNECTED
-
-            if (response.status.isSuccess()) {
-                val result = response.body<ChatQueryResponse>()
-
-                // Process events and emit to UI
-                result.events.forEach { eventJson ->
-                    try {
-                        val event = json.decodeFromString<AgentEvent>(eventJson)
-                        handleEvent(event, this@flow)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to parse event: $eventJson", e)
+                val response = client.post("$baseUrl/chat/query") {
+                    if (token != null) {
+                        header(HttpHeaders.Authorization, "Bearer $token")
                     }
+                    header("X-Smarty-Version", BuildConfig.VERSION_NAME)
+                    header("X-Smarty-Device-Id", getDeviceId())
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
                 }
 
-                // Emit final response
-                if (result.response.isNotBlank()) {
-                    emit(result.response)
+                _connectionState.value = ConnectionStatus.CONNECTED
+
+                if (response.status.isSuccess()) {
+                    val result = response.body<ChatQueryResponse>()
+
+                    result.events.forEach { eventJson ->
+                        try {
+                            val event = json.decodeFromString<AgentEvent>(eventJson)
+                            handleEvent(event, this@flow)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to parse event: $eventJson", e)
+                        }
+                    }
+
+                    if (result.response.isNotBlank()) {
+                        emit(result.response)
+                    }
+                } else {
+                    val errorBody = response.bodyAsText()
+                    Log.e(TAG, "Chat query failed: ${response.status} - $errorBody")
+                    emit("\n[Error: ${response.status}]")
                 }
-            } else {
-                val errorBody = response.bodyAsText()
-                Log.e(TAG, "Chat query failed: ${response.status} - $errorBody")
-                emit("\n[Error: ${response.status}]")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Chat query error", e)
-            _connectionState.value = ConnectionStatus.OFFLINE
-            emit("\n[Connection Error: ${e.message}]")
-        } finally {
-            if (_connectionState.value != ConnectionStatus.OFFLINE) {
-                _connectionState.value = ConnectionStatus.DISCONNECTED
+                if (_connectionState.value != ConnectionStatus.OFFLINE) {
+                    _connectionState.value = ConnectionStatus.DISCONNECTED
+                }
+                return@flow
+            } catch (e: Exception) {
+                Log.e(TAG, "Chat query error (attempt ${retryCount + 1}/${maxRetries + 1})", e)
+                _connectionState.value = ConnectionStatus.OFFLINE
+                lastError = e
+
+                if (retryCount < maxRetries) {
+                    val backoffMs = (1000L * (1 shl retryCount)).coerceAtMost(10000L)
+                    Log.d(TAG, "Retrying in ${backoffMs}ms...")
+                    delay(backoffMs)
+                    retryCount++
+                } else {
+                    emit("\n[Connection Error after ${maxRetries + 1} attempts: ${e.message}]")
+                }
             }
         }
     }

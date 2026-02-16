@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
@@ -116,7 +117,7 @@ class FileOperationService : Service() {
     val operationState: StateFlow<OperationState> = _operationState.asStateFlow()
 
     // Results storage (for retrieving completed operations)
-    private val completedOperations = mutableMapOf<String, OperationResult>()
+    private val completedOperations = ConcurrentHashMap<String, OperationResult>()
 
     // Binder for local binding
     private val binder = LocalBinder()
@@ -217,9 +218,7 @@ class FileOperationService : Service() {
                             is FileOperation.Copy -> processCopy(operation)
                         }
 
-                        operationMutex.withLock {
-                            completedOperations[operation.id] = result
-                        }
+                        completedOperations[operation.id] = result
 
                         _operationState.value = OperationState.Completed(
                             operationId = operation.id,
@@ -230,13 +229,11 @@ class FileOperationService : Service() {
                     } catch (e: Exception) {
                         Log.e(TAG, "Operation failed: ${operation.id}", e)
 
-                        operationMutex.withLock {
-                            completedOperations[operation.id] = OperationResult(
-                                operationId = operation.id,
-                                success = false,
-                                message = e.message ?: "Unknown error"
-                            )
-                        }
+                        completedOperations[operation.id] = OperationResult(
+                            operationId = operation.id,
+                            success = false,
+                            message = e.message ?: "Unknown error"
+                        )
 
                         _operationState.value = OperationState.Error(
                             operationId = operation.id,
@@ -322,16 +319,12 @@ class FileOperationService : Service() {
     /**
      * Get result of a completed operation
      */
-    suspend fun getOperationResult(operationId: String): OperationResult? = operationMutex.withLock {
-        completedOperations[operationId]
-    }
+    fun getOperationResult(operationId: String): OperationResult? = completedOperations[operationId]
 
     /**
      * Clear completed operation result
      */
-    suspend fun clearOperationResult(operationId: String) = operationMutex.withLock {
-        completedOperations.remove(operationId)
-    }
+    fun clearOperationResult(operationId: String) = completedOperations.remove(operationId)
 
     // =========================================================================
     // NOTIFICATION MANAGEMENT
