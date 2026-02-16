@@ -239,7 +239,7 @@ class AudioPlayerService : MediaSessionService() {
             .build()
 
         // Use applicationContext to prevent service from being cached in static fields
-        player = ExoPlayer.Builder(applicationContext)
+        val exoPlayer = ExoPlayer.Builder(applicationContext)
             .setAudioAttributes(audioAttributes, true)  // Handle audio focus automatically
             .setHandleAudioBecomingNoisy(true)  // Pause when headphones disconnected
             .build()
@@ -248,8 +248,10 @@ class AudioPlayerService : MediaSessionService() {
                 addListener(playerListener)
             }
 
+        player = exoPlayer
+
         // Use applicationContext to prevent service from being cached
-        mediaSession = MediaSession.Builder(applicationContext, player!!)
+        mediaSession = MediaSession.Builder(applicationContext, exoPlayer)
             .build()
 
         Log.d(TAG, "Player initialized")
@@ -511,6 +513,7 @@ class AudioPlayerService : MediaSessionService() {
         } finally {
             // Release if setup failed (newVisualizer wasn't transferred)
             try {
+                newVisualizer?.enabled = false
                 newVisualizer?.release()
             } catch (_: Exception) {}
         }

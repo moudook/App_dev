@@ -609,7 +609,7 @@ class ServerAgent(
                         
                         // PII: Unmask arguments before execution to use real data
                         val unmaskedArgs = piiMasker.unmask(currentToolArgs)
-                        val toolResult = executeTool(currentToolName, unmaskedArgs, messagesForAgent)
+                        val toolResult = executeTool(currentToolName, unmaskedArgs, messagesForAgent, clientTimezone, clientTimeMillis)
                         
                         // PII: Mask result before feeding back to LLM
                         val maskedToolResult = piiMasker.mask(toolResult)
@@ -733,7 +733,7 @@ class ServerAgent(
      * Server-side tools (notes, timers, events, search, context) execute directly on PostgreSQL.
      * Device-only tools (media, settings, launch, navigate, share) emit Command events as fire-and-forget.
      */
-    private suspend fun executeTool(name: String, argsJson: String, history: List<LlmMessage>): String {
+    private suspend fun executeTool(name: String, argsJson: String, history: List<LlmMessage>, clientTimezone: String? = null, clientTimeMillis: Long? = null): String {
         logger.info("Executing tool: $name with args: $argsJson")
 
         return when (name) {
@@ -900,15 +900,13 @@ class ServerAgent(
             "set_alarm" -> {
                 val args = json.decodeFromString<SetAlarmArgs>(argsJson)
                 if (timerRepository != null) {
-                    val timerId = timerRepository.create(userId, args.name, triggerAt = System.currentTimeMillis() + 3600000, isAlarm = true)
-                    // Note: 'time' arg is a string description, but we need triggerAt for the timer.
-                    // For now reusing the one from create call or estimating. 
-                    // Ideally we should parse 'args.time' to absolute ms.
+                    val triggerAt = parseAlarmTimeToMs(args.time, clientTimezone, clientTimeMillis)
+                    val timerId = timerRepository.create(userId, args.name, triggerAt = triggerAt, isAlarm = true)
                     val info = TimerInfo(
                         id = timerId,
                         name = args.name,
                         durationMs = 0L,
-                        triggerAt = System.currentTimeMillis() + 3600000L, // Placeholder matching create call
+                        triggerAt = triggerAt,
                         isAlarm = true,
                         isActive = true,
                         createdAt = System.currentTimeMillis()
@@ -1066,6 +1064,60 @@ class ServerAgent(
             plainNum?.let { totalMs = it.groupValues[1].toLong() * 60000 }
         }
         return if (totalMs > 0) totalMs else 60000 // Default 1 minute
+    }
+
+    /** Parse human-readable alarm time string to absolute epoch milliseconds. */
+    private fun parseAlarmTimeToMs(timeStr: String, clientTimezone: String? = null, clientTimeMillis: Long? = null): Long {
+        val now = clientTimeMillis ?: System.currentTimeMillis()
+        val tz = try { java.time.ZoneId.of(clientTimezone ?: "UTC") } catch (e: Exception) { java.time.ZoneId.of("UTC") }
+        val zonedNow = java.time.Instant.ofEpochMilli(now).atZone(tz)
+
+        val lower = timeStr.lowercase().trim()
+        val isTomorrow = lower.contains("tomorrow")
+        val cleanStr = lower.replace("tomorrow", "").trim()
+
+        val timePatterns = listOf(
+            Regex("""(\d{1,2}):(\d{2})\s*(am|pm)?"""),
+            Regex("""(\d{1,2})\s*(am|pm)""")
+        )
+
+        var hour = 0
+        var minute = 0
+        var foundMatch = false
+
+        for (pattern in timePatterns) {
+            val match = pattern.find(cleanStr)
+            if (match != null) {
+                hour = match.groupValues[1].toInt()
+                minute = if (match.groupValues[2].matches(Regex("""\d{2}"""))) match.groupValues[2].toInt() else 0
+                val ampm = match.groupValues.last().lowercase()
+                if (ampm == "pm" && hour < 12) hour += 12
+                else if (ampm == "am" && hour == 12) hour = 0
+                foundMatch = true
+                break
+            }
+        }
+
+        if (!foundMatch) {
+            val plainHour = Regex("""(\d{1,2})""").find(cleanStr)
+            if (plainHour != null) {
+                hour = plainHour.groupValues[1].toInt()
+                minute = 0
+                foundMatch = true
+            }
+        }
+
+        if (!foundMatch) return now + 3600000
+
+        var resultTime = zonedNow.withHour(hour).withMinute(minute).withSecond(0).withNano(0)
+
+        if (isTomorrow) {
+            resultTime = resultTime.plusDays(1)
+        } else if (!resultTime.isAfter(zonedNow)) {
+            resultTime = resultTime.plusDays(1)
+        }
+
+        return resultTime.toInstant().toEpochMilli()
     }
 
     private suspend fun emit(event: AgentEvent) {

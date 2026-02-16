@@ -10,6 +10,7 @@ import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.data.FcmTokenRepository
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.plugins.firebaseUser
 import kotlinx.serialization.Serializable
@@ -28,6 +29,9 @@ data class CreateEventRequest(val title: String, val startTime: Long, val endTim
 @Serializable
 data class CreateTimerRequest(val name: String, val durationMs: Long, val isAlarm: Boolean = false)
 
+@Serializable
+data class RegisterFcmTokenRequest(val token: String, val deviceName: String? = null, val deviceId: String? = null)
+
 // --- VAULT DTOs ---
 @Serializable
 data class VaultStoreRequest(val encryptedBlob: String, val version: Int)
@@ -40,6 +44,7 @@ fun Application.configureDataRoutes() {
     val noteRepository = dataSource?.let { NoteRepository(it) }
     val calendarRepository = dataSource?.let { CalendarRepository(it) }
     val timerRepository = dataSource?.let { TimerRepository(it) }
+    val fcmTokenRepository = dataSource?.let { FcmTokenRepository(it) }
     val database = DatabaseFactory.getDatabase()
     val vaultRepository = database?.let { com.example.smarty.server.data.VaultRepository(it) }
 
@@ -165,6 +170,26 @@ fun Application.configureDataRoutes() {
                         val deleted = timerRepository.delete(user.userId, id)
                         if (deleted) call.respond(HttpStatusCode.OK)
                         else call.respond(HttpStatusCode.NotFound)
+                    }
+                }
+
+                // --- FCM TOKENS ---
+                route("/fcm") {
+                    post("/register") {
+                        val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized)
+                        if (fcmTokenRepository == null) return@post call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+                        
+                        try {
+                            val request = call.receive<RegisterFcmTokenRequest>()
+                            if (request.token.isBlank()) {
+                                return@post call.respond(HttpStatusCode.BadRequest, "Token is required")
+                            }
+                            fcmTokenRepository.upsertToken(user.userId, request.token, request.deviceName, request.deviceId)
+                            call.respond(HttpStatusCode.OK)
+                        } catch (e: Exception) {
+                            call.application.log.error("Failed to register FCM token", e)
+                            call.respond(HttpStatusCode.BadRequest)
+                        }
                     }
                 }
 

@@ -14,8 +14,10 @@ import com.example.smarty.MainActivity
 import com.example.smarty.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Receives timer/alarm broadcasts and triggers notifications with audio.
@@ -64,62 +66,50 @@ class AlarmReceiver : BroadcastReceiver() {
             PowerManager.PARTIAL_WAKE_LOCK,
             "Smarty:AlarmWakeLock"
         )
-        wakeLock.acquire(WAKELOCK_TIMEOUT_MS)
+wakeLock.acquire(WAKELOCK_TIMEOUT_MS)
 
-        try {
-            // BUG FIX: Check if timer still exists in DB before playing
-            // This prevents zombie alarms if cancellation didn't clear the PendingIntent
-            val db = com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
-            val timerExists = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-                db.timerDao().getTimerById(timerId) != null
-            }
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        scope.launch {
+            try {
+                // BUG FIX: Check if timer still exists in DB before playing
+                // This prevents zombie alarms if cancellation didn't clear the PendingIntent
+                val db = com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
+                val timer = db.timerDao().getTimerById(timerId)
 
-            if (!timerExists) {
-                Log.d(TAG, "Timer $timerId not found in DB - skipping alarm (zombie alarm prevention)")
-                if (wakeLock.isHeld) wakeLock.release()
-                pendingResult.finish()
-                return
-            }
+                if (timer == null) {
+                    Log.d(TAG, "Timer $timerId not found in DB - skipping alarm (zombie alarm prevention)")
+                    return@launch
+                }
 
-            // Play alarm audio for 5 seconds
-            AlarmAudioPlayer.play(context, duration = 5000)
+                // Play alarm audio for 5 seconds
+                AlarmAudioPlayer.play(context, duration = 5000)
 
-            // Show notification
-            showNotification(context, timerId, timerName, isAlarm)
+                // Show notification
+                withContext(Dispatchers.Main) {
+                    showNotification(context, timerId, timerName, isAlarm)
+                }
 
-            // For recurring alarms, schedule the next occurrence
-            if (isRecurring) {
-                Log.d(TAG, "Recurring alarm - scheduling next occurrence")
-                scheduleNextOccurrence(context, timerId, timerName, isAlarm, intent.getStringExtra(EXTRA_REPEAT_DAYS))
-            } else {
-                // One-time timer/alarm - deactivate in database
-                CoroutineScope(Dispatchers.IO).launch {
-                    val db = com.example.smarty.data.local.SmartyDatabase.getDatabase(context)
+                // For recurring alarms, schedule the next occurrence
+                if (isRecurring) {
+                    Log.d(TAG, "Recurring alarm - scheduling next occurrence")
+                    scheduleNextOccurrence(context, timerId, timerName, isAlarm, intent.getStringExtra(EXTRA_REPEAT_DAYS))
+                } else {
+                    // One-time timer/alarm - deactivate in database
                     db.timerDao().deactivateTimer(timerId)
                 }
-            }
 
-            // Wait for audio to complete before releasing resources
-            // Use coroutine to avoid blocking the main thread
-            CoroutineScope(Dispatchers.Default).launch {
-                try {
-                    delay(6000) // Wait for 5s audio + 1s buffer
-                } finally {
-                    // Release WakeLock and finish broadcast
-                    if (wakeLock.isHeld) {
-                        wakeLock.release()
-                    }
-                    pendingResult.finish()
-                    Log.d(TAG, "Alarm broadcast completed, resources released")
+                // Wait for audio to complete before releasing resources
+                delay(6000) // Wait for 5s audio + 1s buffer
+                Log.d(TAG, "Alarm broadcast completed, resources released")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in alarm receiver: ${e.message}", e)
+            } finally {
+                // Release WakeLock and finish broadcast
+                if (wakeLock.isHeld) {
+                    wakeLock.release()
                 }
+                pendingResult.finish()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error in alarm receiver: ${e.message}", e)
-            // Ensure cleanup on error
-            if (wakeLock.isHeld) {
-                wakeLock.release()
-            }
-            pendingResult.finish()
         }
     }
 
