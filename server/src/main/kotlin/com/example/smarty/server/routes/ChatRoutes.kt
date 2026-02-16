@@ -100,6 +100,7 @@ fun Application.configureChatRoutes() {
             json(Json {
                 ignoreUnknownKeys = true
                 encodeDefaults = true
+                explicitNulls = false
             })
         }
         install(io.ktor.client.plugins.HttpTimeout) {

@@ -31,6 +31,7 @@ class OpenAiCompatibleProvider(
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
+        explicitNulls = false
     }
 
     override suspend fun generate(
