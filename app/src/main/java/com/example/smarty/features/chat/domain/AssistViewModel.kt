@@ -69,6 +69,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.request.header
 import io.ktor.client.plugins.sse.SSE
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -577,7 +578,7 @@ class AssistViewModel(
     private val remoteAgentService: RemoteAgentService by lazy {
         val client = HttpClient(OkHttp) {
             install(SSE) {
-                reconnectionTime = kotlin.time.Duration.Companion.seconds(5)
+                reconnectionTime = 5.seconds
             }
             engine {
                 config {

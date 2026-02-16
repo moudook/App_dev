@@ -43,6 +43,7 @@ import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.request.header
 // import io.ktor.client.plugins.contentnegotiation.ContentNegotiation // Removed - not available in minimal Ktor
 import io.ktor.client.plugins.sse.SSE
+import kotlin.time.Duration.Companion.seconds
 // import io.ktor.serialization.kotlinx.json.json // Removed - not available in minimal Ktor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -532,7 +533,7 @@ class ChatFeatureManager(
     private val remoteAgentService: RemoteAgentService by lazy {
         val client = HttpClient(OkHttp) {
             install(SSE) {
-                reconnectionTime = kotlin.time.Duration.Companion.seconds(5)
+                reconnectionTime = 5.seconds
             }
             engine {
                 config {
