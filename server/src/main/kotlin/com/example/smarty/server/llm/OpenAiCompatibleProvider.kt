@@ -174,14 +174,27 @@ class OpenAiCompatibleProvider(
         )
     }
 
-    private fun ToolDefinition.toOpenAiTool(): OpenAiTool = OpenAiTool(
-        type = "function",
-        function = OpenAiFunctionDefinition(
-            name = name,
-            description = description,
-            parameters = parameters
+    private fun ToolDefinition.toOpenAiTool(): OpenAiTool {
+        val cleanedParameters = ToolParameters(
+            type = parameters.type,
+            properties = parameters.properties.mapValues { (_, prop) ->
+                ToolProperty(
+                    type = prop.type,
+                    description = prop.description,
+                    enum = prop.enum?.takeIf { it.isNotEmpty() }
+                )
+            },
+            required = parameters.required
         )
-    )
+        return OpenAiTool(
+            type = "function",
+            function = OpenAiFunctionDefinition(
+                name = name,
+                description = description,
+                parameters = cleanedParameters
+            )
+        )
+    }
 
     private fun OpenAiToolCall.toLlmToolCall(): LlmToolCall = LlmToolCall(
         id = id ?: "",

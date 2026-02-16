@@ -10,6 +10,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import java.util.UUID
 
 /**
  * Snapshot of the agent session state.
@@ -51,7 +52,7 @@ class AgentPersistenceManager(private val userId: String) {
                     """.trimIndent()
 
                     conn.prepareStatement(sql).use { stmt ->
-                        stmt.setString(1, sessionId)
+                        stmt.setObject(1, UUID.fromString(sessionId))
                         stmt.setString(2, userId)
                         stmt.setString(3, stateJson)
                         stmt.setString(4, lastNode)
@@ -75,7 +76,7 @@ class AgentPersistenceManager(private val userId: String) {
                 dataSource.connection.use { conn ->
                     val sql = "SELECT state_json FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
                     conn.prepareStatement(sql).use { stmt ->
-                        stmt.setString(1, sessionId)
+                        stmt.setObject(1, UUID.fromString(sessionId))
                         stmt.setString(2, userId)
                         stmt.executeQuery().use { rs ->
                             if (rs.next()) {
@@ -101,7 +102,7 @@ class AgentPersistenceManager(private val userId: String) {
             dataSource.connection.use { conn ->
                 val sql = "DELETE FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
                 conn.prepareStatement(sql).use { stmt ->
-                    stmt.setString(1, sessionId)
+                    stmt.setObject(1, UUID.fromString(sessionId))
                     stmt.setString(2, userId)
                     stmt.executeUpdate()
                 }

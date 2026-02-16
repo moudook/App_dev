@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import java.util.UUID
 
 /**
  * Persists agent trace events to PostgreSQL for long-term observability.
@@ -28,7 +29,7 @@ class PostgresTracer(private val userId: String) : AgentTracer {
                     """.trimIndent()
 
                     conn.prepareStatement(sql).use { stmt ->
-                        stmt.setString(1, event.sessionId)
+                        stmt.setObject(1, UUID.fromString(event.sessionId))
                         stmt.setString(2, userId)
                         stmt.setString(3, event.stepType.name)
                         stmt.setString(4, event.content)

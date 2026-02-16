@@ -1,41 +1,30 @@
 package com.example.smarty.server.data
 
 /**
- * Interface for vector storage operations.
+ * Interface for context storage operations.
  * Decouples the agent from specific database implementations.
  * All operations are scoped by userId for multi-tenant isolation.
+ * Note: Embedding-based search removed - using text-only search.
  */
 interface VectorStore {
     /**
-     * Store context with its vector embedding.
+     * Store context with metadata.
      *
      * @param userId The authenticated user's ID for multi-tenant isolation
      * @param content The text content of the context
-     * @param embedding The vector embedding (float list)
-     * @param metadata key-value pairs for context (e.g., source, timestamp)
+     * @param metadata key-value pairs for context (e.g., source, type, timestamp)
      */
-    suspend fun store(userId: String, content: String, embedding: List<Float>, metadata: Map<String, String>)
+    suspend fun store(userId: String, content: String, metadata: Map<String, String>)
 
     /**
-     * Search for similar context using vector similarity.
+     * Search for context using full-text search.
      *
      * @param userId The authenticated user's ID for multi-tenant isolation
-     * @param embedding The query vector
+     * @param query The text query to search for
      * @param limit Maximum number of results to return
      * @return List of matching results with similarity scores
      */
-    suspend fun search(userId: String, embedding: List<Float>, limit: Int): List<ContextResult>
-
-    /**
-     * Search for context using a combination of vector similarity and keyword matching.
-     *
-     * @param userId The authenticated user's ID for multi-tenant isolation
-     * @param query The raw text query for keyword matching
-     * @param embedding The query vector for semantic matching
-     * @param limit Maximum number of results to return
-     * @return List of matching results
-     */
-    suspend fun hybridSearch(userId: String, query: String, embedding: List<Float>, limit: Int): List<ContextResult>
+    suspend fun search(userId: String, query: String, limit: Int): List<ContextResult>
 
     /**
      * Get recent user context (preferences, facts) regardless of query.
@@ -49,7 +38,7 @@ interface VectorStore {
 }
 
 /**
- * Result from a similarity search.
+ * Result from a context search.
  */
 data class ContextResult(
     val id: String,

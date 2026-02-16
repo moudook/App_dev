@@ -208,6 +208,14 @@ server_log*.txt
 thread-*.png
 screenshot*.png
 *.png
+
+# Java heap dump files
+java_pid*.hprof
+*.hprof
+
+# Bug investigation reports (may contain sensitive info)
+BUG_INVESTIGATION_REPORT.md
+
 # Ignore all markdown files except core docs
 *.md
 !README.md

@@ -20,7 +20,6 @@ import java.util.UUID
 
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.server.agent.ServerAgent
-import com.example.smarty.server.data.EmbeddingClient
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.DatabaseFactory
@@ -112,9 +111,8 @@ fun Application.configureChatRoutes() {
 
     // Initialize dependencies (Manual DI for now)
     // In production, use Koin or Dagger
-    val embeddingClient = EmbeddingClient()
-    val vectorStore = PostgresVectorStore() // Reads from ENV
-    val tavilyTool = TavilySearchTool()     // Reads from ENV
+    val vectorStore = PostgresVectorStore()
+    val tavilyTool = TavilySearchTool()
     val providerRouter = ProviderRouter(httpClient)
 
     // Default provider (fallback to factory if router not used here yet)
@@ -152,7 +150,6 @@ fun Application.configureChatRoutes() {
                         llmProvider = llmProvider,
                         tavilyTool = tavilyTool,
                         vectorStore = vectorStore,
-                        embeddingClient = embeddingClient,
                         summarizer = summarizer,
                         noteRepository = noteRepository,
                         timerRepository = timerRepository,
@@ -334,7 +331,6 @@ fun Application.configureChatRoutes() {
                     llmProvider = streamProvider,
                     tavilyTool = tavilyTool,
                     vectorStore = vectorStore,
-                    embeddingClient = embeddingClient,
                     summarizer = streamSummarizer,
                     noteRepository = noteRepository,
                     timerRepository = timerRepository,
@@ -473,7 +469,6 @@ fun Application.configureChatRoutes() {
                         llmProvider = streamProvider,
                         tavilyTool = tavilyTool,
                         vectorStore = vectorStore,
-                        embeddingClient = embeddingClient,
                         summarizer = streamSummarizer,
                         noteRepository = noteRepository,
                         timerRepository = timerRepository,

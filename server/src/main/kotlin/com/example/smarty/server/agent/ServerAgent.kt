@@ -5,7 +5,6 @@ import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.TimerInfo
 import com.example.smarty.protocol.NoteInfo
 import com.example.smarty.protocol.CalendarEventInfo
-import com.example.smarty.server.data.EmbeddingClient
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.data.ConversationSummarizer
 import com.example.smarty.server.data.NoteRepository
@@ -51,13 +50,12 @@ class ServerAgent(
     private val llmProvider: LlmProvider,
     private val tavilyTool: TavilySearchTool,
     private val vectorStore: PostgresVectorStore,
-    private val embeddingClient: EmbeddingClient,
     private val summarizer: ConversationSummarizer,
     private val noteRepository: NoteRepository?,
     private val timerRepository: TimerRepository?,
     private val calendarRepository: CalendarRepository?,
     private val eventEmitter: suspend (AgentEvent) -> Unit,
-    private val userId: String = "dev-user" // Required for multi-tenant isolation
+    private val userId: String = "dev-user"
 ) {
     private val logger = LoggerFactory.getLogger(ServerAgent::class.java)
     private val json = Json { ignoreUnknownKeys = true }
@@ -335,16 +333,6 @@ class ServerAgent(
             )
         ),
         ToolDefinition(
-            name = "web_search",
-            description = "Search internet.",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "query" to ToolProperty("string", "Search query")
-                ),
-                required = listOf("query")
-            )
-        ),
-        ToolDefinition(
             name = "generate_image",
             description = "Generate image (COMING SOON). Tell user it's unavailable.",
             parameters = ToolParameters(
@@ -422,8 +410,7 @@ class ServerAgent(
 
         // 1. RAG - Query-specific context
         val queryContext = try {
-            val embedding = embeddingClient.embed(query) // Query uses raw text for semantic search
-            val contextResults = vectorStore.hybridSearch(userId, query, embedding, limit = 5)
+            val contextResults = vectorStore.search(userId, query, limit = 5)
             if (contextResults.isNotEmpty()) {
                 contextResults.joinToString("\n") { "- ${it.content}" }
             } else "No relevant context for this query."
@@ -491,13 +478,10 @@ class ServerAgent(
             val summary = summarizer.generateSummary(older) ?: "No summary generated."
 
             // Store summary in vector store as episodic history
-            // We store the MASKED summary to avoid persisting PII in summaries
             try {
-                val summaryEmbedding = embeddingClient.embed(summary)
                 vectorStore.store(
                     userId = userId,
                     content = "Conversation Summary: $summary",
-                    embedding = summaryEmbedding,
                     metadata = mapOf("type" to "episodic", "source" to "auto_summarization")
                 )
             } catch (e: Exception) {
@@ -940,13 +924,7 @@ class ServerAgent(
             "store_context" -> {
                 val args = json.decodeFromString<StoreContextArgs>(argsJson)
                 try {
-                    val embedding = embeddingClient.embed(args.content)
-                    // Note: We need the ID to emit sync. store() doesn't return ID currently.
-                    // Ideally database generates ID. But VectorStore interface might differ.
-                    // PostgresVectorStore generates UUID.
-                    // Limitation: generic store() doesn't return ID.
-                    // Workaround: For now, we just acknowledge. Real sync would require refactoring store() to return ID.
-                    vectorStore.store(userId, args.content, embedding, mapOf("type" to args.type))
+                    vectorStore.store(userId, args.content, mapOf("type" to args.type))
                     "Context stored: '${args.content.take(50)}...' as ${args.type}"
                 } catch (e: Exception) {
                     logger.warn("store_context failed: ${e.message}")
@@ -957,8 +935,7 @@ class ServerAgent(
             "update_context" -> {
                 val args = json.decodeFromString<UpdateContextArgs>(argsJson)
                 try {
-                    val embedding = embeddingClient.embed(args.content)
-                    vectorStore.update(userId, args.id, args.content, embedding)
+                    vectorStore.update(userId, args.id, args.content)
                     emitStateSync("context_updated", """{"id":"${args.id}","content":"${args.content.replace("\"","\\\"")}","type":"${args.type}"}""")
                     "Context ${args.id} updated."
                 } catch (e: Exception) {
@@ -980,8 +957,7 @@ class ServerAgent(
             "query_knowledge" -> {
                 val args = json.decodeFromString<QueryKnowledgeArgs>(argsJson)
                 try {
-                    val embedding = embeddingClient.embed(args.query)
-                    val results = vectorStore.hybridSearch(userId, args.query, embedding, limit = 5)
+                    val results = vectorStore.search(userId, args.query, limit = 5)
                     if (results.isEmpty()) "No private knowledge found for '${args.query}'."
                     else "Found ${results.size} relevant items:\n" + results.joinToString("\n") { "- ${it.content}" }
                 } catch (e: Exception) {
