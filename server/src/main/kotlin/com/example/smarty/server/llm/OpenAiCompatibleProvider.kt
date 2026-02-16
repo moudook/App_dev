@@ -13,6 +13,11 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.encodeToJsonElement
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 
 /**
@@ -38,12 +43,7 @@ class OpenAiCompatibleProvider(
         tools: List<ToolDefinition>,
         model: String?
     ): LlmResponse {
-        val requestBody = OpenAiChatRequest(
-            model = model ?: defaultModel,
-            messages = messages.map { it.toOpenAiMessage() },
-            tools = if (tools.isNotEmpty()) tools.map { it.toOpenAiTool() } else null,
-            stream = false
-        )
+        val requestBody = buildRequestBody(messages, tools, model, stream = false)
 
         val endpoint = resolveEndpoint(baseUrl)
 
@@ -72,12 +72,7 @@ class OpenAiCompatibleProvider(
         tools: List<ToolDefinition>,
         model: String?
     ): Flow<LlmChunk> = flow {
-        val requestBody = OpenAiChatRequest(
-            model = model ?: defaultModel,
-            messages = messages.map { it.toOpenAiMessage() },
-            tools = if (tools.isNotEmpty() && supportsTools()) tools.map { it.toOpenAiTool() } else null,
-            stream = true
-        )
+        val requestBody = buildRequestBody(messages, tools, model, stream = true)
 
         val endpoint = resolveEndpoint(baseUrl)
 
@@ -155,11 +150,27 @@ class OpenAiCompatibleProvider(
         }
     }
 
-    // --- Mappers ---
+    private fun buildRequestBody(
+        messages: List<LlmMessage>,
+        tools: List<ToolDefinition>,
+        model: String?,
+        stream: Boolean
+    ): Map<String, Any?> {
+        val toolsList = if (tools.isNotEmpty() && supportsTools()) {
+            tools.map { it.toOpenAiTool() }
+        } else null
 
-    private fun LlmMessage.toOpenAiMessage(): OpenAiMessage {
+        return mapOf(
+            "model" to (model ?: defaultModel),
+            "messages" to messages.map { it.toOpenAiMessageMap() },
+            "tools" to toolsList,
+            "stream" to stream
+        )
+    }
+
+    private fun LlmMessage.toOpenAiMessageMap(): Map<String, Any?> {
         val roleStr = when (role) {
-            LlmMessage.Role.TOOL -> "user" // Map to user with prefix for generic compatibility
+            LlmMessage.Role.TOOL -> "user"
             else -> role.name.lowercase()
         }
         val contentStr = if (role == LlmMessage.Role.TOOL) {
@@ -167,31 +178,38 @@ class OpenAiCompatibleProvider(
         } else {
             content
         }
-        return OpenAiMessage(
-            role = roleStr,
-            content = contentStr,
-            name = name
+        return mapOf(
+            "role" to roleStr,
+            "content" to contentStr,
+            "name" to name
         )
     }
 
-    private fun ToolDefinition.toOpenAiTool(): OpenAiTool {
-        val cleanedParameters = ToolParameters(
-            type = parameters.type,
-            properties = parameters.properties.mapValues { (_, prop) ->
-                ToolProperty(
-                    type = prop.type,
-                    description = prop.description,
-                    enum = prop.enum?.takeIf { it.isNotEmpty() }
+    private fun ToolDefinition.toOpenAiTool(): Map<String, Any> {
+        val propertiesJson = buildJsonObject {
+            parameters.properties.forEach { (name, prop) ->
+                putJsonObject(name) {
+                    put("type", prop.type)
+                    prop.description?.let { put("description", it) }
+                    prop.enum?.takeIf { it.isNotEmpty() }?.let { enumValues ->
+                        putJsonArray("enum") {
+                            enumValues.forEach { add(it) }
+                        }
+                    }
+                }
+            }
+        }
+
+        return mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to name,
+                "description" to description,
+                "parameters" to mapOf(
+                    "type" to parameters.type,
+                    "properties" to propertiesJson,
+                    "required" to parameters.required
                 )
-            },
-            required = parameters.required
-        )
-        return OpenAiTool(
-            type = "function",
-            function = OpenAiFunctionDefinition(
-                name = name,
-                description = description,
-                parameters = cleanedParameters
             )
         )
     }
