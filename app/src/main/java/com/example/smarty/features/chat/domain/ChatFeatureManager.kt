@@ -530,9 +530,17 @@ class ChatFeatureManager(
     // Task 15: Remote Agent Service (Thin Client)
     // Replaces local SmartyAgentOptimized and SmartyAgentProvider
     private val remoteAgentService: RemoteAgentService by lazy {
-        // Initialize Ktor client - SSE only (JSON parsing done manually in RemoteAgentService)
         val client = HttpClient(OkHttp) {
-            install(SSE)
+            install(SSE) {
+                reconnectionTime = java.time.Duration.ofSeconds(5)
+            }
+            engine {
+                config {
+                    connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                    readTimeout(300, java.util.concurrent.TimeUnit.SECONDS)
+                    writeTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+                }
+            }
         }
 
         RemoteAgentService(
