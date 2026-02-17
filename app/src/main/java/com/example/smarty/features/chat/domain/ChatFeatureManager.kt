@@ -1429,7 +1429,7 @@ class ChatFeatureManager(
             )
 
             // Update the message to its final state (no longer streaming)
-            chatManager.updateMessageById(streamingMessageId, smartyMessage.content)
+            chatManager.replaceMessage(streamingMessageId, smartyMessage)
 
             chatManager.saveMessagePair(userMessage, smartyMessage)
 

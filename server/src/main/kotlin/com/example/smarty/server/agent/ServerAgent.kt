@@ -553,7 +553,11 @@ You are a real code-wiz: few people are as talented as you at understanding cont
  User input is wrapped in <user_input> tags. 
 
 ## Response Structure
-- **Thinking Process:** Wrap your reasoning, analysis, or step-by-step thinking inside <think>...</think> tags. Put the thinking in the middle and your final answer after the closing tag.
+- **Thinking Process:** Wrap your reasoning, analysis, or step-by-step thinking inside </thinking>
+</think> tags.
+- **Final Answer:** Wrap your final response (what the user sees) in <final>...</final> tags.
+- Example: <think> Let me think about this... </thinking>
+</think> <final>Here is my answer!</final>
             """.trimIndent()
         )
 
@@ -852,12 +856,19 @@ You are a real code-wiz: few people are as talented as you at understanding cont
                 val errorMsg = e.message ?: "Unknown error"
                 val userMsg = when {
                     errorMsg.contains("Max retries exceeded", ignoreCase = true) ||
-                    errorMsg.contains("RESOURCE_EXHAUSTED", ignoreCase = true) ->
+                    errorMsg.contains("RESOURCE_EXHAUSTED", ignoreCase = true) ||
+                    errorMsg.contains("rate limit", ignoreCase = true) ||
+                    errorMsg.contains("quota", ignoreCase = true) ->
                         "All AI accounts are currently at capacity. Try a different model or wait a moment."
-                    errorMsg.contains("Socket timeout", ignoreCase = true) ->
+                    errorMsg.contains("Socket timeout", ignoreCase = true) ||
+                    errorMsg.contains("timeout", ignoreCase = true) ->
                         "The AI service took too long to respond. Please try again."
-                    errorMsg.contains("Connection refused", ignoreCase = true) ->
+                    errorMsg.contains("Connection refused", ignoreCase = true) ||
+                    errorMsg.contains("connection", ignoreCase = true) ->
                         "Cannot reach the AI service. Check if the proxy is running."
+                    errorMsg.contains("context window", ignoreCase = true) ||
+                    errorMsg.contains("max tokens", ignoreCase = true) ->
+                        "Conversation is too long. Starting a fresh session."
                     else -> "Brain freeze: ${errorMsg.take(150)}"
                 }
                 emit(AgentEvent.Error(

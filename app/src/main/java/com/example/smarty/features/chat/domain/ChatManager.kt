@@ -301,6 +301,17 @@ class ChatManager(
     }
 
     /**
+     * Replace an entire message by ID (for final message with all fields)
+     */
+    suspend fun replaceMessage(messageId: String, newMessage: ChatMessage) {
+        chatMutex.withLock {
+            _chatMessages.value = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) newMessage else msg
+            }
+        }
+    }
+
+    /**
      * Set chat processing state
      */
     fun setProcessing(isProcessing: Boolean) {
