@@ -21,7 +21,7 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
@@ -49,6 +49,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.Category
@@ -185,9 +189,10 @@ fun InputStreamScreen(
     selectedCategory: Category? = null,
     onSelectCategory: (Category?) -> Unit = {},
 
-    onPlayYouTube: (String) -> Unit = {},
+onPlayYouTube: (String) -> Unit = {},
     bottomContentPadding: androidx.compose.ui.unit.Dp = 0.dp,
-    isMiniPlayerVisible: Boolean = false,  // Audio player visibility for gradient adjustment
+    isMiniPlayerVisible: Boolean = false,
+    bottomGradientVerticalOffset: androidx.compose.ui.unit.Dp = 60.dp,
     externalSpeechState: SpeechToTextState? = null,
     speechResults: kotlinx.coroutines.flow.Flow<String>? = null,
 
@@ -1039,31 +1044,56 @@ fun InputStreamScreen(
                     }
                 }
             }
-        },
+},
         topBar = {
-            // 
+// 
             // CENTRALIZED UI: Minimal Header + Horizontal Action Bar
             // 
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+            
+            val scrimColor = if (isDarkTheme) {
+                MaterialTheme.colorScheme.scrim
+            } else {
+                Color(0xFFFFF0F5) // Lavender Blush (Light Pink)
+            }
+            
+            val topGradientBrush = remember(scrimColor, isLandscape) {
+                if (isLandscape) {
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            scrimColor,
+                            scrimColor.copy(alpha = 0.85f),
+                            scrimColor.copy(alpha = 0.5f),
+                            Color.Transparent
+                        )
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            scrimColor,
+                            scrimColor.copy(alpha = 0.9f),
+                            scrimColor.copy(alpha = 0.6f),
+                            scrimColor.copy(alpha = 0.2f),
+                            Color.Transparent
+                        )
+                    )
+                }
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.background,
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
-                                Color.Transparent
-                            )
-                        )
-                    )
+                    .offset(y = (-8).dp)
+                    .background(brush = topGradientBrush)
+                    .zIndex(2f)
             ) {
                 // Minimal Header Row: Status Indicator Only
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(top = 4.dp)
-                        .height(32.dp),
+                        .height(24.dp), // Reduced from 32dp
                     contentAlignment = Alignment.Center
                 ) {
                     ConnectionStatusIndicator(
@@ -1417,9 +1447,83 @@ fun InputStreamScreen(
                 )
             }
 
-            // Floating Input Field Container (Overlaying content)
-            // Additional bottom padding when mini player is visible to prevent overlap
-            val miniPlayerPadding = if (isMiniPlayerVisible) 72.dp else 0.dp
+// Floating Input Field Container (Overlaying content)
+            val density = LocalDensity.current
+            val configuration = LocalConfiguration.current
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
+            
+            val miniPlayerHeight = ComponentSpacing.miniPlayerHeight
+            val miniPlayerExtraMargin = 16.dp
+            val miniPlayerPadding = if (isMiniPlayerVisible && !isKeyboardVisible) miniPlayerHeight + miniPlayerExtraMargin else 0.dp
+            
+            val attachmentCount = currentInputAttachments.size
+            val attachmentRowHeight = if (attachmentCount > 0) 60.dp else 0.dp
+            val multiLineExtraHeight = if (textValue.text.count { it == '\n' } > 0) 40.dp else 0.dp
+            
+            val inputFieldHeight = 72.dp + attachmentRowHeight + multiLineExtraHeight
+            val inputFieldPadding = ComponentSpacing.screenPadding
+            val isSearchSuggestionsVisible = isSearchMode && textValue.text.isEmpty() && recentSearches.isNotEmpty()
+            val searchSuggestionsHeight = if (isSearchSuggestionsVisible) {
+                when {
+                    isKeyboardVisible -> 100.dp
+                    isLandscape -> 120.dp
+                    else -> 200.dp
+                }
+            } else {
+                0.dp
+            }
+            val extraBottomCoverage = when {
+                isKeyboardVisible -> 10.dp
+                isLandscape -> 20.dp
+                else -> 40.dp
+            }
+            val gradientOffset = bottomGradientVerticalOffset + when {
+                isKeyboardVisible -> (-10).dp
+                isLandscape -> (-10).dp
+                else -> 0.dp
+            }
+            
+            val baseGradientHeight = inputFieldHeight + inputFieldPadding + searchSuggestionsHeight + extraBottomCoverage
+            val targetGradientHeight = baseGradientHeight + miniPlayerPadding
+            
+            val animatedGradientHeight by animateDpAsState(
+                targetValue = targetGradientHeight,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "gradientHeightAnimation"
+            )
+            
+            val animatedGradientOffset by animateDpAsState(
+                targetValue = gradientOffset,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "gradientOffsetAnimation"
+            )
+            
+
+            val bottomScrimColor = if (isDarkTheme) {
+                MaterialTheme.colorScheme.scrim
+            } else {
+                Color(0xFFFFF0F5) // Lavender Blush (Light Pink)
+            }
+            val bottomGradientBrush = remember(bottomScrimColor) {
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        bottomScrimColor.copy(alpha = 0.3f),
+                        bottomScrimColor.copy(alpha = 0.6f),
+                        bottomScrimColor.copy(alpha = 0.85f),
+                        bottomScrimColor.copy(alpha = 0.95f),
+                        bottomScrimColor
+                    )
+                )
+            }
+            
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -1427,37 +1531,29 @@ fun InputStreamScreen(
                     .padding(bottom = bottomContentPadding + miniPlayerPadding)
                     .navigationBarsPadding()
             ) {
-                // Bottom Gradient Scrim (Hides scrolling text behind input)
-                // Extended height when mini player is visible
-                val gradientHeight = if (isMiniPlayerVisible) 280.dp else 200.dp
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(gradientHeight) // Height to cover input area + fade + mini player
+                        .height(animatedGradientHeight)
+                        .offset(y = animatedGradientOffset)
                         .align(Alignment.BottomCenter)
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
-                                    MaterialTheme.colorScheme.background
-                                )
-                            )
-                        )
-                )
+                        .background(brush = bottomGradientBrush)
+                        .zIndex(1f)
+)
 
                 Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .widthIn(max = 540.dp) // Slightly tighter max width for better centering
+                        .widthIn(max = 540.dp)
                         .fillMaxWidth()
                         .padding(
                             start = ComponentSpacing.screenPadding,
                             end = ComponentSpacing.screenPadding,
-                            bottom = ComponentSpacing.screenPadding * 2f,
+                            bottom = ComponentSpacing.screenPadding,
                             top = 0.dp
-                        ),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        )
+                        .zIndex(2f)
                 ) {
                     // Search suggestions dropdown (BATCH 5C)
                     // Shows when in search mode with empty query and recent searches available

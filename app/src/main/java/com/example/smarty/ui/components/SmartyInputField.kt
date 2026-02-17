@@ -23,6 +23,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -43,10 +44,13 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.StopCircle
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Description
@@ -95,6 +99,7 @@ import com.example.smarty.core.domain.model.AttachmentType
 import com.example.smarty.core.domain.model.MentionState
 import com.example.smarty.core.domain.model.MentionSuggestion
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.AttachmentPreviewRow
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.SmartyMotion
 import com.example.smarty.ui.theme.SmartyShadow
@@ -122,8 +127,8 @@ private val AgentShimmerColor = Color(0xFFB39DDB)
 // Design constants for the redesigned input block
 private val CIRCLE_SIZE = 44.dp
 private val CIRCLE_ICON_SIZE = 22.dp
-private val PILL_HEIGHT = 52.dp // Slightly taller for better touch target/comfort
-private val PILL_CORNER_RADIUS = 26.dp
+private val PILL_HEIGHT = 44.dp // Thinner vertically as requested
+private val PILL_CORNER_RADIUS = 22.dp
 private val ELEMENT_SPACING = 12.dp
 private val HORIZONTAL_PADDING = 16.dp
 
@@ -307,9 +312,10 @@ fun SmartyInputField(
                     .padding(bottom = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                var isPressed by remember { mutableStateOf(false) }
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressedState by interactionSource.collectIsPressedAsState()
                 val scale by animateFloatAsState(
-                    targetValue = if (isPressed) 0.95f else 1f,
+                    targetValue = if (isPressedState) 0.95f else 1f,
                     animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
                     label = "historyPillScale"
                 )
@@ -317,18 +323,12 @@ fun SmartyInputField(
                 Surface(
                     modifier = Modifier
                         .scale(scale)
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    isPressed = true
-                                    tryAwaitRelease()
-                                    isPressed = false
-                                },
-                                onTap = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    if (isHistoryMode) onNewChat() else onOpenChatHistory()
-                                }
-                            )
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null
+                        ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (isHistoryMode) onNewChat() else onOpenChatHistory()
                         },
                     shape = RoundedCornerShape(PILL_CORNER_RADIUS),
                     color = pillBackground,
@@ -569,6 +569,21 @@ fun SmartyInputField(
                     onOpenCamera = {
                         onOpenCamera()
                     },
+                    onPickImage = {
+                        onPickImage()
+                    },
+                    onPickVideo = {
+                        onPickVideo()
+                    },
+                    onPickDocument = {
+                        onPickDocument()
+                    },
+                    onPickAudio = {
+                        onPickAudio()
+                    },
+                    onPickLink = {
+                        onPickLink()
+                    },
                     attachments = attachments,
                     onRemoveAttachment = onRemoveAttachment,
                     // Use requiredHeight to prevent flattening by parent layout
@@ -700,230 +715,336 @@ private fun InputPill(
     isChatMode: Boolean,
     onPickFile: () -> Unit = {},
     onOpenCamera: () -> Unit = {},
+    onPickImage: () -> Unit = {},
+    onPickVideo: () -> Unit = {},
+    onPickDocument: () -> Unit = {},
+    onPickAudio: () -> Unit = {},
+    onPickLink: () -> Unit = {},
     modifier: Modifier = Modifier,
-    // Pass attachments for inline display
+    // Attachment support
     attachments: List<Attachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {}
 ) {
-    // Dynamic height calculation based on content
-    var textLineCount by remember { mutableIntStateOf(1) }
-    val hasAttachments = attachments.isNotEmpty()
+    // Attachment preview visibility
+    var showAttachmentPreview by remember { mutableStateOf(false) }
     
-    // ChatGPT-style: Input expands with content, max ~5 lines
-    val baseHeight = 52.dp
-    val expandedHeight = ((textLineCount.coerceAtMost(5)) * 24 + 16).dp
-    val withAttachmentsHeight = expandedHeight + 40.dp // Extra row for attachment chips
-    val dynamicHeight = if (hasAttachments) withAttachmentsHeight.coerceAtMost(180.dp) else expandedHeight.coerceIn(baseHeight, 150.dp)
+    // Auto-show attachment preview when attachments are added
+    LaunchedEffect(attachments.isNotEmpty()) {
+        if (attachments.isNotEmpty()) showAttachmentPreview = true
+    }
+    
+    // Attachment preview row above input (existing design)
+    AnimatedVisibility(
+        visible = attachments.isNotEmpty() && showAttachmentPreview,
+        enter = slideInVertically(initialOffsetY = { 20 }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { 20 }) + fadeOut()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
+        ) {
+            AttachmentPreviewRow(
+                attachments = attachments,
+                onRemoveAttachment = onRemoveAttachment
+            )
+        }
+    }
     
     // Soft Minimalist: Determine colors based on theme
     val monochromeColor = rememberMonochromeAccent()
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
     val accentColor = LocalAccentColor.current
 
-    // ChatGPT-style colors - more subtle
-    val chatBackgroundColor = if (isDark) Color(0xFF2C2C30) else Color(0xFFF5F5F5)
-    val chatBorderColor = if (isFocused) accentColor.copy(alpha = 0.4f) else {
-        if (isDark) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f)
-    }
+    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
-    // ChatGPT-style floating input container
+    // Border: Subtle normally, colored when focused
+    val currentBorderColor by animateColorAsState(
+        targetValue = if (isFocused) accentColor.copy(alpha = 0.5f) else borderColor,
+        animationSpec = tween(200),
+        label = "pillBorder"
+    )
+
+    // Elevation changes on focus
+    val elevation = if (isFocused) 8.dp else 2.dp
+
+    // Soft floating pill container - original design
     Surface(
-        modifier = modifier.height(dynamicHeight),
-        shape = RoundedCornerShape(24.dp), // ChatGPT uses rounded corners
-        color = chatBackgroundColor,
-        border = BorderStroke(
-            1.dp,
-            if (isFocused) accentColor.copy(alpha = 0.5f) else chatBorderColor
-        ),
-        tonalElevation = if (isFocused) 4.dp else 0.dp
+        modifier = modifier
+            .requiredHeight(PILL_HEIGHT)
+            .softCardShadow(shape = RoundedCornerShape(PILL_CORNER_RADIUS), elevation = elevation),
+        shape = RoundedCornerShape(PILL_CORNER_RADIUS),
+        color = backgroundColor,
+        border = BorderStroke(0.5.dp, currentBorderColor)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            // Inline Attachment Chips Row (ChatGPT style - compact chips above text)
-            if (hasAttachments) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    attachments.take(4).forEach { attachment ->
-                        InlineAttachmentChip(
-                            attachment = attachment,
-                            onRemove = { onRemoveAttachment(attachment.id) }
-                        )
-                    }
-                    if (attachments.size > 4) {
-                        MoreAttachmentsChip(count = attachments.size - 4)
-                    }
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Shimmer overlay for voice/agent states
+            val showShimmer = autoSendActive || isVoiceListening || isAgentWorking
+            if (showShimmer) {
+                val shimmerDirection = when {
+                    isAgentWorking && !isVoiceListening && !autoSendActive -> ShimmerDirection.RIGHT_TO_LEFT
+                    else -> ShimmerDirection.LEFT_TO_RIGHT
                 }
+                val shimmerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                val shimmerSpeed = if (autoSendActive) 3.5f else 1f
+
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .directionalShimmer(
+                            isVisible = showShimmer,
+                            color = shimmerColor,
+                            direction = shimmerDirection,
+                            speed = shimmerSpeed
+                        )
+                )
             }
-            
-            // Main input row with text and action buttons
+
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(start = 20.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // Text input area
-                BasicTextField(
-                    value = value,
-                    onValueChange = { newValue ->
-                        textLineCount = newValue.text.split("\n").size.coerceAtLeast(1)
-                        onValueChange(newValue)
-                    },
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { onFocusChange(it.isFocused) },
-                    onTextLayout = { textLayoutResult ->
-                        textLineCount = textLayoutResult.lineCount.coerceAtLeast(1)
-                    },
-                    textStyle = TextStyle(
-                        fontFamily = MonoFont,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = if (isDark) Color.White else Color.Black
-                    ),
-                    cursorBrush = SolidColor(accentColor),
-                    decorationBox = { innerTextField ->
-                        Box {
-                            if (value.text.isEmpty()) {
-                                Text(
-                                    text = placeholder,
-                                    style = TextStyle(
-                                        fontFamily = MonoFont,
-                                        fontSize = 16.sp,
-                                        color = if (isDark) Color.White.copy(alpha = 0.4f) else Color.Black.copy(alpha = 0.4f)
-                                    )
-                                )
-                            }
-                            innerTextField()
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focusRequester.requestFocus()
+                        },
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            var lineCount by remember { mutableIntStateOf(1) }
+
+                            BasicTextField(
+                                value = value,
+                                onValueChange = onValueChange,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester)
+                                    .onFocusChanged { onFocusChange(it.isFocused) },
+                                onTextLayout = { lineCount = it.lineCount },
+                                textStyle = TextStyle(
+                                    fontFamily = MonoFont,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (isVoiceListening) LocalAccentColor.current
+                                            else if (isDark) Color.White else Color.Black
+                                ),
+                                cursorBrush = SolidColor(LocalAccentColor.current),
+                                singleLine = true,
+                                maxLines = 1,
+                                decorationBox = { innerTextField ->
+                                    Box {
+                                        if (value.text.isEmpty()) {
+                                            Text(
+                                                text = placeholder,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontFamily = MonoFont,
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.Black
+                                                ),
+                                                color = if (isDark) Color.White else Color.Black
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                }
+                            )
                         }
                     }
-                )
-                
-                // Action buttons (+ and send)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // Plus button
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (canSend) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                            .pointerInput(Unit) {
-                                detectTapGestures(
-                                    onTap = {
-                                        if (canSend) {
-                                            onSend()
-                                        } else {
-                                            onAddOptionsClick()
-                                        }
-                                    }
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Default.Add,
-                            contentDescription = if (canSend) stringResource(R.string.share) else stringResource(R.string.add_attachment),
-                            tint = if (canSend) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                }
+
+                // Action icon (Plus when empty, Send when has content)
+                Box {
+                    val haptic = LocalHapticFeedback.current
+                    var showMenu by remember { mutableStateOf(false) }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.width(8.dp))
+
+                        val easedProgress = FastOutSlowInEasing.transform(flyProgress)
+                        val flyX = easedProgress * 120f
+                        val flyY = -easedProgress * 15f
+                        val flyRotation = easedProgress * 10f
+                        val flyScale = 1f - (easedProgress * 0.2f)
+                        val flyAlpha = (1f - easedProgress * 1.5f).coerceIn(0f, 1f)
+
+                        val density = androidx.compose.ui.platform.LocalDensity.current.density
+
+                        var isPressed by remember { mutableStateOf(false) }
+                        val buttonScale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.85f else 1f,
+                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+                            label = "sendScale"
                         )
+
+                        val sendBtnColor = if (canSend) LocalAccentColor.current else MaterialTheme.colorScheme.surfaceVariant
+                        val sendIconColor = if (canSend) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            if (isDark) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .scale(buttonScale)
+                                .clip(CircleShape)
+                                .background(sendBtnColor)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onPress = {
+                                            isPressed = true
+                                            tryAwaitRelease()
+                                            isPressed = false
+                                        },
+                                        onTap = {
+                                            if (canSend) {
+                                                onSend()
+                                            } else {
+                                                onAddOptionsClick()
+                                                showMenu = true
+                                            }
+                                        }
+                                    )
+                                }
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Crossfade(
+                                targetState = canSend,
+                                animationSpec = tween(200),
+                                label = "iconTransition"
+                            ) { isSending ->
+                                Icon(
+                                    imageVector = if (isSending) Icons.AutoMirrored.Filled.Send else Icons.Default.Add,
+                                    contentDescription = if (isSending) stringResource(R.string.share) else stringResource(R.string.add_attachment),
+                                    tint = if (isSending && canSend) MaterialTheme.colorScheme.onPrimary.copy(alpha = flyAlpha) else sendIconColor,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .graphicsLayer {
+                                            if (isSending && canSend) {
+                                                translationX = flyX * density
+                                                translationY = flyY * density
+                                                rotationZ = flyRotation
+                                                scaleX = flyScale
+                                                scaleY = flyScale
+                                            }
+                                        }
+                                )
+                            }
+                        }
+                    }
+
+                    // Dropdown menu for + button
+                    val menuBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface
+                    val menuBorder = if (isDark) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        offset = DpOffset(x = 8.dp, y = -(PILL_HEIGHT + 16.dp)),
+                        shape = RoundedCornerShape(16.dp),
+                        containerColor = menuBackground,
+                        border = BorderStroke(1.dp, menuBorder),
+                        tonalElevation = 8.dp
+                    ) {
+                        Text(
+                            text = stringResource(R.string.add_attachment),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        )
+
+                        Row(
+                            modifier = Modifier.padding(8.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.photo), fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(accentColor.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Image, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                                        }
+                                    },
+                                    onClick = { showMenu = false; onPickImage() },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.video), fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.VideoRed.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Videocam, contentDescription = null, tint = com.example.smarty.ui.theme.VideoRed, modifier = Modifier.size(18.dp))
+                                        }
+                                    },
+                                    onClick = { showMenu = false; onPickVideo() },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.document), fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.DocumentBlue.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Description, contentDescription = null, tint = com.example.smarty.ui.theme.DocumentBlue, modifier = Modifier.size(18.dp))
+                                        }
+                                    },
+                                    onClick = { showMenu = false; onPickDocument() },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.audio_label), fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.AudioPink.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = com.example.smarty.ui.theme.AudioPink, modifier = Modifier.size(18.dp))
+                                        }
+                                    },
+                                    onClick = { showMenu = false; onPickAudio() },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.link), fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF80DEEA).copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF80DEEA), modifier = Modifier.size(18.dp))
+                                        }
+                                    },
+                                    onClick = { showMenu = false; onPickLink() },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.camera), fontSize = 14.sp) },
+                                    leadingIcon = {
+                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        }
+                                    },
+                                    onClick = { showMenu = false; onOpenCamera() },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
-    }
-}
-
-// 
-// INLINE ATTACHMENT CHIPS (ChatGPT-style)
-// 
-
-@Composable
-private fun InlineAttachmentChip(
-    attachment: Attachment,
-    onRemove: () -> Unit
-) {
-    var isPressed by remember { mutableStateOf(false) }
-    var showRemove by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
-        label = "chipScale"
-    )
-    
-    val attachmentType = attachment.getAttachmentType()
-    val isImage = attachmentType == AttachmentType.IMAGE || attachmentType == AttachmentType.VIDEO
-    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
-    val accentColor = LocalAccentColor.current
-    
-    Surface(
-        modifier = Modifier
-            .scale(scale)
-            .height(28.dp)
-            .widthIn(max = 110.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = if (isDark) Color(0xFF3A3A40) else Color(0xFFE8E8ED),
-        onClick = { onRemove() }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            if (isImage) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(attachment.uri)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                )
-            } else {
-                Icon(
-                    imageVector = when (attachmentType) {
-                        AttachmentType.AUDIO -> Icons.Default.Audiotrack
-                        AttachmentType.DOCUMENT -> Icons.Default.Description
-                        AttachmentType.FILE -> Icons.Default.AttachFile
-                        else -> Icons.Default.InsertDriveFile
-                    },
-                    contentDescription = null,
-                    tint = accentColor,
-                    modifier = Modifier.size(12.dp)
-                )
-            }
-            
-            Text(
-                text = attachment.fileName.take(10) + if (attachment.fileName.length > 10) "..." else "",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = if (isDark) Color.White else Color.Black,
-                maxLines = 1
-            )
-            
-            // Compact remove X
-            Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = stringResource(R.string.remove_attachment),
-                tint = if (isDark) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.5f),
-                modifier = Modifier
-                    .size(12.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures(onTap = { onRemove() })
-                    }
-            )
         }
     }
 }

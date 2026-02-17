@@ -200,7 +200,7 @@ private fun SmartyContainer(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp) // Slight floating margin
-            .padding(bottom = bottomPadding + 12.dp) // Lift above keyboard
+            .padding(bottom = bottomPadding + 4.dp) // Lift above keyboard - reduced for lower position
             .softCardShadow(shape = RoundedCornerShape(32.dp), elevation = 16.dp),
         shape = RoundedCornerShape(32.dp),
         color = MaterialTheme.colorScheme.surface, // Matches "Soft Tech" aesthetic

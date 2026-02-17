@@ -263,7 +263,7 @@ private fun RotaryNavigationDial(
             // 1. SIZE SCALING:
             // Max size (center) = PILL_HEIGHT (52.dp).
             // Scale down as we move away.
-            val pillHeightDp = 52.dp
+            val pillHeightDp = 44.dp
             val baseSize = pillHeightDp
             // Less aggressive scaling to keep icons "Big"
             val sizeScale = (1f - (distanceFromCenter * 0.2f)).coerceIn(0.7f, 1f)
@@ -319,10 +319,8 @@ private fun RotaryNavigationDial(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
-                            if (!isCenter) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onTabSelected(tab)
-                            }
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onTabSelected(tab)
                         }
                         // Remove fixed padding to maximize icon size
                         ,

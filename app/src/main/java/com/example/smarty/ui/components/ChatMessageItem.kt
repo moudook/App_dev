@@ -10,9 +10,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
@@ -50,6 +53,7 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -72,6 +76,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
@@ -151,13 +157,20 @@ fun ChatMessageItem(
 ) {
     val isUser = message.role == ChatRole.USER
     val accentColor = LocalAccentColor.current
-
+    
+    // ElevenLabs Theme Colors
+    val isDark = isSystemInDarkTheme()
+    val codeBackgroundColor = if (isDark) Color(0xFF18181B) else Color(0xFFF4F4F5) // Zinc-950 / Zinc-100
+    val codeBorderColor = if (isDark) Color(0xFF27272A) else Color(0xFFE4E4E7) // Zinc-800 / Zinc-200
+    val linkColor = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB) // Blue-400 / Blue-600
+    
     // "Soft Tech" Shape Logic
     val largeCorner = 24.dp
     val smallCorner = 4.dp
 
     val bubbleShape = if (isUser) {
-        RoundedCornerShape(percent = 50)
+        // ElevenLabs Style: "Soft Rectangle" (rounded-lg ~ 10-12dp)
+        RoundedCornerShape(12.dp)
     } else {
         when (groupPosition) {
             MessageGroupPosition.SINGLE -> RoundedCornerShape(
@@ -202,16 +215,17 @@ fun ChatMessageItem(
             var actionsExpanded by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier.padding(
-                    horizontal = if (isUser) 16.dp else 4.dp, // Tighter horizontal padding inside for AI
+                    horizontal = if (isUser) 16.dp else 4.dp,
                     vertical = if (isUser) 12.dp else 8.dp
                 )
             ) {
                 if (isUser) {
-                    val userTextColor = if (isSystemInDarkTheme()) Color.White else Color.Black
+                    // Inverted Text Color for High Contrast Bubble
+                    val userTextColor = if (isSystemInDarkTheme()) Color(0xFF141414) else Color(0xFFFAFAFA)
                     Text(
                         text = message.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 16.sp,
+                            fontSize = 16.sp, // Increased for better readability
                             lineHeight = 24.sp,
                             fontWeight = FontWeight.Medium,
                             letterSpacing = 0.sp
@@ -262,78 +276,7 @@ fun ChatMessageItem(
                             Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha3), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                      } else {
-                    // Collapsible thinking section
-                    if (message.hasThinking) {
-                        var thinkingExpanded by remember { mutableStateOf(false) }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                // Clickable header
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { thinkingExpanded = !thinkingExpanded },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "Thinking",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = if (thinkingExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = if (thinkingExpanded) "Collapse" else "Expand",
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                // Expandable thinking content
-                                AnimatedVisibility(visible = thinkingExpanded) {
-                                    Column(modifier = Modifier.padding(top = 8.dp)) {
-                                        val isDark = isSystemInDarkTheme()
-                                        val normalColor = MaterialTheme.colorScheme.onSurface
-                                        val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
-                                        
-                                        val thinkingText = parseMarkdownToAnnotatedString(
-                                            content = message.thinking!!,
-                                            normalColor = normalColor,
-                                            boldColor = boldColor,
-                                            italicColor = normalColor,
-                                            linkColor = if (isDark) Color(0xFFCE93D8) else Color(0xFF7B1FA2),
-                                            codeColor = MaterialTheme.colorScheme.primary
-                                        )
-                                        
-                                        Text(
-                                            text = thinkingText,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontSize = 14.sp,
-                                                lineHeight = 22.sp,
-                                                letterSpacing = 0.sp,
-                                                fontWeight = FontWeight.Normal,
-                                                fontStyle = FontStyle.Italic
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
+
                     
                     val isDark = isSystemInDarkTheme()
                     val normalColor = MaterialTheme.colorScheme.onSurface
@@ -341,12 +284,14 @@ fun ChatMessageItem(
 
                     // Professional Markdown Rendering
                     MarkdownRenderer(
-                        content = message.content,
+                        content = if (isUser) message.content else cleanContent(message.content),
                         isUser = isUser,
                         normalColor = normalColor,
-                        boldColor = boldColor,
-                        linkColor = if (isDark) Color(0xFFCE93D8) else Color(0xFF7B1FA2),
-                        codeColor = MaterialTheme.colorScheme.primary
+                        boldColor = boldColor, // Keep accent color for bold/headers 
+                        linkColor = linkColor,
+                        codeColor = MaterialTheme.colorScheme.primary,
+                        codeBackgroundColor = codeBackgroundColor,
+                        codeBorderColor = codeBorderColor
                     )
 
                     // Inline Image Preview
@@ -430,6 +375,84 @@ fun ChatMessageItem(
                                  onDismiss = { showFullScreen = false },
                                  contentDescription = currentImage.fileName
                              )
+                        }
+                    }
+
+                    // Thinking / Reasoning - ElevenLabs 'Shimmer' Style
+                    if (message.hasThinking) {
+                        var expanded by remember { mutableStateOf(false) } // Default collapsed
+                        
+                        // Subtle container for "thought process"
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            Surface(
+                                onClick = { expanded = !expanded },
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    // Pulse/Thinking Icon
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = null,
+                                        tint = accentColor.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (expanded) "Reasoning Process" else "Finished thinking",
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 11.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Icon(
+                                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            
+                            AnimatedVisibility(
+                                visible = expanded,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
+                                        .drawBehind {
+                                            drawLine(
+                                                color = accentColor.copy(alpha = 0.2f),
+                                                start = Offset(0f, 0f),
+                                                end = Offset(0f, this@drawBehind.size.height),
+                                                strokeWidth = 2.dp.toPx()
+                                            )
+                                        }
+                                        .padding(start = 12.dp)
+                                ) {
+                                    Text(
+                                        text = message.thinking ?: "",
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 12.sp,
+                                            lineHeight = 18.sp
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -544,16 +567,20 @@ fun ChatMessageItem(
 
         // Apply Bubble only for User
         if (isUser) {
-            val userPillColor = if (isSystemInDarkTheme()) {
-                Color(0xFF2D2D2D) // Dark gray from image
+            val isDark = isSystemInDarkTheme()
+            // ElevenLabs Logic: Primary/Inverted
+            // Dark Mode -> White Bubble
+            // Light Mode -> Black/Dark Bubble
+            val userPillColor = if (isDark) {
+                Color(0xFFFAFAFA) // White
             } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f) // Softer light gray
+                Color(0xFF18181B) // Zinc-950 / Almost Black
             }
 
             Surface(
                 shape = bubbleShape,
                 color = userPillColor,
-                border = null, // Remove border for cleaner pill look
+                border = null, // No border for 'contained' variant
                 shadowElevation = 0.dp,
                 modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth)
             ) {
@@ -642,7 +669,7 @@ fun ChatMessageItem(
                     modifier = Modifier
                         .size(IconSize.small)
                         .clickable {
-                            clipboardManager.setText(AnnotatedString(message.content))
+                            clipboardManager.setText(AnnotatedString(if (isUser) message.content else cleanContent(message.content)))
                             showCopied = true
                         },
                     tint = if (showCopied) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.half)
@@ -921,40 +948,66 @@ private fun ActionResultChip(
     success: Boolean,
     summary: String
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Surface(
-            shape = CircleShape,
-            color = if (success) MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
-            modifier = Modifier.size(IconSize.standard)
+    val isDark = isSystemInDarkTheme()
+    // ElevenLabs 'Badge' Style: Thin border, subtle background, crisp text
+    val backgroundColor = if (success) {
+        if (isDark) Color(0xFF064E3B) else Color(0xFFECFDF5) // Green-900 / Green-50
+    } else {
+        if (isDark) Color(0xFF7F1D1D) else Color(0xFFFEF2F2) // Red-900 / Red-50
+    }
+    
+    val contentColor = if (success) {
+        if (isDark) Color(0xFF34D399) else Color(0xFF059669) // Green-400 / Green-600
+    } else {
+        if (isDark) Color(0xFFF87171) else Color(0xFFDC2626) // Red-400 / Red-600
+    }
+
+    val borderColor = contentColor.copy(alpha = 0.3f)
+
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor),
+        modifier = Modifier.padding(vertical = 2.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = if (success) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-                    contentDescription = null,
-                    modifier = Modifier.size(IconSize.micro),
-                    tint = if (success) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Column {
+            Icon(
+                imageVector = if (success) Icons.Default.Check else Icons.Default.Close,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = contentColor
+            )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = formatActionName(actionName).lowercase().replace(" ", "_"),
+                text = formatActionName(actionName),
                 style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.3.sp
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp,
+                    letterSpacing = 0.sp
                 ),
-                color = MaterialTheme.colorScheme.onSurface
+                color = contentColor
             )
             if (summary.isNotBlank()) {
+                Spacer(modifier = Modifier.width(6.dp))
+                // Separator dot
+                Box(
+                    modifier = Modifier
+                        .size(3.dp)
+                        .background(contentColor.copy(alpha = 0.5f), CircleShape)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = summary.lowercase(),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 10.sp,
-                        letterSpacing = 0.2.sp
+                    text = summary,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Normal
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
+                    color = contentColor.copy(alpha = 0.9f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -971,16 +1024,17 @@ private fun formatActionName(actionName: String): String {
 @Composable
 fun CodeBlock(
     code: String,
-    language: String
+    language: String,
+    backgroundColor: Color,
+    borderColor: Color
 ) {
     val clipboardManager = LocalClipboardManager.current
     var isCopied by remember { mutableStateOf(false) }
     val isDark = isSystemInDarkTheme()
 
-    val backgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF5F5F5)
-    val borderColor = if (isDark) Color(0xFF333333) else Color(0xFFE0E0E0)
-    val textColor = if (isDark) Color(0xFFD4D4D4) else Color(0xFF333333)
-    val headerColor = if (isDark) Color(0xFF2D2D2D) else Color(0xFFEEEEEE)
+    // ElevenLabs Theme: Zinc colors passed from parent
+    val textColor = if (isDark) Color(0xFFE4E4E7) else Color(0xFF18181B) // Zinc-200 / Zinc-950
+    val headerColor = if (isDark) Color(0xFF27272A) else Color(0xFFF4F4F5) // Zinc-800 / Zinc-100
 
     Column(
         modifier = Modifier
@@ -1078,9 +1132,10 @@ private fun MarkdownRenderer(
     normalColor: Color,
     boldColor: Color,
     linkColor: Color,
-    codeColor: Color
+    codeColor: Color,
+    codeBackgroundColor: Color,
+    codeBorderColor: Color
 ) {
-    val isDark = isSystemInDarkTheme()
     val parts = content.split("```")
 
     parts.forEachIndexed { index, part ->
@@ -1091,48 +1146,52 @@ private fun MarkdownRenderer(
             val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
 
             Spacer(modifier = Modifier.height(12.dp))
-            CodeBlock(code = codeContent, language = language)
+            CodeBlock(
+                code = codeContent, 
+                language = language,
+                backgroundColor = codeBackgroundColor,
+                borderColor = codeBorderColor
+            )
             Spacer(modifier = Modifier.height(12.dp))
         } else {
             // Standard Text / Markdown
             if (part.isNotBlank()) {
                 val lines = part.lines()
-                var inList = false
 
                 lines.forEach { line ->
                     val trimmedLine = line.trim()
                     
                     when {
-                        // Headers
+                        // Headers - ElevenLabs Style: Tighter, bolder, closer to content
                         trimmedLine.startsWith("### ") -> {
-                            Spacer(modifier = Modifier.height(14.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("### "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
                                 style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp,
                                     lineHeight = 24.sp,
-                                    letterSpacing = (-0.2).sp
+                                    letterSpacing = (-0.1).sp
                                 ),
-                                color = boldColor
+                                color = normalColor // Use normal color for cleaner look, bold handles emphasis
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
                         trimmedLine.startsWith("## ") -> {
-                            Spacer(modifier = Modifier.height(18.dp))
+                            Spacer(modifier = Modifier.height(20.dp))
                             Text(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("## "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
-                                style = MaterialTheme.typography.headlineSmall.copy(
+                                style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 22.sp,
-                                    lineHeight = 28.sp,
-                                    letterSpacing = (-0.5).sp
+                                    fontSize = 18.sp,
+                                    lineHeight = 26.sp,
+                                    letterSpacing = (-0.2).sp
                                 ),
-                                color = boldColor
+                                color = normalColor
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                         }
@@ -1142,29 +1201,30 @@ private fun MarkdownRenderer(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("# "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 28.sp,
-                                    lineHeight = 34.sp,
-                                    letterSpacing = (-1).sp
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp,
+                                    lineHeight = 30.sp,
+                                    letterSpacing = (-0.3).sp
                                 ),
-                                color = boldColor
+                                color = normalColor
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         
-                        // Lists (Bullets)
+                        // Lists (Bullets) - ElevenLabs Style: Crisp dots, aligned text
                         trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") -> {
-                            Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp)) {
-                                Text("•", style = MaterialTheme.typography.bodyLarge, color = codeColor)
-                                Spacer(modifier = Modifier.width(10.dp))
+                            Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
+                                Text("•", style = MaterialTheme.typography.bodyMedium.copy(fontSize=16.sp), color = normalColor.copy(alpha = 0.7f))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = parseMarkdownToAnnotatedString(
                                         trimmedLine.substring(2), normalColor, boldColor, normalColor, linkColor, codeColor
                                     ),
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 16.sp,
-                                        lineHeight = 24.sp
+                                        fontSize = 16.sp, // Matched body size
+                                        lineHeight = 26.sp,
+                                        color = normalColor
                                     )
                                 )
                             }
@@ -1172,32 +1232,37 @@ private fun MarkdownRenderer(
                         
                         // Lists (Numbered)
                         trimmedLine.firstOrNull()?.isDigit() == true && trimmedLine.contains(". ") -> {
-                            val dotIndex = trimmedLine.indexOf(". ")
-                            if (dotIndex in 1..3) {
-                                Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp)) {
-                                    Text(
-                                        text = trimmedLine.substring(0, dotIndex + 1),
-                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = codeColor
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = parseMarkdownToAnnotatedString(
-                                            trimmedLine.substring(dotIndex + 2), normalColor, boldColor, normalColor, linkColor, codeColor
-                                        ),
-                                        style = MaterialTheme.typography.bodyMedium.copy(
+                             val dotIndex = trimmedLine.indexOf(". ")
+                             if (dotIndex in 1..3) {
+                                 Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
+                                     Text(
+                                         text = trimmedLine.substring(0, dotIndex + 1),
+                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontSize = 16.sp,
-                                            lineHeight = 24.sp
-                                        )
-                                    )
-                                }
-                            } else {
-                                StandardText(line, normalColor, boldColor, linkColor, codeColor)
-                            }
+                                            fontWeight = FontWeight.Medium,
+                                            fontFeatureSettings = "tnum" // Tabular numbers if supported
+                                         ),
+                                         color = normalColor.copy(alpha = 0.8f)
+                                     )
+                                     Spacer(modifier = Modifier.width(8.dp))
+                                     Text(
+                                         text = parseMarkdownToAnnotatedString(
+                                             trimmedLine.substring(dotIndex + 2), normalColor, boldColor, normalColor, linkColor, codeColor
+                                         ),
+                                         style = MaterialTheme.typography.bodyMedium.copy(
+                                             fontSize = 16.sp,
+                                             lineHeight = 26.sp,
+                                             color = normalColor
+                                         )
+                                     )
+                                 }
+                             } else {
+                                 StandardText(line, normalColor, boldColor, linkColor, codeColor)
+                             }
                         }
                         
                         line.isBlank() -> {
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(8.dp)) // Standard paragraph spacing
                         }
                         
                         else -> {
@@ -1224,8 +1289,8 @@ private fun StandardText(
             text, normalColor, boldColor, normalColor, linkColor, codeColor
         ),
         style = MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 16.sp,
-            lineHeight = 26.sp,
+            fontSize = 16.sp, // Increased size
+            lineHeight = 26.sp, // Increased line height
             letterSpacing = 0.sp,
             fontWeight = FontWeight.Normal
         ),
@@ -1390,7 +1455,11 @@ private fun ClarificationBubble(
 
             Text(
                 text = request.question,
-                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp
+                ),
                 color = MaterialTheme.colorScheme.onSurface
             )
 
@@ -1413,7 +1482,9 @@ private fun ClarificationBubble(
                     ) {
                         Text(
                             text = option,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 15.sp
+                            ),
                             color = if (isSubmitted) MaterialTheme.colorScheme.onSurfaceVariant else accentColor,
                             modifier = Modifier.padding(12.dp),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -1456,4 +1527,10 @@ private fun ClarificationBubble(
             }
         }
     }
+}
+
+private fun cleanContent(raw: String): String {
+    val noThink = raw.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
+    val noFinal = noThink.replace("<final>", "").replace("</final>", "")
+    return noFinal.trim()
 }
