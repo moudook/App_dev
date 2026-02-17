@@ -16,7 +16,8 @@ class CalendarRepository(private val dataSource: DataSource) {
 
     /**
      * Create a new calendar event.
-     * @return The UUID of the created event.
+     * Checks for duplicates before creating (same title, startTime, endTime).
+     * @return The UUID of the created or existing event.
      */
     suspend fun create(
         userId: String,
@@ -26,8 +27,31 @@ class CalendarRepository(private val dataSource: DataSource) {
         description: String? = null,
         reminderMinutes: Int = 15
     ): String = withContext(Dispatchers.IO) {
-        val id = UUID.randomUUID()
+        // Check for duplicate event (same title, startTime, endTime within 1 minute tolerance)
         dataSource.connection.use { conn ->
+            val checkSql = """
+                SELECT id FROM calendar_events 
+                WHERE user_id = ? AND title = ? 
+                AND ABS(start_time - ?) < 60000 
+                AND ABS(end_time - ?) < 60000
+                LIMIT 1
+            """.trimIndent()
+            conn.prepareStatement(checkSql).use { stmt ->
+                stmt.setString(1, userId)
+                stmt.setString(2, title)
+                stmt.setLong(3, startTime)
+                stmt.setLong(4, endTime)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) {
+                        val existingId = rs.getString("id")
+                        logger.info("Duplicate event prevented: using existing id={}, title={}", existingId, title)
+                        return@withContext existingId
+                    }
+                }
+            }
+            
+            // No duplicate found, create new event
+            val id = UUID.randomUUID()
             val sql = """
                 INSERT INTO calendar_events (id, user_id, title, start_time, end_time, description, reminder_minutes)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -42,9 +66,9 @@ class CalendarRepository(private val dataSource: DataSource) {
                 stmt.setInt(7, reminderMinutes)
                 stmt.executeUpdate()
             }
+            logger.info("Calendar event created: id={}, user={}, title={}", id, userId, title)
+            id.toString()
         }
-        logger.info("Calendar event created: id={}, user={}, title={}", id, userId, title)
-        id.toString()
     }
 
     /**
