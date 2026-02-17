@@ -326,6 +326,7 @@ This action cannot be reversed.</string>
     <string name="document">Document</string>
     <string name="audio_label">Audio</string>
     <string name="link">Link</string>
+    <string name="camera">Camera</string>
     <string name="one_attachment">1 attachment</string>
     <string name="x_attachments">%1$d attachments</string>
     <string name="copy">Copy</string>

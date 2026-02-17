@@ -223,11 +223,18 @@ sealed class AgentCommand {
         val location: String?
     ) : AgentCommand()
 
-    @Serializable
+@Serializable
     @SerialName("query_calendar")
     data class QueryCalendar(
         override val commandId: String,
         val query: String?
+    ) : AgentCommand()
+
+    @Serializable
+    @SerialName("get_device_info")
+    data class GetDeviceInfo(
+        override val commandId: String,
+        @SerialName("info_type") val infoType: String
     ) : AgentCommand()
 
     // ============================================================================================

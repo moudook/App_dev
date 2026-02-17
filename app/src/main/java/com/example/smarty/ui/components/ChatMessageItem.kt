@@ -156,37 +156,44 @@ fun ChatMessageItem(
     val largeCorner = 24.dp
     val smallCorner = 4.dp
 
-    val bubbleShape = when (groupPosition) {
-        MessageGroupPosition.SINGLE -> RoundedCornerShape(
-            topStart = largeCorner,
-            topEnd = largeCorner,
-            bottomStart = if (isUser) largeCorner else smallCorner,
-            bottomEnd = if (isUser) smallCorner else largeCorner
-        )
-        MessageGroupPosition.TOP -> RoundedCornerShape(
-            topStart = largeCorner,
-            topEnd = largeCorner,
-            bottomStart = if (isUser) largeCorner else smallCorner,
-            bottomEnd = if (isUser) smallCorner else largeCorner
-        )
-        MessageGroupPosition.MIDDLE -> RoundedCornerShape(
-            topStart = if (isUser) largeCorner else smallCorner,
-            topEnd = if (isUser) smallCorner else largeCorner,
-            bottomStart = if (isUser) largeCorner else smallCorner,
-            bottomEnd = if (isUser) smallCorner else largeCorner
-        )
-        MessageGroupPosition.BOTTOM -> RoundedCornerShape(
-            topStart = if (isUser) largeCorner else smallCorner,
-            topEnd = if (isUser) smallCorner else largeCorner,
-            bottomStart = largeCorner,
-            bottomEnd = largeCorner
-        )
+    val bubbleShape = if (isUser) {
+        RoundedCornerShape(percent = 50)
+    } else {
+        when (groupPosition) {
+            MessageGroupPosition.SINGLE -> RoundedCornerShape(
+                topStart = largeCorner,
+                topEnd = largeCorner,
+                bottomStart = smallCorner,
+                bottomEnd = largeCorner
+            )
+            MessageGroupPosition.TOP -> RoundedCornerShape(
+                topStart = largeCorner,
+                topEnd = largeCorner,
+                bottomStart = smallCorner,
+                bottomEnd = largeCorner
+            )
+            MessageGroupPosition.MIDDLE -> RoundedCornerShape(
+                topStart = smallCorner,
+                topEnd = largeCorner,
+                bottomStart = smallCorner,
+                bottomEnd = largeCorner
+            )
+            MessageGroupPosition.BOTTOM -> RoundedCornerShape(
+                topStart = smallCorner,
+                topEnd = largeCorner,
+                bottomStart = largeCorner,
+                bottomEnd = largeCorner
+            )
+        }
     }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 2.dp),
+            .padding(
+                horizontal = if (isUser) 16.dp else 8.dp, // Reduced margins for AI responses
+                vertical = 4.dp
+            ),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         // Content Logic
@@ -194,9 +201,13 @@ fun ChatMessageItem(
         fun MessageContent() {
             var actionsExpanded by remember { mutableStateOf(false) }
             Column(
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+                modifier = Modifier.padding(
+                    horizontal = if (isUser) 16.dp else 4.dp, // Tighter horizontal padding inside for AI
+                    vertical = if (isUser) 12.dp else 8.dp
+                )
             ) {
                 if (isUser) {
+                    val userTextColor = if (isSystemInDarkTheme()) Color.White else Color.Black
                     Text(
                         text = message.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
@@ -205,7 +216,7 @@ fun ChatMessageItem(
                             fontWeight = FontWeight.Medium,
                             letterSpacing = 0.sp
                         ),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = userTextColor
                     )
                 } else {
                     // Streaming/thinking indicator
@@ -328,41 +339,15 @@ fun ChatMessageItem(
                     val normalColor = MaterialTheme.colorScheme.onSurface
                     val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
 
-                    // Split content by code blocks
-                    val parts = message.content.split("```")
-
-                    parts.forEachIndexed { index, part ->
-                        if (index % 2 == 1) {
-                            val lines = part.trim().lines()
-                            val language = if (lines.firstOrNull()?.all { it.isLetterOrDigit() } == true) lines.first() else ""
-                            val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            CodeBlock(code = codeContent, language = language)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        } else {
-                            if (part.isNotBlank()) {
-                                val annotatedText = parseMarkdownToAnnotatedString(
-                                    content = part,
-                                    normalColor = normalColor,
-                                    boldColor = boldColor,
-                                    italicColor = normalColor,
-                                    linkColor = if (isDark) Color(0xFFCE93D8) else Color(0xFF7B1FA2),
-                                    codeColor = MaterialTheme.colorScheme.primary
-                                )
-
-                                Text(
-                                    text = annotatedText,
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 16.sp,
-                                        lineHeight = 26.sp,
-                                        letterSpacing = 0.sp,
-                                        fontWeight = FontWeight.Normal
-                                    )
-                                )
-                            }
-                        }
-                    }
+                    // Professional Markdown Rendering
+                    MarkdownRenderer(
+                        content = message.content,
+                        isUser = isUser,
+                        normalColor = normalColor,
+                        boldColor = boldColor,
+                        linkColor = if (isDark) Color(0xFFCE93D8) else Color(0xFF7B1FA2),
+                        codeColor = MaterialTheme.colorScheme.primary
+                    )
 
                     // Inline Image Preview
                     if (!isUser && message.hasInlineImages) {
@@ -559,10 +544,16 @@ fun ChatMessageItem(
 
         // Apply Bubble only for User
         if (isUser) {
+            val userPillColor = if (isSystemInDarkTheme()) {
+                Color(0xFF2D2D2D) // Dark gray from image
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f) // Softer light gray
+            }
+
             Surface(
                 shape = bubbleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(1.dp, accentColor.copy(alpha = 0.15f)),
+                color = userPillColor,
+                border = null, // Remove border for cleaner pill look
                 shadowElevation = 0.dp,
                 modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth)
             ) {
@@ -1074,6 +1065,172 @@ private fun formatTimestamp(timestamp: Long): String {
             date.format(java.util.Date(timestamp)).lowercase()
         }
     }
+}
+
+/**
+ * Enhanced Markdown Renderer
+ * Supports: Headers, Lists, Links, Bold, Italic, and Code Blocks
+ */
+@Composable
+private fun MarkdownRenderer(
+    content: String,
+    isUser: Boolean,
+    normalColor: Color,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color
+) {
+    val isDark = isSystemInDarkTheme()
+    val parts = content.split("```")
+
+    parts.forEachIndexed { index, part ->
+        if (index % 2 == 1) {
+            // Code Block
+            val lines = part.trim().lines()
+            val language = if (lines.firstOrNull()?.all { it.isLetterOrDigit() } == true) lines.first() else ""
+            val codeContent = if (language.isNotEmpty()) lines.drop(1).joinToString("\n") else part.trim()
+
+            Spacer(modifier = Modifier.height(12.dp))
+            CodeBlock(code = codeContent, language = language)
+            Spacer(modifier = Modifier.height(12.dp))
+        } else {
+            // Standard Text / Markdown
+            if (part.isNotBlank()) {
+                val lines = part.lines()
+                var inList = false
+
+                lines.forEach { line ->
+                    val trimmedLine = line.trim()
+                    
+                    when {
+                        // Headers
+                        trimmedLine.startsWith("### ") -> {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = parseMarkdownToAnnotatedString(
+                                    trimmedLine.removePrefix("### "), boldColor, boldColor, normalColor, linkColor, codeColor
+                                ),
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    lineHeight = 24.sp,
+                                    letterSpacing = (-0.2).sp
+                                ),
+                                color = boldColor
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                        trimmedLine.startsWith("## ") -> {
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Text(
+                                text = parseMarkdownToAnnotatedString(
+                                    trimmedLine.removePrefix("## "), boldColor, boldColor, normalColor, linkColor, codeColor
+                                ),
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp,
+                                    lineHeight = 28.sp,
+                                    letterSpacing = (-0.5).sp
+                                ),
+                                color = boldColor
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                        }
+                        trimmedLine.startsWith("# ") -> {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Text(
+                                text = parseMarkdownToAnnotatedString(
+                                    trimmedLine.removePrefix("# "), boldColor, boldColor, normalColor, linkColor, codeColor
+                                ),
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 28.sp,
+                                    lineHeight = 34.sp,
+                                    letterSpacing = (-1).sp
+                                ),
+                                color = boldColor
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        
+                        // Lists (Bullets)
+                        trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") -> {
+                            Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp)) {
+                                Text("•", style = MaterialTheme.typography.bodyLarge, color = codeColor)
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = parseMarkdownToAnnotatedString(
+                                        trimmedLine.substring(2), normalColor, boldColor, normalColor, linkColor, codeColor
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 16.sp,
+                                        lineHeight = 24.sp
+                                    )
+                                )
+                            }
+                        }
+                        
+                        // Lists (Numbered)
+                        trimmedLine.firstOrNull()?.isDigit() == true && trimmedLine.contains(". ") -> {
+                            val dotIndex = trimmedLine.indexOf(". ")
+                            if (dotIndex in 1..3) {
+                                Row(modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp)) {
+                                    Text(
+                                        text = trimmedLine.substring(0, dotIndex + 1),
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = codeColor
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = parseMarkdownToAnnotatedString(
+                                            trimmedLine.substring(dotIndex + 2), normalColor, boldColor, normalColor, linkColor, codeColor
+                                        ),
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontSize = 16.sp,
+                                            lineHeight = 24.sp
+                                        )
+                                    )
+                                }
+                            } else {
+                                StandardText(line, normalColor, boldColor, linkColor, codeColor)
+                            }
+                        }
+                        
+                        line.isBlank() -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        
+                        else -> {
+                            StandardText(line, normalColor, boldColor, linkColor, codeColor)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StandardText(
+    text: String,
+    normalColor: Color,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color
+) {
+    if (text.isBlank()) return
+    Text(
+        text = parseMarkdownToAnnotatedString(
+            text, normalColor, boldColor, normalColor, linkColor, codeColor
+        ),
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontSize = 16.sp,
+            lineHeight = 26.sp,
+            letterSpacing = 0.sp,
+            fontWeight = FontWeight.Normal
+        ),
+        modifier = Modifier.padding(vertical = 2.dp)
+    )
 }
 
 private fun parseMarkdownToAnnotatedString(

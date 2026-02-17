@@ -250,7 +250,11 @@ class ChatFeatureManager(
                 }
             }
 
-            is AgentCommand.GetSystemStatus -> {
+is AgentCommand.GetSystemStatus -> {
+                CommandValidationResult.Valid  // No params to validate
+            }
+
+            is AgentCommand.GetDeviceInfo -> {
                 CommandValidationResult.Valid  // No params to validate
             }
 
@@ -439,7 +443,8 @@ class ChatFeatureManager(
         is AgentCommand.LaunchApp -> "packageName.len=${command.packageName.length}"
         is AgentCommand.TakeScreenshot -> "save=${command.save}"
         is AgentCommand.ToggleSetting -> "setting=${command.setting} | enable=${command.enable}"
-        is AgentCommand.GetSystemStatus -> "(no params)"
+is AgentCommand.GetSystemStatus -> "(no params)"
+        is AgentCommand.GetDeviceInfo -> "infoType=${command.infoType}"
         is AgentCommand.GetScreenContext -> "(no params)"
         is AgentCommand.SetTimer -> "name.len=${command.name.length} | timeStr.len=${command.timeStr.length} | isAlarm=${command.isAlarm}"
 

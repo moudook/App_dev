@@ -41,14 +41,14 @@ val provider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs
 )
 
-// Using Inter - designed specifically for screen readability with excellent x-height,
-// optical sizing, and a clean neutral feel. Used by many modern apps.
+// Using Outfit - a premium, geometric sans-serif that is very easy on the eyes.
+// It features large x-heights and open letterforms, making it highly readable.
 val BrandSans = FontFamily(
-    Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Light),
-    Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Medium),
-    Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.SemiBold),
-    Font(googleFont = GoogleFont("Inter"), fontProvider = provider, weight = FontWeight.Bold),
+    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Light),
+    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Normal),
+    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Medium),
+    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.SemiBold),
+    Font(googleFont = GoogleFont("Outfit"), fontProvider = provider, weight = FontWeight.Bold),
 )
 
 val InterFont = BrandSans  // Alias maintained for compatibility

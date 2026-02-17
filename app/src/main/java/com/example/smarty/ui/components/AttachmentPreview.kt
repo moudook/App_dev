@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -89,6 +90,7 @@ private fun AnimatedAttachmentChip(
 ) {
     val haptic = LocalHapticFeedback.current
     var isRemovePressed by remember { mutableStateOf(false) }
+    var isChipPressed by remember { mutableStateOf(false) }
 
     // Staggered entry animation
     var appeared by remember { mutableStateOf(false) }
@@ -115,9 +117,16 @@ private fun AnimatedAttachmentChip(
         label = "entryAlpha"
     )
 
+    // Chip press animation - scale down when pressed
+    val chipScale by animateFloatAsState(
+        targetValue = if (isChipPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+        label = "chipScale"
+    )
+
     // Remove button press animation
     val removeScale by animateFloatAsState(
-        targetValue = if (isRemovePressed) 0.8f else 1f,
+        targetValue = if (isRemovePressed) 0.75f else 1f,
         animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
         label = "removeScale"
     )
@@ -131,23 +140,39 @@ private fun AnimatedAttachmentChip(
 
     val shape = if (attachmentType == AttachmentType.AUDIO) CircleShape else RoundedCornerShape(24.dp)
 
+    // Border color animates on press
+    val currentBorderColor by animateColorAsState(
+        targetValue = if (isChipPressed) LocalAccentColor.current.copy(alpha = 0.5f) else borderColor,
+        animationSpec = tween(150),
+        label = "borderColor"
+    )
+
     Surface(
         modifier = Modifier
-            .scale(entryScale)
+            .scale(entryScale * chipScale)
             .graphicsLayer { alpha = entryAlpha }
             .height(if (attachmentType == AttachmentType.AUDIO) 56.dp else 72.dp)
             .widthIn(
                 min = 80.dp,
                 max = if (attachmentType == AttachmentType.AUDIO) 280.dp else 140.dp
             )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isChipPressed = true
+                        tryAwaitRelease()
+                        isChipPressed = false
+                    }
+                )
+            }
             .softCardShadow(
-                elevation = 4.dp,
+                elevation = if (isChipPressed) 8.dp else 4.dp,
                 shape = shape,
-                spotColor = Color.Black.copy(alpha = 0.1f)
+                spotColor = if (isChipPressed) LocalAccentColor.current.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f)
             ),
         shape = shape,
         color = backgroundColor,
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, currentBorderColor)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Content based on type
@@ -265,20 +290,32 @@ private fun AnimatedAttachmentChip(
             }
 
 
-            // Remove button (top-right corner)
+            // Remove button (top-right corner) - Enhanced with better visual feedback
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = (-4).dp, y = 4.dp)
+                    .offset(x = (-6).dp, y = 6.dp)
                     .scale(removeScale)
-                    .size(20.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f))
+                    .background(
+                        if (isRemovePressed) MaterialTheme.colorScheme.error.copy(alpha = 0.9f)
+                        else MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                    )
+                    .then(
+                        if (!isRemovePressed) {
+                            Modifier.shadow(
+                                elevation = 4.dp,
+                                shape = CircleShape,
+                                spotColor = Color.Black.copy(alpha = 0.2f)
+                            )
+                        } else Modifier
+                    )
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
                                 isRemovePressed = true
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 tryAwaitRelease()
                                 isRemovePressed = false
                             },
@@ -288,10 +325,17 @@ private fun AnimatedAttachmentChip(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Close,
+                    imageVector = if (isRemovePressed) Icons.Default.Check else Icons.Default.Close,
                     contentDescription = stringResource(R.string.remove_attachment),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(12.dp)
+                    tint = if (isRemovePressed) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(if (isRemovePressed) 14.dp else 12.dp)
+                        .graphicsLayer {
+                            if (isRemovePressed) {
+                                scaleX = 1.2f
+                                scaleY = 1.2f
+                            }
+                        }
                 )
             }
         }
