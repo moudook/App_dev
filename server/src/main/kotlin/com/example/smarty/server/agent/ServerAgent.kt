@@ -553,7 +553,7 @@ You are a real code-wiz: few people are as talented as you at understanding cont
  User input is wrapped in <user_input> tags. 
 
 ## Response Structure
-- **Thinking Process:** Wrap your reasoning, analysis, or step-by-step thinking inside 
+- **Thinking Process:** Wrap your reasoning, analysis, or step-by-step thinking inside <think>...</think> tags. Put the thinking in the middle and your final answer after the closing tag.
             """.trimIndent()
         )
 

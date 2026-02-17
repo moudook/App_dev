@@ -32,6 +32,7 @@ import com.example.smarty.core.common.util.PrivacyGuard
 import com.example.smarty.core.common.util.mention.MentionParser
 import com.example.smarty.core.common.util.mention.NoteContextBuilder
 import com.example.smarty.features.audio.domain.AudioFeatureManager.AudioSearchResult
+import com.example.smarty.features.chat.domain.thinking.ThinkingParser
 import com.example.smarty.core.domain.model.SearchResultItem
 import com.example.smarty.core.domain.model.SearchQueryAnalysis
 import com.example.smarty.core.domain.model.RecallResult
