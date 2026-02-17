@@ -250,7 +250,80 @@ fun ChatMessageItem(
                             Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha2), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha3), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
-                    } else {
+                     } else {
+                    // Collapsible thinking section
+                    if (message.hasThinking) {
+                        var thinkingExpanded by remember { mutableStateOf(false) }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                // Clickable header
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { thinkingExpanded = !thinkingExpanded },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Thinking",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = if (thinkingExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = if (thinkingExpanded) "Collapse" else "Expand",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                // Expandable thinking content
+                                AnimatedVisibility(visible = thinkingExpanded) {
+                                    Column(modifier = Modifier.padding(top = 8.dp)) {
+                                        val isDark = isSystemInDarkTheme()
+                                        val normalColor = MaterialTheme.colorScheme.onSurface
+                                        val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
+                                        
+                                        val thinkingText = parseMarkdownToAnnotatedString(
+                                            content = message.thinking!!,
+                                            normalColor = normalColor,
+                                            boldColor = boldColor,
+                                            italicColor = normalColor,
+                                            linkColor = if (isDark) Color(0xFFCE93D8) else Color(0xFF7B1FA2),
+                                            codeColor = MaterialTheme.colorScheme.primary
+                                        )
+                                        
+                                        Text(
+                                            text = thinkingText,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontSize = 14.sp,
+                                                lineHeight = 22.sp,
+                                                letterSpacing = 0.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                fontStyle = FontStyle.Italic
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    
                     val isDark = isSystemInDarkTheme()
                     val normalColor = MaterialTheme.colorScheme.onSurface
                     val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)

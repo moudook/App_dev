@@ -1412,10 +1412,14 @@ class ChatFeatureManager(
             // Handle success - replace streaming message with final message
             chatManager.markApiCallSuccessful()
 
+            // Parse the response to separate thinking and final answer
+            val parsedResponse = ThinkingParser.parse(fullResponse)
+            
             val smartyMessage = ChatMessage(
                 id = streamingMessageId,
                 role = ChatRole.SMARTY,
-                content = fullResponse.ifEmpty { "[No response received. Please try again.]" },
+                content = parsedResponse.answer.ifEmpty { "[No response received. Please try again.]" },
+                thinking = parsedResponse.thinking,
                 timestamp = System.currentTimeMillis(),
                 executedActions = pendingActions.toList(),
                 citations = pendingCitations.map { Citation(title = it.title, url = it.url, snippet = it.snippet) },

@@ -54,6 +54,7 @@ data class ChatMessage(
     val id: String, // = UUID.randomUUID().toString(),
     val role: ChatRole,
     val content: String,
+    val thinking: String? = null,  // AI thinking/reasoning process (collapsible)
     val attachments: List<Attachment> = emptyList(),
     val timestamp: Long = 0L, // System.currentTimeMillis(),
     val executedActions: List<AgentActionResult> = emptyList(),
@@ -66,6 +67,10 @@ data class ChatMessage(
     val inlineImages: List<InlineChatImage> = emptyList(),  // Images from ViewImageTool to display inline
     val clarificationRequest: ClarificationRequest? = null  // Interactive clarification request
 ) {
+    /**
+     * Check if this message has a thinking/reasoning section
+     */
+    val hasThinking: Boolean get() = thinking != null && thinking.isNotBlank()
     /**
      * Check if this is a user message
      */
