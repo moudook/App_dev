@@ -4,19 +4,19 @@ A comprehensive list of features currently implemented in the Smarty application
 
 ## &#x1F4DA; Feature Managers Architecture (Modular Design)
 -   **Feature-First Modular Architecture**:
-    -   **AudioFeatureManager**: Centralized audio playback control, device audio discovery, and playback state management.
-    -   **AuthFeatureManager**: Firebase Email/Password Auth, Google Sign-In integration, password recovery, and session management.
-    -   **CalendarFeatureManager**: Calendar event CRUD, event queries, and alarm scheduling coordination.
-    -   **ChatFeatureManager**: AI agent interaction, session management, mention resolution, and command orchestration.
-    -   **SearchFeatureManager**: Semantic note search, hybrid/vector/keyword algorithms, query analysis, and semantic recall.
-    -   **SettingsFeatureManager**: Server connection settings, UI preferences, and app lifecycle flags.
-    -   **SystemFeatureManager**: App launching, internal navigation, media playback, screen capture, and device audio.
-    -   **VoiceFeatureManager**: Voice interactions, wake word detection, audio focus, and phone call state observation.
-    -   **MentionFeatureManager**: @-mention parsing, type discovery, and contextual note retrieval.
-    -   **StyleFeatureManager**: User writing style analysis and tone detection.
-    -   **WorkflowManager**: Complex multi-step AI workflows (Deep Research, Batch Processing, Scheduled Tasks).
-    -   **BackupFeatureManager**: Local and cloud backup orchestration.
-    -   **MemoryFeatureManager**: AI memory CRUD operations and retrieval.
+    -   **AudioFeatureManager**: Centralized audio playback control via `Media3 ExoPlayer`, device audio library discovery through `MediaStore`, playback state management using `StateFlow` and integration with `MediaSessionService` for foreground service compliance.
+    -   **AuthFeatureManager**: Firebase Email/Password authentication (`FirebaseAuth`), Google Sign-In OAuth2 integration (`GoogleSignInClient`), password recovery via email reset, and session token lifecycle management with `AuthStateListener`.
+    -   **CalendarFeatureManager**: Calendar event CRUD via `GoogleCalendarService`, event queries with `EventQuery` filters, and alarm scheduling coordination using `AlarmManager` + `WorkManager`.
+    -   **ChatFeatureManager**: AI agent interaction (`ChatSession` lifecycle), session persistence via Room, mention resolution with `MentionParser`, and command orchestration using `CompositeTransport` for hybrid execution.
+    -   **SearchFeatureManager**: Semantic note search powered by `AdaptiveSemanticSearchEngine`, hybrid retrieval (BM25 + vector cosine), query analysis via `QueryAnalyzer` (tokenization, stop‑word removal), and contextual recall using `ContextualEmbeddingProvider`.
+    -   **SettingsFeatureManager**: Server connection configuration (`ServerConfig` data class), UI preferences (theme, haptics) stored with `DataStore`, and app lifecycle flags (`isProcessing`, `isChatMode`).
+    -   **SystemFeatureManager**: App launching via `PackageManager` + `Intent`, internal navigation using `NavHostController`, screen capture via `MediaProjectionService` with `VirtualDisplay`, and device audio routing via `AudioManager`.
+    -   **VoiceFeatureManager**: Google SpeechRecognizer integration (`SpeechToText` composable), audio focus handling (`AudioManager.AudioFocusRequest`), phone call state observation (`TelephonyManager`), and robust voice‑to‑text processing with error mapping.
+    -   **MentionFeatureManager**: @‑mention parsing using `MentionExtractor` (regex), type discovery via `NoteTypeClassifier`, and contextual note retrieval with `NoteSearchEngine`.
+    -   **StyleFeatureManager**: Writing style analysis (`StyleAnalyzer`), tone detection (`ToneClassifier`), and length preference tracking.
+    -   **WorkflowManager**: Multi‑step AI workflows orchestrated by `WorkManager` (`WorkChain`), with progress tracking via `LiveData`/`Flow`.
+    -   **BackupFeatureManager**: Local backup orchestration (`BackupManager` with ZIP compression), cloud backup to Google Drive (`DriveServiceHelper`), and incremental backup detection.
+    -   **MemoryFeatureManager**: AI memory CRUD via `MemoryRepository`, vector embedding storage using PostgreSQL `pgvector`, and retrieval with cosine similarity scoring.
 
 ## &#x1F9E0; Core Note-Taking
 -   **Multi-Modal Notes**: Create notes with varied content types:
@@ -64,6 +64,8 @@ A comprehensive list of features currently implemented in the Smarty application
         -   **Strict Timings**: `BatchActions` (60s), `WebSearch` (45s), `Summarize` (30s), Default (15s).
     -   **Streaming Responses**: Real-time text generation with protocol-based feedback via Server-Sent Events (SSE).
     -   **Command Transport Layer**: `LocalCommandTransport` for pure on-device execution, `ShadowRemoteTransport` for server coordination, `CompositeTransport` for hybrid execution.
+    -   **Agent Loop Detection**: Advanced loop detection system that prevents the AI agent from getting stuck in infinite loops, with automatic recovery mechanisms.
+    -   **SOTA System Prompts**: State-of-the-Art system prompts with anti-hallucination guidelines and accuracy improvements for more reliable AI responses.
 -   **Adaptive Semantic Search Engine**:
     -   **Dynamic Algorithm Selection**: Automatically shifts between `KEYWORD_HEAVY`, `SEMANTIC_HEAVY`, `VECTOR_HEAVY`, and `HYBRID` strategies based on content characteristics.
     -   **Content Analysis & Intent Detection**: Calculates Keyword Density, Semantic Clustering, and Diversity to adjust search weights (Keyword, Semantic, Vector) and relevance thresholds in real-time. Detects query "Complexity" to suggest optimal search strategies.
@@ -93,6 +95,9 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Reasoning Step**: Uses a specialized "ThinkingMode" to reason through complex documents before answering.
     -   **Thinking Mode Processor**: Dedicated `ThinkingModeProcessor` for @thinking deep document analysis with PDF extraction and chunk management.
     -   **Thinking Parser**: Parses thinking tags from reasoning models like Falcon-H1R-7B, separating reasoning process from final answer.
+    -   **Collapsible Thinking Sections**: Interactive collapsible UI for AI reasoning content with proper parsing and smooth animations. Users can expand/collapse the thinking process to see the AI's step-by-step reasoning.
+    -   **Multi-Model Reasoning Support**: Full support for various reasoning models including GLM-5's `reasoning_content` field and Falcon-H1R-7B's thinking tags, with automatic detection and parsing.
+    -   **Streaming Reasoning Display**: Real-time display of thinking content as it's generated, with proper formatting and state management.
 -   **Style Analysis & "Voice Adoption"**:
     -   **Stylistic Fingerprinting**: Analyzes recent notes to detect if you prefer bullet points or paragraphs.
     -   **Tone Detection**: Detects "Enthusiastic" or "Inquisitive" tones based on punctuation density.
@@ -101,11 +106,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **FTS5 Fast Search**: Utilizes advanced SQLite FTS5 (Virtual Table) with BM25 ranking for instantaneous retrieval across thousands of entries. Triggers keep the index in sync with the `notes` table.
     -   **Search Index Maintenance**: Periodic optimization tasks to keep search speed consistent as data grows.
     -   **Search History Intelligence**: Privacy-focused `SearchHistoryManager` for persistent, searchable query logging.
--   **Signal-Processing Transcription**:
-    -   **On-Device Internal Playback**: A specialized engine that decodes audio to PCM and "pipes" it back through the system's `VoiceCommunication` stream so the on-device `SpeechRecognizer` can process files as if they were live mic input.
-    -   **RMS Energy Detection**: Uses Root Mean Square signal processing to detect when speech starts and stops.
-    -   **Continuous Segment Stitching**: Breaks long audio into segments based on silence, transcribes them individually, and stitches them back together for perfectly aligned results.
-    -   **Hysteresis Protection**: Uses dual thresholds (Speech vs Silence) with a 2000ms buffer to prevent rapid on/off switching.
+
 -   **Conversation Summarization**:
     -   **AI-Powered Summarizer**: `ConversationSummarizer` generates concise, privacy-safe summaries of chat sessions.
     -   **Automatic Triggers**: Summarizes on new session start, 30+ min inactivity, or 15+ messages.
@@ -116,6 +117,14 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **30-50% Latency Reduction**: Significant improvement for burst requests.
     -   **Lifecycle-Aware**: Uses external scope to prevent memory leaks (TECH-001 fix).
     -   **Statistics Tracking**: Tracks total requests, batched requests, and batching efficiency.
+-   **Enhanced AI Response Handling**:
+    -   **Improved Error Handling**: Robust error handling for AI responses with proper error messages and recovery mechanisms.
+    -   **Brain Freeze Error Fix**: Fixed critical "brain freeze" errors that could cause the AI agent to become unresponsive.
+    -   **Message Metadata Fix**: Corrected message metadata handling to ensure proper context preservation across conversations.
+    -   **Output Tag Processing**: Enhanced processing of output tags for better structured response handling.
+-   **Real-Time Voice Input**:
+    -   **Google SpeechRecognizer Integration**: Implemented Google SpeechRecognizer for real-time voice input with improved accuracy and responsiveness.
+    -   **Enhanced Voice Pipeline**: Improved voice-to-text pipeline with better preprocessing and error handling.
 
 ## &#x1F44C; Smarty Assistant & "Assist" System
 -   **Native Assistant Replacement**:
@@ -131,12 +140,12 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Mutex-Locked Safety**: Ensures thread-safe access to the screen buffer to prevent tearing or race conditions.
     -   **Virtual Display Pool**: Maintains a warm `VirtualDisplay` and `ImageReader` to reduce capture latency to near-zero.
     -   **Cross-App Reasoning**: Allows the AI to "see" your screen content across other apps to answer questions like "What is this recipe mentioning?" or "Summarize this post."
--   **Hands-Free Communication**:
-    -   **Vosk Wake-Word Engine**: High-accuracy "Always-On" wake-word detection (e.g., "friday").
-    -   **High-Sensitivity Audio Boost**: Applies up to **4x software gain amplification** (`GAIN_HIGH_SENSITIVITY`) to boost quiet audio for long-range detection (phone across the room).
-    -   **Speaker Verification Buffer**: Keeps a **3-second rolling buffer** of *original* (non-amplified) audio to ensure speaker features aren't distorted during verification.
-    -   **Global Microphone Orchestration**: A `isGloballyPaused` mechanism that allows the Assistant Overlay to "take" the microphone from the wake-word engine instantly without resource conflicts.
-    -   **Self-Healing Mic Logic**: Detects when the system takes the microphone away and automatically triggers recovery/re-initialization.
+-   **Voice Input**:
+    -   **Manual Voice Trigger**: Voice input activated via UI button (mic icon), not automatic wake-word detection.
+    -   **Google SpeechRecognizer**: Real-time speech-to-text using Android's SpeechRecognizer with partial result support and error handling.
+    -   **Chat Mode Integration**: Voice input works in both main note-taking and chat contexts.
+    -   **Audio Focus Management**: Properly handles interruptions (phone calls, other apps).
+    -   **Phone Call State Detection**: Pauses voice processing during calls.
 
 ## &#x1F4F1; System Integration
 -   **App Integration**:
@@ -173,6 +182,7 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Natural Language Parsing**: Understands "tomorrow at 10am", "next Friday", or "in 5 minutes".
     -   **Automated Alarms**: Schedules system notifications/reminders for every event.
     -   **Linked Entities**: Ties notes directly to calendar events for context.
+    -   **Duplicate Event Prevention**: Advanced deduplication check that prevents creating duplicate calendar events, ensuring clean and accurate calendar data.
 -   **Time Management**:
     -   **Timers**: Set multiple named timers with persistence.
     -   **Alarms**: Create system alarms.
@@ -303,6 +313,15 @@ A comprehensive list of features currently implemented in the Smarty application
     -   **Layered Soft Glows**: Multi-layer radial gradients for depth.
     -   **Wobble Effect**: Secondary animation for organic feel.
     -   **Monochrome Design**: Silver/Grey color scheme for premium aesthetic.
+-   **Gradient Scrim Effects**:
+    -   **Memoized Rendering**: Optimized gradient scrim effects with memoization to prevent unnecessary recomputations and improve performance.
+    -   **Theme-Aware Handling**: Gradient scrims automatically adapt to current theme (light/dark) for consistent visual appearance.
+    -   **Smooth Animations**: Fluid animations for gradient transitions with proper easing curves.
+    -   **Keyboard Handling**: Intelligent keyboard-aware positioning that adjusts gradient effects when the keyboard is shown/hidden.
+-   **Collapsible UI Components**:
+    -   **Collapsible Sections**: Interactive collapsible components for organizing content and reducing visual clutter.
+    -   **Smooth Transitions**: Animated expand/collapse transitions with proper state management.
+    -   **Accessibility**: Full keyboard navigation support for collapsible elements.
 
 ## &#x2699;&#xFE0F; Customization & Engineering (Invisible Engineering)
 -   **Performance Optimization**:
@@ -376,13 +395,12 @@ A comprehensive list of features currently implemented in the Smarty application
     *   **Document Volume (>1000 chars avg)**: Shifts to `VECTOR_HEAVY` (0.2 Keyword / 0.3 Semantic / 0.5 Vector).
 *   **Temporal Normalization**: Recurrent content is weighted via `1.0 / (1.0 + (avgAge / (30 days)))`, ensuring relevance decays mathematically over time.
 
-### 4. Audio Signal "Piping" Pipeline (`AudioTranscriber`)
-*   **Hardware Extraction**: Utilizes `MediaCodec` and `MediaExtractor` to pull raw PCM samples from compressed formats (MP3/AAC) at 16,000Hz (Mono).
-*   **Internal Mic Simulation**: 
-    *   **Writer**: Pipes PCM bytes into an `AudioTrack` output stream.
-    *   **Listener**: Triggers the system `SpeechRecognizer` in parallel.
-    *   *Result*: Effectively "tricks" the OS speech engine into processing local files as live voice input, bypassing server-side transcription costs.
-*   **Low-Level Binary Framing**: Manually constructs 44-byte WAV headers using `ByteBuffer` with `ByteOrder.LITTLE_ENDIAN` for compatibility with legacy Android media APIs.
+### 4. Audio Transcription Pipeline (`AudioTranscriber`)
+*   **Hardware Extraction**: Utilizes `MediaCodec` and `MediaExtractor` to decode compressed audio formats (MP3/AAC) to raw PCM samples.
+*   **Continuous Recognition**: Implements intelligent silence detection to automatically restart Google SpeechRecognizer when pauses occur, enabling long-form audio transcription.
+*   **Result Accumulation**: Stitches multiple partial results together to produce complete transcripts from segmented audio.
+*   **Low-Level Binary Framing**: Manual WAV header construction using `ByteBuffer` with `ByteOrder.LITTLE_ENDIAN` for legacy Android media API compatibility.
+*   **Server-Side Option**: Primary transcription now uses server-side Whisper for better accuracy, with AudioTranscriber as fallback for offline scenarios.
 
 ### 5. O(1) Content Discovery (`ContentTypeDetector`)
 *   **Pre-Compiled Regex Lexicon**: Uses a static pool of pre-compiled `Regex` patterns for Idea/Task/Code detection.
@@ -434,11 +452,10 @@ A comprehensive list of features currently implemented in the Smarty application
     *   **Memory Extraction**: Identifies and extracts new user preferences (`---MEMORY---`) for the long-term vector store.
 
 ### 3. Voice-to-Action Pipeline (Hybrid Execution)
-*   **Wake Word**: "Friday" detected by **Vosk** (Offline, High-Sensitivity).
-*   **Transcription**: Google SpeechRecognizer converts audio to text.
-*   **Preprocessing**: Strips polite fillers ("please", "hey smarty") and normalized punctuation.
-*   **Fast-Path Check (`LocalCommandProcessor`)**: 
-    *   **0ms Latency**: Checks `LocalCommandProcessor` for exact matches (Flashlight, Volume, Time).
+*   **Manual Trigger**: User taps mic button to activate voice input (no automatic wake-word detection).
+*   **Transcription**: Google SpeechRecognizer converts audio to text with partial result support.
+*   **Fast-Path Check (`LocalCommandProcessor`)`: 
+    *   **0ms Latency**: Checks `LocalCommandProcessor` for exact matches (Flashlight, Volume, Time, Date, Battery).
     *   **Hybrid Chaining**: Detects "Task Words" (e.g., "play music AND remind me") to optionally execute a local command AND pass the request to the LLM.
     *   *Match?* -> Execute locally.
     *   *No Match?* -> Send to Server Agent.
@@ -465,8 +482,7 @@ A comprehensive list of features currently implemented in the Smarty application
 -   **Network**: OkHttp 4, Ktor Client (Engine: OkHttp), Server-Sent Events (SSE)
 -   **Media**: Media3 ExoPlayer (Audio), Coil (Image Loading)
 -   **AI/Speech**:
-    -   **Vosk**: Offline Speech-to-Text
-    -   **Android SpeechRecognizer**: Online fallback
+    -   **Google SpeechRecognizer**: Real-time voice input for manual transcription (button-activated)
     -   **TFLite**: On-device ML (optional)
 -   **Background Work**: WorkManager (Scheduled Tasks), Foreground Services (Audio/File Transfer)
 -   **Serialization**: Kotlinx Serialization, Gson
