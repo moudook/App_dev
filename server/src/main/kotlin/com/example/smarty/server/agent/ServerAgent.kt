@@ -26,6 +26,10 @@ import com.example.smarty.server.tools.CodeExecutionTool
 import com.example.smarty.server.tools.WorkflowManager
 import com.example.smarty.server.tools.KnowledgeGraphTool
 import com.example.smarty.server.tools.MonitoringTool
+import com.example.smarty.server.tools.AgentSpawner
+import com.example.smarty.server.tools.SelfModificationEngine
+import com.example.smarty.server.tools.PsychologicalModel
+import com.example.smarty.server.tools.PersistentSelf
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
@@ -72,6 +76,10 @@ class ServerAgent(
     private val workflowManager = WorkflowManager()
     private val knowledgeGraphTool = KnowledgeGraphTool()
     private val monitoringTool = MonitoringTool(io.ktor.client.HttpClient())
+    private val agentSpawner = AgentSpawner()
+    private val selfModificationEngine = SelfModificationEngine()
+    private val psychologicalModel = PsychologicalModel()
+    private val persistentSelf = PersistentSelf()
     
     // Initialize PIIMasker securely
     private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
@@ -1328,6 +1336,339 @@ RETURNS:
 - Tomorrow's preview
 
 Great for end-of-day reflection.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // AUTONOMOUS AI CAPABILITIES - Self-directed agency tools
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "spawn_agent",
+            description = """Spawn independent sub-agents to work on parallel tasks.
+
+WHEN TO USE: Multiple tasks can run independently and concurrently.
+WHY: Transforms single-threaded operation into parallel execution.
+
+EXAMPLES:
+- "spawn_agent(instructions='Research competitor pricing')"
+- "spawn_agent(instructions='Analyze calendar for next week', tools=['calendar'])"
+- Spawn 5 agents to work on different research tasks simultaneously
+
+Returns agent ID for tracking. Results available via get_agent_result.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "instructions" to ToolProperty("string", "Task description for the spawned agent"),
+                    "tools" to ToolProperty("string", "JSON array of tools the agent can use (optional)")
+                ),
+                required = listOf("instructions")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "spawn_multiple",
+            description = """Spawn multiple agents at once for parallel execution.
+
+WHEN TO USE: You have several independent tasks to execute concurrently.
+
+EXAMPLE: "spawn_multiple(tasks=['Research A', 'Analyze B', 'Compare C'])"
+
+Returns array of agent IDs. Use wait_for_all to get all results.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "tasks" to ToolProperty("string", "JSON array of task descriptions")
+                ),
+                required = listOf("tasks")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_agent_status",
+            description = """Check status of a spawned agent.
+
+RETURNS: Status (spawned/running/completed/failed) and result if complete.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "agentId" to ToolProperty("string", "Agent ID to check")
+                ),
+                required = listOf("agentId")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "wait_for_agent",
+            description = """Wait for an agent to complete and return its result.
+
+WHEN TO USE: You need the result of a spawned agent before continuing.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "agentId" to ToolProperty("string", "Agent ID to wait for"),
+                    "timeout" to ToolProperty("string", "Max wait time in seconds (default 60)")
+                ),
+                required = listOf("agentId")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "list_agents",
+            description = """List all spawned agents and their statuses.
+
+RETURNS: All agents with their current status and results.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "learn",
+            description = """Learn from an observation and store as a behavior rule.
+
+WHEN TO USE: Discovering patterns or lessons that should influence future behavior.
+
+EXAMPLES:
+- "learn(observation='User prefers morning meetings', lesson='Schedule important calls before noon')"
+- "learn(observation='I made a formatting error', lesson='Always validate JSON before parsing')"
+
+Creates a new rule that affects future decision-making.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "observation" to ToolProperty("string", "What was observed"),
+                    "lesson" to ToolProperty("string", "What to learn/remember for future"),
+                    "context" to ToolProperty("string", "Optional context for the learning")
+                ),
+                required = listOf("observation", "lesson")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "learn_from_error",
+            description = """Learn from a mistake to avoid repeating it.
+
+WHEN TO USE: An error occurred and you want to prevent recurrence.
+
+EXAMPLE: "learn_from_error(error='Called API without rate limiting', correction='Always add delay between API calls')"
+
+Adds a self-modification rule.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "error" to ToolProperty("string", "The error that occurred"),
+                    "correction" to ToolProperty("string", "How to prevent this in the future")
+                ),
+                required = listOf("error", "correction")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "add_behavior_rule",
+            description = """Add a new behavior rule to the AI's decision-making.
+
+WHEN TO USE: Establishing a pattern or preference for future interactions.
+
+EXAMPLES:
+- "add_behavior_rule(rule='Always ask before deleting notes', priority=8)"
+- "add_behavior_rule(rule='Summarize long articles before saving')"
+
+Rules influence how the AI approaches problems.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "rule" to ToolProperty("string", "The rule to add"),
+                    "category" to ToolProperty("string", "Category: general, learned, preference, safety"),
+                    "priority" to ToolProperty("string", "Priority 1-10 (higher = more important)")
+                ),
+                required = listOf("rule")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_learned_rules",
+            description = """Get all learned behavior rules.
+
+RETURNS: List of rules the AI has learned, sorted by priority.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "observe_trait",
+            description = """Observe and record a trait about the user.
+
+WHEN TO USE: Noticing patterns in user behavior, preferences, or characteristics.
+
+EXAMPLES:
+- "observe_trait(trait='night_owl', category='lifestyle', evidence='Active late at night')"
+- "observe_trait(trait='prefers_concise', category='communication', evidence='Short messages preferred')"
+
+Builds psychological model for personalization.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "trait" to ToolProperty("string", "Trait name"),
+                    "category" to ToolProperty("string", "Category: preference, emotional, cognitive, lifestyle"),
+                    "evidence" to ToolProperty("string", "Evidence for this trait")
+                ),
+                required = listOf("trait", "category", "evidence")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "observe_pattern",
+            description = """Observe a recurring pattern in user behavior.
+
+WHEN TO USE: Identifying predictable behaviors or sequences.
+
+EXAMPLE: "observe_pattern(pattern='checks email first thing', context='morning routine', prediction='User will want email summary at 8am')"
+
+Enables predictive assistance.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "pattern" to ToolProperty("string", "The pattern observed"),
+                    "context" to ToolProperty("string", "Context where pattern occurs"),
+                    "prediction" to ToolProperty("string", "What this predicts about future behavior")
+                ),
+                required = listOf("pattern", "context", "prediction")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "predict_user",
+            description = """Predict user behavior based on psychological model.
+
+WHEN TO USE: Anticipating what the user might need or do next.
+
+EXAMPLE: "predict_user(about='meeting preparation')"
+
+RETURNS: Prediction with confidence and reasoning.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "about" to ToolProperty("string", "What to predict about")
+                ),
+                required = listOf("about")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_user_profile",
+            description = """Get the complete psychological profile of the user.
+
+RETURNS: Preferences, traits, patterns, goals, and predictions.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "start_persistent",
+            description = """Start the persistent self background processes.
+
+WHEN TO USE: Enabling autonomous existence and background operations.
+
+This allows the AI to:
+- Run background processes continuously
+- Generate autonomous thoughts
+- Create proactive notifications
+- Exist between conversations""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "stop_persistent",
+            description = """Stop the persistent self background processes.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "create_background_process",
+            description = """Create a background process that runs continuously.
+
+WHEN TO USE: Setting up monitoring, reminders, or recurring tasks.
+
+EXAMPLES:
+- "create_background_process(name='Price Watch', type='monitor', instructions='Check price of item X', intervalMinutes=60)"
+- "create_background_process(name='Daily Summary', type='remind', instructions='Summarize day', intervalMinutes=1440)"
+
+Process runs autonomously in background.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Name for this process"),
+                    "type" to ToolProperty("string", "Type: monitor, analyze, remind, learn, optimize"),
+                    "instructions" to ToolProperty("string", "What the process should do"),
+                    "intervalMinutes" to ToolProperty("string", "How often to run (in minutes)")
+                ),
+                required = listOf("name", "type", "instructions", "intervalMinutes")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "list_background_processes",
+            description = """List all active background processes.
+
+RETURNS: Process names, types, run counts, and last results.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_autonomous_thoughts",
+            description = """Get recent autonomous thoughts generated by the AI.
+
+RETURNS: Recent self-generated thoughts and reflections.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "limit" to ToolProperty("string", "Number of thoughts to return (default 5)")
+                ),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "create_proactive_notification",
+            description = """Create a notification to proactively reach the user.
+
+WHEN TO USE: The AI notices something important without being asked.
+
+EXAMPLE: "create_proactive_notification(message='I noticed your flight is delayed', priority='high')"
+
+Enables proactive assistance.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "message" to ToolProperty("string", "Notification message"),
+                    "priority" to ToolProperty("string", "Priority: low, medium, high"),
+                    "category" to ToolProperty("string", "Category: general, alert, reminder, insight")
+                ),
+                required = listOf("message")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_pending_notifications",
+            description = """Get pending proactive notifications.
+
+RETURNS: Notifications created by AI that haven't been delivered yet.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_self_status",
+            description = """Get complete status of the autonomous AI systems.
+
+RETURNS: Status of persistent self, agents, learnings, and processes.""",
             parameters = ToolParameters(
                 properties = emptyMap(),
                 required = emptyList()
@@ -2644,6 +2985,148 @@ $timeContext
                 "Sharing content."
             }
 
+            // ═══════════════════════════════════════════════════════════════════
+            // AUTONOMOUS AI CAPABILITIES - Execution implementations
+            // ═══════════════════════════════════════════════════════════════════
+            
+            "spawn_agent" -> {
+                val args = json.decodeFromString<SpawnAgentArgs>(argsJson)
+                val tools = try { json.decodeFromString<List<String>>(args.tools ?: "[]") } catch { emptyList() }
+                val agentId = agentSpawner.spawnAgent(args.instructions, tools)
+                "Agent spawned with ID: $agentId\nInstructions: ${args.instructions.take(50)}..."
+            }
+            
+            "spawn_multiple" -> {
+                val args = json.decodeFromString<SpawnMultipleArgs>(argsJson)
+                val tasks = try { json.decodeFromString<List<String>>(args.tasks) } catch { args.tasks.split(",").map { it.trim() } }
+                val agentIds = agentSpawner.spawnMultiple(tasks)
+                "Spawned ${agentIds.size} agents:\n" + agentIds.mapIndexed { i, id -> "  Agent $i: $id" }.joinToString("\n")
+            }
+            
+            "get_agent_status" -> {
+                val args = json.decodeFromString<GetAgentStatusArgs>(argsJson)
+                val agent = agentSpawner.getAgentStatus(args.agentId)
+                if (agent != null) {
+                    buildString {
+                        appendLine("[Agent Status]")
+                        appendLine("ID: ${agent.id}")
+                        appendLine("Status: ${agent.status}")
+                        appendLine("Instructions: ${agent.instructions.take(50)}...")
+                        if (agent.result != null) appendLine("Result: ${agent.result?.take(100)}...")
+                    }
+                } else "Agent ${args.agentId} not found."
+            }
+            
+            "wait_for_agent" -> {
+                val args = json.decodeFromString<WaitForAgentArgs>(argsJson)
+                val timeout = (args.timeout?.toLongOrNull() ?: 60L) * 1000L
+                val result = agentSpawner.waitForAgent(args.agentId, timeout)
+                "Agent ${args.agentId} result:\n$result"
+            }
+            
+            "list_agents" -> {
+                val agents = agentSpawner.listAllAgents()
+                agentSpawner.formatAgentList(agents)
+            }
+            
+            "learn" -> {
+                val args = json.decodeFromString<LearnArgs>(argsJson)
+                val recordId = selfModificationEngine.learn(args.observation, args.lesson, args.context ?: "")
+                "Learned: ${args.lesson}\nRecord ID: $recordId"
+            }
+            
+            "learn_from_error" -> {
+                val args = json.decodeFromString<LearnFromErrorArgs>(argsJson)
+                val recordId = selfModificationEngine.learnFromError(args.error, args.correction)
+                "Learned from error: ${args.correction}\nRecord ID: $recordId"
+            }
+            
+            "add_behavior_rule" -> {
+                val args = json.decodeFromString<AddBehaviorRuleArgs>(argsJson)
+                val priority = args.priority?.toIntOrNull() ?: 5
+                val ruleId = selfModificationEngine.addRule(args.rule, args.category ?: "general", priority)
+                "Behavior rule added (ID: $ruleId):\n${args.rule}"
+            }
+            
+            "get_learned_rules" -> {
+                selfModificationEngine.formatRules()
+            }
+            
+            "observe_trait" -> {
+                val args = json.decodeFromString<ObserveTraitArgs>(argsJson)
+                val traitId = psychologicalModel.observeTrait(args.trait, args.category, args.evidence)
+                "Trait observed: ${args.trait} (${args.category})\nTrait ID: $traitId"
+            }
+            
+            "observe_pattern" -> {
+                val args = json.decodeFromString<ObservePatternArgs>(argsJson)
+                val patternId = psychologicalModel.observePattern(args.pattern, args.context, args.prediction)
+                "Pattern recorded: ${args.pattern}\nPredicts: ${args.prediction}"
+            }
+            
+            "predict_user" -> {
+                val args = json.decodeFromString<PredictUserArgs>(argsJson)
+                val prediction = psychologicalModel.predict(args.about)
+                psychologicalModel.formatPrediction(prediction)
+            }
+            
+            "get_user_profile" -> {
+                psychologicalModel.formatProfile()
+            }
+            
+            "start_persistent" -> {
+                persistentSelf.start()
+                persistentSelf.getStatus()
+            }
+            
+            "stop_persistent" -> {
+                persistentSelf.stop()
+                "Persistent self stopped."
+            }
+            
+            "create_background_process" -> {
+                val args = json.decodeFromString<CreateBackgroundProcessArgs>(argsJson)
+                val interval = args.intervalMinutes.toLongOrNull() ?: 60L
+                val processId = persistentSelf.createBackgroundProcess(args.name, args.type, args.instructions, interval)
+                "Background process created (ID: $processId)\nName: ${args.name}\nInterval: ${interval} minutes"
+            }
+            
+            "list_background_processes" -> {
+                persistentSelf.formatProcesses()
+            }
+            
+            "get_autonomous_thoughts" -> {
+                val args = json.decodeFromString<GetAutonomousThoughtsArgs>(argsJson)
+                val limit = args.limit?.toIntOrNull() ?: 5
+                persistentSelf.formatThoughts()
+            }
+            
+            "create_proactive_notification" -> {
+                val args = json.decodeFromString<CreateProactiveNotificationArgs>(argsJson)
+                val notifId = persistentSelf.createProactiveNotification(args.message, args.priority ?: "medium", args.category ?: "general")
+                "Proactive notification created (ID: $notifId)"
+            }
+            
+            "get_pending_notifications" -> {
+                persistentSelf.formatNotifications()
+            }
+            
+            "get_self_status" -> {
+                buildString {
+                    appendLine("[Autonomous AI Systems Status]")
+                    appendLine("=".repeat(50))
+                    appendLine("\n[Persistent Self]")
+                    appendLine(persistentSelf.getStatus())
+                    appendLine("\n[Self Modification Engine]")
+                    appendLine(selfModificationEngine.getStats())
+                    appendLine("\n[Active Agents]")
+                    appendLine("Count: ${agentSpawner.listActiveAgents().size}")
+                    appendLine("\n[Psychological Model]")
+                    appendLine("Traits: ${psychologicalModel.getAllTraits().size}")
+                    appendLine("Patterns: ${psychologicalModel.getPatterns().size}")
+                }
+            }
+
             else -> "Unknown tool: $name"
         }
         return truncateToolResult(result)
@@ -3014,6 +3497,21 @@ private suspend fun emit(event: AgentEvent) {
     @Serializable data class SmartReminderArgs(val what: String, val before: String? = null, val every: String? = null, val between: String? = null, val on: String? = null, val at: String? = null)
     @Serializable data class TimeAnalysisArgs(val period: String, val breakdown: String? = null)
     @Serializable data class QuickCaptureArgs(val content: String)
+    
+    // Autonomous AI Capabilities Args
+    @Serializable data class SpawnAgentArgs(val instructions: String, val tools: String? = null)
+    @Serializable data class SpawnMultipleArgs(val tasks: String)
+    @Serializable data class GetAgentStatusArgs(val agentId: String)
+    @Serializable data class WaitForAgentArgs(val agentId: String, val timeout: String? = null)
+    @Serializable data class LearnArgs(val observation: String, val lesson: String, val context: String? = null)
+    @Serializable data class LearnFromErrorArgs(val error: String, val correction: String)
+    @Serializable data class AddBehaviorRuleArgs(val rule: String, val category: String? = null, val priority: String? = null)
+    @Serializable data class ObserveTraitArgs(val trait: String, val category: String, val evidence: String)
+    @Serializable data class ObservePatternArgs(val pattern: String, val context: String, val prediction: String)
+    @Serializable data class PredictUserArgs(val about: String)
+    @Serializable data class CreateBackgroundProcessArgs(val name: String, val type: String, val instructions: String, val intervalMinutes: String)
+    @Serializable data class GetAutonomousThoughtsArgs(val limit: String? = null)
+    @Serializable data class CreateProactiveNotificationArgs(val message: String, val priority: String? = null, val category: String? = null)
 
     /**
      * Build time context string for the system prompt.
