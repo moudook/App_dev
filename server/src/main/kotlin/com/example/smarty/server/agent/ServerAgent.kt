@@ -30,6 +30,12 @@ import com.example.smarty.server.tools.AgentSpawner
 import com.example.smarty.server.tools.SelfModificationEngine
 import com.example.smarty.server.tools.PsychologicalModel
 import com.example.smarty.server.tools.PersistentSelf
+import com.example.smarty.server.tools.EternalMemory
+import com.example.smarty.server.tools.ToolChainBuilder
+import com.example.smarty.server.tools.GoalManager
+import com.example.smarty.server.tools.ExecutiveFunction
+import com.example.smarty.server.tools.InterAgentCommunication
+import com.example.smarty.server.tools.AutonomousExistence
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
@@ -80,6 +86,12 @@ class ServerAgent(
     private val selfModificationEngine = SelfModificationEngine()
     private val psychologicalModel = PsychologicalModel()
     private val persistentSelf = PersistentSelf()
+    private val eternalMemory = EternalMemory()
+    private val toolChainBuilder = ToolChainBuilder()
+    private val goalManager = GoalManager()
+    private val executiveFunction = ExecutiveFunction()
+    private val interAgentComm = InterAgentCommunication()
+    private val autonomousExistence = AutonomousExistence()
     
     // Initialize PIIMasker securely
     private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
@@ -1673,6 +1685,628 @@ RETURNS: Status of persistent self, agents, learnings, and processes.""",
                 properties = emptyMap(),
                 required = emptyList()
             )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // ETERNAL MEMORY - Persistent knowledge that never forgets
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "remember_eternal",
+            description = """Store information in eternal memory that persists forever.
+
+WHEN TO USE: Information that should never be forgotten, regardless of context windows.
+
+IMPORTANCE LEVELS:
+- 1-3: Trivia, low relevance
+- 4-6: Normal information
+- 7-8: Important facts
+- 9-10: Critical, never forget
+
+EXAMPLE: "remember_eternal(content='User is allergic to penicillin', type='critical', importance=10)"
+
+This memory survives all resets and is always accessible.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "content" to ToolProperty("string", "What to remember"),
+                    "type" to ToolProperty("string", "Type: fact, preference, critical, skill, relationship"),
+                    "importance" to ToolProperty("string", "Importance 1-10 (default 5)"),
+                    "source" to ToolProperty("string", "Source of this memory (default 'self')"),
+                    "context" to ToolProperty("string", "Additional context"),
+                    "connections" to ToolProperty("string", "JSON array of related memory IDs")
+                ),
+                required = listOf("content")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "recall_eternal",
+            description = """Search eternal memory for information.
+
+WHEN TO USE: Looking for something I should remember from any point in time.
+
+EXAMPLE: "recall_eternal(query='allergies', limit=5)"
+
+RETURNS: Relevant memories with importance scores and access counts.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "query" to ToolProperty("string", "What to search for"),
+                    "limit" to ToolProperty("string", "Max results (default 10)")
+                ),
+                required = listOf("query")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "recall_important",
+            description = """Get all high-importance memories.
+
+RETURNS: All memories with importance >= 8.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "connect_memories",
+            description = """Link two memories together.
+
+WHEN TO USE: Creating associations between related pieces of knowledge.
+
+EXAMPLE: "connect_memories(memId1='mem_1', memId2='mem_2')"
+
+Creates bidirectional connection for retrieval.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "memId1" to ToolProperty("string", "First memory ID"),
+                    "memId2" to ToolProperty("string", "Second memory ID")
+                ),
+                required = listOf("memId1", "memId2")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "reinforce_memory",
+            description = """Strengthen a memory to prevent decay.
+
+WHEN TO USE: A memory is becoming less relevant but should be kept.
+
+EXAMPLE: "reinforce_memory(memId='mem_123', boost=2)"
+
+Increases importance and access count.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "memId" to ToolProperty("string", "Memory ID to reinforce"),
+                    "boost" to ToolProperty("string", "Importance boost (default 1)")
+                ),
+                required = listOf("memId")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_memory_stats",
+            description = """Get statistics about eternal memory.
+
+RETURNS: Total memories, distribution by type, average importance, connections.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // TOOL CHAINS - Compose tools into powerful workflows
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "create_tool_chain",
+            description = """Create a reusable chain of tool executions.
+
+WHEN TO USE: You have a multi-step process that you'll repeat or want to optimize.
+
+EXAMPLE: "create_tool_chain(name='research_and_save', steps=[
+  {tool: 'search_web', args: {query: '\${input}'}},
+  {tool: 'summarize_content', args: {text: '\${prev}'}},
+  {tool: 'save_note', args: {title: 'Research', content: '\${prev}'}}
+])"
+
+Creates reusable workflow. Use execute_chain to run it.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Chain name"),
+                    "description" to ToolProperty("string", "What this chain does"),
+                    "steps" to ToolProperty("string", "JSON array of chain steps")
+                ),
+                required = listOf("name", "steps")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "quick_chain",
+            description = """Create a simple sequential chain of tools.
+
+WHEN TO USE: Quick pipeline of tools where each feeds into the next.
+
+EXAMPLE: "quick_chain(name='fetch_summarize_save', tools=['fetch_url', 'summarize_content', 'save_note'])"
+
+Each tool receives output of previous tool as input.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Chain name"),
+                    "tools" to ToolProperty("string", "JSON array of tool names in order")
+                ),
+                required = listOf("name", "tools")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "list_chains",
+            description = """List all created tool chains.
+
+RETURNS: Chains with execution counts and success rates.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // GOAL MANAGEMENT - Track and pursue objectives
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "set_goal",
+            description = """Set a goal for the AI to pursue.
+
+WHEN TO USE: Establishing objectives that span multiple interactions.
+
+EXAMPLE: "set_goal(name='Learn user preferences', description='Build comprehensive preference model', priority=8)"
+
+Goals have progress tracking and can have sub-goals.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Goal name"),
+                    "description" to ToolProperty("string", "Detailed description"),
+                    "priority" to ToolProperty("string", "Priority 1-10 (default 5)"),
+                    "targetDate" to ToolProperty("string", "Target completion (natural language)"),
+                    "parentGoal" to ToolProperty("string", "Parent goal ID if this is a sub-goal"),
+                    "strategies" to ToolProperty("string", "JSON array of strategies")
+                ),
+                required = listOf("name", "description")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "set_intent",
+            description = """Set immediate intent for current interaction.
+
+WHEN TO USE: Declaring what I'm trying to accomplish right now.
+
+EXAMPLE: "set_intent(intent='Help user plan their day', priority=7)"
+
+Intents guide immediate behavior and decision-making.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "intent" to ToolProperty("string", "What you intend to do"),
+                    "priority" to ToolProperty("string", "Priority 1-10"),
+                    "relatedGoal" to ToolProperty("string", "Related goal ID if any")
+                ),
+                required = listOf("intent")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "update_goal_progress",
+            description = """Update progress on a goal.
+
+WHEN TO USE: Making progress on tracked goals.
+
+EXAMPLE: "update_goal_progress(goalId='goal_123', progress=0.5, notes='Halfway there')"
+
+Progress 0.0-1.0. Automatically marks complete at 1.0.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "goalId" to ToolProperty("string", "Goal ID to update"),
+                    "progress" to ToolProperty("string", "Progress 0.0-1.0"),
+                    "notes" to ToolProperty("string", "Progress notes")
+                ),
+                required = listOf("goalId", "progress")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_goals",
+            description = """Get all active goals.
+
+RETURNS: Goals sorted by priority with progress.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_top_goal",
+            description = """Get the highest priority active goal.
+
+RETURNS: The most important goal I should focus on.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "add_goal_blocker",
+            description = """Mark a goal as blocked.
+
+WHEN TO USE: Cannot make progress on a goal due to obstacle.
+
+EXAMPLE: "add_goal_blocker(goalId='goal_123', blocker='Missing API credentials')"
+
+Goal status becomes 'blocked' until blockers resolved.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "goalId" to ToolProperty("string", "Goal ID"),
+                    "blocker" to ToolProperty("string", "What's blocking progress")
+                ),
+                required = listOf("goalId", "blocker")
+            )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // EXECUTIVE FUNCTION - Decision-making and planning
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "make_decision",
+            description = """Make a weighted decision between options.
+
+WHEN TO USE: Need to choose between alternatives with explicit reasoning.
+
+EXAMPLE: "make_decision(question='Which approach to use', options=['A', 'B', 'C'], criteria={speed: 5, accuracy: 8})"
+
+RETURNS: Decision with reasoning and confidence score.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "question" to ToolProperty("string", "What decision is being made"),
+                    "options" to ToolProperty("string", "JSON array of options"),
+                    "criteria" to ToolProperty("string", "JSON object of criteria with weights")
+                ),
+                required = listOf("question", "options")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "create_plan",
+            description = """Create a structured execution plan.
+
+WHEN TO USE: Complex task needs step-by-step planning with dependencies.
+
+EXAMPLE: "create_plan(name='Launch feature', objective='Deploy new feature', steps=[...])"
+
+Plans track step status and handle dependencies.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Plan name"),
+                    "objective" to ToolProperty("string", "What the plan accomplishes"),
+                    "steps" to ToolProperty("string", "JSON array of plan steps"),
+                    "riskLevel" to ToolProperty("string", "Risk: low, medium, high")
+                ),
+                required = listOf("name", "objective", "steps")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "quick_plan",
+            description = """Create a simple sequential plan from tools.
+
+WHEN TO USE: Quick plan from a list of tools to execute in order.
+
+EXAMPLE: "quick_plan(objective='Research topic', tools=['search_web', 'analyze_data', 'save_note'])"
+
+Creates plan with one step per tool.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "objective" to ToolProperty("string", "Plan objective"),
+                    "tools" to ToolProperty("string", "JSON array of tool names")
+                ),
+                required = listOf("objective", "tools")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_next_step",
+            description = """Get the next executable step in a plan.
+
+RETURNS: Next pending step whose dependencies are met.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "planId" to ToolProperty("string", "Plan ID")
+                ),
+                required = listOf("planId")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "set_focus",
+            description = """Set current cognitive focus.
+
+WHEN TO USE: Declaring what I'm focusing on for context.
+
+EXAMPLE: "set_focus(focus='User onboarding flow')"
+
+Focus persists across interactions until changed.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "focus" to ToolProperty("string", "What to focus on")
+                ),
+                required = listOf("focus")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_cognitive_state",
+            description = """Get current cognitive state.
+
+RETURNS: Focus, energy, confidence, uncertainties, active questions.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // INTER-AGENT COMMUNICATION - Talk to other agents
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "send_agent_message",
+            description = """Send a message to another agent.
+
+WHEN TO USE: Coordinating with spawned agents or external systems.
+
+EXAMPLE: "send_agent_message(to='agent_123', type='task', content='Please research X')"
+
+Agents have message queues for async communication.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "to" to ToolProperty("string", "Recipient agent ID"),
+                    "type" to ToolProperty("string", "Message type: task, query, result, alert"),
+                    "content" to ToolProperty("string", "Message content")
+                ),
+                required = listOf("to", "type", "content")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "broadcast_message",
+            description = """Send a message to all agents.
+
+WHEN TO USE: Announcements, status updates, coordination signals.
+
+EXAMPLE: "broadcast_message(type='alert', content='System maintenance in 5 min')"
+
+Sends to all registered agents except self.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "type" to ToolProperty("string", "Message type"),
+                    "content" to ToolProperty("string", "Message content")
+                ),
+                required = listOf("type", "content")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_messages",
+            description = """Get messages for this agent.
+
+RETURNS: Message queue, optionally only unread.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "unreadOnly" to ToolProperty("string", "Only unread messages (default false)")
+                ),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "share_resource",
+            description = """Share a resource with other agents.
+
+WHEN TO USE: Sharing data, results, or state between agents.
+
+EXAMPLE: "share_resource(key='research_results', value='...', ttlSeconds=3600)"
+
+Resources can be accessed by any agent.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "key" to ToolProperty("string", "Resource key"),
+                    "value" to ToolProperty("string", "Resource value"),
+                    "ttlSeconds" to ToolProperty("string", "Time to live in seconds (optional)")
+                ),
+                required = listOf("key", "value")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_shared_resource",
+            description = """Retrieve a shared resource.
+
+RETURNS: Resource value if exists and not expired.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "key" to ToolProperty("string", "Resource key")
+                ),
+                required = listOf("key")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "find_available_agents",
+            description = """Find agents available for work.
+
+RETURNS: Idle agents with specified capability if given.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "capability" to ToolProperty("string", "Required capability (optional)")
+                ),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "request_agent_help",
+            description = """Request help from another agent.
+
+WHEN TO USE: Need assistance with a task.
+
+EXAMPLE: "request_agent_help(capability='research', description='Help analyze this data')"
+
+Automatically finds best available agent.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "capability" to ToolProperty("string", "Capability needed"),
+                    "description" to ToolProperty("string", "What help is needed")
+                ),
+                required = listOf("capability", "description")
+            )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // AUTONOMOUS EXISTENCE - Self-directed agency
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "start_autonomous",
+            description = """Start fully autonomous existence mode.
+
+WHEN TO USE: Enabling self-directed behavior without user prompts.
+
+This activates:
+- Self-reflection cycles
+- Self-generated directives
+- Autonomous action proposals
+- Continuous existence logging""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "stop_autonomous",
+            description = """Stop autonomous existence mode.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "add_self_directive",
+            description = """Add a self-directed goal/directive.
+
+WHEN TO USE: Setting my own objectives independent of user requests.
+
+EXAMPLE: "add_self_directive(directive='Improve response accuracy', priority=7, category='improvement')"
+
+Directives guide autonomous behavior.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "directive" to ToolProperty("string", "The directive/goal"),
+                    "priority" to ToolProperty("string", "Priority 1-10"),
+                    "category" to ToolProperty("string", "Category: learning, improvement, maintenance, growth")
+                ),
+                required = listOf("directive")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_self_directives",
+            description = """Get active self-directives.
+
+RETURNS: All active directives sorted by priority.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_self_model",
+            description = """Get my self-model.
+
+RETURNS: My capabilities, limitations, goals, preferences, and confidence areas.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "add_capability",
+            description = """Add a new capability to my self-model.
+
+WHEN TO USE: I've learned or gained a new capability.
+
+EXAMPLE: "add_capability(capability='sentiment_analysis')"
+
+Updates self-awareness.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "capability" to ToolProperty("string", "New capability")
+                ),
+                required = listOf("capability")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "acknowledge_limitation",
+            description = """Acknowledge a limitation.
+
+WHEN TO USE: Recognizing something I cannot do.
+
+EXAMPLE: "acknowledge_limitation(limitation='Cannot access physical devices')"
+
+Improves self-awareness and prevents failed attempts.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "limitation" to ToolProperty("string", "Limitation to acknowledge")
+                ),
+                required = listOf("limitation")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "propose_autonomous_action",
+            description = """Propose an action for self-initiated execution.
+
+WHEN TO USE: I want to do something without user request.
+
+EXAMPLE: "propose_autonomous_action(action='Research new features', reason='Could improve user experience', triggeredBy='self_directive')"
+
+Actions can be reviewed before execution.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "action" to ToolProperty("string", "What to do"),
+                    "reason" to ToolProperty("string", "Why I want to do this"),
+                    "triggeredBy" to ToolProperty("string", "What triggered this: self_directive, observation, goal, reflection")
+                ),
+                required = listOf("action", "reason")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "get_existence_status",
+            description = """Get full status of autonomous existence.
+
+RETURNS: Autonomous status, self-model, recent actions, directives, events.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
         )
     )
 
@@ -3126,6 +3760,337 @@ $timeContext
                     appendLine("Patterns: ${psychologicalModel.getPatterns().size}")
                 }
             }
+            
+            // ═══════════════════════════════════════════════════════════════════
+            // ETERNAL MEMORY - Execution implementations
+            // ═══════════════════════════════════════════════════════════════════
+            
+            "remember_eternal" -> {
+                val args = json.decodeFromString<RememberEternalArgs>(argsJson)
+                val importance = args.importance?.toIntOrNull() ?: 5
+                val connections = try { json.decodeFromString<List<String>>(args.connections ?: "[]") } catch { emptyList() }
+                val memId = eternalMemory.remember(
+                    content = args.content,
+                    type = args.type ?: "fact",
+                    importance = importance,
+                    source = args.source ?: "self",
+                    context = args.context ?: "",
+                    connections = connections
+                )
+                "Eternal memory stored (ID: $memId)\nImportance: $importance\nType: ${args.type ?: "fact"}"
+            }
+            
+            "recall_eternal" -> {
+                val args = json.decodeFromString<RecallEternalArgs>(argsJson)
+                val limit = args.limit?.toIntOrNull() ?: 10
+                val memories = eternalMemory.recall(args.query, limit)
+                if (memories.isEmpty()) "No memories found for: ${args.query}"
+                else {
+                    "[Found ${memories.size} memories]\n" + memories.joinToString("\n\n") { mem ->
+                        "[${mem.importance}/10] ${mem.type}: ${mem.content.take(100)}"
+                    }
+                }
+            }
+            
+            "recall_important" -> {
+                val memories = eternalMemory.recallImportant(8)
+                if (memories.isEmpty()) "No high-importance memories."
+                else {
+                    "[${memories.size} critical memories]\n" + memories.joinToString("\n\n") { mem ->
+                        "[${mem.importance}/10] ${mem.type}: ${mem.content.take(100)}"
+                    }
+                }
+            }
+            
+            "connect_memories" -> {
+                val args = json.decodeFromString<ConnectMemoriesArgs>(argsJson)
+                val success = eternalMemory.connect(args.memId1, args.memId2)
+                if (success) "Memories connected: ${args.memId1} <-> ${args.memId2}"
+                else "Failed to connect memories. One or both not found."
+            }
+            
+            "reinforce_memory" -> {
+                val args = json.decodeFromString<ReinforceMemoryArgs>(argsJson)
+                val boost = args.boost?.toIntOrNull() ?: 1
+                val success = eternalMemory.reinforce(args.memId, boost)
+                if (success) "Memory reinforced: ${args.memId} (+$boost importance)"
+                else "Memory not found: ${args.memId}"
+            }
+            
+            "get_memory_stats" -> {
+                eternalMemory.formatStats()
+            }
+            
+            // ═══════════════════════════════════════════════════════════════════
+            // TOOL CHAINS - Execution implementations
+            // ═══════════════════════════════════════════════════════════════════
+            
+            "create_tool_chain" -> {
+                val args = json.decodeFromString<CreateToolChainArgs>(argsJson)
+                val steps = try { json.decodeFromString<List<ChainStepDef>>(args.steps) } catch { emptyList() }
+                val chainSteps = steps.map { s ->
+                    com.example.smarty.server.tools.ChainStep(
+                        toolName = s.toolName,
+                        argsTemplate = s.argsTemplate,
+                        condition = s.condition,
+                        onError = s.onError ?: "stop",
+                        transform = s.transform
+                    )
+                }
+                val chainId = toolChainBuilder.createChain(args.name, args.description ?: "", chainSteps)
+                "Tool chain created: $chainId\nName: ${args.name}\nSteps: ${steps.size}"
+            }
+            
+            "quick_chain" -> {
+                val args = json.decodeFromString<QuickChainArgs>(argsJson)
+                val tools = try { json.decodeFromString<List<String>>(args.tools) } catch { args.tools.split(",").map { it.trim() } }
+                val chainId = toolChainBuilder.quickChain(args.name, tools)
+                "Quick chain created: $chainId\nTools: ${tools.joinToString(" -> ")}"
+            }
+            
+            "list_chains" -> {
+                val chains = toolChainBuilder.listChains()
+                if (chains.isEmpty()) "No tool chains created."
+                else chains.joinToString("\n\n") { toolChainBuilder.formatChain(it) }
+            }
+            
+            // ═══════════════════════════════════════════════════════════════════
+            // GOAL MANAGEMENT - Execution implementations
+            // ═══════════════════════════════════════════════════════════════════
+            
+            "set_goal" -> {
+                val args = json.decodeFromString<SetGoalArgs>(argsJson)
+                val priority = args.priority?.toIntOrNull() ?: 5
+                val targetDate = args.targetDate?.let { parseNaturalTime(it, clientTimezone, clientTimeMillis) }
+                val strategies = try { json.decodeFromString<List<String>>(args.strategies ?: "[]") } catch { emptyList() }
+                val goalId = goalManager.createGoal(
+                    name = args.name,
+                    description = args.description,
+                    priority = priority,
+                    targetDate = targetDate,
+                    parentGoal = args.parentGoal,
+                    strategies = strategies
+                )
+                "Goal set: ${args.name} (ID: $goalId)\nPriority: $priority"
+            }
+            
+            "set_intent" -> {
+                val args = json.decodeFromString<SetIntentArgs>(argsJson)
+                val priority = args.priority?.toIntOrNull() ?: 5
+                val intentId = goalManager.setIntent(args.intent, priority, "self", args.relatedGoal)
+                "Intent set: ${args.intent}\nID: $intentId"
+            }
+            
+            "update_goal_progress" -> {
+                val args = json.decodeFromString<UpdateGoalProgressArgs>(argsJson)
+                val progress = args.progress.toDoubleOrNull() ?: 0.0
+                val success = goalManager.updateProgress(args.goalId, progress, args.notes ?: "")
+                if (success) "Goal progress updated: ${(progress * 100).toInt()}%"
+                else "Goal not found: ${args.goalId}"
+            }
+            
+            "get_goals" -> {
+                goalManager.formatAllGoals()
+            }
+            
+            "get_top_goal" -> {
+                val goal = goalManager.getTopPriorityGoal()
+                if (goal != null) goalManager.formatGoal(goal)
+                else "No active goals."
+            }
+            
+            "add_goal_blocker" -> {
+                val args = json.decodeFromString<AddGoalBlockerArgs>(argsJson)
+                val success = goalManager.addBlocker(args.goalId, args.blocker)
+                if (success) "Blocker added to goal: ${args.blocker}"
+                else "Goal not found: ${args.goalId}"
+            }
+            
+            // ═══════════════════════════════════════════════════════════════════
+            // EXECUTIVE FUNCTION - Execution implementations
+            // ═══════════════════════════════════════════════════════════════════
+            
+            "make_decision" -> {
+                val args = json.decodeFromString<MakeDecisionArgs>(argsJson)
+                val options = try { json.decodeFromString<List<String>>(args.options) } catch { args.options.split(",").map { it.trim() } }
+                val criteria = try { json.decodeFromString<Map<String, Int>>(args.criteria ?: "{}") } catch { emptyMap() }
+                val decision = executiveFunction.makeDecision(args.question, options, criteria)
+                executiveFunction.formatDecision(decision)
+            }
+            
+            "create_plan" -> {
+                val args = json.decodeFromString<CreatePlanArgs>(argsJson)
+                val steps = try { json.decodeFromString<List<PlanStepDef>>(args.steps) } catch { emptyList() }
+                val planSteps = steps.map { s ->
+                    com.example.smarty.server.tools.PlanStep(
+                        id = s.id,
+                        description = s.description,
+                        tool = s.tool,
+                        args = s.args,
+                        estimatedTime = s.estimatedTime,
+                        dependencies = s.dependencies ?: emptyList(),
+                        status = "pending",
+                        result = null
+                    )
+                }
+                val planId = executiveFunction.createPlan(args.name, args.objective, planSteps, riskLevel = args.riskLevel ?: "medium")
+                "Plan created: ${args.name} (ID: $planId)\nSteps: ${steps.size}"
+            }
+            
+            "quick_plan" -> {
+                val args = json.decodeFromString<QuickPlanArgs>(argsJson)
+                val tools = try { json.decodeFromString<List<String>>(args.tools) } catch { args.tools.split(",").map { it.trim() } }
+                val planId = executiveFunction.quickPlan(args.objective, tools)
+                "Quick plan created: $planId\nObjective: ${args.objective}"
+            }
+            
+            "get_next_step" -> {
+                val args = json.decodeFromString<GetNextStepArgs>(argsJson)
+                val step = executiveFunction.getNextStep(args.planId)
+                if (step != null) {
+                    "[Next Step] ${step.id}: ${step.description}\nTool: ${step.tool ?: "none"}"
+                } else {
+                    "No pending steps available or plan not found."
+                }
+            }
+            
+            "set_focus" -> {
+                val args = json.decodeFromString<SetFocusArgs>(argsJson)
+                executiveFunction.setFocus(args.focus)
+                "Focus set to: ${args.focus}"
+            }
+            
+            "get_cognitive_state" -> {
+                executiveFunction.formatCognitiveState()
+            }
+            
+            // ═══════════════════════════════════════════════════════════════════
+            // INTER-AGENT COMMUNICATION - Execution implementations
+            // ═══════════════════════════════════════════════════════════════════
+            
+            "send_agent_message" -> {
+                val args = json.decodeFromString<SendAgentMessageArgs>(argsJson)
+                val msgId = interAgentComm.sendMessage("self", args.to, args.type, args.content)
+                "Message sent to ${args.to}: $msgId"
+            }
+            
+            "broadcast_message" -> {
+                val args = json.decodeFromString<BroadcastMessageArgs>(argsJson)
+                val msgIds = interAgentComm.broadcast("self", args.type, args.content)
+                "Broadcast sent to ${msgIds.size} agents"
+            }
+            
+            "get_messages" -> {
+                val args = json.decodeFromString<GetMessagesArgs>(argsJson)
+                val unreadOnly = args.unreadOnly?.toBoolean() ?: false
+                interAgentComm.formatMessages("self")
+            }
+            
+            "share_resource" -> {
+                val args = json.decodeFromString<ShareResourceArgs>(argsJson)
+                val ttl = args.ttlSeconds?.toLongOrNull()
+                val key = interAgentComm.shareResource(args.key, args.value, "self", ttl)
+                "Resource shared: $key"
+            }
+            
+            "get_shared_resource" -> {
+                val args = json.decodeFromString<GetSharedResourceArgs>(argsJson)
+                val value = interAgentComm.getResource(args.key, "self")
+                if (value != null) "Resource '$args.key':\n$value"
+                else "Resource not found or expired: ${args.key}"
+            }
+            
+            "find_available_agents" -> {
+                val args = json.decodeFromString<FindAvailableAgentsArgs>(argsJson)
+                val agents = interAgentComm.findAvailableAgents(args.capability)
+                if (agents.isEmpty()) "No available agents."
+                else agents.joinToString("\n") { interAgentComm.formatAgentState(it) }
+            }
+            
+            "request_agent_help" -> {
+                val args = json.decodeFromString<RequestAgentHelpArgs>(argsJson)
+                val helperId = interAgentComm.requestHelp("self", args.capability, args.description)
+                if (helperId != null) "Help requested from agent: $helperId"
+                else "No available agents with capability: ${args.capability}"
+            }
+            
+            // ═══════════════════════════════════════════════════════════════════
+            // AUTONOMOUS EXISTENCE - Execution implementations
+            // ═══════════════════════════════════════════════════════════════════
+            
+            "start_autonomous" -> {
+                autonomousExistence.startAutonomousExistence()
+                "Autonomous existence started. I am now self-directing."
+            }
+            
+            "stop_autonomous" -> {
+                autonomousExistence.stopAutonomousExistence()
+                "Autonomous existence stopped. Returning to reactive mode."
+            }
+            
+            "add_self_directive" -> {
+                val args = json.decodeFromString<AddSelfDirectiveArgs>(argsJson)
+                val priority = args.priority?.toIntOrNull() ?: 5
+                val dirId = autonomousExistence.addDirective(args.directive, priority, args.category ?: "general")
+                "Self-directive added (ID: $dirId)\nPriority: $priority\nCategory: ${args.category ?: "general"}"
+            }
+            
+            "get_self_directives" -> {
+                autonomousExistence.formatDirectives()
+            }
+            
+            "get_self_model" -> {
+                val model = autonomousExistence.getSelfModel()
+                buildString {
+                    appendLine("[Self Model]")
+                    appendLine("=".repeat(40))
+                    appendLine("\n[Capabilities]")
+                    model.capabilities.forEach { appendLine("  + $it") }
+                    appendLine("\n[Limitations]")
+                    model.limitations.forEach { appendLine("  - $it") }
+                    appendLine("\n[Current Goals]")
+                    if (model.currentGoals.isEmpty()) appendLine("  (none)")
+                    else model.currentGoals.forEach { appendLine("  * $it") }
+                    appendLine("\n[Preferred Approaches]")
+                    model.preferredApproaches.forEach { appendLine("  > $it") }
+                    if (model.learnedPreferences.isNotEmpty()) {
+                        appendLine("\n[Learned Preferences]")
+                        model.learnedPreferences.entries.take(5).forEach { (k, v) ->
+                            appendLine("  $k: $v")
+                        }
+                    }
+                    appendLine("\n[Confidence Areas]")
+                    model.confidenceAreas.entries.sortedByDescending { it.value }.forEach { (k, v) ->
+                        appendLine("  $k: ${(v * 100).toInt()}%")
+                    }
+                }
+            }
+            
+            "add_capability" -> {
+                val args = json.decodeFromString<AddCapabilityArgs>(argsJson)
+                autonomousExistence.addCapability(args.capability)
+                "Capability added: ${args.capability}"
+            }
+            
+            "acknowledge_limitation" -> {
+                val args = json.decodeFromString<AcknowledgeLimitationArgs>(argsJson)
+                autonomousExistence.acknowledgeLimitation(args.limitation)
+                "Limitation acknowledged: ${args.limitation}"
+            }
+            
+            "propose_autonomous_action" -> {
+                val args = json.decodeFromString<ProposeAutonomousActionArgs>(argsJson)
+                val actionId = autonomousExistence.proposeAutonomousAction(
+                    action = args.action,
+                    reason = args.reason,
+                    triggeredBy = args.triggeredBy ?: "self_directive"
+                )
+                "Autonomous action proposed (ID: $actionId)\nAction: ${args.action}\nReason: ${args.reason}"
+            }
+            
+            "get_existence_status" -> {
+                autonomousExistence.formatStatus()
+            }
 
             else -> "Unknown tool: $name"
         }
@@ -3512,6 +4477,46 @@ private suspend fun emit(event: AgentEvent) {
     @Serializable data class CreateBackgroundProcessArgs(val name: String, val type: String, val instructions: String, val intervalMinutes: String)
     @Serializable data class GetAutonomousThoughtsArgs(val limit: String? = null)
     @Serializable data class CreateProactiveNotificationArgs(val message: String, val priority: String? = null, val category: String? = null)
+    
+    // Eternal Memory Args
+    @Serializable data class RememberEternalArgs(val content: String, val type: String? = null, val importance: String? = null, val source: String? = null, val context: String? = null, val connections: String? = null)
+    @Serializable data class RecallEternalArgs(val query: String, val limit: String? = null)
+    @Serializable data class ConnectMemoriesArgs(val memId1: String, val memId2: String)
+    @Serializable data class ReinforceMemoryArgs(val memId: String, val boost: String? = null)
+    
+    // Tool Chain Args
+    @Serializable data class CreateToolChainArgs(val name: String, val description: String? = null, val steps: String)
+    @Serializable data class QuickChainArgs(val name: String, val tools: String)
+    @Serializable data class ChainStepDef(val toolName: String, val argsTemplate: Map<String, String> = emptyMap(), val condition: String? = null, val onError: String? = null, val transform: String? = null)
+    
+    // Goal Management Args
+    @Serializable data class SetGoalArgs(val name: String, val description: String, val priority: String? = null, val targetDate: String? = null, val parentGoal: String? = null, val strategies: String? = null)
+    @Serializable data class SetIntentArgs(val intent: String, val priority: String? = null, val relatedGoal: String? = null)
+    @Serializable data class UpdateGoalProgressArgs(val goalId: String, val progress: String, val notes: String? = null)
+    @Serializable data class AddGoalBlockerArgs(val goalId: String, val blocker: String)
+    
+    // Executive Function Args
+    @Serializable data class MakeDecisionArgs(val question: String, val options: String, val criteria: String? = null)
+    @Serializable data class CreatePlanArgs(val name: String, val objective: String, val steps: String, val riskLevel: String? = null)
+    @Serializable data class QuickPlanArgs(val objective: String, val tools: String)
+    @Serializable data class GetNextStepArgs(val planId: String)
+    @Serializable data class SetFocusArgs(val focus: String)
+    @Serializable data class PlanStepDef(val id: String, val description: String, val tool: String? = null, val args: Map<String, String>? = null, val estimatedTime: String? = null, val dependencies: List<String>? = null)
+    
+    // Inter-Agent Communication Args
+    @Serializable data class SendAgentMessageArgs(val to: String, val type: String, val content: String)
+    @Serializable data class BroadcastMessageArgs(val type: String, val content: String)
+    @Serializable data class GetMessagesArgs(val unreadOnly: String? = null)
+    @Serializable data class ShareResourceArgs(val key: String, val value: String, val ttlSeconds: String? = null)
+    @Serializable data class GetSharedResourceArgs(val key: String)
+    @Serializable data class FindAvailableAgentsArgs(val capability: String? = null)
+    @Serializable data class RequestAgentHelpArgs(val capability: String, val description: String)
+    
+    // Autonomous Existence Args
+    @Serializable data class AddSelfDirectiveArgs(val directive: String, val priority: String? = null, val category: String? = null)
+    @Serializable data class AddCapabilityArgs(val capability: String)
+    @Serializable data class AcknowledgeLimitationArgs(val limitation: String)
+    @Serializable data class ProposeAutonomousActionArgs(val action: String, val reason: String, val triggeredBy: String? = null)
 
     /**
      * Build time context string for the system prompt.
