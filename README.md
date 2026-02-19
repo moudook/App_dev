@@ -1,148 +1,161 @@
-# Smarty (Formerly Friday)
+# Smarty
 
-> **The Intelligent Agentic Companion for Android**
+> An intelligent agentic companion for Android with a privacy-first architecture.
 
-Smarty is a next-generation "Thin Client" AI agent designed to **declutter your mind** and **supercharge ideation**. Unlike simple chatbots, Smarty is a true agent that proactively manages your life—handling calendar events, meetings, deadlines, and complex thought management through a secure, privacy-first architecture.
+Smarty is a next-generation "Thin Client" AI agent focused on **advanced agentic frameworks**, **tool calling**, and **intelligent automation**. It features sophisticated agent loop optimization, contact management, and prevents AI overthinking through intelligent tool selection.
 
-![Smarty Platform](https://img.shields.io/badge/platform-Android-blue?style=flat-square)
-![Smarty Architecture](https://img.shields.io/badge/Architecture-Thin_Client-orange?style=flat-square)
-![Smarty License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+![Platform](https://img.shields.io/badge/Platform-Android-blue)
+![Architecture](https://img.shields.io/badge/Architecture-Thin_Client-orange)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+---
+
+## Focus Areas
+
+Smarty is evolving beyond a simple chatbot to become a research platform for agentic AI systems:
+
+- **Advanced Tool Calling**: Optimized tool selection and execution to prevent unnecessary API calls
+- **Agent Loop Optimization**: Intelligent loop detection and prevention of overthinking
+- **Contact Management**: AI-driven management of contacts and relationships
+- **Multi-Provider Routing**: Seamless switching between LLM providers (OpenAI, Gemini, Anthropic)
+- **Privacy-First**: Your data stays yours - BYO-Key architecture
 
 ---
 
 ## Architecture
 
-Smarty follows a **Thin Client** architecture to maximize battery life and security while delivering powerful AI capabilities.
+```
+┌─────────────────┐      ┌─────────────────────────┐
+│  Android App    │──────│  Smarty Server          │
+│  (Thin Client)  │      │  (Hugging Face Spaces)  │
+└─────────────────┘      └─────────────────────────┘
+                                │
+                                ▼
+                         ┌─────────────┐
+                         │   LLM +     │
+                         │   Vector DB │
+                         └─────────────┘
+```
 
-1.  **Smarty Android App**: A lightweight, reactive UI built with **Jetpack Compose**. It handles input (Voice, Text, Gestures), renders UI, and executes local device commands (screenshots, app launches). It does *not* run heavy LLMs locally.
-2.  **Smarty Server**: The "Remote Brain". A Kotlin/Ktor service that:
-    *   Manages the Agentic Loop (Reasoning -> Tool Call -> Result).
-    *   Connects to LLM Providers (OpenAI, Anthropic).
-    *   Maintains Vector Memory (PostgreSQL + pgvector).
-    *   Orchestrates persistent tasks like Calendar Sync.
-
----
-
-## Features
-
-### Real Agentics
-Smarty is powered by a sophisticated backend that allows it to perform real-world actions:
-*   **Proactive Management**: Automatically schedules events, sets reminders, and manages deadlines.
-*   **Tool Usage**: Access to Calendar, Device Control (WiFi, Bluetooth, etc.), Web Search, and Long-term Memory.
-
-### Privacy-First Design
-*   **Shake-to-Private**: A unique physical gesture. Shake your phone to instantly toggle "Privacy Mode", cutting off AI access to your screen and context.
-*   **BYO-Key**: You can host the server yourself and use your own API keys, ensuring complete data sovereignty.
-
-### Advanced Ideation
-*   **Thinking Mode**: Visualizes the AI's step-by-step reasoning process for complex queries.
-*   **RAG Memory**: Uses Vector Search to recall past conversations and notes, creating a personalized experience that improves over time.
+- **Smarty Android App**: A lightweight UI built with Jetpack Compose. Handles input (Voice, Text), renders UI, and executes local device commands.
+- **Smarty Server**: Hosted on Hugging Face Spaces. Manages the agentic loop, connects to LLM providers, maintains vector memory via PostgreSQL + pgvector.
 
 ---
 
-## Developer Setup Guide
+## Quick Start (Hugging Face Deployment)
 
-Follow these instructions to set up the Smarty ecosystem (App + Server) on your local machine.
+### Step 1: Deploy Server to Hugging Face Spaces
+
+1. Go to [Hugging Face](https://huggingface.co/spaces) -> **New Space**
+2. Select **Docker** as the SDK
+3. Choose "Blank" template
+4. Connect this repository
+
+### Step 2: Configure Secrets
+
+In your Space settings, add the following **Secrets**:
+
+| Secret | Description |
+| :--- | :--- |
+| `DB_URL` | JDBC connection to PostgreSQL (Supabase/Neon) |
+| `DB_USER` | Database username |
+| `DB_PASSWORD` | Database password |
+| `ACTIVE_PROVIDER` | `GEMINI` or `OPENAI` |
+| `GEMINI_API_KEY` | Your Gemini API key |
+| `OPENAI_API_KEY` | Your OpenAI API key |
+| `TAVILY_API_KEY` | Your Tavily API key for web search |
+
+### Step 3: Setup Database
+
+Hugging Face Spaces does not host persistent databases. Use an external provider:
+
+1. Create a PostgreSQL database with **Supabase** or **Neon**
+2. Enable pgvector extension:
+   ```sql
+   CREATE EXTENSION vector;
+   ```
+3. Run `init-db.sql` to create the schema
+
+### Step 4: Connect Android App
+
+The app is pre-configured to connect to a default Hugging Face Space. To connect to your own deployment:
+
+**Option 1: In-App Settings**
+1. Open the Smarty app
+2. Go to Settings -> Server Configuration
+3. Enter your Hugging Face Space URL: `https://your-username-smarty.hf.space`
+
+**Option 2: Modify Source Code**
+1. Open `app/src/main/java/com/example/smarty/data/local/SecurePreferences.kt`
+2. Change the default URL at line 101:
+   ```kotlin
+   private const val DEFAULT_SERVER_URL = "https://your-username-smarty.hf.space"
+   ```
+3. Rebuild the app
+
+Verify the server is running:
+```bash
+curl https://your-space.hf.space/health
+```
+
+---
+
+## Local Development (Optional)
+
+For local development without Hugging Face:
 
 ### Prerequisites
-*   **Java JDK 17** (Required for both Server and Android)
-*   **Docker Desktop** (For running the database and local server)
-*   **Android Studio Ladybug** (or newer)
-*   **Git**
+- Java JDK 17
+- Docker Desktop
+- Android Studio Ladybug
+
+### Database
+```bash
+docker-compose up -d db
+```
+
+### Server
+```bash
+export DB_URL=jdbc:postgresql://localhost:5432/smarty_db
+export DB_USER=smarty_user
+export DB_PASSWORD=smarty_pass
+export GEMINI_API_KEY=your_key
+export TAVILY_API_KEY=your_key
+
+./gradlew :server:run
+```
 
 ---
 
-### Step 1: Database Setup (PostgreSQL + pgvector)
+## Tech Stack
 
-The server requires a PostgreSQL database with the `pgvector` extension enabled. The easiest way to run this is via Docker.
+### Android Client
+- Kotlin + Jetpack Compose
+- MVVM Architecture
+- Room Database with FTS5
+- Media3 ExoPlayer
+- OkHttp 4, Ktor Client, SSE
 
-1.  **Start the Database**:
-    Run the provided Docker Compose file in the root directory:
-    ```bash
-    docker-compose up -d db
-    ```
-    This will start a PostgreSQL container on port `5432` and automatically initialize the schema using `init-db.sql`.
-
-2.  **Verify Database**:
-    Ensure the `agent_context` and `chat_messages` tables are created. You can connect using any SQL client (e.g., DBeaver) with credentials defined in `docker-compose.yml` (default: `user`/`password`).
-
----
-
-### Step 2: Server Setup (Brain)
-
-The server is a Kotlin Ktor application.
-
-1.  **Configuration**:
-    The server looks for environment variables for configuration. You can set these in your IDE run configuration or a `.env` file if you implemented one.
-    
-    **Required Environment Variables**:
-    *   `DB_URL`: `jdbc:postgresql://localhost:5432/smarty_db` (or your Docker IP)
-    *   `DB_USER`: `smarty_user` (as defined in docker-compose)
-    *   `DB_PASSWORD`: `smarty_pass`
-    *   `OPENAI_API_KEY`: Your OpenAI API Key (for the LLM)
-    *   `TAVILY_API_KEY`: Your Tavily API Key (for Web Search tools)
-
-2.  **Run the Server**:
-    Navigate to the root directory and run:
-    ```bash
-    ./gradlew :server:run
-    ```
-    The server starts on `http://0.0.0.0:7860` (configurable via `SERVER_PORT`).
-
-    Verify with:
-    ```bash
-    curl http://localhost:7860/health
-    ```
+### Server
+- Kotlin + Ktor Server
+- PostgreSQL + pgvector
+- HikariCP Connection Pooling
+- Apache PDFBox 3.0
 
 ---
 
-### Step 3: Android App Setup (Client)
+## Environment Variables Reference
 
-1.  **Open Project**:
-    Launch Android Studio and open the root directory of this repository.
-
-2.  **Sync Gradle**:
-    Allow Android Studio to download dependencies and sync the project.
-
-3.  **Configure Server URL**:
-    *   Emulator: `http://10.0.2.2:7860`
-    *   Physical Device: `http://192.168.1.x:7860`
-
-4.  **Build & Run**:
-    Select your device/emulator and click **Run**.
-
----
-
-## Deployment: Hugging Face Spaces
-
-You can deploy the Smarty Server directly to Hugging Face Spaces to have a specialized, always-on "Remote Brain".
-
-1.  **Create a Space**:
-    *   Go to Hugging Face -> New Space.
-    *   Space SDK: **Docker**.
-    *   Choose a generic "Blank" template.
-
-2.  **Connect Repository**:
-    *   Connect this GitHub repository to your Space.
-
-3.  **Configure Environment Secrets**:
-    In your Space settings, navigate to **Settings -> Variables and secrets**. Add the following **Secrets** (not Variables, for security):
-
-    | Secret | Description |
-    | :--- | :--- |
-    | `DB_URL` | JDBC Connection string to your hosted PostgreSQL (e.g., Supabase, Neon) |
-    | `DB_USER` | Database username |
-    | `DB_PASSWORD` | Database password |
-    | `OPENAI_API_KEY` | Your LLM Provider Key |
-    | `TAVILY_API_KEY` | For Web Search capabilities |
-
-4.  **Database Note for Cloud**:
-    Hugging Face Spaces generally do *not* host persistent databases. You must use an external PostgreSQL provider like **Supabase**, **Neon**, or **AWS RDS**.
-    *   Ensure your external database has `pgvector` enabled (`CREATE EXTENSION vector;`).
-    *   Run the contents of `init-db.sql` on your external database to create the schema.
-
-5.  **Build**:
-    Hugging Face will automatically detect the `Dockerfile` in the root, build the Fat JAR, and deploy it. The server listens on port `7860` by default in this environment.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DB_URL` | Yes | PostgreSQL JDBC URL |
+| `DB_USER` | Yes | Database username |
+| `DB_PASSWORD` | Yes | Database password |
+| `ACTIVE_PROVIDER` | No | `OPENAI` or `GEMINI` (default: `GEMINI`) |
+| `GEMINI_API_KEY` | Conditional | Google Gemini API key |
+| `OPENAI_API_KEY` | Conditional | OpenAI API key |
+| `TAVILY_API_KEY` | No | Tavily API key for web search |
+| `SERVER_PORT` | No | Server port (default: `7860`) |
 
 ---
 
