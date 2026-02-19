@@ -1,194 +1,151 @@
----
-title: Friday Server
-emoji: 🧠
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
-license: mit
----
+# Smarty (Formerly Friday)
 
-# 🧠 Friday Server (Ktor Backend)
+> **The Intelligent Agentic Companion for Android**
 
-> **The Intelligent Brain for the Friday Android App**
+Smarty is a next-generation "Thin Client" AI agent designed to **declutter your mind** and **supercharge ideation**. Unlike simple chatbots, Smarty is a true agent that proactively manages your life—handling calendar events, meetings, deadlines, and complex thought management through a secure, privacy-first architecture.
 
-Friday Server is a high-performance Ktor-based backend designed to orchestrate the **KOOG Agent Framework**. It transforms the Friday Android app into a powerful Thin Client by handling heavyweight AI reasoning, long-term memory retrieval (RAG), and complex tool execution in the cloud.
+![Smarty Platform](https://img.shields.io/badge/platform-Android-blue?style=flat-square)
+![Smarty Architecture](https://img.shields.io/badge/Architecture-Thin_Client-orange?style=flat-square)
+![Smarty License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
 ---
 
-## 🚀 Key Responsibilities
-- **Agent Orchestration**: Hosts the Friday AI Agent (KOOG) for multi-step reasoning.
-- **Semantic Memory**: Integrates with Supabase (PostgreSQL + pgvector) for private knowledge retrieval.
-- **Multi-Model Support**: Bridges connections to Anthropic, Gemini, OpenAI, and Local LLMs.
-- **Frictionless Sync**: Provides a unified API for syncing notes, tasks, and media across sessions.
+## Architecture
+
+Smarty follows a **Thin Client** architecture to maximize battery life and security while delivering powerful AI capabilities.
+
+1.  **Smarty Android App**: A lightweight, reactive UI built with **Jetpack Compose**. It handles input (Voice, Text, Gestures), renders UI, and executes local device commands (screenshots, app launches). It does *not* run heavy LLMs locally.
+2.  **Smarty Server**: The "Remote Brain". A Kotlin/Ktor service that:
+    *   Manages the Agentic Loop (Reasoning -> Tool Call -> Result).
+    *   Connects to LLM Providers (OpenAI, Anthropic).
+    *   Maintains Vector Memory (PostgreSQL + pgvector).
+    *   Orchestrates persistent tasks like Calendar Sync.
 
 ---
 
-## 🛠️ Deployment & Setup
-This Space is configured to run as a Dockerized service.
+## Features
 
-### Environment Secrets Required:
-| Secret | Description |
-| --- | --- |
-| `DB_URL` | Supabase JDBC connection string |
-| `DB_USER` | Database username (default: `postgres`) |
-| `DB_PASSWORD` | Database password |
-| `FIREBASE_CREDENTIALS` | Raw service-account.json content |
+### Real Agentics
+Smarty is powered by a sophisticated backend that allows it to perform real-world actions:
+*   **Proactive Management**: Automatically schedules events, sets reminders, and manages deadlines.
+*   **Tool Usage**: Access to Calendar, Device Control (WiFi, Bluetooth, etc.), Web Search, and Long-term Memory.
 
----
+### Privacy-First Design
+*   **Shake-to-Private**: A unique physical gesture. Shake your phone to instantly toggle "Privacy Mode", cutting off AI access to your screen and context.
+*   **BYO-Key**: You can host the server yourself and use your own API keys, ensuring complete data sovereignty.
 
-<p align="center">
-  <img src="Smarty_Icon.svg" width="120" height="120" alt="Friday Logo">
-</p>
-
-<h1 align="center">Friday</h1>
-
-<p align="center">
-  <strong>An AI-Powered Knowledge Companion for Android</strong>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.0-blue?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/platform-Android-pink?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/badge/Privacy-First-32a852?style=flat-square" alt="Privacy">
-  <img src="https://img.shields.io/badge/Thin--Client-AI-orange?style=flat-square" alt="Thin Client AI">
-</p>
-
-<p align="center">
-  Friday transforms how you interact with information—capturing what matters, organizing it intelligently, and surfacing insights through natural conversation. Think less about managing knowledge, and more about using it.
-</p>
+### Advanced Ideation
+*   **Thinking Mode**: Visualizes the AI's step-by-step reasoning process for complex queries.
+*   **RAG Memory**: Uses Vector Search to recall past conversations and notes, creating a personalized experience that improves over time.
 
 ---
 
-## Philosophy
+## Developer Setup Guide
 
-We live in an age of information abundance, yet spend disproportionate time curating rather than creating. Friday addresses this fundamental inefficiency by inverting the traditional knowledge management paradigm.
+Follow these instructions to set up the Smarty ecosystem (App + Server) on your local machine.
 
-**Capture without constraint.** The moment an idea strikes, preserve it—no taxonomies, no metadata, no friction. Whether it's a fleeting thought, a web article, or a two-hour lecture recording, Friday accepts it all.
-
-**Intelligence that works for you.** Your notes shouldn't require active maintenance. Friday autonomously categorizes, synthesizes, and surfaces connections across your knowledge base, transforming static information into dynamic understanding.
-
-**Privacy as a foundation.** Your intellectual work deserves protection. Friday operates as a Thin Client, ensuring the mobile app remains lightweight and secure. All AI reasoning is handled by the Friday Server (Local or Remote), ensuring your thoughts remain yours. Sensitive information can be cryptographically isolated from even the AI's context.
-
----
-
-## Core Capabilities
-
-### Autonomous Agency
-
-Friday transcends traditional chatbot interactions through the **Koog Framework**, functioning as a genuine agent capable of multi-step reasoning and action:
-
-- **Contextual Research**: Synthesize personal notes with real-time web data to answer complex queries.
-- **Task Orchestration**: Manage todos, reminders, and workflows across your knowledge graph.
-- **Content Generation**: Draft communications, summaries, and creative work informed by your existing knowledge.
-- **Media Intelligence**: Navigate, search, and extract insights from audio recordings and multimedia content.
-
-### Frictionless Capture
-
-Information enters Friday through the path of least resistance:
-
-- **Universal Integration**: Share content from any Android application directly into your knowledge base.
-- **Intelligent Detection**: Automatically recognizes and processes 15+ content types—from videos and social media posts to PDFs and code snippets.
-- **Voice-First Design**: Offline wake-word detection enables hands-free capture, ideal for driving, exercise, or spontaneous ideation.
-
-### Privacy-Centric Thin Client Architecture
-
-Your data sovereignty is non-negotiable:
-
-- **Thin Client Design**: The mobile app acts as a secure interface, offloading AI reasoning to the **Friday Server**. This keeps the app fast, lightweight, and focused on your experience.
-- **Local LLM Support**: Connect to models like Llama 3 or Mistral running on your local hardware via USB or network connection.
-- **Zero-Knowledge Operation**: When using local models, no data traverses external networks.
-- **Selective Isolation**: Privacy mode cryptographically separates sensitive notes from AI context with a simple gesture.
-
-### Advanced Audio Processing
-
-Audio is a first-class citizen in Friday's ecosystem:
-
-- Native playback with waveform visualization and precise navigation
-- Background playback with system media controls
-- AI-powered transcription, summarization, and semantic search across recordings
+### Prerequisites
+*   **Java JDK 17** (Required for both Server and Android)
+*   **Docker Desktop** (For running the database and local server)
+*   **Android Studio Ladybug** (or newer)
+*   **Git**
 
 ---
 
-## Applications
+### Step 1: Database Setup (PostgreSQL + pgvector)
 
-### For Researchers
+The server requires a PostgreSQL database with the `pgvector` extension enabled. The easiest way to run this is via Docker.
 
-Transform academic papers, articles, and reference materials into actionable insights without manual synthesis. Query: *"Summarize the methodology across these three papers and identify contradicting findings."*
+1.  **Start the Database**:
+    Run the provided Docker Compose file in the root directory:
+    ```bash
+    docker-compose up -d db
+    ```
+    This will start a PostgreSQL container on port `5432` and automatically initialize the schema using `init-db.sql`.
 
-### For Students
-
-Convert lecture recordings into searchable, quizzable knowledge. Query: *"Generate practice questions from today's lecture on neural networks."*
-
-### For Developers
-
-Maintain a living knowledge base of solutions, patterns, and learnings. Query: *"Search for how I solved the authentication bug in the mobile app last month."*
-
-### For Creators
-
-Capture inspiration in the moment and develop it when ready. Query: *"Find all my video ideas about AI and create an outline combining the best elements."*
+2.  **Verify Database**:
+    Ensure the `agent_context` and `chat_messages` tables are created. You can connect using any SQL client (e.g., DBeaver) with credentials defined in `docker-compose.yml` (default: `user`/`password`).
 
 ---
 
-## Technical Architecture
+### Step 2: Server Setup (Brain)
 
-Friday employs a sophisticated agentic loop that orchestrates multiple capabilities:
+The server is a Kotlin Ktor application.
 
-**Reasoning Phase**: Analyzes user intent and decomposes requests into actionable steps, determining which tools—search, calendar, database queries, or external APIs—are necessary.
+1.  **Configuration**:
+    The server looks for environment variables for configuration. You can set these in your IDE run configuration or a `.env` file if you implemented one.
+    
+    **Required Environment Variables**:
+    *   `DB_URL`: `jdbc:postgresql://localhost:5432/smarty_db` (or your Docker IP)
+    *   `DB_USER`: `smarty_user` (as defined in docker-compose)
+    *   `DB_PASSWORD`: `smarty_pass`
+    *   `OPENAI_API_KEY`: Your OpenAI API Key (for the LLM)
+    *   `TAVILY_API_KEY`: Your Tavily API Key (for Web Search tools)
 
-**Execution Phase**: Coordinates tool invocation, manages state, and handles errors gracefully across potentially long-running operations.
+2.  **Run the Server**:
+    Navigate to the root directory and run:
+    ```bash
+    ./gradlew :server:run
+    ```
+    The server starts on `http://0.0.0.0:7860` (configurable via `SERVER_PORT`).
 
-**Synthesis Phase**: Integrates results from personal knowledge, external sources, and tool outputs into coherent, contextually-aware responses.
-
-For comprehensive architectural documentation, refer to [AGENT_DOCUMENTATION.md](AGENT_DOCUMENTATION.md).
-
----
-
-## Getting Started
-
-### System Requirements
-
-- Android 8.0 (Oreo) or higher
-- **Friday Server**: Required for AI features. The app acts as a **Thin Client**, connecting to a single Friday Server (Local LLM or Remote) via a secure connection.
-- **Connection Credentials**: Access tokens or connection keys are configured once to establish the server link. Cloud provider keys (OpenAI, Anthropic, etc.) are managed entirely on the **Server**.
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/moudook/App_dev.git
-   ```
-
-2. Open the project in Android Studio
-
-3. Build and deploy to your device or emulator
-
-### Audio Configuration
-
-For offline voice activation, download the [Vosk acoustic model](https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip) and extract it to:
-
-```
-app/src/main/assets/vosk-model-small-en-us-0.15/
-```
+    Verify with:
+    ```bash
+    curl http://localhost:7860/health
+    ```
 
 ---
 
-## Development
+### Step 3: Android App Setup (Client)
 
-Friday is architected with contemporary Android development practices:
+1.  **Open Project**:
+    Launch Android Studio and open the root directory of this repository.
 
-- **Kotlin** with **Jetpack Compose** for reactive, declarative UI
-- **Room Database** with full-text search (FTS5) for performant local storage
-- **MVVM architecture** with clean separation of concerns
-- **WorkManager** for reliable background task execution
+2.  **Sync Gradle**:
+    Allow Android Studio to download dependencies and sync the project.
 
-Developers interested in contributing should consult [DEVELOPER_QUICK_REFERENCE.md](DEVELOPER_QUICK_REFERENCE.md) for detailed setup instructions, architectural guidelines, and contribution protocols.
+3.  **Configure Server URL**:
+    *   Emulator: `http://10.0.2.2:7860`
+    *   Physical Device: `http://192.168.1.x:7860`
+
+4.  **Build & Run**:
+    Select your device/emulator and click **Run**.
+
+---
+
+## Deployment: Hugging Face Spaces
+
+You can deploy the Smarty Server directly to Hugging Face Spaces to have a specialized, always-on "Remote Brain".
+
+1.  **Create a Space**:
+    *   Go to Hugging Face -> New Space.
+    *   Space SDK: **Docker**.
+    *   Choose a generic "Blank" template.
+
+2.  **Connect Repository**:
+    *   Connect this GitHub repository to your Space.
+
+3.  **Configure Environment Secrets**:
+    In your Space settings, navigate to **Settings -> Variables and secrets**. Add the following **Secrets** (not Variables, for security):
+
+    | Secret | Description |
+    | :--- | :--- |
+    | `DB_URL` | JDBC Connection string to your hosted PostgreSQL (e.g., Supabase, Neon) |
+    | `DB_USER` | Database username |
+    | `DB_PASSWORD` | Database password |
+    | `OPENAI_API_KEY` | Your LLM Provider Key |
+    | `TAVILY_API_KEY` | For Web Search capabilities |
+
+4.  **Database Note for Cloud**:
+    Hugging Face Spaces generally do *not* host persistent databases. You must use an external PostgreSQL provider like **Supabase**, **Neon**, or **AWS RDS**.
+    *   Ensure your external database has `pgvector` enabled (`CREATE EXTENSION vector;`).
+    *   Run the contents of `init-db.sql` on your external database to create the schema.
+
+5.  **Build**:
+    Hugging Face will automatically detect the `Dockerfile` in the root, build the Fat JAR, and deploy it. The server listens on port `7860` by default in this environment.
 
 ---
 
 ## License
 
-<p align="center">
-  <sub>Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0)</sub>
-</p>
+This project is licensed under the [MIT License](LICENSE).
