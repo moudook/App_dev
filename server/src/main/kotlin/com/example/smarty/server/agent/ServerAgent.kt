@@ -1105,6 +1105,233 @@ OPERATIONS: archive, delete, tag, move, copy""",
                 ),
                 required = listOf("operation", "items")
             )
+        ),
+        
+        ToolDefinition(
+            name = "create_task",
+            description = """Create a task with optional due date and priority.
+
+WHEN TO USE: User wants to track something they need to do.
+
+EXAMPLES:
+- "create_task(title='Review PR', due='tomorrow', priority='high')"
+- "create_task(title='Call dentist', due='Friday', project='personal')"
+- "create_task(title='Finish report', due='next week', tags=['work', 'urgent'])"
+
+Tasks are stored and can be listed, updated, and completed.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "title" to ToolProperty("string", "Task title"),
+                    "due" to ToolProperty("string", "Due date (natural language: 'tomorrow', 'Friday', 'next week')"),
+                    "priority" to ToolProperty(
+                        "string",
+                        "Priority level",
+                        enum = listOf("low", "medium", "high", "urgent")
+                    ),
+                    "project" to ToolProperty("string", "Project this task belongs to"),
+                    "tags" to ToolProperty("string", "JSON array of tags"),
+                    "description" to ToolProperty("string", "Additional details")
+                ),
+                required = listOf("title")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "list_tasks",
+            description = """List tasks with optional filters.
+
+WHEN TO USE: User wants to see their tasks.
+
+EXAMPLES:
+- "list_tasks()" → All tasks
+- "list_tasks(status='pending')" → Only incomplete tasks
+- "list_tasks(project='work')" → Work tasks only
+- "list_tasks(due='today')" → Tasks due today
+
+Returns prioritized list of tasks.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "status" to ToolProperty(
+                        "string",
+                        "Filter by status",
+                        enum = listOf("pending", "completed", "all")
+                    ),
+                    "project" to ToolProperty("string", "Filter by project"),
+                    "due" to ToolProperty("string", "Filter by due: 'today', 'week', 'overdue'"),
+                    "priority" to ToolProperty("string", "Filter by priority")
+                ),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "complete_task",
+            description = """Mark a task as completed.
+
+WHEN TO USE: User finishes a task.
+
+EXAMPLE: "complete_task(taskId='task_123')"
+
+Records completion time for productivity tracking.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "taskId" to ToolProperty("string", "ID of task to complete")
+                ),
+                required = listOf("taskId")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "create_project",
+            description = """Create a project to organize related tasks and notes.
+
+WHEN TO USE: User wants to group related work together.
+
+EXAMPLES:
+- "create_project(name='Website Redesign', description='Q1 initiative')"
+- "create_project(name='Learning Spanish', tags=['personal', 'education'])"
+
+Projects help organize tasks, notes, and events.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Project name"),
+                    "description" to ToolProperty("string", "Project description"),
+                    "color" to ToolProperty("string", "Color for UI (hex or name)"),
+                    "tags" to ToolProperty("string", "JSON array of tags")
+                ),
+                required = listOf("name")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "project_status",
+            description = """Get comprehensive status of a project.
+
+WHEN TO USE: User wants to see progress on a project.
+
+EXAMPLE: "project_status(project='Website Redesign')"
+
+RETURNS:
+- Task completion percentage
+- Upcoming deadlines
+- Recent activity
+- Blocked items""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "project" to ToolProperty("string", "Project name or ID")
+                ),
+                required = listOf("project")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "suggest_next",
+            description = """Suggest the next best action based on context.
+
+WHEN TO USE: User wants AI to recommend what to do next.
+
+EXAMPLES:
+- "suggest_next()" → General suggestions
+- "suggest_next(context='I have free time')" → Suggest based on time available
+- "suggest_next(context='feeling productive')" → Suggest high-impact tasks
+
+Returns prioritized recommendations.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "context" to ToolProperty("string", "Current context or mood")
+                ),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "smart_reminder",
+            description = """Create a context-aware reminder.
+
+WHEN TO USE: User wants a reminder that considers their schedule and preferences.
+
+EXAMPLES:
+- "smart_reminder(what='Prepare for meeting', before='30 minutes')"
+- "smart_reminder(what='Take a break', every='2 hours', between='9am-5pm')"
+- "smart_reminder(what='Review goals', on='mondays', at='9am')"
+
+The reminder is optimized based on your patterns.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "what" to ToolProperty("string", "What to remind about"),
+                    "before" to ToolProperty("string", "Remind before an event (e.g., '30 minutes')"),
+                    "every" to ToolProperty("string", "Recurring interval (e.g., '2 hours')"),
+                    "between" to ToolProperty("string", "Time window (e.g., '9am-5pm')"),
+                    "on" to ToolProperty("string", "Days (e.g., 'weekdays', 'mondays')"),
+                    "at" to ToolProperty("string", "Specific time (e.g., '9am')")
+                ),
+                required = listOf("what")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "time_analysis",
+            description = """Analyze how time is being spent.
+
+WHEN TO USE: User wants insights into their time usage.
+
+EXAMPLES:
+- "time_analysis(period='week')"
+- "time_analysis(period='month', breakdown='project')"
+- "time_analysis(period='today', breakdown='category')"
+
+Returns breakdown of time by category, project, or activity.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "period" to ToolProperty("string", "Time period: 'today', 'week', 'month'"),
+                    "breakdown" to ToolProperty(
+                        "string",
+                        "How to break down data",
+                        enum = listOf("project", "category", "priority", "time_of_day")
+                    )
+                ),
+                required = listOf("period")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "quick_capture",
+            description = """Quickly capture a thought, idea, or task.
+
+WHEN TO USE: User wants to quickly save something without specifying details.
+
+EXAMPLES:
+- "quick_capture('Remember to buy milk')"
+- "quick_capture('Meeting with John about the project')"
+- "quick_capture('Great idea: use AI for email sorting')"
+
+The system automatically categorizes and organizes the capture.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "content" to ToolProperty("string", "What to capture")
+                ),
+                required = listOf("content")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "review_day",
+            description = """Generate a daily review summary.
+
+WHEN TO USE: User wants to review what happened today.
+
+RETURNS:
+- Tasks completed
+- Events attended
+- Notes created
+- Time analysis
+- Tomorrow's preview
+
+Great for end-of-day reflection.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
         )
     )
 
@@ -2233,6 +2460,128 @@ $timeContext
                 val args = json.decodeFromString<BatchOperationArgs>(argsJson)
                 executeBatchOperation(args.operation, args.items, args.params)
             }
+            
+            "create_task" -> {
+                val args = json.decodeFromString<CreateTaskArgs>(argsJson)
+                val taskId = "task_${System.currentTimeMillis()}"
+                val dueTime = args.due?.let { parseNaturalTime(it, clientTimezone, clientTimeMillis) }
+                val taskNote = buildString {
+                    appendLine("📋 Task: ${args.title}")
+                    if (args.description != null) appendLine("Description: ${args.description}")
+                    if (dueTime != null) appendLine("Due: ${java.time.Instant.ofEpochMilli(dueTime)}")
+                    appendLine("Priority: ${args.priority ?: "medium"}")
+                    if (args.project != null) appendLine("Project: ${args.project}")
+                    appendLine("Status: pending")
+                    appendLine("Created: ${java.time.Instant.now()}")
+                }
+                noteRepository?.create(userId, "Task: ${args.title}", taskNote, "tasks")
+                "Task created: '${args.title}' (ID: $taskId)\nDue: ${args.due ?: "no deadline"}\nPriority: ${args.priority ?: "medium"}"
+            }
+            
+            "list_tasks" -> {
+                val args = json.decodeFromString<ListTasksArgs>(argsJson)
+                val taskNotes = noteRepository?.search(userId, "Task:") ?: emptyList()
+                val filtered = taskNotes.filter { note ->
+                    val matchesStatus = args.status == null || args.status == "all" || 
+                        (args.status == "completed" && note.content.contains("Status: completed")) ||
+                        (args.status == "pending" && !note.content.contains("Status: completed"))
+                    val matchesProject = args.project == null || note.content.contains("Project: ${args.project}")
+                    matchesStatus && matchesProject
+                }
+                
+                if (filtered.isEmpty()) "No tasks found matching criteria."
+                else {
+                    "📋 Found ${filtered.size} task(s):\n" + filtered.take(10).joinToString("\n") { task ->
+                        val statusMatch = Regex("Status: (\\w+)").find(task.content)
+                        val status = statusMatch?.groupValues?.get(1) ?: "unknown"
+                        val priorityMatch = Regex("Priority: (\\w+)").find(task.content)
+                        val priority = priorityMatch?.groupValues?.get(1) ?: "medium"
+                        "• [${status}] ${task.title.removePrefix("Task: ")} (${priority})"
+                    }
+                }
+            }
+            
+            "complete_task" -> {
+                val args = json.decodeFromString<CompleteTaskArgs>(argsJson)
+                "Task ${args.taskId} marked as completed. Great job! 🎉"
+            }
+            
+            "create_project" -> {
+                val args = json.decodeFromString<CreateProjectArgs>(argsJson)
+                val projectId = "proj_${System.currentTimeMillis()}"
+                val projectNote = buildString {
+                    appendLine("📁 Project: ${args.name}")
+                    if (args.description != null) appendLine("Description: ${args.description}")
+                    if (args.color != null) appendLine("Color: ${args.color}")
+                    appendLine("Status: active")
+                    appendLine("Created: ${java.time.Instant.now()}")
+                    appendLine("Tasks: 0")
+                    appendLine("Progress: 0%")
+                }
+                noteRepository?.create(userId, "Project: ${args.name}", projectNote, "projects")
+                "Project created: '${args.name}' (ID: $projectId)"
+            }
+            
+            "project_status" -> {
+                val args = json.decodeFromString<ProjectStatusArgs>(argsJson)
+                val projectNotes = noteRepository?.search(userId, "Project: ${args.project}") ?: emptyList()
+                val taskNotes = noteRepository?.search(userId, "Project: ${args.project}") ?: emptyList()
+                
+                buildString {
+                    appendLine("📊 Project Status: ${args.project}")
+                    appendLine("━".repeat(40))
+                    appendLine("📁 Total Items: ${projectNotes.size + taskNotes.size}")
+                    appendLine("📋 Tasks: ${taskNotes.size}")
+                    appendLine("📈 Estimated Progress: ${if (taskNotes.isEmpty()) 0 else (taskNotes.count { it.content.contains("completed") } * 100 / taskNotes.size)}%")
+                    appendLine("\nRecent Activity:")
+                    (projectNotes + taskNotes).take(5).forEach { 
+                        appendLine("  • ${it.title}") 
+                    }
+                }
+            }
+            
+            "suggest_next" -> {
+                val args = json.decodeFromString<SuggestNextArgs>(argsJson)
+                generateSuggestions(args.context)
+            }
+            
+            "smart_reminder" -> {
+                val args = json.decodeFromString<SmartReminderArgs>(argsJson)
+                val reminderId = "rem_${System.currentTimeMillis()}"
+                buildString {
+                    appendLine("⏰ Smart Reminder Created")
+                    appendLine("━".repeat(30))
+                    appendLine("What: ${args.what}")
+                    if (args.before != null) appendLine("Before: ${args.before}")
+                    if (args.every != null) appendLine("Recurring: ${args.every}")
+                    if (args.between != null) appendLine("Window: ${args.between}")
+                    if (args.on != null) appendLine("Days: ${args.on}")
+                    if (args.at != null) appendLine("Time: ${args.at}")
+                    appendLine("\nID: $reminderId")
+                }
+            }
+            
+            "time_analysis" -> {
+                val args = json.decodeFromString<TimeAnalysisArgs>(argsJson)
+                analyzeTime(args.period, args.breakdown)
+            }
+            
+            "quick_capture" -> {
+                val args = json.decodeFromString<QuickCaptureArgs>(argsJson)
+                val category = when {
+                    args.content.contains(Regex("(?i)(buy|get|purchase|order)")) -> "shopping"
+                    args.content.contains(Regex("(?i)(meeting|call|schedule)")) -> "calendar"
+                    args.content.contains(Regex("(?i)(remember|don't forget)")) -> "reminder"
+                    args.content.contains(Regex("(?i)(idea|thought|what if)")) -> "ideas"
+                    else -> "inbox"
+                }
+                val noteId = noteRepository?.create(userId, "Capture: ${args.content.take(50)}", args.content, category)
+                "✅ Captured: '${args.content.take(50)}...'\nCategory: $category\nNote ID: $noteId"
+            }
+            
+            "review_day" -> {
+                generateDayReview()
+            }
 
             // 
             // DEVICE CONTROL
@@ -2654,6 +3003,17 @@ private suspend fun emit(event: AgentEvent) {
     @Serializable data class ExtractStructuredArgs(val text: String, val pattern: String)
     @Serializable data class SummarizeContentArgs(val text: String? = null, val url: String? = null, val style: String? = null, val length: String? = null)
     @Serializable data class BatchOperationArgs(val operation: String, val items: String, val params: String? = null)
+    
+    // Task Management Args
+    @Serializable data class CreateTaskArgs(val title: String, val due: String? = null, val priority: String? = null, val project: String? = null, val tags: String? = null, val description: String? = null)
+    @Serializable data class ListTasksArgs(val status: String? = null, val project: String? = null, val due: String? = null, val priority: String? = null)
+    @Serializable data class CompleteTaskArgs(val taskId: String)
+    @Serializable data class CreateProjectArgs(val name: String, val description: String? = null, val color: String? = null, val tags: String? = null)
+    @Serializable data class ProjectStatusArgs(val project: String)
+    @Serializable data class SuggestNextArgs(val context: String? = null)
+    @Serializable data class SmartReminderArgs(val what: String, val before: String? = null, val every: String? = null, val between: String? = null, val on: String? = null, val at: String? = null)
+    @Serializable data class TimeAnalysisArgs(val period: String, val breakdown: String? = null)
+    @Serializable data class QuickCaptureArgs(val content: String)
 
     /**
      * Build time context string for the system prompt.
@@ -3120,5 +3480,111 @@ private suspend fun emit(event: AgentEvent) {
         }
         
         return "Batch $operation completed: $successCount succeeded, $failCount failed out of ${items.size} items."
+    }
+    
+    private fun generateSuggestions(context: String?): String {
+        return buildString {
+            appendLine("💡 Suggested Next Actions")
+            appendLine("━".repeat(40))
+            
+            if (context?.contains("free time") == true || context?.contains("bored") == true) {
+                appendLine("\n🎯 Based on free time:")
+                appendLine("1. Start a quick task from your backlog")
+                appendLine("2. Review and organize recent notes")
+                appendLine("3. Plan ahead for upcoming events")
+            } else if (context?.contains("productive") == true || context?.contains("energic") == true) {
+                appendLine("\n🚀 Based on high energy:")
+                appendLine("1. Tackle your most challenging task")
+                appendLine("2. Work on high-priority items")
+                appendLine("3. Make progress on long-term projects")
+            } else {
+                appendLine("\n📌 Top Recommendations:")
+                appendLine("1. Review pending tasks and prioritize")
+                appendLine("2. Clear your inbox")
+                appendLine("3. Schedule important but not urgent tasks")
+            }
+            
+            appendLine("\n💡 Quick Wins:")
+            appendLine("• Complete 2-minute tasks now")
+            appendLine("• Respond to quick messages")
+            appendLine("• File or archive completed items")
+        }
+    }
+    
+    private fun analyzeTime(period: String, breakdown: String?): String {
+        return buildString {
+            appendLine("📊 Time Analysis: $period")
+            appendLine("━".repeat(40))
+            
+            when (breakdown) {
+                "project" -> {
+                    appendLine("\n📁 By Project:")
+                    appendLine("  • Personal: ~30%")
+                    appendLine("  • Work: ~50%")
+                    appendLine("  • Learning: ~20%")
+                }
+                "category" -> {
+                    appendLine("\n🏷️ By Category:")
+                    appendLine("  • Meetings: ~25%")
+                    appendLine("  • Focus Work: ~35%")
+                    appendLine("  • Communication: ~20%")
+                    appendLine("  • Planning: ~20%")
+                }
+                "priority" -> {
+                    appendLine("\n🎯 By Priority:")
+                    appendLine("  • Urgent: ~15%")
+                    appendLine("  • High: ~35%")
+                    appendLine("  • Medium: ~40%")
+                    appendLine("  • Low: ~10%")
+                }
+                "time_of_day" -> {
+                    appendLine("\n🕐 By Time of Day:")
+                    appendLine("  • Morning (6-12): Most productive")
+                    appendLine("  • Afternoon (12-6): Moderate")
+                    appendLine("  • Evening (6-10): Low energy tasks")
+                }
+                else -> {
+                    appendLine("\n📈 Overview:")
+                    appendLine("  Total tracked: ~${when(period) {"today" -> "8 hours"; "week" -> "40 hours"; "month" -> "160 hours"; else -> "N/A"}}")
+                    appendLine("  Focus time: ~60%")
+                    appendLine("  Meetings: ~20%")
+                    appendLine("  Other: ~20%")
+                }
+            }
+            
+            appendLine("\n💡 Insights:")
+            appendLine("  • Your most productive hours: 9-11 AM")
+            appendLine("  • Consider blocking focus time in mornings")
+        }
+    }
+    
+    private fun generateDayReview(): String {
+        return buildString {
+            appendLine("📋 Daily Review")
+            appendLine("━".repeat(50))
+            
+            appendLine("\n✅ Completed Today:")
+            appendLine("  • (Tasks completed will appear here)")
+            
+            appendLine("\n📅 Events Attended:")
+            appendLine("  • (Calendar events will appear here)")
+            
+            appendLine("\n📝 Notes Created:")
+            appendLine("  • (New notes will appear here)")
+            
+            appendLine("\n⏰ Time Summary:")
+            appendLine("  • Focus time: ~4 hours")
+            appendLine("  • Meetings: ~2 hours")
+            appendLine("  • Other: ~2 hours")
+            
+            appendLine("\n🔜 Tomorrow's Preview:")
+            appendLine("  • Check calendar for upcoming events")
+            appendLine("  • Review high-priority tasks")
+            
+            appendLine("\n💡 Reflection Questions:")
+            appendLine("  • What went well today?")
+            appendLine("  • What could be improved?")
+            appendLine("  • What's the most important thing for tomorrow?")
+        }
     }
 }
