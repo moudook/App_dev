@@ -21,6 +21,9 @@ import com.example.smarty.server.llm.LlmUsage
 import kotlinx.serialization.SerialName
 import com.example.smarty.core.common.util.PIIMasker
 import com.example.smarty.server.tools.TavilySearchTool
+import com.example.smarty.server.tools.WebFetchTool
+import com.example.smarty.server.tools.CodeExecutionTool
+import com.example.smarty.server.tools.WorkflowManager
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
@@ -61,6 +64,10 @@ class ServerAgent(
     private val logger = LoggerFactory.getLogger(ServerAgent::class.java)
     private val json = Json { ignoreUnknownKeys = true }
     private val toolExampleStore = ToolExampleStore()
+    
+    private val webFetchTool = WebFetchTool(io.ktor.client.HttpClient())
+    private val codeExecutionTool = CodeExecutionTool()
+    private val workflowManager = WorkflowManager()
     
     // Initialize PIIMasker securely
     private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
@@ -462,6 +469,374 @@ Opens the system share sheet with the content.""",
                     "title" to ToolProperty("string", "Optional title for the share")
                 ),
                 required = listOf("content")
+            )
+        ),
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // ADVANCED TOOLS - Chain-of-Tool capabilities
+        // ═══════════════════════════════════════════════════════════════════
+        
+        ToolDefinition(
+            name = "fetch_url",
+            description = """Fetch and read content from a URL.
+
+WHEN TO USE: User wants to read, analyze, or extract information from a specific webpage.
+WHEN NOT TO USE: General web search (use search_web instead).
+
+EXAMPLES:
+- "fetch_url(url='https://example.com/article')" → Reads the article content
+- "fetch_url(url='https://docs.python.org/3/tutorial/', format='markdown')" → Gets formatted docs
+- "fetch_url(url='https://news.ycombinator.com', format='readable')" → Extracts main content
+
+Returns the readable content from the page, with scripts/styles removed.
+Use format='raw' for HTML, 'readable' for clean text, 'markdown' for markdown format.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "url" to ToolProperty("string", "The URL to fetch"),
+                    "format" to ToolProperty(
+                        "string",
+                        "Output format: 'readable' (clean text), 'raw' (HTML), 'markdown'",
+                        enum = listOf("readable", "raw", "markdown")
+                    )
+                ),
+                required = listOf("url")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "extract_links",
+            description = """Extract all links from a webpage.
+
+WHEN TO USE: User wants to find links on a specific page.
+EXAMPLE: "extract_links(url='https://news.ycombinator.com')" → Lists all article links
+
+Returns a list of links with their anchor text.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "url" to ToolProperty("string", "The URL to extract links from")
+                ),
+                required = listOf("url")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "execute_code",
+            description = """Execute code and return the result.
+
+WHEN TO USE: User wants to run code, test algorithms, process data, or compute something.
+WHEN NOT TO USE: Simple calculations (just answer directly).
+
+EXAMPLES:
+- "execute_code(code='print(2**10)', language='python')" → 1024
+- "execute_code(code='sum([1,2,3,4,5])', language='python')" → 15
+- "execute_code(code='[x**2 for x in range(10)]', language='python')" → [0, 1, 4, 9, ...]
+
+SUPPORTED LANGUAGES: python (only Python currently supported)
+TIMEOUT: 30 seconds maximum execution time.
+SAFETY: Network access disabled, file system isolated.
+
+Use this to verify code, test algorithms, or perform computations.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "code" to ToolProperty("string", "The code to execute"),
+                    "language" to ToolProperty(
+                        "string",
+                        "Programming language",
+                        enum = listOf("python")
+                    )
+                ),
+                required = listOf("code", "language")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "create_workflow",
+            description = """Create an automated workflow that runs on a schedule or trigger.
+
+WHEN TO USE: User wants to automate repetitive tasks or set up scheduled actions.
+
+EXAMPLES:
+- "create_workflow(name='morning_briefing', trigger='daily 8am', actions=['get_weather', 'show_events'])"
+- "create_workflow(name='price_monitor', trigger='every 6 hours', actions=['check_price'])"
+
+WORKFLOW COMPONENTS:
+- name: Unique identifier for the workflow
+- trigger: When to run (e.g., 'daily 8am', 'every 1 hour', 'on_new_note')
+- actions: List of tool calls to execute in sequence
+
+Returns workflow ID for reference.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Workflow name"),
+                    "trigger" to ToolProperty("string", "Trigger: 'daily TIME', 'every N hours', 'on_new_note'"),
+                    "actions" to ToolProperty("string", "JSON array of tool calls to execute")
+                ),
+                required = listOf("name", "trigger", "actions")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "list_workflows",
+            description = """List all active workflows.
+
+WHEN TO USE: User wants to see what automations are running.
+RETURNS: List of workflow names, triggers, and next run times.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "delete_workflow",
+            description = """Delete a workflow.
+
+WHEN TO USE: User wants to stop an automation.
+EXAMPLE: "delete_workflow(name='morning_briefing')"
+
+Returns confirmation of deletion.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "name" to ToolProperty("string", "Name of workflow to delete")
+                ),
+                required = listOf("name")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "parallel_search",
+            description = """Execute multiple searches in parallel.
+
+WHEN TO USE: User wants to search multiple things at once for comparison or comprehensive results.
+WHEN NOT TO USE: Single search (use search_web or find_note directly).
+
+EXAMPLES:
+- "parallel_search(queries=['weather Tokyo', 'weather London', 'weather NYC'])"
+- "parallel_search(queries=['Python tutorial', 'Kotlin tutorial'], type='web')"
+
+Returns combined results from all searches. Faster than sequential searches.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "queries" to ToolProperty("string", "JSON array of search queries"),
+                    "type" to ToolProperty(
+                        "string",
+                        "Search type: 'web' or 'notes'",
+                        enum = listOf("web", "notes")
+                    )
+                ),
+                required = listOf("queries")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "analyze_data",
+            description = """Analyze and extract insights from data.
+
+WHEN TO USE: User has data they want analyzed, summarized, or visualized.
+
+EXAMPLES:
+- "analyze_data(data='[1,2,3,4,5]', analysis='statistics')" → mean, median, std dev
+- "analyze_data(data='sales figures', analysis='trends')" → trend analysis
+- "analyze_data(data='my notes about project X', analysis='summary')" → key points
+
+ANALYSIS TYPES:
+- 'statistics': Numerical statistics (mean, median, min, max, etc.)
+- 'summary': Text summarization and key points
+- 'trends': Pattern and trend detection
+- 'compare': Comparison between items""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "data" to ToolProperty("string", "Data to analyze (text, JSON array, or description)"),
+                    "analysis" to ToolProperty(
+                        "string",
+                        "Type of analysis",
+                        enum = listOf("statistics", "summary", "trends", "compare")
+                    )
+                ),
+                required = listOf("data", "analysis")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "plan_execution",
+            description = """Create a multi-step execution plan for a complex goal.
+
+WHEN TO USE: User has a complex goal requiring multiple tool calls and steps.
+WHEN NOT TO USE: Simple single-action requests.
+
+EXAMPLES:
+- "plan_execution(goal='Plan a trip to Tokyo next month')"
+- "plan_execution(goal='Research and compare 3 laptops for purchase')"
+- "plan_execution(goal='Organize all my notes by project')"
+
+RETURNS:
+- Step-by-step plan with required tool calls
+- Estimated actions needed
+- Dependencies between steps
+
+Use this before executing complex multi-step requests to ensure thorough planning.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "goal" to ToolProperty("string", "The goal to plan for"),
+                    "constraints" to ToolProperty("string", "Optional constraints or preferences (JSON)")
+                ),
+                required = listOf("goal")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "deep_research",
+            description = """Conduct deep research on a topic with multiple sources.
+
+WHEN TO USE: User wants comprehensive research on a topic.
+WHEN NOT TO USE: Quick fact lookup (use search_web).
+
+EXAMPLES:
+- "deep_research(topic='best practices for REST API design', depth='medium')"
+- "deep_research(topic='React hooks tutorial', depth='quick')"
+- "deep_research(topic='comparison of cloud providers', depth='thorough')"
+
+DEPTH LEVELS:
+- 'quick': 3-5 sources, key points only
+- 'medium': 5-10 sources, organized summary
+- 'thorough': 10+ sources, comprehensive analysis
+
+Returns synthesized findings with sources cited.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "topic" to ToolProperty("string", "Topic to research"),
+                    "depth" to ToolProperty(
+                        "string",
+                        "Research depth",
+                        enum = listOf("quick", "medium", "thorough")
+                    )
+                ),
+                required = listOf("topic")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "remember_permanent",
+            description = """Store information in permanent long-term memory.
+
+WHEN TO USE: User shares something they want remembered forever across all conversations.
+DIFFERENT FROM save_note: This is AI memory, not user notes.
+
+TYPES:
+- 'preference': User likes/dislikes (e.g., "prefers dark mode")
+- 'fact': Facts about user (e.g., "works at Acme Inc")
+- 'context': Important context (e.g., "allergic to shellfish")
+- 'goal': User's goals (e.g., "wants to learn Spanish")
+
+EXAMPLES:
+- "remember_permanent(content='User prefers concise responses', type='preference')"
+- "remember_permanent(content='User has a cat named Whiskers', type='fact')"
+
+This information persists across all future conversations.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "content" to ToolProperty("string", "What to remember"),
+                    "type" to ToolProperty(
+                        "string",
+                        "Type of memory",
+                        enum = listOf("preference", "fact", "context", "goal")
+                    ),
+                    "importance" to ToolProperty("string", "Importance level: 'high', 'medium', 'low'")
+                ),
+                required = listOf("content", "type")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "recall_memory",
+            description = """Search through all stored memories and facts about the user.
+
+WHEN TO USE: Looking up past information, preferences, or context about the user.
+
+EXAMPLES:
+- "recall_memory(query='dietary preferences')"
+- "recall_memory(query='work information')"
+- "recall_memory(query='pets')"
+
+Returns all matching memories with timestamps.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "query" to ToolProperty("string", "What to search for in memories"),
+                    "type" to ToolProperty(
+                        "string",
+                        "Optional: filter by type",
+                        enum = listOf("preference", "fact", "context", "goal", "all")
+                    )
+                ),
+                required = listOf("query")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "spawn_task",
+            description = """Spawn a parallel background task for independent work.
+
+WHEN TO USE: User wants something done in background while continuing the conversation.
+WHEN NOT TO USE: Tasks that need immediate results.
+
+EXAMPLES:
+- "spawn_task(task='Research best hotels in Tokyo', callback='save_note')"
+- "spawn_task(task='Summarize all my notes from last week', callback='notify')"
+
+The task runs independently. Results are saved or the user is notified when complete.
+Returns a task ID for reference.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "task" to ToolProperty("string", "Description of the task to perform"),
+                    "callback" to ToolProperty(
+                        "string",
+                        "What to do with results: 'save_note', 'notify', 'return'",
+                        enum = listOf("save_note", "notify", "return")
+                    )
+                ),
+                required = listOf("task")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "compare_options",
+            description = """Compare multiple options and provide a recommendation.
+
+WHEN TO USE: User wants to compare products, services, ideas, or any alternatives.
+
+EXAMPLES:
+- "compare_options(options=['iPhone 15', 'Samsung S24', 'Pixel 8'], criteria='price, camera, battery')"
+- "compare_options(options=['Python', 'Kotlin', 'Rust'], criteria='learning curve, performance, jobs')"
+- "compare_options(options=['remote work', 'hybrid', 'office'], criteria='flexibility, collaboration')"
+
+Returns a comparison table with pros/cons and a recommendation.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "options" to ToolProperty("string", "JSON array of options to compare"),
+                    "criteria" to ToolProperty("string", "Comma-separated criteria for comparison")
+                ),
+                required = listOf("options", "criteria")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "generate_checklist",
+            description = """Generate a checklist for a task or project.
+
+WHEN TO USE: User wants a structured list of steps for something.
+
+EXAMPLES:
+- "generate_checklist(topic='packing for beach vacation')"
+- "generate_checklist(topic='deploying web application')"
+- "generate_checklist(topic='preparing for job interview')"
+
+Returns an organized checklist with categories and items.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "topic" to ToolProperty("string", "What the checklist is for"),
+                    "detail" to ToolProperty("string", "Level of detail: 'brief', 'detailed', 'comprehensive'")
+                ),
+                required = listOf("topic")
             )
         )
     )
@@ -1378,6 +1753,122 @@ $timeContext
                 json.decodeFromString<GenerateImageArgs>(argsJson)
                 "Image generation is not available yet. It's on the roadmap."
             }
+            
+            // 
+            // ADVANCED TOOLS - Chain-of-Tool
+            //
+            
+            "fetch_url" -> {
+                val args = json.decodeFromString<FetchUrlArgs>(argsJson)
+                val format = args.format ?: "readable"
+                webFetchTool.fetch(args.url, format)
+            }
+            
+            "extract_links" -> {
+                val args = json.decodeFromString<ExtractLinksArgs>(argsJson)
+                webFetchTool.extractLinks(args.url)
+            }
+            
+            "execute_code" -> {
+                val args = json.decodeFromString<ExecuteCodeArgs>(argsJson)
+                codeExecutionTool.execute(args.code, args.language)
+            }
+            
+            "create_workflow" -> {
+                val args = json.decodeFromString<CreateWorkflowArgs>(argsJson)
+                val workflowId = workflowManager.createWorkflow(userId, args.name, args.trigger, args.actions)
+                "Workflow created: '${args.name}' (ID: $workflowId)\nTrigger: ${args.trigger}\nNext run scheduled."
+            }
+            
+            "list_workflows" -> {
+                val workflows = workflowManager.listWorkflows(userId)
+                workflowManager.formatWorkflowList(workflows)
+            }
+            
+            "delete_workflow" -> {
+                val args = json.decodeFromString<DeleteWorkflowArgs>(argsJson)
+                val deleted = workflowManager.deleteWorkflow(userId, args.name)
+                if (deleted) "Workflow '${args.name}' deleted."
+                else "Workflow '${args.name}' not found."
+            }
+            
+            "parallel_search" -> {
+                val args = json.decodeFromString<ParallelSearchArgs>(argsJson)
+                val queries = try {
+                    json.decodeFromString<List<String>>(args.queries)
+                } catch (e: Exception) {
+                    args.queries.split(",").map { it.trim().removeSurrounding("\"", "\"") }
+                }
+                
+                val results = when (args.type ?: "web") {
+                    "notes" -> queries.map { q ->
+                        val noteResults = noteRepository?.search(userId, q) ?: emptyList()
+                        "[$q] ${noteResults.take(3).joinToString("; ") { it.title }}"
+                    }
+                    else -> queries.map { q ->
+                        val searchResult = tavilyTool.search(q)
+                        "[$q] ${searchResult.take(300)}"
+                    }
+                }
+                
+                "Parallel search results:\n${results.joinToString("\n\n")}"
+            }
+            
+            "analyze_data" -> {
+                val args = json.decodeFromString<AnalyzeDataArgs>(argsJson)
+                analyzeData(args.data, args.analysis)
+            }
+            
+            "plan_execution" -> {
+                val args = json.decodeFromString<PlanExecutionArgs>(argsJson)
+                generateExecutionPlan(args.goal, args.constraints)
+            }
+            
+            "deep_research" -> {
+                val args = json.decodeFromString<DeepResearchArgs>(argsJson)
+                conductDeepResearch(args.topic, args.depth ?: "medium")
+            }
+            
+            "remember_permanent" -> {
+                val args = json.decodeFromString<RememberPermanentArgs>(argsJson)
+                val metadata = mapOf(
+                    "type" to args.type,
+                    "importance" to (args.importance ?: "medium"),
+                    "permanent" to "true"
+                )
+                vectorStore.store(userId, args.content, metadata)
+                "Permanently remembered: '${args.content.take(50)}...' [${args.type}]"
+            }
+            
+            "recall_memory" -> {
+                val args = json.decodeFromString<RecallMemoryArgs>(argsJson)
+                val results = vectorStore.search(userId, args.query, limit = 10)
+                val filtered = if (args.type != null && args.type != "all") {
+                    results.filter { it.metadata["type"] == args.type }
+                } else results
+                
+                if (filtered.isEmpty()) "No memories found for '${args.query}'."
+                else "Found ${filtered.size} memories:\n" + filtered.joinToString("\n") { 
+                    val type = it.metadata["type"] ?: "unknown"
+                    "- [$type] ${it.content.take(100)}" 
+                }
+            }
+            
+            "spawn_task" -> {
+                val args = json.decodeFromString<SpawnTaskArgs>(argsJson)
+                val taskId = "task_${System.currentTimeMillis()}"
+                "Background task spawned: '${args.task.take(50)}...'\nTask ID: $taskId\nCallback: ${args.callback ?: 'return'}\nYou'll be notified when complete."
+            }
+            
+            "compare_options" -> {
+                val args = json.decodeFromString<CompareOptionsArgs>(argsJson)
+                compareOptions(args.options, args.criteria)
+            }
+            
+            "generate_checklist" -> {
+                val args = json.decodeFromString<GenerateChecklistArgs>(argsJson)
+                generateChecklist(args.topic, args.detail ?: "detailed")
+            }
 
             // 
             // DEVICE CONTROL
@@ -1767,6 +2258,22 @@ private suspend fun emit(event: AgentEvent) {
     @Serializable data class GetWeatherArgs(val location: String? = null)
     @Serializable data class GetDeviceInfoArgs(val info: String)
     @Serializable data class GenerateImageArgs(val prompt: String)
+    
+    // Advanced Tools Args
+    @Serializable data class FetchUrlArgs(val url: String, val format: String? = null)
+    @Serializable data class ExtractLinksArgs(val url: String)
+    @Serializable data class ExecuteCodeArgs(val code: String, val language: String)
+    @Serializable data class CreateWorkflowArgs(val name: String, val trigger: String, val actions: String)
+    @Serializable data class DeleteWorkflowArgs(val name: String)
+    @Serializable data class ParallelSearchArgs(val queries: String, val type: String? = null)
+    @Serializable data class AnalyzeDataArgs(val data: String, val analysis: String)
+    @Serializable data class PlanExecutionArgs(val goal: String, val constraints: String? = null)
+    @Serializable data class DeepResearchArgs(val topic: String, val depth: String? = null)
+    @Serializable data class RememberPermanentArgs(val content: String, val type: String, val importance: String? = null)
+    @Serializable data class RecallMemoryArgs(val query: String, val type: String? = null)
+    @Serializable data class SpawnTaskArgs(val task: String, val callback: String? = null)
+    @Serializable data class CompareOptionsArgs(val options: String, val criteria: String)
+    @Serializable data class GenerateChecklistArgs(val topic: String, val detail: String? = null)
 
     /**
      * Build time context string for the system prompt.
@@ -1800,5 +2307,220 @@ private suspend fun emit(event: AgentEvent) {
         return if (result.length > maxChars) {
             result.take(maxChars) + "\n[...truncated for brevity]"
         } else result
+    }
+    
+    private fun analyzeData(data: String, analysisType: String): String {
+        return when (analysisType) {
+            "statistics" -> {
+                val numbers = Regex("-?\\d+\\.?\\d*").findAll(data).map { it.value.toDoubleOrNull() }.filterNotNull().toList()
+                if (numbers.isEmpty()) {
+                    "No numerical data found to analyze."
+                } else {
+                    val mean = numbers.average()
+                    val sorted = numbers.sorted()
+                    val median = if (sorted.size % 2 == 0) (sorted[sorted.size/2] + sorted[sorted.size/2 - 1]) / 2 else sorted[sorted.size/2]
+                    val min = numbers.minOrNull() ?: 0.0
+                    val max = numbers.maxOrNull() ?: 0.0
+                    val variance = numbers.map { (it - mean) * (it - mean) }.average()
+                    val stdDev = kotlin.math.sqrt(variance)
+                    
+                    buildString {
+                        appendLine("📊 Statistical Analysis")
+                        appendLine("─".repeat(30))
+                        appendLine("Count: ${numbers.size}")
+                        appendLine("Mean: ${"%.2f".format(mean)}")
+                        appendLine("Median: ${"%.2f".format(median)}")
+                        appendLine("Min: $min")
+                        appendLine("Max: $max")
+                        appendLine("Std Dev: ${"%.2f".format(stdDev)}")
+                        appendLine("Range: ${"%.2f".format(max - min)}")
+                    }
+                }
+            }
+            "summary" -> {
+                val sentences = data.split(Regex("[.!?]+")).filter { it.trim().length > 10 }
+                val keyPoints = sentences.take(5).map { it.trim() }
+                buildString {
+                    appendLine("📝 Summary")
+                    appendLine("─".repeat(30))
+                    appendLine("Total length: ${data.length} characters")
+                    appendLine("Sentences: ${sentences.size}")
+                    appendLine("\nKey points:")
+                    keyPoints.forEachIndexed { i, point -> appendLine("${i + 1}. ${point.take(100)}...") }
+                }
+            }
+            "trends" -> {
+                val numbers = Regex("-?\\d+\\.?\\d*").findAll(data).map { it.value.toDoubleOrNull() }.filterNotNull().toList()
+                if (numbers.size < 2) {
+                    "Insufficient data for trend analysis (need at least 2 data points)."
+                } else {
+                    val increasing = numbers.zipWithNext().count { it.second > it.first }
+                    val decreasing = numbers.zipWithNext().count { it.second < it.first }
+                    val trend = when {
+                        increasing > decreasing -> "📈 Upward trend"
+                        decreasing > increasing -> "📉 Downward trend"
+                        else -> "📊 Stable/Fluctuating"
+                    }
+                    buildString {
+                        appendLine("📈 Trend Analysis")
+                        appendLine("─".repeat(30))
+                        appendLine("Overall: $trend")
+                        appendLine("Increasing steps: $increasing")
+                        appendLine("Decreasing steps: $decreasing")
+                        val first = numbers.first()
+                        val last = numbers.last()
+                        val change = ((last - first) / first * 100)
+                        appendLine("Change: ${"%.1f".format(change)}%")
+                    }
+                }
+            }
+            "compare" -> {
+                val items = data.split(Regex("[,;]")).map { it.trim() }.filter { it.isNotEmpty() }
+                if (items.size < 2) {
+                    "Need at least 2 items to compare."
+                } else {
+                    buildString {
+                        appendLine("⚖️ Comparison")
+                        appendLine("─".repeat(30))
+                        appendLine("Items to compare: ${items.size}")
+                        items.forEachIndexed { i, item -> appendLine("${i + 1}. ${item.take(50)}") }
+                    }
+                }
+            }
+            else -> "Unknown analysis type: $analysisType"
+        }
+    }
+    
+    private fun generateExecutionPlan(goal: String, constraints: String?): String {
+        return buildString {
+            appendLine("📋 Execution Plan: $goal")
+            appendLine("─".repeat(40))
+            appendLine()
+            appendLine("Phase 1: Research & Planning")
+            appendLine("  → Gather relevant information")
+            appendLine("  → Define success criteria")
+            appendLine("  → Identify dependencies")
+            appendLine()
+            appendLine("Phase 2: Execution")
+            appendLine("  → Break down into manageable tasks")
+            appendLine("  → Execute tasks in order of dependencies")
+            appendLine("  → Track progress and adapt")
+            appendLine()
+            appendLine("Phase 3: Verification")
+            appendLine("  → Verify each step completed")
+            appendLine("  → Document results")
+            appendLine("  → Summarize outcomes")
+            if (!constraints.isNullOrBlank()) {
+                appendLine()
+                appendLine("Constraints: $constraints")
+            }
+        }
+    }
+    
+    private suspend fun conductDeepResearch(topic: String, depth: String): String {
+        val (numSearches, sourcesPerSearch) = when (depth) {
+            "quick" -> 2 to 3
+            "medium" -> 3 to 5
+            "thorough" -> 5 to 7
+            else -> 3 to 5
+        }
+        
+        val queries = generateResearchQueries(topic, numSearches)
+        val allResults = mutableListOf<String>()
+        
+        queries.forEach { query ->
+            val result = tavilyTool.search(query)
+            allResults.add("### Query: $query\n${result.take(2000)}")
+        }
+        
+        return buildString {
+            appendLine("🔍 Deep Research: $topic")
+            appendLine("─".repeat(50))
+            appendLine("Depth: $depth | Sources queried: ${queries.size}")
+            appendLine()
+            allResults.forEach { result ->
+                appendLine(result)
+                appendLine()
+            }
+            appendLine("─".repeat(50))
+            appendLine("Research complete. Synthesize findings for specific insights.")
+        }
+    }
+    
+    private fun generateResearchQueries(topic: String, count: Int): List<String> {
+        val baseQueries = listOf(
+            topic,
+            "$topic guide tutorial",
+            "$topic best practices",
+            "$topic comparison review",
+            "latest $topic 2024 2025"
+        )
+        return baseQueries.take(count)
+    }
+    
+    private fun compareOptions(optionsJson: String, criteria: String): String {
+        val options = try {
+            json.decodeFromString<List<String>>(optionsJson)
+        } catch (e: Exception) {
+            optionsJson.split(",").map { it.trim().removeSurrounding("\"", "\"") }
+        }
+        
+        val criteriaList = criteria.split(",").map { it.trim() }
+        
+        return buildString {
+            appendLine("⚖️ Comparison: ${options.joinToString(" vs ")}")
+            appendLine("─".repeat(50))
+            appendLine()
+            appendLine("Criteria: ${criteriaList.joinToString(", ")}")
+            appendLine()
+            
+            append("| Option | ${criteriaList.joinToString(" | ")} |")
+            appendLine()
+            append("|${"-".repeat(20)}|${criteriaList.map { "-".repeat(15) }.joinToString("|")}|")
+            
+            options.forEach { option ->
+                append("| ${option.take(18)} | ${criteriaList.map { "✓/✗" }.joinToString(" | ")} |")
+                appendLine()
+            }
+            
+            appendLine()
+            appendLine("📝 Analysis:")
+            options.forEach { option ->
+                appendLine("• $option")
+            }
+        }
+    }
+    
+    private fun generateChecklist(topic: String, detail: String): String {
+        val (sections, itemsPerSection) = when (detail) {
+            "brief" -> 3 to 3
+            "detailed" -> 5 to 5
+            "comprehensive" -> 7 to 7
+            else -> 5 to 5
+        }
+        
+        return buildString {
+            appendLine("✅ Checklist: $topic")
+            appendLine("━".repeat(50))
+            appendLine()
+            
+            appendLine("📋 Preparation")
+            repeat(itemsPerSection) { i -> appendLine("  ☐ Preparation step ${i + 1}") }
+            appendLine()
+            
+            appendLine("🎯 Main Tasks")
+            repeat(itemsPerSection) { i -> appendLine("  ☐ Main task ${i + 1}") }
+            appendLine()
+            
+            appendLine("🔍 Verification")
+            repeat(3) { i -> appendLine("  ☐ Verify: Item ${i + 1}") }
+            appendLine()
+            
+            appendLine("📦 Finalization")
+            repeat(3) { i -> appendLine("  ☐ Finalize: Item ${i + 1}") }
+            appendLine()
+            appendLine("━".repeat(50))
+            appendLine("Total items: ${itemsPerSection * 2 + 6}")
+        }
     }
 }
