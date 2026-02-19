@@ -252,11 +252,11 @@ class KnowledgeGraphTool {
     
     fun formatGraph(result: KnowledgeGraphResult): String {
         return buildString {
-            appendLine("🕸️ Knowledge Graph Analysis")
-            appendLine("━".repeat(50))
+            appendLine("[Knowledge Graph Analysis]")
+            appendLine("─".repeat(50))
             appendLine()
             
-            appendLine("📌 Entities Found: ${result.entities.size}")
+            appendLine("Entities Found: ${result.entities.size}")
             val grouped = result.entities.groupBy { it.type }
             grouped.forEach { (type, ents) ->
                 appendLine("\n  ${type.uppercase()} (${ents.size}):")
@@ -267,7 +267,7 @@ class KnowledgeGraphTool {
             }
             
             if (result.relationships.isNotEmpty()) {
-                appendLine("\n🔗 Relationships Found: ${result.relationships.size}")
+                appendLine("\nRelationships Found: ${result.relationships.size}")
                 result.relationships.take(10).forEach { r ->
                     val from = entities[r.fromEntity]?.name ?: r.fromEntity
                     val to = entities[r.toEntity]?.name ?: r.toEntity
@@ -285,8 +285,8 @@ class KnowledgeGraphTool {
         val centerEntity = entities[entityId] ?: return "Entity not found"
         
         return buildString {
-            appendLine("🌐 Network for: ${centerEntity.name}")
-            appendLine("━".repeat(50))
+            appendLine("[Network for: ${centerEntity.name}]")
+            appendLine("─".repeat(50))
             
             val related = getRelatedEntities(entityId)
             if (related.isEmpty()) {
@@ -296,7 +296,7 @@ class KnowledgeGraphTool {
             
             appendLine("\nDirect Connections:")
             related.forEach { (rel, entity) ->
-                val arrow = if (rel.fromEntity == entityId) "→" else "←"
+                val arrow = if (rel.fromEntity == entityId) "->" else "<-"
                 appendLine("  $arrow ${entity.name} (${rel.relationType})")
             }
             
@@ -317,8 +317,8 @@ class KnowledgeGraphTool {
     
     fun stats(): String {
         return buildString {
-            appendLine("📊 Knowledge Graph Statistics")
-            appendLine("━".repeat(30))
+            appendLine("[Knowledge Graph Statistics]")
+            appendLine("─".repeat(30))
             appendLine("Entities: ${entities.size}")
             appendLine("Relationships: ${relationships.size}")
             val byType = entities.values.groupBy { it.type }

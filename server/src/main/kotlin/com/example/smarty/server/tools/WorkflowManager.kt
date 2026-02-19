@@ -179,7 +179,7 @@ class WorkflowManager {
                 java.time.Instant.ofEpochMilli(it).toString() 
             } ?: "Not scheduled"
             buildString {
-                appendLine("📋 ${wf.name}")
+                appendLine("[Workflow] ${wf.name}")
                 appendLine("   Trigger: ${wf.trigger}")
                 appendLine("   Actions: ${wf.actions.size} step(s)")
                 appendLine("   Next run: $nextRun")

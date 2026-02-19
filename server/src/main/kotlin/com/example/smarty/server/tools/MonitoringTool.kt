@@ -183,7 +183,7 @@ class MonitoringTool(private val client: HttpClient) {
             } ?: "Never"
             
             buildString {
-                appendLine("📡 Monitor: ${m.id}")
+                appendLine("[Monitor] ${m.id}")
                 appendLine("   Type: ${m.type}")
                 appendLine("   Target: ${m.target}")
                 appendLine("   Check interval: ${m.checkInterval}")
@@ -196,19 +196,19 @@ class MonitoringTool(private val client: HttpClient) {
     
     fun formatCheckResult(check: MonitorCheck, monitor: MonitorTarget): String {
         return buildString {
-            appendLine("🔍 Monitor Check Result")
-            appendLine("━".repeat(40))
+            appendLine("[Monitor Check Result]")
+            appendLine("─".repeat(40))
             appendLine("Monitor: ${monitor.id}")
             appendLine("Target: ${monitor.target}")
             appendLine("Type: ${monitor.type}")
             appendLine("Timestamp: ${java.time.Instant.ofEpochMilli(check.timestamp)}")
             
             if (check.changed) {
-                appendLine("\n⚠️ CHANGE DETECTED!")
+                appendLine("\n[!] CHANGE DETECTED!")
                 appendLine("Previous: ${check.previousValue}")
                 appendLine("Current: ${check.value}")
             } else {
-                appendLine("\n✓ No change detected")
+                appendLine("\n[*] No change detected")
                 appendLine("Current value: ${check.value}")
             }
         }

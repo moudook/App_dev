@@ -2372,10 +2372,10 @@ $timeContext
                 } else {
                     val grouped = entities.groupBy { it.type }
                     buildString {
-                        appendLine("🔍 Extracted ${entities.size} entities:")
+                        appendLine("[Extracted ${entities.size} entities:]")
                         grouped.forEach { (type, list) ->
                             appendLine("\n${type.uppercase()}:")
-                            list.forEach { e -> appendLine("  • ${e.name}") }
+                            list.forEach { e -> appendLine("  * ${e.name}") }
                         }
                     }
                 }
@@ -2466,7 +2466,7 @@ $timeContext
                 val taskId = "task_${System.currentTimeMillis()}"
                 val dueTime = args.due?.let { parseNaturalTime(it, clientTimezone, clientTimeMillis) }
                 val taskNote = buildString {
-                    appendLine("📋 Task: ${args.title}")
+                    appendLine("[Task] ${args.title}")
                     if (args.description != null) appendLine("Description: ${args.description}")
                     if (dueTime != null) appendLine("Due: ${java.time.Instant.ofEpochMilli(dueTime)}")
                     appendLine("Priority: ${args.priority ?: "medium"}")
@@ -2491,26 +2491,26 @@ $timeContext
                 
                 if (filtered.isEmpty()) "No tasks found matching criteria."
                 else {
-                    "📋 Found ${filtered.size} task(s):\n" + filtered.take(10).joinToString("\n") { task ->
+                    "[Found ${filtered.size} task(s):]\n" + filtered.take(10).joinToString("\n") { task ->
                         val statusMatch = Regex("Status: (\\w+)").find(task.content)
                         val status = statusMatch?.groupValues?.get(1) ?: "unknown"
                         val priorityMatch = Regex("Priority: (\\w+)").find(task.content)
                         val priority = priorityMatch?.groupValues?.get(1) ?: "medium"
-                        "• [${status}] ${task.title.removePrefix("Task: ")} (${priority})"
+                        "* [${status}] ${task.title.removePrefix("Task: ")} (${priority})"
                     }
                 }
             }
             
             "complete_task" -> {
                 val args = json.decodeFromString<CompleteTaskArgs>(argsJson)
-                "Task ${args.taskId} marked as completed. Great job! 🎉"
+                "Task ${args.taskId} marked as completed."
             }
             
             "create_project" -> {
                 val args = json.decodeFromString<CreateProjectArgs>(argsJson)
                 val projectId = "proj_${System.currentTimeMillis()}"
                 val projectNote = buildString {
-                    appendLine("📁 Project: ${args.name}")
+                    appendLine("[Project] ${args.name}")
                     if (args.description != null) appendLine("Description: ${args.description}")
                     if (args.color != null) appendLine("Color: ${args.color}")
                     appendLine("Status: active")
@@ -2528,14 +2528,14 @@ $timeContext
                 val taskNotes = noteRepository?.search(userId, "Project: ${args.project}") ?: emptyList()
                 
                 buildString {
-                    appendLine("📊 Project Status: ${args.project}")
-                    appendLine("━".repeat(40))
-                    appendLine("📁 Total Items: ${projectNotes.size + taskNotes.size}")
-                    appendLine("📋 Tasks: ${taskNotes.size}")
-                    appendLine("📈 Estimated Progress: ${if (taskNotes.isEmpty()) 0 else (taskNotes.count { it.content.contains("completed") } * 100 / taskNotes.size)}%")
+                    appendLine("[Project Status: ${args.project}]")
+                    appendLine("-".repeat(40))
+                    appendLine("Total Items: ${projectNotes.size + taskNotes.size}")
+                    appendLine("Tasks: ${taskNotes.size}")
+                    appendLine("Estimated Progress: ${if (taskNotes.isEmpty()) 0 else (taskNotes.count { it.content.contains("completed") } * 100 / taskNotes.size)}%")
                     appendLine("\nRecent Activity:")
                     (projectNotes + taskNotes).take(5).forEach { 
-                        appendLine("  • ${it.title}") 
+                        appendLine("  * ${it.title}") 
                     }
                 }
             }
@@ -2549,8 +2549,8 @@ $timeContext
                 val args = json.decodeFromString<SmartReminderArgs>(argsJson)
                 val reminderId = "rem_${System.currentTimeMillis()}"
                 buildString {
-                    appendLine("⏰ Smart Reminder Created")
-                    appendLine("━".repeat(30))
+                    appendLine("[Smart Reminder Created]")
+                    appendLine("-".repeat(30))
                     appendLine("What: ${args.what}")
                     if (args.before != null) appendLine("Before: ${args.before}")
                     if (args.every != null) appendLine("Recurring: ${args.every}")
@@ -2576,7 +2576,7 @@ $timeContext
                     else -> "inbox"
                 }
                 val noteId = noteRepository?.create(userId, "Capture: ${args.content.take(50)}", args.content, category)
-                "✅ Captured: '${args.content.take(50)}...'\nCategory: $category\nNote ID: $noteId"
+                "[Captured] '${args.content.take(50)}...'\nCategory: $category\nNote ID: $noteId"
             }
             
             "review_day" -> {
@@ -3065,8 +3065,8 @@ private suspend fun emit(event: AgentEvent) {
                     val stdDev = kotlin.math.sqrt(variance)
                     
                     buildString {
-                        appendLine("📊 Statistical Analysis")
-                        appendLine("─".repeat(30))
+                        appendLine("[Statistical Analysis]")
+                        appendLine("-".repeat(30))
                         appendLine("Count: ${numbers.size}")
                         appendLine("Mean: ${"%.2f".format(mean)}")
                         appendLine("Median: ${"%.2f".format(median)}")
@@ -3081,8 +3081,8 @@ private suspend fun emit(event: AgentEvent) {
                 val sentences = data.split(Regex("[.!?]+")).filter { it.trim().length > 10 }
                 val keyPoints = sentences.take(5).map { it.trim() }
                 buildString {
-                    appendLine("📝 Summary")
-                    appendLine("─".repeat(30))
+                    appendLine("[Summary]")
+                    appendLine("-".repeat(30))
                     appendLine("Total length: ${data.length} characters")
                     appendLine("Sentences: ${sentences.size}")
                     appendLine("\nKey points:")
@@ -3097,13 +3097,13 @@ private suspend fun emit(event: AgentEvent) {
                     val increasing = numbers.zipWithNext().count { it.second > it.first }
                     val decreasing = numbers.zipWithNext().count { it.second < it.first }
                     val trend = when {
-                        increasing > decreasing -> "📈 Upward trend"
-                        decreasing > increasing -> "📉 Downward trend"
-                        else -> "📊 Stable/Fluctuating"
+                        increasing > decreasing -> "[Upward trend]"
+                        decreasing > increasing -> "[Downward trend]"
+                        else -> "[Stable/Fluctuating]"
                     }
                     buildString {
-                        appendLine("📈 Trend Analysis")
-                        appendLine("─".repeat(30))
+                        appendLine("[Trend Analysis]")
+                        appendLine("-".repeat(30))
                         appendLine("Overall: $trend")
                         appendLine("Increasing steps: $increasing")
                         appendLine("Decreasing steps: $decreasing")
@@ -3120,8 +3120,8 @@ private suspend fun emit(event: AgentEvent) {
                     "Need at least 2 items to compare."
                 } else {
                     buildString {
-                        appendLine("⚖️ Comparison")
-                        appendLine("─".repeat(30))
+                        appendLine("[Comparison]")
+                        appendLine("-".repeat(30))
                         appendLine("Items to compare: ${items.size}")
                         items.forEachIndexed { i, item -> appendLine("${i + 1}. ${item.take(50)}") }
                     }
@@ -3133,23 +3133,23 @@ private suspend fun emit(event: AgentEvent) {
     
     private fun generateExecutionPlan(goal: String, constraints: String?): String {
         return buildString {
-            appendLine("📋 Execution Plan: $goal")
-            appendLine("─".repeat(40))
+            appendLine("[Execution Plan: $goal]")
+            appendLine("-".repeat(40))
             appendLine()
             appendLine("Phase 1: Research & Planning")
-            appendLine("  → Gather relevant information")
-            appendLine("  → Define success criteria")
-            appendLine("  → Identify dependencies")
+            appendLine("  -> Gather relevant information")
+            appendLine("  -> Define success criteria")
+            appendLine("  -> Identify dependencies")
             appendLine()
             appendLine("Phase 2: Execution")
-            appendLine("  → Break down into manageable tasks")
-            appendLine("  → Execute tasks in order of dependencies")
-            appendLine("  → Track progress and adapt")
+            appendLine("  -> Break down into manageable tasks")
+            appendLine("  -> Execute tasks in order of dependencies")
+            appendLine("  -> Track progress and adapt")
             appendLine()
             appendLine("Phase 3: Verification")
-            appendLine("  → Verify each step completed")
-            appendLine("  → Document results")
-            appendLine("  → Summarize outcomes")
+            appendLine("  -> Verify each step completed")
+            appendLine("  -> Document results")
+            appendLine("  -> Summarize outcomes")
             if (!constraints.isNullOrBlank()) {
                 appendLine()
                 appendLine("Constraints: $constraints")
@@ -3174,15 +3174,15 @@ private suspend fun emit(event: AgentEvent) {
         }
         
         return buildString {
-            appendLine("🔍 Deep Research: $topic")
-            appendLine("─".repeat(50))
+            appendLine("[Deep Research: $topic]")
+            appendLine("-".repeat(50))
             appendLine("Depth: $depth | Sources queried: ${queries.size}")
             appendLine()
             allResults.forEach { result ->
                 appendLine(result)
                 appendLine()
             }
-            appendLine("─".repeat(50))
+            appendLine("-".repeat(50))
             appendLine("Research complete. Synthesize findings for specific insights.")
         }
     }
@@ -3208,8 +3208,8 @@ private suspend fun emit(event: AgentEvent) {
         val criteriaList = criteria.split(",").map { it.trim() }
         
         return buildString {
-            appendLine("⚖️ Comparison: ${options.joinToString(" vs ")}")
-            appendLine("─".repeat(50))
+            appendLine("[Comparison: ${options.joinToString(" vs ")}]")
+            appendLine("-".repeat(50))
             appendLine()
             appendLine("Criteria: ${criteriaList.joinToString(", ")}")
             appendLine()
@@ -3219,14 +3219,14 @@ private suspend fun emit(event: AgentEvent) {
             append("|${"-".repeat(20)}|${criteriaList.map { "-".repeat(15) }.joinToString("|")}|")
             
             options.forEach { option ->
-                append("| ${option.take(18)} | ${criteriaList.map { "✓/✗" }.joinToString(" | ")} |")
+                append("| ${option.take(18)} | ${criteriaList.map { "[?]" }.joinToString(" | ")} |")
                 appendLine()
             }
             
             appendLine()
-            appendLine("📝 Analysis:")
+            appendLine("[Analysis]")
             options.forEach { option ->
-                appendLine("• $option")
+                appendLine("* $option")
             }
         }
     }
@@ -3240,24 +3240,24 @@ private suspend fun emit(event: AgentEvent) {
         }
         
         return buildString {
-            appendLine("✅ Checklist: $topic")
-            appendLine("━".repeat(50))
+            appendLine("[Checklist: $topic]")
+            appendLine("-".repeat(50))
             appendLine()
             
-            appendLine("📋 Preparation")
-            repeat(itemsPerSection) { i -> appendLine("  ☐ Preparation step ${i + 1}") }
+            appendLine("[Preparation]")
+            repeat(itemsPerSection) { i -> appendLine("  [ ] Preparation step ${i + 1}") }
             appendLine()
             
-            appendLine("🎯 Main Tasks")
-            repeat(itemsPerSection) { i -> appendLine("  ☐ Main task ${i + 1}") }
+            appendLine("[Main Tasks]")
+            repeat(itemsPerSection) { i -> appendLine("  [ ] Main task ${i + 1}") }
             appendLine()
             
-            appendLine("🔍 Verification")
-            repeat(3) { i -> appendLine("  ☐ Verify: Item ${i + 1}") }
+            appendLine("[Verification]")
+            repeat(3) { i -> appendLine("  [ ] Verify: Item ${i + 1}") }
             appendLine()
             
-            appendLine("📦 Finalization")
-            repeat(3) { i -> appendLine("  ☐ Finalize: Item ${i + 1}") }
+            appendLine("[Finalization]")
+            repeat(3) { i -> appendLine("  [ ] Finalize: Item ${i + 1}") }
             appendLine()
             appendLine("━".repeat(50))
             appendLine("Total items: ${itemsPerSection * 2 + 6}")
@@ -3397,13 +3397,13 @@ private suspend fun emit(event: AgentEvent) {
         
         return if (pattern == "all") {
             buildString {
-                appendLine("📋 Extracted Data:")
-                appendLine("━".repeat(40))
+                appendLine("[Extracted Data]")
+                appendLine("-".repeat(40))
                 patterns.forEach { (name, regex) ->
                     val matches = regex.findAll(text).map { it.value }.distinct().toList()
                     if (matches.isNotEmpty()) {
                         appendLine("\n${name.uppercase()}:")
-                        matches.forEach { appendLine("  • $it") }
+                        matches.forEach { appendLine("  - $it") }
                     }
                 }
             }
@@ -3414,7 +3414,7 @@ private suspend fun emit(event: AgentEvent) {
             if (matches.isEmpty()) {
                 "No $pattern patterns found in text."
             } else {
-                "Found ${matches.size} $pattern(s):\n" + matches.joinToString("\n") { "  • $it" }
+                "Found ${matches.size} $pattern(s):\n" + matches.joinToString("\n") { "  - $it" }
             }
         }
     }
@@ -3434,18 +3434,18 @@ private suspend fun emit(event: AgentEvent) {
         
         return when (style) {
             "bullet" -> buildString {
-                appendLine("📌 Summary:")
-                keySentences.forEach { s -> appendLine("• ${s.trim().take(100)}") }
+                appendLine("[Summary]")
+                keySentences.forEach { s -> appendLine("- ${s.trim().take(100)}") }
             }
             "tldr" -> "TL;DR: ${keySentences.firstOrNull()?.trim()?.take(100) ?: "No content to summarize."}"
             "key_points" -> buildString {
-                appendLine("🔑 Key Points:")
+                appendLine("[Key Points]")
                 keySentences.forEachIndexed { i, s -> 
                     appendLine("${i + 1}. ${s.trim().take(80)}") 
                 }
             }
             else -> buildString {
-                appendLine("📝 Summary ($wordCount words):")
+                appendLine("[Summary ($wordCount words)]")
                 appendLine(keySentences.joinToString(" ") { it.trim() })
             }
         }
@@ -3484,67 +3484,67 @@ private suspend fun emit(event: AgentEvent) {
     
     private fun generateSuggestions(context: String?): String {
         return buildString {
-            appendLine("💡 Suggested Next Actions")
-            appendLine("━".repeat(40))
+            appendLine("[Suggested Next Actions]")
+            appendLine("-".repeat(40))
             
             if (context?.contains("free time") == true || context?.contains("bored") == true) {
-                appendLine("\n🎯 Based on free time:")
+                appendLine("\n[Based on free time:]")
                 appendLine("1. Start a quick task from your backlog")
                 appendLine("2. Review and organize recent notes")
                 appendLine("3. Plan ahead for upcoming events")
             } else if (context?.contains("productive") == true || context?.contains("energic") == true) {
-                appendLine("\n🚀 Based on high energy:")
+                appendLine("\n[Based on high energy:]")
                 appendLine("1. Tackle your most challenging task")
                 appendLine("2. Work on high-priority items")
                 appendLine("3. Make progress on long-term projects")
             } else {
-                appendLine("\n📌 Top Recommendations:")
+                appendLine("\n[Top Recommendations:]")
                 appendLine("1. Review pending tasks and prioritize")
                 appendLine("2. Clear your inbox")
                 appendLine("3. Schedule important but not urgent tasks")
             }
             
-            appendLine("\n💡 Quick Wins:")
-            appendLine("• Complete 2-minute tasks now")
-            appendLine("• Respond to quick messages")
-            appendLine("• File or archive completed items")
+            appendLine("\n[Quick Wins:]")
+            appendLine("- Complete 2-minute tasks now")
+            appendLine("- Respond to quick messages")
+            appendLine("- File or archive completed items")
         }
     }
     
     private fun analyzeTime(period: String, breakdown: String?): String {
         return buildString {
-            appendLine("📊 Time Analysis: $period")
-            appendLine("━".repeat(40))
+            appendLine("[Time Analysis: $period]")
+            appendLine("-".repeat(40))
             
             when (breakdown) {
                 "project" -> {
-                    appendLine("\n📁 By Project:")
-                    appendLine("  • Personal: ~30%")
-                    appendLine("  • Work: ~50%")
-                    appendLine("  • Learning: ~20%")
+                    appendLine("\n[By Project:]")
+                    appendLine("  - Personal: ~30%")
+                    appendLine("  - Work: ~50%")
+                    appendLine("  - Learning: ~20%")
                 }
                 "category" -> {
-                    appendLine("\n🏷️ By Category:")
-                    appendLine("  • Meetings: ~25%")
-                    appendLine("  • Focus Work: ~35%")
-                    appendLine("  • Communication: ~20%")
-                    appendLine("  • Planning: ~20%")
+                    appendLine("\n[By Category:]")
+                    appendLine("  - Meetings: ~25%")
+                    appendLine("  - Focus Work: ~35%")
+                    appendLine("  - Communication: ~20%")
+                    appendLine("  - Planning: ~20%")
                 }
                 "priority" -> {
-                    appendLine("\n🎯 By Priority:")
-                    appendLine("  • Urgent: ~15%")
-                    appendLine("  • High: ~35%")
-                    appendLine("  • Medium: ~40%")
-                    appendLine("  • Low: ~10%")
+                    appendLine("\n[By Priority:]")
+                    appendLine("  - Urgent: ~15%")
+                    appendLine("  - High: ~35%")
+                    appendLine("  - Medium: ~40%")
+                    appendLine("  - Low: ~10%")
                 }
                 "time_of_day" -> {
-                    appendLine("\n🕐 By Time of Day:")
-                    appendLine("  • Morning (6-12): Most productive")
-                    appendLine("  • Afternoon (12-6): Moderate")
-                    appendLine("  • Evening (6-10): Low energy tasks")
+                    appendLine("\n[By Time of Day:]")
+                    appendLine("  - Morning (6-12): Most productive")
+                    appendLine("  - Afternoon (12-6): Moderate")
+                    appendLine("  - Evening (6-10): Low energy tasks")
                 }
                 else -> {
-                    appendLine("\n📈 Overview:")
+                    appendLine("\n[Overview:]")
                     appendLine("  Total tracked: ~${when(period) {"today" -> "8 hours"; "week" -> "40 hours"; "month" -> "160 hours"; else -> "N/A"}}")
                     appendLine("  Focus time: ~60%")
                     appendLine("  Meetings: ~20%")
@@ -3552,39 +3552,39 @@ private suspend fun emit(event: AgentEvent) {
                 }
             }
             
-            appendLine("\n💡 Insights:")
-            appendLine("  • Your most productive hours: 9-11 AM")
-            appendLine("  • Consider blocking focus time in mornings")
+            appendLine("\n[Insights:]")
+            appendLine("  - Your most productive hours: 9-11 AM")
+            appendLine("  - Consider blocking focus time in mornings")
         }
     }
     
     private fun generateDayReview(): String {
         return buildString {
-            appendLine("📋 Daily Review")
-            appendLine("━".repeat(50))
+            appendLine("[Daily Review]")
+            appendLine("-".repeat(50))
             
-            appendLine("\n✅ Completed Today:")
-            appendLine("  • (Tasks completed will appear here)")
+            appendLine("\n[Completed Today:]")
+            appendLine("  - (Tasks completed will appear here)")
             
-            appendLine("\n📅 Events Attended:")
-            appendLine("  • (Calendar events will appear here)")
+            appendLine("\n[Events Attended:]")
+            appendLine("  - (Calendar events will appear here)")
             
-            appendLine("\n📝 Notes Created:")
-            appendLine("  • (New notes will appear here)")
+            appendLine("\n[Notes Created:]")
+            appendLine("  - (New notes will appear here)")
             
-            appendLine("\n⏰ Time Summary:")
-            appendLine("  • Focus time: ~4 hours")
-            appendLine("  • Meetings: ~2 hours")
-            appendLine("  • Other: ~2 hours")
+            appendLine("\n[Time Summary:]")
+            appendLine("  - Focus time: ~4 hours")
+            appendLine("  - Meetings: ~2 hours")
+            appendLine("  - Other: ~2 hours")
             
-            appendLine("\n🔜 Tomorrow's Preview:")
-            appendLine("  • Check calendar for upcoming events")
-            appendLine("  • Review high-priority tasks")
+            appendLine("\n[Tomorrow's Preview:]")
+            appendLine("  - Check calendar for upcoming events")
+            appendLine("  - Review high-priority tasks")
             
-            appendLine("\n💡 Reflection Questions:")
-            appendLine("  • What went well today?")
-            appendLine("  • What could be improved?")
-            appendLine("  • What's the most important thing for tomorrow?")
+            appendLine("\n[Reflection Questions:]")
+            appendLine("  - What went well today?")
+            appendLine("  - What could be improved?")
+            appendLine("  - What's the most important thing for tomorrow?")
         }
     }
 }
