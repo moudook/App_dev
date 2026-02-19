@@ -24,6 +24,7 @@ import com.example.smarty.server.tools.TavilySearchTool
 import com.example.smarty.server.tools.WebFetchTool
 import com.example.smarty.server.tools.CodeExecutionTool
 import com.example.smarty.server.tools.WorkflowManager
+import com.example.smarty.server.tools.KnowledgeGraphTool
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
@@ -68,6 +69,7 @@ class ServerAgent(
     private val webFetchTool = WebFetchTool(io.ktor.client.HttpClient())
     private val codeExecutionTool = CodeExecutionTool()
     private val workflowManager = WorkflowManager()
+    private val knowledgeGraphTool = KnowledgeGraphTool()
     
     // Initialize PIIMasker securely
     private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
@@ -837,6 +839,77 @@ Returns an organized checklist with categories and items.""",
                     "detail" to ToolProperty("string", "Level of detail: 'brief', 'detailed', 'comprehensive'")
                 ),
                 required = listOf("topic")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "extract_entities",
+            description = """Extract named entities from text (people, places, organizations, dates, etc.).
+
+WHEN TO USE: User wants to identify and categorize entities mentioned in content.
+
+EXAMPLES:
+- "extract_entities(text='John works at Microsoft in Seattle')"
+- "extract_entities(text='The meeting is scheduled for January 15th with Sarah from Google')"
+
+Returns structured list of entities with types (person, organization, location, date, email, url, money, project).""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "text" to ToolProperty("string", "Text to extract entities from")
+                ),
+                required = listOf("text")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "build_knowledge_graph",
+            description = """Build a knowledge graph from text, identifying entities and their relationships.
+
+WHEN TO USE: User wants to understand connections between entities in content.
+
+EXAMPLES:
+- "build_knowledge_graph(text='Elon Musk is CEO of Tesla. Tesla is based in Austin.')"
+- "build_knowledge_graph(text='John met Sarah at Google. They discussed the Project Alpha.')"
+
+Returns entities found and relationships between them (works_at, located_in, created, etc.).""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "text" to ToolProperty("string", "Text to build knowledge graph from")
+                ),
+                required = listOf("text")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "find_connections",
+            description = """Find connections between entities in the knowledge graph.
+
+WHEN TO USE: User wants to discover how entities are related.
+
+EXAMPLES:
+- "find_connections(entity='John Doe', depth=2)"
+- "find_connections(entity='Microsoft', depth=1)"
+
+Returns network of connected entities up to specified depth.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "entity" to ToolProperty("string", "Entity name to find connections for"),
+                    "depth" to ToolProperty("string", "How many hops to explore (1-3)")
+                ),
+                required = listOf("entity")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "graph_stats",
+            description = """Get statistics about the knowledge graph.
+
+WHEN TO USE: User wants to understand what's in their knowledge base.
+
+Returns: entity counts by type, relationship counts, and other statistics.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
             )
         )
     )
@@ -1869,6 +1942,44 @@ $timeContext
                 val args = json.decodeFromString<GenerateChecklistArgs>(argsJson)
                 generateChecklist(args.topic, args.detail ?: "detailed")
             }
+            
+            "extract_entities" -> {
+                val args = json.decodeFromString<ExtractEntitiesArgs>(argsJson)
+                val entities = knowledgeGraphTool.extractEntities(args.text)
+                if (entities.isEmpty()) {
+                    "No entities found in the text."
+                } else {
+                    val grouped = entities.groupBy { it.type }
+                    buildString {
+                        appendLine("🔍 Extracted ${entities.size} entities:")
+                        grouped.forEach { (type, list) ->
+                            appendLine("\n${type.uppercase()}:")
+                            list.forEach { e -> appendLine("  • ${e.name}") }
+                        }
+                    }
+                }
+            }
+            
+            "build_knowledge_graph" -> {
+                val args = json.decodeFromString<BuildKnowledgeGraphArgs>(argsJson)
+                val result = knowledgeGraphTool.analyzeText(args.text)
+                knowledgeGraphTool.formatGraph(result)
+            }
+            
+            "find_connections" -> {
+                val args = json.decodeFromString<FindConnectionsArgs>(argsJson)
+                val entity = knowledgeGraphTool.findEntityByName(args.entity)
+                if (entity == null) {
+                    "Entity '${args.entity}' not found in knowledge graph. Try extracting it first with build_knowledge_graph."
+                } else {
+                    val depth = (args.depth ?: "2").toIntOrNull()?.coerceIn(1, 3) ?: 2
+                    knowledgeGraphTool.visualizeNetwork(entity.id, depth)
+                }
+            }
+            
+            "graph_stats" -> {
+                knowledgeGraphTool.stats()
+            }
 
             // 
             // DEVICE CONTROL
@@ -2274,6 +2385,11 @@ private suspend fun emit(event: AgentEvent) {
     @Serializable data class SpawnTaskArgs(val task: String, val callback: String? = null)
     @Serializable data class CompareOptionsArgs(val options: String, val criteria: String)
     @Serializable data class GenerateChecklistArgs(val topic: String, val detail: String? = null)
+    
+    // Knowledge Graph Args
+    @Serializable data class ExtractEntitiesArgs(val text: String)
+    @Serializable data class BuildKnowledgeGraphArgs(val text: String)
+    @Serializable data class FindConnectionsArgs(val entity: String, val depth: String? = null)
 
     /**
      * Build time context string for the system prompt.
