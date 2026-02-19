@@ -25,6 +25,7 @@ import com.example.smarty.server.tools.WebFetchTool
 import com.example.smarty.server.tools.CodeExecutionTool
 import com.example.smarty.server.tools.WorkflowManager
 import com.example.smarty.server.tools.KnowledgeGraphTool
+import com.example.smarty.server.tools.MonitoringTool
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
@@ -70,6 +71,7 @@ class ServerAgent(
     private val codeExecutionTool = CodeExecutionTool()
     private val workflowManager = WorkflowManager()
     private val knowledgeGraphTool = KnowledgeGraphTool()
+    private val monitoringTool = MonitoringTool(io.ktor.client.HttpClient())
     
     // Initialize PIIMasker securely
     private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
@@ -910,6 +912,198 @@ Returns: entity counts by type, relationship counts, and other statistics.""",
             parameters = ToolParameters(
                 properties = emptyMap(),
                 required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "create_monitor",
+            description = """Create a monitor to track changes over time.
+
+WHEN TO USE: User wants to be notified when something changes.
+
+EXAMPLES:
+- "create_monitor(type='price', target='https://amazon.com/product/123', interval='6 hours')"
+- "create_monitor(type='availability', target='https://store.com/item')"
+- "create_monitor(type='url', target='https://news-site.com/page')"
+
+MONITOR TYPES:
+- 'url': Track any changes to a webpage
+- 'price': Track price changes
+- 'availability': Track if item is in stock
+- 'text_change': Track specific text changes
+
+Returns monitor ID for reference.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "type" to ToolProperty(
+                        "string",
+                        "Monitor type",
+                        enum = listOf("url", "price", "availability", "text_change")
+                    ),
+                    "target" to ToolProperty("string", "URL or target to monitor"),
+                    "interval" to ToolProperty("string", "Check interval: '1 hour', '6 hours', 'daily', etc."),
+                    "alertOn" to ToolProperty("string", "Optional: condition to alert on")
+                ),
+                required = listOf("type", "target")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "list_monitors",
+            description = """List all active monitors.
+
+WHEN TO USE: User wants to see what they're tracking.
+RETURNS: List of monitors with their status and last check time.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "check_monitor",
+            description = """Manually check a monitor now.
+
+WHEN TO USE: User wants immediate update on a monitored target.
+EXAMPLE: "check_monitor(monitorId='mon_price_123')"
+
+Returns current value and whether it changed.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "monitorId" to ToolProperty("string", "ID of monitor to check")
+                ),
+                required = listOf("monitorId")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "delete_monitor",
+            description = """Delete a monitor.
+
+WHEN TO USE: User wants to stop tracking something.
+EXAMPLE: "delete_monitor(monitorId='mon_price_123')"
+
+Returns confirmation of deletion.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "monitorId" to ToolProperty("string", "ID of monitor to delete")
+                ),
+                required = listOf("monitorId")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "transform_data",
+            description = """Transform data from one format to another.
+
+WHEN TO USE: User needs to convert data formats.
+
+EXAMPLES:
+- "transform_data(data='[1,2,3]', from='json', to='csv')"
+- "transform_data(data='name,age\nJohn,30', from='csv', to='json')"
+- "transform_data(data='key=value', from='properties', to='json')"
+
+SUPPORTED FORMATS: json, csv, xml, properties, yaml""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "data" to ToolProperty("string", "Data to transform"),
+                    "from" to ToolProperty(
+                        "string",
+                        "Source format",
+                        enum = listOf("json", "csv", "xml", "properties", "yaml", "text")
+                    ),
+                    "to" to ToolProperty(
+                        "string",
+                        "Target format",
+                        enum = listOf("json", "csv", "xml", "properties", "yaml", "text")
+                    )
+                ),
+                required = listOf("data", "from", "to")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "extract_structured",
+            description = """Extract structured data from unstructured text.
+
+WHEN TO USE: User wants to pull specific data from text.
+
+EXAMPLES:
+- "extract_structured(text='Call John at 555-1234', pattern='phone')"
+- "extract_structured(text='Price: $99.99', pattern='money')"
+- "extract_structured(text='Date: 2024-01-15', pattern='date')"
+
+PATTERNS: email, phone, url, date, money, address""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "text" to ToolProperty("string", "Text to extract from"),
+                    "pattern" to ToolProperty(
+                        "string",
+                        "Pattern to extract",
+                        enum = listOf("email", "phone", "url", "date", "money", "address", "all")
+                    )
+                ),
+                required = listOf("text", "pattern")
+            )
+        ),
+        
+        ToolDefinition(
+            name = "summarize_content",
+            description = """Generate a summary of long content.
+
+WHEN TO USE: User wants a condensed version of text, URL content, or notes.
+
+EXAMPLES:
+- "summarize_content(url='https://long-article.com')"
+- "summarize_content(text='...', style='bullet')"
+- "summarize_content(noteId='123', length='short')"
+
+STYLES:
+- 'paragraph': Single paragraph summary
+- 'bullet': Bullet points
+- 'tldr': One-sentence summary
+- 'key_points': Key points extraction""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "text" to ToolProperty("string", "Text to summarize (optional if URL provided)"),
+                    "url" to ToolProperty("string", "URL to fetch and summarize"),
+                    "style" to ToolProperty(
+                        "string",
+                        "Summary style",
+                        enum = listOf("paragraph", "bullet", "tldr", "key_points")
+                    ),
+                    "length" to ToolProperty(
+                        "string",
+                        "Length preference",
+                        enum = listOf("short", "medium", "long")
+                    )
+                ),
+                required = emptyList()
+            )
+        ),
+        
+        ToolDefinition(
+            name = "batch_operation",
+            description = """Execute an operation on multiple items.
+
+WHEN TO USE: User wants to do the same thing to multiple items.
+
+EXAMPLES:
+- "batch_operation(operation='archive', items=['note1', 'note2', 'note3'])"
+- "batch_operation(operation='tag', items=['event1', 'event2'], tag='important')"
+
+OPERATIONS: archive, delete, tag, move, copy""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "operation" to ToolProperty(
+                        "string",
+                        "Operation to perform",
+                        enum = listOf("archive", "delete", "tag", "move", "copy")
+                    ),
+                    "items" to ToolProperty("string", "JSON array of item IDs"),
+                    "params" to ToolProperty("string", "Optional JSON object with operation parameters")
+                ),
+                required = listOf("operation", "items")
             )
         )
     )
@@ -1980,6 +2174,65 @@ $timeContext
             "graph_stats" -> {
                 knowledgeGraphTool.stats()
             }
+            
+            "create_monitor" -> {
+                val args = json.decodeFromString<CreateMonitorArgs>(argsJson)
+                val monitorId = monitoringTool.createMonitor(
+                    userId = userId,
+                    type = args.type,
+                    target = args.target,
+                    checkInterval = args.interval ?: "daily",
+                    alertOn = args.alertOn
+                )
+                "Monitor created: $monitorId\nType: ${args.type}\nTarget: ${args.target}\nInterval: ${args.interval ?: "daily"}"
+            }
+            
+            "list_monitors" -> {
+                val monitors = monitoringTool.listMonitors(userId)
+                monitoringTool.formatMonitorList(monitors)
+            }
+            
+            "check_monitor" -> {
+                val args = json.decodeFromString<CheckMonitorArgs>(argsJson)
+                val monitor = monitoringTool.listMonitors(userId).find { it.id == args.monitorId }
+                if (monitor == null) {
+                    "Monitor ${args.monitorId} not found."
+                } else {
+                    val check = monitoringTool.checkMonitor(args.monitorId)
+                    if (check != null) monitoringTool.formatCheckResult(check, monitor)
+                    else "Failed to check monitor."
+                }
+            }
+            
+            "delete_monitor" -> {
+                val args = json.decodeFromString<DeleteMonitorArgs>(argsJson)
+                val deleted = monitoringTool.deleteMonitor(userId, args.monitorId)
+                if (deleted) "Monitor ${args.monitorId} deleted."
+                else "Monitor ${args.monitorId} not found or already deleted."
+            }
+            
+            "transform_data" -> {
+                val args = json.decodeFromString<TransformDataArgs>(argsJson)
+                transformData(args.data, args.from, args.to)
+            }
+            
+            "extract_structured" -> {
+                val args = json.decodeFromString<ExtractStructuredArgs>(argsJson)
+                extractStructured(args.text, args.pattern)
+            }
+            
+            "summarize_content" -> {
+                val args = json.decodeFromString<SummarizeContentArgs>(argsJson)
+                val text = if (!args.url.isNullOrBlank()) {
+                    webFetchTool.fetch(args.url, "readable")
+                } else args.text ?: ""
+                summarizeText(text, args.style ?: "paragraph", args.length ?: "medium")
+            }
+            
+            "batch_operation" -> {
+                val args = json.decodeFromString<BatchOperationArgs>(argsJson)
+                executeBatchOperation(args.operation, args.items, args.params)
+            }
 
             // 
             // DEVICE CONTROL
@@ -2390,6 +2643,17 @@ private suspend fun emit(event: AgentEvent) {
     @Serializable data class ExtractEntitiesArgs(val text: String)
     @Serializable data class BuildKnowledgeGraphArgs(val text: String)
     @Serializable data class FindConnectionsArgs(val entity: String, val depth: String? = null)
+    
+    // Monitoring Args
+    @Serializable data class CreateMonitorArgs(val type: String, val target: String, val interval: String? = null, val alertOn: String? = null)
+    @Serializable data class CheckMonitorArgs(val monitorId: String)
+    @Serializable data class DeleteMonitorArgs(val monitorId: String)
+    
+    // Data Processing Args
+    @Serializable data class TransformDataArgs(val data: String, val from: String, val to: String)
+    @Serializable data class ExtractStructuredArgs(val text: String, val pattern: String)
+    @Serializable data class SummarizeContentArgs(val text: String? = null, val url: String? = null, val style: String? = null, val length: String? = null)
+    @Serializable data class BatchOperationArgs(val operation: String, val items: String, val params: String? = null)
 
     /**
      * Build time context string for the system prompt.
@@ -2638,5 +2902,223 @@ private suspend fun emit(event: AgentEvent) {
             appendLine("━".repeat(50))
             appendLine("Total items: ${itemsPerSection * 2 + 6}")
         }
+    }
+    
+    private fun transformData(data: String, from: String, to: String): String {
+        return try {
+            when {
+                from == "json" && to == "csv" -> jsonToCsv(data)
+                from == "csv" && to == "json" -> csvToJson(data)
+                from == "json" && to == "yaml" -> jsonToYaml(data)
+                from == "yaml" && to == "json" -> yamlToJson(data)
+                from == "json" && to == "xml" -> jsonToXml(data)
+                from == "properties" && to == "json" -> propertiesToJson(data)
+                else -> "Conversion from $from to $to not yet supported. Try json↔csv."
+            }
+        } catch (e: Exception) {
+            "Transform error: ${e.message}"
+        }
+    }
+    
+    private fun jsonToCsv(jsonStr: String): String {
+        return try {
+            val items = json.decodeFromString<List<Map<String, String>>>(jsonStr)
+            if (items.isEmpty()) return "Empty data"
+            
+            val headers = items.first().keys.toList()
+            val rows = items.map { item -> headers.map { h -> item[h] ?: "" } }
+            
+            buildString {
+                appendLine(headers.joinToString(","))
+                rows.forEach { row -> appendLine(row.joinToString(",") { "\"$it\"" }) }
+            }
+        } catch (e: Exception) {
+            "JSON parse error: ${e.message}"
+        }
+    }
+    
+    private fun csvToJson(csv: String): String {
+        val lines = csv.lines().filter { it.isNotBlank() }
+        if (lines.size < 2) return "[]"
+        
+        val headers = lines[0].split(",").map { it.trim().removeSurrounding("\"") }
+        val rows = lines.drop(1).map { line ->
+            val values = line.split(",").map { it.trim().removeSurrounding("\"") }
+            headers.zip(values).toMap()
+        }
+        
+        return json.encodeToString(rows)
+    }
+    
+    private fun jsonToYaml(jsonStr: String): String {
+        return try {
+            val map = json.decodeFromString<Map<String, Any?>>(jsonStr)
+            mapToYaml(map, 0)
+        } catch (e: Exception) {
+            "Conversion error: ${e.message}"
+        }
+    }
+    
+    private fun mapToYaml(map: Map<String, Any?>, indent: Int): String {
+        return map.entries.joinToString("\n") { (k, v) ->
+            val spaces = "  ".repeat(indent)
+            when (v) {
+                is Map<*, *> -> "$spaces$k:\n${mapToYaml(v as Map<String, Any?>, indent + 1)}"
+                is List<*> -> "$spaces$k:\n${(v as List<Any?>).joinToString("\n") { "${spaces}  - $it" }}"
+                null -> "$spaces$k: null"
+                else -> "$spaces$k: $v"
+            }
+        }
+    }
+    
+    private fun yamlToJson(yaml: String): String {
+        val result = mutableMapOf<String, Any?>()
+        var currentKey = ""
+        
+        yaml.lines().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.contains(":")) {
+                val parts = trimmed.split(":", limit = 2)
+                currentKey = parts[0].trim()
+                val value = parts.getOrNull(1)?.trim()
+                if (!value.isNullOrBlank() && !value.startsWith("\n")) {
+                    result[currentKey] = value.removeSurrounding("\"")
+                }
+            }
+        }
+        
+        return json.encodeToString(result)
+    }
+    
+    private fun jsonToXml(jsonStr: String): String {
+        return try {
+            val map = json.decodeFromString<Map<String, Any?>>(jsonStr)
+            mapToXml(map, "root")
+        } catch (e: Exception) {
+            "<error>${e.message}</error>"
+        }
+    }
+    
+    private fun mapToXml(map: Map<String, Any?>, rootName: String): String {
+        return buildString {
+            append("<$rootName>")
+            map.forEach { (k, v) ->
+                when (v) {
+                    is Map<*, *> -> append(mapToXml(v as Map<String, Any?>, k))
+                    null -> append("<$k/>")
+                    else -> append("<$k>$v</$k>")
+                }
+            }
+            append("</$rootName>")
+        }
+    }
+    
+    private fun propertiesToJson(props: String): String {
+        val result = mutableMapOf<String, String>()
+        props.lines().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isNotEmpty() && !trimmed.startsWith("#") && trimmed.contains("=")) {
+                val parts = trimmed.split("=", limit = 2)
+                result[parts[0].trim()] = parts.getOrNull(1)?.trim() ?: ""
+            }
+        }
+        return json.encodeToString(result)
+    }
+    
+    private fun extractStructured(text: String, pattern: String): String {
+        val patterns = mapOf(
+            "email" to Regex("""[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"""),
+            "phone" to Regex("""\+?[\d\s\-\(\)]{10,}"""),
+            "url" to Regex("""https?://[^\s]+"""),
+            "date" to Regex("""\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{1,2}[-/]\d{1,2}[-/]\d{4}"""),
+            "money" to Regex("""[\$€£]\s*[\d,]+\.?\d*"""),
+            "address" to Regex("""\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln)[\w\s]*""")
+        )
+        
+        return if (pattern == "all") {
+            buildString {
+                appendLine("📋 Extracted Data:")
+                appendLine("━".repeat(40))
+                patterns.forEach { (name, regex) ->
+                    val matches = regex.findAll(text).map { it.value }.distinct().toList()
+                    if (matches.isNotEmpty()) {
+                        appendLine("\n${name.uppercase()}:")
+                        matches.forEach { appendLine("  • $it") }
+                    }
+                }
+            }
+        } else {
+            val regex = patterns[pattern] ?: return "Unknown pattern: $pattern"
+            val matches = regex.findAll(text).map { it.value }.distinct().toList()
+            
+            if (matches.isEmpty()) {
+                "No $pattern patterns found in text."
+            } else {
+                "Found ${matches.size} $pattern(s):\n" + matches.joinToString("\n") { "  • $it" }
+            }
+        }
+    }
+    
+    private fun summarizeText(text: String, style: String, length: String): String {
+        val wordCount = text.split(Regex("\\s+")).size
+        val sentences = text.split(Regex("[.!?]+")).filter { it.trim().length > 10 }
+        
+        val targetLength = when (length) {
+            "short" -> 2
+            "medium" -> 5
+            "long" -> 10
+            else -> 5
+        }
+        
+        val keySentences = sentences.take(targetLength)
+        
+        return when (style) {
+            "bullet" -> buildString {
+                appendLine("📌 Summary:")
+                keySentences.forEach { s -> appendLine("• ${s.trim().take(100)}") }
+            }
+            "tldr" -> "TL;DR: ${keySentences.firstOrNull()?.trim()?.take(100) ?: "No content to summarize."}"
+            "key_points" -> buildString {
+                appendLine("🔑 Key Points:")
+                keySentences.forEachIndexed { i, s -> 
+                    appendLine("${i + 1}. ${s.trim().take(80)}") 
+                }
+            }
+            else -> buildString {
+                appendLine("📝 Summary ($wordCount words):")
+                appendLine(keySentences.joinToString(" ") { it.trim() })
+            }
+        }
+    }
+    
+    private fun executeBatchOperation(operation: String, itemsJson: String, params: String?): String {
+        val items = try {
+            json.decodeFromString<List<String>>(itemsJson)
+        } catch (e: Exception) {
+            itemsJson.split(",").map { it.trim().removeSurrounding("\"") }
+        }
+        
+        var successCount = 0
+        var failCount = 0
+        
+        items.forEach { itemId ->
+            val result = when (operation) {
+                "archive" -> {
+                    noteRepository?.let { repo ->
+                        val success = repo.archive(userId, itemId)
+                        if (success) { successCount++; "Archived" } else { failCount++; "Failed" }
+                    } ?: "No repository"
+                }
+                "delete" -> {
+                    noteRepository?.let { repo ->
+                        val success = repo.delete(userId, itemId)
+                        if (success) { successCount++; "Deleted" } else { failCount++; "Failed" }
+                    } ?: "No repository"
+                }
+                else -> { failCount++; "Unknown operation" }
+            }
+        }
+        
+        return "Batch $operation completed: $successCount succeeded, $failCount failed out of ${items.size} items."
     }
 }
