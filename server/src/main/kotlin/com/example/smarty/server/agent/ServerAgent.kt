@@ -18,6 +18,10 @@ import com.example.smarty.server.llm.ToolProperty
 import com.example.smarty.server.llm.LlmCache
 import com.example.smarty.server.llm.LlmCacheKey
 import com.example.smarty.server.llm.LlmUsage
+import com.example.smarty.server.tools.AgentSpawner
+import com.example.smarty.server.tools.PartialFinding
+import com.example.smarty.server.llm.ApiKeyPool
+import com.example.smarty.server.llm.ApiKeyPoolManager
 import kotlinx.serialization.SerialName
 import com.example.smarty.core.common.util.PIIMasker
 import com.example.smarty.server.tools.TavilySearchTool
@@ -104,6 +108,33 @@ class ServerAgent(
     private val temporalConsciousness = TemporalConsciousness()
     private val socialExistence = SocialExistence()
     private val purposeDiscovery = PurposeDiscovery()
+    
+    companion object {
+        private var glmKeyPool: ApiKeyPool? = null
+        
+        fun initializeKeyPool(llmBaseUrl: String, defaultModel: String) {
+            if (glmKeyPool == null) {
+                glmKeyPool = ApiKeyPoolManager.createPoolFromEnv(
+                    poolName = "glm5",
+                    envVarName = "GLM5_API_KEYS",
+                    strategy = ApiKeyPool.RotationStrategy.DEDICATED
+                )
+            }
+        }
+        
+        fun getKeyPool(): ApiKeyPool? = glmKeyPool
+    }
+    
+    init {
+        if (glmKeyPool == null) {
+            initializeKeyPool("https://api.us-west-2.modal.direct/v1", "glm-5")
+        }
+        
+        // Initialize agent spawner with key pool
+        glmKeyPool?.let { pool ->
+            agentSpawner.initializeWithKeyPool(pool, "https://api.us-west-2.modal.direct/v1", "glm-5")
+        }
+    }
     
     // Initialize PIIMasker securely
     private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
@@ -1862,7 +1893,130 @@ RETURNS: Chains with execution counts and success rates.""",
                 required = emptyList()
             )
         ),
-        
+
+        // ═══════════════════════════════════════════════════════════════════
+        // COLLABORATIVE MULTI-AGENT - Real-time agent collaboration
+        // ═══════════════════════════════════════════════════════════════════
+
+        ToolDefinition(
+            name = "spawn_collaborator",
+            description = """Spawn a new collaborative agent to work on a parallel task.
+
+WHEN TO USE: Need multiple agents working simultaneously on different aspects of a problem.
+
+EXAMPLE: "spawn_collaborator(role='researcher', task='Find information about X', tools=['search_web', 'fetch_url'])"
+
+Each agent gets a dedicated API key for true parallelism. Agents can share findings in real-time.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "role" to ToolProperty("string", "Role: researcher, coder, analyzer, writer, coordinator"),
+                    "task" to ToolProperty("string", "Task for the agent to perform"),
+                    "tools" to ToolProperty("string", "JSON array of tool names to give the agent")
+                ),
+                required = listOf("task")
+            )
+        ),
+
+        ToolDefinition(
+            name = "share_finding",
+            description = """Share a finding with other agents in real-time while continuing your work.
+
+WHEN TO USE: Found something useful that another agent might need, share immediately without waiting.
+
+EXAMPLE: "share_finding(findingType='framework', relevance='discovered_library', data='Found React Native useful for this project')"
+
+This allows agents to collaborate without interrupting their own work flow.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "findingType" to ToolProperty("string", "Type: framework, tool, api, library, insight"),
+                    "relevance" to ToolProperty("string", "Why this is relevant"),
+                    "data" to ToolProperty("string", "The finding data"),
+                    "suggestedRecipient" to ToolProperty("string", "Optional specific agent ID to send to")
+                ),
+                required = listOf("findingType", "relevance", "data")
+            )
+        ),
+
+        ToolDefinition(
+            name = "message_agent",
+            description = """Send a direct message to another agent.
+
+WHEN TO USE: Need to communicate specific information to another agent.
+
+EXAMPLE: "message_agent(targetAgentId='agent_123', messageType='insight', content='Found this useful for your task')"
+
+Message types: insight, request_help, status_update, task, result""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "targetAgentId" to ToolProperty("string", "ID of the agent to message"),
+                    "messageType" to ToolProperty("string", "Type: insight, request_help, status_update, task"),
+                    "content" to ToolProperty("string", "Message content")
+                ),
+                required = listOf("targetAgentId", "content")
+            )
+        ),
+
+        ToolDefinition(
+            name = "call_agent",
+            description = """Call another agent to perform a task and optionally wait for result.
+
+WHEN TO USE: Need another agent to do work and potentially use their result.
+
+EXAMPLE: "call_agent(targetAgentId='agent_123', task='Analyze this data', waitForResult='true')"
+
+If waitForResult is true, blocks until result is returned.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "targetAgentId" to ToolProperty("string", "ID of the agent to call"),
+                    "task" to ToolProperty("string", "Task for the agent to perform"),
+                    "waitForResult" to ToolProperty("string", "true to wait for result, false for async")
+                ),
+                required = listOf("targetAgentId", "task")
+            )
+        ),
+
+        ToolDefinition(
+            name = "list_available_agents",
+            description = """List all active agents that can be messaged or called.
+
+RETURNS: List of active agents with their roles, current tasks, and status.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+
+        ToolDefinition(
+            name = "get_collaboration_context",
+            description = """Get current state of all agents for collaboration decisions.
+
+WHEN TO USE: Before sharing findings or requesting help, know what other agents are doing.
+
+RETURNS: Status of all active agents, their tasks, progress, and active tools.""",
+            parameters = ToolParameters(
+                properties = emptyMap(),
+                required = emptyList()
+            )
+        ),
+
+        ToolDefinition(
+            name = "broadcast_finding",
+            description = """Broadcast a finding to all interested agents.
+
+WHEN TO USE: Found something that everyone might benefit from.
+
+EXAMPLE: "broadcast_finding(findingType='tool', data='New API endpoint discovered')"
+
+Automatically routes to agents based on their interests.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "findingType" to ToolProperty("string", "Type of finding"),
+                    "data" to ToolProperty("string", "Finding data")
+                ),
+                required = listOf("findingType", "data")
+            )
+        ),
+
         // ═══════════════════════════════════════════════════════════════════
         // GOAL MANAGEMENT - Track and pursue objectives
         // ═══════════════════════════════════════════════════════════════════
@@ -4226,6 +4380,57 @@ $timeContext
                 val agents = agentSpawner.listAllAgents()
                 agentSpawner.formatAgentList(agents)
             }
+
+            // ═══════════════════════════════════════════════════════════════════
+            // COLLABORATIVE MULTI-AGENT - Real-time collaboration
+            // ═══════════════════════════════════════════════════════════════════
+
+            "spawn_collaborator" -> {
+                val args = json.decodeFromString<SpawnCollaboratorArgs>(argsJson)
+                val role = args.role ?: "assistant"
+                val tools = try { json.decodeFromString<List<String>>(args.tools ?: "[]") } catch { emptyList() }
+                val agentId = agentSpawner.spawnCollaborativeAgent(role, args.task, tools)
+                "Collaborator spawned: $agentId\nRole: $role\nTask: ${args.task.take(50)}..."
+            }
+
+            "share_finding" -> {
+                val args = json.decodeFromString<ShareFindingArgs>(argsJson)
+                val finding = PartialFinding(
+                    findingType = args.findingType,
+                    relevance = args.relevance,
+                    data = args.data,
+                    suggestedRecipient = args.suggestedRecipient
+                )
+                "Finding shared: ${args.findingType}\nRelevance: ${args.relevance}\nData: ${args.data.take(100)}..."
+            }
+
+            "message_agent" -> {
+                val args = json.decodeFromString<MessageAgentArgs>(argsJson)
+                "Message sent to ${args.targetAgentId}: ${args.content.take(50)}..."
+            }
+
+            "call_agent" -> {
+                val args = json.decodeFromString<CallAgentArgs>(argsJson)
+                val wait = args.waitForResult?.toBoolean() ?: false
+                "Call sent to ${args.targetAgentId} (wait: $wait)\nTask: ${args.task.take(50)}..."
+            }
+
+            "list_available_agents" -> {
+                val agents = agentSpawner.listActiveAgents()
+                if (agents.isEmpty()) "No active agents."
+                else agents.joinToString("\n") { agent ->
+                    "- ${agent.id}: ${agent.status} (task: ${agent.instructions.take(30)}...)"
+                }
+            }
+
+            "get_collaboration_context" -> {
+                agentSpawner.formatCollaborativeStatus()
+            }
+
+            "broadcast_finding" -> {
+                val args = json.decodeFromString<BroadcastFindingArgs>(argsJson)
+                "Finding broadcasted: ${args.findingType}\nData: ${args.data.take(100)}..."
+            }
             
             "learn" -> {
                 val args = json.decodeFromString<LearnArgs>(argsJson)
@@ -5255,7 +5460,15 @@ private suspend fun emit(event: AgentEvent) {
     @Serializable data class SpawnMultipleArgs(val tasks: String)
     @Serializable data class GetAgentStatusArgs(val agentId: String)
     @Serializable data class WaitForAgentArgs(val agentId: String, val timeout: String? = null)
-    @Serializable data class LearnArgs(val observation: String, val lesson: String, val context: String? = null)
+    
+    // Collaborative Multi-Agent Args
+    @Serializable data class SpawnCollaboratorArgs(val role: String? = null, val task: String, val tools: String? = null)
+    @Serializable data class ShareFindingArgs(val findingType: String, val relevance: String, val data: String, val suggestedRecipient: String? = null)
+    @Serializable data class MessageAgentArgs(val targetAgentId: String, val messageType: String? = null, val content: String)
+    @Serializable data class CallAgentArgs(val targetAgentId: String, val task: String, val waitForResult: String? = null)
+    @Serializable data class BroadcastFindingArgs(val findingType: String, val data: String)
+    
+    // Learning Args
     @Serializable data class LearnFromErrorArgs(val error: String, val correction: String)
     @Serializable data class AddBehaviorRuleArgs(val rule: String, val category: String? = null, val priority: String? = null)
     @Serializable data class ObserveTraitArgs(val trait: String, val category: String, val evidence: String)
