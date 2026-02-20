@@ -52,6 +52,9 @@ import com.example.smarty.server.tools.ServerResilienceManager
 import com.example.smarty.server.tools.CrashRecoveryHandler
 import com.example.smarty.server.tools.ToolCallingAgent
 import com.example.smarty.server.tools.ToolRegistry
+import com.example.smarty.server.tools.ToolExecutorAgent
+import com.example.smarty.server.tools.ReasoningAgent
+import com.example.smarty.server.tools.AgentSystem
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
@@ -118,7 +121,9 @@ class ServerAgent(
     private val novelProcessor = NovelInformationProcessor()
     private val resilienceManager = ServerResilienceManager()
     private val crashRecovery = CrashRecoveryHandler(resilienceManager)
-    private var toolCallingAgent: ToolCallingAgent? = null
+    private var toolExecutorAgent: ToolExecutorAgent? = null
+    private var reasoningAgent: ReasoningAgent? = null
+    private var agentSystem: AgentSystem? = null
     
     companion object {
         private var glmKeyPool: ApiKeyPool? = null
