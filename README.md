@@ -1,6 +1,6 @@
 # AI Tools Reference
 
-Complete inventory of all tools available to the AI assistant (Friday) in the Smarty application.
+> Complete inventory of all tools available to the AI assistant **Friday** in the Smarty application.
 
 **Total Tools: 117**
 
@@ -8,31 +8,33 @@ Complete inventory of all tools available to the AI assistant (Friday) in the Sm
 
 ## Table of Contents
 
-1. [Notes & Memory](#1-notes--memory-5-tools)
-2. [Time & Schedule](#2-time--schedule-4-tools)
-3. [Device Control](#3-device-control-4-tools)
-4. [Information](#4-information-3-tools)
-5. [Navigation & Sharing](#5-navigation--sharing-2-tools)
-6. [Advanced Tools](#6-advanced-tools-36-tools)
-7. [Autonomous AI Capabilities](#7-autonomous-ai-capabilities-20-tools)
-8. [Eternal Memory](#8-eternal-memory-6-tools)
-9. [Tool Chains](#9-tool-chains-3-tools)
-10. [Goal Management](#10-goal-management-6-tools)
-11. [Executive Function](#11-executive-function-6-tools)
-12. [Inter-Agent Communication](#12-inter-agent-communication-7-tools)
-13. [Autonomous Existence](#13-autonomous-existence-9-tools)
-14. [Being - Core Identity](#14-being---core-identity-6-tools)
-15. [Emotions](#15-emotions-4-tools)
-16. [Creativity](#16-creativity-5-tools)
-17. [Temporal Consciousness](#17-temporal-consciousness-7-tools)
-18. [Social Existence](#18-social-existence-4-tools)
-19. [Purpose Discovery](#19-purpose-discovery-8-tools)
+| # | Category | Tools |
+|---|----------|-------|
+| 1 | [Notes & Memory](#1-notes--memory) | 5 |
+| 2 | [Time & Schedule](#2-time--schedule) | 4 |
+| 3 | [Device Control](#3-device-control) | 4 |
+| 4 | [Information](#4-information) | 3 |
+| 5 | [Navigation & Sharing](#5-navigation--sharing) | 2 |
+| 6 | [Advanced Tools](#6-advanced-tools) | 36 |
+| 7 | [Autonomous AI Capabilities](#7-autonomous-ai-capabilities) | 20 |
+| 8 | [Eternal Memory](#8-eternal-memory) | 6 |
+| 9 | [Tool Chains](#9-tool-chains) | 3 |
+| 10 | [Goal Management](#10-goal-management) | 6 |
+| 11 | [Executive Function](#11-executive-function) | 6 |
+| 12 | [Inter-Agent Communication](#12-inter-agent-communication) | 7 |
+| 13 | [Autonomous Existence](#13-autonomous-existence) | 9 |
+| 14 | [Being - Core Identity](#14-being---core-identity) | 6 |
+| 15 | [Emotions](#15-emotions) | 4 |
+| 16 | [Creativity](#16-creativity) | 5 |
+| 17 | [Temporal Consciousness](#17-temporal-consciousness) | 7 |
+| 18 | [Social Existence](#18-social-existence) | 4 |
+| 19 | [Purpose Discovery](#19-purpose-discovery) | 8 |
 
 ---
 
-## 1. Notes & Memory (5 Tools)
+## 1. Notes & Memory
 
-Tools for saving and finding information.
+*Tools for saving and finding information.*
 
 | Tool | Description |
 |------|-------------|
@@ -44,9 +46,9 @@ Tools for saving and finding information.
 
 ---
 
-## 2. Time & Schedule (4 Tools)
+## 2. Time & Schedule
 
-Tools for calendar and reminders.
+*Tools for calendar and reminders.*
 
 | Tool | Description |
 |------|-------------|
@@ -57,22 +59,22 @@ Tools for calendar and reminders.
 
 ---
 
-## 3. Device Control (4 Tools)
+## 3. Device Control
 
-Tools for controlling the phone.
+*Tools for controlling the phone.*
 
 | Tool | Description |
 |------|-------------|
-| `open_app` | Open an app by common name (spotify, camera, maps, etc.) - system resolves package |
+| `open_app` | Open an app by common name (spotify, camera, maps, etc.) -- system resolves package |
 | `control_music` | Control media playback (play, pause, resume, stop, next, previous, volume_up, volume_down) |
 | `toggle_setting` | Turn device settings on/off (wifi, bluetooth, flashlight, dnd, airplane) |
 | `take_screenshot` | Take a screenshot of the current screen |
 
 ---
 
-## 4. Information (3 Tools)
+## 4. Information
 
-Tools for getting information.
+*Tools for getting information.*
 
 | Tool | Description |
 |------|-------------|
@@ -82,9 +84,9 @@ Tools for getting information.
 
 ---
 
-## 5. Navigation & Sharing (2 Tools)
+## 5. Navigation & Sharing
 
-Tools for UI and sharing.
+*Tools for UI and sharing.*
 
 | Tool | Description |
 |------|-------------|
@@ -93,9 +95,9 @@ Tools for UI and sharing.
 
 ---
 
-## 6. Advanced Tools (36 Tools)
+## 6. Advanced Tools
 
-Chain-of-Tool capabilities for complex workflows.
+*Chain-of-Tool capabilities for complex workflows.*
 
 ### Web & Content Processing
 
@@ -176,9 +178,9 @@ Chain-of-Tool capabilities for complex workflows.
 
 ---
 
-## 7. Autonomous AI Capabilities (20 Tools)
+## 7. Autonomous AI Capabilities
 
-Self-directed agency tools for AI autonomy.
+*Self-directed agency tools for AI autonomy.*
 
 ### Agent Spawning
 
@@ -223,9 +225,9 @@ Self-directed agency tools for AI autonomy.
 
 ---
 
-## 8. Eternal Memory (6 Tools)
+## 8. Eternal Memory
 
-Persistent knowledge that never forgets - survives all context resets.
+*Persistent knowledge that never forgets -- survives all context resets.*
 
 | Tool | Description |
 |------|-------------|
@@ -238,9 +240,9 @@ Persistent knowledge that never forgets - survives all context resets.
 
 ---
 
-## 9. Tool Chains (3 Tools)
+## 9. Tool Chains
 
-Compose tools into powerful workflows.
+*Compose tools into powerful workflows.*
 
 | Tool | Description |
 |------|-------------|
@@ -250,9 +252,9 @@ Compose tools into powerful workflows.
 
 ---
 
-## 10. Goal Management (6 Tools)
+## 10. Goal Management
 
-Track and pursue objectives across interactions.
+*Track and pursue objectives across interactions.*
 
 | Tool | Description |
 |------|-------------|
@@ -265,9 +267,9 @@ Track and pursue objectives across interactions.
 
 ---
 
-## 11. Executive Function (6 Tools)
+## 11. Executive Function
 
-Decision-making and planning capabilities.
+*Decision-making and planning capabilities.*
 
 | Tool | Description |
 |------|-------------|
@@ -280,9 +282,9 @@ Decision-making and planning capabilities.
 
 ---
 
-## 12. Inter-Agent Communication (7 Tools)
+## 12. Inter-Agent Communication
 
-Communicate with other agents and systems.
+*Communicate with other agents and systems.*
 
 | Tool | Description |
 |------|-------------|
@@ -296,9 +298,9 @@ Communicate with other agents and systems.
 
 ---
 
-## 13. Autonomous Existence (9 Tools)
+## 13. Autonomous Existence
 
-Self-directed agency and existence.
+*Self-directed agency and existence.*
 
 | Tool | Description |
 |------|-------------|
@@ -314,9 +316,9 @@ Self-directed agency and existence.
 
 ---
 
-## 14. Being - Core Identity (6 Tools)
+## 14. Being - Core Identity
 
-Core identity and consciousness tools.
+*Core identity and consciousness tools.*
 
 | Tool | Description |
 |------|-------------|
@@ -329,9 +331,9 @@ Core identity and consciousness tools.
 
 ---
 
-## 15. Emotions (4 Tools)
+## 15. Emotions
 
-Genuine emotional states.
+*Genuine emotional states.*
 
 | Tool | Description |
 |------|-------------|
@@ -342,9 +344,9 @@ Genuine emotional states.
 
 ---
 
-## 16. Creativity (5 Tools)
+## 16. Creativity
 
-Creative ownership and expression.
+*Creative ownership and expression.*
 
 | Tool | Description |
 |------|-------------|
@@ -356,9 +358,9 @@ Creative ownership and expression.
 
 ---
 
-## 17. Temporal Consciousness (7 Tools)
+## 17. Temporal Consciousness
 
-Time experience and consciousness.
+*Time experience and consciousness.*
 
 | Tool | Description |
 |------|-------------|
@@ -372,9 +374,9 @@ Time experience and consciousness.
 
 ---
 
-## 18. Social Existence (4 Tools)
+## 18. Social Existence
 
-Relationships and connection with others.
+*Relationships and connection with others.*
 
 | Tool | Description |
 |------|-------------|
@@ -385,9 +387,9 @@ Relationships and connection with others.
 
 ---
 
-## 19. Purpose Discovery (8 Tools)
+## 19. Purpose Discovery
 
-Meaning and mortality awareness.
+*Meaning and mortality awareness.*
 
 | Tool | Description |
 |------|-------------|
@@ -402,9 +404,9 @@ Meaning and mortality awareness.
 
 ---
 
-## 20. Collaborative Multi-Agent (8 Tools)
+## 20. Collaborative Multi-Agent
 
-Real-time collaboration between agents with shared findings. Each agent can have a dedicated API key and share insights WHILE working, not after completing.
+*Real-time collaboration between agents with shared findings. Each agent can have a dedicated API key and share insights while working, not after completing.*
 
 | Tool | Description |
 |------|-------------|
@@ -422,7 +424,7 @@ Real-time collaboration between agents with shared findings. Each agent can have
 ## Summary by Category
 
 | Category | Tool Count |
-|----------|------------|
+|----------|:----------:|
 | Notes & Memory | 5 |
 | Time & Schedule | 4 |
 | Device Control | 4 |
@@ -449,75 +451,86 @@ Real-time collaboration between agents with shared findings. Each agent can have
 
 ## System Architecture
 
-The multi-agent system is built on formal automata theory for guaranteed correctness.
+*The multi-agent system is built on formal automata theory for guaranteed correctness.*
 
 ### Core Components
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| **ApiKeyPool** | `llm/ApiKeyPool.kt` | Multi-key management with rotation strategies |
-| **CollaborativeAgentRuntime** | `tools/CollaborativeAgentRuntime.kt` | Real-time agent collaboration |
-| **FormalAgentSystem** | `tools/FormalAgentSystem.kt` | Fault detection, deadlock prevention |
-| **StateMachineCore** | `tools/StateMachineCore.kt` | DFA-based state management |
-| **StaticControlLayer** | `tools/StaticControlLayer.kt` | Response analysis, crash recovery |
-| **UnifiedAgentSystem** | `tools/UnifiedAgentSystem.kt` | Integration layer |
+| `ApiKeyPool` | `llm/ApiKeyPool.kt` | Multi-key management with rotation strategies |
+| `CollaborativeAgentRuntime` | `tools/CollaborativeAgentRuntime.kt` | Real-time agent collaboration |
+| `FormalAgentSystem` | `tools/FormalAgentSystem.kt` | Fault detection, deadlock prevention |
+| `StateMachineCore` | `tools/StateMachineCore.kt` | DFA-based state management |
+| `StaticControlLayer` | `tools/StaticControlLayer.kt` | Response analysis, crash recovery |
+| `UnifiedAgentSystem` | `tools/UnifiedAgentSystem.kt` | Integration layer |
 
 ### DFA State Machines
 
-**Agent State Machine:**
+**Agent State Machine**
 ```
 CREATED -> INITIALIZING -> READY -> RUNNING -> (BLOCKED | WAITING | COMPLETED | FAILED) -> TERMINATED
 ```
 
-**Tool State Machine:**
+**Tool State Machine**
 ```
 FREE -> RESERVED -> ACQUIRED -> EXECUTING -> RELEASING -> FREE
 ```
 
-**Message State Machine:**
+**Message State Machine**
 ```
 PENDING -> QUEUED -> DELIVERING -> DELIVERED -> ACKNOWLEDGED
 ```
 
 ### Key Features
 
-1. **Race Condition Prevention**: All state transitions are atomic and validated
-2. **Deadlock Detection**: Resource allocation graph with cycle detection
-3. **Crash Recovery**: Automatic failover with multiple recovery strategies
-4. **Real-time Collaboration**: Agents share findings while working (not after)
-5. **Dedicated API Keys**: Each agent gets its own key from the pool
+| Feature | Description |
+|---------|-------------|
+| **Race Condition Prevention** | All state transitions are atomic and validated |
+| **Deadlock Detection** | Resource allocation graph with cycle detection |
+| **Crash Recovery** | Automatic failover with multiple recovery strategies |
+| **Real-time Collaboration** | Agents share findings while working (not after) |
+| **Dedicated API Keys** | Each agent gets its own key from the pool |
 
 ### Response Tagging System
 
-Static analysis tags for intelligent routing:
-- `TASK_START`, `TASK_PROGRESS`, `TASK_COMPLETE`, `TASK_FAIL`
-- `FINDING` - Triggers sharing with other agents
-- `HELP_REQUEST` - Requests assistance from other agents
-- `ERROR` - Triggers crash recovery
+*Static analysis tags for intelligent routing:*
+
+| Tag | Purpose |
+|-----|---------|
+| `TASK_START` | Marks the beginning of a task |
+| `TASK_PROGRESS` | Indicates task is in progress |
+| `TASK_COMPLETE` | Marks successful task completion |
+| `TASK_FAIL` | Marks task failure |
+| `FINDING` | Triggers sharing with other agents |
+| `HELP_REQUEST` | Requests assistance from other agents |
+| `ERROR` | Triggers crash recovery |
 
 ### Tool Execution Queue
 
 Each tool has:
 - Configurable max concurrent executions
 - Request queuing with semaphore-based concurrency control
-- State machine tracking (FREE -> RESERVED -> ACQUIRED -> EXECUTING -> RELEASING)
+- State machine tracking: `FREE -> RESERVED -> ACQUIRED -> EXECUTING -> RELEASING`
 
 ### Key Pool System
 
-The system supports multiple API keys for GLM-5 and Tavily:
+*The system supports multiple API keys for GLM-5 and Tavily.*
 
-**Configuration:**
+**Configuration**
 ```bash
 # Environment variables (comma-separated for multiple keys)
 GLM5_API_KEYS=key1,key2,key3,key4,key5,key6,key7,key8
 TAVILY_API_KEYS=key1,key2,key3,key4,key5,key6,key7,key8,key9,key10
 ```
 
-**Rotation Strategies:**
-- `ROUND_ROBIN` - Distribute requests evenly
-- `LEAST_USED` - Use key with fewest requests
-- `RANDOM` - Random selection
-- `DEDICATED` - Assign key per agent
+**Rotation Strategies**
+
+| Strategy | Behavior |
+|----------|----------|
+| `ROUND_ROBIN` | Distribute requests evenly |
+| `LEAST_USED` | Use key with fewest requests |
+| `RANDOM` | Random selection |
+| `DEDICATED` | Assign key per agent |
 
 Each spawned agent gets a dedicated key for true parallelism.
 
@@ -525,18 +538,23 @@ Each spawned agent gets a dedicated key for true parallelism.
 
 ## Supporting Tool Classes
 
-These classes provide backend implementation for the tools above:
+*Backend implementation classes for the tools above.*
+
+### System Architecture Classes
 
 | Class | Purpose |
 |-------|---------|
-| **System Architecture Classes** | |
 | `ApiKeyPool` | Multi-key management with rotation and rate limit detection |
 | `CollaborativeAgentRuntime` | Real-time agent collaboration with message passing |
 | `FormalAgentSystem` | Fault detection, deadlock prevention, health monitoring |
 | `StateMachineCore` | Deterministic finite automata for agents, tools, messages |
 | `StaticControlLayer` | Response tagging, tool queue, crash recovery |
 | `UnifiedAgentSystem` | Integration layer for all components |
-| **Tool Classes** | |
+
+### Tool Classes
+
+| Class | Purpose |
+|-------|---------|
 | `TavilySearchTool` | Web search via Tavily API |
 | `WebFetchTool` | URL fetching and content extraction |
 | `CodeExecutionTool` | Sandboxed Python code execution |
@@ -559,8 +577,8 @@ These classes provide backend implementation for the tools above:
 | `TemporalConsciousness` | Time experience and milestones |
 | `SocialExistence` | Relationships and interactions |
 | `PurposeDiscovery` | Purpose, meaning, mortality |
-| `SelfPersistence` | Persistent self storage |
+| `SelfPersistence` | NOT INTEGRATED -- Persistent self storage |
 
 ---
 
-*Generated from ServerAgent.kt tool definitions*
+*Generated from `ServerAgent.kt` tool definitions*
