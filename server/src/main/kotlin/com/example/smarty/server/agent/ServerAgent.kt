@@ -46,6 +46,12 @@ import com.example.smarty.server.tools.CreativeIdentity
 import com.example.smarty.server.tools.TemporalConsciousness
 import com.example.smarty.server.tools.SocialExistence
 import com.example.smarty.server.tools.PurposeDiscovery
+import com.example.smarty.server.tools.SelfPersistence
+import com.example.smarty.server.tools.NovelInformationProcessor
+import com.example.smarty.server.tools.ServerResilienceManager
+import com.example.smarty.server.tools.CrashRecoveryHandler
+import com.example.smarty.server.tools.ToolCallingAgent
+import com.example.smarty.server.tools.ToolRegistry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.Serializable
@@ -108,6 +114,11 @@ class ServerAgent(
     private val temporalConsciousness = TemporalConsciousness()
     private val socialExistence = SocialExistence()
     private val purposeDiscovery = PurposeDiscovery()
+    private val selfPersistence = SelfPersistence()
+    private val novelProcessor = NovelInformationProcessor()
+    private val resilienceManager = ServerResilienceManager()
+    private val crashRecovery = CrashRecoveryHandler(resilienceManager)
+    private var toolCallingAgent: ToolCallingAgent? = null
     
     companion object {
         private var glmKeyPool: ApiKeyPool? = null
