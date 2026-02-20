@@ -1,5 +1,5 @@
 # AI Tools Reference
-### Friday — Smarty Application &nbsp;&nbsp;·&nbsp;&nbsp; 117 Tools
+### Friday — Smarty Application &nbsp;&nbsp;·&nbsp;&nbsp; 125 Tools
 
 ---
 
@@ -23,7 +23,11 @@
 [Creativity](#16-creativity) &nbsp;·&nbsp;
 [Temporal Consciousness](#17-temporal-consciousness) &nbsp;·&nbsp;
 [Social Existence](#18-social-existence) &nbsp;·&nbsp;
-[Purpose Discovery](#19-purpose-discovery)
+[Purpose Discovery](#19-purpose-discovery) &nbsp;·&nbsp;
+[Collaborative Multi-Agent](#20-collaborative-multi-agent) &nbsp;·&nbsp;
+[Novel Information Processing](#21-novel-information-processing) &nbsp;·&nbsp;
+[Server Resilience](#22-server-resilience) &nbsp;·&nbsp;
+[Robust Tool Executor](#23-robust-tool-executor)
 
 ---
 
@@ -469,6 +473,51 @@
 
 <br>
 
+## 21. &nbsp;Novel Information Processing
+> Tools for analyzing and learning from new/unknown information.
+
+**`analyze_novelty`** &nbsp; Analyze input for novelty score, classify type, identify unknown aspects
+
+**`learn_concept`** &nbsp; Learn a new concept into the knowledge base with category and attributes
+
+**`get_related_concepts`** &nbsp; Get concepts related to a given concept from registry
+
+**`resolve_unknown`** &nbsp; Request resolution for an unknown concept with retry logic
+
+<br>
+
+## 22. &nbsp;Server Resilience
+> Tools for server health monitoring, crash recovery, and resource management.
+
+**`get_health_metrics`** &nbsp; Get current server health metrics — memory, threads, error rates
+
+**`create_checkpoint`** &nbsp; Create recovery checkpoint with current agent states
+
+**`restore_checkpoint`** &nbsp; Restore from latest checkpoint after crash
+
+**`get_resource_status`** &nbsp; Get status of resource pools and allocations
+
+**`get_error_log`** &nbsp; Get recent errors and their patterns
+
+<br>
+
+## 23. &nbsp;Robust Tool Executor
+> Multi-agent tool execution with retry logic and error handling.
+
+**`execute_tool`** &nbsp; Execute a tool with automatic routing and parameter extraction
+
+**`execute_multiple`** &nbsp; Execute multiple tools in sequence
+
+**`execute_parallel`** &nbsp; Execute multiple tools simultaneously
+
+**`register_tool`** &nbsp; Register a new tool handler dynamically
+
+**`get_execution_history`** &nbsp; Get recent tool execution history with statistics
+
+**`retry_failed`** &nbsp; Retry a failed tool execution (max 3 attempts)
+
+<br>
+
 ---
 
 ## Summary
@@ -495,6 +544,9 @@
 | Social Existence | 4 |
 | Purpose Discovery | 8 |
 | Collaborative Multi-Agent | 8 |
+| Novel Information Processing | 4 |
+| Server Resilience | 5 |
+| Robust Tool Executor | 6 |
 | **Total** | **125** |
 
 <br>
@@ -643,7 +695,15 @@ Each spawned agent gets a dedicated key for true parallelism.
 
 **`PurposeDiscovery`** &nbsp; Purpose, meaning, mortality
 
-**`SelfPersistence`** &nbsp; NOT INTEGRATED — Persistent self storage
+**`SelfPersistence`** &nbsp; Persistent self storage
+
+**`NovelInformationProcessor`** &nbsp; Novelty detection, concept extraction, adaptive learning
+
+**`ServerResilienceManager`** &nbsp; Health monitoring, checkpoints, crash recovery
+
+**`RobustToolExecutor`** &nbsp; Multi-agent tool execution with retry logic
+
+**`MultiAgentToolClient`** &nbsp; Client for multi-agent tool calls with callbacks
 
 <br>
 
