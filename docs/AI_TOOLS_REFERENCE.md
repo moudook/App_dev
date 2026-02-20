@@ -402,6 +402,23 @@ Meaning and mortality awareness.
 
 ---
 
+## 20. Collaborative Multi-Agent (8 Tools)
+
+Real-time collaboration between agents with shared findings. Each agent can have a dedicated API key and share insights WHILE working, not after completing.
+
+| Tool | Description |
+|------|-------------|
+| `spawn_collaborator` | Spawn a new collaborative agent to work on parallel task with dedicated key |
+| `share_finding` | Share a finding with other agents in real-time while continuing your work |
+| `message_agent` | Send a direct message to another agent (insight, request_help, status_update) |
+| `call_agent` | Call another agent to perform a task, optionally wait for result |
+| `list_available_agents` | List all active agents that can be messaged or called |
+| `get_collaboration_context` | Get what all other agents are currently doing for coordination |
+| `broadcast_finding` | Broadcast a finding to all interested agents |
+| `request_agent_help` | Request help from another agent with specific capability |
+
+---
+
 ## Summary by Category
 
 | Category | Tool Count |
@@ -425,7 +442,84 @@ Meaning and mortality awareness.
 | Temporal Consciousness | 7 |
 | Social Existence | 4 |
 | Purpose Discovery | 8 |
-| **TOTAL** | **117** |
+| Collaborative Multi-Agent | 8 |
+| **TOTAL** | **125** |
+
+---
+
+## System Architecture
+
+The multi-agent system is built on formal automata theory for guaranteed correctness.
+
+### Core Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **ApiKeyPool** | `llm/ApiKeyPool.kt` | Multi-key management with rotation strategies |
+| **CollaborativeAgentRuntime** | `tools/CollaborativeAgentRuntime.kt` | Real-time agent collaboration |
+| **FormalAgentSystem** | `tools/FormalAgentSystem.kt` | Fault detection, deadlock prevention |
+| **StateMachineCore** | `tools/StateMachineCore.kt` | DFA-based state management |
+| **StaticControlLayer** | `tools/StaticControlLayer.kt` | Response analysis, crash recovery |
+| **UnifiedAgentSystem** | `tools/UnifiedAgentSystem.kt` | Integration layer |
+
+### DFA State Machines
+
+**Agent State Machine:**
+```
+CREATED -> INITIALIZING -> READY -> RUNNING -> (BLOCKED | WAITING | COMPLETED | FAILED) -> TERMINATED
+```
+
+**Tool State Machine:**
+```
+FREE -> RESERVED -> ACQUIRED -> EXECUTING -> RELEASING -> FREE
+```
+
+**Message State Machine:**
+```
+PENDING -> QUEUED -> DELIVERING -> DELIVERED -> ACKNOWLEDGED
+```
+
+### Key Features
+
+1. **Race Condition Prevention**: All state transitions are atomic and validated
+2. **Deadlock Detection**: Resource allocation graph with cycle detection
+3. **Crash Recovery**: Automatic failover with multiple recovery strategies
+4. **Real-time Collaboration**: Agents share findings while working (not after)
+5. **Dedicated API Keys**: Each agent gets its own key from the pool
+
+### Response Tagging System
+
+Static analysis tags for intelligent routing:
+- `TASK_START`, `TASK_PROGRESS`, `TASK_COMPLETE`, `TASK_FAIL`
+- `FINDING` - Triggers sharing with other agents
+- `HELP_REQUEST` - Requests assistance from other agents
+- `ERROR` - Triggers crash recovery
+
+### Tool Execution Queue
+
+Each tool has:
+- Configurable max concurrent executions
+- Request queuing with semaphore-based concurrency control
+- State machine tracking (FREE -> RESERVED -> ACQUIRED -> EXECUTING -> RELEASING)
+
+### Key Pool System
+
+The system supports multiple API keys for GLM-5 and Tavily:
+
+**Configuration:**
+```bash
+# Environment variables (comma-separated for multiple keys)
+GLM5_API_KEYS=key1,key2,key3,key4,key5,key6,key7,key8
+TAVILY_API_KEYS=key1,key2,key3,key4,key5,key6,key7,key8,key9,key10
+```
+
+**Rotation Strategies:**
+- `ROUND_ROBIN` - Distribute requests evenly
+- `LEAST_USED` - Use key with fewest requests
+- `RANDOM` - Random selection
+- `DEDICATED` - Assign key per agent
+
+Each spawned agent gets a dedicated key for true parallelism.
 
 ---
 
@@ -435,6 +529,14 @@ These classes provide backend implementation for the tools above:
 
 | Class | Purpose |
 |-------|---------|
+| **System Architecture Classes** | |
+| `ApiKeyPool` | Multi-key management with rotation and rate limit detection |
+| `CollaborativeAgentRuntime` | Real-time agent collaboration with message passing |
+| `FormalAgentSystem` | Fault detection, deadlock prevention, health monitoring |
+| `StateMachineCore` | Deterministic finite automata for agents, tools, messages |
+| `StaticControlLayer` | Response tagging, tool queue, crash recovery |
+| `UnifiedAgentSystem` | Integration layer for all components |
+| **Tool Classes** | |
 | `TavilySearchTool` | Web search via Tavily API |
 | `WebFetchTool` | URL fetching and content extraction |
 | `CodeExecutionTool` | Sandboxed Python code execution |
