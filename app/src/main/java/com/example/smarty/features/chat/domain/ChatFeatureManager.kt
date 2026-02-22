@@ -1401,6 +1401,7 @@ is AgentCommand.GetSystemStatus -> "(no params)"
 
             // Collect chunks from the remote stream and update UI live
             val responseBuilder = StringBuilder()
+            val thinkingBuilder = StringBuilder()
             val sessionId = currentSessionId.value
 
             remoteAgentService.sendQuery(
@@ -1411,10 +1412,17 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                     when (event) {
                         is AgentEvent.Processing -> {
                             responseBuilder.append(event.content)
+                            // Handle thinking from server if available
+                            event.thinking?.let { thinking ->
+                                thinkingBuilder.append(thinking)
+                            }
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                         }
                         is AgentEvent.Result -> {
                             responseBuilder.append(event.content)
+                            event.thinking?.let { thinking ->
+                                thinkingBuilder.append(thinking)
+                            }
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                         }
                         is AgentEvent.Error -> {
@@ -1434,12 +1442,17 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                 }
 
             val fullResponse = responseBuilder.toString()
+            val fullThinking = thinkingBuilder.toString()
 
             // Handle success - replace streaming message with final message
             chatManager.markApiCallSuccessful()
 
-            // Parse the response to separate thinking and final answer
-            val parsedResponse = ThinkingParser.parse(fullResponse)
+            // Use thinking from server events if available, otherwise parse from content
+            val parsedResponse = if (fullThinking.isNotEmpty()) {
+                ThinkingParser.ParsedResponse(fullThinking, fullResponse)
+            } else {
+                ThinkingParser.parse(fullResponse)
+            }
             
             val smartyMessage = ChatMessage(
                 id = streamingMessageId,

@@ -744,10 +744,13 @@ $timeContext
         val cacheKey = LlmCacheKey(messagesForAgent, tools, modelOverride)
         LlmCache.get(cacheKey)?.let { cached ->
             val unmaskedCached = piiMasker.unmask(cached)
+            val thinking = extractThinking(unmaskedCached)
+            val finalContent = extractFinalResponse(unmaskedCached)
             emit(AgentEvent.Processing(
                 eventId = UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
-                content = unmaskedCached
+                content = finalContent,
+                thinking = thinking
             ))
             emit(AgentEvent.Result(
                 eventId = UUID.randomUUID().toString(),
@@ -761,7 +764,7 @@ $timeContext
                 content = cached, // Log masked
                 metadata = mapOf("cache" to "hit")
             ))
-            return extractFinalResponse(unmaskedCached)
+            return finalContent
         }
 
         var agentIteration = 0
@@ -791,22 +794,36 @@ $timeContext
                     if (!chunk.content.isNullOrEmpty()) {
                         val newContent = chunk.content
                         
-                        // Look for tags in the incoming stream for basic logging state transitions
+                        // Track state for tag detection
                         if (newContent.contains("<think>")) inThinkingState = true
-                        if (newContent.contains("</think>")) inThinkingState = false
-                        if (newContent.contains("<final>")) inFinalState = true
                         if (newContent.contains("</final>")) inFinalState = false
                         
-                        currentContent += newContent
+                        // Accumulate thinking separately
+                        if (inThinkingState && !inFinalState) {
+                            currentThinkingContent += newContent
+                        }
+                        
+                        // Extract clean content (remove thinking tags for display)
+                        val cleanContent = newContent
+                            .replace(Regex("<think>.*?</final>", RegexOption.DOT_MATCHES_ALL), "")
+                            .replace(Regex("<think>.*", RegexOption.DOT_MATCHES_ALL), "")
+                            .replace("</final>", "")
+                            .replace("<final>", "")
+                        
+                        currentContent += cleanContent
                         
                         if (agentIteration == 1 || !isToolCallInProgress) {
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
-                                content = piiMasker.unmask(newContent), // Send RAW to client
-                                thinking = null // Handled cleanly by Android UI parser
+                                content = piiMasker.unmask(cleanContent),
+                                thinking = if (currentThinkingContent.isNotEmpty()) piiMasker.unmask(currentThinkingContent) else null
                             ))
                         }
+                        
+                        // Check if we're now in final state
+                        if (newContent.contains("<final>")) inFinalState = true
+                    }
                     }
 
                     // Handle Tool Call Accumulation
@@ -971,6 +988,18 @@ $timeContext
                 } else if (currentContent.isNotEmpty()) {
                     // Final answer reached
                     LlmCache.put(cacheKey, currentContent)
+                    
+                    // Extract thinking and final content for the client
+                    val unmaskedContent = piiMasker.unmask(currentContent)
+                    val finalText = extractFinalResponse(unmaskedContent)
+                    val thinking = extractThinking(unmaskedContent)
+                    
+                    emit(AgentEvent.Processing(
+                        eventId = UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        content = finalText,
+                        thinking = thinking
+                    ))
                     emit(AgentEvent.Result(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
@@ -1806,6 +1835,13 @@ private suspend fun emit(event: AgentEvent) {
         val finalRegex = Regex("""<final>(.*?)</final>""", RegexOption.DOT_MATCHES_ALL)
         val match = finalRegex.find(raw)
         return match?.groupValues?.get(1)?.trim() ?: raw.trim()
+    }
+    
+    private fun extractThinking(raw: String): String? {
+        val thinkRegex = Regex("""<think>(.*?)</think>""", RegexOption.DOT_MATCHES_ALL)
+        val matches = thinkRegex.findAll(raw)
+        val thinking = matches.joinToString("\n") { it.groupValues[1].trim() }
+        return thinking.ifEmpty { null }
     }
 
     private fun truncateToolResult(result: String, maxChars: Int = 30000): String {
