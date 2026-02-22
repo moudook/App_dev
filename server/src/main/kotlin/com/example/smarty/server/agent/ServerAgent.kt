@@ -795,10 +795,16 @@ $timeContext
                         val newContent = chunk.content
                         
                         // Track state for tag detection
-                        if (newContent.contains("<think>")) inThinkingState = true
-                        if (newContent.contains("</final>")) inFinalState = false
+                        if (newContent.contains("<think>")) {
+                            inThinkingState = true
+                            inFinalState = false
+                        }
+                        if (newContent.contains("</final>")) {
+                            inFinalState = true
+                            inThinkingState = false
+                        }
                         
-                        // Accumulate thinking separately
+                        // Accumulate thinking separately (only while in thinking state, before final)
                         if (inThinkingState && !inFinalState) {
                             currentThinkingContent += newContent
                         }
@@ -820,9 +826,6 @@ $timeContext
                                 thinking = if (currentThinkingContent.isNotEmpty()) piiMasker.unmask(currentThinkingContent) else null
                             ))
                         }
-                        
-                        // Check if we're now in final state
-                        if (newContent.contains("<final>")) inFinalState = true
                     }
 
                     // Handle Tool Call Accumulation
