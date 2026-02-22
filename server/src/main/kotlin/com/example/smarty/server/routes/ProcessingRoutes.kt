@@ -245,7 +245,7 @@ fun Application.configureProcessingRoutes() {
                             is PartData.FileItem -> {
                                 fileName = part.originalFileName
                                 contentType = part.contentType?.toString()
-                                fileBytes = part.streamProvider().readBytes()
+                                fileBytes = part.provider().readBytes()
                             }
                             is PartData.FormItem -> {
                                 if (part.name == "analysisType") {

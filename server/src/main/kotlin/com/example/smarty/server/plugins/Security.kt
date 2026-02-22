@@ -8,10 +8,6 @@ import com.google.firebase.auth.FirebaseAuthException
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import org.slf4j.LoggerFactory
-import java.io.FileInputStream
 
 /**
  * Principal representing an authenticated Firebase user.
@@ -21,7 +17,9 @@ data class FirebaseUserPrincipal(
     val email: String?,
     val displayName: String?,
     val deviceId: String? = null
-) : Principal
+) : Principal {
+    override fun toString(): String = "FirebaseUserPrincipal(userId=$userId, email=$email)"
+}
 
 /**
  * Initializes Firebase Admin SDK from service account credentials.
