@@ -174,18 +174,16 @@ class OpenAiCompatibleProvider(
 
     private fun LlmMessage.toOpenAiMessage(): OpenAiMessage {
         val roleStr = when (role) {
-            LlmMessage.Role.TOOL -> "user"
-            else -> role.name.lowercase()
-        }
-        val contentStr = if (role == LlmMessage.Role.TOOL) {
-            "Tool Result: $content"
-        } else {
-            content
+            LlmMessage.Role.TOOL -> "tool"
+            LlmMessage.Role.SMARTY -> "assistant"
+            LlmMessage.Role.SYSTEM -> "system"
+            LlmMessage.Role.USER -> "user"
         }
         return OpenAiMessage(
             role = roleStr,
-            content = contentStr,
-            name = name
+            content = content,
+            name = name,
+            toolCallId = if (role == LlmMessage.Role.TOOL) name else null
         )
     }
 
@@ -235,6 +233,7 @@ private data class OpenAiMessage(
     val role: String,
     val content: String?,
     val name: String? = null,
+    val toolCallId: String? = null,
     val toolCalls: List<OpenAiToolCall>? = null
 )
 
@@ -293,7 +292,8 @@ private data class OpenAiMessageDelta(
     val reasoningContent: String? = null,
     @SerialName("reasoning_content") val reasoning_content: String? = null,
     val toolCalls: List<OpenAiToolCall>? = null,
-    @SerialName("tool_calls") val tool_calls: List<OpenAiToolCall>? = null
+    @SerialName("tool_calls") val tool_calls: List<OpenAiToolCall>? = null,
+    @SerialName("tool_call_id") val toolCallId: String? = null
 ) {
     val effectiveToolCalls: List<OpenAiToolCall>? get() = toolCalls ?: tool_calls
     val effectiveReasoning: String? get() = reasoningContent ?: reasoning_content
