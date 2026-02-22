@@ -257,12 +257,6 @@ fun Application.configureChatRoutes() {
              * ```
              */
             sse("/chat/stream") {
-                // Disable buffering for real-time streaming
-                call.response.headers.append("X-Accel-Buffering", "no")
-                call.response.headers.append("Cache-Control", "no-cache, no-store, must-revalidate")
-                call.response.headers.append("Pragma", "no-cache")
-                call.response.headers.append("Connection", "keep-alive")
-                
                 val user = call.firebaseUser()
                 if (user == null) {
                     send(ServerSentEvent(
