@@ -22,8 +22,10 @@ COPY server/src/ server/src/
 
 # Build the shadow JAR (skip tests for faster builds)
 # --no-daemon prevents Gradle daemon from consuming memory after build
+# Reduced memory to prevent OOM in CI
 RUN ./gradlew :server:shadowJar --no-daemon -x test \
-    -Dorg.gradle.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=512m"
+    -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m" \
+    --max-workers=1
 
 # =============================================================================
 # Stage 2: Lightweight runtime image
