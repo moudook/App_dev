@@ -1407,10 +1407,30 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                 query = content,
                 sessionId = sessionId
             )
-                .collect { chunk ->
-                    responseBuilder.append(chunk)
-                    // Update the streaming message content live
-                    chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                .collect { event ->
+                    when (event) {
+                        is AgentEvent.Processing -> {
+                            responseBuilder.append(event.content)
+                            chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                        }
+                        is AgentEvent.Result -> {
+                            responseBuilder.append(event.content)
+                            chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                        }
+                        is AgentEvent.Error -> {
+                            responseBuilder.append("\n[Error: ${event.message}]")
+                            chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                        }
+                        is AgentEvent.ToolCall -> {
+                            // Tool calls handled by eventSink, not content
+                        }
+                        is AgentEvent.Command -> {
+                            // Commands handled by eventSink
+                        }
+                        is AgentEvent.StateSync -> {
+                            // State sync handled by eventSink
+                        }
+                    }
                 }
 
             val fullResponse = responseBuilder.toString()
