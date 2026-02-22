@@ -172,7 +172,7 @@ object LlmProviderFactory {
 
 class KeyRotatingOpenAiProvider(
     private val client: HttpClient,
-    private val providerName: String,
+    private val baseProviderName: String,
     private val baseUrl: String,
     private val apiKeys: List<String>,
     private val defaultModel: String
@@ -181,7 +181,7 @@ class KeyRotatingOpenAiProvider(
     private val logger = LoggerFactory.getLogger(KeyRotatingOpenAiProvider::class.java)
     private val currentIndex = AtomicInteger(0)
 
-    override val providerName: String = "$providerName (Rotating ${apiKeys.size} keys)"
+    override val providerName: String = "$baseProviderName (Rotating ${apiKeys.size} keys)"
 
     private fun isRetryableError(error: Throwable): Boolean {
         val msg = error.message?.lowercase() ?: ""
@@ -206,26 +206,26 @@ class KeyRotatingOpenAiProvider(
 
             val provider = OpenAiCompatibleProvider(
                 client = client,
-                providerName = providerName,
+                providerName = baseProviderName,
                 baseUrl = baseUrl,
                 apiKey = apiKeys[keyIndex],
                 defaultModel = defaultModel
             )
 
             try {
-                logger.debug("Trying generate with key #$keyIndex for $providerName")
+                logger.debug("Trying generate with key #$keyIndex for $baseProviderName")
                 return provider.generate(messages, tools, model)
             } catch (e: Exception) {
                 lastException = e
                 if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed for $providerName: ${e.message}, trying next key")
+                    logger.warn("Key #$keyIndex failed for $baseProviderName: ${e.message}, trying next key")
                 } else {
                     throw e
                 }
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed for $providerName")
+        throw lastException ?: IllegalStateException("All API keys failed for $baseProviderName")
     }
 
     override suspend fun stream(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): Flow<LlmChunk> = flow {
@@ -239,14 +239,14 @@ class KeyRotatingOpenAiProvider(
 
             val provider = OpenAiCompatibleProvider(
                 client = client,
-                providerName = providerName,
+                providerName = baseProviderName,
                 baseUrl = baseUrl,
                 apiKey = apiKeys[keyIndex],
                 defaultModel = defaultModel
             )
 
             try {
-                logger.debug("Trying stream with key #$keyIndex for $providerName")
+                logger.debug("Trying stream with key #$keyIndex for $baseProviderName")
                 provider.stream(messages, tools, model).collect { chunk ->
                     emit(chunk)
                 }
@@ -254,14 +254,14 @@ class KeyRotatingOpenAiProvider(
             } catch (e: Exception) {
                 lastException = e
                 if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed during stream for $providerName: ${e.message}, trying next key")
+                    logger.warn("Key #$keyIndex failed during stream for $baseProviderName: ${e.message}, trying next key")
                 } else {
                     throw e
                 }
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed for $providerName")
+        throw lastException ?: IllegalStateException("All API keys failed for $baseProviderName")
     }
 }
 
