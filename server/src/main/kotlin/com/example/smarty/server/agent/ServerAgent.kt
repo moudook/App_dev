@@ -12,6 +12,20 @@ import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmMessage
+package com.example.smarty.server.agent
+
+import com.example.smarty.protocol.AgentCommand
+import com.example.smarty.protocol.AgentEvent
+import com.example.smarty.protocol.TimerInfo
+import com.example.smarty.protocol.NoteInfo
+import com.example.smarty.protocol.CalendarEventInfo
+import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.data.ConversationSummarizer
+import com.example.smarty.server.data.NoteRepository
+import com.example.smarty.server.data.TimerRepository
+import com.example.smarty.server.data.CalendarRepository
+import com.example.smarty.server.llm.LlmProvider
+import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.ToolDefinition
 import com.example.smarty.server.llm.ToolParameters
 import com.example.smarty.server.llm.ToolProperty
@@ -19,7 +33,6 @@ import com.example.smarty.server.llm.LlmCache
 import com.example.smarty.server.llm.LlmCacheKey
 import com.example.smarty.server.llm.LlmUsage
 import kotlinx.serialization.SerialName
-import com.example.smarty.core.common.util.PIIMasker
 import com.example.smarty.server.tools.TavilySearchTool
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
@@ -62,14 +75,6 @@ class ServerAgent(
     private val json = Json { ignoreUnknownKeys = true }
     private val toolExampleStore = ToolExampleStore()
     
-    // Initialize PIIMasker securely
-    private val piiMasker = PIIMasker(object : com.example.smarty.core.common.util.Logger {
-        override fun d(tag: String, message: String) = logger.debug("[$tag] $message")
-        override fun i(tag: String, message: String) = logger.info("[$tag] $message")
-        override fun w(tag: String, message: String, throwable: Throwable?) = logger.warn("[$tag] $message", throwable)
-        override fun e(tag: String, message: String, throwable: Throwable?) = logger.error("[$tag] $message", throwable)
-    })
-
     // Session cache (simplified for example)
     private val sessions = ConcurrentHashMap<String, ChatSession>()
 
@@ -507,8 +512,8 @@ Opens the system share sheet with the content.""",
         val startTime = System.currentTimeMillis()
         logger.info("Agent starting for query: $query (Session: $sessionId)")
         
-        // PII: Mask the query immediately
-        val maskedQuery = piiMasker.mask(query)
+        // Query remains unmasked
+        val maskedQuery = query
 
         // KOOG Tracking
         tracer.trace(AgentTraceEvent(
@@ -522,10 +527,8 @@ Opens the system share sheet with the content.""",
         val checkpoint = persistenceManager.loadCheckpoint(sessionId)
         val initialHistory = checkpoint?.messages ?: history
         
-        // PII: Mask history (re-masking ensures safety even if DB has raw data)
-        val maskedHistory = initialHistory.map { msg -> 
-            msg.copy(content = piiMasker.mask(msg.content)) 
-        }
+        // Use history without masking
+        val maskedHistory = initialHistory
 
         // Build time context for the agent
         val timeContext = buildTimeContext(clientTimezone, clientTimeMillis)
@@ -540,7 +543,7 @@ Opens the system share sheet with the content.""",
             logger.warn("RAG query context failed (non-fatal): ${e.message}")
             "No relevant context for this query."
         }
-        val maskedQueryContext = piiMasker.mask(queryContext)
+        val maskedQueryContext = queryContext
 
         // 1.1 Fetch baseline user context
         val userProfile = try {
@@ -555,7 +558,7 @@ Opens the system share sheet with the content.""",
             logger.warn("RAG user profile failed (non-fatal): ${e.message}")
             "No stored preferences or facts about this user yet."
         }
-        val maskedUserProfile = piiMasker.mask(userProfile)
+        val maskedUserProfile = userProfile
 
         // 1.5 Fetch Tool Examples
         val toolExamples = toolExampleStore.getRelevantExamples(query)
@@ -743,7 +746,7 @@ $timeContext
         // KOOG Optimization: LlmCache Check
         val cacheKey = LlmCacheKey(messagesForAgent, tools, modelOverride)
         LlmCache.get(cacheKey)?.let { cached ->
-            val unmaskedCached = piiMasker.unmask(cached)
+            val unmaskedCached = cached
             val thinking = extractThinking(unmaskedCached)
             val finalContent = extractFinalResponse(unmaskedCached)
             emit(AgentEvent.Processing(
@@ -827,8 +830,8 @@ $timeContext
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
-                                content = piiMasker.unmask(cleanContent),
-                                thinking = if (currentThinkingContent.isNotEmpty()) piiMasker.unmask(currentThinkingContent) else null
+                                content = cleanContent,
+                                thinking = if (currentThinkingContent.isNotEmpty()) currentThinkingContent else null
                             ))
                         }
                     }
@@ -875,7 +878,7 @@ $timeContext
                             message = "The $currentToolName action failed after retry. I'll stop and give you what I have so far.",
                             code = "TOOL_LOOP_DETECTED"
                         ))
-                        return piiMasker.unmask(currentContent.ifEmpty { "Action failed. Please try a different approach." })
+                        return currentContent.ifEmpty { "Action failed. Please try a different approach." }
                     }
                     
                     toolCallCount++
@@ -887,7 +890,7 @@ $timeContext
                             message = "I've made too many actions in this session. Let me summarize what I've done.",
                             code = "TOOL_LIMIT_EXCEEDED"
                         ))
-                        return piiMasker.unmask(currentContent.ifEmpty { "Execution limit reached." })
+                        return currentContent.ifEmpty { "Execution limit reached." }
                     }
 
                     val toolStartTime = System.currentTimeMillis()
@@ -899,8 +902,8 @@ $timeContext
                             metadata = mapOf("args" to currentToolArgs)
                         ))
                         
-                        // PII: Unmask arguments before execution to use real data
-                        val unmaskedArgs = piiMasker.unmask(currentToolArgs)
+                        // Use arguments directly
+                        val unmaskedArgs = currentToolArgs
                         val toolResult = executeTool(currentToolName, unmaskedArgs, messagesForAgent, clientTimezone, clientTimeMillis)
                         
                         // Check if tool returned an error result
@@ -927,8 +930,8 @@ $timeContext
                             }
                         }
                         
-                        // PII: Mask result before feeding back to LLM
-                        val maskedToolResult = piiMasker.mask(toolResult)
+                        // Use result without masking
+                        val maskedToolResult = toolResult
 
                         val toolDuration = System.currentTimeMillis() - toolStartTime
                         
@@ -993,20 +996,18 @@ $timeContext
                         continue
                     }
                 } else if (currentContent.isNotEmpty()) {
-                    // Final answer reached
                     LlmCache.put(cacheKey, currentContent)
                     
-                    // Extract thinking and final content for the client
-                    val unmaskedContent = piiMasker.unmask(currentContent)
-                    val finalText = extractFinalResponse(unmaskedContent)
-                    val thinking = extractThinking(unmaskedContent)
+                    val thinking = extractThinking(currentContent)
                     
-                    emit(AgentEvent.Processing(
-                        eventId = UUID.randomUUID().toString(),
-                        timestamp = System.currentTimeMillis(),
-                        content = finalText,
-                        thinking = thinking
-                    ))
+                    if (thinking != null && currentThinkingContent.isEmpty()) {
+                        emit(AgentEvent.Processing(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            content = "",
+                            thinking = thinking
+                        ))
+                    }
                     emit(AgentEvent.Result(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
@@ -1016,12 +1017,11 @@ $timeContext
                     tracer.trace(AgentTraceEvent(
                         sessionId = sessionId,
                         stepType = AgentStepType.FINAL,
-                        content = currentContent // Log masked
+                        content = currentContent
                     ))
                     persistenceManager.clearCheckpoint(sessionId)
                     
-                    // PII: Unmask final return
-                    return extractFinalResponse(piiMasker.unmask(currentContent))
+                    return extractFinalResponse(currentContent)
                 } else {
                     logger.warn("LLM stream completed with no content for user: $userId")
                     tracer.trace(AgentTraceEvent(
