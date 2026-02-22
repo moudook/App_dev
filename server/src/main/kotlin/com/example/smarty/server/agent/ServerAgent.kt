@@ -795,11 +795,12 @@ $timeContext
                         val newContent = chunk.content
                         
                         // Track state for tag detection
-                        if (newContent.contains("<think>")) {
+                        // Models may use either </final> or </think> or standard </thought>
+                        if (newContent.contains("<think>") || newContent.contains("<thought>")) {
                             inThinkingState = true
                             inFinalState = false
                         }
-                        if (newContent.contains("</final>")) {
+                        if (newContent.contains("</final>") || newContent.contains("</think>") || newContent.contains("</thought>")) {
                             inFinalState = true
                             inThinkingState = false
                         }
@@ -812,8 +813,12 @@ $timeContext
                         // Extract clean content (remove thinking tags for display)
                         val cleanContent = newContent
                             .replace(Regex("<think>.*?</final>", RegexOption.DOT_MATCHES_ALL), "")
+                            .replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
+                            .replace(Regex("<think>.*?</thought>", RegexOption.DOT_MATCHES_ALL), "")
                             .replace(Regex("<think>.*", RegexOption.DOT_MATCHES_ALL), "")
                             .replace("</final>", "")
+                            .replace("</think>", "")
+                            .replace("</thought>", "")
                             .replace("<final>", "")
                         
                         currentContent += cleanContent
