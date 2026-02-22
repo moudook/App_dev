@@ -19,13 +19,19 @@ import org.slf4j.LoggerFactory
 class GeminiProvider(
     private val client: HttpClient,
     override val providerName: String = "Gemini",
-    private val apiKey: String,
+    private var apiKey: String,
     private val defaultModel: String = "gemini-1.5-flash"
 ) : LlmProvider {
 
     private val logger = LoggerFactory.getLogger(GeminiProvider::class.java)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val baseUrl = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    fun updateApiKey(newKey: String) {
+        apiKey = newKey
+    }
+
+    fun getApiKey(): String = apiKey
 
     override suspend fun generate(
         messages: List<LlmMessage>,
