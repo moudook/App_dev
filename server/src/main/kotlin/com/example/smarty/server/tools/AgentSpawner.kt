@@ -7,6 +7,8 @@ import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.*
+import kotlin.random.Random
 
 @Serializable
 data class AgentTask(
@@ -31,7 +33,47 @@ data class SpawnedAgent(
     val parentAgentId: String? = null,
     val messagesReceived: Int = 0,
     val messagesSent: Int = 0,
-    val findingsShared: Int = 0
+    val findingsShared: Int = 0,
+    val capabilities: List<String> = emptyList(),
+    val performanceScore: Double = 0.0,
+    val lineage: AgentLineage? = null
+)
+
+@Serializable
+data class AgentLineage(
+    val ancestorIds: List<String> = emptyList(),
+    val generation: Int = 0,
+    val mutations: List<String> = emptyList(),
+    val adaptations: List<String> = emptyList()
+)
+
+data class AgentCapability(
+    val name: String,
+    val description: String,
+    val cost: Double = 1.0,
+    val quality: Double = 1.0,
+    val latencyMs: Long = 1000,
+    val reliability: Double = 0.95,
+    val tags: Set<String> = emptySet()
+)
+
+data class AgentMetrics(
+    val agentId: String,
+    val tasksCompleted: Int = 0,
+    val tasksFailed: Int = 0,
+    val totalLatencyMs: Long = 0,
+    val avgLatencyMs: Double = 0.0,
+    val throughput: Double = 0.0,
+    val successRate: Double = 1.0,
+    val lastUpdated: Long = System.currentTimeMillis()
+)
+
+data class CapacityForecast(
+    val timestamp: Long,
+    val predictedDemand: Double,
+    val confidence: Double,
+    val recommendedAgents: Int,
+    val recommendedKeys: Int
 )
 
 class AgentSpawner {
@@ -56,6 +98,62 @@ class AgentSpawner {
         "execute_code", "analyze_data", "deep_research",
         "compare_options", "extract_entities", "summarize_content"
     )
+    
+    private val agentRegistry = ConcurrentHashMap<String, AgentCapability>()
+    private val agentMetrics = ConcurrentHashMap<String, AgentMetrics>()
+    private val demandHistory = ConcurrentHashMap<Long, Int>()
+    private val capabilityCache = ConcurrentHashMap<String, List<AgentCapability>>()
+    
+    private val learningRate = 0.01
+    private val momentum = 0.9
+    private val weights = doubleArrayOf(0.3, 0.25, 0.2, 0.15, 0.1)
+    private val velocity = doubleArrayOf(0.0, 0.0, 0.0, 0.0, 0.0)
+    
+    private val maxHistoricalPoints = 1000
+    private val forecastHorizon = 300000L
+    
+    private val skillAffinityMatrix = ConcurrentHashMap<String, MutableMap<String, Double>>()
+    private val agentSpecialization = ConcurrentHashMap<String, MutableMap<String, Double>>()
+    
+    private val costOptimizer = CostOptimizer()
+    private val loadPredictor = AdaptiveLoadPredictor()
+    
+    init {
+        initializeCapabilityRegistry()
+    }
+    
+    private fun initializeCapabilityRegistry() {
+        agentRegistry["research"] = AgentCapability(
+            name = "research",
+            description = "Web search and information gathering",
+            cost = 0.5, quality = 0.9, latencyMs = 2000, reliability = 0.95,
+            tags = setOf("search", "information", "gathering")
+        )
+        agentRegistry["analysis"] = AgentCapability(
+            name = "analysis",
+            description = "Data analysis and pattern recognition",
+            cost = 0.8, quality = 0.95, latencyMs = 3000, reliability = 0.92,
+            tags = setOf("data", "patterns", "insights")
+        )
+        agentRegistry["coding"] = AgentCapability(
+            name = "coding",
+            description = "Code generation and debugging",
+            cost = 1.0, quality = 0.9, latencyMs = 2500, reliability = 0.88,
+            tags = setOf("code", "programming", "debugging")
+        )
+        agentRegistry["summarization"] = AgentCapability(
+            name = "summarization",
+            description = "Text summarization and extraction",
+            cost = 0.3, quality = 0.85, latencyMs = 1000, reliability = 0.98,
+            tags = setOf("text", "summary", "extraction")
+        )
+        agentRegistry["coordination"] = AgentCapability(
+            name = "coordination",
+            description = "Multi-agent coordination and communication",
+            cost = 0.6, quality = 0.92, latencyMs = 1500, reliability = 0.96,
+            tags = setOf("communication", "coordination", "collaboration")
+        )
+    }
     
     fun initializeWithKeyPool(pool: ApiKeyPool, llmBaseUrl: String, defaultModel: String) {
         this.keyPool = pool
@@ -231,6 +329,96 @@ class AgentSpawner {
                 }
             }
         )
+        
+        registry.registerTool(
+            "match_capabilities",
+            ToolDefinition(
+                name = "match_capabilities",
+                description = "Find agents matching required capabilities",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "requiredCapabilities" to ToolProperty("string", "Comma-separated capabilities"),
+                        "minQuality" to ToolProperty("string", "Minimum quality threshold (0-1)")
+                    ),
+                    required = listOf("requiredCapabilities")
+                )
+            ),
+            executor = { _, argsJson ->
+                val args = json.decodeFromString<Map<String, String>>(argsJson)
+                val required = args["requiredCapabilities"]?.split(",")?.map { it.trim() } ?: emptyList()
+                val minQuality = args["minQuality"]?.toDoubleOrNull() ?: 0.7
+                
+                val matches = findCapabilityMatches(required, minQuality)
+                if (matches.isEmpty()) "No matching agents found"
+                else matches.joinToString("\n") { (cap, score) ->
+                    "- ${cap.name}: score=${"%.2f".format(score)}, cost=${"%.2f".format(cap.cost)}"
+                }
+            }
+        )
+        
+        registry.registerTool(
+            "get_agent_lineage",
+            ToolDefinition(
+                name = "get_agent_lineage",
+                description = "Get genealogy information for an agent",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "agentId" to ToolProperty("string", "Agent ID to查询")
+                    ),
+                    required = listOf("agentId")
+                )
+            ),
+            executor = { _, argsJson ->
+                val args = json.decodeFromString<Map<String, String>>(argsJson)
+                val agentId = args["agentId"] ?: ""
+                val agent = activeAgents[agentId]
+                
+                if (agent?.lineage != null) {
+                    buildString {
+                        appendLine("Agent: $agentId")
+                        appendLine("Generation: ${agent.lineage.generation}")
+                        appendLine("Ancestors: ${agent.lineage.ancestorIds.size}")
+                        appendLine("Mutations: ${agent.lineage.mutations.joinToString(", ")}")
+                        appendLine("Adaptations: ${agent.lineage.adaptations.joinToString(", ")}")
+                    }
+                } else "No lineage data for agent $agentId"
+            }
+        )
+    }
+    
+    private fun findCapabilityMatches(
+        required: List<String>,
+        minQuality: Double
+    ): List<Pair<AgentCapability, Double>> {
+        val matches = mutableListOf<Pair<AgentCapability, Double>>()
+        
+        for ((_, cap) in agentRegistry) {
+            if (cap.quality >= minQuality) {
+                val score = calculateCapabilityScore(cap, required)
+                if (score > 0.5) {
+                    matches.add(cap to score)
+                }
+            }
+        }
+        
+        return matches.sortedByDescending { it.second }
+    }
+    
+    private fun calculateCapabilityScore(cap: AgentCapability, required: List<String>): Double {
+        var score = 0.0
+        var weight = 1.0
+        
+        for (req in required) {
+            val reqLower = req.lowercase()
+            when {
+                cap.name.lowercase().contains(reqLower) -> score += weight * 1.0
+                cap.tags.any { it.lowercase().contains(reqLower) } -> score += weight * 0.7
+                cap.description.lowercase().contains(reqLower) -> score += weight * 0.5
+            }
+            weight *= 0.8
+        }
+        
+        return (score / required.size.coerceAtLeast(1)).coerceIn(0.0, 1.0)
     }
     
     fun spawnAgent(
@@ -240,31 +428,42 @@ class AgentSpawner {
     ): String {
         val agentId = "agent_${System.currentTimeMillis()}_${taskCounter.incrementAndGet()}"
         
+        val inferredCaps = inferCapabilities(instructions)
+        
         val agent = SpawnedAgent(
             id = agentId,
             taskId = "task_${taskCounter.get()}",
             instructions = instructions,
             status = "spawned",
-            spawnedAt = System.currentTimeMillis()
+            spawnedAt = System.currentTimeMillis(),
+            capabilities = inferredCaps.map { it.name }
         )
         
         activeAgents[agentId] = agent
+        
+        recordDemand()
         
         scope.launch {
             try {
                 updateAgentStatus(agentId, "running")
                 
+                val startTime = System.currentTimeMillis()
                 delay(100)
                 
                 val result = executeAgentTask(instructions, tools)
                 
+                val latency = System.currentTimeMillis() - startTime
+                updateAgentMetrics(agentId, true, latency)
                 updateAgentStatus(agentId, "completed", result)
                 agentResults[agentId] = result
+                
+                adaptAgentCapabilities(agentId, instructions, result)
                 
                 onResult?.invoke(agentId, result)
                 
             } catch (e: Exception) {
                 logger.error("Agent $agentId failed", e)
+                updateAgentMetrics(agentId, false, 0)
                 updateAgentStatus(agentId, "failed", "Error: ${e.message}")
             }
         }
@@ -292,6 +491,21 @@ class AgentSpawner {
             return spawnAgent(instructions, tools)
         }
         
+        val lineage = if (parentAgentId != null) {
+            val parentAgent = activeAgents[parentAgentId]
+            val parentLineage = parentAgent?.lineage
+            AgentLineage(
+                ancestorIds = (parentLineage?.ancestorIds ?: emptyList()) + parentAgentId,
+                generation = (parentLineage?.generation ?: 0) + 1,
+                mutations = generateMutations(instructions),
+                adaptations = emptyList()
+            )
+        } else {
+            AgentLineage(generation = 1)
+        }
+        
+        val roleCaps = getCapabilitiesForRole(role)
+        
         val config = AgentConfig(
             agentId = agentId,
             name = "${role}_agent_$taskCounter",
@@ -317,22 +531,30 @@ class AgentSpawner {
             status = "spawned",
             spawnedAt = System.currentTimeMillis(),
             keyId = keyAssignment.keyId,
-            parentAgentId = parentAgentId
+            parentAgentId = parentAgentId,
+            capabilities = roleCaps.map { it.name },
+            lineage = lineage
         )
         
         activeAgents[agentId] = spawnedAgent
         
+        recordDemand()
+        
         scope.launch {
             try {
                 updateAgentStatus(agentId, "running")
+                val startTime = System.currentTimeMillis()
                 
                 collaborativeAgent.start(instructions).collect { event ->
                     when (event) {
                         is AgentEvent.Completed -> {
+                            val latency = System.currentTimeMillis() - startTime
+                            updateAgentMetrics(agentId, true, latency)
                             updateAgentStatus(agentId, "completed", event.result)
                             agentResults[agentId] = event.result
                         }
                         is AgentEvent.Error -> {
+                            updateAgentMetrics(agentId, false, 0)
                             updateAgentStatus(agentId, "failed", event.message)
                         }
                         is AgentEvent.FindingShared -> {
@@ -351,6 +573,7 @@ class AgentSpawner {
                 
             } catch (e: Exception) {
                 logger.error("Collaborative agent $agentId failed", e)
+                updateAgentMetrics(agentId, false, 0)
                 updateAgentStatus(agentId, "failed", "Error: ${e.message}")
             } finally {
                 keyPool?.releaseAgentKey(agentId)
@@ -359,6 +582,181 @@ class AgentSpawner {
         
         logger.info("Spawned collaborative agent $agentId (key: ${keyAssignment.keyId}): ${instructions.take(50)}...")
         return agentId
+    }
+    
+    private fun getCapabilitiesForRole(role: String): List<AgentCapability> {
+        return when (role.lowercase()) {
+            "researcher" -> listOf(
+                agentRegistry["research"]!!,
+                agentRegistry["summarization"]!!
+            )
+            "coder" -> listOf(
+                agentRegistry["coding"]!!,
+                agentRegistry["analysis"]!!
+            )
+            "analyzer" -> listOf(
+                agentRegistry["analysis"]!!,
+                agentRegistry["research"]!!
+            )
+            "coordinator" -> listOf(
+                agentRegistry["coordination"]!!,
+                agentRegistry["summarization"]!!
+            )
+            else -> agentRegistry.values.toList()
+        }
+    }
+    
+    private fun inferCapabilities(instructions: String): List<AgentCapability> {
+        val lower = instructions.lowercase()
+        val inferred = mutableListOf<AgentCapability>()
+        
+        if (lower.contains("research") || lower.contains("find") || lower.contains("search")) {
+            inferred.add(agentRegistry["research"] ?: return emptyList())
+        }
+        if (lower.contains("analyze") || lower.contains("examine") || lower.contains("compare")) {
+            inferred.add(agentRegistry["analysis"]!!)
+        }
+        if (lower.contains("code") || lower.contains("program") || lower.contains("implement")) {
+            inferred.add(agentRegistry["coding"]!!)
+        }
+        if (lower.contains("summarize") || lower.contains("summary") || lower.contains("extract")) {
+            inferred.add(agentRegistry["summarization"]!!)
+        }
+        if (lower.contains("coordinate") || lower.contains("collaborate") || lower.contains("manage")) {
+            inferred.add(agentRegistry["coordination"]!!)
+        }
+        
+        return inferred
+    }
+    
+    private fun generateMutations(instructions: String): List<String> {
+        val mutations = mutableListOf<String>()
+        val lower = instructions.lowercase()
+        
+        if (lower.contains("new") || lower.contains("innovative")) {
+            mutations.add("innovation_boost")
+        }
+        if (lower.contains("fast") || lower.contains("quick")) {
+            mutations.add("speed_optimization")
+        }
+        if (lower.contains("thorough") || lower.contains("deep")) {
+            mutations.add("depth_enhancement")
+        }
+        
+        return mutations
+    }
+    
+    private fun adaptAgentCapabilities(agentId: String, instructions: String, result: String) {
+        val agent = activeAgents[agentId] ?: return
+        val metrics = agentMetrics[agentId] ?: return
+        
+        if (metrics.successRate > 0.9 && metrics.avgLatencyMs < 2000) {
+            val currentCaps = agent.capabilities.toMutableList()
+            val inferred = inferCapabilities(instructions)
+            
+            for (cap in inferred) {
+                if (cap.name !in currentCaps) {
+                    currentCaps.add(cap.name)
+                }
+            }
+            
+            val lineage = agent.lineage?.copy(
+                adaptations = agent.lineage.adaptations + "capability_expansion"
+            )
+            
+            activeAgents[agentId] = agent.copy(
+                capabilities = currentCaps,
+                lineage = lineage,
+                performanceScore = metrics.successRate * metrics.throughput
+            )
+        }
+    }
+    
+    private fun updateAgentMetrics(agentId: String, success: Boolean, latencyMs: Long) {
+        val current = agentMetrics.getOrPut(agentId) { AgentMetrics(agentId) }
+        
+        val newCompleted = current.tasksCompleted + if (success) 1 else 0
+        val newFailed = current.tasksFailed + if (!success) 1 else 0
+        val newTotalLatency = current.totalLatencyMs + latencyMs
+        val newAvgLatency = if (newCompleted > 0) newTotalLatency.toDouble() / newCompleted else 0.0
+        val newSuccessRate = if (newCompleted + newFailed > 0) {
+            newCompleted.toDouble() / (newCompleted + newFailed)
+        } else 1.0
+        val newThroughput = if (newAvgLatency > 0) 1000.0 / newAvgLatency else 0.0
+        
+        agentMetrics[agentId] = current.copy(
+            tasksCompleted = newCompleted,
+            tasksFailed = newFailed,
+            totalLatencyMs = newTotalLatency,
+            avgLatencyMs = newAvgLatency,
+            successRate = newSuccessRate,
+            throughput = newThroughput,
+            lastUpdated = System.currentTimeMillis()
+        )
+    }
+    
+    private fun recordDemand() {
+        val now = System.currentTimeMillis()
+        val bucket = now / 60000
+        demandHistory[bucket] = (demandHistory[bucket] ?: 0) + 1
+        
+        if (demandHistory.size > maxHistoricalPoints) {
+            val oldest = demandHistory.keys.minOrNull()
+            oldest?.let { demandHistory.remove(it) }
+        }
+    }
+    
+    fun forecastCapacity(): CapacityForecast {
+        val now = System.currentTimeMillis()
+        val prediction = loadPredictor.predict(demandHistory, forecastHorizon)
+        
+        val currentAgents = activeAgents.count { it.value.status == "running" }
+        val currentKeys = keyPool?.size ?: 1
+        
+        val recommendedAgents = maxOf(currentAgents, ceil(prediction.demand).toInt())
+        val recommendedKeys = maxOf(currentKeys, ceil(prediction.demand * 0.3).toInt())
+        
+        return CapacityForecast(
+            timestamp = now + forecastHorizon,
+            predictedDemand = prediction.demand,
+            confidence = prediction.confidence,
+            recommendedAgents = recommendedAgents,
+            recommendedKeys = recommendedKeys
+        )
+    }
+    
+    fun optimizeCost(budget: Double): Map<String, Any> {
+        val currentAgents = activeAgents.values.filter { it.status == "running" }
+        
+        var totalCost = 0.0
+        val agentAllocation = mutableMapOf<String, Double>()
+        
+        for (agent in currentAgents) {
+            val caps = agent.capabilities.mapNotNull { agentRegistry[it] }
+            val cost = caps.sumOf { it.cost }
+            totalCost += cost
+            
+            agentAllocation[agent.id] = cost
+        }
+        
+        val optimization = costOptimizer.optimize(budget, agentAllocation)
+        
+        return mapOf(
+            "totalCost" to totalCost,
+            "budget" to budget,
+            "remainingBudget" to budget - totalCost,
+            "agentCosts" to agentAllocation,
+            "recommendations" to optimization
+        )
+    }
+    
+    fun getSkillAffinity(agentId1: String, agentId2: String): Double {
+        return skillAffinityMatrix[agentId1]?.get(agentId2) ?: 0.5
+    }
+    
+    fun updateSkillAffinity(agentId1: String, agentId2: String, effectiveness: Double) {
+        skillAffinityMatrix.getOrPut(agentId1) { ConcurrentHashMap() }[agentId2] = effectiveness
+        skillAffinityMatrix.getOrPut(agentId2) { ConcurrentHashMap() }[agentId1] = effectiveness
     }
     
     fun spawnMultiple(tasks: List<String>): List<String> {
@@ -422,6 +820,8 @@ class AgentSpawner {
     fun getAgentResult(agentId: String): String? = agentResults[agentId]
     
     fun getCollaborativeAgent(agentId: String): CollaborativeAgentImpl? = collaborativeAgents[agentId]
+    
+    fun getAgentMetrics(agentId: String): AgentMetrics? = agentMetrics[agentId]
     
     fun waitForAgent(agentId: String, timeoutMs: Long = 60000L): String? {
         val startTime = System.currentTimeMillis()
@@ -511,12 +911,20 @@ class AgentSpawner {
         
         return agents.joinToString("\n\n") { agent ->
             val duration = agent.completedAt?.let { it - agent.spawnedAt }
+            val metrics = agentMetrics[agent.id]
             buildString {
                 appendLine("[Agent] ${agent.id}")
                 appendLine("   Task: ${agent.instructions.take(50)}...")
                 appendLine("   Status: ${agent.status}")
                 if (agent.keyId != null) appendLine("   Key: ${agent.keyId}")
                 if (agent.parentAgentId != null) appendLine("   Parent: ${agent.parentAgentId}")
+                if (agent.lineage != null) appendLine("   Generation: ${agent.lineage.generation}")
+                if (agent.capabilities.isNotEmpty()) appendLine("   Capabilities: ${agent.capabilities.joinToString(", ")}")
+                if (metrics != null) {
+                    appendLine("   Success Rate: ${"%.1f".format(metrics.successRate * 100)}%")
+                    appendLine("   Avg Latency: ${"%.0f".format(metrics.avgLatencyMs)}ms")
+                    appendLine("   Throughput: ${"%.2f".format(metrics.throughput)}/s")
+                }
                 appendLine("   Spawned: ${java.time.Instant.ofEpochMilli(agent.spawnedAt)}")
                 if (duration != null) appendLine("   Duration: ${duration}ms")
                 if (agent.messagesReceived > 0 || agent.messagesSent > 0) {
@@ -529,10 +937,25 @@ class AgentSpawner {
     }
     
     fun formatCollaborativeStatus(): String {
+        val forecast = forecastCapacity()
+        
         return buildString {
             appendLine(collaborativeRuntime?.formatStatus() ?: "Runtime not initialized")
             appendLine()
             appendLine(keyPool?.formatStats() ?: "Key pool not initialized")
+            appendLine()
+            appendLine("=== Capacity Forecast ===")
+            appendLine("Predicted Demand: ${"%.2f".format(forecast.predictedDemand)}")
+            appendLine("Confidence: ${"%.1f".format(forecast.confidence * 100)}%")
+            appendLine("Recommended Agents: ${forecast.recommendedAgents}")
+            appendLine("Recommended Keys: ${forecast.recommendedKeys}")
+            appendLine()
+            appendLine("=== Agent Metrics ===")
+            for ((id, metrics) in agentMetrics) {
+                appendLine("$id: success=${"%.1f".format(metrics.successRate * 100)}%, " +
+                    "latency=${"%.0f".format(metrics.avgLatencyMs)}ms, " +
+                    "throughput=${"%.2f".format(metrics.throughput)}/s")
+            }
         }
     }
     
@@ -540,5 +963,105 @@ class AgentSpawner {
         collaborativeAgents.values.forEach { it.stop() }
         collaborativeRuntime?.shutdown()
         scope.cancel()
+    }
+}
+
+class AdaptiveLoadPredictor {
+    private val historyWeight = 0.7
+    private val trendWeight = 0.3
+    
+    data class Prediction(
+        val demand: Double,
+        val confidence: Double,
+        val trend: Double
+    )
+    
+    fun predict(history: Map<Long, Int>, horizonMs: Long): Prediction {
+        if (history.isEmpty()) {
+            return Prediction(demand = 5.0, confidence = 0.5, trend = 0.0)
+        }
+        
+        val sortedTimes = history.keys.sorted()
+        val values = sortedTimes.map { history[it] ?: 0 }
+        
+        if (values.size < 2) {
+            return Prediction(demand = values.firstOrNull()?.toDouble() ?: 5.0, confidence = 0.5, trend = 0.0)
+        }
+        
+        val avg = values.average()
+        
+        val n = values.size
+        var sumX = 0.0
+        var sumY = 0.0
+        var sumXY = 0.0
+        var sumX2 = 0.0
+        
+        for (i in values.indices) {
+            sumX += i
+            sumY += values[i]
+            sumXY += i * values[i]
+            sumX2 += i * i
+        }
+        
+        val slope = if (n * sumX2 - sumX * sumX != 0.0) {
+            (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+        } else 0.0
+        
+        val intercept = (sumY - slope * sumX) / n
+        
+        val futureIndex = values.size + (horizonMs / 60000.0)
+        val predicted = slope * futureIndex + intercept
+        
+        val variance = values.map { (it - avg) * (it - avg) }.average()
+        val stdDev = sqrt(variance)
+        val cv = if (avg != 0.0) stdDev / avg else 1.0
+        val confidence = (1.0 - cv.coerceIn(0.0, 1.0)) * historyWeight + trendWeight
+        
+        return Prediction(
+            demand = predicted.coerceAtLeast(1.0),
+            confidence = confidence,
+            trend = slope
+        )
+    }
+}
+
+class CostOptimizer {
+    data class OptimizationResult(
+        val action: String,
+        val savings: Double,
+        val impact: String
+    )
+    
+    fun optimize(budget: Double, allocations: Map<String, Double>): List<OptimizationResult> {
+        val results = mutableListOf<OptimizationResult>()
+        val totalCost = allocations.values.sum()
+        
+        if (totalCost > budget) {
+            val excess = totalCost - budget
+            val sortedByPriority = allocations.entries.sortedByDescending { it.value }
+            
+            var remainingExcess = excess
+            for ((agentId, cost) in sortedByPriority) {
+                if (remainingExcess <= 0) break
+                val reduction = minOf(cost * 0.2, remainingExcess)
+                results.add(OptimizationResult(
+                    action = "Reduce $agentId budget",
+                    savings = reduction,
+                    impact = "Minor - 20% capacity reduction"
+                ))
+                remainingExcess -= reduction
+            }
+        } else {
+            val remaining = budget - totalCost
+            if (remaining > budget * 0.3) {
+                results.add(OptimizationResult(
+                    action = "Scale up agents",
+                    savings = -remaining,
+                    impact = "Positive - can handle ${(remaining / (totalCost / allocations.size)).toInt()} more agents"
+                ))
+            }
+        }
+        
+        return results
     }
 }

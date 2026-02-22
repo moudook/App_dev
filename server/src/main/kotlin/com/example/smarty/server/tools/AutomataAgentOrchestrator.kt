@@ -8,6 +8,10 @@ import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.PriorityBlockingQueue
+import kotlin.math.*
+import kotlin.random.Random
 
 sealed class AutomatonState {
     abstract val name: String
@@ -112,6 +116,67 @@ object AutomatonTheory {
             }
         }
     )
+    
+    class NeuralAutomaton(
+        private val inputDim: Int = 32,
+        private val hiddenDim: Int = 64,
+        private val outputDim: Int = 16
+    ) {
+        private val weights1 = Array(hiddenDim) { DoubleArray(inputDim) { Random.nextDouble(-0.5, 0.5) } }
+        private val weights2 = Array(outputDim) { DoubleArray(hiddenDim) { Random.nextDouble(-0.5, 0.5) } }
+        private val bias1 = DoubleArray(hiddenDim) { Random.nextDouble(-0.1, 0.1) }
+        private val bias2 = DoubleArray(outputDim) { Random.nextDouble(-0.1, 0.1) }
+        
+        fun forward(input: DoubleArray): DoubleArray {
+            val hidden = DoubleArray(hiddenDim)
+            for (i in 0 until hiddenDim) {
+                var sum = bias1[i]
+                for (j in input.indices) {
+                    sum += weights1[i][j] * input[j]
+                }
+                hidden[i] = tanh(sum)
+            }
+            
+            val output = DoubleArray(outputDim)
+            for (i in 0 until outputDim) {
+                var sum = bias2[i]
+                for (j in 0 until hiddenDim) {
+                    sum += weights2[i][j] * hidden[j]
+                }
+                output[i] = sigmoid(sum)
+            }
+            
+            return output
+        }
+        
+        private fun sigmoid(x: Double) = 1.0 / (1.0 + exp(-x))
+        
+        fun predictNextState(currentState: DoubleArray, action: DoubleArray): DoubleArray {
+            val input = DoubleArray(inputDim)
+            for (i in currentState.indices.coerceAtMost(input.size - 1)) {
+                input[i] = currentState[i]
+            }
+            for (i in action.indices.coerceAtMost(input.size - currentState.size - 1)) {
+                input[currentState.indices.size + i] = action[i]
+            }
+            return forward(input)
+        }
+        
+        fun train(input: DoubleArray, target: DoubleArray, learningRate: Double = 0.01) {
+            val output = forward(input)
+            val outputError = DoubleArray(outputDim)
+            
+            for (i in 0 until outputDim) {
+                outputError[i] = (target[i] - output[i]) * output[i] * (1 - output[i])
+            }
+            
+            for (i in 0 until outputDim) {
+                for (j in 0 until hiddenDim) {
+                    weights2[i][j] += learningRate * outputError[i] * forward(input)[j]
+                }
+            }
+        }
+    }
 }
 
 sealed class AgentAutomatonState(
@@ -164,7 +229,9 @@ data class ToolRequest(
     val agentId: String,
     val argsJson: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val deferred: CompletableDeferred<ToolResult>
+    val deferred: CompletableDeferred<ToolResult>,
+    val priority: Int = 5,
+    val deadline: Long = System.currentTimeMillis() + 30000
 )
 
 data class ToolResult(
@@ -189,7 +256,9 @@ data class AgentContext(
     val lastActivity: Long,
     val findings: List<PartialFinding>,
     val dependencies: Set<String>,
-    val dependents: Set<String>
+    val dependents: Set<String>,
+    val stateEmbedding: DoubleArray = DoubleArray(32),
+    val attentionWeights: Map<String, Double> = emptyMap()
 )
 
 class SharedAgentContext {
@@ -197,11 +266,18 @@ class SharedAgentContext {
     private val contexts = ConcurrentHashMap<String, AgentContext>()
     private val contextMutex = Mutex()
     
+    private val neuralPredictor = AutomatonTheory.NeuralAutomaton()
+    private val attentionMechanism = AttentionMechanism()
+    private val stateEmbedder = StateEmbedder()
+    private val relationshipGraph = AgentRelationshipGraph()
+    
     suspend fun registerAgent(
         agentId: String,
         name: String,
         role: String
     ) = contextMutex.withLock {
+        val embedding = stateEmbedder.embed("$name:$role")
+        
         contexts[agentId] = AgentContext(
             agentId = agentId,
             name = name,
@@ -214,8 +290,11 @@ class SharedAgentContext {
             lastActivity = System.currentTimeMillis(),
             findings = emptyList(),
             dependencies = emptySet(),
-            dependents = emptySet()
+            dependents = emptySet(),
+            stateEmbedding = embedding
         )
+        
+        relationshipGraph.addNode(agentId, role)
         logger.debug("Registered agent context: $agentId")
     }
     
@@ -224,10 +303,17 @@ class SharedAgentContext {
         state: AgentAutomatonState
     ) = contextMutex.withLock {
         contexts[agentId]?.let { existing ->
+            val embedding = stateEmbedder.embed("$existing.name:${state.name}")
+            val attention = attentionMechanism.computeAttention(embedding, getAllEmbeddings())
+            
             contexts[agentId] = existing.copy(
                 currentState = state,
-                lastActivity = System.currentTimeMillis()
+                lastActivity = System.currentTimeMillis(),
+                stateEmbedding = embedding,
+                attentionWeights = attention
             )
+            
+            relationshipGraph.updateState(agentId, state.name)
         }
     }
     
@@ -237,10 +323,13 @@ class SharedAgentContext {
         progress: Double
     ) = contextMutex.withLock {
         contexts[agentId]?.let { existing ->
+            val embedding = stateEmbedder.embed(task)
+            
             contexts[agentId] = existing.copy(
                 currentTask = task,
                 progress = progress,
-                lastActivity = System.currentTimeMillis()
+                lastActivity = System.currentTimeMillis(),
+                stateEmbedding = embedding
             )
         }
     }
@@ -255,6 +344,8 @@ class SharedAgentContext {
                 lastActivity = System.currentTimeMillis()
             )
         }
+        
+        relationshipGraph.addEdge(agentId, toolName, "uses")
     }
     
     suspend fun removeActiveTool(
@@ -295,6 +386,8 @@ class SharedAgentContext {
                 dependents = existing.dependents + agentId
             )
         }
+        
+        relationshipGraph.addEdge(agentId, dependsOn, "depends_on")
     }
     
     fun getAgentContext(agentId: String): AgentContext? = contexts[agentId]
@@ -329,9 +422,205 @@ class SharedAgentContext {
         }
     }
     
+    fun predictNextState(agentId: String, action: String): String? {
+        val context = contexts[agentId] ?: return null
+        val actionEmbedding = stateEmbedder.embed(action)
+        val prediction = neuralPredictor.predictNextState(context.stateEmbedding, actionEmbedding)
+        return stateEmbedder.decode(prediction)
+    }
+    
+    fun getInfluentialAgents(agentId: String, topK: Int = 3): List<String> {
+        return attentionMechanism.getTopAttention(agentId, contexts.values.toList(), topK)
+    }
+    
+    fun getAgentGraph(): AgentRelationshipGraph = relationshipGraph
+    
+    private fun getAllEmbeddings(): List<Pair<String, DoubleArray>> {
+        return contexts.values.map { it.agentId to it.stateEmbedding }.toList()
+    }
+    
     suspend fun unregisterAgent(agentId: String) = contextMutex.withLock {
         contexts.remove(agentId)
+        relationshipGraph.removeNode(agentId)
     }
+}
+
+class StateEmbedder(
+    private val embeddingDim: Int = 32
+) {
+    private val vocabulary = ConcurrentHashMap<String, Int>()
+    private val embeddings = ConcurrentHashMap<String, DoubleArray>()
+    
+    init {
+        initializeDefaultEmbeddings()
+    }
+    
+    private fun initializeDefaultEmbeddings() {
+        val defaultTerms = listOf("IDLE", "RUNNING", "WAITING", "COMPLETED", "FAILED", 
+            "agent", "task", "tool", "result", "error", "progress", "waiting")
+        defaultTerms.forEachIndexed { index, term ->
+            val embedding = DoubleArray(embeddingDim) { i ->
+                sin((index + 1) * (i + 1) * 0.1)
+            }
+            embeddings[term] = normalize(embedding)
+            vocabulary[term] = index
+        }
+    }
+    
+    fun embed(text: String): DoubleArray {
+        val words = text.lowercase().split(" ")
+        val embedding = DoubleArray(embeddingDim)
+        
+        words.forEach { word ->
+            val existing = embeddings[word]
+            if (existing != null) {
+                for (i in embedding.indices) {
+                    embedding[i] += existing[i]
+                }
+            } else {
+                val hash = word.hashCode()
+                val newEmbedding = DoubleArray(embeddingDim) { i ->
+                    sin((hash + i) * 0.1)
+                }
+                for (i in embedding.indices) {
+                    embedding[i] += newEmbedding[i]
+                }
+            }
+        }
+        
+        return normalize(embedding)
+    }
+    
+    private fun normalize(vector: DoubleArray): DoubleArray {
+        val norm = sqrt(vector.sumOf { it * it })
+        return if (norm > 0) {
+            DoubleArray(vector.size) { vector[it] / norm }
+        } else vector
+    }
+    
+    fun decode(embedding: DoubleArray): String {
+        var maxSimilarity = -1.0
+        var closest = "UNKNOWN"
+        
+        embeddings.forEach { (term, existing) ->
+            val similarity = cosineSimilarity(embedding, existing)
+            if (similarity > maxSimilarity) {
+                maxSimilarity = similarity
+                closest = term
+            }
+        }
+        
+        return closest
+    }
+    
+    private fun cosineSimilarity(a: DoubleArray, b: DoubleArray): Double {
+        require(a.size == b.size)
+        var dotProduct = 0.0
+        var normA = 0.0
+        var normB = 0.0
+        for (i in a.indices) {
+            dotProduct += a[i] * b[i]
+            normA += a[i] * a[i]
+            normB += b[i] * b[i]
+        }
+        return if (normA > 0 && normB > 0) dotProduct / (sqrt(normA) * sqrt(normB)) else 0.0
+    }
+}
+
+class AttentionMechanism(
+    private val attentionDim: Int = 16
+) {
+    private val attentionWeights = ConcurrentHashMap<String, MutableMap<String, Double>>()
+    
+    fun computeAttention(query: DoubleArray, keys: List<Pair<String, DoubleArray>>): Map<String, Double> {
+        val scores = mutableMapOf<String, Double>()
+        
+        keys.forEach { (id, key) ->
+            val score = dotProduct(query, key)
+            scores[id] = softmax(score)
+        }
+        
+        return scores
+    }
+    
+    fun getTopAttention(sourceId: String, allContexts: List<AgentContext>, topK: Int): List<String> {
+        val weights = attentionWeights[sourceId] ?: return emptyList()
+        return weights.entries.sortedByDescending { it.value }.take(topK).map { it.key }
+    }
+    
+    private fun dotProduct(a: DoubleArray, b: DoubleArray): Double {
+        require(a.size == b.size)
+        return a.indices.sumOf { a[it] * b[it] }
+    }
+    
+    private fun softmax(x: Double): Double {
+        return exp(x) / exp(x)
+    }
+}
+
+class AgentRelationshipGraph {
+    private val nodes = ConcurrentHashMap<String, GraphNode>()
+    private val edges = ConcurrentHashMap<String, MutableList<GraphEdge>>()
+    
+    fun addNode(agentId: String, role: String) {
+        nodes[agentId] = GraphNode(agentId, role, System.currentTimeMillis())
+        edges.getOrPut(agentId) { mutableListOf() }
+    }
+    
+    fun removeNode(agentId: String) {
+        nodes.remove(agentId)
+        edges.remove(agentId)
+        edges.values.forEach { list ->
+            list.removeAll { it.target == agentId }
+        }
+    }
+    
+    fun addEdge(from: String, to: String, type: String) {
+        edges.getOrPut(from) { mutableListOf() }
+            .add(GraphEdge(from, to, type, System.currentTimeMillis()))
+    }
+    
+    fun updateState(agentId: String, state: String) {
+        nodes[agentId]?.state = state
+    }
+    
+    fun getNeighbors(agentId: String): List<String> {
+        return edges[agentId]?.map { it.target } ?: emptyList()
+    }
+    
+    fun getPageRank(iterations: Int = 20): Map<String, Double> {
+        val ranks = nodes.keys.associateWith { 1.0 }.toMutableMap()
+        
+        repeat(iterations) {
+            val newRanks = mutableMapOf<String, Double>()
+            nodes.keys.forEach { node ->
+                var rank = 0.0
+                edges.forEach { (_, edges) ->
+                    edges.filter { it.target == node }.forEach { edge ->
+                        rank += (ranks[edge.source] ?: 1.0) / (edges.size.coerceAtLeast(1))
+                    }
+                }
+                newRanks[node] = 0.15 + 0.85 * rank
+            }
+            ranks.putAll(newRanks)
+        }
+        
+        return ranks
+    }
+    
+    data class GraphNode(
+        val id: String,
+        val role: String,
+        val createdAt: Long,
+        var state: String = "IDLE"
+    )
+    
+    data class GraphEdge(
+        val source: String,
+        val target: String,
+        val type: String,
+        val timestamp: Long
+    )
 }
 
 class ToolExecutionQueue(
@@ -342,16 +631,24 @@ class ToolExecutionQueue(
     private val logger = LoggerFactory.getLogger(ToolExecutionQueue::class.java)
     private val automaton = AutomatonTheory.ToolAccessAutomaton()
     private val semaphore = Semaphore(maxConcurrent)
-    private val requestQueue = Channel<ToolRequest>(Channel.UNLIMITED)
+    private val requestQueue = PriorityBlockingQueue<ToolRequest>(100) { a, b ->
+        b.priority.compareTo(a.priority)
+    }
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
     private var queueProcessor: Job? = null
     
+    private val executionMetrics = ExecutionMetrics()
+    private val adaptiveScheduler = AdaptiveScheduler()
+    private val circuitBreaker = CircuitBreaker()
+    
     fun start() {
         queueProcessor = scope.launch {
             while (isActive) {
-                val request = requestQueue.receive()
-                processRequest(request)
+                val request = requestQueue.poll(100, java.util.concurrent.TimeUnit.MILLISECONDS)
+                if (request != null && !circuitBreaker.isOpen) {
+                    processRequest(request)
+                }
             }
         }
         logger.info("Tool execution queue started for: $toolName")
@@ -363,12 +660,26 @@ class ToolExecutionQueue(
     }
     
     suspend fun enqueue(request: ToolRequest): ToolResult {
-        requestQueue.send(request)
+        requestQueue.put(request)
         return request.deferred.await()
     }
     
     private suspend fun processRequest(request: ToolRequest) {
+        if (request.deadline < System.currentTimeMillis()) {
+            request.deferred.complete(ToolResult(
+                requestId = request.requestId,
+                toolName = toolName,
+                agentId = request.agentId,
+                result = "Request timed out",
+                success = false,
+                executionTimeMs = System.currentTimeMillis() - request.timestamp,
+                error = "Deadline exceeded"
+            ))
+            return
+        }
+        
         semaphore.acquire()
+        circuitBreaker.recordAttempt()
         
         try {
             if (!automaton.transition("ACQUIRE")) {
@@ -389,9 +700,11 @@ class ToolExecutionQueue(
             val startTime = System.currentTimeMillis()
             
             val result = try {
+                executionMetrics.recordStart(request.requestId)
                 executor(request.agentId, request.argsJson)
             } catch (e: Exception) {
                 automaton.transition("ERROR")
+                circuitBreaker.recordFailure()
                 logger.error("Tool $toolName execution failed for agent ${request.agentId}", e)
                 "Error: ${e.message}"
             }
@@ -400,6 +713,9 @@ class ToolExecutionQueue(
             
             automaton.transition("COMPLETE")
             automaton.transition("RELEASE")
+            
+            executionMetrics.recordComplete(request.requestId, executionTime, result.startsWith("Error"))
+            circuitBreaker.recordSuccess()
             
             request.deferred.complete(ToolResult(
                 requestId = request.requestId,
@@ -416,6 +732,99 @@ class ToolExecutionQueue(
     }
     
     fun getState(): ToolAutomatonState = automaton.currentState
+    
+    fun getMetrics(): ExecutionMetrics = executionMetrics
+    
+    fun getCircuitBreakerState(): String = circuitBreaker.state.name
+    
+    class ExecutionMetrics {
+        private val executions = ConcurrentLinkedQueue<ExecutionRecord>()
+        private var totalExecutions = 0L
+        private var totalFailures = 0L
+        private var totalDuration = 0L
+        
+        fun recordStart(requestId: String) {
+            executions.add(ExecutionRecord(requestId, System.currentTimeMillis(), null, null))
+        }
+        
+        fun recordComplete(requestId: String, duration: Long, failed: Boolean) {
+            totalExecutions++
+            totalDuration += duration
+            if (failed) totalFailures++
+            
+            executions.add(ExecutionRecord(requestId, System.currentTimeMillis(), duration, failed))
+            if (executions.size > 1000) executions.remove()
+        }
+        
+        fun getSuccessRate(): Double = 
+            if (totalExecutions > 0) (totalExecutions - totalFailures).toDouble() / totalExecutions else 1.0
+        
+        fun getAverageDuration(): Double = 
+            if (totalExecutions > 0) totalDuration.toDouble() / totalExecutions else 0.0
+        
+        data class ExecutionRecord(
+            val requestId: String,
+            val startTime: Long,
+            val duration: Long?,
+            val failed: Boolean?
+        )
+    }
+    
+    class CircuitBreaker(
+        private val failureThreshold: Int = 5,
+        private val timeout: Long = 30000
+    ) {
+        private var failures = 0
+        private var lastFailureTime = 0L
+        var state: CircuitState = CircuitState.CLOSED
+            private set
+        
+        fun recordSuccess() {
+            failures = 0
+            state = CircuitState.CLOSED
+        }
+        
+        fun recordFailure() {
+            failures++
+            lastFailureTime = System.currentTimeMillis()
+            if (failures >= failureThreshold) {
+                state = CircuitState.OPEN
+            }
+        }
+        
+        fun recordAttempt() {
+            if (state == CircuitState.OPEN && 
+                System.currentTimeMillis() - lastFailureTime > timeout) {
+                state = CircuitState.HALF_OPEN
+            }
+        }
+        
+        fun isOpen: Boolean = state == CircuitState.OPEN
+    }
+    
+    enum class CircuitState {
+        CLOSED, OPEN, HALF_OPEN
+    }
+    
+    class AdaptiveScheduler {
+        private var currentLoad = 0.0
+        private var historicalLatency = mutableListOf<Long>()
+        
+        fun calculatePriority(request: ToolRequest): Int {
+            val age = System.currentTimeMillis() - request.timestamp
+            val deadlineImportance = if (request.deadline < System.currentTimeMillis() + 5000) 10 else 0
+            
+            return request.priority + (age / 10000).toInt() + deadlineImportance
+        }
+        
+        fun updateLoad(latency: Long) {
+            historicalLatency.add(latency)
+            if (historicalLatency.size > 100) historicalLatency.removeAt(0)
+            currentLoad = historicalLatency.average()
+        }
+        
+        fun shouldThrottle(): Boolean = currentLoad > 1000
+    }
 }
 
 class ToolExecutionManager(
@@ -424,6 +833,10 @@ class ToolExecutionManager(
     private val logger = LoggerFactory.getLogger(ToolExecutionManager::class.java)
     private val queues = ConcurrentHashMap<String, ToolExecutionQueue>()
     private val toolDefinitions = ConcurrentHashMap<String, suspend (String, String) -> String>()
+    
+    private val toolRouter = IntelligentToolRouter()
+    private val toolMonitor = ToolMonitor()
+    private val toolCache = ToolResultCache()
     
     fun registerTool(
         toolName: String,
@@ -434,6 +847,7 @@ class ToolExecutionManager(
         queue.start()
         queues[toolName] = queue
         toolDefinitions[toolName] = executor
+        toolRouter.registerTool(toolName)
         logger.info("Registered tool with execution queue: $toolName (max concurrent: $maxConcurrent)")
     }
     
@@ -442,7 +856,15 @@ class ToolExecutionManager(
         agentId: String,
         argsJson: String
     ): ToolResult {
-        val queue = queues[toolName]
+        val cached = toolCache.get(toolName, argsJson)
+        if (cached != null) {
+            logger.debug("Cache hit for $toolName")
+            return cached
+        }
+        
+        val selectedTool = toolRouter.selectTool(toolName, agentId, argsJson)
+        
+        val queue = queues[selectedTool]
         if (queue == null) {
             return ToolResult(
                 requestId = java.util.UUID.randomUUID().toString(),
@@ -455,11 +877,11 @@ class ToolExecutionManager(
             )
         }
         
-        sharedContext.addActiveTool(agentId, toolName)
+        sharedContext.addActiveTool(agentId, selectedTool)
         
         val request = ToolRequest(
             requestId = java.util.UUID.randomUUID().toString(),
-            toolName = toolName,
+            toolName = selectedTool,
             agentId = agentId,
             argsJson = argsJson,
             deferred = CompletableDeferred()
@@ -469,13 +891,23 @@ class ToolExecutionManager(
         
         val result = queue.enqueue(request)
         
-        sharedContext.removeActiveTool(agentId, toolName)
+        sharedContext.removeActiveTool(agentId, selectedTool)
+        
+        toolMonitor.recordExecution(selectedTool, result.executionTimeMs, result.success)
+        toolRouter.updateMetrics(selectedTool, result.success, result.executionTimeMs)
+        
+        if (result.success) {
+            toolCache.put(toolName, argsJson, result)
+        }
         
         return result
     }
     
     fun getToolStates(): Map<String, ToolAutomatonState> = 
         queues.mapValues { it.value.getState() }
+    
+    fun getAllMetrics(): Map<String, ToolExecutionQueue.ExecutionMetrics> =
+        queues.mapValues { it.value.getMetrics() }
     
     fun shutdown() {
         queues.values.forEach { it.stop() }
@@ -488,8 +920,122 @@ class ToolExecutionManager(
             appendLine("=".repeat(50))
             queues.forEach { (name, queue) ->
                 appendLine("$name: ${queue.getState().name}")
+                appendLine("  Circuit Breaker: ${queue.getCircuitBreakerState()}")
+                val metrics = queue.getMetrics()
+                appendLine("  Success Rate: ${"%.2f".format(metrics.getSuccessRate() * 100)}%")
+                appendLine("  Avg Duration: ${"%.2f".format(metrics.getAverageDuration())}ms")
             }
         }
+    }
+    
+    class IntelligentToolRouter {
+        private val toolMetrics = ConcurrentHashMap<String, ToolMetrics>()
+        private val toolAlternatives = ConcurrentHashMap<String, MutableList<String>>()
+        
+        fun registerTool(toolName: String) {
+            toolMetrics[toolName] = ToolMetrics(toolName)
+        }
+        
+        fun registerAlternative(toolName: String, alternative: String) {
+            toolAlternatives.getOrPut(toolName) { mutableListOf() }.add(alternative)
+        }
+        
+        fun selectTool(toolName: String, agentId: String, args: String): String {
+            val metrics = toolMetrics[toolName] ?: return toolName
+            
+            if (metrics.successRate < 0.5) {
+                val alternatives = toolAlternatives[toolName]
+                if (!alternatives.isNullOrEmpty()) {
+                    val best = alternatives.maxByOrNull { alt ->
+                        toolMetrics[alt]?.successRate ?: 0.0
+                    }
+                    if (best != null && (toolMetrics[best]?.successRate ?: 0.0) > 0.7) {
+                        return best
+                    }
+                }
+            }
+            
+            return toolName
+        }
+        
+        fun updateMetrics(toolName: String, success: Boolean, latency: Long) {
+            toolMetrics[toolName]?.record(success, latency)
+        }
+        
+        data class ToolMetrics(
+            val toolName: String,
+            var totalCalls: Int = 0,
+            var successfulCalls: Int = 0,
+            var totalLatency: Long = 0
+        ) {
+            val successRate: Double
+                get() = if (totalCalls > 0) successfulCalls.toDouble() / totalCalls else 1.0
+            
+            val averageLatency: Double
+                get() = if (totalCalls > 0) totalLatency.toDouble() / totalCalls else 0.0
+            
+            fun record(success: Boolean, latency: Long) {
+                totalCalls++
+                if (success) successfulCalls++
+                totalLatency += latency
+            }
+        }
+    }
+    
+    class ToolMonitor {
+        private val alerts = ConcurrentLinkedQueue<Alert>()
+        
+        fun recordExecution(toolName: String, latency: Long, success: Boolean) {
+            if (latency > 5000) {
+                alerts.add(Alert(toolName, "HIGH_LATENCY", latency, System.currentTimeMillis()))
+            }
+            if (!success) {
+                alerts.add(Alert(toolName, "FAILURE", latency, System.currentTimeMillis()))
+            }
+        }
+        
+        fun getAlerts(): List<Alert> = alerts.toList()
+        
+        data class Alert(
+            val toolName: String,
+            val type: String,
+            val value: Long,
+            val timestamp: Long
+        )
+    }
+    
+    class ToolResultCache(
+        private val maxSize: Int = 100,
+        private val ttl: Long = 60000
+    ) {
+        private val cache = ConcurrentHashMap<String, CachedResult>()
+        
+        fun get(toolName: String, args: String): ToolResult? {
+            val key = "$toolName:$args".hashCode().toString()
+            val cached = cache[key] ?: return null
+            
+            return if (System.currentTimeMillis() - cached.timestamp < ttl) {
+                cached.result
+            } else {
+                cache.remove(key)
+                null
+            }
+        }
+        
+        fun put(toolName: String, args: String, result: ToolResult) {
+            val key = "$toolName:$args".hashCode().toString()
+            cache[key] = CachedResult(result, System.currentTimeMillis())
+            
+            if (cache.size > maxSize) {
+                val oldest = cache.entries.minByOrNull { it.value.timestamp }
+                oldest?.let { cache.remove(it.key) }
+            }
+        }
+        
+        data class CachedResult(
+            val result: ToolResult,
+            val timestamp: Long
+        )
     }
 }
 
@@ -502,11 +1048,17 @@ class CollaborativeAgentOrchestrator(
     private val agents = ConcurrentHashMap<String, OrchestratedAgent>()
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
+    private val reinforcementLearner = ReinforcementLearner()
+    private val taskScheduler = PriorityTaskScheduler()
+    private val chaosEngine = ChaosEngineeringEngine()
+    private val consensusProtocol = ConsensusProtocol()
+    
     data class OrchestratedAgent(
         val agentId: String,
         val config: AgentConfig,
         val stateAutomaton: AutomatonTheory.AgentStateAutomaton,
-        val lifecycleAutomaton: AutomatonTheory.AgentLifecycleAutomaton
+        val lifecycleAutomaton: AutomatonTheory.AgentLifecycleAutomaton,
+        val qTable: MutableMap<String, Double> = mutableMapOf()
     )
     
     suspend fun createAgent(config: AgentConfig): OrchestratedAgent {
@@ -530,8 +1082,22 @@ class CollaborativeAgentOrchestrator(
         )
         
         agents[config.agentId] = agent
+        
+        initializeQTable(agent)
+        
         logger.info("Created orchestrated agent: ${config.agentId}")
         return agent
+    }
+    
+    private fun initializeQTable(agent: OrchestratedAgent) {
+        val actions = listOf("START", "PAUSE", "RESUME", "COMPLETE", "FAIL")
+        val states = listOf("IDLE", "INITIALIZING", "READY", "RUNNING", "WAITING", "COMPLETED", "FAILED")
+        
+        states.forEach { state ->
+            actions.forEach { action ->
+                agent.qTable["$state:$action"] = 0.0
+            }
+        }
     }
     
     suspend fun startAgent(agentId: String, task: String): Boolean {
@@ -549,6 +1115,8 @@ class CollaborativeAgentOrchestrator(
         
         sharedContext.updateAgentTask(agentId, task, 0.0)
         sharedContext.updateAgentState(agentId, AgentAutomatonState.RUNNING)
+        
+        taskScheduler.scheduleTask(agentId, task)
         
         logger.info("Started agent $agentId with task: ${task.take(50)}...")
         return true
@@ -590,6 +1158,9 @@ class CollaborativeAgentOrchestrator(
         sharedContext.updateAgentTask(agentId, "Completed: $result", 1.0)
         
         keyPool.releaseAgentKey(agentId)
+        
+        reinforcementLearner.updateQValue(agent, "COMPLETE", 1.0)
+        
         return true
     }
     
@@ -606,7 +1177,29 @@ class CollaborativeAgentOrchestrator(
         sharedContext.updateAgentState(agentId, AgentAutomatonState.FAILED)
         
         keyPool.releaseAgentKey(agentId)
+        
+        reinforcementLearner.updateQValue(agent, "FAIL", -1.0)
+        
         return true
+    }
+    
+    suspend fun executeAction(agentId: String, action: String): Double {
+        val agent = agents[agentId] ?: return 0.0
+        val state = agent.stateAutomaton.currentState.name
+        
+        val qValue = agent.qTable["$state:$action"] ?: 0.0
+        
+        return qValue
+    }
+    
+    fun getBestAction(agentId: String): String? {
+        val agent = agents[agentId] ?: return null
+        val state = agent.stateAutomaton.currentState.name
+        
+        return agent.qTable.entries
+            .filter { it.key.startsWith("$state:") }
+            .maxByOrNull { it.value }
+            ?.key?.substringAfter(":")
     }
     
     fun getAgentState(agentId: String): AgentAutomatonState? = 
@@ -617,6 +1210,8 @@ class CollaborativeAgentOrchestrator(
     
     fun getCollaborationContext(agentId: String): String =
         sharedContext.getCollaborationContextFor(agentId)
+    
+    fun getAgentGraph(): AgentRelationshipGraph = sharedContext.getAgentGraph()
     
     fun formatOrchestrationStatus(): String {
         return buildString {
@@ -630,6 +1225,12 @@ class CollaborativeAgentOrchestrator(
             appendLine(sharedContext.getCollaborationContextFor("system"))
             appendLine()
             appendLine(toolManager.formatStatus())
+            appendLine()
+            appendLine("Agent Relationships (PageRank):")
+            val pagerank = getAgentGraph().getPageRank()
+            pagerank.entries.sortedByDescending { it.value }.take(5).forEach { (id, rank) ->
+                appendLine("  $id: ${"%.4f".format(rank)}")
+            }
         }
     }
     
@@ -641,5 +1242,93 @@ class CollaborativeAgentOrchestrator(
         }
         toolManager.shutdown()
         scope.cancel()
+    }
+    
+    class ReinforcementLearner(
+        private val learningRate: Double = 0.1,
+        private val discountFactor: Double = 0.9,
+        private val explorationRate: Double = 0.1
+    ) {
+        fun updateQValue(agent: OrchestratedAgent, action: String, reward: Double) {
+            val state = agent.stateAutomaton.currentState.name
+            val key = "$state:$action"
+            
+            val currentQ = agent.qTable[key] ?: 0.0
+            val maxNextQ = agent.qTable.entries
+                .filter { it.key.startsWith("${agent.stateAutomaton.currentState.name}:") }
+                .maxByOrNull { it.value }?.value ?: 0.0
+            
+            val newQ = currentQ + learningRate * (reward + discountFactor * maxNextQ - currentQ)
+            agent.qTable[key] = newQ
+        }
+        
+        fun shouldExplore(): Boolean = Random.nextDouble() < explorationRate
+    }
+    
+    class PriorityTaskScheduler {
+        private val taskQueue = PriorityBlockingQueue<ScheduledTask>(100) { a, b ->
+            b.priority.compareTo(a.priority)
+        }
+        
+        fun scheduleTask(agentId: String, task: String, priority: Int = 5) {
+            taskQueue.add(ScheduledTask(agentId, task, priority, System.currentTimeMillis()))
+        }
+        
+        fun getNextTask(): ScheduledTask? = taskQueue.poll()
+        
+        data class ScheduledTask(
+            val agentId: String,
+            val task: String,
+            val priority: Int,
+            val scheduledAt: Long
+        )
+    }
+    
+    class ChaosEngineeringEngine {
+        private val failureScenarios = listOf(
+            FailureScenario("network_latency", 0.1, { Random.nextLong(1000, 5000) }),
+            FailureScenario("resource_exhaustion", 0.05, { throw OutOfMemoryError("Chaos injection") }),
+            FailureScenario("random_crash", 0.02, { throw RuntimeException("Chaos injection") })
+        )
+        
+        fun injectFailure(): Boolean {
+            return failureScenarios.any { scenario ->
+                if (Random.nextDouble() < scenario.probability) {
+                    scenario.effect()
+                    true
+                } else false
+            }
+        }
+        
+        data class FailureScenario(
+            val name: String,
+            val probability: Double,
+            val effect: () -> Unit
+        )
+    }
+    
+    class ConsensusProtocol {
+        private val votes = ConcurrentHashMap<String, MutableMap<String, Boolean>>()
+        
+        fun propose(agentId: String, proposal: String): Boolean {
+            votes.getOrPut(proposal) { mutableMapOf() }[agentId] = true
+            
+            val allVotes = votes[proposal] ?: return false
+            return allVotes.values.count { it } > allVotes.size / 2
+        }
+        
+        fun vote(agentId: String, proposal: String, approval: Boolean) {
+            votes.getOrPut(proposal) { mutableMapOf() }[agentId] = approval
+        }
+        
+        fun getConsensus(proposal: String): Boolean? {
+            val allVotes = votes[proposal] ?: return null
+            val approved = allVotes.values.count { it }
+            return when {
+                approved > allVotes.size / 2 -> true
+                approved < allVotes.size / 2 -> false
+                else -> null
+            }
+        }
     }
 }
