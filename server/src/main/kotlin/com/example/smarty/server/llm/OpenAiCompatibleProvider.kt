@@ -76,6 +76,8 @@ class OpenAiCompatibleProvider(
             client.preparePost(endpoint) {
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
                 contentType(ContentType.Application.Json)
+                header("Accept-Encoding", "identity") // Prevent gzip compression for real-time streaming
+                header("Cache-Control", "no-cache")
                 setBody(requestBody)
             }.execute { httpResponse ->
                 // Check for error status before processing stream

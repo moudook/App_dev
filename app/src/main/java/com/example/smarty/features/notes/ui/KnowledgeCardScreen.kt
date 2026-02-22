@@ -50,6 +50,7 @@ import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.components.viewers.FullScreenDocumentViewer
 import com.example.smarty.ui.components.viewers.FullScreenImageViewer
 import com.example.smarty.ui.components.viewers.FullScreenVideoPlayer
+import com.example.smarty.ui.components.MarkdownRenderer
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import com.example.smarty.core.common.util.ContentTypeDetector
@@ -281,31 +282,27 @@ fun KnowledgeCardScreen(
                         }
                     }
 
-                    // 4. Content Input (Body)
-                    BasicTextField(
-                        value = content,
-                        onValueChange = { content = it },
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onBackground,
-                            lineHeight = 28.sp
-                        ),
-                        cursorBrush = SolidColor(LocalAccentColor.current),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
-                        decorationBox = { innerTextField ->
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                if (content.isEmpty()) {
-                                    Text(
-                                        text = stringResource(R.string.note_content_placeholder),
-                                        style = MaterialTheme.typography.bodyLarge.copy(
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                                            lineHeight = 28.sp
-                                        )
-                                    )
-                                }
-                                innerTextField()
-                            }
-                        }
-                    )
+                    // 4. Content (Markdown Rendered)
+                    if (content.isNotBlank()) {
+                        MarkdownRenderer(
+                            content = content,
+                            isUser = false,
+                            normalColor = MaterialTheme.colorScheme.onBackground,
+                            boldColor = MaterialTheme.colorScheme.onBackground,
+                            linkColor = LocalAccentColor.current,
+                            codeColor = LocalAccentColor.current,
+                            codeBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            codeBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.note_content_placeholder),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                lineHeight = 28.sp
+                            )
+                        )
+                    }
 
                     // 5. Metadata / Footer
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))

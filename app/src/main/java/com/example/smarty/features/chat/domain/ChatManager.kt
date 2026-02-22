@@ -265,8 +265,6 @@ class ChatManager(
         }
         return userMessage
     }
-        return userMessage
-    }
 
     /**
      * Add a Smarty response to the chat (thread-safe using Mutex)

@@ -193,20 +193,9 @@ fun ChatMessageItem(
                     vertical = if (isUser) 16.dp else 16.dp
                 )
             ) {
-                if (isUser) {
-                    val userTextColor = normalColor
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.SansSerif,
-                            fontSize = 16.sp, 
-                            lineHeight = 26.sp, // 1.6 ratio
-                            fontWeight = FontWeight.Normal,
-                            letterSpacing = 0.sp
-                        ),
-                        color = userTextColor
-                    )
-                } else {
+                // User messages are rendered in the outer wrapper with bubble styling
+                // Only render AI content here
+                if (!isUser) {
                     // Streaming/thinking indicator
                     if (message.isStreaming && message.content.isEmpty()) {
                         // Show animated thinking dots
@@ -555,19 +544,53 @@ fun ChatMessageItem(
                         )
                     }
                     } // end streaming content else
-                }
+                } // end if !isUser
             }
         }
 
         // Apply Bubble or Container
         val isDark = isSystemInDarkTheme()
 
+        // Inverted colors for user bubble: opposite of theme
+        val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else Color(0xFF1A1A1A)
+        val userBubbleTextColor = if (isDark) Color(0xFF1A1A1A) else Color(0xFFF5F5F5)
+        val userBubbleShape = RoundedCornerShape(
+            topStart = 20.dp,
+            topEnd = 4.dp,
+            bottomStart = 20.dp,
+            bottomEnd = 20.dp
+        )
+
         if (isUser) {
             Box(
                 modifier = Modifier
-                    .widthIn(max = 640.dp) 
+                    .widthIn(max = 640.dp)
             ) {
-                MessageContent()
+                Surface(
+                    color = userBubbleBackground,
+                    shape = userBubbleShape,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier.padding(
+                            horizontal = 16.dp,
+                            vertical = 16.dp
+                        )
+                    ) {
+                        val userTextColor = userBubbleTextColor
+                        Text(
+                            text = message.content,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.SansSerif,
+                                fontSize = 16.sp,
+                                lineHeight = 26.sp,
+                                fontWeight = FontWeight.Normal,
+                                letterSpacing = 0.sp
+                            ),
+                            color = userTextColor
+                        )
+                    }
+                }
             }
         } else {
             // AI Response uses bg-bubble as a subtle container according to AIGBT specification
@@ -610,6 +633,7 @@ fun ChatMessageItem(
         }
 
         // Timestamp
+        val timestampBubbleColor = if (isUser) userBubbleTextColor.copy(alpha = 0.6f) else textSubColor
         if (isUser) {
             Row(
                 modifier = Modifier.padding(top = 6.dp),
@@ -621,7 +645,7 @@ fun ChatMessageItem(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Medium
                     ),
-                    color = textSubColor,
+                    color = timestampBubbleColor,
                     fontSize = 11.sp
                 )
             }
@@ -1110,7 +1134,7 @@ private fun formatTimestamp(timestamp: Long): String {
  * Supports: Headers, Lists, Links, Bold, Italic, and Code Blocks
  */
 @Composable
-private fun MarkdownRenderer(
+fun MarkdownRenderer(
     content: String,
     isUser: Boolean,
     normalColor: Color,
@@ -1293,7 +1317,7 @@ private fun MarkdownRenderer(
 }
 
 @Composable
-private fun StandardText(
+fun StandardText(
     text: String,
     normalColor: Color,
     boldColor: Color,
@@ -1316,7 +1340,7 @@ private fun StandardText(
     )
 }
 
-private fun parseMarkdownToAnnotatedString(
+fun parseMarkdownToAnnotatedString(
     content: String,
     normalColor: Color,
     boldColor: Color,
