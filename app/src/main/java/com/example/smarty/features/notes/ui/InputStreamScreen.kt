@@ -1615,17 +1615,19 @@ onPlayYouTube: (String) -> Unit = {},
                                 onInputTextChange(newTextValue.text)
                             },
                             onSubmit = {
-                                val text = textValue.text
+                                // CRITICAL FIX: Use the actual state variable, not the derived textValue
+                                // textValue is derived and may be stale in the closure
+                                val actualText = if (isChatMode) chatModeTextValue.text else normalModeTextValue.text
                                 android.util.Log.d("InputStreamScreen", "=== onSubmit ===")
-                                android.util.Log.d("InputStreamScreen", "textValue.text='$text'")
+                                android.util.Log.d("InputStreamScreen", "actualText='$actualText'")
                                 android.util.Log.d("InputStreamScreen", "chatModeTextValue.text='${chatModeTextValue.text}'")
                                 android.util.Log.d("InputStreamScreen", "isChatMode=$isChatMode")
-                                if (text.isNotBlank() || currentInputAttachments.isNotEmpty()) {
+                                if (actualText.isNotBlank() || currentInputAttachments.isNotEmpty()) {
                                     if (isChatMode) {
-                                        onSendChatMessage(text, currentInputAttachments)
+                                        onSendChatMessage(actualText, currentInputAttachments)
                                         chatModeTextValue = TextFieldValue("")  // Only clear chat mode text
                                     } else if (!isSearchMode) {
-                                        onAddNote(text, currentInputAttachments)
+                                        onAddNote(actualText, currentInputAttachments)
                                         normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
                                     }
 
