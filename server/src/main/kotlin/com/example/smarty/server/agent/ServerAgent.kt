@@ -824,7 +824,6 @@ $timeContext
                         // Check if we're now in final state
                         if (newContent.contains("<final>")) inFinalState = true
                     }
-                    }
 
                     // Handle Tool Call Accumulation
                     val toolCall = chunk.toolCall
