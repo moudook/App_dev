@@ -172,7 +172,26 @@ object DatabaseFactory {
                             last_used_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                         )""",
-                        "CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON user_fcm_tokens(user_id)"
+                        "CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user ON user_fcm_tokens(user_id)",
+
+                        // Sync Tokens Table (for tracking last sync timestamps)
+                        """CREATE TABLE IF NOT EXISTS sync_tokens (
+                            user_id TEXT PRIMARY KEY,
+                            last_sync_at TIMESTAMP WITH TIME ZONE,
+                            last_pull_at TIMESTAMP WITH TIME ZONE
+                        )""",
+
+                        // Add updated_at to calendar_events if missing
+                        "ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+                        
+                        // Add updated_at to chat_messages if missing
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()",
+
+                        // Sync indexes for faster incremental sync
+                        "CREATE INDEX IF NOT EXISTS idx_notes_user_updated ON notes(user_id, updated_at DESC)",
+                        "CREATE INDEX IF NOT EXISTS idx_sessions_user_updated ON chat_sessions(user_id, updated_at DESC)",
+                        "CREATE INDEX IF NOT EXISTS idx_messages_session_created ON chat_messages(session_id, created_at)",
+                        "CREATE INDEX IF NOT EXISTS idx_calendar_user_start ON calendar_events(user_id, start_time)"
                     )
                     for (sql in migrations) {
                         try {
@@ -192,7 +211,7 @@ object DatabaseFactory {
     @Synchronized
     fun getDataSource(): DataSource? {
         if (dataSource == null) {
-            val dbUrl = System.getenv("DB_URL")
+            var dbUrl = System.getenv("DB_URL")
             val dbUser = System.getenv("DB_USER")
             val dbPassword = System.getenv("DB_PASSWORD")
 
@@ -201,16 +220,24 @@ object DatabaseFactory {
                 return null
             }
 
+            // Convert postgresql:// to jdbc:postgresql:// if needed
+            if (dbUrl.startsWith("postgresql://") && !dbUrl.startsWith("jdbc:")) {
+                dbUrl = "jdbc:$dbUrl"
+                logger.info("Converted DB_URL to JDBC format")
+            }
+
+            logger.info("Connecting to database: ${dbUrl.take(50)}...")
+
             val config = HikariConfig().apply {
                 jdbcUrl = dbUrl
                 username = dbUser
                 password = dbPassword
                 driverClassName = "org.postgresql.Driver"
-                maximumPoolSize = 4 // Keep low for Supabase free tier limits
+                maximumPoolSize = 4
                 minimumIdle = 1
                 idleTimeout = 30000
-                connectionTimeout = 10000
-                leakDetectionThreshold = 30000 // Increased from 2s to 30s for migrations
+                connectionTimeout = 30000
+                leakDetectionThreshold = 60000
             }
 
             dataSource = try {
