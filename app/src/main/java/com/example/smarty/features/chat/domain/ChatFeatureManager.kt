@@ -33,6 +33,7 @@ import com.example.smarty.core.common.util.mention.MentionParser
 import com.example.smarty.core.common.util.mention.NoteContextBuilder
 import com.example.smarty.features.audio.domain.AudioFeatureManager.AudioSearchResult
 import com.example.smarty.features.chat.domain.thinking.ThinkingParser
+import com.example.smarty.features.chat.domain.thinking.ParsedResponse
 import com.example.smarty.core.domain.model.SearchResultItem
 import com.example.smarty.core.domain.model.SearchQueryAnalysis
 import com.example.smarty.core.domain.model.RecallResult
@@ -1449,7 +1450,7 @@ is AgentCommand.GetSystemStatus -> "(no params)"
 
             // Use thinking from server events if available, otherwise parse from content
             val parsedResponse = if (fullThinking.isNotEmpty()) {
-                ThinkingParser.ParsedResponse(fullThinking, fullResponse)
+                ParsedResponse(fullThinking, fullResponse)
             } else {
                 ThinkingParser.parse(fullResponse)
             }
