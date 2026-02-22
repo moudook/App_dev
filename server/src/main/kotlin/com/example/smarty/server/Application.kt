@@ -9,6 +9,7 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import com.example.smarty.server.routes.configureHealthRoutes
 import com.example.smarty.server.routes.configureChatRoutes
+import com.example.smarty.server.routes.configureSyncRoutes
 import com.example.smarty.server.data.DatabaseFactory
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.http.*
@@ -152,6 +153,7 @@ fun Application.module() {
     configureProcessingRoutes()
     configureHandshakeRoutes()
     configureDataRoutes()
+    configureSyncRoutes()
 
     // Configure Monitoring
     configureMonitoring()

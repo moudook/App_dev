@@ -5,7 +5,9 @@ import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.core.domain.model.NoteType
-import com.example.smarty.data.remote.RemoteDataService
+import com.example.smarty.data.remote.RemoteDataSource
+import com.example.smarty.data.sync.SyncCoordinator
+import com.example.smarty.data.sync.OfflineQueue
 import com.example.smarty.protocol.NoteInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,13 +17,14 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicLong
 
 class ServerSyncRepository(
-    private val remoteDataService: RemoteDataService,
-    private val eventSink: com.example.smarty.core.common.worker.BackgroundAgentEventSink
+    private val remoteDataSource: RemoteDataSource,
+    private val eventSink: com.example.smarty.core.common.worker.BackgroundAgentEventSink,
+    private val syncCoordinator: SyncCoordinator,
+    private val offlineQueue: OfflineQueue
 ) : SyncRepository {
     companion object {
         private const val TAG = "ServerSyncRepo"
-        // Cooldown to prevent spamming server
-        private const val MIN_SYNC_INTERVAL_MS = 60_000L
+        private const val MIN_SYNC_INTERVAL_MS = 30_000L
     }
 
     private var currentUserId: String? = null
@@ -35,12 +38,10 @@ class ServerSyncRepository(
         currentUserId = userId
         Log.d(TAG, "Initialized Server Sync for user: $userId")
         
-        // Initial fetch
         scope.launch {
             refreshData()
         }
         
-        // Observe sync events
         scope.launch {
             eventSink.syncEvents.collect { syncType ->
                 Log.d(TAG, "Received sync trigger: $syncType")
@@ -50,25 +51,61 @@ class ServerSyncRepository(
     }
 
     override suspend fun syncNote(note: Note): Result<Unit> {
-        // Read-only sync: Do nothing or maybe log that we are in read-only mode
-        // For Phase 1, we don't push changes BACK to server from client yet.
-        // Or do we? The plan says "Read-Only Sync (Server -> Client)"
-        Log.d(TAG, "Read-only sync: Ignoring local note update for ${note.id}")
-        return Result.success(Unit)
+        return try {
+            if (note.isFullPrivacy) {
+                Log.d(TAG, "Skipping sync for private note ${note.id}")
+                return Result.success(Unit)
+            }
+
+            val success = if (note.isArchived) {
+                remoteDataSource.deleteNote(note.id)
+            } else {
+                val existingId = remoteDataSource.createNote(note.title, note.content, note.categoryName)
+                if (existingId == null) {
+                    remoteDataSource.updateNote(note.id, note.title, note.content, note.categoryName)
+                } else {
+                    true
+                }
+            }
+
+            if (success) {
+                Log.d(TAG, "Synced note ${note.id} to server")
+                Result.success(Unit)
+            } else {
+                offlineQueue.enqueueNoteUpdate(note)
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to sync note ${note.id}", e)
+            offlineQueue.enqueueNoteUpdate(note)
+            Result.success(Unit)
+        }
     }
 
     override suspend fun deleteNote(noteId: String): Result<Unit> {
-        Log.d(TAG, "Read-only sync: Ignoring local note deletion for $noteId")
-        return Result.success(Unit)
+        return try {
+            val success = remoteDataSource.deleteNote(noteId)
+            if (success) {
+                Log.d(TAG, "Deleted note $noteId from server")
+                Result.success(Unit)
+            } else {
+                offlineQueue.enqueueNoteDelete(noteId)
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete note $noteId", e)
+            offlineQueue.enqueueNoteDelete(noteId)
+            Result.success(Unit)
+        }
     }
 
     override suspend fun syncCategory(category: Category): Result<Unit> {
-        Log.d(TAG, "Read-only sync: Ignoring local category update for ${category.id}")
+        Log.d(TAG, "Category sync not implemented for server - categories derived from notes")
         return Result.success(Unit)
     }
 
     override suspend fun deleteCategory(categoryId: String): Result<Unit> {
-        Log.d(TAG, "Read-only sync: Ignoring local category deletion for $categoryId")
+        Log.d(TAG, "Category delete not implemented for server - categories derived from notes")
         return Result.success(Unit)
     }
 
@@ -76,10 +113,6 @@ class ServerSyncRepository(
 
     override fun getRemoteCategoriesFlow(): Flow<List<Category>> = _remoteCategories.asStateFlow()
 
-    /**
-     * Trigger a fetch from the server.
-     * Use this when SSE or polling indicates updates.
-     */
     suspend fun refreshData() {
         val now = System.currentTimeMillis()
         if (now - lastSyncTime.get() < MIN_SYNC_INTERVAL_MS) {
@@ -89,14 +122,9 @@ class ServerSyncRepository(
         
         Log.d(TAG, "Refreshing data from server...")
         try {
-            val noteInfos = remoteDataService.fetchNotes()
+            val noteInfos = remoteDataSource.fetchNotes()
             val notes = noteInfos.map { mapToNote(it) }
             _remoteNotes.value = notes
-            
-            // Categories are implicitly derived from notes or fetched if we add an endpoint
-            // For now, let's leave categories empty or derive from notes if needed
-            // But DataRoutes doesn't expose categories endpoint explicitly yet (only Notes)
-            // SmartyViewModel derives categories from NoteOperationsManager which uses DB.
             
             lastSyncTime.set(now)
             Log.d(TAG, "Refreshed ${notes.size} notes from server")
@@ -105,22 +133,48 @@ class ServerSyncRepository(
         }
     }
 
+    suspend fun pullFromServer() {
+        Log.d(TAG, "Pulling all data from server...")
+        when (val result = syncCoordinator.pullFromServer()) {
+            is com.example.smarty.data.sync.PullResult.Success -> {
+                Log.d(TAG, "Pull complete: ${result.notes} notes, ${result.sessions} sessions, ${result.events} events")
+            }
+            is com.example.smarty.data.sync.PullResult.Offline -> {
+                Log.d(TAG, "Pull skipped: offline")
+            }
+            is com.example.smarty.data.sync.PullResult.Error -> {
+                Log.e(TAG, "Pull failed: ${result.message}")
+            }
+        }
+    }
+
+    suspend fun pushPendingChanges() {
+        Log.d(TAG, "Pushing pending changes to server...")
+        when (val result = syncCoordinator.pushPendingChanges()) {
+            is com.example.smarty.data.sync.PushResult.Success -> {
+                Log.d(TAG, "Push complete: ${result.notes} notes, ${result.sessions} sessions, ${result.events} events")
+            }
+            is com.example.smarty.data.sync.PushResult.Offline -> {
+                Log.d(TAG, "Push skipped: offline")
+            }
+            is com.example.smarty.data.sync.PushResult.Error -> {
+                Log.e(TAG, "Push failed: ${result.message}")
+            }
+        }
+    }
+
     private fun mapToNote(info: NoteInfo): Note {
-        // Map NoteInfo to domain Note
-        // Note: NoteInfo is sparse compared to Note. We fill defaults.
         return Note(
             id = info.id,
             title = info.title,
             content = info.content,
             categoryName = info.category,
-            // Assuming category ID matches name or handles in repo
             isArchived = info.isArchived,
             createdAt = info.createdAt,
             updatedAt = info.updatedAt,
-            // Defaults for fields not in NoteInfo
             type = NoteType.BRAIN_DUMP,
             processingStatus = ProcessingStatus.COMPLETED,
-            isAiCreated = true // Coming from server mostly implies AI or other input
+            isAiCreated = true
         )
     }
 }

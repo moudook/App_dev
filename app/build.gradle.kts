@@ -217,20 +217,8 @@ dependencies {
     // Shared Common Module
     implementation(project(":common"))
 
-    // REMOVED: Unused Firebase modules identified in BATCH-10 analysis
-    // Firestore for Cloud Sync
-    implementation(libs.firebase.firestore)
-
-    // Fix for Firestore crash (InternalGlobalInterceptors)
-    // Align all gRPC dependencies to 1.66.0 to match what google-api-client pulls in
-    val grpcVersion = "1.66.0"
-    implementation("io.grpc:grpc-okhttp:$grpcVersion")
-    implementation("io.grpc:grpc-android:$grpcVersion")
-    implementation("io.grpc:grpc-protobuf-lite:$grpcVersion")
-    implementation("io.grpc:grpc-stub:$grpcVersion")
-    implementation("io.grpc:grpc-core:$grpcVersion")
-    implementation("io.grpc:grpc-api:$grpcVersion")
-    implementation("io.grpc:grpc-context:$grpcVersion")
+    // REMOVED: Firestore - migrated to server sync (Phase 4)
+    // REMOVED: gRPC dependencies - only needed for Firestore
 
     // Crashlytics for crash reporting
     implementation(libs.firebase.crashlytics)

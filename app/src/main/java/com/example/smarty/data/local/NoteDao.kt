@@ -53,6 +53,9 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE id = :id")
     suspend fun getNoteById(id: String): Note?
 
+    @Query("SELECT * FROM notes WHERE id = :id")
+    suspend fun getNoteByIdSync(id: String): Note?
+
     /**
      * Observe a note by ID as a Flow.
      * Emits new value whenever the note is updated in the database.

@@ -1,12 +1,22 @@
 package com.example.smarty
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.example.smarty.core.common.util.LazyDecompressor
 import com.example.smarty.core.common.util.ResourceManager
 import com.example.smarty.core.common.util.api.ApiMetrics
+import com.example.smarty.data.sync.NetworkMonitor
+import com.example.smarty.data.worker.SyncWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import java.lang.ref.WeakReference
 
 /**
@@ -21,38 +31,27 @@ class SmartyApplication : Application(), Configuration.Provider {
 
     companion object {
         private const val TAG = "SmartyApplication"
-
-        // Strong reference to the application instance
-        // Application context lives for the entire process duration, so this is safe from leaks
         private var instance: SmartyApplication? = null
+        private var wasOffline: Boolean = false
 
-        /**
-         * Get application instance safely (may be null if not yet created)
-         */
         fun getInstance(): SmartyApplication? = instance
 
-        /**
-         * Convenience property for accessing the singleton instance.
-         * Throws IllegalStateException if not initialized.
-         */
         val appInstance: SmartyApplication
             get() = instance ?: throw IllegalStateException("SmartyApplication not initialized - call onCreate first")
     }
 
-    /**
-     * Custom WorkManager configuration to prevent SystemForegroundService memory leaks.
-     * Uses application context and minimal thread pool to reduce memory footprint.
-     */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
-            .setMinimumLoggingLevel(Log.DEBUG) // Changed to DEBUG to see WorkManager logs
-            .setMaxSchedulerLimit(20) // Limit concurrent jobs to prevent resource exhaustion
+            .setMinimumLoggingLevel(Log.DEBUG)
+            .setMaxSchedulerLimit(20)
             .build()
 
     override fun onCreate() {
         super.onCreate()
 
-        // Initialize CrashLogger first to catch early startup crashes
         try {
             com.example.smarty.core.common.util.CrashLogger.init(this)
             com.example.smarty.core.common.util.CrashLogger.log(this, "Application onCreate started")
@@ -60,27 +59,21 @@ class SmartyApplication : Application(), Configuration.Provider {
             Log.e(TAG, "Failed to init CrashLogger", e)
         }
 
-        // Store strong reference to application
         instance = this
 
-        // Initialize ResourceManager first (detects device capabilities)
         ResourceManager.initialize(this)
         Log.d(TAG, "ResourceManager initialized")
         Log.d(TAG, ResourceManager.getDebugInfo())
 
-        // Initialize LazyDecompressor (uses ResourceManager settings)
         LazyDecompressor.initialize(this)
         Log.d(TAG, "LazyDecompressor initialized")
 
-        // Initialize ApiMetrics for tracking API calls and cache hits
         ApiMetrics.init(this)
         Log.d(TAG, "ApiMetrics initialized")
 
-        // Setup app shortcuts (launcher long-press menu)
         com.example.smarty.core.common.util.AppShortcutsManager.setupShortcuts(this)
         Log.d(TAG, "App shortcuts initialized")
 
-        // Setup daily digest notification channel and schedule worker
         try {
             com.example.smarty.core.common.util.NotificationHelper.createNotificationChannels(this)
 
@@ -88,25 +81,88 @@ class SmartyApplication : Application(), Configuration.Provider {
             com.example.smarty.core.common.worker.DailyDigestWorker.schedule(this)
             Log.d(TAG, "Daily digest scheduled for 6:30 AM")
 
-            // Schedule daily briefing (AI-powered)
             com.example.smarty.core.common.worker.DailyBriefingWorker.schedule(this)
             Log.d(TAG, "Daily briefing scheduled for 7:30 AM")
 
-            // Setup periodic calendar sync worker (30 min)
             com.example.smarty.data.worker.CalendarSyncWorker.schedule(this)
             Log.d(TAG, "Calendar sync scheduled")
+
+            SyncWorker.schedule(this)
+            Log.d(TAG, "Sync worker scheduled")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to schedule workers", e)
             com.example.smarty.core.common.util.CrashLogger.log(this, "Worker scheduling failed: ${e.message}")
         }
 
+        setupNetworkCallback()
+
+        appScope.launch {
+            performInitialSync()
+        }
+
         com.example.smarty.core.common.util.CrashLogger.log(this, "Application onCreate finished")
+    }
+
+    private fun setupNetworkCallback() {
+        val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                Log.d(TAG, "Network available: $network")
+                if (wasOffline) {
+                    Log.i(TAG, "Transition from offline to online - triggering sync")
+                    appScope.launch {
+                        SyncWorker.syncNow(this@SmartyApplication)
+                    }
+                }
+                wasOffline = false
+            }
+
+            override fun onLost(network: Network) {
+                Log.d(TAG, "Network lost: $network")
+                wasOffline = true
+            }
+        }
+
+        val request = android.net.NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        
+        try {
+            connectivityManager.registerNetworkCallback(request, networkCallback!!)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register network callback", e)
+        }
+    }
+
+    private suspend fun performInitialSync() {
+        try {
+            val networkMonitor = NetworkMonitor(this)
+            
+            if (networkMonitor.isOnline.value) {
+                Log.i(TAG, "Online at startup - performing initial sync")
+                SyncWorker.syncNow(this)
+            } else {
+                Log.d(TAG, "Offline at startup - skipping initial sync")
+                wasOffline = true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Initial sync failed", e)
+        }
     }
 
     override fun onTerminate() {
         super.onTerminate()
 
-        // Cancel all pending WorkManager work to prevent SystemForegroundService leaks
+        try {
+            networkCallback?.let {
+                val connectivityManager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+                connectivityManager.unregisterNetworkCallback(it)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unregistering network callback", e)
+        }
+
         try {
             WorkManager.getInstance(this).cancelAllWork()
             Log.d(TAG, "WorkManager work cancelled")
@@ -114,11 +170,9 @@ class SmartyApplication : Application(), Configuration.Provider {
             Log.e(TAG, "Error cancelling WorkManager work", e)
         }
 
-        // Clean shutdown of resources
         ResourceManager.shutdown()
         LazyDecompressor.shutdown()
 
-        // Clear application reference
         instance = null
 
         Log.d(TAG, "Application terminated cleanly")
@@ -126,7 +180,6 @@ class SmartyApplication : Application(), Configuration.Provider {
 
     override fun onLowMemory() {
         super.onLowMemory()
-        // ResourceManager handles this via ComponentCallbacks2
         Log.w(TAG, "Low memory detected")
     }
 }

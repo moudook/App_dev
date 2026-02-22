@@ -5,9 +5,13 @@ import com.example.smarty.data.local.SecurePreferences
 import com.example.smarty.data.local.SmartyDatabase
 import com.example.smarty.data.cache.AIResponseCache
 import com.example.smarty.data.remote.AIService
+import com.example.smarty.data.remote.RemoteDataSource
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.data.repository.SyncRepository
 import com.example.smarty.data.repository.DeviceAudioRepository
+import com.example.smarty.data.sync.SyncCoordinator
+import com.example.smarty.data.sync.NetworkMonitor
+import com.example.smarty.data.sync.OfflineQueue
 import com.example.smarty.features.audio.domain.AudioFeatureManager
 import com.example.smarty.features.audio.domain.AudioPlaybackManager
 import com.example.smarty.features.calendar.domain.CalendarFeatureManager
@@ -44,11 +48,72 @@ object ServiceLocator {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    @Volatile
+    private var networkMonitor: NetworkMonitor? = null
+
+    @Volatile
+    private var syncCoordinator: SyncCoordinator? = null
+
+    @Volatile
+    private var offlineQueue: OfflineQueue? = null
+
+    @Volatile
+    private var remoteDataSource: RemoteDataSource? = null
+
     fun provideSyncRepository(application: Application): SyncRepository {
         return syncRepository ?: synchronized(this) {
-            val remoteDataService = provideRemoteDataService(application)
+            val database = SmartyDatabase.getDatabase(application)
+            val remoteDataSource = provideRemoteDataSource(application)
             val eventSink = provideEventSink()
-            com.example.smarty.data.repository.ServerSyncRepository(remoteDataService, eventSink).also { syncRepository = it }
+            val syncCoordinator = provideSyncCoordinator(application)
+            val offlineQueue = provideOfflineQueue(application)
+            com.example.smarty.data.repository.ServerSyncRepository(
+                remoteDataSource = remoteDataSource,
+                eventSink = eventSink,
+                syncCoordinator = syncCoordinator,
+                offlineQueue = offlineQueue
+            ).also { syncRepository = it }
+        }
+    }
+
+    fun provideRemoteDataSource(application: Application): RemoteDataSource {
+        return remoteDataSource ?: synchronized(this) {
+            val securePreferences = SecurePreferences.getInstance(application)
+            RemoteDataSource(
+                client = provideHttpClient(),
+                serverUrlProvider = { securePreferences.getSmartyServerUrl() },
+                deviceIdProvider = { securePreferences.getDeviceId() }
+            ).also { remoteDataSource = it }
+        }
+    }
+
+    fun provideNetworkMonitor(application: Application): NetworkMonitor {
+        return networkMonitor ?: synchronized(this) {
+            NetworkMonitor(application).also { networkMonitor = it }
+        }
+    }
+
+    fun provideSyncCoordinator(application: Application): SyncCoordinator {
+        return syncCoordinator ?: synchronized(this) {
+            val database = SmartyDatabase.getDatabase(application)
+            val remoteDataSource = provideRemoteDataSource(application)
+            val networkMonitor = provideNetworkMonitor(application)
+            SyncCoordinator(
+                context = application,
+                remoteDataSource = remoteDataSource,
+                noteDao = database.noteDao(),
+                calendarDao = database.calendarDao(),
+                chatDao = database.chatDao(),
+                syncQueueDao = database.syncQueueDao(),
+                networkMonitor = networkMonitor
+            ).also { syncCoordinator = it }
+        }
+    }
+
+    fun provideOfflineQueue(application: Application): OfflineQueue {
+        return offlineQueue ?: synchronized(this) {
+            val database = SmartyDatabase.getDatabase(application)
+            OfflineQueue(database.syncQueueDao()).also { offlineQueue = it }
         }
     }
 
@@ -224,15 +289,6 @@ object ServiceLocator {
                 }
             }.also { httpClient = it }
         }
-    }
-
-    fun provideRemoteDataService(application: Application): com.example.smarty.data.remote.RemoteDataService {
-        val securePreferences = SecurePreferences.getInstance(application)
-        return com.example.smarty.data.remote.RemoteDataService(
-            client = provideHttpClient(),
-            serverUrlProvider = { securePreferences.getSmartyServerUrl() },
-            deviceIdProvider = { securePreferences.getDeviceId() }
-        )
     }
 
     @Volatile

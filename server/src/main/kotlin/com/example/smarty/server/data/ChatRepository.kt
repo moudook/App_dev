@@ -164,6 +164,43 @@ class ChatRepository(private val dataSource: DataSource) {
     }
 
     /**
+     * Lists ALL sessions for a user (for sync).
+     */
+    suspend fun listAllSessions(userId: String, limit: Int = 100): List<SessionInfo> = listSessions(userId, limit)
+
+    /**
+     * Gets ALL messages for a session (for sync).
+     */
+    suspend fun getAllMessagesForSession(userId: String, sessionId: String): List<MessageRecord> = withContext(Dispatchers.IO) {
+        val messages = mutableListOf<MessageRecord>()
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT cm.id, cm.role, cm.content, cm.created_at
+                FROM chat_messages cm
+                JOIN chat_sessions cs ON cm.session_id = cs.id
+                WHERE cm.session_id = ? AND cs.user_id = ?
+                ORDER BY cm.created_at ASC
+            """.trimIndent()
+
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(sessionId))
+                stmt.setString(2, userId)
+                stmt.executeQuery().use { rs ->
+                    while (rs.next()) {
+                        messages.add(MessageRecord(
+                            id = rs.getObject("id") as UUID,
+                            role = rs.getString("role"),
+                            content = rs.getString("content"),
+                            createdAt = rs.getTimestamp("created_at").time
+                        ))
+                    }
+                }
+            }
+        }
+        messages
+    }
+
+    /**
      * Deletes a session and all its messages.
      * Only deletes if the session belongs to the user.
      *
@@ -269,4 +306,14 @@ data class SessionInfo(
     val isActive: Boolean = true,
     val summary: String? = null,
     val summaryGeneratedAt: Long? = null
+)
+
+/**
+ * Record for a chat message (for sync).
+ */
+data class MessageRecord(
+    val id: UUID,
+    val role: String,
+    val content: String,
+    val createdAt: Long
 )

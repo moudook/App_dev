@@ -134,6 +134,9 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE id = :messageId")
     suspend fun getMessageById(messageId: String): ChatMessageEntity?
 
+    @Query("SELECT * FROM chat_messages WHERE id = :messageId")
+    suspend fun getMessageByIdSync(messageId: String): ChatMessageEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessageEntity)
 

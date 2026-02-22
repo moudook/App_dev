@@ -651,5 +651,15 @@ object Migrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS index_conflict_archive_resolvedAt ON conflict_archive(resolvedAt)")
         }
     }
+
+    /**
+     * Migration 32 → 33: Add updated_at column to calendar_events for sync.
+     */
+    val MIGRATION_32_33 = object : Migration(32, 33) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add updated_at column to calendar_events
+            db.execSQL("ALTER TABLE calendar_events ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+        }
+    }
 }
 
