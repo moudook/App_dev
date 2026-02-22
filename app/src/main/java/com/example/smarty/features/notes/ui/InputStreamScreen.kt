@@ -279,6 +279,11 @@ onPlayYouTube: (String) -> Unit = {},
     }
     // Derived current text based on mode
     val textValue = if (isChatMode) chatModeTextValue else normalModeTextValue
+    
+    // Debug: Log when textValue changes
+    LaunchedEffect(textValue.text) {
+        android.util.Log.d("InputStreamScreen", "textValue changed: '${textValue.text.take(30)}...', isChatMode=$isChatMode")
+    }
 
     // Auto-send state for chat mode - triggers 0.4s after speech stops
     var autoSendActive by remember { mutableStateOf(false) }
@@ -1586,6 +1591,7 @@ onPlayYouTube: (String) -> Unit = {},
                         SmartyInputField(
                             value = textValue,
                             onValueChange = { newTextValue ->
+                                android.util.Log.d("InputStreamScreen", "onValueChange: '${newTextValue.text.take(30)}...'")
                                 // Cancel auto-send if user manually types
                                 if (autoSendActive) {
                                     autoSendActive = false
@@ -1610,6 +1616,10 @@ onPlayYouTube: (String) -> Unit = {},
                             },
                             onSubmit = {
                                 val text = textValue.text
+                                android.util.Log.d("InputStreamScreen", "=== onSubmit ===")
+                                android.util.Log.d("InputStreamScreen", "textValue.text='$text'")
+                                android.util.Log.d("InputStreamScreen", "chatModeTextValue.text='${chatModeTextValue.text}'")
+                                android.util.Log.d("InputStreamScreen", "isChatMode=$isChatMode")
                                 if (text.isNotBlank() || currentInputAttachments.isNotEmpty()) {
                                     if (isChatMode) {
                                         onSendChatMessage(text, currentInputAttachments)
