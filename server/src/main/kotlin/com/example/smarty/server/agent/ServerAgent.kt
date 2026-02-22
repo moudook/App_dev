@@ -12,20 +12,6 @@ import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmMessage
-package com.example.smarty.server.agent
-
-import com.example.smarty.protocol.AgentCommand
-import com.example.smarty.protocol.AgentEvent
-import com.example.smarty.protocol.TimerInfo
-import com.example.smarty.protocol.NoteInfo
-import com.example.smarty.protocol.CalendarEventInfo
-import com.example.smarty.server.data.PostgresVectorStore
-import com.example.smarty.server.data.ConversationSummarizer
-import com.example.smarty.server.data.NoteRepository
-import com.example.smarty.server.data.TimerRepository
-import com.example.smarty.server.data.CalendarRepository
-import com.example.smarty.server.llm.LlmProvider
-import com.example.smarty.server.llm.LlmMessage
 import com.example.smarty.server.llm.ToolDefinition
 import com.example.smarty.server.llm.ToolParameters
 import com.example.smarty.server.llm.ToolProperty
