@@ -1263,8 +1263,6 @@ is AgentCommand.GetSystemStatus -> "(no params)"
 
     fun dispatchQuery(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
-        
-        Log.d(TAG, "dispatchQuery: content='${content.take(30)}...', current messages=${chatManager.chatMessages.value.size}")
 
         // Critical Fix: Clear pending text immediately to prevent stuck input
         // This ensures the UI doesn't re-populate the field if the user navigates away and back
@@ -1369,8 +1367,6 @@ is AgentCommand.GetSystemStatus -> "(no params)"
     }
 
     private suspend fun processRemoteQuery(content: String, userMessage: ChatMessage) {
-        Log.d(TAG, "processRemoteQuery: userMessage.id=${userMessage.id.take(8)}, content='${content.take(30)}...'")
-        
         // Clear previous state
         pendingCitations.clear()
         pendingInlineImages.clear()

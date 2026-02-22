@@ -123,11 +123,6 @@ data class ChatMessageEntity(
          * Create entity from domain model
          */
         fun fromChatMessage(message: ChatMessage, sessionId: String): ChatMessageEntity {
-            android.util.Log.d("ChatMessageEntity", "=== fromChatMessage ===")
-            android.util.Log.d("ChatMessageEntity", "input message.id=${message.id.take(8)}")
-            android.util.Log.d("ChatMessageEntity", "input message.content='${message.content.take(50)}...'")
-            android.util.Log.d("ChatMessageEntity", "sessionId=$sessionId")
-            
             // Serialize citations to JSON
             val citationsJson = if (message.citations.isNotEmpty()) {
                 serializeCitationsToJson(message.citations)
@@ -142,7 +137,7 @@ data class ChatMessageEntity(
                 "[]"
             }
 
-            val entity = ChatMessageEntity(
+            return ChatMessageEntity(
                 id = message.id,
                 sessionId = sessionId,
                 role = message.role.name,
@@ -152,11 +147,6 @@ data class ChatMessageEntity(
                 citationsJson = citationsJson,
                 inlineImagesJson = inlineImagesJson
             )
-            
-            android.util.Log.d("ChatMessageEntity", "output entity.id=${entity.id.take(8)}")
-            android.util.Log.d("ChatMessageEntity", "output entity.content='${entity.content.take(50)}...'")
-            
-            return entity
         }
 
         /**

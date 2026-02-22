@@ -279,11 +279,6 @@ onPlayYouTube: (String) -> Unit = {},
     }
     // Derived current text based on mode
     val textValue = if (isChatMode) chatModeTextValue else normalModeTextValue
-    
-    // Debug: Log when textValue changes
-    LaunchedEffect(textValue.text) {
-        android.util.Log.d("InputStreamScreen", "textValue changed: '${textValue.text.take(30)}...', isChatMode=$isChatMode")
-    }
 
     // Auto-send state for chat mode - triggers 0.4s after speech stops
     var autoSendActive by remember { mutableStateOf(false) }
@@ -1591,7 +1586,6 @@ onPlayYouTube: (String) -> Unit = {},
                         SmartyInputField(
                             value = textValue,
                             onValueChange = { newTextValue ->
-                                android.util.Log.d("InputStreamScreen", "onValueChange: '${newTextValue.text.take(30)}...'")
                                 // Cancel auto-send if user manually types
                                 if (autoSendActive) {
                                     autoSendActive = false
@@ -1618,17 +1612,13 @@ onPlayYouTube: (String) -> Unit = {},
                                 // CRITICAL FIX: Use the actual state variable, not the derived textValue
                                 // textValue is derived and may be stale in the closure
                                 val actualText = if (isChatMode) chatModeTextValue.text else normalModeTextValue.text
-                                android.util.Log.d("InputStreamScreen", "=== onSubmit ===")
-                                android.util.Log.d("InputStreamScreen", "actualText='$actualText'")
-                                android.util.Log.d("InputStreamScreen", "chatModeTextValue.text='${chatModeTextValue.text}'")
-                                android.util.Log.d("InputStreamScreen", "isChatMode=$isChatMode")
                                 if (actualText.isNotBlank() || currentInputAttachments.isNotEmpty()) {
                                     if (isChatMode) {
                                         onSendChatMessage(actualText, currentInputAttachments)
-                                        chatModeTextValue = TextFieldValue("")  // Only clear chat mode text
+                                        chatModeTextValue = TextFieldValue("")
                                     } else if (!isSearchMode) {
                                         onAddNote(actualText, currentInputAttachments)
-                                        normalModeTextValue = TextFieldValue("")  // Only clear normal mode text
+                                        normalModeTextValue = TextFieldValue("")
                                     }
 
                                     if (!isSearchMode) {
