@@ -43,7 +43,6 @@ import com.example.smarty.service.CommandResult
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.core.common.util.AndroidLogger
 import com.example.smarty.core.common.util.HistoryCompressor
-import com.example.smarty.core.common.util.PIIMasker
 import com.example.smarty.core.common.util.PrivacyGuard
 import com.example.smarty.features.audio.domain.AudioPlaybackManager
 import com.example.smarty.features.calendar.domain.CalendarManager
@@ -160,8 +159,7 @@ class AssistViewModel(
             application,
             chatRepository,
             viewModelScope,
-            HistoryCompressor(logger),
-            PIIMasker(logger)
+            HistoryCompressor(logger)
         )
     }
 

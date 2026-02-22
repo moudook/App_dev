@@ -14,9 +14,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-
 import com.example.smarty.core.common.util.HistoryCompressor
-import com.example.smarty.core.common.util.PIIMasker
 
 /**
  * Manages chat mode state and session lifecycle.
@@ -32,8 +30,7 @@ class ChatManager(
     private val context: android.content.Context,
     private val chatRepository: ChatRepository,
     private val scope: CoroutineScope,
-    private val historyCompressor: HistoryCompressor,
-    private val piiMasker: PIIMasker
+    private val historyCompressor: HistoryCompressor
 ) {
     companion object {
         private const val TAG = "ChatManager"
@@ -193,9 +190,6 @@ class ChatManager(
 
     /**
      * Create a new chat session (starts fresh conversation)
-     *
-     * BUG FIX (Issue #38): Clear PIIMasker session to prevent memory leak
-     * from accumulated placeholder mappings across sessions.
      */
     fun createNewChatSession() {
         scope.launch {
@@ -209,9 +203,6 @@ class ChatManager(
                 _chatMessages.value = emptyList()
             }
             lastApiCallSuccessful = false
-
-            // BUG FIX (Issue #38): Clear PII masker session to prevent memory leak
-            piiMasker.clearSession()
 
             Log.d(TAG, "Created new chat session: ${newSession.id}")
         }

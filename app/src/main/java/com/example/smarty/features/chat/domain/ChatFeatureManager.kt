@@ -486,23 +486,17 @@ is AgentCommand.GetSystemStatus -> "(no params)"
      * Clear command history buffer.
      */
     fun clearCommandHistory() {
-        synchronized(commandHistoryLock) {
-            commandHistory.clear()
-        }
-        Log.d("AgentCommand", "Command history cleared")
     }
 
     private val androidLogger by lazy { AndroidLogger() }
     private val historyCompressor by lazy { com.example.smarty.core.common.util.HistoryCompressor(androidLogger) }
-    private val piiMasker by lazy { com.example.smarty.core.common.util.PIIMasker(androidLogger) }
 
     // Reuse existing ChatManager for basic state and session management
     private val chatManager = ChatManager(
         application,
         chatRepository,
         scope,
-        historyCompressor,
-        piiMasker
+        historyCompressor
     )
 
     // --- Internal Managers ---
@@ -1420,9 +1414,14 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                         }
                         is AgentEvent.Result -> {
-                            responseBuilder.append(event.content)
+                            // Only append content if it's new (not already in builder), some servers send full result at end
+                            if (event.content.isNotEmpty() && !responseBuilder.toString().contains(event.content)) {
+                                responseBuilder.append(event.content)
+                            }
                             event.thinking?.let { thinking ->
-                                thinkingBuilder.append(thinking)
+                                if (!thinkingBuilder.toString().contains(thinking)) {
+                                    thinkingBuilder.append(thinking)
+                                }
                             }
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                         }
@@ -1450,7 +1449,13 @@ is AgentCommand.GetSystemStatus -> "(no params)"
 
             // Use thinking from server events if available, otherwise parse from content
             val parsedResponse = if (fullThinking.isNotEmpty()) {
-                ParsedResponse(fullThinking, fullResponse)
+                var cleanAnswer = fullResponse
+                if (cleanAnswer.startsWith(fullThinking)) {
+                    cleanAnswer = cleanAnswer.substring(fullThinking.length).trim()
+                } else if (cleanAnswer.contains(fullThinking)) {
+                    cleanAnswer = cleanAnswer.replace(fullThinking, "").trim()
+                }
+                ParsedResponse(fullThinking.trim(), cleanAnswer)
             } else {
                 ThinkingParser.parse(fullResponse)
             }

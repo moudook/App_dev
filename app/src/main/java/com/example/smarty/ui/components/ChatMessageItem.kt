@@ -158,53 +158,27 @@ fun ChatMessageItem(
     val isUser = message.role == ChatRole.USER
     val accentColor = LocalAccentColor.current
     
-    // ElevenLabs Theme Colors
+    // Modern AIGBT Theme Colors
     val isDark = isSystemInDarkTheme()
-    val codeBackgroundColor = if (isDark) Color(0xFF18181B) else Color(0xFFF4F4F5) // Zinc-950 / Zinc-100
-    val codeBorderColor = if (isDark) Color(0xFF27272A) else Color(0xFFE4E4E7) // Zinc-800 / Zinc-200
-    val linkColor = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB) // Blue-400 / Blue-600
+    val brandPrimary = Color(0xFF74AA9C)
+    val normalColor = MaterialTheme.colorScheme.onSurface
+    val boldColor = normalColor
+    val textSubColor = MaterialTheme.colorScheme.onSurfaceVariant
     
-    // "Soft Tech" Shape Logic
-    val largeCorner = 24.dp
-    val smallCorner = 4.dp
-
-    val bubbleShape = if (isUser) {
-        // ElevenLabs Style: "Soft Rectangle" (rounded-lg ~ 10-12dp)
-        RoundedCornerShape(12.dp)
-    } else {
-        when (groupPosition) {
-            MessageGroupPosition.SINGLE -> RoundedCornerShape(
-                topStart = largeCorner,
-                topEnd = largeCorner,
-                bottomStart = smallCorner,
-                bottomEnd = largeCorner
-            )
-            MessageGroupPosition.TOP -> RoundedCornerShape(
-                topStart = largeCorner,
-                topEnd = largeCorner,
-                bottomStart = smallCorner,
-                bottomEnd = largeCorner
-            )
-            MessageGroupPosition.MIDDLE -> RoundedCornerShape(
-                topStart = smallCorner,
-                topEnd = largeCorner,
-                bottomStart = smallCorner,
-                bottomEnd = largeCorner
-            )
-            MessageGroupPosition.BOTTOM -> RoundedCornerShape(
-                topStart = smallCorner,
-                topEnd = largeCorner,
-                bottomStart = largeCorner,
-                bottomEnd = largeCorner
-            )
-        }
-    }
+    val codeBackgroundColor = Color(0xFF181818) // Constant charcoal dark for code blocks
+    val codeHeaderBg = Color(0xFF343541)
+    
+    val codeBorderColor = if (isDark) Color(0xFF27272A) else Color(0xFFE4E4E7)
+    val linkColor = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
+    
+    // Bubble Geometry based on spec (Removed)
+    val bubbleShape = RoundedCornerShape(0.dp) // Removed bubble shapes entirely
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(
-                horizontal = if (isUser) 16.dp else 8.dp, // Reduced margins for AI responses
+                horizontal = if (isUser) 16.dp else 0.dp, 
                 vertical = 4.dp
             ),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
@@ -215,19 +189,19 @@ fun ChatMessageItem(
             var actionsExpanded by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier.padding(
-                    horizontal = if (isUser) 16.dp else 4.dp,
-                    vertical = if (isUser) 12.dp else 8.dp
+                    horizontal = if (isUser) 16.dp else 16.dp,
+                    vertical = if (isUser) 16.dp else 16.dp
                 )
             ) {
                 if (isUser) {
-                    // Inverted Text Color for High Contrast Bubble
-                    val userTextColor = if (isSystemInDarkTheme()) Color(0xFF141414) else Color(0xFFFAFAFA)
+                    val userTextColor = normalColor
                     Text(
                         text = message.content,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 16.sp, // Increased for better readability
-                            lineHeight = 24.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontFamily = FontFamily.SansSerif,
+                            fontSize = 16.sp, 
+                            lineHeight = 26.sp, // 1.6 ratio
+                            fontWeight = FontWeight.Normal,
                             letterSpacing = 0.sp
                         ),
                         color = userTextColor
@@ -268,7 +242,7 @@ fun ChatMessageItem(
                                     fontSize = 14.sp,
                                     fontStyle = FontStyle.Italic
                                 ),
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                color = textSubColor
                             )
                             Spacer(modifier = Modifier.width(2.dp))
                             Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha1), fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -278,21 +252,41 @@ fun ChatMessageItem(
                      } else {
 
                     
-                    val isDark = isSystemInDarkTheme()
                     val normalColor = MaterialTheme.colorScheme.onSurface
-                    val boldColor = if (isDark) Color(0xFF90CAF9) else Color(0xFF1565C0)
+                    val boldColor = normalColor
 
                     // Professional Markdown Rendering
                     MarkdownRenderer(
                         content = if (isUser) message.content else cleanContent(message.content),
                         isUser = isUser,
                         normalColor = normalColor,
-                        boldColor = boldColor, // Keep accent color for bold/headers 
+                        boldColor = boldColor, // Strict uniform color per spec
                         linkColor = linkColor,
-                        codeColor = MaterialTheme.colorScheme.primary,
+                        codeColor = brandPrimary,
                         codeBackgroundColor = codeBackgroundColor,
-                        codeBorderColor = codeBorderColor
+                        codeBorderColor = codeHeaderBg,
+                        codeHeaderBg = codeHeaderBg
                     )
+                    
+                    if (message.isStreaming) {
+                        // Streaming Cursor Attachment
+                        val infiniteTransition = rememberInfiniteTransition(label = "cursor")
+                        val cursorAlpha by infiniteTransition.animateFloat(
+                            initialValue = 1f, targetValue = 0f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1000, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ), label = "cursor_opacity"
+                        )
+                        Box(modifier = Modifier.padding(top=4.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = 2.dp)
+                                    .size(width = 8.dp, height = 20.dp)
+                                    .background(brandPrimary.copy(alpha = if (cursorAlpha > 0.5f) 1f else 0f))
+                            )
+                        }
+                    }
 
                     // Inline Image Preview
                     if (!isUser && message.hasInlineImages) {
@@ -446,8 +440,8 @@ fun ChatMessageItem(
                                         text = message.thinking ?: "",
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
-                                            fontSize = 12.sp,
-                                            lineHeight = 18.sp
+                                            fontSize = 15.sp,
+                                            lineHeight = 28.sp
                                         ),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -565,32 +559,21 @@ fun ChatMessageItem(
             }
         }
 
-        // Apply Bubble only for User
-        if (isUser) {
-            val isDark = isSystemInDarkTheme()
-            // ElevenLabs Logic: Primary/Inverted
-            // Dark Mode -> White Bubble
-            // Light Mode -> Black/Dark Bubble
-            val userPillColor = if (isDark) {
-                Color(0xFFFAFAFA) // White
-            } else {
-                Color(0xFF18181B) // Zinc-950 / Almost Black
-            }
+        // Apply Bubble or Container
+        val isDark = isSystemInDarkTheme()
 
-            Surface(
-                shape = bubbleShape,
-                color = userPillColor,
-                border = null, // No border for 'contained' variant
-                shadowElevation = 0.dp,
-                modifier = Modifier.widthIn(max = ComponentSpacing.bubbleMaxWidth)
+        if (isUser) {
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 640.dp) 
             ) {
                 MessageContent()
             }
         } else {
-            // AI Response renders directly without bubble
+            // AI Response uses bg-bubble as a subtle container according to AIGBT specification
             Box(
                 modifier = Modifier
-                    .widthIn(max = ComponentSpacing.bubbleMaxWidth)
+                    .widthIn(max = 640.dp)
                     .fillMaxWidth()
             ) {
                 MessageContent()
@@ -638,7 +621,7 @@ fun ChatMessageItem(
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Medium
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.prominent),
+                    color = textSubColor,
                     fontSize = 11.sp
                 )
             }
@@ -690,7 +673,7 @@ fun ChatMessageItem(
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Medium
                         ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = Alpha.prominent),
+                        color = textSubColor,
                         fontSize = 11.sp
                     )
                 }
@@ -1026,7 +1009,8 @@ fun CodeBlock(
     code: String,
     language: String,
     backgroundColor: Color,
-    borderColor: Color
+    borderColor: Color,
+    headerBgColor: Color = Color(0xFF343541)
 ) {
     val clipboardManager = LocalClipboardManager.current
     var isCopied by remember { mutableStateOf(false) }
@@ -1034,7 +1018,7 @@ fun CodeBlock(
 
     // ElevenLabs Theme: Zinc colors passed from parent
     val textColor = if (isDark) Color(0xFFE4E4E7) else Color(0xFF18181B) // Zinc-200 / Zinc-950
-    val headerColor = if (isDark) Color(0xFF27272A) else Color(0xFFF4F4F5) // Zinc-800 / Zinc-100
+    val headerColor = headerBgColor
 
     Column(
         modifier = Modifier
@@ -1095,8 +1079,8 @@ fun CodeBlock(
                 text = code,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
+                    fontSize = 15.sp,
+                    lineHeight = 23.sp
                 ),
                 color = textColor,
                 modifier = Modifier.horizontalScroll(rememberScrollState())
@@ -1134,7 +1118,8 @@ private fun MarkdownRenderer(
     linkColor: Color,
     codeColor: Color,
     codeBackgroundColor: Color,
-    codeBorderColor: Color
+    codeBorderColor: Color,
+    codeHeaderBg: Color = Color(0xFF343541)
 ) {
     val parts = content.split("```")
 
@@ -1150,7 +1135,8 @@ private fun MarkdownRenderer(
                 code = codeContent, 
                 language = language,
                 backgroundColor = codeBackgroundColor,
-                borderColor = codeBorderColor
+                borderColor = codeBorderColor,
+                headerBgColor = codeHeaderBg
             )
             Spacer(modifier = Modifier.height(12.dp))
         } else {
@@ -1164,55 +1150,55 @@ private fun MarkdownRenderer(
                     when {
                         // Headers - ElevenLabs Style: Tighter, bolder, closer to content
                         trimmedLine.startsWith("### ") -> {
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(20.dp))
                             Text(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("### "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 16.sp,
-                                    lineHeight = 24.sp,
+                                    fontSize = 20.sp,
+                                    lineHeight = 28.sp,
                                     letterSpacing = (-0.1).sp
                                 ),
-                                color = normalColor // Use normal color for cleaner look, bold handles emphasis
+                                color = boldColor
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                         }
                         trimmedLine.startsWith("## ") -> {
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
                             Text(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("## "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
                                 style = MaterialTheme.typography.titleLarge.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    lineHeight = 26.sp,
+                                    fontSize = 24.sp,
+                                    lineHeight = 32.sp,
                                     letterSpacing = (-0.2).sp
                                 ),
-                                color = normalColor
+                                color = boldColor
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                         }
                         trimmedLine.startsWith("# ") -> {
-                            Spacer(modifier = Modifier.height(24.dp))
+                            Spacer(modifier = Modifier.height(28.dp))
                             Text(
                                 text = parseMarkdownToAnnotatedString(
                                     trimmedLine.removePrefix("# "), boldColor, boldColor, normalColor, linkColor, codeColor
                                 ),
                                 style = MaterialTheme.typography.headlineSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 22.sp,
-                                    lineHeight = 30.sp,
+                                    fontSize = 28.sp,
+                                    lineHeight = 38.sp,
                                     letterSpacing = (-0.3).sp
                                 ),
-                                color = normalColor
+                                color = boldColor
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                         
-                        // Lists (Bullets) - ElevenLabs Style: Crisp dots, aligned text
+                        // Lists (Bullets) - AIGBT Spec 16px
                         trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") -> {
                             Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
                                 Text("•", style = MaterialTheme.typography.bodyMedium.copy(fontSize=16.sp), color = normalColor.copy(alpha = 0.7f))
@@ -1222,7 +1208,7 @@ private fun MarkdownRenderer(
                                         trimmedLine.substring(2), normalColor, boldColor, normalColor, linkColor, codeColor
                                     ),
                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontSize = 16.sp, // Matched body size
+                                        fontSize = 16.sp,
                                         lineHeight = 26.sp,
                                         color = normalColor
                                     )
@@ -1234,15 +1220,16 @@ private fun MarkdownRenderer(
                         trimmedLine.firstOrNull()?.isDigit() == true && trimmedLine.contains(". ") -> {
                              val dotIndex = trimmedLine.indexOf(". ")
                              if (dotIndex in 1..3) {
-                                 Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
+                                 Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
                                      Text(
                                          text = trimmedLine.substring(0, dotIndex + 1),
                                          style = MaterialTheme.typography.bodyMedium.copy(
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
-                                            fontFeatureSettings = "tnum" // Tabular numbers if supported
+                                            fontFeatureSettings = "tnum" 
                                          ),
-                                         color = normalColor.copy(alpha = 0.8f)
+                                         color = normalColor.copy(alpha = 0.8f),
+                                         modifier = Modifier.padding(top = 2.dp)
                                      )
                                      Spacer(modifier = Modifier.width(8.dp))
                                      Text(
@@ -1261,8 +1248,38 @@ private fun MarkdownRenderer(
                              }
                         }
                         
+                        // Blockquote - ChatGPT Style
+                        trimmedLine.startsWith("> ") -> {
+                            Box(
+                                modifier = Modifier
+                                    .padding(vertical = 6.dp)
+                                    .fillMaxWidth()
+                                    .drawBehind {
+                                        drawLine(
+                                            color = normalColor.copy(alpha = 0.3f), // Subtle left border
+                                            start = Offset(0f, 0f),
+                                            end = Offset(0f, size.height),
+                                            strokeWidth = 4.dp.toPx()
+                                        )
+                                    }
+                                    .padding(start = 16.dp, top = 4.dp, bottom = 4.dp)
+                            ) {
+                                Text(
+                                    text = parseMarkdownToAnnotatedString(
+                                        trimmedLine.substring(2).trim(), normalColor, boldColor, normalColor, linkColor, codeColor
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontSize = 16.sp,
+                                        lineHeight = 26.sp,
+                                        fontStyle = FontStyle.Italic,
+                                        color = normalColor.copy(alpha = 0.8f) // Faded text
+                                    )
+                                )
+                            }
+                        }
+                        
                         line.isBlank() -> {
-                            Spacer(modifier = Modifier.height(8.dp)) // Standard paragraph spacing
+                            Spacer(modifier = Modifier.height(20.dp)) // 1.25rem paragraph spacing per AIGBT
                         }
                         
                         else -> {
@@ -1289,12 +1306,13 @@ private fun StandardText(
             text, normalColor, boldColor, normalColor, linkColor, codeColor
         ),
         style = MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 16.sp, // Increased size
-            lineHeight = 26.sp, // Increased line height
+            fontSize = 16.sp, 
+            lineHeight = 26.sp, 
             letterSpacing = 0.sp,
-            fontWeight = FontWeight.Normal
+            fontWeight = FontWeight.Normal,
+            color = normalColor
         ),
-        modifier = Modifier.padding(vertical = 2.dp)
+        modifier = Modifier.padding(vertical = 4.dp)
     )
 }
 

@@ -25,7 +25,6 @@ class ConversationSummarizer(private val llmProvider: LlmProvider) {
         val prompt = """
             Summarize the following conversation concisely.
             Focus on facts, user preferences, and key decisions.
-            Ignore PII (Personally Identifiable Information) like specific addresses or phone numbers unless they are central to the user's intent.
             Keep the summary under 300 words.
 
             CONVERSATION:
