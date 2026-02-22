@@ -1,3 +1,12 @@
+---
+title: Smarty Server
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # Smarty
 
 > An intelligent agentic companion for Android with a privacy-first architecture.
