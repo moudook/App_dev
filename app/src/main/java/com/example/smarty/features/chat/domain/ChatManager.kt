@@ -301,6 +301,17 @@ class ChatManager(
     }
 
     /**
+     * Update an existing message by ID with both content and thinking chunks
+     */
+    suspend fun updateMessageWithThinking(messageId: String, newContent: String, newThinking: String?) {
+        chatMutex.withLock {
+            _chatMessages.value = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) msg.copy(content = newContent, thinking = newThinking.takeIf { !it.isNullOrBlank() }) else msg
+            }
+        }
+    }
+
+    /**
      * Replace an entire message by ID (for final message with all fields)
      */
     suspend fun replaceMessage(messageId: String, newMessage: ChatMessage) {

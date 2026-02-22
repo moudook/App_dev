@@ -86,14 +86,14 @@ class RemoteAgentService(
      *
      * Side effects (Commands, UI status updates) are dispatched to [eventSink].
      */
-fun sendQuery(
+    fun sendQuery(
         query: String,
         provider: String? = null,
         providerUrl: String? = null,
         model: String? = null,
         sessionId: String? = null,
         maxRetries: Int = 3
-    ): Flow<String> = flow {
+    ): Flow<AgentEvent> = flow {
         var retryCount = 0
         var lastError: Exception? = null
 
@@ -163,7 +163,12 @@ fun sendQuery(
                     delay(backoffMs)
                     retryCount++
                 } else {
-                    emit("\n[Connection Error after ${maxRetries + 1} attempts: ${e.message}]")
+                    emit(AgentEvent.Error(
+                        eventId = java.util.UUID.randomUUID().toString(),
+                        timestamp = System.currentTimeMillis(),
+                        message = "\n[Connection Error after ${maxRetries + 1} attempts: ${e.message}]",
+                        code = "CONNECTION_ERROR"
+                    ))
                 }
             }
         }
@@ -451,7 +456,10 @@ fun sendQueryWithContext(
                     result.events.forEach { eventJson ->
                         try {
                             val event = json.decodeFromString<AgentEvent>(eventJson)
-                            handleEvent(event, this@flow)
+                            val shouldStop = handleStringEvent(event, this@flow)
+                            if (shouldStop) {
+                                // Do nothing for non flow-collecting stream
+                            }
                         } catch (e: Exception) {
                             Log.e(TAG, "Failed to parse event: $eventJson", e)
                         }
@@ -527,7 +535,10 @@ fun sendQueryWithContext(
         )
     }
 
-    private suspend fun handleEvent(event: AgentEvent, flowCollector: kotlinx.coroutines.flow.FlowCollector<String>): Boolean {
+    /**
+     * Handles events streaming from the SSE endpoint and emits raw string chunks
+     */
+    private suspend fun handleStringEvent(event: AgentEvent, flowCollector: kotlinx.coroutines.flow.FlowCollector<String>): Boolean {
         return when (event) {
             is AgentEvent.Processing -> {
                 if (!event.content.isNullOrEmpty()) {
@@ -556,6 +567,44 @@ fun sendQueryWithContext(
             is AgentEvent.Error -> {
                 Log.e(TAG, "Remote Agent Error: ${event.message}")
                 flowCollector.emit("\n[Error: ${event.message}]")
+                true // Stop stream on error
+            }
+            is AgentEvent.StateSync -> {
+                Log.d(TAG, "Received state sync: ${event.syncType}")
+                eventSink.onStateSync(event.syncType, event.data)
+                false
+            }
+        }
+    }
+
+    /**
+     * Handles events streaming from the SSE endpoint and emits whole AgentEvents
+     */
+    private suspend fun handleEvent(event: AgentEvent, flowCollector: kotlinx.coroutines.flow.FlowCollector<AgentEvent>): Boolean {
+        return when (event) {
+            is AgentEvent.Processing -> {
+                flowCollector.emit(event)
+                false
+            }
+            is AgentEvent.ToolCall -> {
+                eventSink.onToolExecutionStarted(event.toolName, event.displayName)
+                if (event.status == "completed") {
+                    eventSink.onToolExecutionCompleted(event.toolName)
+                }
+                false
+            }
+            is AgentEvent.Command -> {
+                Log.d(TAG, "Received remote command: ${event.command}")
+                eventSink.emit(event.command)
+                false
+            }
+            is AgentEvent.Result -> {
+                flowCollector.emit(event)
+                event.isFinal
+            }
+            is AgentEvent.Error -> {
+                Log.e(TAG, "Remote Agent Error: ${event.message}")
+                flowCollector.emit(event)
                 true // Stop stream on error
             }
             is AgentEvent.StateSync -> {

@@ -780,18 +780,44 @@ class AssistViewModel(
         try {
             // Collect chunks from the remote stream
             val responseBuilder = StringBuilder()
+            val thinkingBuilder = StringBuilder()
             // Use user-selected strategy (BALANCED, FASTEST, etc.)
             // The server's ProviderRouter will handle the actual provider selection
             val provider = settingsFeatureManager.providerStrategy.value
             val sessionId = chatManager.currentSessionId.value
 
             remoteAgentService.sendQuery(content, provider = provider, sessionId = sessionId)
-                .collect { chunk ->
-                    responseBuilder.append(chunk)
-                    // Optional: Stream partial response if needed
+                .collect { event ->
+                    when (event) {
+                        is com.example.smarty.protocol.AgentEvent.Processing -> {
+                            if (!event.content.isNullOrEmpty()) {
+                                responseBuilder.append(event.content)
+                            }
+                            if (!event.thinking.isNullOrEmpty()) {
+                                thinkingBuilder.append(event.thinking)
+                            }
+                        }
+                        is com.example.smarty.protocol.AgentEvent.Result -> {
+                            if (event.content.isNotEmpty()) {
+                                responseBuilder.append(event.content)
+                            }
+                            if (!event.thinking.isNullOrEmpty()) {
+                                thinkingBuilder.append(event.thinking)
+                            }
+                        }
+                        is com.example.smarty.protocol.AgentEvent.Error -> {
+                            if (event.message.isNotEmpty()) {
+                                responseBuilder.append("\n[Error: ${event.message}]")
+                            }
+                        }
+                        else -> {
+                           // Other events like ToolCall, StateSync, Command are handled by eventSink inside RemoteAgentService
+                        }
+                    }
                 }
 
             val fullResponse = responseBuilder.toString()
+            val fullThinking = thinkingBuilder.toString()
 
             // Handle success
             chatManager.markApiCallSuccessful()
@@ -804,6 +830,7 @@ class AssistViewModel(
                 id = java.util.UUID.randomUUID().toString(),
                 role = ChatRole.SMARTY,
                 content = fullResponse,
+                thinking = fullThinking.takeIf { it.isNotBlank() },
                 timestamp = System.currentTimeMillis(),
                 citations = pendingCitations.map { citation ->
                     Citation(

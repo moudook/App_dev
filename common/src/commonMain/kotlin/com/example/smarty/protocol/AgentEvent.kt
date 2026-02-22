@@ -33,7 +33,8 @@ sealed class AgentEvent {
     data class Processing(
         override val eventId: String,
         override val timestamp: Long,
-        val content: String
+        val content: String,
+        val thinking: String? = null
     ) : AgentEvent()
 
     /**
@@ -60,6 +61,7 @@ sealed class AgentEvent {
         override val eventId: String,
         override val timestamp: Long,
         val content: String,
+        val thinking: String? = null,
         @SerialName("is_final") val isFinal: Boolean = false
     ) : AgentEvent()
 

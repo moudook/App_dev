@@ -1051,12 +1051,11 @@ onPlayYouTube: (String) -> Unit = {},
             // 
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val isDarkTheme = isSystemInDarkTheme()
-            
+
             val scrimColor = if (isDarkTheme) {
                 MaterialTheme.colorScheme.scrim
             } else {
-                Color.White
+                MaterialTheme.colorScheme.surface
             }
             
             val topGradientBrush = remember(scrimColor, isLandscape) {

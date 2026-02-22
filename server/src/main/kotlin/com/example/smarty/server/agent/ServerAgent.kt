@@ -779,21 +779,50 @@ $timeContext
             var totalUsage: LlmUsage? = null
 
             try {
+                // State machine for separating <think> and <final> streams
+                var inThinkingState = false
+                var inFinalState = false
+                var currentThinkingContent = ""
+                
                 llmProvider.stream(messagesForAgent, tools, modelOverride).collect { chunk ->
                     chunk.usage?.let { totalUsage = it }
 
                     // Handle Content
                     if (!chunk.content.isNullOrEmpty()) {
-                        currentContent += chunk.content
-                        // PII: Unmask for UI display
-                        val unmaskedChunk = piiMasker.unmask(chunk.content)
+                        val newContent = chunk.content
                         
-                        if (agentIteration == 1 || !isToolCallInProgress) {
-                            emit(AgentEvent.Processing(
-                                eventId = UUID.randomUUID().toString(),
-                                timestamp = System.currentTimeMillis(),
-                                content = unmaskedChunk
-                            ))
+                        // Look for tags in the incoming stream (basic state transitions assuming tags arrive cleanly)
+                        if (newContent.contains("<think>")) inThinkingState = true
+                        if (newContent.contains("</think>")) inThinkingState = false
+                        if (newContent.contains("<final>")) inFinalState = true
+                        if (newContent.contains("</final>")) inFinalState = false
+                        
+                        // Clean the tags out of the payload
+                        val cleanChunk = newContent.replace("<think>", "")
+                                                   .replace("</think>", "")
+                                                   .replace("<final>", "")
+                                                   .replace("</final>", "")
+                        
+                        if (cleanChunk.isNotEmpty()) {
+                            if (inThinkingState) {
+                                currentThinkingContent += cleanChunk
+                            } else if (inFinalState || (!inThinkingState && !inFinalState && currentContent.isEmpty())) {
+                                // Default to content if no tags, or if in final state
+                                currentContent += cleanChunk
+                            }
+                            
+                            // Emit the chunk to the correct field
+                            val unmaskedContentChunk = if (!inThinkingState) piiMasker.unmask(cleanChunk) else ""
+                            val unmaskedThinkingChunk = if (inThinkingState) piiMasker.unmask(cleanChunk) else ""
+                            
+                            if (agentIteration == 1 || !isToolCallInProgress) {
+                                emit(AgentEvent.Processing(
+                                    eventId = UUID.randomUUID().toString(),
+                                    timestamp = System.currentTimeMillis(),
+                                    content = unmaskedContentChunk,
+                                    thinking = unmaskedThinkingChunk.takeIf { it.isNotEmpty() }
+                                ))
+                            }
                         }
                     }
 
