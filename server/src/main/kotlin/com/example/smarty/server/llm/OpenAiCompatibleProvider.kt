@@ -23,7 +23,7 @@ class OpenAiCompatibleProvider(
     private val client: HttpClient,
     override val providerName: String,
     private val baseUrl: String,
-    private var apiKey: String,
+    private val apiKey: String,
     private val defaultModel: String
 ) : LlmProvider {
 
@@ -33,12 +33,6 @@ class OpenAiCompatibleProvider(
         encodeDefaults = true
         explicitNulls = false
     }
-
-    fun updateApiKey(newKey: String) {
-        apiKey = newKey
-    }
-
-    fun getApiKey(): String = apiKey
 
     override suspend fun generate(
         messages: List<LlmMessage>,
