@@ -122,6 +122,7 @@ class ChatManager(
      * Also restores preserved state from quick switching
      */
     suspend fun enterChatMode() {
+        Log.d(TAG, "enterChatMode: current messages=${_chatMessages.value.size}, currentSessionId=${_currentSessionId.value}")
         _isChatMode.value = true
 
         val activeSession = chatRepository.getActiveSession()
@@ -148,6 +149,10 @@ class ChatManager(
                     preservedProcessingState = false
                 }
                 Log.d(TAG, "Restored chat session: ${activeSession.id} with ${messages.size} messages")
+                // Debug: Log loaded messages
+                messages.forEachIndexed { index, msg ->
+                    Log.d(TAG, "  Loaded [$index] ${msg.role}: id=${msg.id.take(8)}, content='${msg.content.take(20)}...'")
+                }
             }
         } else {
             val newSession = chatRepository.createNewSession(context)
@@ -266,7 +271,14 @@ class ChatManager(
             timestamp = System.currentTimeMillis()
         )
         chatMutex.withLock {
-            _chatMessages.value = _chatMessages.value + userMessage
+            val currentMessages = _chatMessages.value
+            val updatedMessages = currentMessages + userMessage
+            _chatMessages.value = updatedMessages
+            Log.d(TAG, "Added user message: id=${userMessage.id.take(8)}, content='${content.take(30)}...', total messages=${updatedMessages.size}")
+            // Debug: Log all message IDs
+            updatedMessages.forEachIndexed { index, msg ->
+                Log.d(TAG, "  [$index] ${msg.role}: id=${msg.id.take(8)}, content='${msg.content.take(20)}...'")
+            }
         }
         return userMessage
     }
@@ -276,7 +288,10 @@ class ChatManager(
      */
     suspend fun addSmartyMessage(message: ChatMessage) {
         chatMutex.withLock {
-            _chatMessages.value = _chatMessages.value + message
+            val currentMessages = _chatMessages.value
+            val updatedMessages = currentMessages + message
+            _chatMessages.value = updatedMessages
+            Log.d(TAG, "Added Smarty message: id=${message.id.take(8)}, total messages=${updatedMessages.size}")
         }
     }
 
@@ -285,9 +300,13 @@ class ChatManager(
      */
     suspend fun updateMessageById(messageId: String, newContent: String) {
         chatMutex.withLock {
-            _chatMessages.value = _chatMessages.value.map { msg ->
-                if (msg.id == messageId) msg.copy(content = newContent) else msg
+            val updatedMessages = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) {
+                    Log.d(TAG, "Updating message: id=${msg.id.take(8)}, old='${msg.content.take(20)}...', new='${newContent.take(20)}...'")
+                    msg.copy(content = newContent)
+                } else msg
             }
+            _chatMessages.value = updatedMessages
         }
     }
 
@@ -307,9 +326,14 @@ class ChatManager(
      */
     suspend fun replaceMessage(messageId: String, newMessage: ChatMessage) {
         chatMutex.withLock {
-            _chatMessages.value = _chatMessages.value.map { msg ->
-                if (msg.id == messageId) newMessage else msg
+            val updatedMessages = _chatMessages.value.map { msg ->
+                if (msg.id == messageId) {
+                    Log.d(TAG, "Replacing message: id=${msg.id.take(8)}, old content='${msg.content.take(20)}...', new content='${newMessage.content.take(20)}...'")
+                    newMessage
+                } else msg
             }
+            _chatMessages.value = updatedMessages
+            Log.d(TAG, "After replaceMessage: total messages=${updatedMessages.size}")
         }
     }
 
