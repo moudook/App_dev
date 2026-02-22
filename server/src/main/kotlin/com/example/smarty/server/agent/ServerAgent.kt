@@ -791,38 +791,21 @@ $timeContext
                     if (!chunk.content.isNullOrEmpty()) {
                         val newContent = chunk.content
                         
-                        // Look for tags in the incoming stream (basic state transitions assuming tags arrive cleanly)
+                        // Look for tags in the incoming stream for basic logging state transitions
                         if (newContent.contains("<think>")) inThinkingState = true
                         if (newContent.contains("</think>")) inThinkingState = false
                         if (newContent.contains("<final>")) inFinalState = true
                         if (newContent.contains("</final>")) inFinalState = false
                         
-                        // Clean the tags out of the payload
-                        val cleanChunk = newContent.replace("<think>", "")
-                                                   .replace("</think>", "")
-                                                   .replace("<final>", "")
-                                                   .replace("</final>", "")
+                        currentContent += newContent
                         
-                        if (cleanChunk.isNotEmpty()) {
-                            if (inThinkingState) {
-                                currentThinkingContent += cleanChunk
-                            } else if (inFinalState || (!inThinkingState && !inFinalState && currentContent.isEmpty())) {
-                                // Default to content if no tags, or if in final state
-                                currentContent += cleanChunk
-                            }
-                            
-                            // Emit the chunk to the correct field
-                            val unmaskedContentChunk = if (!inThinkingState) piiMasker.unmask(cleanChunk) else ""
-                            val unmaskedThinkingChunk = if (inThinkingState) piiMasker.unmask(cleanChunk) else ""
-                            
-                            if (agentIteration == 1 || !isToolCallInProgress) {
-                                emit(AgentEvent.Processing(
-                                    eventId = UUID.randomUUID().toString(),
-                                    timestamp = System.currentTimeMillis(),
-                                    content = unmaskedContentChunk,
-                                    thinking = unmaskedThinkingChunk.takeIf { it.isNotEmpty() }
-                                ))
-                            }
+                        if (agentIteration == 1 || !isToolCallInProgress) {
+                            emit(AgentEvent.Processing(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                content = piiMasker.unmask(newContent), // Send RAW to client
+                                thinking = null // Handled cleanly by Android UI parser
+                            ))
                         }
                     }
 

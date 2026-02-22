@@ -1530,7 +1530,14 @@ private fun ClarificationBubble(
 }
 
 private fun cleanContent(raw: String): String {
-    val noThink = raw.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
-    val noFinal = noThink.replace("<final>", "").replace("</final>", "")
-    return noFinal.trim()
+    var text = raw
+    text = text.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
+    text = text.replace(Regex("<think>.*", RegexOption.DOT_MATCHES_ALL), "")
+    text = text.replace("<final>", "").replace("</final>", "")
+    
+    // Clean up partial tags when streaming
+    text = text.replace(Regex("<fi?n?a?l?$"), "")
+    text = text.replace(Regex("<th?i?n?k?$"), "")
+    
+    return text.trim()
 }
