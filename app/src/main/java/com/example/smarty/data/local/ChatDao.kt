@@ -131,6 +131,17 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessageEntity>
 
+    @Query("SELECT id, sessionId, role, substr(content, 1, 50) as content_preview, timestamp FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
+    suspend fun getMessagesDebug(sessionId: String): List<DebugMessageInfo>
+
+    data class DebugMessageInfo(
+        val id: String,
+        val sessionId: String,
+        val role: String,
+        val content_preview: String,
+        val timestamp: Long
+    )
+
     @Query("SELECT * FROM chat_messages WHERE id = :messageId")
     suspend fun getMessageById(messageId: String): ChatMessageEntity?
 

@@ -80,6 +80,9 @@ data class ChatMessageEntity(
      * Convert to domain model ChatMessage
      */
     fun toChatMessage(attachments: List<Attachment> = emptyList(), actions: List<AgentActionResult> = emptyList()): ChatMessage {
+        // Debug log
+        // Log.d("ChatMessageEntity", "toChatMessage: id=$id, role=$role, contentLen=${content.length}")
+        
         // Parse citations from JSON
         val citations = try {
             if (citationsJson.isNotBlank() && citationsJson != "[]") {
@@ -120,6 +123,11 @@ data class ChatMessageEntity(
          * Create entity from domain model
          */
         fun fromChatMessage(message: ChatMessage, sessionId: String): ChatMessageEntity {
+            android.util.Log.d("ChatMessageEntity", "=== fromChatMessage ===")
+            android.util.Log.d("ChatMessageEntity", "input message.id=${message.id.take(8)}")
+            android.util.Log.d("ChatMessageEntity", "input message.content='${message.content.take(50)}...'")
+            android.util.Log.d("ChatMessageEntity", "sessionId=$sessionId")
+            
             // Serialize citations to JSON
             val citationsJson = if (message.citations.isNotEmpty()) {
                 serializeCitationsToJson(message.citations)
@@ -134,7 +142,7 @@ data class ChatMessageEntity(
                 "[]"
             }
 
-            return ChatMessageEntity(
+            val entity = ChatMessageEntity(
                 id = message.id,
                 sessionId = sessionId,
                 role = message.role.name,
@@ -144,6 +152,11 @@ data class ChatMessageEntity(
                 citationsJson = citationsJson,
                 inlineImagesJson = inlineImagesJson
             )
+            
+            android.util.Log.d("ChatMessageEntity", "output entity.id=${entity.id.take(8)}")
+            android.util.Log.d("ChatMessageEntity", "output entity.content='${entity.content.take(50)}...'")
+            
+            return entity
         }
 
         /**

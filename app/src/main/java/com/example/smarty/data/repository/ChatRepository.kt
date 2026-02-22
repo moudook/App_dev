@@ -105,7 +105,15 @@ class ChatRepository(private val chatDao: ChatDao) {
      * Get messages for a session (one-shot)
      */
     suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
-        return chatDao.getMessagesForSessionOnce(sessionId).map { it.toChatMessage() }
+        val entities = chatDao.getMessagesForSessionOnce(sessionId)
+        Log.d(TAG, "=== getMessagesForSessionOnce START ===")
+        Log.d(TAG, "sessionId=${sessionId.take(8)}, found ${entities.size} messages in DB")
+        entities.forEachIndexed { index, entity ->
+            Log.d(TAG, "  DB[$index]: id=${entity.id.take(8)}, role=${entity.role}, contentLen=${entity.content.length}, content='${entity.content.take(30)}...'")
+        }
+        val messages = entities.map { it.toChatMessage() }
+        Log.d(TAG, "=== getMessagesForSessionOnce END ===")
+        return messages
     }
 
     /**
@@ -141,6 +149,11 @@ class ChatRepository(private val chatDao: ChatDao) {
             Log.d(TAG, "Skipping empty message")
             return false
         }
+
+        Log.d(TAG, "=== saveMessage START ===")
+        Log.d(TAG, "sessionId=${sessionId.take(8)}, msgId=${message.id.take(8)}, role=${message.role}")
+        Log.d(TAG, "content='${message.content.take(50)}...'")
+        Log.d(TAG, "content length=${message.content.length}")
 
         // SECURITY: Final sanitization check if notes are provided
         val sanitizedMessage = if (allNotes != null && message.referencedNoteIds.isNotEmpty()) {
