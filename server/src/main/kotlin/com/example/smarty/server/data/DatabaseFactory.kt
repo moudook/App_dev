@@ -235,9 +235,14 @@ object DatabaseFactory {
                 driverClassName = "org.postgresql.Driver"
                 maximumPoolSize = 4
                 minimumIdle = 1
-                idleTimeout = 30000
+                idleTimeout = 120000
                 connectionTimeout = 30000
+                maxLifetime = 600000
                 leakDetectionThreshold = 60000
+                autoCommit = true
+                addDataSourceProperty("cachePrepStmts", "true")
+                addDataSourceProperty("prepStmtCacheSize", "250")
+                addDataSourceProperty("prepStmtCacheSqlLimit", "2048")
             }
 
             dataSource = try {
