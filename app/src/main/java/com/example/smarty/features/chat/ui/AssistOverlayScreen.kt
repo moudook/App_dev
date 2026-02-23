@@ -163,6 +163,7 @@ fun AssistOverlayScreen(
                     isVoiceListening = isListening,
                     isProcessing = isProcessing,
                     isAgentWorking = isProcessing,
+                    onStopGeneration = { viewModel.stopGeneration() },
                     onStartVoiceInput = {
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                             viewModel.setListening(true)

@@ -8,6 +8,10 @@ import com.google.firebase.auth.FirebaseAuthException
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import org.slf4j.LoggerFactory
+import java.io.FileInputStream
 
 /**
  * Principal representing an authenticated Firebase user.
@@ -17,7 +21,7 @@ data class FirebaseUserPrincipal(
     val email: String?,
     val displayName: String?,
     val deviceId: String? = null
-) : Principal {
+) {
     override fun toString(): String = "FirebaseUserPrincipal(userId=$userId, email=$email)"
 }
 
@@ -180,7 +184,11 @@ fun ApplicationCall.firebaseUser(): FirebaseUserPrincipal? {
 suspend fun ApplicationCall.requireFirebaseUser(): FirebaseUserPrincipal? {
     val user = firebaseUser()
     if (user == null) {
-        respond(HttpStatusCode.Unauthorized, mapOf("error" to "Authentication required"))
+        respondText(
+            text = """{"error":"Authentication required"}""",
+            contentType = ContentType.Application.Json,
+            status = HttpStatusCode.Unauthorized
+        )
     }
     return user
 }

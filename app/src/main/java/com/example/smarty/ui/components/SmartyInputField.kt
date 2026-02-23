@@ -192,6 +192,8 @@ fun SmartyInputField(
     isAgentWorking: Boolean = false,
     // Auto-send countdown active (for fast shimmer)
     autoSendActive: Boolean = false,
+    // Stop generation callback
+    onStopGeneration: () -> Unit = {},
     // Clear input callback
     onClearInput: () -> Unit = {},
     // Search filter parameters (used when isSearchMode = true)
@@ -562,6 +564,7 @@ fun SmartyInputField(
                     isVoiceListening = isVoiceListening,
                     isAgentWorking = isAgentWorking,
                     autoSendActive = autoSendActive,
+                    onStopGeneration = onStopGeneration,
                     isChatMode = isChatMode,
                     onPickFile = {
                         onPickFile()
@@ -712,6 +715,7 @@ private fun InputPill(
     isVoiceListening: Boolean,
     isAgentWorking: Boolean,
     autoSendActive: Boolean,
+    onStopGeneration: () -> Unit,
     isChatMode: Boolean,
     onPickFile: () -> Unit = {},
     onOpenCamera: () -> Unit = {},
@@ -866,7 +870,7 @@ private fun InputPill(
                     }
                 }
 
-                // Action icon (Plus when empty, Send when has content)
+                // Action icon (Stop when generating, Plus when empty, Send when has content)
                 Box {
                     val haptic = LocalHapticFeedback.current
                     var showMenu by remember { mutableStateOf(false) }
@@ -890,11 +894,16 @@ private fun InputPill(
                             label = "sendScale"
                         )
 
-                        val sendBtnColor = if (canSend) LocalAccentColor.current else MaterialTheme.colorScheme.surfaceVariant
-                        val sendIconColor = if (canSend) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            if (isDark) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        val isStopMode = isAgentWorking && isChatMode
+                        val sendBtnColor = when {
+                            isStopMode -> Color(0xFFE57373)
+                            canSend -> LocalAccentColor.current
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        }
+                        val sendIconColor = when {
+                            isStopMode -> Color.White
+                            canSend -> MaterialTheme.colorScheme.onPrimary
+                            else -> if (isDark) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         }
 
                         Box(
@@ -911,11 +920,13 @@ private fun InputPill(
                                             isPressed = false
                                         },
                                         onTap = {
-                                            if (canSend) {
-                                                onSend()
-                                            } else {
-                                                onAddOptionsClick()
-                                                showMenu = true
+                                            when {
+                                                isStopMode -> onStopGeneration()
+                                                canSend -> onSend()
+                                                else -> {
+                                                    onAddOptionsClick()
+                                                    showMenu = true
+                                                }
                                             }
                                         }
                                     )
@@ -924,26 +935,39 @@ private fun InputPill(
                             contentAlignment = Alignment.Center
                         ) {
                             Crossfade(
-                                targetState = canSend,
+                                targetState = Triple(isStopMode, canSend, isAgentWorking),
                                 animationSpec = tween(200),
                                 label = "iconTransition"
-                            ) { isSending ->
-                                Icon(
-                                    imageVector = if (isSending) Icons.AutoMirrored.Filled.Send else Icons.Default.Add,
-                                    contentDescription = if (isSending) stringResource(R.string.share) else stringResource(R.string.add_attachment),
-                                    tint = if (isSending && canSend) MaterialTheme.colorScheme.onPrimary.copy(alpha = flyAlpha) else sendIconColor,
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .graphicsLayer {
-                                            if (isSending && canSend) {
+                            ) { state ->
+                                val (stopMode, canSendNow, working) = state
+                                when {
+                                    stopMode -> Icon(
+                                        imageVector = Icons.Default.StopCircle,
+                                        contentDescription = stringResource(R.string.stop),
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    canSendNow -> Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = stringResource(R.string.share),
+                                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = flyAlpha),
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .graphicsLayer {
                                                 translationX = flyX * density
                                                 translationY = flyY * density
                                                 rotationZ = flyRotation
                                                 scaleX = flyScale
                                                 scaleY = flyScale
                                             }
-                                        }
-                                )
+                                    )
+                                    else -> Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = stringResource(R.string.add_attachment),
+                                        tint = sendIconColor,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
                     }

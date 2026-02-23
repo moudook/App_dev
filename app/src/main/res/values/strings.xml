@@ -48,6 +48,7 @@
     <string name="delete">Remove</string>
     <string name="restore">Restore</string>
     <string name="cancel">Cancel</string>
+    <string name="stop">Stop</string>
     <string name="restore_backup">Restore data</string>
     <string name="delete_cloud_backup">Remove cloud backup</string>
     <string name="delete_local_archive">Remove device archive</string>

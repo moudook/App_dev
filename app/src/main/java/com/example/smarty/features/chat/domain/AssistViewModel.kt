@@ -69,6 +69,7 @@ import io.ktor.client.plugins.DefaultRequest
 import io.ktor.client.request.header
 import io.ktor.client.plugins.sse.SSE
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -200,6 +201,9 @@ class AssistViewModel(
 
     // Temporary storage for inline images during agent execution (thread-safe)
     private val pendingInlineImages = java.util.concurrent.CopyOnWriteArrayList<InlineChatImage>()
+
+    // Current streaming job for cancellation
+    private var currentStreamingJob: Job? = null
 
     // Agent Event Sink for Koog tools notifications
     private val agentEventSink = object : AgentEventSink {
@@ -656,7 +660,10 @@ class AssistViewModel(
     fun sendMessage(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
 
-        viewModelScope.launch {
+        // Cancel any existing streaming job before starting new one
+        currentStreamingJob?.cancel()
+
+        currentStreamingJob = viewModelScope.launch {
             // Reset success flag for new request
             chatManager.resetApiCallFlag()
 
@@ -883,6 +890,16 @@ class AssistViewModel(
      */
     fun stopListening() {
         _isListening.value = false
+    }
+
+    /**
+     * Stop the current generation
+     */
+    fun stopGeneration() {
+        Log.d(TAG, "Stopping generation...")
+        currentStreamingJob?.cancel()
+        currentStreamingJob = null
+        _isProcessing.value = false
     }
 
     /**

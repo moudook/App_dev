@@ -48,6 +48,7 @@ import io.ktor.client.plugins.sse.SSE
 import kotlin.time.Duration.Companion.seconds
 // import io.ktor.serialization.kotlinx.json.json // Removed - not available in minimal Ktor
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.NonCancellable
@@ -1132,6 +1133,9 @@ is AgentCommand.GetSystemStatus -> "(no params)"
     private val pendingInlineImages = CopyOnWriteArrayList<InlineChatImage>()
     private val pendingActions = CopyOnWriteArrayList<AgentActionResult>()
 
+    // Current streaming job for cancellation
+    private var currentStreamingJob: Job? = null
+
     init {
         chatManager.initialize()
     }
@@ -1261,6 +1265,14 @@ is AgentCommand.GetSystemStatus -> "(no params)"
         dispatchQuery(content, attachments)
     }
 
+    fun stopGeneration() {
+        Log.d(TAG, "Stopping generation...")
+        currentStreamingJob?.cancel()
+        currentStreamingJob = null
+        chatManager.setProcessing(false)
+        _agentActivity.value = null
+    }
+
     fun dispatchQuery(content: String, attachments: List<Attachment> = emptyList()) {
         if (content.isBlank() && attachments.isEmpty()) return
 
@@ -1268,7 +1280,10 @@ is AgentCommand.GetSystemStatus -> "(no params)"
         // This ensures the UI doesn't re-populate the field if the user navigates away and back
         _pendingChatText.value = ""
 
-        scope.launch {
+        // Cancel any existing streaming job before starting new one
+        currentStreamingJob?.cancel()
+
+        currentStreamingJob = scope.launch {
             var processingSet = false
             try {
                 // Set processing state with error handling

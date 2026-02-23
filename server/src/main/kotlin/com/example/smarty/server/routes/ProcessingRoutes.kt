@@ -16,6 +16,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.util.*
 
 /**
@@ -245,7 +247,10 @@ fun Application.configureProcessingRoutes() {
                             is PartData.FileItem -> {
                                 fileName = part.originalFileName
                                 contentType = part.contentType?.toString()
-                                fileBytes = part.provider().readBytes()
+                                @Suppress("DEPRECATION")
+                                fileBytes = part.streamProvider().use { stream ->
+                                    stream.readBytes()
+                                }
                             }
                             is PartData.FormItem -> {
                                 if (part.name == "analysisType") {

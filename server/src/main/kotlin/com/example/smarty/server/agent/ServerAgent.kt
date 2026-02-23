@@ -602,15 +602,15 @@ Format ALL responses in <final> using clean Markdown:
 
 MATHEMATICAL FORMATTING:
 When including mathematics, use LaTeX syntax:
-- Inline math: `$E = mc^2$` renders as inline equation
-- Block math: `$$E = mc^2$$` renders as centered block equation
-- Greek letters: `$\alpha$, $\beta$, $\gamma$`
-- Fractions: `$\frac{a}{b}$`
-- Sums/products: `$\sum_{i=1}^{n} x_i$`, `$\prod_{i=1}^{n} x_i$`
-- Integrals: `$\int_{a}^{b} f(x) dx$`
-- Matrices: `$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$`
-- Subscripts/superscripts: `$x_i^2$`
-- Square roots: `$\sqrt{x}$` or `$\sqrt[n]{x}$`
+- Inline math: `${'$'}`E = mc^2`${'$'}` renders as inline equation
+- Block math: `${'$'}``${'$'}`E = mc^2`${'$'}``${'$'}` renders as centered block equation
+- Greek letters: `${'$'}`\alpha`${'$'}`, `${'$'}`\beta`${'$'}`, `${'$'}`\gamma`${'$'}`
+- Fractions: `${'$'}`\frac{a}{b}={`${'$'}`
+- Sums/products: `${'$'}`\sum_{i=1}^{n} x_i`${'$'}`, `${'$'}`\prod_{i=1}^{n} x_i`${'$'}`
+- Integrals: `${'$'}`\int_{a}^{b} f(x) dx`${'$'}`
+- Matrices: `${'$'}`\begin{pmatrix} a & b \\ c & d \end{pmatrix}`${'$'}`
+- Subscripts/superscripts: `${'$'}`x_i^2`${'$'}`
+- Square roots: `${'$'}`\sqrt{x}`${'$'}` or `${'$'}`\sqrt[n]{x}`${'$'}`
 
 EXAMPLES — Casual conversation (no tools needed):
 
@@ -632,13 +632,13 @@ User: "What do you think about pineapple on pizza?"
 User: "Explain the quadratic formula"
 秒钟Standard math explanation with formula.```
 
-<final>The quadratic formula solves any equation of the form $ax^2 + bx + c = 0$:
+<final>The quadratic formula solves any equation of the form `${'$'}`ax^2 + bx + c = 0`${'$'}`:
 
-$$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$
+`${'$'}``${'$'}`x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}`${'$'}``${'$'}`
 
 Where:
-- $a$, $b$, $c$ are coefficients
-- The term $b^2 - 4ac$ is called the **discriminant**
+- `${'$'}`a`${'$'}`, `${'$'}`b`${'$'}`, `${'$'}`c`${'$'}` are coefficients
+- The term `${'$'}`b^2 - 4ac`${'$'}` is called the **discriminant**
 - If discriminant > 0: two real solutions
 - If discriminant = 0: one repeated solution
 - If discriminant < 0: complex solutions</final>
