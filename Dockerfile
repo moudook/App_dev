@@ -10,6 +10,9 @@ FROM gradle:8.12.1-jdk17-alpine AS deps
 
 WORKDIR /build
 
+# Clear any cached Java home settings
+ENV GRADLE_OPTS=""
+
 # Use server-only Gradle configs (no Android SDK detection, no version catalog)
 COPY build.server.gradle.kts build.gradle.kts
 COPY settings.server.gradle.kts settings.gradle.kts
@@ -22,8 +25,7 @@ COPY gradlew ./
 # Download all dependencies - this layer is heavily cached
 RUN chmod +x gradlew && \
     ./gradlew :server:dependencies --no-daemon --parallel \
-    -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m" \
-    -Dorg.gradle.java.home="" || true
+    -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m" || true
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build the server JAR
@@ -37,9 +39,9 @@ COPY common/src/commonMain/kotlin/ common/src/commonMain/kotlin/
 COPY server/src/ server/src/
 
 # Build shadow JAR with optimizations
-RUN ./gradlew :server:shadowJar --no-daemon --parallel --build-cache -x test \
+RUN ./gradlew :server:shadowJar --no-daemon --parallel -x test \
     -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m" \
-    -Dorg.gradle.java.home="" \
+    -Porg.gradle.java.home=/opt/java/openjdk \
     --max-workers=2
 
 # -----------------------------------------------------------------------------
