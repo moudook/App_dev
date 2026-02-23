@@ -30,6 +30,7 @@ import net.logstash.logback.argument.StructuredArguments.kv
 import io.micrometer.core.instrument.Metrics
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
+import java.time.Instant
 
 /**
  * Local representation of a chat session.
@@ -81,378 +82,170 @@ class ServerAgent(
 
 private val tools = listOf(
         // ═══════════════════════════════════════════════════════════════════
-        // NOTES & MEMORY - Tools for saving and finding information
+        // GENERALIZED TOOLS FOR LONG-HORIZON TASKS
         // ═══════════════════════════════════════════════════════════════════
-        
+
         ToolDefinition(
-            name = "save_note",
-            description = """Save information to user's note library.
-
-WHEN TO USE: User wants to remember, save, or note something for later.
-WHEN NOT TO USE: User just wants a quick answer (respond directly).
-
-EXAMPLES:
-- "save_note(title='WiFi Password', content='hungry-cat-42', category='home')"
-- "save_note(title='Book recommendation', content='The Pragmatic Programmer')"
-
-Saved notes are searchable via find_note.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "title" to ToolProperty("string", "Brief title for the note"),
-                    "content" to ToolProperty("string", "The information to save"),
-                    "category" to ToolProperty("string", "Optional category (e.g., 'work', 'personal', 'ideas')")
-                ),
-                required = listOf("title", "content")
-            )
-        ),
-        ToolDefinition(
-            name = "find_note",
-            description = """Search user's saved notes and memories.
-
-WHEN TO USE: User asks about something they previously mentioned or saved.
-WHEN NOT TO USE: User asks about current events (use web_search instead).
-
-EXAMPLES:
-- "find_note(query='password')" → Finds notes about passwords
-- "find_note(query='meeting notes', category='work')" → Filters by category
-
-Returns matching notes with titles and content.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "query" to ToolProperty("string", "What to search for"),
-                    "category" to ToolProperty("string", "Optional: filter by category")
-                ),
-                required = listOf("query")
-            )
-        ),
-        ToolDefinition(
-            name = "edit_note",
-            description = """Update an existing note's title or content.
-
-Use after find_note to get the noteId. Only provide fields you want to change.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "noteId" to ToolProperty("string", "ID of note to update (from find_note)"),
-                    "title" to ToolProperty("string", "New title (optional)"),
-                    "content" to ToolProperty("string", "New content (optional)")
-                ),
-                required = listOf("noteId")
-            )
-        ),
-        ToolDefinition(
-            name = "delete_note",
-            description = """Permanently remove a note.
-
-Use after find_note to get the noteId. Confirm with user first for important notes.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "noteId" to ToolProperty("string", "ID of note to delete (from find_note)")
-                ),
-                required = listOf("noteId")
-            )
-        ),
-        ToolDefinition(
-            name = "remember_fact",
-            description = """Remember a fact or preference about the user.
-
-WHEN TO USE: User shares personal info they want remembered.
-TYPES:
-- 'preference': Likes/dislikes (e.g., "prefers dark mode")
-- 'factual': Facts about user (e.g., "works at Acme Inc")
-- 'episodic': Events/experiences (e.g., "went to Paris in 2023")
-
-EXAMPLE: "remember_fact(content='User is vegetarian', type='preference')"
-
-These facts help personalize future responses.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "fact" to ToolProperty("string", "The fact to remember"),
-                    "type" to ToolProperty(
-                        "string",
-                        "Type of fact",
-                        enum = listOf("preference", "factual", "episodic")
-                    )
-                ),
-                required = listOf("fact", "type")
-            )
-        ),
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // TIME & SCHEDULE - Tools for calendar and reminders
-        // ═══════════════════════════════════════════════════════════════════
-        
-        ToolDefinition(
-            name = "add_event",
-            description = """Add an event to the user's calendar.
-
-WHEN TO USE: User wants to schedule something.
-Use NATURAL LANGUAGE for time - don't calculate timestamps!
-
-EXAMPLES:
-- "add_event(title='Team meeting', when='tomorrow at 2pm', duration='1 hour')"
-- "add_event(title='Doctor', when='Friday 3pm', duration='30 minutes')"
-- "add_event(title='Birthday party', when='Dec 25 at 6pm', duration='3 hours')"
-
-The system converts natural time to timestamps automatically.
-Duration defaults to 1 hour if not specified.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "title" to ToolProperty("string", "Event name"),
-                    "when" to ToolProperty("string", "When (natural language: 'tomorrow 2pm', 'Friday', 'Dec 25')"),
-                    "duration" to ToolProperty("string", "How long (e.g., '1 hour', '30 min'). Default: 1 hour"),
-                    "description" to ToolProperty("string", "Optional extra details")
-                ),
-                required = listOf("title", "when")
-            )
-        ),
-        ToolDefinition(
-            name = "show_events",
-            description = """Show upcoming calendar events.
-
-WHEN TO USE: User asks about their schedule or what's coming up.
-EXAMPLES:
-- "show_events(when='today')"
-- "show_events(when='tomorrow')"
-- "show_events(when='this week')"
-
-Returns list of events with times.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "when" to ToolProperty("string", "Time period: 'today', 'tomorrow', 'this week', 'next week'")
-                ),
-                required = listOf("when")
-            )
-        ),
-        ToolDefinition(
-            name = "remove_event",
-            description = """Remove a calendar event.
-
-Use after show_events to get the eventId. Confirm with user first.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "eventId" to ToolProperty("string", "ID of event to remove (from show_events)")
-                ),
-                required = listOf("eventId")
-            )
-        ),
-        ToolDefinition(
-            name = "set_reminder",
-            description = """Set a timer, alarm, or reminder.
-
-WHEN TO USE: User wants to be reminded or alerted at a time.
-Use NATURAL LANGUAGE - don't calculate timestamps!
-
-EXAMPLES:
-- "set_reminder(what='Turn off stove', when='in 10 minutes')" (timer)
-- "set_reminder(what='Wake up', when='7am')" (alarm)
-- "set_reminder(what='Call mom', when='tomorrow 3pm')" (reminder)
-- "set_reminder(what='Take vitamins', when='every day 8am', repeat='daily')" (recurring)
-
-The system figures out if it's a timer, alarm, or reminder automatically.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "what" to ToolProperty("string", "What to remind about"),
-                    "when" to ToolProperty("string", "When: 'in 10 min', 'at 7am', 'tomorrow 3pm'"),
-                    "repeat" to ToolProperty("string", "Optional: 'daily', 'weekdays', 'weekly', 'monthly'")
-                ),
-                required = listOf("what", "when")
-            )
-        ),
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // DEVICE CONTROL - Tools for controlling the phone
-        // ═══════════════════════════════════════════════════════════════════
-        
-        ToolDefinition(
-            name = "open_app",
-            description = """Open an app on the user's phone.
-
-WHEN TO USE: User wants to launch an app.
-Use COMMON NAMES - the system finds the package.
-
-EXAMPLES:
-- "open_app(app='spotify')" → Opens Spotify
-- "open_app(app='camera')" → Opens camera
-- "open_app(app='settings')" → Opens settings
-- "open_app(app='google maps')" → Opens Maps
-
-Common apps: spotify, youtube, camera, maps, chrome, gmail, calendar, clock, settings""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "app" to ToolProperty("string", "App name (e.g., 'spotify', 'camera', 'maps')")
-                ),
-                required = listOf("app")
-            )
-        ),
-        ToolDefinition(
-            name = "control_music",
-            description = """Control music/video playback.
-
-WHEN TO USE: User wants to pause, play, skip, or control media.
+            name = "memory",
+            description = """Manage user's personal knowledge base - notes, facts, and memories.
 
 ACTIONS:
-- 'play' or 'resume': Continue playback
-- 'pause': Pause current media
-- 'stop': Stop playback
-- 'next': Skip to next track
-- 'previous': Go to previous track
-- 'volume_up': Increase volume
-- 'volume_down': Decrease volume""",
+- save: Store new information (title, content, category optional)
+- find: Search saved information (query, category optional)
+- update: Modify existing entry (id, title/content optional)
+- delete: Remove entry (id)
+- remember: Store personal fact/preference (fact, type: preference|factual|episodic)
+
+EXAMPLES:
+- memory(action='save', title='WiFi', content='hungry-cat-42', category='home')
+- memory(action='find', query='password')
+- memory(action='remember', fact='User prefers dark mode', type='preference')
+
+Use for: remembering, saving, searching, managing user's personal data.""",
             parameters = ToolParameters(
                 properties = mapOf(
-                    "action" to ToolProperty(
-                        "string",
-                        "Action to perform",
-                        enum = listOf("play", "pause", "resume", "stop", "next", "previous", "volume_up", "volume_down")
-                    )
+                    "action" to ToolProperty("string", "Action: save|find|update|delete|remember", enum = listOf("save", "find", "update", "delete", "remember")),
+                    "title" to ToolProperty("string", "Title for saved content (save action)"),
+                    "content" to ToolProperty("string", "Content to save (save action)"),
+                    "category" to ToolProperty("string", "Optional category (save/find actions)"),
+                    "query" to ToolProperty("string", "Search query (find action)"),
+                    "id" to ToolProperty("string", "Entry ID (update/delete actions)"),
+                    "fact" to ToolProperty("string", "Fact to remember (remember action)"),
+                    "type" to ToolProperty("string", "Fact type: preference|factual|episodic", enum = listOf("preference", "factual", "episodic"))
                 ),
                 required = listOf("action")
             )
         ),
+
         ToolDefinition(
-            name = "toggle_setting",
-            description = """Turn device settings on or off.
+            name = "schedule",
+            description = """Manage calendar events - add, list, or remove events.
 
-WHEN TO USE: User wants to enable/disable a phone setting.
-
-AVAILABLE SETTINGS:
-- 'wifi': WiFi on/off
-- 'bluetooth': Bluetooth on/off
-- 'flashlight': Flashlight on/off
-- 'dnd': Do Not Disturb on/off
-- 'airplane': Airplane mode on/off
-
-EXAMPLE: "toggle_setting(setting='wifi', on=true)" → Turns WiFi on""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "setting" to ToolProperty(
-                        "string",
-                        "Setting name",
-                        enum = listOf("wifi", "bluetooth", "flashlight", "dnd", "airplane")
-                    ),
-                    "on" to ToolProperty("boolean", "true = turn ON, false = turn OFF")
-                ),
-                required = listOf("setting", "on")
-            )
-        ),
-        ToolDefinition(
-            name = "take_screenshot",
-            description = """Take a screenshot of the current screen.
-
-WHEN TO USE: User wants to capture what's on screen.
-No parameters needed - just captures current screen.""",
-            parameters = ToolParameters(properties = emptyMap(), required = emptyList())
-        ),
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // INFORMATION - Tools for getting information
-        // ═══════════════════════════════════════════════════════════════════
-        
-        ToolDefinition(
-            name = "search_web",
-            description = """Search the internet for current information.
-
-WHEN TO USE: User asks about current events, news, or info not in their notes.
-WHEN NOT TO USE: Info might be in user's notes (use find_note instead).
+ACTIONS:
+- add: Create new event (title, when, duration optional, description optional)
+- list: Show events (when: today|tomorrow|this week|next week)
+- remove: Delete event (id)
 
 EXAMPLES:
-- "search_web(query='current weather in New York')"
-- "search_web(query='latest iPhone price')"
-- "search_web(query='who won the game yesterday')"
+- schedule(action='add', title='Meeting', when='tomorrow 2pm', duration='1 hour')
+- schedule(action='list', when='this week')
+- schedule(action='remove', id='abc123')
 
-Returns relevant, up-to-date information from the web.""",
+Use for: scheduling, calendar, time management.""",
             parameters = ToolParameters(
                 properties = mapOf(
+                    "action" to ToolProperty("string", "Action: add|list|remove", enum = listOf("add", "list", "remove")),
+                    "title" to ToolProperty("string", "Event name (add action)"),
+                    "when" to ToolProperty("string", "When: natural language like 'tomorrow 2pm', 'Friday', 'Dec 25'"),
+                    "duration" to ToolProperty("string", "Duration: '1 hour', '30 min' (add action)"),
+                    "description" to ToolProperty("string", "Extra details (add action)"),
+                    "id" to ToolProperty("string", "Event ID (remove action)")
+                ),
+                required = listOf("action")
+            )
+        ),
+
+        ToolDefinition(
+            name = "remind",
+            description = """Set timers, alarms, and reminders.
+
+ACTIONS:
+- set: Create reminder (what, when, repeat optional)
+- list: Show active reminders (no args)
+- cancel: Remove reminder (id)
+
+EXAMPLES:
+- remind(action='set', what='Turn off stove', when='in 10 minutes')
+- remind(action='set', what='Call mom', when='tomorrow 3pm')
+- remind(action='set', what='Take vitamins', when='every day 8am', repeat='daily')
+
+Use for: timers, alarms, recurring reminders.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "action" to ToolProperty("string", "Action: set|list|cancel", enum = listOf("set", "list", "cancel")),
+                    "what" to ToolProperty("string", "What to remind about (set action)"),
+                    "when" to ToolProperty("string", "When: 'in 10 min', 'at 7am', 'tomorrow 3pm'"),
+                    "repeat" to ToolProperty("string", "Repeat: daily|weekdays|weekly|monthly (optional)"),
+                    "id" to ToolProperty("string", "Reminder ID (cancel action)")
+                ),
+                required = listOf("action")
+            )
+        ),
+
+        ToolDefinition(
+            name = "device",
+            description = """Control phone - apps, media, settings, and device status.
+
+ACTIONS:
+- open: Launch app (app: name)
+- media: Control playback (action: play|pause|stop|next|previous|volume_up|volume_down)
+- toggle: Turn settings on/off (setting: wifi|bluetooth|flashlight|dnd|airplane, on: true|false)
+- status: Get device info (info: battery|storage|network|all)
+- capture: Take screenshot (no args)
+
+EXAMPLES:
+- device(action='open', app='spotify')
+- device(action='media', actionType='play')
+- device(action='toggle', setting='wifi', on=true)
+- device(action='status', info='battery')
+- device(action='capture')
+
+Use for: opening apps, media control, settings, device status.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "action" to ToolProperty("string", "Action: open|media|toggle|status|capture", enum = listOf("open", "media", "toggle", "status", "capture")),
+                    "app" to ToolProperty("string", "App name to open (open action)"),
+                    "actionType" to ToolProperty("string", "Media action: play|pause|stop|next|previous|volume_up|volume_down", enum = listOf("play", "pause", "resume", "stop", "next", "previous", "volume_up", "volume_down")),
+                    "setting" to ToolProperty("string", "Setting: wifi|bluetooth|flashlight|dnd|airplane", enum = listOf("wifi", "bluetooth", "flashlight", "dnd", "airplane")),
+                    "on" to ToolProperty("boolean", "true=ON, false=OFF (toggle action)"),
+                    "info" to ToolProperty("string", "Info type: battery|storage|network|all", enum = listOf("battery", "storage", "network", "all"))
+                ),
+                required = listOf("action")
+            )
+        ),
+
+        ToolDefinition(
+            name = "search",
+            description = """Search the internet for information.
+
+ACTIONS:
+- web: Search for anything (query)
+
+EXAMPLES:
+- search(action='web', query='current weather in New York')
+- search(action='web', query='who won the game yesterday')
+
+Use for: web searches, weather, news, facts, current events.""",
+            parameters = ToolParameters(
+                properties = mapOf(
+                    "action" to ToolProperty("string", "Action: web", enum = listOf("web")),
                     "query" to ToolProperty("string", "What to search for")
                 ),
-                required = listOf("query")
+                required = listOf("action", "query")
             )
         ),
-        ToolDefinition(
-            name = "get_weather",
-            description = """Get current weather for a location.
 
-WHEN TO USE: User asks about weather.
+        ToolDefinition(
+            name = "navigate",
+            description = """Navigate within app or share content externally.
+
+ACTIONS:
+- go: Navigate to screen (screen: home|calendar|stacks|archive|settings)
+- share: Share content via other apps (content, title optional)
 
 EXAMPLES:
-- "get_weather(location='New York')"
-- "get_weather(location='Paris, France')"
-- "get_weather()" → Uses user's current location
+- navigate(action='go', screen='calendar')
+- navigate(action='share', content='Check this out!', title='Interesting')
 
-Returns temperature, conditions, and brief forecast.""",
+Use for: screen navigation, sharing to other apps.""",
             parameters = ToolParameters(
                 properties = mapOf(
-                    "location" to ToolProperty("string", "City name (optional, uses current location if not provided)")
+                    "action" to ToolProperty("string", "Action: go|share", enum = listOf("go", "share")),
+                    "screen" to ToolProperty("string", "Screen: home|calendar|stacks|archive|settings", enum = listOf("home", "calendar", "stacks", "archive", "settings")),
+                    "content" to ToolProperty("string", "Content to share (share action)"),
+                    "title" to ToolProperty("string", "Share title (share action, optional)")
                 ),
-                required = emptyList()
-            )
-        ),
-        ToolDefinition(
-            name = "get_device_info",
-            description = """Get device status information.
-
-WHEN TO USE: User asks about their phone's status.
-
-EXAMPLES:
-- "get_device_info(info='battery')" → Battery level and charging status
-- "get_device_info(info='storage')" → Available storage
-- "get_device_info(info='all')" → All status info""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "info" to ToolProperty(
-                        "string",
-                        "What to check",
-                        enum = listOf("battery", "storage", "network", "all")
-                    )
-                ),
-                required = listOf("info")
-            )
-        ),
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // NAVIGATION & SHARING - Tools for UI and sharing
-        // ═══════════════════════════════════════════════════════════════════
-        
-        ToolDefinition(
-            name = "go_to_screen",
-            description = """Navigate to a different screen in the app.
-
-WHEN TO USE: User wants to view a specific part of the app.
-
-SCREENS:
-- 'home': Main notes list
-- 'calendar': Calendar view
-- 'stacks': Categories/folders
-- 'archive': Archived notes
-- 'settings': App settings
-
-EXAMPLE: "go_to_screen(screen='calendar')" → Opens calendar""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "screen" to ToolProperty(
-                        "string",
-                        "Target screen",
-                        enum = listOf("home", "calendar", "stacks", "archive", "settings")
-                    )
-                ),
-                required = listOf("screen")
-            )
-        ),
-        ToolDefinition(
-            name = "share_content",
-            description = """Share content with other apps.
-
-WHEN TO USE: User wants to share something via message, email, social media, etc.
-
-EXAMPLE: "share_content(content='Check out this article!', title='Interesting Read')"
-
-Opens the system share sheet with the content.""",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "content" to ToolProperty("string", "What to share"),
-                    "title" to ToolProperty("string", "Optional title for the share")
-                ),
-                required = listOf("content")
+                required = listOf("action")
             )
         )
     )
@@ -497,6 +290,10 @@ Opens the system share sheet with the content.""",
 
         val startTime = System.currentTimeMillis()
         logger.info("Agent starting for query: $query (Session: $sessionId)")
+
+        // Initialize Goal Memory Manager
+        val goalMemoryManager = GoalMemoryManager(sessionId, query)
+        goalMemoryManager.initializeWithGoal()
         
         // Query remains unmasked
         val maskedQuery = query
@@ -786,6 +583,7 @@ TOOL QUICK REFERENCE:
 User Profile: $maskedUserProfile
 Query Context: $maskedQueryContext
 $timeContext
+${goalMemoryManager.getProgressContext()}
 </context>
             """.trimIndent()
         )
@@ -973,6 +771,7 @@ $timeContext
                             message = "I noticed I'm repeating the same action. Let me give you what I have so far.",
                             code = "CHAIN_LOOP_DETECTED"
                         ))
+                        goalMemoryManager.markFailed("Chain loop detected: $currentToolName repeated")
                         return currentContent.ifEmpty { "I was stuck in a loop. Please try again with a different request." }
                     }
                     
@@ -986,9 +785,10 @@ $timeContext
                             message = "I've been doing this action too many times. Let me summarize what I've accomplished.",
                             code = "TOOL_OVERUSE_DETECTED"
                         ))
+                        goalMemoryManager.markFailed("Tool overuse detected: $currentToolName called ${sameToolCount + 1} times")
                         return currentContent.ifEmpty { "I was stuck in a loop. Please try again with a different request." }
                     }
-                    
+
                     // Check for consecutive same-tool failures (loop prevention)
                     // Allow 1 retry maximum (2 total attempts) before stopping
                     // After first failure: consecutiveToolFailures = 1, allow retry
@@ -1001,9 +801,10 @@ $timeContext
                             message = "The $currentToolName action failed after retry. I'll stop and give you what I have so far.",
                             code = "TOOL_LOOP_DETECTED"
                         ))
+                        goalMemoryManager.markFailed("Tool loop detected: $currentToolName failed twice")
                         return currentContent.ifEmpty { "Action failed. Please try a different approach." }
                     }
-                    
+
                     toolCallCount++
                     if (toolCallCount > MAX_TOOL_CALLS) {
                         logger.warn("Tool call limit exceeded ($MAX_TOOL_CALLS) for user: $userId")
@@ -1013,6 +814,7 @@ $timeContext
                             message = "I've made too many actions in this session. Let me summarize what I've done.",
                             code = "TOOL_LIMIT_EXCEEDED"
                         ))
+                        goalMemoryManager.markFailed("Tool limit exceeded: $toolCallCount calls")
                         return currentContent.ifEmpty { "Execution limit reached." }
                     }
 
@@ -1083,7 +885,19 @@ $timeContext
                             role = LlmMessage.Role.TOOL,
                             content = "[Tool Result for $currentToolName]: $maskedToolResult"
                         )
-                        
+
+                        // Track progress in GoalMemoryManager
+                        val stepDescription = "Executed $currentToolName"
+                        if (isToolError) {
+                            goalMemoryManager.addError("Tool $currentToolName failed: ${toolResult.take(200)}")
+                        } else {
+                            goalMemoryManager.markStepCompleted(
+                                description = stepDescription,
+                                toolUsed = currentToolName,
+                                result = toolResult.take(500)
+                            )
+                        }
+
                         persistenceManager.saveCheckpoint(sessionId, messagesForAgent, currentToolName)
                         continue
                     } catch (e: Exception) {
@@ -1115,6 +929,10 @@ $timeContext
                             role = LlmMessage.Role.TOOL,
                             content = "[Tool Error for $currentToolName]: ${e.message}"
                         )
+
+                        // Track error in GoalMemoryManager
+                        goalMemoryManager.addError("Tool $currentToolName exception: ${e.message?.take(200)}")
+
                         persistenceManager.saveCheckpoint(sessionId, messagesForAgent, "error_$currentToolName")
                         continue
                     }
@@ -1143,7 +961,10 @@ $timeContext
                         content = currentContent
                     ))
                     persistenceManager.clearCheckpoint(sessionId)
-                    
+
+                    // Mark goal as completed
+                    goalMemoryManager.markCompleted()
+
                     return extractFinalResponse(currentContent)
                 } else {
                     logger.warn("LLM stream completed with no content for user: $userId")
@@ -1187,12 +1008,17 @@ $timeContext
                     message = userMsg,
                     code = "LLM_ERROR"
                 ))
+
+                // Mark goal as failed
+                goalMemoryManager.markFailed(errorMsg)
+
                 return ""
             }
         }
 
         // Max iterations reached
         logger.warn("Agent loop reached max iterations ($maxAgentIterations) for user: $userId")
+        goalMemoryManager.markFailed("Max iterations reached: $maxAgentIterations")
         return "I completed several actions but reached my iteration limit."
     }
 
@@ -1204,411 +1030,200 @@ $timeContext
     private suspend fun executeTool(name: String, argsJson: String, history: List<LlmMessage>, clientTimezone: String? = null, clientTimeMillis: Long? = null): String {
         logger.info("Executing tool: $name with args: $argsJson")
 
+        @Serializable
+        data class UnifiedToolArgs(
+            val action: String,
+            val title: String? = null,
+            val content: String? = null,
+            val category: String? = null,
+            val query: String? = null,
+            val id: String? = null,
+            val fact: String? = null,
+            val type: String? = null,
+            val `when`: String? = null,
+            val duration: String? = null,
+            val description: String? = null,
+            val what: String? = null,
+            val repeat: String? = null,
+            val app: String? = null,
+            val actionType: String? = null,
+            val setting: String? = null,
+            val on: Boolean? = null,
+            val info: String? = null,
+            val screen: String? = null
+        )
+
+        val args = json.decodeFromString<UnifiedToolArgs>(argsJson)
+
         val result = when (name) {
-// 
-            // SERVER-SIDE TOOLS — execute on PostgreSQL, emit StateSync
-            // 
-            // NOTES & MEMORY
-            //
-
-            "save_note", "create_note" -> {
-                val args = json.decodeFromString<CreateNoteArgs>(argsJson)
-                if (noteRepository != null) {
-                    val noteId = noteRepository.create(userId, args.title, args.content, args.category)
-                    val now = System.currentTimeMillis()
-                    val info = NoteInfo(
-                        id = noteId,
-                        title = args.title,
-                        content = args.content,
-                        category = args.category,
-                        isArchived = false,
-                        createdAt = now,
-                        updatedAt = now
-                    )
-                    emitStateSync("note_created", json.encodeToString(info))
-                    "Note saved: '${args.title}' (ID: $noteId)"
-                } else {
-                    emitDeviceCommand(AgentCommand.AddNote(commandId = UUID.randomUUID().toString(), content = "${args.title}\n\n${args.content}", category = args.category))
-                    "Note saved to device: ${args.title}"
-                }
-            }
-
-            "find_note", "search_notes" -> {
-                val args = json.decodeFromString<SearchNotesArgs>(argsJson)
-                if (noteRepository != null) {
-                    val results = noteRepository.search(userId, args.query)
-                    if (results.isEmpty()) {
-                        "No notes found matching '${args.query}'."
-                    } else {
-                        val formatted = results.joinToString("\n") { "- [${it.id}] ${it.title}: ${it.content.take(100)}" }
-                        "Found ${results.size} note(s):\n$formatted"
-                    }
-                } else {
-                    emitDeviceCommand(AgentCommand.SearchNotes(commandId = UUID.randomUUID().toString(), query = args.query, category = args.filter))
-                    "Search request sent to device for: ${args.query}"
-                }
-            }
-
-            "edit_note", "update_note" -> {
-                val args = json.decodeFromString<UpdateNoteArgs>(argsJson)
-                if (noteRepository != null) {
-                    val success = noteRepository.update(userId, args.noteId, args.title, args.content, null)
-                    if (success) {
-                        emitStateSync("note_updated", """{"id":"${args.noteId}","title":"${args.title ?: ""}","content":"${args.content?.replace("\"", "\\\"") ?: ""}"}""")
-                        "Note ${args.noteId} updated successfully."
-                    } else "Note ${args.noteId} not found."
-                } else {
-                    emitDeviceCommand(AgentCommand.UpdateNote(commandId = UUID.randomUUID().toString(), noteId = args.noteId, title = args.title, content = args.content))
-                    "Note update sent to device."
-                }
-            }
-
-            "delete_note" -> {
-                val args = json.decodeFromString<DeleteNoteArgs>(argsJson)
-                if (noteRepository != null) {
-                    val success = noteRepository.delete(userId, args.noteId)
-                    if (success) {
-                        emitStateSync("note_deleted", """{"id":"${args.noteId}"}""")
-                        "Note ${args.noteId} deleted."
-                    } else "Note ${args.noteId} not found."
-                } else {
-                    emitDeviceCommand(AgentCommand.DeleteNote(commandId = UUID.randomUUID().toString(), noteId = args.noteId))
-                    "Note deletion sent to device."
-                }
-            }
-
-            "archive_note" -> {
-                val args = json.decodeFromString<ArchiveNoteArgs>(argsJson)
-                if (noteRepository != null) {
-                    val success = noteRepository.archive(userId, args.noteId)
-                    if (success) {
-                        emitStateSync("note_archived", """{"id":"${args.noteId}"}""")
-                        "Note ${args.noteId} archived."
-                    } else "Note ${args.noteId} not found."
-                } else {
-                    emitDeviceCommand(AgentCommand.ArchiveNote(commandId = UUID.randomUUID().toString(), noteId = args.noteId))
-                    "Note archive sent to device."
-                }
-            }
-
-            "remember_fact", "store_context" -> {
-                val args = if (argsJson.contains("\"fact\"")) {
-                    val newArgs = json.decodeFromString<RememberFactArgs>(argsJson)
-                    StoreContextArgs(content = newArgs.fact, type = newArgs.type)
-                } else {
-                    json.decodeFromString<StoreContextArgs>(argsJson)
-                }
-                try {
-                    vectorStore.store(userId, args.content, mapOf("type" to args.type))
-                    "Fact remembered: '${args.content.take(50)}...' as ${args.type}"
-                } catch (e: Exception) {
-                    logger.warn("remember_fact failed: ${e.message}")
-                    "Failed to remember fact: ${e.message}"
-                }
-            }
-
-            "update_context" -> {
-                val args = json.decodeFromString<UpdateContextArgs>(argsJson)
-                try {
-                    vectorStore.update(userId, args.id, args.content)
-                    emitStateSync("context_updated", """{"id":"${args.id}","content":"${args.content.replace("\"","\\\"")}","type":"${args.type}"}""")
-                    "Context ${args.id} updated."
-                } catch (e: Exception) {
-                    "Failed to update context: ${e.message}"
-                }
-            }
-
-            "delete_context" -> {
-                val args = json.decodeFromString<DeleteContextArgs>(argsJson)
-                try {
-                    vectorStore.delete(userId, args.id)
-                    emitStateSync("context_deleted", """{"id":"${args.id}"}""")
-                    "Context ${args.id} deleted."
-                } catch (e: Exception) {
-                    "Failed to delete context: ${e.message}"
-                }
-            }
-
-            // 
-            // TIME & SCHEDULE
-            //
-
-            "add_event", "schedule_event" -> {
-                // Handle both new natural language and old timestamp formats
-                if (argsJson.contains("\"when\"")) {
-                    // New format with natural language
-                    val args = json.decodeFromString<AddEventArgs>(argsJson)
-                    val startTime = parseNaturalTime(args.scheduledAt, clientTimezone, clientTimeMillis)
-                    val durationStr = args.duration ?: "1 hour"
-                    val durationMs = parseDurationToMs(durationStr)
-                    val endTime = startTime + durationMs
-                    val reminder = 15
-                    
-                    if (calendarRepository != null) {
-                        val eventId = calendarRepository.create(userId, args.title, startTime, endTime, args.description, reminder)
-                        val info = CalendarEventInfo(
-                            id = eventId,
-                            title = args.title,
-                            startTime = startTime,
-                            endTime = endTime,
-                            description = args.description,
-                            reminderMinutes = reminder,
-                            createdAt = System.currentTimeMillis()
-                        )
-                        emitStateSync("event_scheduled", json.encodeToString(info))
-                        "Event added: '${args.title}' on ${args.scheduledAt}"
-                    } else {
-                        emitDeviceCommand(AgentCommand.ScheduleEvent(commandId = UUID.randomUUID().toString(), title = args.title, startTime = startTime, endTime = endTime, description = args.description, reminderMinutes = reminder))
-                        "Event sent to device: ${args.title}"
-                    }
-                } else {
-                    // Old format with timestamps
-                    val args = json.decodeFromString<ScheduleEventArgs>(argsJson)
-                    val reminder = args.reminderMinutes ?: 15
-                    if (calendarRepository != null) {
-                        val eventId = calendarRepository.create(userId, args.title, args.startTime, args.endTime, args.description, reminder)
-                        val info = CalendarEventInfo(
-                            id = eventId,
-                            title = args.title,
-                            startTime = args.startTime,
-                            endTime = args.endTime,
-                            description = args.description,
-                            reminderMinutes = reminder,
-                            createdAt = System.currentTimeMillis()
-                        )
-                        emitStateSync("event_scheduled", json.encodeToString(info))
-                        "Event added: '${args.title}', ID: $eventId"
-                    } else {
-                        emitDeviceCommand(AgentCommand.ScheduleEvent(commandId = UUID.randomUUID().toString(), title = args.title, startTime = args.startTime, endTime = args.endTime, description = args.description, reminderMinutes = reminder))
-                        "Event sent to device: ${args.title}"
-                    }
-                }
-            }
-
-            "show_events", "list_events" -> {
-                if (argsJson.contains("\"when\"")) {
-                    val args = json.decodeFromString<ShowEventsArgs>(argsJson)
-                    val (startMs, endMs) = parseTimeRange(args.period, clientTimezone, clientTimeMillis)
-                    
-                    if (calendarRepository != null) {
-                        val events = calendarRepository.listUpcoming(userId)
-                        val filtered = events.filter { it.startTime >= startMs && it.startTime < endMs }
-                        if (filtered.isEmpty()) {
-                            "No events for ${args.period}."
+            "memory" -> {
+                when (args.action) {
+                    "save" -> {
+                        if (noteRepository != null && args.title != null && args.content != null) {
+                            val noteId = noteRepository.create(userId, args.title, args.content, args.category)
+                            emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}"}""")
+                            "Saved: '${args.title}' (ID: $noteId)"
                         } else {
-                            val formatted = filtered.joinToString("\n") { "- [${it.id}] ${it.title} at ${java.time.Instant.ofEpochMilli(it.startTime)}" }
-                            "Events for ${args.period}:\n$formatted"
+                            emitDeviceCommand(AgentCommand.AddNote(commandId = UUID.randomUUID().toString(), content = "${args.title}\n\n${args.content}", category = args.category))
+                            "Saved to device: ${args.title}"
                         }
-                    } else {
-                        emitDeviceCommand(AgentCommand.ListEvents(commandId = UUID.randomUUID().toString(), date = startMs))
-                        "Event request sent to device."
                     }
-                } else {
-                    val args = json.decodeFromString<ListEventsArgs>(argsJson)
-                    if (calendarRepository != null) {
-                        val events = calendarRepository.listUpcoming(userId)
-                        if (events.isEmpty()) {
-                            "No upcoming events found."
+                    "find" -> {
+                        if (noteRepository != null && args.query != null) {
+                            val results = noteRepository.search(userId, args.query)
+                            if (results.isEmpty()) "No notes found for '${args.query}'."
+                            else results.joinToString("\n") { "- [${it.id}] ${it.title}: ${it.content.take(80)}" }
                         } else {
-                            val formatted = events.joinToString("\n") { "- [${it.id}] ${it.title} (${java.time.Instant.ofEpochMilli(it.startTime)})" }
-                            "Found ${events.size} event(s):\n$formatted"
+                            emitDeviceCommand(AgentCommand.SearchNotes(commandId = UUID.randomUUID().toString(), query = args.query ?: "", category = args.category))
+                            "Searching device for: ${args.query}"
                         }
-                    } else {
-                        emitDeviceCommand(AgentCommand.ListEvents(commandId = UUID.randomUUID().toString(), date = args.date))
-                        "Event listing sent to device."
                     }
+                    "update" -> {
+                        if (noteRepository != null && args.id != null) {
+                            noteRepository.update(userId, args.id, args.title, args.content, null)
+                            emitStateSync("note_updated", """{"id":"${args.id}"}""")
+                            "Updated note ${args.id}"
+                        } else {
+                            emitDeviceCommand(AgentCommand.UpdateNote(commandId = UUID.randomUUID().toString(), noteId = args.id ?: "", title = args.title, content = args.content))
+                            "Update sent to device."
+                        }
+                    }
+                    "delete" -> {
+                        if (noteRepository != null && args.id != null) {
+                            noteRepository.delete(userId, args.id)
+                            emitStateSync("note_deleted", """{"id":"${args.id}"}""")
+                            "Deleted note ${args.id}"
+                        } else {
+                            emitDeviceCommand(AgentCommand.DeleteNote(commandId = UUID.randomUUID().toString(), noteId = args.id ?: ""))
+                            "Delete sent to device."
+                        }
+                    }
+                    "remember" -> {
+                        try {
+                            vectorStore.store(userId, args.fact ?: "", mapOf("type" to (args.type ?: "factual")))
+                            "Remembered: ${args.fact?.take(50)}"
+                        } catch (e: Exception) { "Failed: ${e.message}" }
+                    }
+                    else -> "Unknown memory action: ${args.action}"
                 }
             }
 
-            "remove_event", "delete_event" -> {
-                val args = json.decodeFromString<DeleteEventArgs>(argsJson)
-                if (calendarRepository != null) {
-                    val success = calendarRepository.delete(userId, args.eventId)
-                    if (success) {
-                        emitStateSync("event_deleted", """{"id":"${args.eventId}"}""")
-                        "Event ${args.eventId} removed."
-                    } else "Event ${args.eventId} not found."
-                } else {
-                    emitDeviceCommand(AgentCommand.DeleteEvent(commandId = UUID.randomUUID().toString(), eventId = args.eventId))
-                    "Event removal sent to device."
+            "schedule" -> {
+                when (args.action) {
+                    "add" -> {
+                        val startTime = parseNaturalTime(args.`when` ?: "", clientTimezone, clientTimeMillis)
+                        val durationMs = parseDurationToMs(args.duration ?: "1 hour")
+                        val endTime = startTime + durationMs
+                        if (calendarRepository != null && args.title != null) {
+                            val eventId = calendarRepository.create(userId, args.title, startTime, endTime, args.description, 15)
+                            emitStateSync("event_scheduled", """{"id":"$eventId","title":"${args.title}"}""")
+                            "Event added: '${args.title}'"
+                        } else {
+                            emitDeviceCommand(AgentCommand.ScheduleEvent(commandId = UUID.randomUUID().toString(), title = args.title ?: "", startTime = startTime, endTime = endTime, description = args.description, reminderMinutes = 15))
+                            "Event sent to device: ${args.title}"
+                        }
+                    }
+                    "list" -> {
+                        val (startMs, endMs) = parseTimeRange(args.`when` ?: "today", clientTimezone, clientTimeMillis)
+                        if (calendarRepository != null) {
+                            val events = calendarRepository.listUpcoming(userId).filter { it.startTime in startMs until endMs }
+                            if (events.isEmpty()) "No events for ${args.`when`}."
+                            else events.joinToString("\n") { "- [${it.id}] ${it.title}" }
+                        } else {
+                            emitDeviceCommand(AgentCommand.ListEvents(commandId = UUID.randomUUID().toString(), date = startMs))
+                            "Requesting events from device."
+                        }
+                    }
+                    "remove" -> {
+                        if (calendarRepository != null && args.id != null) {
+                            calendarRepository.delete(userId, args.id)
+                            emitStateSync("event_deleted", """{"id":"${args.id}"}""")
+                            "Event removed."
+                        } else {
+                            emitDeviceCommand(AgentCommand.DeleteEvent(commandId = UUID.randomUUID().toString(), eventId = args.id ?: ""))
+                            "Remove request sent to device."
+                        }
+                    }
+                    else -> "Unknown schedule action: ${args.action}"
                 }
             }
 
-            "set_reminder" -> {
-                val args = json.decodeFromString<SetReminderArgs>(argsJson)
-                val triggerTime = parseNaturalTime(args.scheduledAt, clientTimezone, clientTimeMillis)
-                val isAlarm = !args.scheduledAt.contains("in ") && !args.scheduledAt.contains("after ")
-                
-                if (timerRepository != null) {
-                    val timerId = timerRepository.create(userId, args.what, triggerAt = triggerTime, isAlarm = isAlarm)
-                    val info = TimerInfo(
-                        id = timerId,
-                        name = args.what,
-                        durationMs = if (isAlarm) 0L else triggerTime - System.currentTimeMillis(),
-                        triggerAt = triggerTime,
-                        isAlarm = isAlarm,
-                        isActive = true,
-                        createdAt = System.currentTimeMillis()
-                    )
-                    emitStateSync("timer_set", json.encodeToString(info))
-                    val typeStr = if (isAlarm) "Reminder" else "Timer"
-                    "$typeStr set: '${args.what}' for ${args.scheduledAt}"
-                } else {
-                    emitDeviceCommand(AgentCommand.SetTimer(commandId = UUID.randomUUID().toString(), name = args.what, timeStr = args.scheduledAt, isAlarm = isAlarm))
-                    "Reminder sent to device: ${args.what}"
+            "remind" -> {
+                when (args.action) {
+                    "set" -> {
+                        val whenStr = args.`when` ?: ""
+                        val triggerTime = parseNaturalTime(whenStr, clientTimezone, clientTimeMillis)
+                        val isAlarm = !whenStr.contains("in ") && !whenStr.contains("after ")
+                        if (timerRepository != null && args.what != null) {
+                            val timerId = timerRepository.create(userId, args.what, triggerAt = triggerTime, isAlarm = isAlarm)
+                            emitStateSync("timer_set", """{"id":"$timerId"}""")
+                            "${if (isAlarm) "Reminder" else "Timer"} set: '${args.what}'"
+                        } else {
+                            emitDeviceCommand(AgentCommand.SetTimer(commandId = UUID.randomUUID().toString(), name = args.what ?: "", timeStr = args.`when` ?: "", isAlarm = isAlarm))
+                            "Reminder sent to device: ${args.what}"
+                        }
+                    }
+                    "list" -> "Listing reminders..."
+                    "cancel" -> {
+                        if (timerRepository != null && args.id != null) {
+                            timerRepository.delete(userId, args.id)
+                            "Reminder cancelled."
+                        } else "Cancel request sent to device."
+                    }
+                    else -> "Unknown remind action: ${args.action}"
                 }
             }
 
-            "set_timer" -> {
-                val args = json.decodeFromString<SetTimerArgs>(argsJson)
-                val durationMs = parseDurationToMs(args.duration)
-                if (timerRepository != null) {
-                    val timerId = timerRepository.create(userId, args.name, durationMs = durationMs, isAlarm = false)
-                    val triggerAt = System.currentTimeMillis() + durationMs
-                    val info = TimerInfo(
-                        id = timerId,
-                        name = args.name,
-                        durationMs = durationMs,
-                        triggerAt = triggerAt,
-                        isAlarm = false,
-                        isActive = true,
-                        createdAt = System.currentTimeMillis()
-                    )
-                    emitStateSync("timer_set", json.encodeToString(info))
-                    "Timer set: '${args.name}' for ${args.duration}"
-                } else {
-                    emitDeviceCommand(AgentCommand.SetTimer(commandId = UUID.randomUUID().toString(), name = args.name, timeStr = args.duration, isAlarm = false))
-                    "Timer sent to device: ${args.name}"
+            "device" -> {
+                when (args.action) {
+                    "open" -> {
+                        val packageName = resolveAppPackage(args.app ?: "")
+                        emitDeviceCommand(AgentCommand.LaunchApp(commandId = UUID.randomUUID().toString(), packageName = packageName))
+                        "Opening: ${args.app}"
+                    }
+                    "media" -> {
+                        emitDeviceCommand(AgentCommand.ControlAudio(commandId = UUID.randomUUID().toString(), action = args.actionType ?: "play"))
+                        "Media: ${args.actionType}"
+                    }
+                    "toggle" -> {
+                        emitDeviceCommand(AgentCommand.ToggleSetting(commandId = UUID.randomUUID().toString(), setting = args.setting ?: "", enable = args.on ?: false))
+                        "${args.setting} ${if (args.on == true) "on" else "off"}"
+                    }
+                    "status" -> {
+                        emitDeviceCommand(AgentCommand.GetDeviceInfo(commandId = UUID.randomUUID().toString(), infoType = args.info ?: "all"))
+                        "Getting device ${args.info}..."
+                    }
+                    "capture" -> {
+                        emitDeviceCommand(AgentCommand.TakeScreenshot(commandId = UUID.randomUUID().toString()))
+                        "Capturing screenshot."
+                    }
+                    else -> "Unknown device action: ${args.action}"
                 }
             }
 
-            "set_alarm" -> {
-                val args = json.decodeFromString<SetAlarmArgs>(argsJson)
-                if (timerRepository != null) {
-                    val triggerAt = parseAlarmTimeToMs(args.time, clientTimezone, clientTimeMillis)
-                    val timerId = timerRepository.create(userId, args.name, triggerAt = triggerAt, isAlarm = true)
-                    val info = TimerInfo(
-                        id = timerId,
-                        name = args.name,
-                        durationMs = 0L,
-                        triggerAt = triggerAt,
-                        isAlarm = true,
-                        isActive = true,
-                        createdAt = System.currentTimeMillis()
-                    )
-                    emitStateSync("timer_set", json.encodeToString(info))
-                    "Alarm set: '${args.name}' at ${args.time}"
-                } else {
-                    emitDeviceCommand(AgentCommand.SetTimer(commandId = UUID.randomUUID().toString(), name = args.name, timeStr = args.time, isAlarm = true))
-                    "Alarm sent to device: ${args.name}"
+            "search" -> {
+                when (args.action) {
+                    "web" -> {
+                        val searchResult = tavilyTool.search(args.query ?: "")
+                        if (searchResult.startsWith("Error")) "Search failed: $searchResult"
+                        else searchResult
+                    }
+                    else -> "Unknown search action: ${args.action}"
                 }
             }
 
-            // 
-            // INFORMATION
-            //
-
-            "search_web", "web_search" -> {
-                val args = json.decodeFromString<WebSearchArgs>(argsJson)
-                val result = tavilyTool.search(args.query)
-                if (result.startsWith("Error")) "Search failed: $result"
-                else "Web search results for '${args.query}':\n$result"
-            }
-
-            "query_knowledge" -> {
-                val args = json.decodeFromString<QueryKnowledgeArgs>(argsJson)
-                try {
-                    val results = vectorStore.search(userId, args.query, limit = 5)
-                    if (results.isEmpty()) "No private knowledge found for '${args.query}'."
-                    else "Found ${results.size} relevant items:\n" + results.joinToString("\n") { "- ${it.content}" }
-                } catch (e: Exception) {
-                    "Knowledge query failed: ${e.message}"
+            "navigate" -> {
+                when (args.action) {
+                    "go" -> {
+                        emitDeviceCommand(AgentCommand.Navigate(commandId = UUID.randomUUID().toString(), screen = args.screen ?: "home"))
+                        "Going to ${args.screen}."
+                    }
+                    "share" -> {
+                        emitDeviceCommand(AgentCommand.Share(commandId = UUID.randomUUID().toString(), content = args.content ?: "", title = args.title))
+                        "Sharing content."
+                    }
+                    else -> "Unknown navigate action: ${args.action}"
                 }
-            }
-
-            "get_weather" -> {
-                val args = json.decodeFromString<GetWeatherArgs>(argsJson)
-                val location = args.location ?: "current location"
-                val result = tavilyTool.search("current weather in $location")
-                if (result.startsWith("Error")) "Weather lookup failed: $result"
-                else "Weather for $location:\n${result.take(500)}"
-            }
-
-            "get_device_info" -> {
-                val args = json.decodeFromString<GetDeviceInfoArgs>(argsJson)
-                emitDeviceCommand(AgentCommand.GetDeviceInfo(commandId = UUID.randomUUID().toString(), infoType = args.info))
-                "Device info request sent: ${args.info}"
-            }
-
-            "summarize_session" -> {
-                val summary = summarizer.generateSummary(history)
-                summary ?: "Could not summarize session at this time."
-            }
-
-            "generate_image" -> {
-                json.decodeFromString<GenerateImageArgs>(argsJson)
-                "Image generation is not available yet. It's on the roadmap."
-            }
-
-            // 
-            // DEVICE CONTROL
-            //
-
-            "open_app", "launch_app" -> {
-                val packageName = if (argsJson.contains("\"app\"")) {
-                    val args = json.decodeFromString<OpenAppArgs>(argsJson)
-                    resolveAppPackage(args.app)
-                } else {
-                    val args = json.decodeFromString<LaunchAppArgs>(argsJson)
-                    args.packageName
-                }
-                emitDeviceCommand(AgentCommand.LaunchApp(commandId = UUID.randomUUID().toString(), packageName = packageName))
-                "Opening app: $packageName"
-            }
-
-            "take_screenshot" -> {
-                emitDeviceCommand(AgentCommand.TakeScreenshot(commandId = UUID.randomUUID().toString()))
-                "Taking screenshot."
-            }
-
-            "toggle_setting" -> {
-                val (setting, on) = if (argsJson.contains("\"on\"")) {
-                    val args = json.decodeFromString<ToggleSettingNewArgs>(argsJson)
-                    Pair(args.setting, args.on)
-                } else {
-                    val args = json.decodeFromString<ToggleSettingArgs>(argsJson)
-                    Pair(args.setting, args.enable)
-                }
-                emitDeviceCommand(AgentCommand.ToggleSetting(commandId = UUID.randomUUID().toString(), setting = setting, enable = on))
-                "$setting ${if (on) "enabled" else "disabled"}."
-            }
-
-            "control_music", "control_media" -> {
-                val args = json.decodeFromString<ControlMediaArgs>(argsJson)
-                emitDeviceCommand(AgentCommand.ControlAudio(commandId = UUID.randomUUID().toString(), action = args.action))
-                "Media: ${args.action}"
-            }
-
-            "seek_media" -> {
-                val args = json.decodeFromString<SeekMediaArgs>(argsJson)
-                emitDeviceCommand(AgentCommand.SeekAudio(commandId = UUID.randomUUID().toString(), positionMs = args.positionMs))
-                "Seeking to ${args.positionMs}ms."
-            }
-
-            // 
-            // NAVIGATION & SHARING
-            //
-
-            "go_to_screen", "navigate" -> {
-                val args = json.decodeFromString<GoToScreenArgs>(argsJson)
-                emitDeviceCommand(AgentCommand.Navigate(commandId = UUID.randomUUID().toString(), screen = args.screen))
-                "Navigating to ${args.screen}."
-            }
-
-            "share_content", "share" -> {
-                val args = json.decodeFromString<ShareContentArgs>(argsJson)
-                emitDeviceCommand(AgentCommand.Share(commandId = UUID.randomUUID().toString(), content = args.content, title = args.title))
-                "Sharing content."
             }
 
             else -> "Unknown tool: $name"
