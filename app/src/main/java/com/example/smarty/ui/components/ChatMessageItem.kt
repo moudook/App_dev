@@ -201,9 +201,110 @@ fun ChatMessageItem(
                 // User messages are rendered in the outer wrapper with bubble styling
                 // Only render AI content here
                 if (!isUser) {
-                    // Streaming/thinking indicator
-                    if (message.isStreaming && message.content.isEmpty()) {
-                        // Show animated thinking dots
+                    
+                    // THINKING SECTION - ChatGPT style (shows ABOVE content)
+                    // During streaming: shows live thinking with expandable view
+                    // After completion: shows "Thought for X seconds" collapsed
+                    if (message.hasThinking || (message.isStreaming && !message.thinking.isNullOrBlank())) {
+                        var thinkingExpanded by remember { mutableStateOf(message.isStreaming) }
+                        val thinkingText = message.thinking ?: ""
+                        
+                        Surface(
+                            onClick = { thinkingExpanded = !thinkingExpanded },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (message.isStreaming) {
+                                        val infiniteTransition = rememberInfiniteTransition(label = "thinking_pulse")
+                                        val pulseAlpha by infiniteTransition.animateFloat(
+                                            initialValue = 0.4f, targetValue = 1f,
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(500, easing = LinearEasing),
+                                                repeatMode = RepeatMode.Reverse
+                                            ), label = "pulse"
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = accentColor.copy(alpha = pulseAlpha),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "Thinking...",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Medium
+                                            ),
+                                            color = accentColor
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = accentColor.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "Thought process",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Medium
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Icon(
+                                        imageVector = if (thinkingExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                
+                                AnimatedVisibility(
+                                    visible = thinkingExpanded,
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    Column {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(start = 8.dp)
+                                                .drawBehind {
+                                                    drawLine(
+                                                        color = accentColor.copy(alpha = 0.3f),
+                                                        start = Offset(0f, 0f),
+                                                        end = Offset(0f, this@drawBehind.size.height),
+                                                        strokeWidth = 2.dp.toPx()
+                                                    )
+                                                }
+                                                .padding(start = 12.dp)
+                                        ) {
+                                            Text(
+                                                text = thinkingText,
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    lineHeight = 22.sp
+                                                ),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Show thinking dots when streaming with no content yet and no thinking
+                    if (message.isStreaming && message.content.isEmpty() && message.thinking.isNullOrBlank()) {
                         val infiniteTransition = rememberInfiniteTransition(label = "thinking")
                         val dotAlpha1 by infiniteTransition.animateFloat(
                             initialValue = 0.2f, targetValue = 1f,
@@ -243,44 +344,45 @@ fun ChatMessageItem(
                             Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha2), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha3), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
-                     } else {
-
-                    
-                    val normalColor = MaterialTheme.colorScheme.onSurface
-                    val boldColor = normalColor
-
-                    // Professional Markdown Rendering
-                    MarkdownRenderer(
-                        content = if (isUser) message.content else cleanContent(message.content),
-                        isUser = isUser,
-                        normalColor = normalColor,
-                        boldColor = boldColor, // Strict uniform color per spec
-                        linkColor = linkColor,
-                        codeColor = brandPrimary,
-                        codeBackgroundColor = codeBackgroundColor,
-                        codeBorderColor = codeHeaderBg,
-                        codeHeaderBg = codeHeaderBg
-                    )
-                    
-                    if (message.isStreaming) {
-                        // Streaming Cursor Attachment
-                        val infiniteTransition = rememberInfiniteTransition(label = "cursor")
-                        val cursorAlpha by infiniteTransition.animateFloat(
-                            initialValue = 1f, targetValue = 0f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(1000, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
-                            ), label = "cursor_opacity"
-                        )
-                        Box(modifier = Modifier.padding(top=4.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 2.dp)
-                                    .size(width = 8.dp, height = 20.dp)
-                                    .background(brandPrimary.copy(alpha = if (cursorAlpha > 0.5f) 1f else 0f))
-                            )
-                        }
                     }
+                    
+                    // MAIN CONTENT - Shows BELOW thinking (ChatGPT style)
+                    if (message.content.isNotEmpty()) {
+                        val normalColor = MaterialTheme.colorScheme.onSurface
+                        val boldColor = normalColor
+
+                        // Professional Markdown Rendering
+                        MarkdownRenderer(
+                            content = if (isUser) message.content else cleanContent(message.content),
+                            isUser = isUser,
+                            normalColor = normalColor,
+                            boldColor = boldColor, // Strict uniform color per spec
+                            linkColor = linkColor,
+                            codeColor = brandPrimary,
+                            codeBackgroundColor = codeBackgroundColor,
+                            codeBorderColor = codeHeaderBg,
+                            codeHeaderBg = codeHeaderBg
+                        )
+                        
+                        if (message.isStreaming) {
+                            // Streaming Cursor Attachment
+                            val infiniteTransition = rememberInfiniteTransition(label = "cursor")
+                            val cursorAlpha by infiniteTransition.animateFloat(
+                                initialValue = 1f, targetValue = 0f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1000, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Restart
+                                ), label = "cursor_opacity"
+                            )
+                            Box(modifier = Modifier.padding(top=4.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(start = 2.dp)
+                                        .size(width = 8.dp, height = 20.dp)
+                                        .background(brandPrimary.copy(alpha = if (cursorAlpha > 0.5f) 1f else 0f))
+                                )
+                            }
+                        }
 
                     // Inline Image Preview
                     if (!isUser && message.hasInlineImages) {
@@ -362,85 +464,7 @@ fun ChatMessageItem(
                                  imageUri = currentImage.uri,
                                  onDismiss = { showFullScreen = false },
                                  contentDescription = currentImage.fileName
-                             )
-                        }
-                    }
-
-                    // Thinking / Reasoning - ElevenLabs 'Shimmer' Style
-                    if (message.hasThinking) {
-                        var expanded by remember { mutableStateOf(false) } // Default collapsed
-                        
-                        // Subtle container for "thought process"
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp)
-                        ) {
-                            Surface(
-                                onClick = { expanded = !expanded },
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                ) {
-                                    // Pulse/Thinking Icon
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = null,
-                                        tint = accentColor.copy(alpha = 0.8f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (expanded) "Reasoning Process" else "Finished thinking",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 11.sp
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Icon(
-                                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            
-                            AnimatedVisibility(
-                                visible = expanded,
-                                enter = expandVertically() + fadeIn(),
-                                exit = shrinkVertically() + fadeOut()
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
-                                        .drawBehind {
-                                            drawLine(
-                                                color = accentColor.copy(alpha = 0.2f),
-                                                start = Offset(0f, 0f),
-                                                end = Offset(0f, this@drawBehind.size.height),
-                                                strokeWidth = 2.dp.toPx()
-                                            )
-                                        }
-                                        .padding(start = 12.dp)
-                                ) {
-                                    Text(
-                                        text = message.thinking ?: "",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 15.sp,
-                                            lineHeight = 28.sp
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                              )
                         }
                     }
 
@@ -548,7 +572,7 @@ fun ChatMessageItem(
                             accentColor = accentColor
                         )
                     }
-                    } // end streaming content else
+                    } // end if (message.content.isNotEmpty())
                 } // end if !isUser
             }
         }
