@@ -22,7 +22,8 @@ COPY gradlew ./
 # Download all dependencies - this layer is heavily cached
 RUN chmod +x gradlew && \
     ./gradlew :server:dependencies --no-daemon --parallel \
-    -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m" || true
+    -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m" \
+    -Dorg.gradle.java.home="" || true
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build the server JAR
@@ -38,6 +39,7 @@ COPY server/src/ server/src/
 # Build shadow JAR with optimizations
 RUN ./gradlew :server:shadowJar --no-daemon --parallel --build-cache -x test \
     -Dorg.gradle.jvmargs="-Xmx1g -XX:MaxMetaspaceSize=256m" \
+    -Dorg.gradle.java.home="" \
     --max-workers=2
 
 # -----------------------------------------------------------------------------
