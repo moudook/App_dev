@@ -152,12 +152,16 @@ fun Application.configureChatRoutes() {
 
                     call.application.log.info("Generating daily briefing for user: $userId")
 
+                    // Use ProviderRouter to select the SMARTEST provider
+                    val briefingProvider = providerRouter.selectProvider(RoutingStrategy.SMARTEST)
+                    val briefingSummarizer = ConversationSummarizer(briefingProvider)
+
                     // Create agent for single run
                     val agent = ServerAgent(
-                        llmProvider = llmProvider,
+                        llmProvider = briefingProvider,
                         tavilyTool = tavilyTool,
                         vectorStore = vectorStore,
-                        summarizer = summarizer,
+                        summarizer = briefingSummarizer,
                         noteRepository = noteRepository,
                         timerRepository = timerRepository,
                         calendarRepository = calendarRepository,
@@ -165,11 +169,10 @@ fun Application.configureChatRoutes() {
                         userId = userId
                     )
 
-                    // Run the agent
+                    // Run the agent (no modelOverride - provider already selected)
                     val briefing = agent.run(
                         query = request.prompt,
-                        history = emptyList(), // No history for briefing, just the prompt context
-                        modelOverride = "SMARTEST" // Use smart model for briefing
+                        history = emptyList()
                     )
 
                     call.respond(HttpStatusCode.OK, BriefingResponse(briefing))
