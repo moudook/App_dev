@@ -148,12 +148,14 @@ class ChatManager(
                 }
             }
         } else {
-            val newSession = chatRepository.createNewSession(context)
-            _currentSessionId.value = newSession.id
+            // Don't create a session yet - wait until user sends a message
+            // This prevents blank sessions from appearing in history
+            _currentSessionId.value = null
             chatMutex.withLock {
                 _chatMessages.value = emptyList()
                 _isChatProcessing.value = false
             }
+            Log.d(TAG, "No active session found - session will be created when user sends a message")
         }
     }
 
@@ -185,21 +187,23 @@ class ChatManager(
 
     /**
      * Create a new chat session (starts fresh conversation)
+     * Session will be created when user actually sends a message
      */
     fun createNewChatSession() {
         scope.launch {
+            // Finalize current session if it exists
             _currentSessionId.value?.let { sessionId ->
                 chatRepository.finalizeSession(sessionId)
             }
 
-            val newSession = chatRepository.createNewSession(context)
-            _currentSessionId.value = newSession.id
+            // Reset to empty state - session will be created on first message
+            _currentSessionId.value = null
             chatMutex.withLock {
                 _chatMessages.value = emptyList()
             }
             lastApiCallSuccessful = false
 
-            Log.d(TAG, "Created new chat session: ${newSession.id}")
+            Log.d(TAG, "Reset to new chat state - session will be created on first message")
         }
     }
 
@@ -227,8 +231,8 @@ class ChatManager(
             chatRepository.deleteSession(sessionId)
 
             if (isCurrentSession) {
-                val newSession = chatRepository.createNewSession(context)
-                _currentSessionId.value = newSession.id
+                // Don't create a new session - set to null and it will be created when needed
+                _currentSessionId.value = null
                 chatMutex.withLock {
                     _chatMessages.value = emptyList()
                 }

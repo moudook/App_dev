@@ -679,6 +679,9 @@ class AssistViewModel(
                     processingSet = false
                 }
 
+                // Ensure we have a session before adding messages
+                chatManager.ensureSession()
+
                 // 1. Add user message via manager
                 val userMessage = chatManager.addUserMessage(content, attachments)
 
