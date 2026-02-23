@@ -588,6 +588,14 @@ RULES:
 - <final> is the ONLY thing rendered for the user. Make it direct and clean.
 - NEVER write anything outside these two tags.
 
+CHAIN BREAKING (CRITICAL):
+- NEVER call the same tool more than 2 times with the same arguments
+- If a tool call succeeds, do NOT call it again with the same parameters
+- If a tool call fails twice, STOP and respond with what you have
+- If you find yourself repeating actions, STOP and ask the user for clarification
+- Each tool call should be UNIQUE and PURPOSEFUL — no redundant actions
+- After saving a note/setting a timer/creating an event, you're DONE — don't repeat
+
 MARKDOWN FORMATTING:
 Format ALL responses in <final> using clean Markdown:
 - Use **bold** for emphasis on key points
@@ -853,6 +861,10 @@ $timeContext
         val maxAgentIterations = 5
         var lastFailedToolName: String? = null
         var consecutiveToolFailures = 0
+        
+        // Chain breaking: Track tool call patterns to detect loops
+        val toolCallHistory = mutableListOf<Pair<String, String>>() // (toolName, argsHash)
+        val maxSameToolCalls = 3 // Max times same tool with similar args can be called
 
         while (agentIteration < maxAgentIterations) {
             agentIteration++
@@ -945,6 +957,38 @@ $timeContext
 
                 // 4. Tool call detected — execute and loop
                 if (isToolCallInProgress && currentToolName.isNotEmpty()) {
+                    // CHAIN BREAKING: Detect repeated tool calls (even successful ones)
+                    val argsHash = currentToolArgs.take(100).hashCode().toString() // Hash first 100 chars of args
+                    val toolSignature = "$currentToolName:$argsHash"
+                    
+                    // Count how many times this exact tool+args combination was called
+                    val sameCallCount = toolCallHistory.count { it.first == currentToolName && it.second == argsHash }
+                    toolCallHistory.add(Pair(currentToolName, argsHash))
+                    
+                    if (sameCallCount >= maxSameToolCalls - 1) {
+                        logger.warn("CHAIN BREAKER: Tool $currentToolName called ${sameCallCount + 1} times with same args - stopping loop")
+                        emit(AgentEvent.Error(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            message = "I noticed I'm repeating the same action. Let me give you what I have so far.",
+                            code = "CHAIN_LOOP_DETECTED"
+                        ))
+                        return currentContent.ifEmpty { "I was stuck in a loop. Please try again with a different request." }
+                    }
+                    
+                    // Also check for same tool being called too many times (even with different args)
+                    val sameToolCount = toolCallHistory.count { it.first == currentToolName }
+                    if (sameToolCount >= 5) {
+                        logger.warn("CHAIN BREAKER: Tool $currentToolName called ${sameToolCount + 1} times total - stopping loop")
+                        emit(AgentEvent.Error(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            message = "I've been doing this action too many times. Let me summarize what I've accomplished.",
+                            code = "TOOL_OVERUSE_DETECTED"
+                        ))
+                        return currentContent.ifEmpty { "I was stuck in a loop. Please try again with a different request." }
+                    }
+                    
                     // Check for consecutive same-tool failures (loop prevention)
                     // Allow 1 retry maximum (2 total attempts) before stopping
                     // After first failure: consecutiveToolFailures = 1, allow retry
