@@ -1053,7 +1053,17 @@ ${goalMemoryManager.getProgressContext()}
             val screen: String? = null
         )
 
-        val args = json.decodeFromString<UnifiedToolArgs>(argsJson)
+        val args = try {
+            json.decodeFromString<UnifiedToolArgs>(argsJson)
+        } catch (e: Exception) {
+            val firstJson = extractFirstJsonObject(argsJson)
+            if (firstJson != null) {
+                logger.warn("Malformed tool args (multiple JSON objects), using first: ${firstJson.take(100)}...")
+                json.decodeFromString<UnifiedToolArgs>(firstJson)
+            } else {
+                throw e
+            }
+        }
 
         // Map old tool names to new unified tools
         val toolName = when (name) {
@@ -1668,5 +1678,22 @@ ${goalMemoryManager.getProgressContext()}
         return if (result.length > maxChars) {
             result.take(maxChars) + "\n[...truncated for brevity]"
         } else result
+    }
+
+    private fun extractFirstJsonObject(input: String): String? {
+        var braceCount = 0
+        var startIndex = -1
+        for ((index, char) in input.withIndex()) {
+            if (char == '{') {
+                if (braceCount == 0) startIndex = index
+                braceCount++
+            } else if (char == '}') {
+                braceCount--
+                if (braceCount == 0 && startIndex >= 0) {
+                    return input.substring(startIndex, index + 1)
+                }
+            }
+        }
+        return null
     }
 }

@@ -188,7 +188,9 @@ class KeyRotatingOpenAiProvider(
         return msg.contains("401") || msg.contains("403") || 
                msg.contains("429") || msg.contains("rate") ||
                msg.contains("500") || msg.contains("502") || 
-               msg.contains("503") || msg.contains("timeout")
+               msg.contains("503") || msg.contains("timeout") ||
+               msg.contains("reset") || msg.contains("connection") ||
+               msg.contains("closed") || msg.contains("broken")
     }
 
     private fun getNextKeyIndex(): Int {
