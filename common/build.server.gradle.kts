@@ -1,4 +1,3 @@
-// Server-only common module - pure Kotlin/JVM, no Android
 plugins {
     kotlin("multiplatform")
     kotlin("plugin.serialization")

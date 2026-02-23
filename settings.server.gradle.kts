@@ -1,8 +1,3 @@
-# =============================================================================
-# Server-only settings for fast Docker builds
-# Use this when building only the server (no Android SDK needed)
-# =============================================================================
-
 pluginManagement {
     repositories {
         mavenCentral()
