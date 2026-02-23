@@ -1055,8 +1055,79 @@ ${goalMemoryManager.getProgressContext()}
 
         val args = json.decodeFromString<UnifiedToolArgs>(argsJson)
 
-        val result = when (name) {
-            "memory" -> {
+        // Map old tool names to new unified tools
+        val toolName = when (name) {
+            "save_note", "create_note" -> "memory_save"
+            "find_note", "search_notes" -> "memory_find"
+            "edit_note", "update_note" -> "memory_update"
+            "delete_note" -> "memory_delete"
+            "remember_fact", "store_context" -> "memory_remember"
+            "add_event", "schedule_event" -> "schedule_add"
+            "show_events", "list_events" -> "schedule_list"
+            "remove_event", "delete_event" -> "schedule_remove"
+            "set_reminder" -> "remind_set"
+            "open_app", "launch_app" -> "device_open"
+            "control_music", "control_media" -> "device_media"
+            "toggle_setting" -> "device_toggle"
+            "get_device_info" -> "device_status"
+            "take_screenshot" -> "device_capture"
+            "search_web", "web_search" -> "search_web"
+            "go_to_screen" -> "navigate_go"
+            "share_content", "share" -> "navigate_share"
+            else -> name
+        }
+
+        val result = try {
+            when (toolName) {
+                "memory_save" -> {
+                    if (noteRepository != null && args.title != null && args.content != null) {
+                        val noteId = noteRepository.create(userId, args.title, args.content, args.category)
+                        emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}""")
+                        "Saved: '${args.title}' (ID: $noteId)"
+                    } else {
+                        emitDeviceCommand(AgentCommand.AddNote(commandId = UUID.randomUUID().toString(), content = "${args.title}\n\n${args.content}", category = args.category))
+                        "Saved to device: ${args.title}"
+                    }
+                }
+                "memory_find" -> {
+                    if (noteRepository != null && args.query != null) {
+                        val results = noteRepository.search(userId, args.query)
+                        if (results.isEmpty()) "No notes found for '${args.query}'."
+                        else results.joinToString("\n") { "- [${it.id}] ${it.title}: ${it.content.take(80)}" }
+                    } else {
+                        emitDeviceCommand(AgentCommand.SearchNotes(commandId = UUID.randomUUID().toString(), query = args.query ?: "", category = args.category))
+                        "Searching device for: ${args.query}"
+                    }
+                }
+                "memory_update" -> {
+                    if (noteRepository != null && args.id != null) {
+                        noteRepository.update(userId, args.id, args.title, args.content, null)
+                        emitStateSync("note_updated", """{"id":"${args.id}"}""")
+                        "Updated note ${args.id}"
+                    } else {
+                        emitDeviceCommand(AgentCommand.UpdateNote(commandId = UUID.randomUUID().toString(), noteId = args.id ?: "", title = args.title, content = args.content))
+                        "Update sent to device."
+                    }
+                }
+                "memory_delete" -> {
+                    if (noteRepository != null && args.id != null) {
+                        noteRepository.delete(userId, args.id)
+                        emitStateSync("note_deleted", """{"id":"${args.id}"}""")
+                        "Deleted note ${args.id}"
+                    } else {
+                        emitDeviceCommand(AgentCommand.DeleteNote(commandId = UUID.randomUUID().toString(), noteId = args.id ?: ""))
+                        "Delete sent to device."
+                    }
+                }
+                "memory_remember" -> {
+                    try {
+                        val fact = args.fact ?: args.content ?: ""
+                        vectorStore.store(userId, fact, mapOf("type" to (args.type ?: "factual")))
+                        "Remembered: ${fact.take(50)}"
+                    } catch (e: Exception) { "Failed: ${e.message}" }
+                }
+                else -> when (name) {
+                    "memory" -> {
                 when (args.action) {
                     "save" -> {
                         if (noteRepository != null && args.title != null && args.content != null) {
