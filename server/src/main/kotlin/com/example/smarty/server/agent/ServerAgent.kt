@@ -1299,11 +1299,14 @@ ${goalMemoryManager.getProgressContext()}
 
             else -> "Unknown tool: $name"
         }
+        } catch (e: Exception) {
+            "Error executing tool: ${e.message}"
+        }
         return truncateToolResult(result)
     }
 
     /** Emit a StateSync event so the Android client can cache data locally. */
-        private suspend fun emitStateSync(syncType: String, data: String) {
+    private suspend fun emitStateSync(syncType: String, data: String) {
         emit(AgentEvent.StateSync(
             eventId = UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
