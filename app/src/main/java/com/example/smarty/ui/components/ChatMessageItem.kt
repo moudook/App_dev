@@ -83,14 +83,13 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.FontFamily
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextDecoration
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -125,6 +124,10 @@ private object MarkdownPatterns {
     val inlineCode = Regex("`([^`]+)`")
     val link = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
     val underline = Regex("__(.+?)__")
+    
+    // LaTeX math patterns
+    val inlineMath = Regex("\\$([^$]+)\\$")
+    val blockMath = Regex("\\$\\$([^$]+)\\$\\$", RegexOption.DOT_MATCHES_ALL)
 }
 
 /**
@@ -1357,17 +1360,54 @@ fun parseMarkdownToAnnotatedString(
             val displayText: String,
             val style: SpanStyle,
             val isLink: Boolean = false,
-            val url: String? = null
+            val url: String? = null,
+            val isMath: Boolean = false
         )
 
         val matches = mutableListOf<MarkdownMatch>()
 
-        MarkdownPatterns.bold.findAll(text).forEach { match ->
+        // LaTeX block math ($$...$$) - render as monospace with special styling
+        MarkdownPatterns.blockMath.findAll(text).forEach { match ->
             matches.add(MarkdownMatch(
                 range = match.range,
-                displayText = match.groupValues[1],
-                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold)
+                displayText = match.groupValues[1].trim(),
+                style = SpanStyle(
+                    color = codeColor,
+                    fontFamily = FontFamily.Monospace,
+                    background = codeColor.copy(alpha = 0.15f),
+                    fontSize = 14.sp
+                ),
+                isMath = true
             ))
+        }
+
+        // LaTeX inline math ($...$) - render as italic monospace
+        MarkdownPatterns.inlineMath.findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1].trim(),
+                    style = SpanStyle(
+                        color = codeColor,
+                        fontFamily = FontFamily.Monospace,
+                        fontStyle = FontStyle.Italic,
+                        background = codeColor.copy(alpha = 0.1f)
+                    ),
+                    isMath = true
+                ))
+            }
+        }
+
+        MarkdownPatterns.bold.findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold)
+                ))
+            }
         }
 
         MarkdownPatterns.italic.findAll(text).forEach { match ->
@@ -1436,7 +1476,12 @@ fun parseMarkdownToAnnotatedString(
                 }
             }
 
-            if (match.isLink && match.url != null) {
+            if (match.isMath) {
+                // Render math with visual prefix for clarity
+                withStyle(match.style) {
+                    append(match.displayText)
+                }
+            } else if (match.isLink && match.url != null) {
                 withLink(LinkAnnotation.Url(match.url)) {
                     withStyle(match.style) {
                         append(match.displayText)
