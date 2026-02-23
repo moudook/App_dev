@@ -80,7 +80,7 @@ class ServerAgent(
         const val MAX_ITERATIONS = 100 // Max LLM iterations
     }
 
-private val tools = listOf(
+    private val tools = listOf(
         // ═══════════════════════════════════════════════════════════════════
         // GENERALIZED TOOLS FOR LONG-HORIZON TASKS
         // ═══════════════════════════════════════════════════════════════════
@@ -1303,7 +1303,7 @@ ${goalMemoryManager.getProgressContext()}
     }
 
     /** Emit a StateSync event so the Android client can cache data locally. */
-    private suspend fun emitStateSync(syncType: String, data: String) {
+        private suspend fun emitStateSync(syncType: String, data: String) {
         emit(AgentEvent.StateSync(
             eventId = UUID.randomUUID().toString(),
             timestamp = System.currentTimeMillis(),
@@ -1393,7 +1393,7 @@ ${goalMemoryManager.getProgressContext()}
         return resultTime.toInstant().toEpochMilli()
     }
 
-private suspend fun emit(event: AgentEvent) {
+    private suspend fun emit(event: AgentEvent) {
         eventEmitter(event)
     }
 
