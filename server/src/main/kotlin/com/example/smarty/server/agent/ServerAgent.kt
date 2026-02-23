@@ -1297,8 +1297,9 @@ ${goalMemoryManager.getProgressContext()}
                 }
             }
 
-            else -> "Unknown tool: $name"
-        }
+                    else -> "Unknown tool: $name"
+                }
+            }
         } catch (e: Exception) {
             "Error executing tool: ${e.message}"
         }
