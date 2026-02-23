@@ -15,6 +15,7 @@ import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.data.cache.ToolResultCache
+import com.example.smarty.data.repository.ServerSyncRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -35,10 +36,18 @@ class SmartyRepository(
     /**
      * Initialize synchronization for a specific user.
      * Starts observing remote changes and merging them into local database.
+     * Also triggers an initial pull from server.
      */
     fun initializeSync(userId: String) {
         syncRepository?.let { repo ->
             repo.initializeForUser(userId)
+
+            // Trigger initial pull from server (includes chat sessions)
+            scope.launch {
+                if (repo is ServerSyncRepository) {
+                    repo.pullFromServer()
+                }
+            }
 
             // Observe Remote Notes
             scope.launch {
