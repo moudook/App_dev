@@ -239,7 +239,6 @@ object DatabaseFactory {
                 connectionTimeout = 30000
                 maxLifetime = 600000
                 leakDetectionThreshold = 60000
-                autoCommit = true
                 addDataSourceProperty("cachePrepStmts", "true")
                 addDataSourceProperty("prepStmtCacheSize", "250")
                 addDataSourceProperty("prepStmtCacheSqlLimit", "2048")
