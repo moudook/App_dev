@@ -1,31 +1,88 @@
-# Android app module - not needed for server deployment
+# =============================================================================
+# Aggressive .dockerignore for minimal build context
+# =============================================================================
+
+# Android app module - not needed for server
 app/
 
-# IDE files
-.idea/
-*.iml
-
-# Local build outputs
+# Build outputs (huge, not needed)
 build/
 server/build/
 common/build/
 .gradle/
+*.class
+*.jar
+*.war
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
 
 # Git
 .git/
 .github/
+.gitattributes
 
-# Documentation and research files
-*.txt
+# Documentation and research
 *.md
 !README.md
+*.pdf
+*.txt
 
 # Docker files (avoid recursive copy)
+Dockerfile
 docker-compose.yml
+.dockerignore
 
 # OS files
 .DS_Store
 Thumbs.db
+*.log
 
 # Local config
 local.properties
+.env
+.env.*
+
+# Test files
+**/test/
+**/*Test.kt
+**/*Tests.kt
+
+# Large generated files
+*.hprof
+java_pid*.hprof
+
+# Audio and media
+AUDIO_effects/
+*.mp3
+*.wav
+*.ogg
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Misc non-essential
+.agent/
+.antigravity/
+.claude/
+.qoder/
+logs/
+plans/
+refrences/
+tasks/
+_private/
+do any/
+for_my_reference/
+issues_with_the_app/
+optimization-analysis-report/
+original/
+recovered_features/
+system-prompts-and-models-of-ai-tools-main/
+ultimate_Prompts/
+conductor/
+functionality/
