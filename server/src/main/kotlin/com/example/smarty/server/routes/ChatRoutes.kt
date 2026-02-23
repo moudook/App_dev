@@ -260,6 +260,12 @@ fun Application.configureChatRoutes() {
              * ```
              */
             sse("/chat/stream") {
+                call.response.headers.apply {
+                    append("Cache-Control", "no-cache, no-transform")
+                    append("X-Accel-Buffering", "no")
+                    append("Connection", "keep-alive")
+                }
+                
                 val user = call.firebaseUser()
                 if (user == null) {
                     send(ServerSentEvent(
