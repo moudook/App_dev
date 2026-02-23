@@ -22,9 +22,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           
           # Add HF remote if not exists
-          git remote add hf https://TheEndOfStory:$HF_TOKEN@huggingface.co/spaces/TheEndOfStory/smarty-server 2>/dev/null || true
-          
-          # Push to HF Spaces
-          git push hf main --force
-          
-          echo "Deployed to https://huggingface.co/spaces/TheEndOfStory/smarty-server"
+          git remote add hf https://K1tt3n:$HF_TOKEN@huggingface.co/spaces/K1tt3n/Friday_server 2>/dev/null || true
+           
+           # Push to HF Spaces
+           git push hf main --force
+           
+           echo "Deployed to https://huggingface.co/spaces/K1tt3n/Friday_server"
