@@ -203,54 +203,71 @@ fun SettingsScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 20.dp)
+                                .background(MaterialTheme.colorScheme.background)
+                                .padding(horizontal = 16.dp)
                                 .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Spacer(modifier = Modifier.height(8.dp))
 
-                            // SECTION 1: AI & VOICE
-                            SettingsSection(
-                                title = stringResource(R.string.ai_voice),
-                                icon = Icons.Default.AutoAwesome,
-                                isExpanded = expandedSection == "ai",
-                                onToggle = { expandedSection = if (expandedSection == "ai") null else "ai" }
+                            // PROFILE HEADER (Mockup matching the screenshot)
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .background(Color(0xFFEAB308), CircleShape), // Yellow circle
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("CH", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Normal)
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("chiu", color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Medium)
+                                Text("forpblcusz@gmail.com", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), fontSize = 14.sp)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                OutlinedButton(
+                                    onClick = {},
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                                    shape = RoundedCornerShape(20.dp),
+                                    modifier = Modifier.height(36.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+                                ) {
+                                    Text("Edit profile", fontSize = 14.sp)
+                                }
+                            }
+
+                            // SECTION 1: AI & VOICE
+                            SettingsSection(title = "My Smarty") {
                                 SettingsRow(
                                     title = "AI Strategy",
                                     icon = Icons.Default.Analytics,
                                     subtitle = providerStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
                                     onClick = { currentView = SettingsView.ProviderStrategy },
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = true
                                 )
                                 SettingsRow(
                                     title = "Smarty Server",
                                     icon = Icons.Default.Cloud,
                                     subtitle = "Configure remote connection",
                                     onClick = { currentView = SettingsView.ServerConfig },
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = false
                                 )
                             }
 
                             // SECTION 2: CALENDAR INTEGRATION
-                            SettingsSection(
-                                title = stringResource(R.string.calendar),
-                                icon = Icons.Default.Event,
-                                isExpanded = expandedSection == "calendar",
-                                onToggle = {
-                                    expandedSection = if (expandedSection == "calendar") null else "calendar"
-                                    if (expandedSection == "calendar") onLoadDeviceCalendars()
-                                }
-                            ) {
+                            SettingsSection(title = "Calendar Integration") {
                                 SettingsToggleRow(
                                     title = stringResource(R.string.sync_to_google_calendar),
                                     icon = Icons.Default.Sync,
                                     isChecked = isCalendarSyncEnabled,
-                                    onCheckedChange = onSetCalendarSyncEnabled,
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    onCheckedChange = { 
+                                        onSetCalendarSyncEnabled(it) 
+                                        if (it) onLoadDeviceCalendars() 
+                                    },
+                                    showDivider = isCalendarSyncEnabled
                                 )
 
                                 if (isCalendarSyncEnabled) {
@@ -260,19 +277,13 @@ fun SettingsScreen(
                                         icon = Icons.Default.Event,
                                         subtitle = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select_calendar),
                                         onClick = { currentView = SettingsView.CalendarSelector },
-                                        iconColor = LocalAccentColor.current,
-                                        containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                        showDivider = false
                                     )
                                 }
                             }
 
                             // SECTION 3: DATA
-                            SettingsSection(
-                                title = stringResource(R.string.data_vault),
-                                icon = Icons.Default.Storage,
-                                isExpanded = expandedSection == "data",
-                                onToggle = { expandedSection = if (expandedSection == "data") null else "data" }
-                            ) {
+                            SettingsSection(title = "Data & Storage") {
                                 SettingsRow(
                                     title = stringResource(R.string.backup_sync),
                                     icon = Icons.Default.CloudSync,
@@ -281,8 +292,7 @@ fun SettingsScreen(
                                         "${stringResource(R.string.last_)} ${sdf.format(java.util.Date(lastBackupTime))}"
                                     } else stringResource(R.string.not_backed_up),
                                     onClick = { currentView = SettingsView.Backup },
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = true
                                 )
                                 SettingsRow(
                                     title = stringResource(R.string.google_calendar_sync),
@@ -292,16 +302,14 @@ fun SettingsScreen(
                                         "${stringResource(R.string.last_sync_)} ${sdf.format(java.util.Date(lastCalendarSyncTime))}"
                                     } else stringResource(R.string.not_synced),
                                     onClick = onCalendarSync,
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = true
                                 )
                                 SettingsRow(
                                     title = stringResource(R.string.export_data),
                                     icon = Icons.Default.FileDownload,
                                     subtitle = stringResource(R.string.export_all_notes_and_settings),
                                     onClick = onExportData,
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = true
                                 )
                                 SettingsRow(
                                     title = stringResource(R.string.clear_cache),
@@ -309,25 +317,18 @@ fun SettingsScreen(
                                     subtitle = formatCacheSize(cacheSizeBytes),
                                     onClick = onClearCache,
                                     enabled = !isClearingCache && cacheSizeBytes > 0,
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = false
                                 )
                             }
 
                             // SECTION 4: PREFERENCES
-                            SettingsSection(
-                                title = stringResource(R.string.preferences),
-                                icon = Icons.Default.Settings,
-                                isExpanded = expandedSection == "prefs",
-                                onToggle = { expandedSection = if (expandedSection == "prefs") null else "prefs" }
-                            ) {
+                            SettingsSection(title = "App Preferences") {
                                 SettingsRow(
                                     title = stringResource(R.string.shake_sensitivity),
                                     icon = Icons.Filled.Waves,
                                     subtitle = "${(shakeSensitivity * 100).toInt()}% Sensitivity",
                                     onClick = { currentView = SettingsView.ShakeSensitivity },
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = true
                                 )
                                 SettingsRow(
                                     title = "Coin Toss",
@@ -337,10 +338,8 @@ fun SettingsScreen(
                                         android.widget.Toast.makeText(context, "Opening Coin Toss...", android.widget.Toast.LENGTH_SHORT).show()
                                         onNavigateToCoinToss()
                                     },
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = true
                                 )
-                                // Assistant Settings (Intent Launchers don't need a sub-view)
                                 SettingsRow(
                                     title = stringResource(R.string.default_assistant),
                                     icon = Icons.Default.Build,
@@ -353,52 +352,29 @@ fun SettingsScreen(
                                             try {
                                                 val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
                                                 context.startActivity(intent)
-                                            } catch (e2: Exception) {
-                                                // Log error
-                                            }
+                                            } catch (e2: Exception) {}
                                         }
                                     },
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = true
                                 )
                                 SettingsRow(
                                     title = stringResource(R.string.about_smarty),
                                     icon = Icons.Default.Info,
                                     subtitle = "Version ${stringResource(R.string.smarty_version)}",
                                     onClick = { currentView = SettingsView.About },
-                                    iconColor = LocalAccentColor.current,
-                                    containerColor = LocalAccentColor.current.copy(alpha = 0.1f)
+                                    showDivider = false
                                 )
                             }
 
                             // SECTION 5: ACCOUNT
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp)
-                                    .softCardShadow(elevation = 4.dp, shape = RoundedCornerShape(26.dp)),
-                                shape = RoundedCornerShape(26.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(0.5.dp, Color(0xFFFF3B30).copy(alpha = 0.2f)),
-                                onClick = onSignOut
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(20.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Logout,
-                                        contentDescription = null,
-                                        tint = Color(0xFFFF3B30),
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Text(
-                                        text = stringResource(R.string.sign_out),
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = Color(0xFFFF3B30)
-                                    )
-                                }
+                            SettingsSection(title = "Account") {
+                                SettingsRow(
+                                    title = stringResource(R.string.sign_out),
+                                    icon = Icons.AutoMirrored.Filled.Logout,
+                                    onClick = onSignOut,
+                                    isDestructive = true,
+                                    showDivider = false
+                                )
                             }
 
                             // Padding for scrolling
@@ -885,94 +861,39 @@ private fun SettingsToggleItem(
 }
 
 // 
-// CENTRALIZED SETTINGS COMPONENTS - Minimal, Grouped, Expandable
+// CENTRALIZED SETTINGS COMPONENTS - Minimal, Stacked Cards
 // 
 
-/**
- * Collapsible settings section with header and expandable content.
- * Only shows items when expanded - reduces visual clutter.
- */
 @Composable
 private fun SettingsSection(
     title: String,
-    icon: ImageVector,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val accentColor = LocalAccentColor.current // Use dynamic accent for settings sections
-    val rotationAngle by animateFloatAsState(
-        targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = tween(200),
-        label = "rotation"
-    )
-
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .softCardShadow(elevation = if (isExpanded) 6.dp else 2.dp, shape = RoundedCornerShape(26.dp)),
-        shape = RoundedCornerShape(26.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+            .padding(vertical = 4.dp)
     ) {
-        Column {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onToggle)
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = if (isExpanded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = if (isExpanded) androidx.compose.ui.text.font.FontWeight.SemiBold
-                        else androidx.compose.ui.text.font.FontWeight.Medium
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "collapse" else "expand",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .size(24.dp)
-                        .graphicsLayer { rotationZ = rotationAngle }
-                )
-            }
-
-            // Expandable content
-            androidx.compose.animation.AnimatedVisibility(
-                visible = isExpanded,
-                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    content()
-                }
-            }
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, // Themed light gray heading
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+            )
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(if (isSystemInDarkTheme()) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)), // Gap separator line color
+            verticalArrangement = Arrangement.spacedBy(1.dp) // Creates the thin separator lines
+        ) {
+            content()
         }
     }
 }
 
-/**
- * Simple settings row inside a section - minimal, tappable.
- */
 @Composable
 private fun SettingsRow(
     title: String,
@@ -981,161 +902,98 @@ private fun SettingsRow(
     onClick: () -> Unit,
     enabled: Boolean = true,
     isDestructive: Boolean = false,
-    iconColor: Color = LocalAccentColor.current,
-    containerColor: Color = Color.Transparent
+    showDivider: Boolean = true // Ignored intentionally
 ) {
     val contentColor = when {
         !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-        isDestructive -> MaterialTheme.colorScheme.error
+        isDestructive -> MaterialTheme.colorScheme.error // iOS desctructive red adaptively
         else -> MaterialTheme.colorScheme.onSurface
     }
+    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
 
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        color = containerColor,
-        onClick = onClick,
-        enabled = enabled,
-        shape = RoundedCornerShape(26.dp),
-        border = if (enabled) BorderStroke(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)) else null
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Theme-adaptive card layer
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 16.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp, horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                // Leading Icon with Squircle shape
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(
-                            if (isDestructive) Color(0xFFFF3B30).copy(alpha = 0.1f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = if (isDestructive) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(24.dp)
+        )
 
-                Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(16.dp))
 
-                Column {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontWeight = FontWeight.Medium
-                        ),
-                        color = contentColor
-                    )
-                    subtitle?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = MonoFont
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                alpha = if (enabled) 0.7f else 0.4f
-                            )
-                        )
-                    }
-                }
-            }
-
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.TrendingFlat,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(20.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 17.sp
+                ),
+                color = contentColor
             )
+            subtitle?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
 
-/**
- * Settings row with toggle switch - inline control.
- */
 @Composable
 private fun SettingsToggleRow(
     title: String,
     icon: ImageVector,
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    iconColor: Color = LocalAccentColor.current,
-    containerColor: Color = Color.Transparent
+    showDivider: Boolean = true // Ignored intentionally 
 ) {
-    Surface(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(26.dp)),
-        color = containerColor,
-        shape = RoundedCornerShape(26.dp),
-        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Theme-adaptive card layer
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp, horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                // Leading Icon with Squircle shape
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(24.dp)
+        )
 
-                Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(16.dp))
 
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontWeight = FontWeight.Normal,
+                fontSize = 17.sp
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
 
-            Switch(
-                checked = isChecked,
-                onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = LocalAccentColor.current,
-                    uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                    uncheckedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                ),
-                modifier = Modifier.scale(0.8f)
-            )
-        }
+        Switch(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = Color(0xFF34C759), // Semantic green positive
+                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                uncheckedBorderColor = Color.Transparent
+            ),
+            modifier = Modifier.scale(0.8f) // Scale iOS matching
+        )
     }
 }
 

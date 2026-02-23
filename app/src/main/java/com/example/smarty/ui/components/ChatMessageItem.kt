@@ -83,14 +83,14 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.FontFamily
-import androidx.compose.ui.text.LinkAnnotation
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextDecoration
-import androidx.compose.ui.text.TextOverflow
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
@@ -120,15 +120,16 @@ import kotlinx.coroutines.launch
  * Pre-compiled regex patterns for markdown parsing.
  */
 private object MarkdownPatterns {
-    val bold = Regex("\\*\\*(.+?)\\*\\*")
-    val italic = Regex("(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)")
-    val inlineCode = Regex("`([^`]+)`")
+    val bold = Regex("\\*\\*([\\s\\S]+?)\\*\\*")
+    val italic = Regex("(?<!\\*)\\*(?!\\*)([\\s\\S]+?)(?<!\\*)\\*(?!\\*)")
+    val inlineCode = Regex("`([\\s\\S]+?)`")
     val link = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
-    val underline = Regex("__(.+?)__")
+    val underline = Regex("__([\\s\\S]+?)__")
+    val italicUnderscore = Regex("(?<!_)_(?!_)([\\s\\S]+?)(?<!_)_(?!_)")
     
     // LaTeX math patterns
     val inlineMath = Regex("\\$([^$]+)\\$")
-    val blockMath = Regex("\\$\\$([^$]+)\\$\\$", RegexOption.DOT_MATCHES_ALL)
+    val blockMath = Regex("\\$\\$([\\s\\S]+?)\\$\\$")
 }
 
 /**
@@ -1170,10 +1171,11 @@ fun MarkdownRenderer(
         } else {
             // Standard Text / Markdown
             if (part.isNotBlank()) {
-                val lines = part.lines()
-
-                lines.forEach { line ->
-                    val trimmedLine = line.trim()
+                val lines = part.trim().lines()
+                var i = 0
+                while (i < lines.size) {
+                    val originalLine = lines[i]
+                    val trimmedLine = originalLine.trim()
                     
                     when {
                         // Headers - ElevenLabs Style: Tighter, bolder, closer to content
@@ -1192,6 +1194,7 @@ fun MarkdownRenderer(
                                 color = boldColor
                             )
                             Spacer(modifier = Modifier.height(4.dp))
+                            i++
                         }
                         trimmedLine.startsWith("## ") -> {
                             Spacer(modifier = Modifier.height(24.dp))
@@ -1208,6 +1211,7 @@ fun MarkdownRenderer(
                                 color = boldColor
                             )
                             Spacer(modifier = Modifier.height(6.dp))
+                            i++
                         }
                         trimmedLine.startsWith("# ") -> {
                             Spacer(modifier = Modifier.height(28.dp))
@@ -1224,16 +1228,28 @@ fun MarkdownRenderer(
                                 color = boldColor
                             )
                             Spacer(modifier = Modifier.height(8.dp))
+                            i++
                         }
                         
-                        // Lists (Bullets) - AIGBT Spec 16px
+                        // Lists (Bullets)
                         trimmedLine.startsWith("- ") || trimmedLine.startsWith("* ") -> {
+                            val itemLines = mutableListOf<String>()
+                            itemLines.add(trimmedLine.substring(2))
+                            i++
+                            while (i < lines.size) {
+                                val nextTrimmed = lines[i].trim()
+                                if (nextTrimmed.isBlank() || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || nextTrimmed.startsWith("> ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
+                                    break
+                                }
+                                itemLines.add(nextTrimmed)
+                                i++
+                            }
                             Row(modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.Top) {
                                 Text("•", style = MaterialTheme.typography.bodyMedium.copy(fontSize=16.sp), color = normalColor.copy(alpha = 0.7f))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = parseMarkdownToAnnotatedString(
-                                        trimmedLine.substring(2), normalColor, boldColor, normalColor, linkColor, codeColor
+                                        itemLines.joinToString("\n"), normalColor, boldColor, normalColor, linkColor, codeColor
                                     ),
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontSize = 16.sp,
@@ -1248,9 +1264,21 @@ fun MarkdownRenderer(
                         trimmedLine.firstOrNull()?.isDigit() == true && trimmedLine.contains(". ") -> {
                              val dotIndex = trimmedLine.indexOf(". ")
                              if (dotIndex in 1..3) {
+                                 val prefix = trimmedLine.substring(0, dotIndex + 2)
+                                 val itemLines = mutableListOf<String>()
+                                 itemLines.add(trimmedLine.substring(dotIndex + 2))
+                                 i++
+                                 while (i < lines.size) {
+                                     val nextTrimmed = lines[i].trim()
+                                     if (nextTrimmed.isBlank() || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || nextTrimmed.startsWith("> ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
+                                         break
+                                     }
+                                     itemLines.add(nextTrimmed)
+                                     i++
+                                 }
                                  Row(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.Top) {
                                      Text(
-                                         text = trimmedLine.substring(0, dotIndex + 1),
+                                         text = prefix,
                                          style = MaterialTheme.typography.bodyMedium.copy(
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Medium,
@@ -1262,7 +1290,7 @@ fun MarkdownRenderer(
                                      Spacer(modifier = Modifier.width(8.dp))
                                      Text(
                                          text = parseMarkdownToAnnotatedString(
-                                             trimmedLine.substring(dotIndex + 2), normalColor, boldColor, normalColor, linkColor, codeColor
+                                             itemLines.joinToString("\n"), normalColor, boldColor, normalColor, linkColor, codeColor
                                          ),
                                          style = MaterialTheme.typography.bodyMedium.copy(
                                              fontSize = 16.sp,
@@ -1272,12 +1300,38 @@ fun MarkdownRenderer(
                                      )
                                  }
                              } else {
-                                 StandardText(line, normalColor, boldColor, linkColor, codeColor)
+                                 val itemLines = mutableListOf<String>()
+                                 itemLines.add(trimmedLine)
+                                 i++
+                                 while (i < lines.size) {
+                                     val nextTrimmed = lines[i].trim()
+                                     if (nextTrimmed.isBlank() || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || nextTrimmed.startsWith("> ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
+                                         break
+                                     }
+                                     itemLines.add(nextTrimmed)
+                                     i++
+                                 }
+                                 StandardText(itemLines.joinToString("\n"), normalColor, boldColor, linkColor, codeColor)
                              }
                         }
                         
                         // Blockquote - ChatGPT Style
                         trimmedLine.startsWith("> ") -> {
+                            val quoteLines = mutableListOf<String>()
+                            quoteLines.add(trimmedLine.substring(2).trim())
+                            i++
+                            while (i < lines.size) {
+                                val nextTrimmed = lines[i].trim()
+                                if (nextTrimmed.isBlank() || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
+                                    break
+                                }
+                                if (nextTrimmed.startsWith("> ")) {
+                                    quoteLines.add(nextTrimmed.substring(2).trim())
+                                } else {
+                                    quoteLines.add(nextTrimmed)
+                                }
+                                i++
+                            }
                             Box(
                                 modifier = Modifier
                                     .padding(vertical = 6.dp)
@@ -1294,7 +1348,7 @@ fun MarkdownRenderer(
                             ) {
                                 Text(
                                     text = parseMarkdownToAnnotatedString(
-                                        trimmedLine.substring(2).trim(), normalColor, boldColor, normalColor, linkColor, codeColor
+                                        quoteLines.joinToString("\n"), normalColor, boldColor, normalColor, linkColor, codeColor
                                     ),
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontSize = 16.sp,
@@ -1306,12 +1360,24 @@ fun MarkdownRenderer(
                             }
                         }
                         
-                        line.isBlank() -> {
-                            Spacer(modifier = Modifier.height(20.dp)) // 1.25rem paragraph spacing per AIGBT
+                        trimmedLine.isBlank() -> {
+                            Spacer(modifier = Modifier.height(12.dp)) // Added spacing for empty paragraphs
+                            i++
                         }
                         
                         else -> {
-                            StandardText(line, normalColor, boldColor, linkColor, codeColor)
+                            val paragraphLines = mutableListOf<String>()
+                            paragraphLines.add(trimmedLine)
+                            i++
+                            while (i < lines.size) {
+                                val nextTrimmed = lines[i].trim()
+                                if (nextTrimmed.isBlank() || nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || nextTrimmed.startsWith("> ") || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
+                                    break
+                                }
+                                paragraphLines.add(nextTrimmed)
+                                i++
+                            }
+                            StandardText(paragraphLines.joinToString("\n"), normalColor, boldColor, linkColor, codeColor)
                         }
                     }
                 }
@@ -1461,9 +1527,20 @@ fun parseMarkdownToAnnotatedString(
                     range = match.range,
                     displayText = match.groupValues[1],
                     style = SpanStyle(
-                        color = normalColor,
-                        textDecoration = TextDecoration.Underline
+                        color = boldColor,
+                        fontWeight = FontWeight.Bold
                     )
+                ))
+            }
+        }
+
+        MarkdownPatterns.italicUnderscore.findAll(text).forEach { match ->
+            val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
+            if (!overlaps) {
+                matches.add(MarkdownMatch(
+                    range = match.range,
+                    displayText = match.groupValues[1],
+                    style = SpanStyle(color = italicColor, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
                 ))
             }
         }

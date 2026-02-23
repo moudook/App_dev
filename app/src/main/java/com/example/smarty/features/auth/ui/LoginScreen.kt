@@ -2,6 +2,7 @@ package com.example.smarty.features.auth.ui
 
 import android.app.Application
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -99,69 +100,249 @@ fun LoginScreen(
         viewModel.handleGoogleSignInResult(result)
     }
 
+    var showForm by remember { mutableStateOf(false) }
+
     LaunchedEffect(authState) {
         if (authState == AuthFeatureManager.AuthState.SUCCESS) {
             onLoginSuccess()
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        modifier = modifier.fillMaxSize()
-    ) { padding ->
-        Column(
-            modifier = Modifier
+    // --- LANDING SCREEN ---
+    if (!showForm) {
+        val imageOrange = Color(0xFFD66A48) // Extracted from the user's image
+
+        Box(
+            modifier = modifier
                 .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .imePadding() // Shunts content upward when keyboard is open
-                .padding(horizontal = 32.dp), // Increased horizontal padding for cleaner look
-            horizontalAlignment = Alignment.CenterHorizontally
+                .background(MaterialTheme.colorScheme.background) // Keeping dark theme
         ) {
-            // 1. DENSITY AT BOTTOM: Top section mostly empty
-            // If skipping splash, we might want to adjust spacing but keeping it consistent for now
-Spacer(modifier = Modifier.weight(1f))
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-
-            // 1. MODERN MINIMAL HEADER
-            // "Same team as header section" -> Monochrome & Pill aesthetics
-
-            // Standard Pill Constants matching SmartyInputField
-            val monochromeColor = rememberMonochromeAccent()
-            val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
-            val pillBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
-            val pillBorder = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-            val pillShape = RoundedCornerShape(26.dp)
-
-            Text(
-                text = if (isLoginMode) stringResource(R.string.welcome) else stringResource(R.string.create_account),
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = (-0.5).sp
-                ),
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(4.dp)) // Condensed (was 8dp)
-
-            Text(
-                text = if (isLoginMode) stringResource(R.string.sign_in_subtitle) else stringResource(R.string.sign_up_subtitle),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-
-            Spacer(modifier = Modifier.height(24.dp)) // Condensed (was 32dp)
-
-            // 2. FORM FIELDS (Directly on background, no Card)
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp), // Ultra-Condensed (was 16dp)
-                modifier = Modifier.widthIn(max = 400.dp)
+            // Top Illustration Placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.35f),
+                contentAlignment = Alignment.Center
             ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_launcher_monochrome),
+                    contentDescription = "App Illustration",
+                    modifier = Modifier.size(160.dp),
+                    tint = imageOrange
+                )
+            }
+
+            // Bottom Content Card
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.65f)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+                    )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp, vertical = 24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        // Badge "New"
+                        Box(
+                            modifier = Modifier
+                                .border(1.dp, imageOrange.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .background(imageOrange.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text("New", color = imageOrange, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        // Title
+                        Text(
+                            text = "Smarty: Your New App",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                            lineHeight = 36.sp
+                        )
+
+                        // Description
+                        Text(
+                            text = "Experience the power of Smarty, our most advanced cognitive assistant for smarter living and productivity.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 15.sp,
+                            lineHeight = 22.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Item 1
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Icon(painterResource(R.drawable.ic_shortcut_stacks), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            Column {
+                                Text("Smart Task Management:", color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                Text("Organize your day with intelligence.", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, lineHeight = 20.sp)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Buttons
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color.Black.copy(alpha = 0.5f)), // Gap line color
+                        verticalArrangement = Arrangement.spacedBy(1.dp) // Creates the thin separator lines
+                    ) {
+                        // Main Button: Continue with Email
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Card color
+                                .clickable { showForm = true }
+                                .padding(vertical = 16.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AlternateEmail,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "Continue with Email",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        // Secondary Button: Continue with Google
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Card color
+                                .clickable {
+                                    if (!isLoading) googleSignInLauncher.launch(viewModel.getGoogleSignInIntent())
+                                }
+                                .padding(vertical = 16.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_google_logo),
+                                contentDescription = "Google Logo",
+                                modifier = Modifier.size(24.dp),
+                                tint = Color.Unspecified
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = "Continue with Google",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return // Short-circuit, don't show the form if we are on the landing page
+    }
+
+    // Handle system back press to return from the form to landing
+    BackHandler {
+        showForm = false
+        viewModel.clearError()
+    }
+
+    val imageOrange = Color(0xFFD66A48) // Extracted from the user's image
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Top Illustration Placeholder
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.35f),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_launcher_monochrome),
+                contentDescription = "App Illustration",
+                modifier = Modifier.size(160.dp),
+                tint = imageOrange
+            )
+        }
+
+        // Bottom Content Card
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.65f)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 24.dp)
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
+            ) {
+                // Header
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = if (isLoginMode) stringResource(R.string.welcome) else stringResource(R.string.create_account),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Serif,
+                        lineHeight = 36.sp,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = if (isLoginMode) stringResource(R.string.sign_in_subtitle) else stringResource(R.string.sign_up_subtitle),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // Constants for internal fields
+                val monochromeColor = rememberMonochromeAccent()
+                val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
+                val pillBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
+                val pillBorder = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                val pillShape = RoundedCornerShape(26.dp)
+
+                // 2. FORM FIELDS
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                 // Email Field (Legend/Label on Top Border)
                 // Theme-aware focus color: White for Dark Mode, Black for Light Mode
                 val focusHighlightColor = monochromeColor
@@ -327,153 +508,97 @@ Spacer(modifier = Modifier.weight(1f))
                     }
                 }
 
-                // Fixed-height container to prevent layout shifts when switching modes
+                // Fixed-height container for "Forgot Password" to prevent layout shifts
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(32.dp), // Reserves space even when text is hidden
+                        .height(32.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     if (isLoginMode) {
                         Text(
                             text = stringResource(R.string.forgot_password),
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), // Monochrome
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             modifier = Modifier
                                 .clickable {
-                                    if (email.isNotBlank()) {
-                                        viewModel.resetPassword(email)
-                                    } else {
-                                        // Trigger error if email is missing
-                                        viewModel.setError(context.getString(R.string.error_email_required_reset))
-                                    }
+                                    if (email.isNotBlank()) viewModel.resetPassword(email)
+                                    else viewModel.setError(context.getString(R.string.error_email_required_reset))
                                 }
                                 .padding(vertical = 4.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Google Button (Matching History Pill Style: Text Only, Minimal Pill, No Click Animation)
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        modifier = Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                             if (!isLoading) googleSignInLauncher.launch(viewModel.getGoogleSignInIntent())
-                        },
-                        shape = pillShape,
-                        color = pillBackground,
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, pillBorder)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.continue_with_google),
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.Medium,
-                                    letterSpacing = 0.5.sp
-                                ),
-                                color = monochromeColor
-                            )
-                        }
-                    }
-                }
+                val isPasswordMatch = isLoginMode || (password.isNotEmpty() && password == confirmPassword)
+                val isEnabled = !isLoading && email.isNotBlank() && password.isNotBlank() && isPasswordMatch
 
-                // Primary Button (Pill Style)
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val isPasswordMatch = isLoginMode || (password.isNotEmpty() && password == confirmPassword)
-                    val isEnabled = !isLoading && email.isNotBlank() && password.isNotBlank() && isPasswordMatch
-                    val activePillBorder = if (isEnabled) MaterialTheme.colorScheme.onSurface else pillBorder
-
-                    Surface(
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                enabled = isEnabled
-                            ) {
-                                focusManager.clearFocus()
-                                if (isLoginMode) {
-                                    viewModel.signIn(email, password)
-                                } else {
-                                    if (password == confirmPassword) {
-                                        viewModel.signUp(email, password)
-                                    }
-                                }
-                            },
-                        shape = pillShape,
-                        color = pillBackground,
-                        border = BorderStroke(0.5.dp, activePillBorder) // Highlight border if ready
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text(
-                                    text = if (isLoginMode) stringResource(R.string.sign_in) else stringResource(R.string.sign_up),
-                                    style = MaterialTheme.typography.labelLarge.copy(
-                                        fontWeight = FontWeight.Medium,
-                                        letterSpacing = 0.5.sp
-                                    ),
-                                    color = if (isEnabled) monochromeColor else monochromeColor.copy(alpha = 0.3f)
-                                )
+                // Single Primary Submit Button mapped to the Landing style
+                Button(
+                    onClick = {
+                        focusManager.clearFocus()
+                        if (isLoginMode) {
+                            viewModel.signIn(email, password)
+                        } else {
+                            if (password == confirmPassword) {
+                                viewModel.signUp(email, password)
                             }
                         }
+                    },
+                    enabled = isEnabled,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text(
+                            text = if (isLoginMode) stringResource(R.string.sign_in) else stringResource(R.string.sign_up),
+                            color = MaterialTheme.colorScheme.surface,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Footer Toggle (e.g. "New here? Sign up.")
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                ) {
+                    Text(
+                        text = if (isLoginMode) stringResource(R.string.new_here) else stringResource(R.string.have_account),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isLoginMode) stringResource(R.string.sign_up) else stringResource(R.string.sign_in),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable {
+                                isLoginMode = !isLoginMode
+                                viewModel.clearError()
+                            }
+                            .padding(4.dp)
+                    )
+                }
             }
-
-            Spacer(modifier = Modifier.weight(0.2f))
-
-            // Footer
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(bottom = 24.dp)
-            ) {
-                Text(
-                    text = if (isLoginMode) stringResource(R.string.new_here) else stringResource(R.string.have_account),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (isLoginMode) stringResource(R.string.sign_up) else stringResource(R.string.sign_in),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = accentColor,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable {
-                            isLoginMode = !isLoginMode
-                            viewModel.clearError()
-                        }
-                        .padding(4.dp)
-                )
-            }
-
-            // Note: Column already has imePadding() so no additional spacer needed
         }
     }
 }
-
-
+}

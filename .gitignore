@@ -217,6 +217,7 @@ BUG_INVESTIGATION_REPORT.md
 # Ignore all markdown files except core docs
 *.md
 !README.md
+!inspirations.md
 !DEPLOYMENT.md
 !LOCAL_HOSTING.md
 !features_list.md
