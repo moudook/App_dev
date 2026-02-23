@@ -98,7 +98,7 @@ class SecurePreferences(private val context: Context) {
         private const val KEY_SERVER_URL = "server_url"
         // Default to production Hugging Face Spaces server
         // Users can change this in Settings for local development
-        private const val DEFAULT_SERVER_URL = "https://theendofstory-smarty-server.hf.space"
+        private const val DEFAULT_SERVER_URL = "https://k1tt3n-friday-server.hf.space"
 
         // Google Calendar Sync
         private const val KEY_SYNC_TO_GOOGLE_CALENDAR = "sync_to_google_calendar"
