@@ -75,6 +75,32 @@ override suspend fun generate(
         }
     }
 
+    private suspend fun <T> withRetry(
+        maxRetries: Int = 2,
+        initialDelay: Long = 500L,
+        block: suspend () -> T
+    ): T {
+        var lastException: Exception? = null
+        repeat(maxRetries + 1) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+                val msg = e.message?.lowercase() ?: ""
+                val isRetryable = msg.contains("500") || msg.contains("502") || 
+                                  msg.contains("503") || msg.contains("rate") ||
+                                  msg.contains("timeout") || msg.contains("reset")
+                if (!isRetryable || attempt == maxRetries) {
+                    throw e
+                }
+                val delay = initialDelay * (1 shl attempt)
+                logger.warn("Retryable error on attempt ${attempt + 1}, waiting ${delay}ms: ${e.message}")
+                kotlinx.coroutines.delay(delay)
+            }
+        }
+        throw lastException ?: IllegalStateException("Retry failed")
+    }
+
 override suspend fun stream(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,

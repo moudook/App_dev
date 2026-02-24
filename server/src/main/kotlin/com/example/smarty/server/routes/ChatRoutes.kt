@@ -354,6 +354,7 @@ fun Application.configureChatRoutes() {
                                 is AgentEvent.Result -> "result"
                                 is AgentEvent.Error -> "error"
                                 is AgentEvent.StateSync -> "state_sync"
+                                is AgentEvent.ToolBlocked -> "tool_blocked"
                             }
                             call.application.log.info("Sending SSE event: $eventType (ID: ${event.eventId})")
                             send(ServerSentEvent(

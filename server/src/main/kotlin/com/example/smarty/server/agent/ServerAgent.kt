@@ -756,56 +756,30 @@ ${goalMemoryManager.getProgressContext()}
 
                 // 4. Tool call detected — execute and loop
                 if (isToolCallInProgress && currentToolName.isNotEmpty()) {
-                    // CHAIN BREAKING: Detect repeated tool calls (even successful ones)
+                    // CHAIN BREAKING: Detect repeated tool calls with EXACT SAME arguments
                     val argsHash = currentToolArgs.take(100).hashCode().toString() // Hash first 100 chars of args
-                    val toolSignature = "$currentToolName:$argsHash"
                     
                     // Count how many times this exact tool+args combination was called
                     val sameCallCount = toolCallHistory.count { it.first == currentToolName && it.second == argsHash }
+                    
+                    // Allow research with same tool but DIFFERENT queries - only block exact same query
+                    // After 3 identical queries, tell AI to try something different instead of stopping
+                    if (sameCallCount >= 3) {
+                        logger.warn("TOOL BLOCKED: Tool $currentToolName called ${sameCallCount + 1} times with same query - informing AI")
+                        emit(AgentEvent.ToolBlocked(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            toolName = currentToolName,
+                            reason = "Same query repeated ${sameCallCount + 1} times. Try a different approach.",
+                            code = "TOOL_BLOCKED_SAME_QUERY"
+                        ))
+                        // Return empty result so AI can try a different approach
+                        return "I can't search for the same thing again. Let me try a different approach."
+                    }
+
+                    // Add to history AFTER checking (so we count current call too)
                     toolCallHistory.add(Pair(currentToolName, argsHash))
                     
-                    if (sameCallCount >= maxSameToolCalls - 1) {
-                        logger.warn("CHAIN BREAKER: Tool $currentToolName called ${sameCallCount + 1} times with same args - stopping loop")
-                        emit(AgentEvent.Error(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            message = "I noticed I'm repeating the same action. Let me give you what I have so far.",
-                            code = "CHAIN_LOOP_DETECTED"
-                        ))
-                        goalMemoryManager.markFailed("Chain loop detected: $currentToolName repeated")
-                        return currentContent.ifEmpty { "I was stuck in a loop. Please try again with a different request." }
-                    }
-                    
-                    // Also check for same tool being called too many times (even with different args)
-                    val sameToolCount = toolCallHistory.count { it.first == currentToolName }
-                    if (sameToolCount >= 5) {
-                        logger.warn("CHAIN BREAKER: Tool $currentToolName called ${sameToolCount + 1} times total - stopping loop")
-                        emit(AgentEvent.Error(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            message = "I've been doing this action too many times. Let me summarize what I've accomplished.",
-                            code = "TOOL_OVERUSE_DETECTED"
-                        ))
-                        goalMemoryManager.markFailed("Tool overuse detected: $currentToolName called ${sameToolCount + 1} times")
-                        return currentContent.ifEmpty { "I was stuck in a loop. Please try again with a different request." }
-                    }
-
-                    // Check for consecutive same-tool failures (loop prevention)
-                    // Allow 1 retry maximum (2 total attempts) before stopping
-                    // After first failure: consecutiveToolFailures = 1, allow retry
-                    // After second failure: consecutiveToolFailures = 2, stop
-                    if (currentToolName == lastFailedToolName && consecutiveToolFailures >= 2) {
-                        logger.warn("Tool $currentToolName failed after retry - stopping loop (failures: $consecutiveToolFailures)")
-                        emit(AgentEvent.Error(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            message = "The $currentToolName action failed after retry. I'll stop and give you what I have so far.",
-                            code = "TOOL_LOOP_DETECTED"
-                        ))
-                        goalMemoryManager.markFailed("Tool loop detected: $currentToolName failed twice")
-                        return currentContent.ifEmpty { "Action failed. Please try a different approach." }
-                    }
-
                     toolCallCount++
                     if (toolCallCount > MAX_TOOL_CALLS) {
                         logger.warn("Tool call limit exceeded ($MAX_TOOL_CALLS) for user: $userId")

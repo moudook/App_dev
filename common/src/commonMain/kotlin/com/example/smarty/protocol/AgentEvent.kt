@@ -103,4 +103,19 @@ sealed class AgentEvent {
         @SerialName("sync_type") val syncType: String,
         val data: String
     ) : AgentEvent()
+
+    /**
+     * Tool execution was blocked (e.g., same query repeated too many times).
+     * Unlike Error, this allows the agent to continue with a different approach.
+     * The AI receives this message and can decide next steps.
+     */
+    @Serializable
+    @SerialName("tool_blocked")
+    data class ToolBlocked(
+        override val eventId: String,
+        override val timestamp: Long,
+        @SerialName("tool_name") val toolName: String,
+        val reason: String,
+        val code: String? = null
+    ) : AgentEvent()
 }

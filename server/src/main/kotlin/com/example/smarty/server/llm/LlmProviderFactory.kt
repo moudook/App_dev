@@ -200,6 +200,13 @@ class KeyRotatingOpenAiProvider(
                msg.contains("stream was reset")
     }
 
+    private suspend fun delayWithBackoff(attempt: Int) {
+        val baseDelay = 500L // 500ms base delay
+        val maxDelay = 3000L // 3 seconds max
+        val delay = minOf(baseDelay * (1 shl attempt), maxDelay)
+        kotlinx.coroutines.delay(delay)
+    }
+
     private fun getValidKeyIndex(): Int? {
         val startIndex = currentIndex.getAndIncrement() % apiKeys.size
         var index = startIndex
@@ -219,6 +226,7 @@ class KeyRotatingOpenAiProvider(
     override suspend fun generate(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): LlmResponse {
         var lastException: Exception? = null
         val triedKeys = mutableSetOf<Int>()
+        var attempt = 0
 
         while (triedKeys.size < apiKeys.size - invalidKeys.size) {
             val keyIndex = getValidKeyIndex() ?: break
@@ -234,15 +242,18 @@ class KeyRotatingOpenAiProvider(
             )
 
             try {
-                logger.debug("Trying generate with key #$keyIndex for $baseProviderName")
+                logger.debug("Trying generate with key #$keyIndex for $baseProviderName (attempt ${attempt + 1})")
                 return provider.generate(messages, tools, model)
             } catch (e: Exception) {
                 lastException = e
+                val isRetryable = isRetryableError(e)
                 if (isPermanentError(e)) {
                     markKeyInvalid(keyIndex)
                     logger.warn("Key #$keyIndex is INVALID for $baseProviderName: ${e.message}")
-                } else if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed for $baseProviderName: ${e.message}, trying next key")
+                } else if (isRetryable) {
+                    logger.warn("Key #$keyIndex failed for $baseProviderName: ${e.message}, retrying with backoff...")
+                    delayWithBackoff(attempt)
+                    attempt++
                 } else {
                     throw e
                 }
@@ -255,6 +266,7 @@ class KeyRotatingOpenAiProvider(
     override suspend fun stream(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): Flow<LlmChunk> = flow {
         var lastException: Exception? = null
         val triedKeys = mutableSetOf<Int>()
+        var attempt = 0
 
         while (triedKeys.size < apiKeys.size - invalidKeys.size) {
             val keyIndex = getValidKeyIndex() ?: break
@@ -270,18 +282,21 @@ class KeyRotatingOpenAiProvider(
             )
 
             try {
-                logger.debug("Trying stream with key #$keyIndex for $baseProviderName")
+                logger.debug("Trying stream with key #$keyIndex for $baseProviderName (attempt ${attempt + 1})")
                 provider.stream(messages, tools, model).collect { chunk ->
                     emit(chunk)
                 }
                 return@flow
             } catch (e: Exception) {
                 lastException = e
+                val isRetryable = isRetryableError(e)
                 if (isPermanentError(e)) {
                     markKeyInvalid(keyIndex)
                     logger.warn("Key #$keyIndex is INVALID for $baseProviderName: ${e.message}")
-                } else if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed during stream for $baseProviderName: ${e.message}, trying next key")
+                } else if (isRetryable) {
+                    logger.warn("Key #$keyIndex failed during stream for $baseProviderName: ${e.message}, retrying with backoff...")
+                    delayWithBackoff(attempt)
+                    attempt++
                 } else {
                     throw e
                 }
@@ -310,6 +325,13 @@ class KeyRotatingGeminiProvider(
                msg.contains("503") || msg.contains("timeout")
     }
 
+    private suspend fun delayWithBackoff(attempt: Int) {
+        val baseDelay = 500L
+        val maxDelay = 3000L
+        val delay = minOf(baseDelay * (1 shl attempt), maxDelay)
+        kotlinx.coroutines.delay(delay)
+    }
+
     private fun getNextKeyIndex(): Int {
         return currentIndex.getAndIncrement() % apiKeys.size
     }
@@ -317,6 +339,7 @@ class KeyRotatingGeminiProvider(
     override suspend fun generate(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): LlmResponse {
         var lastException: Exception? = null
         val triedKeys = mutableSetOf<Int>()
+        var attempt = 0
 
         while (triedKeys.size < apiKeys.size) {
             val keyIndex = getNextKeyIndex()
@@ -326,12 +349,14 @@ class KeyRotatingGeminiProvider(
             val provider = GeminiProvider(client = client, apiKey = apiKeys[keyIndex])
 
             try {
-                logger.debug("Trying generate with key #$keyIndex for Gemini")
+                logger.debug("Trying generate with key #$keyIndex for Gemini (attempt ${attempt + 1})")
                 return provider.generate(messages, tools, model)
             } catch (e: Exception) {
                 lastException = e
                 if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed for Gemini: ${e.message}, trying next key")
+                    logger.warn("Key #$keyIndex failed for Gemini: ${e.message}, retrying with backoff...")
+                    delayWithBackoff(attempt)
+                    attempt++
                 } else {
                     throw e
                 }
@@ -344,6 +369,7 @@ class KeyRotatingGeminiProvider(
     override suspend fun stream(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): Flow<LlmChunk> = flow {
         var lastException: Exception? = null
         val triedKeys = mutableSetOf<Int>()
+        var attempt = 0
 
         while (triedKeys.size < apiKeys.size) {
             val keyIndex = getNextKeyIndex()
@@ -353,7 +379,7 @@ class KeyRotatingGeminiProvider(
             val provider = GeminiProvider(client = client, apiKey = apiKeys[keyIndex])
 
             try {
-                logger.debug("Trying stream with key #$keyIndex for Gemini")
+                logger.debug("Trying stream with key #$keyIndex for Gemini (attempt ${attempt + 1})")
                 provider.stream(messages, tools, model).collect { chunk ->
                     emit(chunk)
                 }
@@ -361,7 +387,9 @@ class KeyRotatingGeminiProvider(
             } catch (e: Exception) {
                 lastException = e
                 if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed during stream for Gemini: ${e.message}, trying next key")
+                    logger.warn("Key #$keyIndex failed during stream for Gemini: ${e.message}, retrying with backoff...")
+                    delayWithBackoff(attempt)
+                    attempt++
                 } else {
                     throw e
                 }
