@@ -1,5 +1,6 @@
 package com.example.smarty.server.services
 
+import com.example.smarty.server.agent.ActiveSessionManager
 import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.llm.LlmProvider
@@ -25,9 +26,10 @@ import javax.sql.DataSource
  * The scheduler:
  * 1. Queries all users with digest preferences
  * 2. Checks if digest is due based on user's timezone
- * 3. Generates digest via DigestService
- * 4. Sends push notification via FCM
- * 5. Creates calendar event if enabled
+ * 3. Checks if user has active agent session (skips if so)
+ * 4. Generates digest via DigestService
+ * 5. Sends push notification via FCM
+ * 6. Creates calendar event if enabled
  */
 class DigestScheduler(
     private val application: Application,
@@ -79,17 +81,29 @@ class DigestScheduler(
         val now = ZonedDateTime.now(ZoneId.of("UTC"))
         logger.debug("Checking digests at $now")
 
+        // Skip if any user has an active agent session
+        if (ActiveSessionManager.hasAnyActiveSession()) {
+            logger.debug("Skipping digest check - active agent session detected")
+            return
+        }
+
         // Get all users with digest preferences
         val usersWithPrefs = getUsersWithDigestPreferences()
 
         for (userPref in usersWithPrefs) {
+            // Skip if user has active session
+            if (ActiveSessionManager.hasActiveSession(userPref.userId)) {
+                logger.debug("Skipping digest for user ${userPref.userId} - active session")
+                continue
+            }
+            
             // Skip if already processing this user
             if (processingUsers.containsKey(userPref.userId)) {
                 continue
             }
 
             // Check if daily digest is due
-            if (userPref.dailyEnabled && isDigestDue(now, userPref.dailyTime, userPref.timezone, "daily")) {
+            if (userPref.dailyEnabled && isDigestDue(now, userPref.dailyTime, userPref.timezone, "daily", userPref.userId)) {
                 processingUsers[userPref.userId] = true
                 schedulerScope.launch {
                     try {
@@ -121,8 +135,14 @@ class DigestScheduler(
         now: ZonedDateTime,
         scheduledTime: LocalTime,
         userTimezone: String,
-        digestType: String
+        digestType: String,
+        userId: String
     ): Boolean {
+        // Skip if user has active session
+        if (ActiveSessionManager.hasActiveSession(userId)) {
+            return false
+        }
+        
         val userNow = now.withZoneSameInstant(ZoneId.of(userTimezone))
         val userScheduledToday = userNow.with(scheduledTime)
         
@@ -132,25 +152,24 @@ class DigestScheduler(
 
         // Check if we already generated today's digest
         val today = userNow.toLocalDate()
-        return !digestExistsForDate(getUserIdForTimezoneCheck(), today, digestType)
+        return !digestExistsForDate(userId, today, digestType)
     }
 
-    private var cachedUserId: String? = null
-    private fun getUserIdForTimezoneCheck(): String {
-        // This is a workaround - in real implementation, we'd pass userId properly
-        return cachedUserId ?: "unknown"
-    }
-
-    /**
+/**
      * Check if weekly digest is due.
      */
     private suspend fun isWeeklyDigestDue(now: ZonedDateTime, userPref: UserDigestPreferences): Boolean {
+        // Skip if user has active session
+        if (ActiveSessionManager.hasActiveSession(userPref.userId)) {
+            return false
+        }
+        
         val userNow = now.withZoneSameInstant(ZoneId.of(userPref.timezone))
         
         // Check if today is the configured day (0=Sunday, 1=Monday, etc.)
         if (userNow.dayOfWeek.value % 7 != userPref.weeklyDay) return false
 
-        return isDigestDue(now, userPref.weeklyTime, userPref.timezone, "weekly")
+        return isDigestDue(now, userPref.weeklyTime, userPref.timezone, "weekly", userPref.userId)
     }
 
     /**

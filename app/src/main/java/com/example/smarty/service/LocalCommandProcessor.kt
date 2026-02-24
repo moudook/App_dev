@@ -343,9 +343,9 @@ class LocalCommandProcessor(
             return CommandResult.Handled(response = context.getString(R.string.clearing_cache))
         }
 
-        // 5. Simple Greetings/Conversational
+        // 5. Simple Greetings/Conversational - pass to LLM as well
         handleConversationalQuery(normalizedInput)?.let {
-            return CommandResult.Handled(response = it)
+            return CommandResult.HandledAndPassToLLM(response = it)
         }
 
         return CommandResult.PassToLLM

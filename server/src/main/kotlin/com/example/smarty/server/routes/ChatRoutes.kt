@@ -336,7 +336,7 @@ fun Application.configureChatRoutes() {
                     emptyList()
                 }
 
-                // Create agent instance for this request with userId for multi-tenant isolation
+// Create agent instance for this request with userId for multi-tenant isolation
                 val agent = ServerAgent(
                     llmProvider = streamProvider,
                     tavilyTool = tavilyTool,
@@ -366,6 +366,10 @@ fun Application.configureChatRoutes() {
                     },
                     userId = userId
                 )
+
+                // Register active session to prevent digest scheduler interference
+                val activeSessionId = sessionId ?: UUID.randomUUID().toString()
+                com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat")
 
                 try {
                     // Run the agent strategy with history, model override, and time context
@@ -400,6 +404,9 @@ fun Application.configureChatRoutes() {
                     } catch (sendError: Exception) {
                         call.application.log.warn("Failed to send error SSE (client disconnected): ${sendError.message}")
                     }
+                } finally {
+                    // Always end the active session
+                    com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                 }
 
                 call.application.log.info("SSE stream completed for query: $query (Session: $sessionId, User: $userId)")
@@ -472,7 +479,7 @@ fun Application.configureChatRoutes() {
                         emptyList()
                     }
 
-                    // Collect events for response
+// Collect events for response
                     val events = mutableListOf<AgentEvent>()
 
                     val agent = ServerAgent(
@@ -487,25 +494,33 @@ fun Application.configureChatRoutes() {
                         userId = userId
                     )
 
-                    val assistantResponse = agent.run(
-                        query = fullQuery,
-                        history = history,
-                        modelOverride = request.model,
-                        clientTimezone = request.timezone,
-                        clientTimeMillis = request.clientTime
-                    )
+                    // Register active session to prevent digest scheduler interference
+                    val activeSessionId = sessionId ?: UUID.randomUUID().toString()
+                    com.example.smarty.server.agent.ActiveSessionManager.startSession(userId, activeSessionId, "chat_query")
 
-                    // Save response
-                    if (chatRepository != null && sessionId != null && assistantResponse.isNotEmpty()) {
-                        chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, assistantResponse)
+                    try {
+                        val assistantResponse = agent.run(
+                            query = fullQuery,
+                            history = history,
+                            modelOverride = request.model,
+                            clientTimezone = request.timezone,
+                            clientTimeMillis = request.clientTime
+                        )
+
+                        // Save response
+                        if (chatRepository != null && sessionId != null && assistantResponse.isNotEmpty()) {
+                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, assistantResponse)
+                        }
+
+                        // Return all events
+                        call.respond(HttpStatusCode.OK, mapOf(
+                            "sessionId" to sessionId,
+                            "response" to assistantResponse,
+                            "events" to events.map { json.encodeToString(it) }
+                        ))
+                    } finally {
+                        com.example.smarty.server.agent.ActiveSessionManager.endSession(userId, activeSessionId)
                     }
-
-                    // Return all events
-                    call.respond(HttpStatusCode.OK, mapOf(
-                        "sessionId" to sessionId,
-                        "response" to assistantResponse,
-                        "events" to events.map { json.encodeToString(it) }
-                    ))
 
                 } catch (e: Exception) {
                     call.application.log.error("POST chat/query failed", e)

@@ -628,8 +628,9 @@ ${goalMemoryManager.getProgressContext()}
         // 3. Agentic Loop
         val messagesForAgent = messages.toMutableList()
         
-        // KOOG Optimization: LlmCache Check
-        val cacheKey = LlmCacheKey(messagesForAgent, tools, modelOverride)
+        // KOOG Optimization: LlmCache Check - only for action queries
+        val isActionQuery = LlmCache.isActionQuery(query)
+        val cacheKey = LlmCacheKey(messagesForAgent, tools, modelOverride, isActionQuery)
         LlmCache.get(cacheKey)?.let { cached ->
             val unmaskedCached = cached
             val thinking = extractThinking(unmaskedCached)
@@ -937,7 +938,7 @@ ${goalMemoryManager.getProgressContext()}
                         continue
                     }
                 } else if (currentContent.isNotEmpty()) {
-                    LlmCache.put(cacheKey, currentContent)
+                    LlmCache.put(cacheKey, currentContent, hadToolCalls = toolCallCount > 0)
                     
                     val thinking = extractThinking(currentContent)
                     
