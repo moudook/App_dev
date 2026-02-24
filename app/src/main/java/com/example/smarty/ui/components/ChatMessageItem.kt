@@ -210,10 +210,12 @@ fun ChatMessageItem(
     val boldColor = normalColor
     val textSubColor = MaterialTheme.colorScheme.onSurfaceVariant
     
-    val codeBackgroundColor = Color(0xFF181818)
-    val codeHeaderBg = Color(0xFF343541)
+    // Theme-aware code block colors
+    val codeBackgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF5F5F5)
+    val codeHeaderBg = if (isDark) Color(0xFF2D2D2D) else Color(0xFFE0E0E0)
+    val codeTextColor = if (isDark) Color(0xFF9CDCFE) else Color(0xFF0178D4)
     
-    val codeBorderColor = if (isDark) Color(0xFF27272A) else Color(0xFFE4E4E7)
+    val codeBorderColor = if (isDark) Color(0xFF404040) else Color(0xFFD0D0D0)
     val linkColor = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
     
     val bubbleShape = RoundedCornerShape(0.dp)
@@ -388,42 +390,34 @@ fun ChatMessageItem(
                         val boldColor = normalColor
 
                         val rawContent = if (isUser) message.content else cleanContent(message.content)
-                        
-                        // Typewriter effect state - progressively reveals content at fixed speed
-                        var displayedLength by remember(message.id, message.isStreaming) { 
-                            mutableIntStateOf(if (message.isStreaming) 0 else rawContent.length) 
-                        }
                         val targetLength = rawContent.length
                         
-                        // Speed: characters per frame (60fps = 60 * charsPerFrame = chars per second)
-                        // Adjustable: 1 = ~60 chars/sec, 2 = ~120 chars/sec, 3 = ~180 chars/sec
-                        val charsPerFrame = 2
+                        // State that persists across content updates within same message
+                        // Only resets when message.id changes (new message)
+                        var displayPosition by remember(message.id) { 
+                            mutableIntStateOf(if (message.isStreaming) 0 else targetLength) 
+                        }
                         
-                        // Progressively reveal content during streaming
-                        LaunchedEffect(message.content, message.isStreaming) {
+                        // Run typewriter animation
+                        LaunchedEffect(message.isStreaming, targetLength) {
                             if (message.isStreaming) {
-                                displayedLength = 0
-                                while (displayedLength < targetLength) {
-                                    val remaining = targetLength - displayedLength
+                                // Continue from current position, not restart
+                                val charsPerFrame = 2
+                                while (displayPosition < targetLength) {
+                                    val remaining = targetLength - displayPosition
                                     val step = minOf(charsPerFrame, remaining)
-                                    displayedLength += step
-                                    // Fixed speed - don't wait for new content, just reveal at our pace
-                                    // This creates the typewriter effect even with big chunks
-                                    if (step > 0) {
-                                        // Small delay for smooth streaming feel (~33ms per frame = 30fps effective)
-                                        delay(33)
-                                    }
+                                    displayPosition += step
+                                    delay(33)
                                 }
-                                displayedLength = targetLength
                             } else {
-                                displayedLength = targetLength
+                                displayPosition = targetLength
                             }
                         }
                         
-                        // Get the currently visible portion
-                        val visibleContent = remember(displayedLength, rawContent) {
-                            if (displayedLength >= rawContent.length) rawContent 
-                            else rawContent.substring(0, displayedLength)
+                        // Get visible content
+                        val visibleContent = remember(displayPosition, rawContent) {
+                            if (displayPosition >= rawContent.length) rawContent 
+                            else rawContent.substring(0, displayPosition)
                         }
 
                         // Professional Markdown Rendering - Live Streaming with Typewriter Effect
@@ -433,14 +427,14 @@ fun ChatMessageItem(
                             normalColor = normalColor,
                             boldColor = boldColor,
                             linkColor = linkColor,
-                            codeColor = brandPrimary,
+                            codeColor = codeTextColor,
                             codeBackgroundColor = codeBackgroundColor,
-                            codeBorderColor = codeHeaderBg,
+                            codeBorderColor = codeBorderColor,
                             codeHeaderBg = codeHeaderBg,
-                            isStreaming = message.isStreaming && displayedLength < targetLength
+                            isStreaming = message.isStreaming && displayPosition < targetLength
                         )
                         
-                        if (message.isStreaming && displayedLength < targetLength) {
+                        if (message.isStreaming && displayPosition < targetLength) {
                             // Streaming Cursor Attachment
                             val infiniteTransition = rememberInfiniteTransition(label = "cursor")
                             val cursorAlpha by infiniteTransition.animateFloat(
