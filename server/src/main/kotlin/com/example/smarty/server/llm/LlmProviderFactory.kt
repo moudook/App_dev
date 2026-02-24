@@ -180,29 +180,48 @@ class KeyRotatingOpenAiProvider(
 
     private val logger = LoggerFactory.getLogger(KeyRotatingOpenAiProvider::class.java)
     private val currentIndex = AtomicInteger(0)
+    private val invalidKeys = mutableSetOf<Int>()
 
-    override val providerName: String = "$baseProviderName (Rotating ${apiKeys.size} keys)"
+    override val providerName: String = "$baseProviderName (Rotating ${apiKeys.size} keys, ${invalidKeys.size} invalid)"
+
+    private fun isPermanentError(error: Throwable): Boolean {
+        val msg = error.message?.lowercase() ?: ""
+        return msg.contains("401") || msg.contains("invalid token") || msg.contains("unauthorized")
+    }
 
     private fun isRetryableError(error: Throwable): Boolean {
         val msg = error.message?.lowercase() ?: ""
-        return msg.contains("401") || msg.contains("403") || 
+        return msg.contains("403") || 
                msg.contains("429") || msg.contains("rate") ||
                msg.contains("500") || msg.contains("502") || 
                msg.contains("503") || msg.contains("timeout") ||
                msg.contains("reset") || msg.contains("connection") ||
-               msg.contains("closed") || msg.contains("broken")
+               msg.contains("closed") || msg.contains("broken") ||
+               msg.contains("stream was reset")
     }
 
-    private fun getNextKeyIndex(): Int {
-        return currentIndex.getAndIncrement() % apiKeys.size
+    private fun getValidKeyIndex(): Int? {
+        val startIndex = currentIndex.getAndIncrement() % apiKeys.size
+        var index = startIndex
+        repeat(apiKeys.size) {
+            if (index !in invalidKeys) return index
+            index = (index + 1) % apiKeys.size
+        }
+        return null
+    }
+
+    private fun markKeyInvalid(keyIndex: Int) {
+        if (invalidKeys.add(keyIndex)) {
+            logger.error("Marked key #$keyIndex as permanently INVALID for $baseProviderName. Valid keys remaining: ${apiKeys.size - invalidKeys.size}")
+        }
     }
 
     override suspend fun generate(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): LlmResponse {
         var lastException: Exception? = null
         val triedKeys = mutableSetOf<Int>()
 
-        while (triedKeys.size < apiKeys.size) {
-            val keyIndex = getNextKeyIndex()
+        while (triedKeys.size < apiKeys.size - invalidKeys.size) {
+            val keyIndex = getValidKeyIndex() ?: break
             if (keyIndex in triedKeys) continue
             triedKeys.add(keyIndex)
 
@@ -219,7 +238,10 @@ class KeyRotatingOpenAiProvider(
                 return provider.generate(messages, tools, model)
             } catch (e: Exception) {
                 lastException = e
-                if (isRetryableError(e)) {
+                if (isPermanentError(e)) {
+                    markKeyInvalid(keyIndex)
+                    logger.warn("Key #$keyIndex is INVALID for $baseProviderName: ${e.message}")
+                } else if (isRetryableError(e)) {
                     logger.warn("Key #$keyIndex failed for $baseProviderName: ${e.message}, trying next key")
                 } else {
                     throw e
@@ -227,15 +249,15 @@ class KeyRotatingOpenAiProvider(
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed for $baseProviderName")
+        throw lastException ?: IllegalStateException("All API keys failed or invalid for $baseProviderName")
     }
 
     override suspend fun stream(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): Flow<LlmChunk> = flow {
         var lastException: Exception? = null
         val triedKeys = mutableSetOf<Int>()
 
-        while (triedKeys.size < apiKeys.size) {
-            val keyIndex = getNextKeyIndex()
+        while (triedKeys.size < apiKeys.size - invalidKeys.size) {
+            val keyIndex = getValidKeyIndex() ?: break
             if (keyIndex in triedKeys) continue
             triedKeys.add(keyIndex)
 
@@ -255,7 +277,10 @@ class KeyRotatingOpenAiProvider(
                 return@flow
             } catch (e: Exception) {
                 lastException = e
-                if (isRetryableError(e)) {
+                if (isPermanentError(e)) {
+                    markKeyInvalid(keyIndex)
+                    logger.warn("Key #$keyIndex is INVALID for $baseProviderName: ${e.message}")
+                } else if (isRetryableError(e)) {
                     logger.warn("Key #$keyIndex failed during stream for $baseProviderName: ${e.message}, trying next key")
                 } else {
                     throw e
@@ -263,7 +288,7 @@ class KeyRotatingOpenAiProvider(
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed for $baseProviderName")
+        throw lastException ?: IllegalStateException("All API keys failed or invalid for $baseProviderName")
     }
 }
 

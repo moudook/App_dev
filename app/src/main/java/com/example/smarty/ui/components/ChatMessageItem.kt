@@ -128,8 +128,8 @@ private object MarkdownPatterns {
     val italicUnderscore = Regex("(?<!_)_(?!_)([\\s\\S]+?)(?<!_)_(?!_)")
     
     // LaTeX math patterns
-    val inlineMath = Regex("\\$([^$]+)\\$")
-    val blockMath = Regex("\\$\\$([\\s\\S]+?)\\$\\$")
+    val inlineMath = Regex("(?<!\\$)\\$(?!\\$)([^$]+?)(?<!\\$)\\$(?!\\$)|\\\\\\((.+?)\\\\\\)")
+    val blockMath = Regex("\\$\\$([\\s\\S]+?)\\$\\$|\\\\\\[([\\s\\S]+?)\\\\\\]")
 }
 
 /**
@@ -1339,6 +1339,22 @@ fun MarkdownRenderer(
                              }
                         }
                         
+                        // Tables
+                        trimmedLine.startsWith("|") -> {
+                            val tableLines = mutableListOf<String>()
+                            tableLines.add(trimmedLine)
+                            i++
+                            while (i < lines.size) {
+                                val nextTrimmed = lines[i].trim()
+                                if (!nextTrimmed.startsWith("|")) {
+                                    break
+                                }
+                                tableLines.add(nextTrimmed)
+                                i++
+                            }
+                            MarkdownTable(tableLines, normalColor, boldColor, linkColor, codeColor)
+                        }
+                        
                         // Blockquote - ChatGPT Style
                         trimmedLine.startsWith("> ") -> {
                             val quoteLines = mutableListOf<String>()
@@ -1393,16 +1409,136 @@ fun MarkdownRenderer(
                             val paragraphLines = mutableListOf<String>()
                             paragraphLines.add(trimmedLine)
                             i++
+                            
+                            var insideMath = trimmedLine.contains("$$") && !trimmedLine.substringAfter("$$").contains("$$")
+                            if (!insideMath && trimmedLine.contains("\\[")) {
+                                insideMath = !trimmedLine.substringAfter("\\[").contains("\\]")
+                            }
+
                             while (i < lines.size) {
                                 val nextTrimmed = lines[i].trim()
-                                if (nextTrimmed.isBlank() || nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || nextTrimmed.startsWith("> ") || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
+                                
+                                if (insideMath) {
+                                    paragraphLines.add(nextTrimmed)
+                                    i++
+                                    if (nextTrimmed.contains("$$") || nextTrimmed.contains("\\]")) {
+                                        insideMath = false
+                                    }
+                                    continue
+                                }
+
+                                if (nextTrimmed.isBlank() || nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || nextTrimmed.startsWith("> ") || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". ")) || nextTrimmed.startsWith("|")) {
                                     break
                                 }
+                                
+                                if (nextTrimmed.contains("$$") && !nextTrimmed.substringAfter("$$").contains("$$")) {
+                                    insideMath = true
+                                } else if (nextTrimmed.contains("\\[") && !nextTrimmed.substringAfter("\\[").contains("\\]")) {
+                                    insideMath = true
+                                }
+                                
                                 paragraphLines.add(nextTrimmed)
                                 i++
                             }
                             StandardText(paragraphLines.joinToString("\n"), normalColor, boldColor, linkColor, codeColor)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MarkdownTable(
+    tableLines: List<String>,
+    normalColor: Color,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color
+) {
+    if (tableLines.size < 2) {
+        StandardText(tableLines.joinToString("\n"), normalColor, boldColor, linkColor, codeColor)
+        return
+    }
+
+    val isDark = isSystemInDarkTheme()
+    val borderColor = if (isDark) Color(0xFF3F3F46) else Color(0xFFE4E4E7)
+    val headerBgColor = if (isDark) Color(0xFF27272A) else Color(0xFFF4F4F5)
+    val rowBgColorAlt = if (isDark) Color(0xFF18181B) else Color(0xFFFFFFFF)
+    val rowBgColor = if (isDark) Color(0xFF27272A).copy(alpha = 0.5f) else Color(0xFFFAFAFA)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .horizontalScroll(rememberScrollState())
+    ) {
+        tableLines.forEachIndexed { index, line ->
+            // Skip the markdown table separator line (e.g., |---|---|)
+            if (index == 1 && line.replace("|", "").replace("-", "").replace(":", "").replace(" ", "").isEmpty()) {
+                return@forEachIndexed
+            }
+            
+            // Extract cell contents
+            val cells = line.split("|").map { it.trim() }.let {
+                var list = it
+                if (list.firstOrNull()?.isEmpty() == true) list = list.drop(1)
+                if (list.lastOrNull()?.isEmpty() == true) list = list.dropLast(1)
+                list
+            }
+
+            val isHeader = index == 0
+            val bgColor = if (isHeader) headerBgColor else if (index % 2 == 0) rowBgColor else rowBgColorAlt
+
+            Row(
+                modifier = Modifier
+                    .background(bgColor)
+                    .drawBehind {
+                        if (index > 0) {
+                            drawLine(
+                                color = borderColor,
+                                start = Offset(0f, 0f),
+                                end = Offset(size.width, 0f),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                        }
+                    }
+            ) {
+                cells.forEachIndexed { cellIdx, cellText ->
+                    Box(
+                        modifier = Modifier
+                            .widthIn(min = 120.dp, max = 300.dp)
+                            .drawBehind {
+                                if (cellIdx > 0) {
+                                    drawLine(
+                                        color = borderColor,
+                                        start = Offset(0f, 0f),
+                                        end = Offset(0f, size.height),
+                                        strokeWidth = 1.dp.toPx()
+                                    )
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = parseMarkdownToAnnotatedString(
+                                content = cellText,
+                                normalColor = if (isHeader) boldColor else normalColor,
+                                boldColor = boldColor,
+                                italicColor = normalColor,
+                                linkColor = linkColor,
+                                codeColor = codeColor
+                            ),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 14.sp,
+                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
+                                lineHeight = 20.sp
+                            ),
+                            color = if (isHeader) boldColor else normalColor
+                        )
                     }
                 }
             }
@@ -1459,9 +1595,10 @@ fun parseMarkdownToAnnotatedString(
 
         // LaTeX block math ($$...$$) - render as monospace with special styling
         MarkdownPatterns.blockMath.findAll(text).forEach { match ->
+            val contentMatch = match.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
             matches.add(MarkdownMatch(
                 range = match.range,
-                displayText = match.groupValues[1].trim(),
+                displayText = contentMatch,
                 style = SpanStyle(
                     color = codeColor,
                     fontFamily = FontFamily.Monospace,
@@ -1476,9 +1613,10 @@ fun parseMarkdownToAnnotatedString(
         MarkdownPatterns.inlineMath.findAll(text).forEach { match ->
             val overlaps = matches.any { it.range.first <= match.range.last && it.range.last >= match.range.first }
             if (!overlaps) {
+                val contentMatch = match.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
                 matches.add(MarkdownMatch(
                     range = match.range,
-                    displayText = match.groupValues[1].trim(),
+                    displayText = contentMatch,
                     style = SpanStyle(
                         color = codeColor,
                         fontFamily = FontFamily.Monospace,

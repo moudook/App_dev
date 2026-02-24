@@ -104,9 +104,9 @@ fun Application.configureChatRoutes() {
             })
         }
         install(io.ktor.client.plugins.HttpTimeout) {
-            requestTimeoutMillis = 120_000  // 2 minutes for full request
-            connectTimeoutMillis = 15_000   // 15 seconds to connect
-            socketTimeoutMillis = 120_000   // 2 minutes for streaming responses
+            requestTimeoutMillis = 300_000  // 5 minutes for full request (slow LLM responses)
+            connectTimeoutMillis = 30_000   // 30 seconds to connect
+            socketTimeoutMillis = 300_000   // 5 minutes for streaming responses
         }
         engine {
             config {
