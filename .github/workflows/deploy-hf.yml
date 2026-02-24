@@ -1,8 +1,9 @@
 name: Deploy to Hugging Face Spaces
 
 on:
-  push:
-    branches: [main]
+  # Disabled - pushing directly to HF Space instead
+  # push:
+  #   branches: [main]
   workflow_dispatch:
 
 jobs:
