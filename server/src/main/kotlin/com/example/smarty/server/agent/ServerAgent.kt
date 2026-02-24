@@ -76,8 +76,8 @@ class ServerAgent(
     // Security limits to prevent runaway execution
     companion object {
         const val MAX_EXECUTION_TIME_MS = 30 * 60 * 1000L  // 30 minutes hard limit
-        const val MAX_TOOL_CALLS = 50  // Max tool calls per session
-        const val MAX_ITERATIONS = 100 // Max LLM iterations
+        const val MAX_TOOL_CALLS = 100  // Allow extensive research with up to 100 tool calls
+        const val MAX_ITERATIONS = 200 // Max LLM iterations for extensive research
     }
 
     private val tools = listOf(
@@ -657,7 +657,7 @@ ${goalMemoryManager.getProgressContext()}
         }
 
         var agentIteration = 0
-        val maxAgentIterations = 5
+        val maxAgentIterations = 50 // Allow extensive research with many tool calls
         var lastFailedToolName: String? = null
         var consecutiveToolFailures = 0
         
