@@ -130,32 +130,37 @@ private object MarkdownPatterns {
     // Escape character handling - must check for escaped characters first
     val escape = Regex("\\\\(.)")
     
-    // Bold: **text** or __text__
-    val boldAsterisk = Regex("\\\\?\\*\\*([^*]+?)\\\\\\*\\*")
-    val boldUnderscore = Regex("\\\\?__([^_]+?)__")
+    // Priority ordered patterns - longer/more specific first
+    // Block elements take priority
+    val blockMath = Regex("\\$\\$([\\s\\S]+?)\\$\\$|\\\\\\[([\\s\\S]+?)\\\\\\]")
     
-    // Italic: *text* or _text_ (not bold, not at word boundaries that would be bold)
-    val italicAsterisk = Regex("(?<![*])\\*([^*]+?)\\*(?![*])")
-    val italicUnderscore = Regex("(?<!_)_([^_]+?)_(?!_)")
+    // Inline code - must be checked before bold/italic (backticks are literal)
+    val inlineCode = Regex("`+([^`\n]+?)`+")
+    
+    // Links - must be checked before bold/italic (brackets are literal in link context)
+    val link = Regex("\\[([^\\]\\\\]*(?:\\\\.[^\\]\\\\]*)*)\\]\\(([^)\\s]*(?:\\s+[^)\\s]+)*)\\)")
+    
+    // Autolinks
+    val autolink = Regex("<([a-zA-Z][a-zA-Z0-9+.-]*://[^>]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})>")
+    
+    // Bold - **text** or __text__ - must check before italic
+    // Must not match if it's part of larger sequence (e.g., ***text*** should be bold+italic, not three asterisks)
+    val boldAsterisk = Regex("(?<![*])\\*\\*(.+?)\\*\\*(?![*])")
+    val boldUnderscore = Regex("(?<![a-zA-Z])__(.+?)__(?![a-zA-Z])")
+    
+    // Italic - *text* or _text_ (but not ** or __ which are bold)
+    // Must not match if preceded/followed by another asterisk (would be bold or bold+italic)
+    val italicAsterisk = Regex("(?<!\\*)\\*([^*]+)\\*(?!\\*)")
+    val italicUnderscore = Regex("(?<!_) _([^_]+) _(?!_)")
     
     // Strikethrough: ~~text~~
-    val strikethrough = Regex("~~([^~]+?)~~")
-    
-    // Inline code: `code`
-    val inlineCode = Regex("`([^`]+?)`")
-    
-    // Links: [text](url)
-    val link = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)")
-    
-    // Autolinks: <https://...> or <email@...>
-    val autolink = Regex("<([a-zA-Z][a-zA-Z0-9+.-]*://[^>]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})>")
+    val strikethrough = Regex("~~([^~]+)~~")
     
     // Task lists: - [ ] or - [x]
     val taskListItem = Regex("^(\\s*)[-*]\\s+\\[([ xX])\\]\\s+(.+)$", RegexOption.MULTILINE)
     
-    // LaTeX math patterns
-    val inlineMath = Regex("(?<!\\$)\\$(?!\\$)([^$]+?)(?<!\\$)\\$(?!\\$)|\\\\\\((.+?)\\\\\\)")
-    val blockMath = Regex("\\$\\$([\\s\\S]+?)\\$\\$|\\\\\\[([\\s\\S]+?)\\\\\\]")
+    // LaTeX inline math
+    val inlineMath = Regex("(?<!\\$)\\$(?!\\$)([^\n$]+)\\$(?!\\$)")
     
     // Code block fence
     val codeFence = Regex("^```(\\w*)$", RegexOption.MULTILINE)
@@ -382,21 +387,60 @@ fun ChatMessageItem(
                         val normalColor = MaterialTheme.colorScheme.onSurface
                         val boldColor = normalColor
 
-                        // Professional Markdown Rendering
+                        val rawContent = if (isUser) message.content else cleanContent(message.content)
+                        
+                        // Typewriter effect state - progressively reveals content at fixed speed
+                        var displayedLength by remember(message.id, message.isStreaming) { 
+                            mutableIntStateOf(if (message.isStreaming) 0 else rawContent.length) 
+                        }
+                        val targetLength = rawContent.length
+                        
+                        // Speed: characters per frame (60fps = 60 * charsPerFrame = chars per second)
+                        // Adjustable: 1 = ~60 chars/sec, 2 = ~120 chars/sec, 3 = ~180 chars/sec
+                        val charsPerFrame = 2
+                        
+                        // Progressively reveal content during streaming
+                        LaunchedEffect(message.content, message.isStreaming) {
+                            if (message.isStreaming) {
+                                displayedLength = 0
+                                while (displayedLength < targetLength) {
+                                    val remaining = targetLength - displayedLength
+                                    val step = minOf(charsPerFrame, remaining)
+                                    displayedLength += step
+                                    // Fixed speed - don't wait for new content, just reveal at our pace
+                                    // This creates the typewriter effect even with big chunks
+                                    if (step > 0) {
+                                        // Small delay for smooth streaming feel (~33ms per frame = 30fps effective)
+                                        delay(33)
+                                    }
+                                }
+                                displayedLength = targetLength
+                            } else {
+                                displayedLength = targetLength
+                            }
+                        }
+                        
+                        // Get the currently visible portion
+                        val visibleContent = remember(displayedLength, rawContent) {
+                            if (displayedLength >= rawContent.length) rawContent 
+                            else rawContent.substring(0, displayedLength)
+                        }
+
+                        // Professional Markdown Rendering - Live Streaming with Typewriter Effect
                         MarkdownRenderer(
-                            content = if (isUser) message.content else cleanContent(message.content),
+                            content = visibleContent,
                             isUser = isUser,
                             normalColor = normalColor,
-                            boldColor = boldColor, // Strict uniform color per spec
+                            boldColor = boldColor,
                             linkColor = linkColor,
                             codeColor = brandPrimary,
                             codeBackgroundColor = codeBackgroundColor,
                             codeBorderColor = codeHeaderBg,
                             codeHeaderBg = codeHeaderBg,
-                            isStreaming = message.isStreaming
+                            isStreaming = message.isStreaming && displayedLength < targetLength
                         )
                         
-                        if (message.isStreaming) {
+                        if (message.isStreaming && displayedLength < targetLength) {
                             // Streaming Cursor Attachment
                             val infiniteTransition = rememberInfiniteTransition(label = "cursor")
                             val cursorAlpha by infiniteTransition.animateFloat(
@@ -1813,214 +1857,228 @@ fun parseMarkdownToAnnotatedString(
 ): AnnotatedString {
     return buildAnnotatedString {
         val text = content
-        var currentIndex = 0
 
         data class MarkdownMatch(
             val range: IntRange,
             val displayText: String,
             val style: SpanStyle,
+            val priority: Int,
             val isLink: Boolean = false,
             val url: String? = null,
             val isMath: Boolean = false,
-            val isStrike: Boolean = false
+            val isStrike: Boolean = false,
+            val nestedStyles: List<SpanStyle> = emptyList()
         )
 
         val matches = mutableListOf<MarkdownMatch>()
-
-        // Helper to check overlap
-        fun overlaps(existing: MarkdownMatch, new: IntRange): Boolean {
-            return existing.range.first <= new.last && existing.range.last >= new.first
+        
+        fun isPositionEscaped(pos: Int): Boolean {
+            if (pos < 0 || pos >= text.length) return false
+            var backslashCount = 0
+            var i = pos - 1
+            while (i >= 0 && text[i] == '\\') {
+                backslashCount++
+                i--
+            }
+            return backslashCount % 2 == 1
         }
 
-        // Process escapes first - remove them from display
-        val escapeMap = mutableMapOf<Int, Char>()
-        MarkdownPatterns.escape.findAll(text).forEach { match ->
-            val escapedChar = match.groupValues[1].firstOrNull() ?: return@forEach
-            escapeMap[match.range.first] = escapedChar
-        }
+        fun isInRange(pos: Int, range: IntRange): Boolean = pos in range
 
-        // LaTeX block math ($$...$$)
-        MarkdownPatterns.blockMath.findAll(text).forEach { match ->
-            val contentMatch = match.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = contentMatch,
-                    style = SpanStyle(
-                        color = codeColor,
-                        fontFamily = FontFamily.Monospace,
-                        background = codeColor.copy(alpha = 0.15f),
-                        fontSize = 14.sp
-                    ),
-                    isMath = true
+        fun findNestedStyles(outerText: String, outerPriority: Int): List<SpanStyle> {
+            val nested = mutableListOf<SpanStyle>()
+            if (outerText.length < 4) return nested
+            
+            val innerStart = if (outerText.startsWith("**")) 2 else if (outerText.startsWith("__")) 2 else if (outerText.startsWith("*")) 1 else if (outerText.startsWith("_")) 1 else 0
+            val innerEnd = if (outerText.endsWith("**")) outerText.length - 2 else if (outerText.endsWith("__")) outerText.length - 2 else if (outerText.endsWith("*")) outerText.length - 1 else if (outerText.endsWith("_")) outerText.length - 1 else outerText.length
+            val innerText = outerText.substring(innerStart until innerEnd)
+            
+            if (innerText.contains("`") && !innerText.startsWith("`") && !innerText.endsWith("`")) {
+                nested.add(SpanStyle(
+                    color = codeColor,
+                    fontFamily = FontFamily.Monospace,
+                    background = codeColor.copy(alpha = 0.15f)
                 ))
             }
-        }
-
-        // LaTeX inline math ($...$)
-        MarkdownPatterns.inlineMath.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                val contentMatch = match.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = contentMatch,
-                    style = SpanStyle(
-                        color = codeColor,
-                        fontFamily = FontFamily.Monospace,
-                        fontStyle = FontStyle.Italic,
-                        background = codeColor.copy(alpha = 0.1f)
-                    ),
-                    isMath = true
+            
+            if (innerText.contains("~~")) {
+                nested.add(SpanStyle(
+                    color = normalColor.copy(alpha = 0.6f),
+                    textDecoration = TextDecoration.LineThrough
                 ))
             }
+            
+            return nested
         }
 
-        // Bold with **
-        MarkdownPatterns.boldAsterisk.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = match.groupValues[1],
-                    style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold)
-                ))
-            }
+        fun addMatchIfValid(match: MarkdownMatch): Boolean {
+            if (match.range.first < 0 || match.range.last >= text.length) return false
+            if (isPositionEscaped(match.range.first)) return false
+            if (matches.any { it.range.first <= match.range.first && it.range.last >= match.range.last }) return false
+            matches.add(match)
+            return true
         }
 
-        // Bold with __
-        MarkdownPatterns.boldUnderscore.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = match.groupValues[1],
-                    style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold)
-                ))
-            }
+        MarkdownPatterns.blockMath.findAll(text).forEach { m ->
+            val contentMatch = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = contentMatch,
+                style = SpanStyle(
+                    color = codeColor,
+                    fontFamily = FontFamily.Monospace,
+                    background = codeColor.copy(alpha = 0.15f),
+                    fontSize = 14.sp
+                ),
+                priority = 0,
+                isMath = true
+            ))
         }
 
-        // Italic with *
-        MarkdownPatterns.italicAsterisk.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = match.groupValues[1],
-                    style = SpanStyle(color = italicColor, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
-                ))
-            }
+        MarkdownPatterns.inlineMath.findAll(text).forEach { m ->
+            val contentMatch = m.groupValues.drop(1).firstOrNull { it.isNotEmpty() }?.trim() ?: ""
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = contentMatch,
+                style = SpanStyle(
+                    color = codeColor,
+                    fontFamily = FontFamily.Monospace,
+                    fontStyle = FontStyle.Italic,
+                    background = codeColor.copy(alpha = 0.1f)
+                ),
+                priority = 1,
+                isMath = true
+            ))
         }
 
-        // Italic with _
-        MarkdownPatterns.italicUnderscore.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = match.groupValues[1],
-                    style = SpanStyle(color = italicColor, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
-                ))
-            }
+        MarkdownPatterns.inlineCode.findAll(text).forEach { m ->
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(
+                    color = codeColor,
+                    fontFamily = FontFamily.Monospace,
+                    background = codeColor.copy(alpha = 0.15f)
+                ),
+                priority = 2
+            ))
         }
 
-        // Strikethrough ~~text~~
-        MarkdownPatterns.strikethrough.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = match.groupValues[1],
-                    style = SpanStyle(
-                        color = normalColor.copy(alpha = 0.6f),
-                        textDecoration = TextDecoration.LineThrough
-                    ),
-                    isStrike = true
-                ))
-            }
+        MarkdownPatterns.link.findAll(text).forEach { m ->
+            val url = m.groupValues.getOrNull(2) ?: ""
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+                priority = 3,
+                isLink = true,
+                url = url
+            ))
         }
 
-        // Inline code `code`
-        MarkdownPatterns.inlineCode.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = match.groupValues[1],
-                    style = SpanStyle(
-                        color = codeColor,
-                        fontFamily = FontFamily.Monospace,
-                        background = codeColor.copy(alpha = 0.1f)
-                    )
-                ))
-            }
+        MarkdownPatterns.autolink.findAll(text).forEach { m ->
+            val url = m.groupValues[1]
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = url,
+                style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline),
+                priority = 4,
+                isLink = true,
+                url = url
+            ))
         }
 
-        // Links [text](url)
-        MarkdownPatterns.link.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = match.groupValues[1],
-                    style = SpanStyle(
-                        color = linkColor,
-                        fontWeight = FontWeight.SemiBold,
-                        textDecoration = TextDecoration.Underline
-                    ),
-                    isLink = true,
-                    url = match.groupValues[2]
-                ))
-            }
+        MarkdownPatterns.boldAsterisk.findAll(text).forEach { m ->
+            val displayText = m.groupValues[1]
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = displayText,
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
+                priority = 5,
+                nestedStyles = findNestedStyles(m.value, 5)
+            ))
         }
 
-        // Auto-links <https://...> or <email@...>
-        MarkdownPatterns.autolink.findAll(text).forEach { match ->
-            if (matches.none { overlaps(it, match.range) }) {
-                val url = match.groupValues[1]
-                matches.add(MarkdownMatch(
-                    range = match.range,
-                    displayText = url,
-                    style = SpanStyle(
-                        color = linkColor,
-                        fontWeight = FontWeight.Normal,
-                        textDecoration = TextDecoration.Underline
-                    ),
-                    isLink = true,
-                    url = url
-                ))
-            }
+        MarkdownPatterns.boldUnderscore.findAll(text).forEach { m ->
+            val displayText = m.groupValues[1]
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = displayText,
+                style = SpanStyle(color = boldColor, fontWeight = FontWeight.Bold),
+                priority = 6,
+                nestedStyles = findNestedStyles(m.value, 6)
+            ))
         }
 
-        // Sort by position and process
-        val sortedMatches = matches.sortedBy { it.range.first }
+        MarkdownPatterns.italicAsterisk.findAll(text).forEach { m ->
+            val displayText = m.groupValues[1]
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = displayText,
+                style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
+                priority = 7,
+                nestedStyles = findNestedStyles(m.value, 7)
+            ))
+        }
 
-        for (match in sortedMatches) {
+        MarkdownPatterns.italicUnderscore.findAll(text).forEach { m ->
+            val displayText = m.groupValues[1]
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = displayText,
+                style = SpanStyle(color = italicColor, fontStyle = FontStyle.Italic),
+                priority = 8,
+                nestedStyles = findNestedStyles(m.value, 8)
+            ))
+        }
+
+        MarkdownPatterns.strikethrough.findAll(text).forEach { m ->
+            addMatchIfValid(MarkdownMatch(
+                range = m.range,
+                displayText = m.groupValues[1],
+                style = SpanStyle(
+                    color = normalColor.copy(alpha = 0.6f),
+                    textDecoration = TextDecoration.LineThrough
+                ),
+                priority = 9,
+                isStrike = true
+            ))
+        }
+
+        val sortedByPosition = matches.sortedWith(
+            compareBy({ it.range.first }, { -it.priority })
+        )
+
+        var currentIndex = 0
+        for (match in sortedByPosition) {
             if (match.range.first > currentIndex) {
-                withStyle(SpanStyle(color = normalColor)) {
-                    append(text.substring(currentIndex, match.range.first))
-                }
+                val beforeText = text.substring(currentIndex, match.range.first)
+                append(beforeText)
             }
 
-            when {
-                match.isMath -> {
-                    withStyle(match.style) {
-                        append(match.displayText)
+            if (match.isLink && match.url != null) {
+                pushStringAnnotation(tag = "URL", annotation = match.url)
+                pushStyle(match.style)
+                append(match.displayText)
+                pop()
+                pop()
+            } else {
+                pushStyle(match.style)
+                if (match.nestedStyles.isNotEmpty()) {
+                    match.nestedStyles.forEach { nested ->
+                        pushStyle(nested)
                     }
                 }
-                match.isLink && match.url != null -> {
-                    withLink(LinkAnnotation.Url(match.url)) {
-                        withStyle(match.style) {
-                            append(match.displayText)
-                        }
-                    }
-                }
-                else -> {
-                    withStyle(match.style) {
-                        append(match.displayText)
-                    }
-                }
+                append(match.displayText)
+                repeat(match.nestedStyles.size) { pop() }
+                pop()
             }
 
             currentIndex = match.range.last + 1
         }
 
         if (currentIndex < text.length) {
-            withStyle(SpanStyle(color = normalColor)) {
-                append(text.substring(currentIndex))
-            }
+            append(text.substring(currentIndex))
         }
     }
 }
