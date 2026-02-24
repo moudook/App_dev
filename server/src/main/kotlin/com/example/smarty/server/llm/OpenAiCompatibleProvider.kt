@@ -34,7 +34,7 @@ class OpenAiCompatibleProvider(
         explicitNulls = false
     }
 
-    override suspend fun generate(
+override suspend fun generate(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?
@@ -47,6 +47,10 @@ class OpenAiCompatibleProvider(
             val response: OpenAiChatResponse = client.post(endpoint) {
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
                 contentType(ContentType.Application.Json)
+                timeout {
+                    requestTimeoutMillis = 120_000
+                    connectTimeoutMillis = 30_000
+                }
                 setBody(requestBody)
             }.body()
 
@@ -59,7 +63,15 @@ class OpenAiCompatibleProvider(
             )
         } catch (e: Exception) {
             logger.error("Generate call failed for $providerName", e)
-            throw e
+            val errorMsg = when {
+                e.message?.contains("rate", ignoreCase = true) == true -> "Rate limit exceeded. Please try again in a moment."
+                e.message?.contains("401") == true || e.message?.contains("unauthorized", ignoreCase = true) == true -> "API authentication failed."
+                e.message?.contains("500") == true || e.message?.contains("502") == true -> "LLM provider is experiencing issues."
+                e.message?.contains("503") == true -> "LLM provider is temporarily unavailable."
+                e.message?.contains("timeout", ignoreCase = true) == true -> "Request timed out. Please try again."
+                else -> "$providerName API error: ${e.message?.take(100)}"
+            }
+            throw IllegalStateException(errorMsg, e)
         }
     }
 
