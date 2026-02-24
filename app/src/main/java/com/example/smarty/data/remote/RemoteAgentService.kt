@@ -541,6 +541,11 @@ fun sendQueryWithContext(
                 eventSink.onStateSync(event.syncType, event.data)
                 false
             }
+            is AgentEvent.ToolBlocked -> {
+                Log.w(TAG, "Tool blocked: ${event.toolName} - ${event.reason}")
+                // Don't stop stream, just log and continue
+                false
+            }
         }
     }
 
@@ -579,12 +584,16 @@ fun sendQueryWithContext(
                 eventSink.onStateSync(event.syncType, event.data)
                 false
             }
+            is AgentEvent.ToolBlocked -> {
+                Log.w(TAG, "Tool blocked: ${event.toolName} - ${event.reason}")
+                flowCollector.emit(event)
+                false
+            }
         }
     }
 
     /**
      * Perform a security/capability handshake with the remote agent.
-     * Establishes the authoritative session and gets the tool execution policy.
      */
     suspend fun performHandshake(request: com.example.smarty.protocol.HandshakeRequest): com.example.smarty.protocol.HandshakeResponse? {
         return try {

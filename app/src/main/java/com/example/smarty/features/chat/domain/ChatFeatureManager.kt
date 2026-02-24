@@ -1455,6 +1455,11 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                         is AgentEvent.StateSync -> {
                             // State sync handled by eventSink
                         }
+                        is AgentEvent.ToolBlocked -> {
+                            // Tool blocked - append message to response so AI knows to try different approach
+                            responseBuilder.append("\n[System: ${event.reason}]")
+                            chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                        }
                     }
                 }
 
