@@ -4,7 +4,9 @@ import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.llm.LlmMessage
 import com.zaxxer.hikari.HikariDataSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
@@ -31,65 +33,80 @@ class AgentPersistenceManager(private val userId: String) {
 
     /**
      * Saves the current agent state for a specific session.
+     * Non-blocking with timeout to prevent hanging.
      */
     suspend fun saveCheckpoint(sessionId: String, messages: List<LlmMessage>, lastNode: String? = null) {
         if (dataSource == null) return
 
-        withContext(Dispatchers.IO) {
-            try {
-                dataSource.connection.use { conn ->
-                    val checkpoint = AgentCheckpoint(messages)
-                    val stateJson = json.encodeToString(checkpoint)
+        try {
+            withTimeout(5000) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        dataSource.connection.use { conn ->
+                            val checkpoint = AgentCheckpoint(messages)
+                            val stateJson = json.encodeToString(checkpoint)
 
-                    val sql = """
-                        INSERT INTO agent_checkpoints (session_id, user_id, state_json, last_node, version)
-                        VALUES (?, ?, ?::jsonb, ?, 1)
-                        ON CONFLICT (session_id) DO UPDATE SET
-                            state_json = EXCLUDED.state_json,
-                            last_node = EXCLUDED.last_node,
-                            version = agent_checkpoints.version + 1,
-                            created_at = NOW()
-                    """.trimIndent()
+                            val sql = """
+                                INSERT INTO agent_checkpoints (session_id, user_id, state_json, last_node, version)
+                                VALUES (?, ?, ?::jsonb, ?, 1)
+                                ON CONFLICT (session_id) DO UPDATE SET
+                                    state_json = EXCLUDED.state_json,
+                                    last_node = EXCLUDED.last_node,
+                                    version = agent_checkpoints.version + 1,
+                                    created_at = NOW()
+                            """.trimIndent()
 
-                    conn.prepareStatement(sql).use { stmt ->
-                        stmt.setObject(1, UUID.fromString(sessionId))
-                        stmt.setString(2, userId)
-                        stmt.setString(3, stateJson)
-                        stmt.setString(4, lastNode)
-                        stmt.executeUpdate()
+                            conn.prepareStatement(sql).use { stmt ->
+                                stmt.setObject(1, UUID.fromString(sessionId))
+                                stmt.setString(2, userId)
+                                stmt.setString(3, stateJson)
+                                stmt.setString(4, lastNode)
+                                stmt.executeUpdate()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        logger.error("Failed to save agent checkpoint: ${e.message}")
                     }
                 }
-            } catch (e: Exception) {
-                logger.error("Failed to save agent checkpoint: ${e.message}")
             }
+        } catch (e: TimeoutCancellationException) {
+            logger.warn("Checkpoint save timed out for session $sessionId - continuing without persistence")
         }
     }
 
     /**
      * Loads the latest checkpoint for a session.
+     * Non-blocking with timeout.
      */
     suspend fun loadCheckpoint(sessionId: String): AgentCheckpoint? {
         if (dataSource == null) return null
 
-        return withContext(Dispatchers.IO) {
-            try {
-                dataSource.connection.use { conn ->
-                    val sql = "SELECT state_json FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
-                    conn.prepareStatement(sql).use { stmt ->
-                        stmt.setObject(1, UUID.fromString(sessionId))
-                        stmt.setString(2, userId)
-                        stmt.executeQuery().use { rs ->
-                            if (rs.next()) {
-                                val stateJson = rs.getString("state_json")
-                                json.decodeFromString<AgentCheckpoint>(stateJson)
-                            } else null
+        return try {
+            withTimeout(3000) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        dataSource.connection.use { conn ->
+                            val sql = "SELECT state_json FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
+                            conn.prepareStatement(sql).use { stmt ->
+                                stmt.setObject(1, UUID.fromString(sessionId))
+                                stmt.setString(2, userId)
+                                stmt.executeQuery().use { rs ->
+                                    if (rs.next()) {
+                                        val stateJson = rs.getString("state_json")
+                                        json.decodeFromString<AgentCheckpoint>(stateJson)
+                                    } else null
+                                }
+                            }
                         }
+                    } catch (e: Exception) {
+                        logger.error("Failed to load agent checkpoint: ${e.message}")
+                        null
                     }
                 }
-            } catch (e: Exception) {
-                logger.error("Failed to load agent checkpoint: ${e.message}")
-                null
             }
+        } catch (e: TimeoutCancellationException) {
+            logger.warn("Checkpoint load timed out for session $sessionId")
+            null
         }
     }
 
@@ -99,13 +116,17 @@ class AgentPersistenceManager(private val userId: String) {
     suspend fun clearCheckpoint(sessionId: String) {
         if (dataSource == null) return
         withContext(Dispatchers.IO) {
-            dataSource.connection.use { conn ->
-                val sql = "DELETE FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(sessionId))
-                    stmt.setString(2, userId)
-                    stmt.executeUpdate()
+            try {
+                dataSource.connection.use { conn ->
+                    val sql = "DELETE FROM agent_checkpoints WHERE session_id = ? AND user_id = ?"
+                    conn.prepareStatement(sql).use { stmt ->
+                        stmt.setObject(1, UUID.fromString(sessionId))
+                        stmt.setString(2, userId)
+                        stmt.executeUpdate()
+                    }
                 }
+            } catch (e: Exception) {
+                logger.error("Failed to clear checkpoint: ${e.message}")
             }
         }
     }
