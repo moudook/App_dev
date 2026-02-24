@@ -1400,6 +1400,17 @@ fun MarkdownRenderer(
                             }
                         }
                         
+                        // Horizontal Line
+                        trimmedLine.matches(Regex("^(---+|\\*\\*\\*+|___+)$")) -> {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            HorizontalDivider(
+                                color = normalColor.copy(alpha = 0.2f),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            i++
+                        }
+                        
                         trimmedLine.isBlank() -> {
                             Spacer(modifier = Modifier.height(12.dp)) // Added spacing for empty paragraphs
                             i++
@@ -1462,11 +1473,35 @@ fun MarkdownTable(
         return
     }
 
+    val parsedRows = tableLines.mapIndexedNotNull { index, line ->
+        if (index == 1 && line.replace(Regex("[|\\-:\\s]"), "").isEmpty()) {
+            null
+        } else {
+            line.split("|").map { it.trim() }.let {
+                var list = it
+                if (list.firstOrNull()?.isEmpty() == true) list = list.drop(1)
+                if (list.lastOrNull()?.isEmpty() == true) list = list.dropLast(1)
+                list
+            }
+        }
+    }
+
+    if (parsedRows.isEmpty()) return
+
     val isDark = isSystemInDarkTheme()
     val borderColor = if (isDark) Color(0xFF3F3F46) else Color(0xFFE4E4E7)
     val headerBgColor = if (isDark) Color(0xFF27272A) else Color(0xFFF4F4F5)
     val rowBgColorAlt = if (isDark) Color(0xFF18181B) else Color(0xFFFFFFFF)
     val rowBgColor = if (isDark) Color(0xFF27272A).copy(alpha = 0.5f) else Color(0xFFFAFAFA)
+    
+    val maxColumns = parsedRows.maxOfOrNull { it.size } ?: 1
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    
+    // Calculate table properties to enforce equal column widths that align correctly
+    val minTableWidth = maxOf(
+        minOf((configuration.screenWidthDp - 48).dp, 640.dp),
+        (maxColumns * 120).dp
+    )
 
     Column(
         modifier = Modifier
@@ -1476,25 +1511,13 @@ fun MarkdownTable(
             .border(1.dp, borderColor, RoundedCornerShape(8.dp))
             .horizontalScroll(rememberScrollState())
     ) {
-        tableLines.forEachIndexed { index, line ->
-            // Skip the markdown table separator line (e.g., |---|---|)
-            if (index == 1 && line.replace("|", "").replace("-", "").replace(":", "").replace(" ", "").isEmpty()) {
-                return@forEachIndexed
-            }
-            
-            // Extract cell contents
-            val cells = line.split("|").map { it.trim() }.let {
-                var list = it
-                if (list.firstOrNull()?.isEmpty() == true) list = list.drop(1)
-                if (list.lastOrNull()?.isEmpty() == true) list = list.dropLast(1)
-                list
-            }
-
+        parsedRows.forEachIndexed { index, cells ->
             val isHeader = index == 0
             val bgColor = if (isHeader) headerBgColor else if (index % 2 == 0) rowBgColor else rowBgColorAlt
 
             Row(
                 modifier = Modifier
+                    .width(minTableWidth)
                     .background(bgColor)
                     .drawBehind {
                         if (index > 0) {
@@ -1507,10 +1530,12 @@ fun MarkdownTable(
                         }
                     }
             ) {
-                cells.forEachIndexed { cellIdx, cellText ->
+                // Generate maxColumns cells for consistent alignment
+                for (cellIdx in 0 until maxColumns) {
+                    val cellText = cells.getOrNull(cellIdx) ?: ""
                     Box(
                         modifier = Modifier
-                            .widthIn(min = 120.dp, max = 300.dp)
+                            .weight(1f)
                             .drawBehind {
                                 if (cellIdx > 0) {
                                     drawLine(
