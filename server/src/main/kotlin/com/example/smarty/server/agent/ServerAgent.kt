@@ -762,9 +762,17 @@ ${goalMemoryManager.getProgressContext()}
                     // Count how many times this exact tool+args combination was called
                     val sameCallCount = toolCallHistory.count { it.first == currentToolName && it.second == argsHash }
                     
-                    // Allow research with same tool but DIFFERENT queries - only block exact same query
-                    // After 3 identical queries, tell AI to try something different instead of stopping
-                    if (sameCallCount >= 3) {
+                    // RESEARCH TOOLS (web search, tavily, etc.) - No blocking, allow unlimited different queries
+                    val isResearchTool = currentToolName.lowercase().let {
+                        it.contains("search") || it.contains("web") || it.contains("tavily") || 
+                        it.contains("fetch") || it.contains("scrape") || it.contains("browser")
+                    }
+                    
+                    // Allow research tools to have unlimited different queries for research purposes
+                    // Only block if EXACT same query is repeated 3+ times
+                    val shouldBlock = !isResearchTool && sameCallCount >= 3
+                    
+                    if (shouldBlock) {
                         logger.warn("TOOL BLOCKED: Tool $currentToolName called ${sameCallCount + 1} times with same query - informing AI")
                         emit(AgentEvent.ToolBlocked(
                             eventId = UUID.randomUUID().toString(),

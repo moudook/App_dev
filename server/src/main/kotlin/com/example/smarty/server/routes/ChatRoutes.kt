@@ -374,8 +374,10 @@ fun Application.configureChatRoutes() {
 
                 try {
                     // Run the agent strategy with history, model override, and time context
+                    // CRITICAL: Pass sessionId to preserve chat history continuity
                     val assistantResponse = agent.run(
                         query = query,
+                        sessionId = sessionId!!,  // Use the session ID from client for history continuity
                         history = history,
                         modelOverride = modelParam,
                         clientTimezone = timezoneParam,
@@ -502,6 +504,7 @@ fun Application.configureChatRoutes() {
                     try {
                         val assistantResponse = agent.run(
                             query = fullQuery,
+                            sessionId = sessionId!!,  // Use the session ID from client for history continuity
                             history = history,
                             modelOverride = request.model,
                             clientTimezone = request.timezone,
