@@ -14,7 +14,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,33 +36,58 @@ import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.Note
+import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.ui.components.ChatMessageItem
 import com.example.smarty.ui.components.AgentActivityIndicator
 import com.example.smarty.features.chat.domain.ChatFeatureManager.AgentActivity
-
+import com.example.smarty.features.chat.domain.FailedMessage
 import com.example.smarty.ui.components.MessageGroupPosition
 
-/**
- * Chat mode content displaying AI conversation messages.
- *
- * Extracted from InputStreamScreen to improve code organization.
- * Handles the display of chat messages, empty state, and message interactions.
- */
+data class MessageGroup(
+    val label: String,
+    val messages: List<ChatMessage>
+)
+
+fun groupMessagesByTime(messages: List<ChatMessage>): List<MessageGroup> {
+    val now = System.currentTimeMillis()
+    val groups = mutableMapOf<String, MutableList<ChatMessage>>()
+    val order = mutableListOf<String>()
+    
+    messages.forEach { message ->
+        val label = when {
+            message.timestamp > now - 86_400_000 -> "Today"
+            message.timestamp > now - 172_800_000 -> "Yesterday"
+            message.timestamp > now - 604_800_000 -> "This Week"
+            else -> "Earlier"
+        }
+        if (!groups.containsKey(label)) {
+            order.add(label)
+        }
+        groups.getOrPut(label) { mutableListOf() }.add(message)
+    }
+    
+    return order.map { label -> MessageGroup(label, groups[label] ?: emptyList()) }
+}
+
 @Composable
 fun ChatModeContent(
     chatMessages: List<ChatMessage>,
     chatListState: LazyListState,
     notes: List<Note>,
     onNoteClick: (Note) -> Unit,
-    onSendChatMessage: (String, List<com.example.smarty.core.domain.model.Attachment>) -> Unit,
+    onSendChatMessage: (String, List<Attachment>) -> Unit,
     contentPadding: PaddingValues,
     isChatProcessing: Boolean = false,
     isHistoryLoading: Boolean = false,
     agentActivity: AgentActivity? = null,
+    failedMessages: List<FailedMessage> = emptyList(),
+    onCopyMessage: (String) -> Unit = {},
+    onDeleteMessage: (String) -> Unit = {},
+    onRegenerateMessage: (String) -> Unit = {},
+    onRetryFailed: (FailedMessage) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        // Loading State
         if (isHistoryLoading) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -64,71 +95,106 @@ fun ChatModeContent(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 items(5) { index ->
-                    // Alternate between user (right) and assistant (left) for realistic feel
                     com.example.smarty.ui.components.ChatMessageSkeleton(isFromUser = index % 2 == 0)
                 }
             }
         }
-        // Chat messages content
-        else if (chatMessages.isEmpty()) {
+        else if (chatMessages.isEmpty() && failedMessages.isEmpty()) {
             ChatEmptyState(modifier = Modifier.fillMaxSize())
         } else {
+            val groupedMessages = remember(chatMessages) { groupMessagesByTime(chatMessages) }
+            
             LazyColumn(
                 state = chatListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = contentPadding,
-                // We handle spacing manually for dynamic grouping
                 verticalArrangement = Arrangement.Top
             ) {
-                items(
-                    count = chatMessages.size,
-                    key = { index -> chatMessages[index].id },
-                    contentType = { index -> chatMessages[index].role }
-                ) { index ->
-                    val message = chatMessages[index]
-                    val prevMessage = chatMessages.getOrNull(index - 1)
-                    val nextMessage = chatMessages.getOrNull(index + 1)
-
-                    // Grouping Logic: Check roles
-                    val isSameAsPrev = prevMessage?.role == message.role
-                    val isSameAsNext = nextMessage?.role == message.role
-
-                    // Calculate position in group
-                    val groupPosition = when {
-                        !isSameAsPrev && !isSameAsNext -> MessageGroupPosition.SINGLE
-                        !isSameAsPrev && isSameAsNext -> MessageGroupPosition.TOP
-                        isSameAsPrev && isSameAsNext -> MessageGroupPosition.MIDDLE
-                        isSameAsPrev && !isSameAsNext -> MessageGroupPosition.BOTTOM
-                        else -> MessageGroupPosition.SINGLE
+                groupedMessages.forEach { group ->
+                    if (groupedMessages.size > 1) {
+                        item(key = "header_${group.label}") {
+                            Text(
+                                text = group.label,
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    letterSpacing = 0.5.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp, horizontal = 16.dp)
+                            )
+                        }
                     }
+                    
+                    items(
+                        count = group.messages.size,
+                        key = { index -> group.messages[index].id },
+                        contentType = { index -> group.messages[index].role }
+                    ) { index ->
+                        val message = group.messages[index]
+                        val prevMessage = group.messages.getOrNull(index - 1)
+                        val nextMessage = group.messages.getOrNull(index + 1)
 
-                    // Dynamic Spacing Logic
-                    // Different sender (or first item) = Large gap (24dp)
-                    // Same sender = Small gap (2.dp) - handled by item padding logic effectively
-                    // We add top padding here
-                    val topSpacing = if (index == 0) 0.dp else if (isSameAsPrev) 2.dp else 24.dp
+                        val isSameAsPrev = prevMessage?.role == message.role
+                        val isSameAsNext = nextMessage?.role == message.role
 
-                    // Stabilize getNote lambda - only recreate when notes change
-                    val stableGetNote = remember(notes) {
-                        { id: String -> notes.find { it.id == id } }
+                        val groupPosition = when {
+                            !isSameAsPrev && !isSameAsNext -> MessageGroupPosition.SINGLE
+                            !isSameAsPrev && isSameAsNext -> MessageGroupPosition.TOP
+                            isSameAsPrev && isSameAsNext -> MessageGroupPosition.MIDDLE
+                            isSameAsPrev && !isSameAsNext -> MessageGroupPosition.BOTTOM
+                            else -> MessageGroupPosition.SINGLE
+                        }
+
+                        val topSpacing = if (index == 0) 0.dp else if (isSameAsPrev) 2.dp else 24.dp
+
+                        val stableGetNote = remember(notes) {
+                            { id: String -> notes.find { it.id == id } }
+                        }
+
+                        ChatMessageItem(
+                            message = message,
+                            groupPosition = groupPosition,
+                            getNote = stableGetNote,
+                            onNoteClick = onNoteClick,
+                            onSuggestionClick = { suggestion ->
+                                onSendChatMessage(suggestion, emptyList())
+                            },
+                            onCopyMessage = onCopyMessage,
+                            onDeleteMessage = onDeleteMessage,
+                            onRegenerateMessage = onRegenerateMessage,
+                            modifier = Modifier.padding(top = topSpacing)
+                        )
                     }
-
-                    ChatMessageItem(
-                        message = message,
-                        groupPosition = groupPosition,
-                        getNote = stableGetNote,
-                        onNoteClick = onNoteClick,
-                        onSuggestionClick = { suggestion ->
-                            // Send the clicked suggestion as a new message
-                            onSendChatMessage(suggestion, emptyList())
-                        },
-                        modifier = Modifier.padding(top = topSpacing)
-                    )
                 }
 
-                // Inline indicator removed for cleaner UI
+                if (failedMessages.isNotEmpty()) {
+                    item(key = "failed_messages_header") {
+                        Text(
+                            text = stringResource(R.string.failed_messages),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Medium
+                            ),
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp, horizontal = 16.dp)
+                        )
+                    }
+                    
+                    items(
+                        items = failedMessages,
+                        key = { it.timestamp }
+                    ) { failedMessage ->
+                        FailedMessageItem(
+                            failedMessage = failedMessage,
+                            onRetry = { onRetryFailed(failedMessage) },
+                            modifier = Modifier.padding(vertical = 8.dp, horizontal = 16.dp)
+                        )
+                    }
+                }
 
-                // Agent Activity Indicator (Thinking/Tool Execution)
                 if (agentActivity != null) {
                     item(key = "agent_activity") {
                         AgentActivityIndicator(
@@ -139,6 +205,47 @@ fun ChatModeContent(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FailedMessageItem(
+    failedMessage: FailedMessage,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.ErrorOutline,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = failedMessage.originalContent.take(50) + if (failedMessage.originalContent.length > 50) "..." else "",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onRetry) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = stringResource(R.string.retry),
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

@@ -22,15 +22,15 @@ plugins {
     alias(libs.plugins.firebase.crashlytics) apply false
 }
 
-// Force Kotlin version across all dependencies to avoid version conflicts with koog library
+// Force Kotlin version across all dependencies to avoid version conflicts
 subprojects {
     configurations.all {
         resolutionStrategy {
-            force("org.jetbrains.kotlin:kotlin-stdlib:2.1.0")
-            force("org.jetbrains.kotlin:kotlin-stdlib-common:2.1.0")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0")
-            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0")
-            force("org.jetbrains.kotlin:kotlin-reflect:2.1.0")
+            force("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-common:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.21")
+            force("org.jetbrains.kotlin:kotlin-reflect:2.1.21")
         }
     }
 }

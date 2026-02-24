@@ -1,6 +1,7 @@
 package com.example.smarty.features.chat.domain
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import com.example.smarty.core.domain.model.Attachment
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
@@ -11,85 +12,79 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.example.smarty.core.common.util.HistoryCompressor
+import java.util.UUID
 
-/**
- * Manages chat mode state and session lifecycle.
- * Extracted from SmartyViewModel for better separation of concerns.
- *
- * Responsibilities:
- * - Chat mode on/off state
- * - Chat message history (in-memory)
- * - Chat session management (create, switch, delete)
- * - Session persistence coordination
- */
+data class FailedMessage(
+    val originalContent: String,
+    val attachments: List<Attachment>,
+    val error: String,
+    val timestamp: Long
+)
+
+data class QueuedMessage(
+    val id: String,
+    val content: String,
+    val attachments: List<Attachment>,
+    val queuedAt: Long
+)
+
 class ChatManager(
     private val context: android.content.Context,
     private val chatRepository: ChatRepository,
     private val scope: CoroutineScope,
-    private val historyCompressor: HistoryCompressor
+    private val historyCompressor: HistoryCompressor,
+    private val savedStateHandle: SavedStateHandle? = null
 ) {
     companion object {
         private const val TAG = "ChatManager"
+        private const val KEY_DRAFT_TEXT = "draftText"
     }
 
-    // Chat mode state
     private val _isChatMode = MutableStateFlow(true)
     val isChatMode: StateFlow<Boolean> = _isChatMode.asStateFlow()
 
-    // Chat messages (in-memory for current session)
     private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages.asStateFlow()
 
-    // Processing state
     private val _isChatProcessing = MutableStateFlow(false)
     val isChatProcessing: StateFlow<Boolean> = _isChatProcessing.asStateFlow()
 
-    // State preservation during mode switching
     private var preservedChatMessages: List<ChatMessage> = emptyList()
     private var preservedProcessingState: Boolean = false
 
-    // Current session
     private val _currentSessionId = MutableStateFlow<String?>(null)
     val currentSessionId: StateFlow<String?> = _currentSessionId.asStateFlow()
 
-    // All sessions
     private val _chatSessions = MutableStateFlow<List<ChatSession>>(emptyList())
     val chatSessions: StateFlow<List<ChatSession>> = _chatSessions.asStateFlow()
 
-    // Track if last API call was successful (for smart saving)
     private var lastApiCallSuccessful = false
 
-    // Mutex for thread-safe chat operations (BUG-038 fix)
     private val chatMutex = Mutex()
 
-    /**
-     * BUG FIX (TECH-004): Error state for UI to observe.
-     * Previously, errors were silently logged without UI notification.
-     */
     private val _lastError = MutableStateFlow<String?>(null)
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
-    /**
-     * BUG FIX (TECH-004): Clear the last error.
-     * Call this after displaying the error to the user.
-     */
+    private val _failedMessages = MutableStateFlow<List<FailedMessage>>(emptyList())
+    val failedMessages: StateFlow<List<FailedMessage>> = _failedMessages.asStateFlow()
+
+    private val _pendingQueue = MutableStateFlow<List<QueuedMessage>>(emptyList())
+    val pendingQueue: StateFlow<List<QueuedMessage>> = _pendingQueue.asStateFlow()
+
     fun clearError() {
         _lastError.value = null
     }
 
-    /**
-     * Initialize by loading sessions and cleaning up empty ones
-     */
     fun initialize() {
         scope.launch {
             chatRepository.getAllSessions()
                 .distinctUntilChanged()
                 .collect { sessions ->
-                    // Use mutex to prevent race conditions with session switches
                     chatMutex.withLock {
                         _chatSessions.value = sessions
                     }
@@ -100,9 +95,6 @@ class ChatManager(
         }
     }
 
-    /**
-     * Toggle between note input mode and chat mode
-     */
     fun toggleChatMode() {
         scope.launch {
             try {
@@ -117,39 +109,30 @@ class ChatManager(
         }
     }
 
-    /**
-     * Enter chat mode - creates a new session or restores the last active one
-     * Also restores preserved state from quick switching
-     */
     suspend fun enterChatMode() {
         _isChatMode.value = true
 
         val activeSession = chatRepository.getActiveSession()
         if (activeSession != null) {
             _currentSessionId.value = activeSession.id
-            // Check if we have preserved messages from a recent switch
             if (preservedChatMessages.isNotEmpty()) {
-                // Restore preserved state
+                val deduped = preservedChatMessages.distinctBy { it.id }
                 chatMutex.withLock {
-                    _chatMessages.value = preservedChatMessages
+                    _chatMessages.value = deduped
                     _isChatProcessing.value = preservedProcessingState
                 }
-                // Clear preserved state
                 preservedChatMessages = emptyList()
                 preservedProcessingState = false
             } else {
-                // Load from repository
                 val messages = chatRepository.getMessagesForSessionOnce(activeSession.id)
+                    .distinctBy { it.id }
                 chatMutex.withLock {
                     _chatMessages.value = messages
-                    // Restore processing state if needed
                     _isChatProcessing.value = preservedProcessingState
                     preservedProcessingState = false
                 }
             }
         } else {
-            // Don't create a session yet - wait until user sends a message
-            // This prevents blank sessions from appearing in history
             _currentSessionId.value = null
             chatMutex.withLock {
                 _chatMessages.value = emptyList()
@@ -159,24 +142,16 @@ class ChatManager(
         }
     }
 
-    /**
-     * Exit chat mode and return to note input mode
-     * Preserves chat state for quick switching back
-     */
     fun exitChatMode() {
-        // Preserve current state before switching
         preservedChatMessages = _chatMessages.value
         preservedProcessingState = _isChatProcessing.value
 
         scope.launch {
             _currentSessionId.value?.let { sessionId ->
-                // BUG FIX: If session is empty, delete it immediately to prevent blank history
                 if (_chatMessages.value.isEmpty()) {
                     chatRepository.deleteSession(sessionId)
                     Log.d(TAG, "Deleted empty session on exit: $sessionId")
                 } else {
-                    // Don't finalize session immediately for quick switching
-                    // Just mark it as inactive but keep the data
                     chatRepository.markSessionInactive(sessionId)
                 }
             }
@@ -185,36 +160,30 @@ class ChatManager(
         Log.d(TAG, "Exited chat mode (preserved ${preservedChatMessages.size} messages, processing: $preservedProcessingState)")
     }
 
-    /**
-     * Create a new chat session (starts fresh conversation)
-     * Session will be created when user actually sends a message
-     */
     fun createNewChatSession() {
         scope.launch {
-            // Finalize current session if it exists
             _currentSessionId.value?.let { sessionId ->
                 chatRepository.finalizeSession(sessionId)
             }
 
-            // Reset to empty state - session will be created on first message
             _currentSessionId.value = null
             chatMutex.withLock {
                 _chatMessages.value = emptyList()
             }
             lastApiCallSuccessful = false
+            preservedChatMessages = emptyList()
 
             Log.d(TAG, "Reset to new chat state - session will be created on first message")
         }
     }
 
-    /**
-     * Switch to a different chat session
-     */
     fun switchToChatSession(sessionId: String) {
         scope.launch {
+            preservedChatMessages = emptyList()
             chatRepository.switchToSession(sessionId)
             _currentSessionId.value = sessionId
             val messages = chatRepository.getMessagesForSessionOnce(sessionId)
+                .distinctBy { it.id }
             chatMutex.withLock {
                 _chatMessages.value = messages
             }
@@ -222,16 +191,12 @@ class ChatManager(
         }
     }
 
-    /**
-     * Delete a chat session
-     */
     fun deleteChatSession(sessionId: String) {
         scope.launch {
             val isCurrentSession = sessionId == _currentSessionId.value
             chatRepository.deleteSession(sessionId)
 
             if (isCurrentSession) {
-                // Don't create a new session - set to null and it will be created when needed
                 _currentSessionId.value = null
                 chatMutex.withLock {
                     _chatMessages.value = emptyList()
@@ -241,9 +206,6 @@ class ChatManager(
         }
     }
 
-    /**
-     * Clear current chat history (keeps session, just clears messages in memory)
-     */
     fun clearChatHistory() {
         scope.launch {
             chatMutex.withLock {
@@ -253,35 +215,34 @@ class ChatManager(
         Log.d(TAG, "Chat history cleared")
     }
 
-    /**
-     * Add a user message to the chat (thread-safe using Mutex)
-     */
     suspend fun addUserMessage(content: String, attachments: List<Attachment> = emptyList()): ChatMessage {
         val userMessage = ChatMessage(
-            id = java.util.UUID.randomUUID().toString(),
+            id = UUID.randomUUID().toString(),
             role = ChatRole.USER,
             content = content,
             attachments = attachments,
             timestamp = System.currentTimeMillis()
         )
         chatMutex.withLock {
+            if (_chatMessages.value.any { it.id == userMessage.id }) {
+                Log.w(TAG, "Duplicate message ID detected, skipping: ${userMessage.id}")
+                return@withLock
+            }
             _chatMessages.value = _chatMessages.value + userMessage
         }
         return userMessage
     }
 
-    /**
-     * Add a Smarty response to the chat (thread-safe using Mutex)
-     */
     suspend fun addSmartyMessage(message: ChatMessage) {
         chatMutex.withLock {
+            if (_chatMessages.value.any { it.id == message.id }) {
+                Log.w(TAG, "Duplicate message ID detected, skipping: ${message.id}")
+                return@withLock
+            }
             _chatMessages.value = _chatMessages.value + message
         }
     }
 
-    /**
-     * Update an existing message by ID (for streaming updates)
-     */
     suspend fun updateMessageById(messageId: String, newContent: String) {
         chatMutex.withLock {
             _chatMessages.value = _chatMessages.value.map { msg ->
@@ -290,9 +251,6 @@ class ChatManager(
         }
     }
 
-    /**
-     * Update an existing message by ID with both content and thinking chunks
-     */
     suspend fun updateMessageWithThinking(messageId: String, newContent: String, newThinking: String?) {
         chatMutex.withLock {
             _chatMessages.value = _chatMessages.value.map { msg ->
@@ -301,9 +259,6 @@ class ChatManager(
         }
     }
 
-    /**
-     * Replace an entire message by ID (for final message with all fields)
-     */
     suspend fun replaceMessage(messageId: String, newMessage: ChatMessage) {
         chatMutex.withLock {
             _chatMessages.value = _chatMessages.value.map { msg ->
@@ -312,39 +267,40 @@ class ChatManager(
         }
     }
 
-    /**
-     * Set chat processing state
-     */
+    suspend fun deleteMessage(messageId: String): Boolean {
+        return chatMutex.withLock {
+            val messageToDelete = _chatMessages.value.find { it.id == messageId }
+            if (messageToDelete != null) {
+                _chatMessages.value = _chatMessages.value.filter { it.id != messageId }
+                scope.launch {
+                    chatRepository.deleteMessage(messageId)
+                }
+                Log.d(TAG, "Deleted message: $messageId")
+                true
+            } else {
+                false
+            }
+        }
+    }
+
     fun setProcessing(isProcessing: Boolean) {
         _isChatProcessing.value = isProcessing
     }
 
-    /**
-     * Mark API call as successful
-     */
     fun markApiCallSuccessful() {
         lastApiCallSuccessful = true
     }
 
-    /**
-     * Reset API call success flag
-     */
     fun resetApiCallFlag() {
         lastApiCallSuccessful = false
     }
 
-    /**
-     * Determine if chat should be saved based on conditions
-     */
     fun shouldSaveChat(): Boolean {
         if (_currentSessionId.value == null) return false
         if (!lastApiCallSuccessful) return false
         return true
     }
 
-    /**
-     * Ensure we have a valid session, creating one if needed
-     */
     suspend fun ensureSession(): String {
         val existingId = _currentSessionId.value
         if (existingId != null) {
@@ -355,9 +311,6 @@ class ChatManager(
         return newSession.id
     }
 
-    /**
-     * Update the actions of a specific Smarty response (thread-safe using Mutex)
-     */
     suspend fun updateSmartyMessageActions(messageId: String, updatedActions: List<com.example.smarty.core.domain.model.AgentActionResult>) {
         chatMutex.withLock {
             val currentMessages = _chatMessages.value
@@ -372,12 +325,6 @@ class ChatManager(
         }
     }
 
-    /**
-     * Save a message pair to persistent storage (thread-safe)
-     *
-     * BUG FIX (TECH-004): Now returns Result to indicate success/failure
-     * and sets lastError state for UI observation.
-     */
     suspend fun saveMessagePair(
         userMessage: ChatMessage,
         smartyMessage: ChatMessage
@@ -395,33 +342,16 @@ class ChatManager(
                 Result.success(Unit)
             } catch (e: Exception) {
                 Log.e(TAG, "Error saving message pair: ${e.message}", e)
-                // BUG FIX (TECH-004): Set error state for UI to observe
                 _lastError.value = context.getString(com.example.smarty.R.string.error_save_message)
                 Result.failure(e)
             }
         }
     }
 
-    /**
-     * Get compressed conversation history for Smarty.
-     *
-     * Uses HistoryCompressor to reduce token usage:
-     * - Keeps last 3 exchanges verbatim
-     * - Summarizes older exchanges
-     * - Expected 50-70% token reduction for long conversations
-     *
-     * @return Compressed chat messages suitable for agent context
-     */
     fun getCompressedHistory(): List<ChatMessage> {
         return historyCompressor.compress(_chatMessages.value)
     }
 
-    /**
-     * Get conversation history in legacy format (role, content pairs).
-     * Uses compression for token efficiency.
-     *
-     * @return List of (role, content) pairs for agent
-     */
     fun getHistoryForAgent(): List<Pair<String, String>> {
         val compressed = getCompressedHistory()
         return compressed.map { msg ->
@@ -432,5 +362,53 @@ class ChatManager(
             }
             role to msg.content
         }
+    }
+
+    fun saveDraft(text: String) {
+        savedStateHandle?.set(KEY_DRAFT_TEXT, text)
+    }
+
+    fun getDraft(): String? = savedStateHandle?.get<String>(KEY_DRAFT_TEXT)
+
+    fun clearDraft() {
+        savedStateHandle?.remove<String>(KEY_DRAFT_TEXT)
+    }
+
+    fun addFailedMessage(content: String, attachments: List<Attachment>, error: String) {
+        val failed = FailedMessage(
+            originalContent = content,
+            attachments = attachments,
+            error = error,
+            timestamp = System.currentTimeMillis()
+        )
+        _failedMessages.update { it + failed }
+    }
+
+    fun removeFailedMessage(failedMessage: FailedMessage) {
+        _failedMessages.update { it.filter { m -> m != failedMessage } }
+    }
+
+    fun clearFailedMessages() {
+        _failedMessages.value = emptyList()
+    }
+
+    fun queueMessage(content: String, attachments: List<Attachment>): QueuedMessage {
+        val queued = QueuedMessage(
+            id = UUID.randomUUID().toString(),
+            content = content,
+            attachments = attachments,
+            queuedAt = System.currentTimeMillis()
+        )
+        _pendingQueue.update { it + queued }
+        Log.d(TAG, "Queued message for later delivery: ${queued.id}")
+        return queued
+    }
+
+    fun clearQueuedMessage(queuedId: String) {
+        _pendingQueue.update { it.filter { m -> m.id != queuedId } }
+    }
+
+fun clearPendingQueue() {
+        _pendingQueue.value = emptyList()
     }
 }

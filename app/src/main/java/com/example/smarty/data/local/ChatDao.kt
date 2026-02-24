@@ -146,6 +146,12 @@ interface ChatDao {
     @Delete
     suspend fun deleteMessage(message: ChatMessageEntity)
 
+    @Query("DELETE FROM chat_messages WHERE id = :messageId")
+    suspend fun deleteMessageById(messageId: String)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM chat_messages WHERE id = :messageId)")
+    suspend fun messageExists(messageId: String): Boolean
+
     @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")
     suspend fun deleteMessagesForSession(sessionId: String)
 

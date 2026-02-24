@@ -418,6 +418,7 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.CALENDAR -> {
                 if (showCalendarInline) {
                     showCalendarInline = false
+                    selectedTab = NavigationTab.NOTES
                 } else {
                     if (isChatMode) onExitChatMode()
                     closeAllInlineViews()
@@ -427,6 +428,7 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.STACKS -> {
                 if (showStacksInline) {
                     showStacksInline = false
+                    selectedTab = NavigationTab.NOTES
                 } else {
                     if (isChatMode) onExitChatMode()
                     closeAllInlineViews()
@@ -436,6 +438,7 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.ARCHIVE -> {
                 if (showArchiveInline) {
                     showArchiveInline = false
+                    selectedTab = NavigationTab.NOTES
                 } else {
                     if (isChatMode) onExitChatMode()
                     closeAllInlineViews()
@@ -445,6 +448,7 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.SETTINGS -> {
                 if (showSettingsInline) {
                     showSettingsInline = false
+                    selectedTab = NavigationTab.NOTES
                 } else {
                     if (isChatMode) onExitChatMode()
                     closeAllInlineViews()

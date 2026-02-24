@@ -1,8 +1,8 @@
 [versions]
-# Android Gradle Plugin - latest stable
+# Android Gradle Plugin - 8.13.x stable (9.0 is breaking change requiring DSL migration)
 agp = "8.13.2"
-# Kotlin - latest stable (2.1.0 is current latest)
-kotlin = "2.1.0"
+# Kotlin - 2.1.21 latest stable in 2.1.x series (2.3.x available but may have compat issues)
+kotlin = "2.1.21"
 coreKtx = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -14,10 +14,10 @@ activityCompose = "1.10.0"
 # Compose BOM - latest stable (Feb 2025)
 composeBom = "2025.02.00"
 navigationCompose = "2.8.7"
-roomVersion = "2.6.1"
+roomVersion = "2.7.0"
 coilCompose = "2.7.0"
 # KSP must match Kotlin version
-ksp = "2.1.0-1.0.29"
+ksp = "2.1.21-2.0.1"
 zxing = "3.5.3"
 gson = "2.11.0"
 okhttp = "4.12.0"

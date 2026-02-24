@@ -1082,12 +1082,14 @@ is AgentCommand.GetSystemStatus -> "(no params)"
         )
     }
 
-    // Exposed flows from ChatManager
+// Exposed flows from ChatManager
     val isChatMode: StateFlow<Boolean> = chatManager.isChatMode
     val chatMessages: StateFlow<List<ChatMessage>> = chatManager.chatMessages
     val isChatProcessing: StateFlow<Boolean> = chatManager.isChatProcessing
     val currentSessionId: StateFlow<String?> = chatManager.currentSessionId
     val chatSessions: StateFlow<List<ChatSession>> = chatManager.chatSessions
+    val failedMessages: StateFlow<List<FailedMessage>> = chatManager.failedMessages
+    val pendingQueue: StateFlow<List<QueuedMessage>> = chatManager.pendingQueue
 
     // Mention State
     private val _mentionState = MutableStateFlow(MentionState())
@@ -1559,8 +1561,48 @@ is AgentCommand.GetSystemStatus -> "(no params)"
         dispatchQuery(suggestion)
     }
 
-    fun dismissSuggestion() {
+fun dismissSuggestion() {
         _proactiveSuggestion.value = null
+    }
+
+    fun retryFailedMessage(failedMessage: FailedMessage) {
+        chatManager.removeFailedMessage(failedMessage)
+        dispatchQuery(failedMessage.originalContent, failedMessage.attachments)
+    }
+
+    suspend fun deleteMessage(messageId: String): Boolean {
+        return chatManager.deleteMessage(messageId)
+    }
+
+    fun regenerateResponse(messageId: String) {
+        val messages = chatMessages.value
+        val messageIndex = messages.indexOfFirst { it.id == messageId }
+        if (messageIndex < 0) return
+
+        val smartyMessage = messages[messageIndex]
+        if (smartyMessage.role != ChatRole.SMARTY) return
+
+        val userMessageIndex = messageIndex - 1
+        if (userMessageIndex < 0) return
+
+        val userMessage = messages[userMessageIndex]
+        if (userMessage.role != ChatRole.USER) return
+
+        scope.launch {
+            chatManager.deleteMessage(messageId)
+        }
+        
+        dispatchQuery(userMessage.content, userMessage.attachments)
+    }
+
+    fun saveDraft(text: String) {
+        chatManager.saveDraft(text)
+    }
+
+    fun getDraft(): String? = chatManager.getDraft()
+
+    fun clearDraft() {
+        chatManager.clearDraft()
     }
 
     // Callbacks for Smarty

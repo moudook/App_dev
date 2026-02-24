@@ -1,9 +1,12 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -75,26 +78,249 @@ fun HorizontalActionBar(
     isSettingsMode: Boolean = false,
     archiveCount: Int = 0
 ) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var interactionTrigger by remember { mutableIntStateOf(0) }
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
+
+    val tabs = NavigationTab.entries
+    val tabCount = tabs.size
+    val selectedIndex = tabs.indexOf(selectedTab)
+
+    val scope = rememberCoroutineScope()
+    val rotation = remember { Animatable(selectedIndex.toFloat()) }
+    var lastVelocity by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(isExpanded, interactionTrigger) {
+        if (isExpanded) {
+            kotlinx.coroutines.delay(1800L) // Auto collapse after 2.8 seconds of inactivity
+            isExpanded = false
+        }
+    }
+
+    LaunchedEffect(selectedTab) {
+        val targetIndex = tabs.indexOf(selectedTab).toFloat()
+        val currentVirtual = rotation.value
+        val diff = (targetIndex - (currentVirtual % tabCount + tabCount) % tabCount).let {
+            val half = tabCount / 2f
+            when {
+                it > half -> it - tabCount
+                it < -half -> it + tabCount
+                else -> it
+            }
+        }
+        if (abs(diff) > 0.001f) {
+            rotation.animateTo(
+                targetValue = currentVirtual + diff,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
+        }
+    }
+
+    val height by animateDpAsState(
+        targetValue = if (isExpanded) 110.dp else 60.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.8f),
+        label = "HeaderHeightAnim"
+    )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(110.dp), // Increased height for the dial arc
+            .height(height)
+            .pointerInput(Unit) {
+                var wasCollapsedOnStart = false
+                var totalDragDistance = 0f
+
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        wasCollapsedOnStart = !isExpanded
+                        totalDragDistance = 0f
+                        isExpanded = true
+                        interactionTrigger++
+                        lastVelocity = 0f
+                        scope.launch { rotation.stop() }
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        isExpanded = true
+                        interactionTrigger++
+                        change.consume()
+                        
+                        totalDragDistance += abs(dragAmount)
+                        
+                        // Damping effect: allow smooth physical expansion of the header first before
+                        // forcing the full raw scroll translation mapping.
+                        val damping = if (wasCollapsedOnStart) {
+                            ((totalDragDistance - 20f) / 80f).coerceIn(0f, 1f)
+                        } else {
+                            1f
+                        }
+
+                        val delta = -(dragAmount * damping) / 150f
+                        lastVelocity = delta
+                        scope.launch {
+                            rotation.snapTo(rotation.value + delta)
+                        }
+                    },
+                    onDragEnd = {
+                        scope.launch {
+                            rotation.animateDecay(
+                                initialVelocity = lastVelocity * 80f,
+                                animationSpec = exponentialDecay(frictionMultiplier = 1f)
+                            )
+                            val finalVirtualIndex = rotation.value
+                            val targetIndex = finalVirtualIndex.roundToInt()
+                            rotation.animateTo(
+                                targetValue = targetIndex.toFloat(),
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                )
+                            )
+                            rotation.snapTo(targetIndex.toFloat())
+                            val finalIndex = ((targetIndex % tabCount) + tabCount) % tabCount
+                            
+                            // Critical Logic Fix: Only trigger a full generic tab selection router request 
+                            // if we actually landed on a NEW unique tab. This prevents i->i toggle popping!
+                            val landedTab = tabs[finalIndex]
+                            if (landedTab != selectedTab) {
+                                onTabSelected(landedTab)
+                            }
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                    }
+                )
+            },
         contentAlignment = Alignment.BottomCenter
     ) {
-        RotaryNavigationDial(
-            selectedTab = selectedTab,
-            onTabSelected = onTabSelected,
-            isHistoryMode = isHistoryMode,
-            isCalendarMode = isCalendarMode,
-            isStacksMode = isStacksMode,
-            isArchiveMode = isArchiveMode,
-            isSettingsMode = isSettingsMode,
-            accentColor = accentColor,
-            haptic = haptic
-        )
+        androidx.compose.animation.AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn(tween(350)) + slideInVertically(
+                initialOffsetY = { it / 3 },
+                animationSpec = tween(350, easing = EaseOutQuart)
+            ),
+            exit = fadeOut(tween(250)) + slideOutVertically(
+                targetOffsetY = { it / 3 },
+                animationSpec = tween(250)
+            )
+        ) {
+            RotaryNavigationDial(
+                selectedTab = selectedTab,
+                onTabSelected = { newTab -> 
+                    // Protect against i->i duplicate taps while expanded
+                    if (newTab != selectedTab) {
+                        onTabSelected(newTab)
+                    }
+                    isExpanded = false
+                },
+                isHistoryMode = isHistoryMode,
+                isCalendarMode = isCalendarMode,
+                isStacksMode = isStacksMode,
+                isArchiveMode = isArchiveMode,
+                isSettingsMode = isSettingsMode,
+                accentColor = accentColor,
+                haptic = haptic,
+                rotation = rotation,
+                onInteraction = { interactionTrigger++ }
+            )
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !isExpanded,
+            enter = fadeIn(tween(400)) + scaleIn(initialScale = 0.8f, animationSpec = tween(400, easing = EaseOutQuart)),
+            exit = fadeOut(tween(250)) + scaleOut(targetScale = 0.8f, animationSpec = tween(250))
+        ) {
+            CollapsedHeader(
+                selectedTab = selectedTab,
+                isHistoryMode = isHistoryMode,
+                isCalendarMode = isCalendarMode,
+                isStacksMode = isStacksMode,
+                isArchiveMode = isArchiveMode,
+                isSettingsMode = isSettingsMode,
+                accentColor = accentColor,
+                onClick = { 
+                    isExpanded = true
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CollapsedHeader(
+    selectedTab: NavigationTab,
+    isHistoryMode: Boolean,
+    isCalendarMode: Boolean,
+    isStacksMode: Boolean,
+    isArchiveMode: Boolean,
+    isSettingsMode: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val bgColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+
+    val icon = when {
+        selectedTab == NavigationTab.CHAT && isHistoryMode -> Icons.Outlined.History
+        selectedTab == NavigationTab.CHAT -> Icons.Filled.Psychology
+        selectedTab == NavigationTab.NOTES -> Icons.Filled.HistoryEdu
+        selectedTab == NavigationTab.CALENDAR -> Icons.Filled.Explore
+        selectedTab == NavigationTab.STACKS -> Icons.Filled.Hub
+        selectedTab == NavigationTab.ARCHIVE -> Icons.AutoMirrored.Filled.StickyNote2
+        selectedTab == NavigationTab.SETTINGS -> Icons.Filled.DisplaySettings
+        else -> selectedTab.icon
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = { onClick() }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(bgColor)
+                    .border(BorderStroke(0.5.dp, borderColor), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                val activeIconColor = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
+                if (selectedTab == NavigationTab.STACKS) {
+                    CustomStacksIcon(tint = activeIconColor, modifier = Modifier.size(26.dp))
+                } else if (selectedTab == NavigationTab.CALENDAR) {
+                    CustomCalendarIcon(tint = activeIconColor, isFilled = true, modifier = Modifier.size(26.dp))
+                } else {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = selectedTab.label,
+                        tint = activeIconColor,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(accentColor.copy(alpha = 0.6f))
+            )
+        }
     }
 }
 
@@ -111,49 +337,13 @@ private fun RotaryNavigationDial(
     isArchiveMode: Boolean,
     isSettingsMode: Boolean,
     accentColor: Color,
-    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
+    rotation: Animatable<Float, AnimationVector1D>,
+    onInteraction: () -> Unit
 ) {
     val tabs = NavigationTab.entries
     val tabCount = tabs.size
-
-    // Each tab gets an "ideal" angle on the semi-circle (180 degrees)
-    // Angles in radians: 0 is right, PI is left.
-    // We want the semi-circle to be convex (bulging upwards or downwards?)
-    // "Bottom half of a circle" means it arches UPWARDS from the bottom.
-    // So angles from PI to 2*PI (or -PI to 0).
-    // Let's use 0 to PI and rotate/offset as needed.
-
     val selectedIndex = tabs.indexOf(selectedTab)
-
-    val scope = rememberCoroutineScope()
-    val rotation = remember { Animatable(selectedIndex.toFloat()) }
-    var lastVelocity by remember { mutableFloatStateOf(0f) }
-
-    // Sync virtual index when selectedTab changes externally (e.g. from clicking an icon)
-    LaunchedEffect(selectedTab) {
-        val targetIndex = tabs.indexOf(selectedTab).toFloat()
-        val currentVirtual = rotation.value
-
-        // Find the shortest path in a circular list of size tabCount
-        val diff = (targetIndex - (currentVirtual % tabCount + tabCount) % tabCount).let {
-            val half = tabCount / 2f
-            when {
-                it > half -> it - tabCount
-                it < -half -> it + tabCount
-                else -> it
-            }
-        }
-
-        if (abs(diff) > 0.001f) {
-            rotation.animateTo(
-                targetValue = currentVirtual + diff,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessLow
-                )
-            )
-        }
-    }
 
     val density = LocalDensity.current
     
@@ -168,53 +358,7 @@ private fun RotaryNavigationDial(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(110.dp)
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures(
-                    onDragStart = {
-                        lastVelocity = 0f
-                        scope.launch { rotation.stop() }
-                    },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        // Map pixels to index units
-                        val delta = dragAmount / 150f
-                        lastVelocity = delta
-                        scope.launch {
-                            rotation.snapTo(rotation.value + delta)
-                        }
-                    },
-                    onDragEnd = {
-                        scope.launch {
-                            // Fling animation with decay (velocity scaled from per-event to per-second)
-                            rotation.animateDecay(
-                                initialVelocity = lastVelocity * 80f,
-                                animationSpec = exponentialDecay(frictionMultiplier = 1f)
-                            )
-
-                            // Snap to the nearest tab after decay settles
-                            val finalVirtualIndex = rotation.value
-                            val targetIndex = finalVirtualIndex.roundToInt()
-
-                            rotation.animateTo(
-                                targetValue = targetIndex.toFloat(),
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessLow
-                                )
-                            )
-                            
-                            // Ensure precise landing for selection
-                            rotation.snapTo(targetIndex.toFloat())
-
-                            // Update selection
-                            val finalIndex = ((targetIndex % tabCount) + tabCount) % tabCount
-                            onTabSelected(tabs[finalIndex])
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        }
-                    }
-                )
-            },
+            .height(110.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         // Draw the semi-circular background/arc
@@ -244,9 +388,9 @@ private fun RotaryNavigationDial(
             val rawOffset = (index - rotation.value)
             val positionOffset = ((rawOffset + tabCount / 2f) % tabCount + tabCount) % tabCount - tabCount / 2f
 
-            // Map positionOffset to an angle
+            // Map positionOffset to an angle. Subtracting makes higher index (positive offset) go Right on screen
             val angleStep = PI / 6.5
-            val angle = PI / 2.0 + (positionOffset * angleStep)
+            val angle = PI / 2.0 - (positionOffset * angleStep)
 
             val isCenter = index == selectedIndex
 

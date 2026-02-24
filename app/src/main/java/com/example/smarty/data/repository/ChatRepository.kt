@@ -101,11 +101,27 @@ class ChatRepository(private val chatDao: ChatDao) {
             .distinctUntilChanged()
     }
 
-    /**
-     * Get messages for a session (one-shot)
-     */
-    suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
+suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
         return chatDao.getMessagesForSessionOnce(sessionId).map { it.toChatMessage() }
+    }
+
+    suspend fun deleteMessage(messageId: String): Boolean {
+        return try {
+            chatDao.deleteMessageById(messageId)
+            Log.d(TAG, "Deleted message: $messageId")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete message: $messageId", e)
+            false
+        }
+    }
+
+    suspend fun messageExists(messageId: String): Boolean {
+        return chatDao.messageExists(messageId)
+    }
+
+    suspend fun getMessageById(messageId: String): ChatMessage? {
+        return chatDao.getMessageById(messageId)?.toChatMessage()
     }
 
     /**

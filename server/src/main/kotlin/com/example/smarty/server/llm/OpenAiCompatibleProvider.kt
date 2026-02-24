@@ -63,7 +63,7 @@ class OpenAiCompatibleProvider(
         }
     }
 
-    override suspend fun stream(
+override suspend fun stream(
         messages: List<LlmMessage>,
         tools: List<ToolDefinition>,
         model: String?
@@ -76,15 +76,26 @@ class OpenAiCompatibleProvider(
             client.preparePost(endpoint) {
                 header(HttpHeaders.Authorization, "Bearer $apiKey")
                 contentType(ContentType.Application.Json)
-                header("Accept-Encoding", "identity") // Prevent gzip compression for real-time streaming
+                header("Accept-Encoding", "identity")
                 header("Cache-Control", "no-cache")
+                timeout {
+                    requestTimeoutMillis = 300_000
+                    connectTimeoutMillis = 30_000
+                    socketTimeoutMillis = 300_000
+                }
                 setBody(requestBody)
             }.execute { httpResponse ->
-                // Check for error status before processing stream
                 if (!httpResponse.status.isSuccess()) {
                     val errorBody = httpResponse.bodyAsText()
                     logger.error("LLM API error for $providerName: ${httpResponse.status} - $errorBody")
-                    throw IllegalStateException("$providerName API returned ${httpResponse.status}: $errorBody")
+                    val errorMsg = when {
+                        errorBody.contains("rate", ignoreCase = true) -> "Rate limit exceeded. Please try again in a moment."
+                        errorBody.contains("invalid", ignoreCase = true) || errorBody.contains("unauthorized", ignoreCase = true) -> "API authentication failed."
+                        httpResponse.status.value == 500 -> "LLM provider is experiencing issues. Please try again."
+                        httpResponse.status.value == 502 || httpResponse.status.value == 503 -> "LLM provider is temporarily unavailable."
+                        else -> "$providerName API returned ${httpResponse.status}: ${errorBody.take(200)}"
+                    }
+                    throw IllegalStateException(errorMsg)
                 }
 
                 val channel: ByteReadChannel = httpResponse.bodyAsChannel()

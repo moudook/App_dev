@@ -19,9 +19,11 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -48,13 +50,17 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -150,6 +156,7 @@ enum class MessageGroupPosition {
  * - Refined Depth: Subtle borders/shadows
  * - Chromatic Calm: Desaturated accents
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatMessageItem(
     message: ChatMessage,
@@ -158,26 +165,30 @@ fun ChatMessageItem(
     getNote: (String) -> Note? = { null },
     onNoteClick: (Note) -> Unit = {},
     onSuggestionClick: (String) -> Unit = {},
-    onClarificationSubmit: (String) -> Unit = {}
+    onClarificationSubmit: (String) -> Unit = {},
+    onCopyMessage: (String) -> Unit = {},
+    onDeleteMessage: (String) -> Unit = {},
+    onRegenerateMessage: (String) -> Unit = {},
+    showActions: Boolean = true
 ) {
     val isUser = message.role == ChatRole.USER
     val accentColor = LocalAccentColor.current
     
-    // Modern AIGBT Theme Colors
+    var showContextMenu by remember { mutableStateOf(false) }
+    
     val isDark = isSystemInDarkTheme()
     val brandPrimary = Color(0xFF74AA9C)
     val normalColor = MaterialTheme.colorScheme.onSurface
     val boldColor = normalColor
     val textSubColor = MaterialTheme.colorScheme.onSurfaceVariant
     
-    val codeBackgroundColor = Color(0xFF181818) // Constant charcoal dark for code blocks
+    val codeBackgroundColor = Color(0xFF181818)
     val codeHeaderBg = Color(0xFF343541)
     
     val codeBorderColor = if (isDark) Color(0xFF27272A) else Color(0xFFE4E4E7)
     val linkColor = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
     
-    // Bubble Geometry based on spec (Removed)
-    val bubbleShape = RoundedCornerShape(0.dp) // Removed bubble shapes entirely
+    val bubbleShape = RoundedCornerShape(0.dp)
 
     Column(
         modifier = modifier
@@ -188,7 +199,6 @@ fun ChatMessageItem(
             ),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
-        // Content Logic
         @Composable
         fun MessageContent() {
             var actionsExpanded by remember { mutableStateOf(false) }
@@ -198,8 +208,6 @@ fun ChatMessageItem(
                     vertical = if (isUser) 16.dp else 16.dp
                 )
             ) {
-                // User messages are rendered in the outer wrapper with bubble styling
-                // Only render AI content here
                 if (!isUser) {
                     
                     // THINKING SECTION - ChatGPT style (shows ABOVE content)
@@ -590,7 +598,7 @@ fun ChatMessageItem(
             bottomEnd = 20.dp
         )
 
-        if (isUser) {
+if (isUser) {
             Box(
                 modifier = Modifier
                     .widthIn(max = 640.dp)
@@ -598,7 +606,12 @@ fun ChatMessageItem(
                 Surface(
                     color = userBubbleBackground,
                     shape = userBubbleShape,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = { if (showActions) showContextMenu = true }
+                        )
                 ) {
                     Box(
                         modifier = Modifier.padding(
@@ -620,15 +633,78 @@ fun ChatMessageItem(
                         )
                     }
                 }
+                DropdownMenu(
+                    expanded = showContextMenu,
+                    onDismissRequest = { showContextMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.copy)) },
+                        onClick = {
+                            showContextMenu = false
+                            onCopyMessage(message.content)
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete)) },
+                        onClick = {
+                            showContextMenu = false
+                            onDeleteMessage(message.id)
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        }
+                    )
+                }
             }
         } else {
-            // AI Response uses bg-bubble as a subtle container according to AIGBT specification
             Box(
                 modifier = Modifier
                     .widthIn(max = 640.dp)
                     .fillMaxWidth()
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = { if (showActions) showContextMenu = true }
+                    )
             ) {
                 MessageContent()
+            }
+            DropdownMenu(
+                expanded = showContextMenu,
+                onDismissRequest = { showContextMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.copy)) },
+                    onClick = {
+                        showContextMenu = false
+                        onCopyMessage(cleanContent(message.content))
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete)) },
+                    onClick = {
+                        showContextMenu = false
+                        onDeleteMessage(message.id)
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.regenerate)) },
+                    onClick = {
+                        showContextMenu = false
+                        onRegenerateMessage(message.id)
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                )
             }
         }
 
