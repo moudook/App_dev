@@ -49,17 +49,17 @@ import kotlin.math.*
  * Navigation tabs for the centralized UI.
  * Icons designed with psychological metaphors to trigger creativity.
  */
-enum class NavigationTab(
-    val icon: ImageVector,
-    val label: String,
-    val opensSheet: Boolean = false
-) {
-    CHAT(Icons.Outlined.AutoAwesome, "ai"),
-    NOTES(Icons.Outlined.HistoryEdu, "notes"),
-    CALENDAR(Icons.Outlined.Explore, "calendar", opensSheet = true),
-    STACKS(Icons.Outlined.Hub, "stacks", opensSheet = true),
-    ARCHIVE(Icons.AutoMirrored.Outlined.StickyNote2, "archive", opensSheet = true),
-    SETTINGS(Icons.Outlined.DisplaySettings, "settings", opensSheet = true)
+import com.example.smarty.core.domain.model.NavigationTab
+
+private fun getNavigationIcon(tab: NavigationTab): ImageVector {
+    return when (tab) {
+        NavigationTab.CHAT -> Icons.Outlined.Psychology
+        NavigationTab.NOTES -> Icons.Outlined.HistoryEdu
+        NavigationTab.CALENDAR -> Icons.Outlined.Explore
+        NavigationTab.STACKS -> Icons.Outlined.Hub
+        NavigationTab.ARCHIVE -> Icons.AutoMirrored.Outlined.StickyNote2
+        NavigationTab.SETTINGS -> Icons.Outlined.Settings
+    }
 }
 
 /**
@@ -271,8 +271,8 @@ private fun CollapsedHeader(
         selectedTab == NavigationTab.CALENDAR -> Icons.Filled.Explore
         selectedTab == NavigationTab.STACKS -> Icons.Filled.Hub
         selectedTab == NavigationTab.ARCHIVE -> Icons.AutoMirrored.Filled.StickyNote2
-        selectedTab == NavigationTab.SETTINGS -> Icons.Filled.DisplaySettings
-        else -> selectedTab.icon
+        selectedTab == NavigationTab.SETTINGS -> Icons.Filled.Settings
+        else -> getNavigationIcon(selectedTab)
     }
 
     Box(
@@ -431,7 +431,7 @@ private fun RotaryNavigationDial(
                     tab == NavigationTab.STACKS && (isStacksMode || selectedTab == NavigationTab.STACKS) -> Icons.Filled.Hub
                     tab == NavigationTab.ARCHIVE && (isArchiveMode || selectedTab == NavigationTab.ARCHIVE) -> Icons.AutoMirrored.Filled.StickyNote2
                     tab == NavigationTab.SETTINGS && (isSettingsMode || selectedTab == NavigationTab.SETTINGS) -> Icons.Filled.DisplaySettings
-                    else -> tab.icon
+                    else -> getNavigationIcon(tab)
                 }
 
                 Box(

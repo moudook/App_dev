@@ -213,6 +213,34 @@ fun SmartyInputField(
     // State
     var showAttachmentPanel by remember { mutableStateOf(false) }
 
+    // Speech-to-Text integration
+    val speechToTextState = rememberSpeechToText(
+        onResult = { result ->
+            val currentText = value.text
+            val newText = if (currentText.isEmpty()) result else "$currentText $result"
+            onValueChange(value.copy(text = newText, selection = TextRange(newText.length)))
+            onStopVoiceInput()
+        },
+        onError = { error ->
+            android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_SHORT).show()
+            onStopVoiceInput()
+        }
+    )
+
+    LaunchedEffect(isVoiceListening) {
+        if (isVoiceListening) {
+            speechToTextState.startListening(isChatMode = isChatMode)
+        } else {
+            speechToTextState.stopListening()
+        }
+    }
+
+    LaunchedEffect(speechToTextState.isListening) {
+        if (!speechToTextState.isListening && isVoiceListening) {
+            onStopVoiceInput()
+        }
+    }
+
     // STRICT MUTUAL EXCLUSIVITY: If Search Mode is active, Attachment Panel MUST be closed.
     // This handles cases where search is toggled externally or simply ensures consistent state.
     LaunchedEffect(isSearchMode) {
@@ -234,7 +262,10 @@ fun SmartyInputField(
 
     // Placeholder based on mode
     val currentPlaceholder = when {
-        isVoiceListening -> stringResource(R.string.listening)
+        isVoiceListening -> {
+            if (speechToTextState.partialTranscript.isNotEmpty()) speechToTextState.partialTranscript
+            else stringResource(R.string.listening)
+        }
         isSearchMode -> stringResource(R.string.find_notes)
         isChatMode -> stringResource(R.string.ask_smarty)
         else -> stringResource(R.string.add_note)

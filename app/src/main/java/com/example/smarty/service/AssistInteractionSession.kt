@@ -13,6 +13,12 @@ import com.example.smarty.features.chat.ui.AssistActivity
  */
 class AssistInteractionSession(context: Context) : VoiceInteractionSession(context) {
 
+    override fun onPrepareShow(args: Bundle?, showFlags: Int) {
+        super.onPrepareShow(args, showFlags)
+        // Disable default session UI since we launch our own Activity
+        setUiEnabled(false)
+    }
+
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
 

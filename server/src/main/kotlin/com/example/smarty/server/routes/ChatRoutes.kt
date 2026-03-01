@@ -76,7 +76,8 @@ data class AttachmentInfo(
 
 @Serializable
 data class BriefingRequest(
-    val prompt: String
+    val prompt: String,
+    val token: String? = null
 )
 
 @Serializable
@@ -153,7 +154,7 @@ fun Application.configureChatRoutes() {
                     call.application.log.info("Generating daily briefing for user: $userId")
 
                     // Use ProviderRouter to select the SMARTEST provider
-                    val briefingProvider = providerRouter.selectProvider(RoutingStrategy.SMARTEST)
+                    val briefingProvider = providerRouter.selectProvider(RoutingStrategy.SMARTEST, request.token)
                     val briefingSummarizer = ConversationSummarizer(briefingProvider)
 
                     // Create agent for single run
@@ -289,10 +290,10 @@ fun Application.configureChatRoutes() {
 
                 // Create provider and summarizer for this specific request
                 val streamProvider = when (providerParam?.uppercase()) {
-                    "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST)
-                    "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST)
-                    "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST)
-                    "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED)
+                    "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, tokenParam)
+                    "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, tokenParam)
+                    "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, tokenParam)
+                    "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, tokenParam)
                     else -> LlmProviderFactory.create(httpClient, providerParam, providerUrlParam, tokenParam)
                 }
 
@@ -442,10 +443,10 @@ fun Application.configureChatRoutes() {
 
                     // Create provider for this request
                     val streamProvider = when (request.provider?.uppercase()) {
-                        "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST)
-                        "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST)
-                        "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST)
-                        "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED)
+                        "CHEAPEST" -> providerRouter.selectProvider(RoutingStrategy.CHEAPEST, request.token)
+                        "FASTEST" -> providerRouter.selectProvider(RoutingStrategy.FASTEST, request.token)
+                        "SMARTEST" -> providerRouter.selectProvider(RoutingStrategy.SMARTEST, request.token)
+                        "BALANCED", "AUTO" -> providerRouter.selectProvider(RoutingStrategy.BALANCED, request.token)
                         else -> LlmProviderFactory.create(httpClient, request.provider, request.providerUrl, request.token)
                     }
 

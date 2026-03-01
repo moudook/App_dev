@@ -197,18 +197,19 @@ fun LoginScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 12.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.Black.copy(alpha = 0.5f)), // Gap line color
-                        verticalArrangement = Arrangement.spacedBy(1.dp) // Creates the thin separator lines
+                            .padding(bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp) 
                     ) {
                         // Main Button: Continue with Email
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Card color
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(26.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(26.dp))
                                 .clickable { showForm = true }
-                                .padding(vertical = 16.dp, horizontal = 16.dp),
+                                .padding(horizontal = 24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -230,11 +231,14 @@ fun LoginScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Card color
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(26.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(26.dp))
                                 .clickable {
                                     if (!isLoading) googleSignInLauncher.launch(viewModel.getGoogleSignInIntent())
                                 }
-                                .padding(vertical = 16.dp, horizontal = 16.dp),
+                                .padding(horizontal = 24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -535,36 +539,50 @@ fun LoginScreen(
                 val isPasswordMatch = isLoginMode || (password.isNotEmpty() && password == confirmPassword)
                 val isEnabled = !isLoading && email.isNotBlank() && password.isNotBlank() && isPasswordMatch
 
-                // Single Primary Submit Button mapped to the Landing style
-                Button(
+                // Single Primary Submit Button - Pill Design with border
+                val buttonBackgroundColor = MaterialTheme.colorScheme.onSurface
+                val buttonBorderColor = if (isDark) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.2f)
+                
+                Surface(
                     onClick = {
-                        focusManager.clearFocus()
-                        if (isLoginMode) {
-                            viewModel.signIn(email, password)
-                        } else {
-                            if (password == confirmPassword) {
-                                viewModel.signUp(email, password)
+                        if (isEnabled) {
+                            focusManager.clearFocus()
+                            if (isLoginMode) {
+                                viewModel.signIn(email, password)
+                            } else {
+                                if (password == confirmPassword) {
+                                    viewModel.signUp(email, password)
+                                }
                             }
                         }
                     },
                     enabled = isEnabled,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .border(1.dp, buttonBorderColor, pillShape),
+                    shape = pillShape,
+                    color = buttonBackgroundColor,
+                    contentColor = if (isDark) Color.Black else Color.White
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text(
-                            text = if (isLoginMode) stringResource(R.string.sign_in) else stringResource(R.string.sign_up),
-                            color = MaterialTheme.colorScheme.surface,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = if (isDark) Color.Black else Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = if (isLoginMode) stringResource(R.string.sign_in) else stringResource(R.string.sign_up),
+                                color = if (isDark) Color.Black else Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
 

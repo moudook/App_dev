@@ -45,6 +45,7 @@ import com.example.smarty.features.games.ui.TicTacToeScreen
 import com.example.smarty.features.games.ui.CoinTossScreen
 import com.example.smarty.features.auth.ui.LoginScreen
 import com.example.smarty.features.voice.SpeechToTextState
+import com.example.smarty.features.notes.domain.SmartyViewModel
 
 /**
  * BUG-055 fix: Safe popBackStack that prevents crashes on empty back stack
@@ -227,8 +228,10 @@ fun SmartyNavHost(
     onClearNavigationRequest: () -> Unit = {}
 ) {
     // NOTE: Login is now handled in MainActivity BEFORE SmartyNavHost is rendered
-    // When we get here, user is ALWAYS logged in
     val startDestination = Screen.InputStream.route
+    val viewModel: com.example.smarty.features.notes.domain.SmartyViewModel = viewModel()
+    val selectedTab by viewModel.selectedTab.collectAsState()
+    val isSettingsLoading by viewModel.isSettingsLoading.collectAsState()
 
     // Handle AI-triggered navigation requests
     androidx.compose.runtime.LaunchedEffect(navigationRequest) {
@@ -264,7 +267,43 @@ fun SmartyNavHost(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            androidx.compose.animation.slideInVertically(
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = 0.8f,
+                    stiffness = 400f
+                ),
+                initialOffsetY = { it / 10 }
+            ) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200))
+        },
+        exitTransition = {
+            androidx.compose.animation.slideOutVertically(
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = 0.8f,
+                    stiffness = 400f
+                ),
+                targetOffsetY = { -it / 10 }
+            ) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200))
+        },
+        popEnterTransition = {
+            androidx.compose.animation.slideInVertically(
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = 0.8f,
+                    stiffness = 400f
+                ),
+                initialOffsetY = { -it / 10 }
+            ) + androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(200))
+        },
+        popExitTransition = {
+            androidx.compose.animation.slideOutVertically(
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = 0.8f,
+                    stiffness = 400f
+                ),
+                targetOffsetY = { it / 10 }
+            ) + androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200))
+        }
     ) {
         composable(Screen.InputStream.route) { _ ->
             InputStreamScreen(
@@ -407,6 +446,8 @@ fun SmartyNavHost(
                 shakeSensitivity = shakeSensitivity,
                 onShakeSensitivityChange = onShakeSensitivityChange,
                 onSignOut = onSignOut,
+                selectedTab = selectedTab,
+                onSelectedTabChange = { viewModel.setSelectedTab(it) },
                 backupContent = { onDismiss ->
                     BackupSettingsRoute(
                         onBackClick = onDismiss,
@@ -510,6 +551,7 @@ fun SmartyNavHost(
                     navController.safePopBackStack()
                 },
                 onToggleTheme = onToggleTheme,
+                isLoading = isSettingsLoading,
                 // Cache management
                 cacheSizeBytes = cacheSizeBytes,
                 onClearCache = onClearCache,

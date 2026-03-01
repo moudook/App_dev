@@ -1,6 +1,14 @@
 package com.example.smarty.features.notes.ui.inputstream
 
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,8 +22,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,10 +39,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import com.example.smarty.ui.components.ChatEmptyState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,11 +55,15 @@ import com.example.smarty.R
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.Note
 import com.example.smarty.core.domain.model.Attachment
+import com.example.smarty.ui.components.ChatEmptyState
 import com.example.smarty.ui.components.ChatMessageItem
 import com.example.smarty.ui.components.AgentActivityIndicator
 import com.example.smarty.features.chat.domain.ChatFeatureManager.AgentActivity
 import com.example.smarty.features.chat.domain.FailedMessage
 import com.example.smarty.ui.components.MessageGroupPosition
+import com.example.smarty.ui.LocalAccentColor
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 data class MessageGroup(
     val label: String,
@@ -87,6 +109,21 @@ fun ChatModeContent(
     onRetryFailed: (FailedMessage) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val accentColor = LocalAccentColor.current
+    
+    val isAtLatestMessage by remember {
+        derivedStateOf {
+            !chatListState.canScrollForward
+        }
+    }
+
+    // Scroll to latest when new messages arrive (if user was at bottom)
+    LaunchedEffect(chatMessages.size) {
+        if (chatMessages.isNotEmpty() && !chatListState.canScrollBackward) {
+            chatListState.animateScrollToItem(0, scrollOffset = -10000)
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         if (isHistoryLoading) {
             LazyColumn(
@@ -204,6 +241,58 @@ fun ChatModeContent(
                                 .padding(top = 16.dp)
                         )
                     }
+                }
+            }
+        }
+
+        // Scroll to latest/oldest button
+        val showScrollButton by remember {
+            derivedStateOf {
+                chatListState.canScrollForward || chatListState.canScrollBackward
+            }
+        }
+        val isAtLatest = !chatListState.canScrollBackward
+        val coroutineScope = rememberCoroutineScope()
+        
+        AnimatedVisibility(
+            visible = showScrollButton,
+            enter = fadeIn(tween(300)) + scaleIn(initialScale = 0.5f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)),
+            exit = fadeOut(tween(300)) + scaleOut(targetScale = 0.5f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(
+                    end = 20.dp, 
+                    bottom = contentPadding.calculateBottomPadding() + 16.dp
+                )
+        ) {
+            Surface(
+                onClick = {
+                    coroutineScope.launch {
+                        if (isAtLatest) {
+                            // Scroll to OLDEST at the BOTTOM
+                            val total = chatListState.layoutInfo.totalItemsCount
+                            if (total > 0) {
+                                chatListState.animateScrollToItem(total - 1, scrollOffset = 10000)
+                            }
+                        } else {
+                            // Scroll to LATEST at the TOP
+                            chatListState.animateScrollToItem(0, scrollOffset = -10000)
+                        }
+                    }
+                },
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                tonalElevation = 6.dp,
+                shadowElevation = 8.dp,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (isAtLatest) Icons.Default.KeyboardDoubleArrowDown else Icons.Default.KeyboardDoubleArrowUp,
+                        contentDescription = if (isAtLatest) "Scroll to oldest" else "Scroll to latest",
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         }

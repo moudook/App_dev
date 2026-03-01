@@ -59,7 +59,6 @@ class AIConnectionOrchestrator(private val securePreferences: SecurePreferences)
     fun getConnection(connection: AIConnection): AIConnectionContract {
         return when (connection) {
             AIConnection.LOCAL_PC -> serverConnection
-            else -> throw IllegalArgumentException("Connection $connection is not supported on the client (Thin Client)")
         }
     }
 

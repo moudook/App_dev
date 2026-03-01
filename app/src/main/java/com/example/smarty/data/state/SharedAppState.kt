@@ -1,6 +1,7 @@
 package com.example.smarty.data.state
 
 import com.example.smarty.ui.components.ConnectionStatus
+import com.example.smarty.core.domain.model.NavigationTab
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +29,9 @@ class SharedAppState {
     private val _cacheSizeBytes = MutableStateFlow(0L)
     val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
 
+    private val _selectedTab = MutableStateFlow<NavigationTab>(NavigationTab.NOTES)
+    val selectedTab: StateFlow<NavigationTab> = _selectedTab.asStateFlow()
+
     fun setCurrentScreen(screen: String) {
         _currentScreen.value = screen
     }
@@ -51,5 +55,8 @@ class SharedAppState {
     fun setCacheSizeBytes(size: Long) {
         _cacheSizeBytes.value = size
     }
-}
 
+    fun setSelectedTab(tab: NavigationTab) {
+        _selectedTab.value = tab
+    }
+}
