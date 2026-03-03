@@ -147,7 +147,7 @@
 
         <!-- Assistant Overlay Activity - Standardized transparent overlay -->
         <activity
-            android:name=".AssistActivity"
+            android:name=".features.chat.ui.AssistActivity"
             android:theme="@style/Theme.Smarty.Assistant"
             android:exported="true"
             android:launchMode="singleTask"

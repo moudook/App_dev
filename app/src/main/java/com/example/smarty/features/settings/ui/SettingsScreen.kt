@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +58,7 @@ import com.example.smarty.R
 import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
 import com.example.smarty.ui.components.CompactEmptyState
 import com.example.smarty.ui.components.SettingsInputRow
+import com.example.smarty.ui.components.SettingsMainSkeleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -112,6 +114,7 @@ fun SettingsScreen(
     // AI Provider Strategy
     providerStrategy: String = "BALANCED",
     onSetProviderStrategy: (String) -> Unit = {},
+    isLoading: Boolean = false,
     modifier: Modifier = Modifier,
     onSignOut: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
@@ -130,7 +133,7 @@ fun SettingsScreen(
     // Grouped section expand states for the Main View
     var expandedSection by remember { mutableStateOf<String?>("ai") }
 
-    val isSystemDark = isSystemInDarkTheme()
+    val isSystemDark = isDarkTheme
     val context = LocalContext.current
 
     // Intercept system back button
@@ -200,14 +203,17 @@ fun SettingsScreen(
             ) { view ->
                 when (view) {
                     SettingsView.Main -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background)
-                                .padding(horizontal = 16.dp)
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
+                        if (isLoading) {
+                            SettingsMainSkeleton()
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .padding(horizontal = 16.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
                             Spacer(modifier = Modifier.height(8.dp))
 
                             // PROFILE HEADER (Mockup matching the screenshot)
@@ -226,16 +232,19 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text("chiu", color = MaterialTheme.colorScheme.onBackground, fontSize = 24.sp, fontWeight = FontWeight.Medium)
                                 Text("forpblcusz@gmail.com", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f), fontSize = 14.sp)
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(16.dp))
                                 OutlinedButton(
                                     onClick = {},
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.onBackground,
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) // Added subtle background for better contrast
+                                    ),
                                     shape = RoundedCornerShape(20.dp),
-                                    modifier = Modifier.height(36.dp),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+                                    modifier = Modifier.height(38.dp),
+                                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
                                 ) {
-                                    Text("Edit profile", fontSize = 14.sp)
+                                    Text("Edit profile", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 }
                             }
 
@@ -376,13 +385,10 @@ fun SettingsScreen(
                                     showDivider = false
                                 )
                             }
-
-                            // Padding for scrolling
-                            Spacer(modifier = Modifier.height(180.dp))
                         }
                     }
-
-                    // SUB-VIEWS (Replaces Bottom Sheets)
+                }
+                // SUB-VIEWS (Replaces Bottom Sheets)
                     SettingsView.ServerConfig -> {
                         // Server config removed - URL is hardcoded
                         currentView = SettingsView.Main
@@ -427,6 +433,12 @@ fun SettingsScreen(
                 }
             }
 
+            val scrimColor by animateColorAsState(
+                targetValue = MaterialTheme.colorScheme.background,
+                animationSpec = tween(500),
+                label = "scrimColor"
+            )
+
             // Bottom Gradient Scrim (Applied Globally as requested)
             Box(
                 modifier = Modifier
@@ -437,8 +449,8 @@ fun SettingsScreen(
                         brush = Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
-                                MaterialTheme.colorScheme.background
+                                scrimColor.copy(alpha = 0.8f),
+                                scrimColor
                             )
                         )
                     )
@@ -869,6 +881,7 @@ private fun SettingsSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -882,12 +895,24 @@ private fun SettingsSection(
                 modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
             )
         }
+        val separatorColor by animateColorAsState(
+            targetValue = if (MaterialTheme.colorScheme.surface.luminance() <= 0.5f) {
+                // In dark mode, use a slightly lighter gray for separators
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+            } else {
+                // In light mode, use a subtle divider color
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            },
+            animationSpec = tween(500), // Smoother transition
+            label = "separatorColor"
+        )
+        
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(if (isSystemInDarkTheme()) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)), // Gap separator line color
-            verticalArrangement = Arrangement.spacedBy(1.dp) // Creates the thin separator lines
+                .background(separatorColor),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             content()
         }
@@ -911,10 +936,16 @@ private fun SettingsRow(
     }
     val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
 
+    val rowBackgroundColor by animateColorAsState(
+        targetValue = MaterialTheme.colorScheme.surface,
+        animationSpec = tween(500), // Smoother transition
+        label = "rowBackgroundColor"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Theme-adaptive card layer
+            .background(rowBackgroundColor)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(vertical = 16.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -956,10 +987,16 @@ private fun SettingsToggleRow(
     onCheckedChange: (Boolean) -> Unit,
     showDivider: Boolean = true // Ignored intentionally 
 ) {
+    val rowBackgroundColor by animateColorAsState(
+        targetValue = MaterialTheme.colorScheme.surface,
+        animationSpec = tween(500), // Smoother transition
+        label = "rowBackgroundColor"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Theme-adaptive card layer
+            .background(rowBackgroundColor)
             .padding(vertical = 12.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

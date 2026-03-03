@@ -60,15 +60,15 @@ class ProviderRouter(private val httpClient: HttpClient) {
     /**
      * Get an LLM provider instance configured for the requested strategy.
      */
-    fun selectProvider(strategy: RoutingStrategy): LlmProvider {
-        return LlmProviderFactory.create(httpClient, "GEMINI")
+    fun selectProvider(strategy: RoutingStrategy, apiKey: String? = null): LlmProvider {
+        return LlmProviderFactory.create(httpClient, "GEMINI", apiKeyOverride = apiKey)
     }
 
     /**
      * Get a provider specifically for a capability.
      */
-    fun getProviderForCapability(capability: Capability): LlmProvider {
-        return LlmProviderFactory.create(httpClient, "GEMINI")
+    fun getProviderForCapability(capability: Capability, apiKey: String? = null): LlmProvider {
+        return LlmProviderFactory.create(httpClient, "GEMINI", apiKeyOverride = apiKey)
     }
 
     fun reportFailure(providerName: String) {

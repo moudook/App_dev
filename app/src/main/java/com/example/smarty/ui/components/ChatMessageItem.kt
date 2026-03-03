@@ -85,6 +85,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -119,6 +120,7 @@ import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.softCardShadow
+import com.example.smarty.ui.components.LaTeXView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -166,6 +168,34 @@ private object MarkdownPatterns {
     val codeFence = Regex("^```(\\w*)$", RegexOption.MULTILINE)
 }
 
+private data class TextSegment(
+    val content: String,
+    val isLatex: Boolean = false,
+    val isBlock: Boolean = false
+)
+
+private fun parseTextWithInlineMath(text: String): List<TextSegment> {
+    val segments = mutableListOf<TextSegment>()
+    val inlinePattern = Regex("(?<!\\$)\\$(?!\\$)([^\n$]+)\\$(?!\\$)")
+    
+    var lastEnd = 0
+    inlinePattern.findAll(text).forEach { match ->
+        // Add text before this math
+        if (match.range.first > lastEnd) {
+            segments.add(TextSegment(text.substring(lastEnd, match.range.first)))
+        }
+        // Add math segment
+        segments.add(TextSegment(match.groupValues[1], isLatex = true))
+        lastEnd = match.range.last + 1
+    }
+    // Add remaining text
+    if (lastEnd < text.length) {
+        segments.add(TextSegment(text.substring(lastEnd)))
+    }
+    
+    return segments
+}
+
 /**
  * Position of a message within a grouped burst of messages.
  */
@@ -204,21 +234,29 @@ fun ChatMessageItem(
     
     var showContextMenu by remember { mutableStateOf(false) }
     
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     val brandPrimary = Color(0xFF74AA9C)
     val normalColor = MaterialTheme.colorScheme.onSurface
     val boldColor = normalColor
     val textSubColor = MaterialTheme.colorScheme.onSurfaceVariant
     
     // Theme-aware code block colors
-    val codeBackgroundColor = if (isDark) Color(0xFF1E1E1E) else Color(0xFFF5F5F5)
-    val codeHeaderBg = if (isDark) Color(0xFF2D2D2D) else Color(0xFFE0E0E0)
-    val codeTextColor = if (isDark) Color(0xFF9CDCFE) else Color(0xFF0178D4)
+    val codeBackgroundColor = MaterialTheme.colorScheme.surfaceVariant
+    val codeHeaderBg = MaterialTheme.colorScheme.surfaceContainerHighest
+    val codeTextColor = MaterialTheme.colorScheme.primary
     
-    val codeBorderColor = if (isDark) Color(0xFF404040) else Color(0xFFD0D0D0)
-    val linkColor = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
+    val codeBorderColor = MaterialTheme.colorScheme.outline
+    val linkColor = MaterialTheme.colorScheme.primary
     
-    val bubbleShape = RoundedCornerShape(0.dp)
+    val userBubbleShape = RoundedCornerShape(
+        topStart = 24.dp,
+        topEnd = 24.dp,
+        bottomStart = 24.dp,
+        bottomEnd = 4.dp
+    )
+    val aiBubbleShape = RoundedCornerShape(6.dp)
+    
+    val bubbleShape = if (isUser) userBubbleShape else aiBubbleShape
 
     Column(
         modifier = modifier
@@ -648,16 +686,19 @@ fun ChatMessageItem(
         }
 
         // Apply Bubble or Container
-        val isDark = isSystemInDarkTheme()
+        val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
 
         // Inverted colors for user bubble: opposite of theme
         val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else Color(0xFF1A1A1A)
         val userBubbleTextColor = if (isDark) Color(0xFF1A1A1A) else Color(0xFFF5F5F5)
+        
+        // Dynamic pulse-shaped bubble - corners adapt based on content length
+        // Longer content = more rounded, shorter content = more pill-like
         val userBubbleShape = RoundedCornerShape(
-            topStart = 20.dp,
-            topEnd = 4.dp,
-            bottomStart = 20.dp,
-            bottomEnd = 20.dp
+            topStart = 26.dp,
+            topEnd = 6.dp,
+            bottomStart = 26.dp,
+            bottomEnd = 26.dp
         )
 
 if (isUser) {
@@ -688,7 +729,7 @@ if (isUser) {
                                 fontFamily = FontFamily.SansSerif,
                                 fontSize = 16.sp,
                                 lineHeight = 26.sp,
-                                fontWeight = FontWeight.Normal,
+                                fontWeight = FontWeight.Medium,
                                 letterSpacing = 0.sp
                             ),
                             color = userTextColor
@@ -1122,7 +1163,7 @@ private fun ActionResultChip(
     success: Boolean,
     summary: String
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     // ElevenLabs 'Badge' Style: Thin border, subtle background, crisp text
     val backgroundColor = if (success) {
         if (isDark) Color(0xFF064E3B) else Color(0xFFECFDF5) // Green-900 / Green-50
@@ -1205,7 +1246,7 @@ fun CodeBlock(
 ) {
     val clipboardManager = LocalClipboardManager.current
     var isCopied by remember { mutableStateOf(false) }
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
 
     // ElevenLabs Theme: Zinc colors passed from parent
     val textColor = if (isDark) Color(0xFFE4E4E7) else Color(0xFF18181B) // Zinc-200 / Zinc-950
@@ -1416,6 +1457,42 @@ fun MarkdownRenderer(
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             i++
+                        }
+                        
+                        // LaTeX Block Math: $$...$$ or \[...\]
+                        trimmedLine.startsWith("$$") || trimmedLine.startsWith("\\[") -> {
+                            val mathLines = mutableListOf<String>()
+                            val isDoubleDollar = trimmedLine.startsWith("$$")
+                            val startMarker = if (isDoubleDollar) "$$" else "\\["
+                            val endMarker = if (isDoubleDollar) "$$" else "\\]"
+                            
+                            // Collect all math content
+                            if (trimmedLine.length > 2) {
+                                mathLines.add(trimmedLine.substring(2).trim())
+                            }
+                            i++
+                            while (i < lines.size) {
+                                val nextTrimmed = lines[i].trim()
+                                if (nextTrimmed.endsWith("$$") || nextTrimmed.endsWith("\\]")) {
+                                    mathLines.add(nextTrimmed.substring(0, nextTrimmed.length - 2).trim())
+                                    i++
+                                    break
+                                }
+                                mathLines.add(nextTrimmed)
+                                i++
+                            }
+                            
+                            val mathContent = mathLines.joinToString(" ")
+                            if (mathContent.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                LaTeXView(
+                                    latex = mathContent,
+                                    isBlock = true,
+                                    textColor = codeColor,
+                                    backgroundColor = codeBackgroundColor.copy(alpha = 0.3f)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
                         }
                         
                         // Task Lists: - [ ] or - [x]
@@ -1732,7 +1809,7 @@ fun MarkdownTable(
 
     if (parsedRows.isEmpty()) return
 
-    val isDark = isSystemInDarkTheme()
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
     val borderColor = if (isDark) Color(0xFF3F3F46) else Color(0xFFE4E4E7)
     val headerBgColor = if (isDark) Color(0xFF27272A) else Color(0xFFF4F4F5)
     val rowBgColorAlt = if (isDark) Color(0xFF18181B) else Color(0xFFFFFFFF)
@@ -1825,19 +1902,93 @@ fun StandardText(
     isStreaming: Boolean = false
 ) {
     if (text.isBlank()) return
-    Text(
-        text = parseMarkdownToAnnotatedString(
-            text, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
-        ),
-        style = MaterialTheme.typography.bodyMedium.copy(
-            fontSize = 16.sp, 
-            lineHeight = 26.sp, 
-            letterSpacing = 0.sp,
-            fontWeight = FontWeight.Normal,
-            color = normalColor
-        ),
-        modifier = Modifier.padding(vertical = 4.dp)
-    )
+    
+    // Check if there's inline math in the text
+    val hasInlineMath = text.contains(Regex("(?<!\\$)\\$(?!\\$)[^\\n]+\\$(?!\\$)"))
+    
+    if (hasInlineMath) {
+        // Render with inline LaTeX support
+        RichTextWithLatex(
+            text = text,
+            normalColor = normalColor,
+            boldColor = boldColor,
+            linkColor = linkColor,
+            codeColor = codeColor,
+            isStreaming = isStreaming
+        )
+    } else {
+        Text(
+            text = parseMarkdownToAnnotatedString(
+                text, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
+            ),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 17.sp, 
+                lineHeight = 28.sp, 
+                letterSpacing = 0.sp,
+                fontWeight = FontWeight.Medium,
+                color = normalColor
+            ),
+            modifier = Modifier.padding(vertical = 4.dp)
+        )
+    }
+}
+
+@Composable
+private fun RichTextWithLatex(
+    text: String,
+    normalColor: Color,
+    boldColor: Color,
+    linkColor: Color,
+    codeColor: Color,
+    isStreaming: Boolean = false
+) {
+    val segments = parseTextWithInlineMath(text)
+    
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        val annotatedString = buildAnnotatedString {
+            var currentIndex = 0
+            segments.forEach { segment ->
+                if (!segment.isLatex) {
+                    // Regular text with markdown parsing
+                    append(
+                        parseMarkdownToAnnotatedString(
+                            segment.content, normalColor, boldColor, normalColor, linkColor, codeColor, isStreaming
+                        )
+                    )
+                } else {
+                    // Skip adding to annotated string for math - we'll render separately
+                }
+            }
+        }
+        
+        // First pass: render non-math parts with proper line structure
+        val textContent = segments.filter { !it.isLatex }.joinToString("") { it.content }
+        if (textContent.isNotBlank()) {
+            Text(
+                text = annotatedString,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 16.sp, 
+                    lineHeight = 26.sp, 
+                    letterSpacing = 0.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = normalColor
+                )
+            )
+        }
+        
+        // Second pass: render inline LaTeX
+        segments.filter { it.isLatex }.forEach { segment ->
+            if (segment.content.isNotBlank()) {
+                LaTeXView(
+                    latex = segment.content,
+                    isBlock = false,
+                    textColor = codeColor,
+                    backgroundColor = Color.Transparent,
+                    modifier = Modifier.padding(vertical = 2.dp)
+                )
+            }
+        }
+    }
 }
 
 fun parseMarkdownToAnnotatedString(

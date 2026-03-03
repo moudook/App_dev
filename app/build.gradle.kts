@@ -196,6 +196,8 @@ dependencies {
     implementation("com.halilibo.compose-richtext:richtext-commonmark:0.17.0")
     implementation("com.halilibo.compose-richtext:richtext-ui-material3:0.17.0")
 
+    // LaTeX rendering via WebView + KaTeX (using AndroidView - no extra dependency needed)
+
     // Vosk - Offline speech recognition for wake word detection (Values removed for Cloud Migration)
     // implementation("com.alphacephei:vosk-android:0.3.75")
 

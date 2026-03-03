@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -90,7 +91,7 @@ import com.example.smarty.ui.components.ConnectionStatusIndicator
 import com.example.smarty.ui.components.NotesEmptyState
 import com.example.smarty.ui.components.SearchEmptyState
 import com.example.smarty.ui.components.HorizontalActionBar
-import com.example.smarty.ui.components.NavigationTab
+import com.example.smarty.core.domain.model.NavigationTab
 import com.example.smarty.ui.components.PinterestAction
 import com.example.smarty.ui.components.PinterestMenu
 import androidx.compose.ui.geometry.Offset
@@ -148,6 +149,8 @@ fun InputStreamScreen(
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
     onNavigateToStacks: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    selectedTab: NavigationTab = NavigationTab.NOTES,
+    onSelectedTabChange: (NavigationTab) -> Unit = {},
     onNavigateToCalendar: () -> Unit = {},
     onNavigateToTicTacToe: () -> Unit = {},
     onNavigateToCoinToss: () -> Unit = {},
@@ -331,7 +334,7 @@ onPlayYouTube: (String) -> Unit = {},
     // 
     // CENTRALIZED UI: Bottom Sheet States
     // 
-    var selectedTab by remember { mutableStateOf(NavigationTab.CHAT) }
+    val activeTab = if (isChatMode) NavigationTab.CHAT else selectedTab
 
     var showCalendarSheet by remember { mutableStateOf(false) }
     val calendarSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -379,17 +382,17 @@ onPlayYouTube: (String) -> Unit = {},
             showArchiveInline = false
             showSettingsInline = false
             // Reset selectedTab to NOTES so exiting chat returns to notes view
-            selectedTab = NavigationTab.NOTES
+            onSelectedTabChange(NavigationTab.NOTES)
         } else {
             // Exiting chat mode - reset to notes view
             showChatHistoryInline = false
-            selectedTab = NavigationTab.NOTES
+            onSelectedTabChange(NavigationTab.NOTES)
         }
     }
 
     // Handle tab selection - open sheets or switch modes
     fun handleTabSelection(tab: NavigationTab) {
-        selectedTab = tab
+        onSelectedTabChange(tab)
         
         // Helper to close all inline views
         fun closeAllInlineViews() {
@@ -418,9 +421,8 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.CALENDAR -> {
                 if (showCalendarInline) {
                     showCalendarInline = false
-                    selectedTab = NavigationTab.NOTES
+                    onSelectedTabChange(NavigationTab.NOTES)
                 } else {
-                    if (isChatMode) onExitChatMode()
                     closeAllInlineViews()
                     showCalendarInline = true
                 }
@@ -428,9 +430,8 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.STACKS -> {
                 if (showStacksInline) {
                     showStacksInline = false
-                    selectedTab = NavigationTab.NOTES
+                    onSelectedTabChange(NavigationTab.NOTES)
                 } else {
-                    if (isChatMode) onExitChatMode()
                     closeAllInlineViews()
                     showStacksInline = true
                 }
@@ -438,9 +439,8 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.ARCHIVE -> {
                 if (showArchiveInline) {
                     showArchiveInline = false
-                    selectedTab = NavigationTab.NOTES
+                    onSelectedTabChange(NavigationTab.NOTES)
                 } else {
-                    if (isChatMode) onExitChatMode()
                     closeAllInlineViews()
                     showArchiveInline = true
                 }
@@ -448,9 +448,8 @@ onPlayYouTube: (String) -> Unit = {},
             NavigationTab.SETTINGS -> {
                 if (showSettingsInline) {
                     showSettingsInline = false
-                    selectedTab = NavigationTab.NOTES
+                    onSelectedTabChange(NavigationTab.NOTES)
                 } else {
-                    if (isChatMode) onExitChatMode()
                     closeAllInlineViews()
                     showSettingsInline = true
                 }
@@ -738,31 +737,31 @@ onPlayYouTube: (String) -> Unit = {},
     // This only triggers when in chat mode, NOT showing history, and NOT in selection mode
     BackHandler(enabled = isChatMode && !showChatHistoryInline && !isSelectionMode) {
         onExitChatMode()
-        selectedTab = NavigationTab.NOTES // FIX: Sync header state
+        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
     }
 
     // Handle back button press - exit calendar inline view
     BackHandler(enabled = showCalendarInline && !isSelectionMode) {
         showCalendarInline = false
-        selectedTab = NavigationTab.NOTES // FIX: Sync header state
+        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
     }
 
     // Handle back button press - exit stacks inline view
     BackHandler(enabled = showStacksInline && !isSelectionMode) {
         showStacksInline = false
-        selectedTab = NavigationTab.NOTES // FIX: Sync header state
+        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
     }
 
     // Handle back button press - exit archive inline view
     BackHandler(enabled = showArchiveInline && !isSelectionMode) {
         showArchiveInline = false
-        selectedTab = NavigationTab.NOTES // FIX: Sync header state
+        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
     }
 
     // Handle back button press - exit settings inline view
     BackHandler(enabled = showSettingsInline && !isSelectionMode) {
         showSettingsInline = false
-        selectedTab = NavigationTab.NOTES // FIX: Sync header state
+        onSelectedTabChange(NavigationTab.NOTES) // FIX: Sync header state
     }
 
     // Handle back button press - clear active category filter instead of closing app
@@ -985,12 +984,53 @@ onPlayYouTube: (String) -> Unit = {},
         }
     }
 
+    // --- Chat Scrolling State Management ---
+    var autoScrollEnabled by remember { mutableStateOf(true) }
+    var userIsScrolling by remember { mutableStateOf(false) }
+    
+    // When the user interacts with the list (dragging or flinging), temporarily disable auto-scroll
+    LaunchedEffect(chatListState.isScrollInProgress) {
+        userIsScrolling = chatListState.isScrollInProgress
+        if (userIsScrolling) {
+            autoScrollEnabled = false
+        }
+    }
 
+    // Determine if we need to show the scroll-to-bottom FAB
+    val showScrollToBottomFab by remember {
+        androidx.compose.runtime.derivedStateOf {
+            if (chatMessages.isEmpty()) return@derivedStateOf false
+            
+            val layoutInfo = chatListState.layoutInfo
+            val visibleItemsInfo = layoutInfo.visibleItemsInfo
+            if (visibleItemsInfo.isEmpty()) return@derivedStateOf false
+            
+            val lastVisibleItem = visibleItemsInfo.last()
+            
+            // Check if the bottommost item is visible and fully scrolled
+            if (lastVisibleItem.index == layoutInfo.totalItemsCount - 1) {
+                val bottomOffset = lastVisibleItem.offset + lastVisibleItem.size
+                // Allow a small padding buffer of 100px
+                bottomOffset > layoutInfo.viewportEndOffset + 100
+            } else {
+                // There are still items entirely below the viewport
+                true
+            }
+        }
+    }
 
-    // Scroll to bottom when new chat message arrives
-    LaunchedEffect(chatMessages.size) {
-        if (chatMessages.isNotEmpty() && isChatMode) {
-            chatListState.animateScrollToItem(chatMessages.size - 1)
+    // Perform auto-scrolling when new messages arrive or when streaming updates text length
+    LaunchedEffect(chatMessages.size, chatMessages.lastOrNull()?.content?.length, isChatProcessing) {
+        // ONLY scroll if the user hasn't explicitly scrolled up and disabled autoScroll
+        if (chatMessages.isNotEmpty() && isChatMode && autoScrollEnabled && !userIsScrolling) {
+            // VERY IMPORTANT: Give Compose time to re-measure so totalItemsCount gets updated 
+            // after the new message was injected. Otherwise we scroll to the old bottom which moves UP!
+            kotlinx.coroutines.delay(100)
+            
+            if (chatListState.layoutInfo.totalItemsCount > 0) {
+                // Scroll to NEWEST at the TOP (index 0) with a large negative offset to hit the edge
+                chatListState.animateScrollToItem(0, scrollOffset = -10000)
+            }
         }
     }
 

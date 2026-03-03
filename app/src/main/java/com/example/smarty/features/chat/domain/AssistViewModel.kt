@@ -794,28 +794,51 @@ class AssistViewModel(
             val provider = settingsFeatureManager.providerStrategy.value
             val sessionId = chatManager.currentSessionId.value
 
+            val streamingMessageId = java.util.UUID.randomUUID().toString()
+            val streamingMessage = ChatMessage(
+                id = streamingMessageId,
+                role = ChatRole.SMARTY,
+                content = "",
+                timestamp = System.currentTimeMillis(),
+                isStreaming = true
+            )
+            chatManager.addSmartyMessage(streamingMessage)
+
             remoteAgentService.sendQuery(content, provider = provider, sessionId = sessionId)
                 .collect { event ->
                     when (event) {
                         is com.example.smarty.protocol.AgentEvent.Processing -> {
+                            var updated = false
                             if (!event.content.isNullOrEmpty()) {
                                 responseBuilder.append(event.content)
+                                updated = true
                             }
                             if (!event.thinking.isNullOrEmpty()) {
                                 thinkingBuilder.append(event.thinking)
+                                updated = true
+                            }
+                            if (updated) {
+                                chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                             }
                         }
                         is com.example.smarty.protocol.AgentEvent.Result -> {
+                            var updated = false
                             if (event.content.isNotEmpty()) {
                                 responseBuilder.append(event.content)
+                                updated = true
                             }
                             if (!event.thinking.isNullOrEmpty()) {
                                 thinkingBuilder.append(event.thinking)
+                                updated = true
+                            }
+                            if (updated) {
+                                chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                             }
                         }
                         is com.example.smarty.protocol.AgentEvent.Error -> {
                             if (event.message.isNotEmpty()) {
                                 responseBuilder.append("\n[Error: ${event.message}]")
+                                chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                             }
                         }
                         else -> {
@@ -835,7 +858,7 @@ class AssistViewModel(
             pendingInlineImages.clear()
 
             val smartyMessage = ChatMessage(
-                id = java.util.UUID.randomUUID().toString(),
+                id = streamingMessageId,
                 role = ChatRole.SMARTY,
                 content = fullResponse,
                 thinking = fullThinking.takeIf { it.isNotBlank() },
@@ -847,10 +870,18 @@ class AssistViewModel(
                         snippet = citation.snippet
                     )
                 },
-                inlineImages = inlineImages
+                inlineImages = inlineImages,
+                isStreaming = false
             )
 
-            addSmartyMessage(smartyMessage, userMessage)
+            chatManager.updateMessageById(streamingMessageId, fullResponse)
+            
+            withContext(kotlinx.coroutines.NonCancellable) {
+                chatManager.saveMessagePair(
+                    userMessage = userMessage,
+                    smartyMessage = smartyMessage
+                )
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Remote agent execution failed", e)

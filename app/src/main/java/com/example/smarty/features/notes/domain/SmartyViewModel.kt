@@ -238,9 +238,14 @@ class SmartyViewModel(
     // 
 
     val activeNoteId: StateFlow<String?> = sharedAppState.activeNoteId
+    val selectedTab: StateFlow<com.example.smarty.core.domain.model.NavigationTab> = sharedAppState.selectedTab
 
     fun setActiveNote(noteId: String?) {
         sharedAppState.setActiveNoteId(noteId)
+    }
+
+    fun setSelectedTab(tab: com.example.smarty.core.domain.model.NavigationTab) {
+        sharedAppState.setSelectedTab(tab)
     }
 
     // Network monitoring (Phase 7)
@@ -613,6 +618,9 @@ class SmartyViewModel(
     private val _isCalendarLoading = MutableStateFlow(true)
     val isCalendarLoading: StateFlow<Boolean> = _isCalendarLoading.asStateFlow()
 
+    private val _isSettingsLoading = MutableStateFlow(true)
+    val isSettingsLoading: StateFlow<Boolean> = _isSettingsLoading.asStateFlow()
+
     private val _isNoteVersionsLoading = MutableStateFlow(false)
     val isNoteVersionsLoading: StateFlow<Boolean> = _isNoteVersionsLoading.asStateFlow()
 
@@ -632,9 +640,9 @@ class SmartyViewModel(
         // Using take(1) instead of collect to avoid permanent subscription
         viewModelScope.launch {
             try {
-                notes.take(1).collect {
-                    _isNotesLoading.value = false
-                }
+                // Wait for initial DB fetch and enforce minimum skeleton duration
+                kotlinx.coroutines.delay(600)
+                _isNotesLoading.value = false
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize notes from database", e)
                 _isNotesLoading.value = false
@@ -643,9 +651,8 @@ class SmartyViewModel(
 
         viewModelScope.launch {
             try {
-                categories.take(1).collect {
-                    _isStacksLoading.value = false
-                }
+                kotlinx.coroutines.delay(600)
+                _isStacksLoading.value = false
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize categories", e)
                 _isStacksLoading.value = false
@@ -654,9 +661,8 @@ class SmartyViewModel(
 
         viewModelScope.launch {
             try {
-                archivedNotes.take(1).collect {
-                    _isArchiveLoading.value = false
-                }
+                kotlinx.coroutines.delay(600)
+                _isArchiveLoading.value = false
             } catch (e: Exception) {
                  Log.e(TAG, "Failed to initialize archived notes", e)
                  _isArchiveLoading.value = false
@@ -664,15 +670,14 @@ class SmartyViewModel(
         }
 
         viewModelScope.launch {
-            chatSessions.take(1).collect {
-                _isChatHistoryLoading.value = false
-            }
+            kotlinx.coroutines.delay(600)
+            _isChatHistoryLoading.value = false
         }
 
         viewModelScope.launch {
-            calendarEvents.take(1).collect {
-                _isCalendarLoading.value = false
-            }
+            kotlinx.coroutines.delay(600)
+            _isCalendarLoading.value = false
+            _isSettingsLoading.value = false
         }
 
         // Initialize feature managers and settings logic here if needed
