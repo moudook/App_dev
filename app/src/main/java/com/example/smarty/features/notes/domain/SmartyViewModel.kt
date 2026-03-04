@@ -1502,9 +1502,16 @@ class SmartyViewModel(
         chatFeatureManager.toggleChatMode(fromShake)
     }
 
+    // ==================== Chat Mode ====================
+
+    fun deleteChatMessage(messageId: String) {
+        viewModelScope.launch {
+            chatFeatureManager.deleteMessage(messageId)
+        }
+    }
+
     /**
      * Enter chat mode (delegated to ChatFeatureManager)
-     * Called when user taps the AI/Chat tab
      */
     fun enterChatMode() {
         chatFeatureManager.enterChatMode()

@@ -138,6 +138,7 @@ fun SmartyNavHost(
     onSwitchChatSession: (String) -> Unit = {},
     onNewChatSession: () -> Unit = {},
     onDeleteChatSession: (String) -> Unit = {},
+    onDeleteChatMessage: (String) -> Unit = {},
     // @Mention parameters (Chat mode)
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },
@@ -364,6 +365,7 @@ fun SmartyNavHost(
                 onSwitchChatSession = onSwitchChatSession,
                 onNewChatSession = onNewChatSession,
                 onDeleteChatSession = onDeleteChatSession,
+                onDeleteChatMessage = onDeleteChatMessage,
                 // @Mention autocomplete
                 mentionState = mentionState,
                 onMentionSelected = onMentionSelected,

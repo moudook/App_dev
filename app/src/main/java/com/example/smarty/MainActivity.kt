@@ -518,6 +518,9 @@ class MainActivity : ComponentActivity() {
                                     onDeleteChatSession = { sessionId ->
                                         viewModel.deleteChatSession(sessionId)
                                     },
+                                    onDeleteChatMessage = { messageId ->
+                                        viewModel.deleteChatMessage(messageId)
+                                    },
                                     // @Mention autocomplete
                                     mentionState = mentionState,
                                     onMentionSelected = { suggestion, currentText ->

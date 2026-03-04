@@ -175,6 +175,7 @@ fun InputStreamScreen(
     onSwitchChatSession: (String) -> Unit = {},
     onNewChatSession: () -> Unit = {},
     onDeleteChatSession: (String) -> Unit = {},
+    onDeleteChatMessage: (String) -> Unit = {},
     // @Mention parameters (Chat mode)
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion, String) -> String = { _, text -> text },  // Returns updated text
@@ -1427,6 +1428,7 @@ onPlayYouTube: (String) -> Unit = {},
                                         notes = notes,
                                         onNoteClick = onNoteClick,
                                         onSendChatMessage = onSendChatMessage,
+                                        onDeleteMessage = onDeleteChatMessage,
                                         contentPadding = contentPaddingWithTop,
                                         isChatProcessing = isChatProcessing,
                                         agentActivity = agentActivity,

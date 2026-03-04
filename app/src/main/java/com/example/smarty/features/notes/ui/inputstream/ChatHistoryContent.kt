@@ -274,14 +274,17 @@ private fun InlineSessionItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // Delete Action - Standard Delete icon
-                Icon(
-                    imageVector = Icons.Default.DeleteOutline,
-                    contentDescription = stringResource(R.string.delete),
-                    tint = if (isSelected) contentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clickable(onClick = onDelete)
-                )
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = stringResource(R.string.delete),
+                        tint = if (isSelected) contentColor.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
