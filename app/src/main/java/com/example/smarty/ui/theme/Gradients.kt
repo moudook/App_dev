@@ -1,0 +1,60 @@
+package com.example.smarty.ui.theme
+
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+
+/**
+ * Centralized Gradient Brushes for the Smarty App.
+ * These tokens represent complex visual styles used in specific components.
+ */
+object SmartyBrushes {
+    
+    /** Metallic Silver gradient for the Coin Toss / Technical elements */
+    val metallicSilver = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFE0E0E0),
+            Color(0xFFFFFFFF),
+            Color(0xFFB0B0B0),
+            Color(0xFFFFFFFF),
+            Color(0xFFE0E0E0)
+        ),
+        start = Offset(0f, 0f),
+        end = Offset(100f, 1000f)
+    )
+
+    /** Deep Navy gradient for the Guided Breathing / Zen backgrounds */
+    val zenBackground = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF1A1A2E),
+            Color(0xFF16213E),
+            Color(0xFF0F3460)
+        )
+    )
+
+    /** Cyan/LightBlue gradient for the Breathing Circle */
+    val breathingCircle = Brush.radialGradient(
+        colors = listOf(
+            Color(0xFF4FACFE),
+            Color(0xFF00F2FE),
+            Color(0xFF4FACFE).copy(alpha = 0.3f)
+        )
+    )
+
+    /** Technical Gray gradient for the Geometric Background */
+    val technicalBackground = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF8E8E93),
+            Color(0xFFC7C7CC),
+            Color(0xFF000000)
+        )
+    )
+    
+    /** Soft glowing white for inner overlays */
+    val innerGlow = Brush.radialGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.3f),
+            Color.Transparent
+        )
+    )
+}

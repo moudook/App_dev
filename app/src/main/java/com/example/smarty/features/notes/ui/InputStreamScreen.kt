@@ -86,6 +86,8 @@ import com.example.smarty.ui.components.PendingShareData
 import com.example.smarty.ui.components.ShareBottomSheet
 import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.SmartyShapes
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.ConnectionStatusIndicator
 import com.example.smarty.ui.components.NotesEmptyState
@@ -1073,7 +1075,7 @@ onPlayYouTube: (String) -> Unit = {},
                                     }
                                     data.dismiss()
                                 },
-                                shape = RoundedCornerShape(6.dp),
+                                shape = LocalShapes.current.chipSmall,
                                 color = LocalAccentColor.current.copy(alpha = 0.2f)
                             ) {
                                 Text(

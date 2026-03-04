@@ -28,6 +28,8 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyInputField
 import com.example.smarty.features.notes.ui.inputstream.ChatModeContent
 import com.example.smarty.ui.theme.softCardShadow
+import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.components.TechnicalSurface
 import com.example.smarty.features.chat.domain.AssistViewModel
 
 /**
@@ -197,19 +199,12 @@ private fun SmartyContainer(
     // Handle keyboard/nav bar insets
     val bottomPadding = WindowInsets.ime.getBottom(density).dp.coerceAtLeast(WindowInsets.navigationBars.getBottom(density).dp)
 
-    Surface(
+    TechnicalSurface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp) // Slight floating margin
-            .padding(bottom = bottomPadding + 4.dp) // Lift above keyboard - reduced for lower position
-            .softCardShadow(shape = RoundedCornerShape(32.dp), elevation = 16.dp),
-        shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.surface, // Matches "Soft Tech" aesthetic
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
-        ),
-        tonalElevation = 8.dp
+            .padding(horizontal = 12.dp)
+            .padding(bottom = bottomPadding + 4.dp),
+        shape = LocalShapes.current.cardLarge
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),

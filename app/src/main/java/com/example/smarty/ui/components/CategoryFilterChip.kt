@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.softCardShadow
 
 /**
@@ -34,6 +35,7 @@ fun CategoryFilterChip(
 ) {
     val accentColor = LocalAccentColor.current
     val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val shapes = LocalShapes.current
 
     // Soft minimalist colors
     // Use a very subtle surface color, not just transparency
@@ -53,10 +55,10 @@ fun CategoryFilterChip(
         onClick = onClear,
         modifier = modifier.softCardShadow(
             elevation = 2.dp,
-            shape = RoundedCornerShape(20.dp),
+            shape = shapes.chipLarge,
             spotColor = accentColor.copy(alpha = 0.1f)
         ),
-        shape = RoundedCornerShape(20.dp),
+        shape = shapes.chipLarge,
         color = chipBackground,
         contentColor = accentColor,
         border = BorderStroke(1.dp, borderColor)
@@ -83,7 +85,7 @@ fun CategoryFilterChip(
             // Note count badge
             if (noteCount > 0) {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = shapes.tag,
                     color = accentColor.copy(alpha = 0.1f)
                 ) {
                     Text(

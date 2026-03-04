@@ -33,6 +33,7 @@ import com.example.smarty.ui.components.SmartyLogo
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sin
+import com.example.smarty.ui.theme.SmartyBrushes
 import kotlin.random.Random
 
 /**
@@ -60,17 +61,7 @@ fun CoinTossScreen(
 
     // Constants for Coin UI
     val coinSize = 220.dp
-    val metallicGradient = Brush.linearGradient(
-        colors = listOf(
-            Color(0xFFE0E0E0),
-            Color(0xFFFFFFFF),
-            Color(0xFFB0B0B0), // Darker shade for depth
-            Color(0xFFFFFFFF),
-            Color(0xFFE0E0E0)
-        ),
-        start = Offset(0f, 0f),
-        end = Offset(100f, 1000f) // Angled light
-    )
+    val metallicGradient = SmartyBrushes.metallicSilver
 
     // Effect: Fade in on entry and start first toss
     LaunchedEffect(Unit) {

@@ -127,23 +127,28 @@ class SpeechToTextState(
             Log.w(TAG, "Already listening, ignoring startListening call")
             return
         }
-        
+
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             Log.e(TAG, "Speech recognition not available")
             onError("Speech recognition not available on this device")
             return
         }
-        
+
+        // Set listening state BEFORE creating recognizer to prevent race condition
+        // where duplicate calls slip through before the recognizer is created
+        isListening = true
         speechInitiatedInChatMode = isChatMode
-        
+        partialTranscript = ""
+        transcript = ""
+
         try {
             // Destroy existing recognizer if any
             speechRecognizer?.destroy()
-            
+
             // Create new recognizer
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
             speechRecognizer?.setRecognitionListener(recognitionListener)
-            
+
             // Configure intent
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -153,14 +158,11 @@ class SpeechToTextState(
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
             }
-            
+
             speechRecognizer?.startListening(intent)
-            isListening = true
-            partialTranscript = ""
-            transcript = ""
-            
+
             Log.d(TAG, "Started listening in ${if (isChatMode) "CHAT" else "MAIN"} mode")
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start listening: ${e.message}", e)
             isListening = false

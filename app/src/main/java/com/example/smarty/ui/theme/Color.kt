@@ -57,6 +57,12 @@ val MinimalRed = Color(0xFFE57373) // Minimal/Soft Red for less "poppy" alerts
 val NeonPurple = Color(0xFFBB86FC)
 
 // =============================================================================
+// BRAND COLORS - Named tokens for specific UI use-cases
+// =============================================================================
+/** Used on the Login screen as the brand/illustration accent. Previously `Color(0xFFD66A48)` inline. */
+val BrandOrange = Color(0xFFD66A48)
+
+// =============================================================================
 // TEXT COLORS - Dark Theme
 // =============================================================================
 val TextPrimaryDark = Color(0xFFFFFFFF)
@@ -128,4 +134,59 @@ object AssistantColors {
     val SurfaceDark = Color(0xFF121212)  // True black for dark mode
     val SurfaceContainer = Color(0xFFF3EDF7)
     val SurfaceContainerDark = Color(0xFF1D1B20)
+}
+
+// =============================================================================
+// SEMANTIC COLORS — Status / Meaning-bearing tokens
+// (Merged from SemanticColors.kt — import from this file going forward)
+// =============================================================================
+/**
+ * Semantic color tokens — iOS-style semantic colors.
+ * These are theme-independent (same in light/dark) because they convey
+ * meaning through color (success, error, info) rather than adapting to
+ * the surface. Use MaterialTheme.colorScheme for surface-adaptive colors.
+ *
+ * Usage:
+ *   import com.example.smarty.ui.theme.SemanticColors
+ *   Icon(tint = SemanticColors.success)
+ */
+object SemanticColors {
+    // ─── Status Colors ────────────────────────────────────────────────
+    /** Success / Active / Positive (iOS Green) */
+    val success = Color(0xFF34C759)
+    /** Error / Destructive / Danger (iOS Red) */
+    val error = Color(0xFFFF3B30)
+    /** Info / Interactive / Link (iOS Blue) */
+    val info = Color(0xFF007AFF)
+    /** Warning / Caution (iOS Yellow/Amber) */
+    val warning = Color(0xFFEAB308)
+
+    // ─── Content Type Colors ─────────────────────────────────────────
+    /** Neutral / General file / Media (System Gray) */
+    val neutral = Color(0xFF8E8E93)
+
+
+    // ─── Bubble Colors ───────────────────────────────────────────────
+    /** User bubble background — inverted: light on dark, dark on light */
+    val userBubbleLight = Color(0xFFF5F5F5)
+    val userBubbleDark = Color(0xFF1A1A1A)
+}
+
+/**
+ * Component-specific color roles for consistent application-wide styling.
+ */
+object ComponentColors {
+    /** 
+     * Technical Surface (Glassy feel) Background. 
+     * Used in overlays and floating panels.
+     */
+    val technicalSurfaceLight = Color(0xFF1A1C1E).copy(alpha = 0.7f)
+    val technicalSurfaceDark = Color(0xFF050E1E).copy(alpha = 0.8f)
+    
+    /** Breath instruction/skipped button color */
+    val breathingAccent = Color(0xFF4FACFE)
+
+    /** AI/Assistant Accent Colors (HAL aesthetic) */
+    val assistantPurple = Color(0xFFB39DDB)
+    val assistantCyan = Color(0xFF00F2FE)
 }

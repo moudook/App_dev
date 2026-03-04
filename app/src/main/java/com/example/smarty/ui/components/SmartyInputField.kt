@@ -110,7 +110,6 @@ import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.utils.AnimationLifecycleState
 import com.example.smarty.ui.utils.rememberAnimationLifecycleState
-import com.example.smarty.features.voice.rememberSpeechToText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -121,16 +120,17 @@ private val AttachmentBlueColor = Color(0xFF90CAF9)
 private val AttachmentOrangeColor = Color(0xFFFFCC80)
 private val AttachmentGrayColor = Color(0xFFB0BEC5)
 
-// Agent shimmer color (Standardized Assistant Purple - Technical Palette)
-private val AgentShimmerColor = Color(0xFFB39DDB)
+// Agent shimmer color - Mapped to tokens
+private val AgentShimmerColor = ComponentColors.assistantPurple
 
 // Design constants for the redesigned input block
-private val CIRCLE_SIZE = 44.dp
-private val CIRCLE_ICON_SIZE = 22.dp
-private val PILL_HEIGHT = 44.dp // Thinner vertically as requested
-private val PILL_CORNER_RADIUS = 22.dp
-private val ELEMENT_SPACING = 12.dp
-private val HORIZONTAL_PADDING = 16.dp
+// Design constants for the redesigned input block - Mapped to tokens
+private val CIRCLE_SIZE = ComponentSpacing.inputCircleSize
+private val CIRCLE_ICON_SIZE = ComponentSpacing.inputCircleIconSize
+private val PILL_HEIGHT = ComponentSpacing.inputPillHeight
+private val PILL_CORNER_RADIUS = ComponentSpacing.inputPillCornerRadius
+private val ELEMENT_SPACING = ComponentSpacing.buttonGap        // 12.dp
+private val HORIZONTAL_PADDING = ComponentSpacing.inputPadding   // 16.dp
 
 /**
  * 
@@ -213,33 +213,9 @@ fun SmartyInputField(
     // State
     var showAttachmentPanel by remember { mutableStateOf(false) }
 
-    // Speech-to-Text integration
-    val speechToTextState = rememberSpeechToText(
-        onResult = { result ->
-            val currentText = value.text
-            val newText = if (currentText.isEmpty()) result else "$currentText $result"
-            onValueChange(value.copy(text = newText, selection = TextRange(newText.length)))
-            onStopVoiceInput()
-        },
-        onError = { error ->
-            android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_SHORT).show()
-            onStopVoiceInput()
-        }
-    )
-
-    LaunchedEffect(isVoiceListening) {
-        if (isVoiceListening) {
-            speechToTextState.startListening(isChatMode = isChatMode)
-        } else {
-            speechToTextState.stopListening()
-        }
-    }
-
-    LaunchedEffect(speechToTextState.isListening) {
-        if (!speechToTextState.isListening && isVoiceListening) {
-            onStopVoiceInput()
-        }
-    }
+    // Speech-to-Text: Managed by parent (InputStreamScreen) via the global SpeechToTextState.
+    // Do NOT create a local SpeechToTextState here — it would create a second SpeechRecognizer
+    // that conflicts with the parent's, causing Error 8 (Recognition service busy).
 
     // STRICT MUTUAL EXCLUSIVITY: If Search Mode is active, Attachment Panel MUST be closed.
     // This handles cases where search is toggled externally or simply ensures consistent state.
@@ -263,8 +239,7 @@ fun SmartyInputField(
     // Placeholder based on mode
     val currentPlaceholder = when {
         isVoiceListening -> {
-            if (speechToTextState.partialTranscript.isNotEmpty()) speechToTextState.partialTranscript
-            else stringResource(R.string.listening)
+            stringResource(R.string.listening)
         }
         isSearchMode -> stringResource(R.string.find_notes)
         isChatMode -> stringResource(R.string.ask_smarty)

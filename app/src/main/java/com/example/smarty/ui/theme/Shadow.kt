@@ -7,6 +7,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Composable
+
+import androidx.compose.ui.composed
 
 /**
  * Modern Soft Shadow System
@@ -44,30 +47,38 @@ object SmartyShadow {
  */
 fun Modifier.softCardShadow(
     elevation: Dp = SmartyShadow.cardElevation,
-    shape: Shape = RoundedCornerShape(28.dp),
+    shape: Shape? = null,
     spotColor: Color = SmartyShadow.cardSpotColor,
     ambientColor: Color = SmartyShadow.cardAmbientColor
-): Modifier = this.shadow(
-    elevation = elevation,
-    shape = shape,
-    spotColor = spotColor,
-    ambientColor = ambientColor
-)
+): Modifier = composed {
+    this.then(
+        Modifier.shadow(
+            elevation = elevation,
+            shape = shape ?: LocalShapes.current.card,
+            spotColor = spotColor,
+            ambientColor = ambientColor
+        )
+    )
+}
 
 /**
  * Elevated shadow for modals and dialogs
  */
 fun Modifier.elevatedShadow(
     elevation: Dp = SmartyShadow.elevatedElevation,
-    shape: Shape = RoundedCornerShape(28.dp),
+    shape: Shape? = null,
     spotColor: Color = SmartyShadow.elevatedSpotColor,
     ambientColor: Color = SmartyShadow.elevatedAmbientColor
-): Modifier = this.shadow(
-    elevation = elevation,
-    shape = shape,
-    spotColor = spotColor,
-    ambientColor = ambientColor
-)
+): Modifier = composed {
+    this.then(
+        Modifier.shadow(
+            elevation = elevation,
+            shape = shape ?: LocalShapes.current.dialog,
+            spotColor = spotColor,
+            ambientColor = ambientColor
+        )
+    )
+}
 
 /**
  * Active glow modifier for focused/active states
@@ -75,25 +86,34 @@ fun Modifier.elevatedShadow(
  */
 fun Modifier.activeGlow(
     elevation: Dp = SmartyShadow.glowElevation,
-    shape: Shape = RoundedCornerShape(12.dp),
+    shape: Shape? = null,
     spotColor: Color = SmartyShadow.glowColor
-): Modifier = this.shadow(
-    elevation = elevation,
-    shape = shape,
-    spotColor = spotColor,
-    ambientColor = Color.Transparent
-)
+): Modifier = composed {
+    this.then(
+        Modifier.shadow(
+            elevation = elevation,
+            shape = shape ?: LocalShapes.current.button,
+            spotColor = spotColor,
+            ambientColor = Color.Transparent
+        )
+    )
+}
 
 /**
  * Subtle shadow for smaller elements like chips
  */
 fun Modifier.subtleShadow(
     elevation: Dp = SmartyShadow.subtleElevation,
-    shape: Shape = RoundedCornerShape(8.dp),
+    shape: Shape? = null,
     spotColor: Color = SmartyShadow.subtleSpotColor
-): Modifier = this.shadow(
-    elevation = elevation,
-    shape = shape,
-    spotColor = spotColor,
-    ambientColor = Color.Transparent
-)
+): Modifier = composed {
+    this.then(
+        Modifier.shadow(
+            elevation = elevation,
+            shape = shape ?: LocalShapes.current.tag,
+            spotColor = spotColor,
+            ambientColor = Color.Transparent
+        )
+    )
+}
+

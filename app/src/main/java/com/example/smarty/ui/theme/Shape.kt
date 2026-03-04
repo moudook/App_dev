@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
  */
 data class SmartyShapes(
     // Card shapes - largest radius for main containers (24-32dp)
+    val card: RoundedCornerShape = RoundedCornerShape(26.dp),      // Standard card (app default)
     val cardSmall: RoundedCornerShape = RoundedCornerShape(24.dp),
     val cardMedium: RoundedCornerShape = RoundedCornerShape(28.dp),
     val cardLarge: RoundedCornerShape = RoundedCornerShape(32.dp),
@@ -41,7 +42,17 @@ data class SmartyShapes(
     val iconButton: RoundedCornerShape = RoundedCornerShape(12.dp),
 
     // Avatar (circular)
-    val avatar: RoundedCornerShape = RoundedCornerShape(50)
+    val avatar: RoundedCornerShape = RoundedCornerShape(50),
+
+    // Chat bubble shapes (asymmetric "tail" corners)
+    val bubbleUser: RoundedCornerShape = RoundedCornerShape(24.dp, 24.dp, 4.dp, 24.dp),
+    val bubbleAi: RoundedCornerShape = RoundedCornerShape(24.dp, 24.dp, 24.dp, 4.dp),
+
+    // Filter chip / large chip shape
+    val chipLarge: RoundedCornerShape = RoundedCornerShape(20.dp),
+
+    // Skeleton loader element shape (subtle rounding)
+    val skeleton: RoundedCornerShape = RoundedCornerShape(4.dp)
 )
 
 val LocalShapes = staticCompositionLocalOf { SmartyShapes() }

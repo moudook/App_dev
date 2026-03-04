@@ -132,8 +132,7 @@ fun StacksScreen(
                             style = MaterialTheme.typography.headlineLarge.copy(
                                 fontWeight = FontWeight.Light,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                letterSpacing = (-1).sp,
-                                fontSize = 32.sp
+                                letterSpacing = (-1).sp
                             )
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -142,8 +141,7 @@ fun StacksScreen(
                             style = MaterialTheme.typography.headlineLarge.copy(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurface,
-                                letterSpacing = (-1.5).sp,
-                                fontSize = 32.sp
+                                letterSpacing = (-1.5).sp
                             )
                         )
                     }
@@ -158,7 +156,7 @@ fun StacksScreen(
                 onClick = { showCreateSheet = true },
                 containerColor = LocalAccentColor.current,
                 contentColor = Color.White,
-                shape = RoundedCornerShape(26.dp),
+                shape = LocalShapes.current.pill,
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp, pressedElevation = 12.dp)
             ) {
                 Row(
@@ -298,7 +296,7 @@ fun StacksScreen(
                         .fillMaxWidth()
                         .background(
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = LocalShapes.current.skeleton
                         )
                         .padding(12.dp)
                 ) {
@@ -382,8 +380,8 @@ private fun CategoryCard(
     val textColor = MaterialTheme.colorScheme.onSurface
     val activeAccentColor = if (isEmpty) textColor.copy(alpha = 0.3f) else accentColor
 
-    // Corner Radius
-    val cornerRadius = 26.dp
+    // Corner Radius — use centralized card token
+    val cornerRadius = LocalShapes.current.card
 
     // Modern Minimalist Card with Physical Stack Effect
     Box(
@@ -409,12 +407,12 @@ private fun CategoryCard(
                     }
                     .background(
                         color = cardBgColor.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(cornerRadius)
+                        shape = cornerRadius
                     )
                     .border(
                         width = 1.dp,
                         color = textColor.copy(alpha = 0.05f),
-                        shape = RoundedCornerShape(cornerRadius)
+                        shape = cornerRadius
                     )
             )
 
@@ -428,12 +426,12 @@ private fun CategoryCard(
                     }
                     .background(
                         color = cardBgColor.copy(alpha = 0.8f),
-                        shape = RoundedCornerShape(cornerRadius)
+                        shape = cornerRadius
                     )
                     .border(
                         width = 1.dp,
                         color = textColor.copy(alpha = 0.08f),
-                        shape = RoundedCornerShape(cornerRadius)
+                        shape = cornerRadius
                     )
             )
         }
@@ -444,16 +442,16 @@ private fun CategoryCard(
                 .fillMaxSize()
                 .softCardShadow(
                     elevation = if (isEmpty) 0.dp else 4.dp,
-                    shape = RoundedCornerShape(cornerRadius)
+                    shape = cornerRadius
                 )
-                .clip(RoundedCornerShape(cornerRadius))
+                .clip(cornerRadius)
                 .background(cardBgColor)
                 .then(
                     if (isEmpty) {
                         Modifier.border(
                             width = 1.dp,
                             color = textColor.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(cornerRadius)
+                            shape = cornerRadius
                         )
                     } else Modifier
                 )
@@ -489,8 +487,7 @@ private fun CategoryCard(
                         Text(
                             text = category.noteCount.toString(),
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 22.sp
+                                fontWeight = FontWeight.Bold
                             ),
                             color = activeAccentColor
                         )
@@ -499,7 +496,6 @@ private fun CategoryCard(
                             text = stringResource(R.string.notes),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
                                 letterSpacing = 1.sp
                             ),
                             color = textColor.copy(alpha = if (isEmpty) 0.2f else 0.5f)
@@ -549,7 +545,6 @@ private fun CategoryCard(
                         text = if (isEmpty) stringResource(R.string.empty_stack) else stringResource(R.string.stack),
                         style = MaterialTheme.typography.labelMedium.copy(
                             color = textColor.copy(alpha = if (isEmpty) 0.2f else 0.4f),
-                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
                         )
@@ -559,8 +554,7 @@ private fun CategoryCard(
                         text = category.name.lowercase(),
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontWeight = if (isEmpty) FontWeight.Medium else FontWeight.SemiBold,
-                            lineHeight = 28.sp,
-                            fontSize = 22.sp
+                            lineHeight = 28.sp
                         ),
                         color = if (isEmpty) textColor.copy(alpha = 0.5f) else textColor,
                         maxLines = 2,
@@ -606,7 +600,7 @@ private fun CreateCategoryBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        shape = shapes.bottomSheet,
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = {
@@ -663,12 +657,12 @@ private fun CreateCategoryBottomSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(shapes.chipLarge)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .border(
                         width = if (categoryName.isNotBlank()) 2.dp else 1.dp,
                         color = if (categoryName.isNotBlank()) LocalAccentColor.current else Color.Transparent,
-                        shape = RoundedCornerShape(20.dp)
+                        shape = shapes.chipLarge
                     )
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterStart
@@ -718,7 +712,7 @@ private fun CreateCategoryBottomSheet(
                     TextButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f).height(56.dp),
-                        shape = RoundedCornerShape(18.dp)
+                        shape = shapes.button
                     ) {
                         Text(
                             text = stringResource(R.string.cancel),
@@ -734,7 +728,7 @@ private fun CreateCategoryBottomSheet(
                         onClick = { onCreate(categoryName.trim()) },
                         enabled = isValid,
                         modifier = Modifier.weight(1f).height(56.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = shapes.button,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = LocalAccentColor.current,
                             contentColor = Color.White
@@ -758,7 +752,7 @@ private fun CreateCategoryBottomSheet(
                     TextButton(
                         onClick = onDeleteRequest,
                         modifier = Modifier.fillMaxWidth().height(56.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = shapes.button,
                         colors = ButtonDefaults.textButtonColors(
                             contentColor = MaterialTheme.colorScheme.error
                         )

@@ -12,15 +12,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarty.ui.theme.SmartyBrushes
+import com.example.smarty.ui.theme.ComponentColors
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
  * Breathing phases for the guided breathing exercise.
@@ -31,12 +30,6 @@ enum class BreathPhase {
 
 /**
  * Guided Breathing Exercise Screen
- * 
- * A micro-intervention for anxiety and pre-decision grounding.
- * Provides a simple animated circle with haptic pacing for breathing exercises.
- * 
- * Per ultimate.md: "Not in current feature list but mentioned in product thesis.
- * Add as a micro-intervention alongside coin toss and tic-tac-toe. Tiny footprint."
  */
 @Composable
 fun GuidedBreathingScreen(
@@ -44,7 +37,6 @@ fun GuidedBreathingScreen(
     modifier: Modifier = Modifier
 ) {
     val haptics = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
     
     var phase by remember { mutableStateOf(BreathPhase.INHALE) }
     var cycleCount by remember { mutableStateOf(0) }
@@ -60,7 +52,7 @@ fun GuidedBreathingScreen(
             animation = tween(
                 durationMillis = when (phase) {
                     BreathPhase.INHALE -> 4000
-                    BreathPhase.HOLD -> 0 // No animation during hold
+                    BreathPhase.HOLD -> 0 
                     BreathPhase.EXHALE -> 6000
                     BreathPhase.REST -> 0
                 },
@@ -77,24 +69,24 @@ fun GuidedBreathingScreen(
             when (phase) {
                 BreathPhase.INHALE -> {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    delay(4000) // 4 seconds inhale
+                    delay(4000)
                     phase = BreathPhase.HOLD
                 }
                 BreathPhase.HOLD -> {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    delay(2000) // 2 seconds hold
+                    delay(2000)
                     phase = BreathPhase.EXHALE
                 }
                 BreathPhase.EXHALE -> {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    delay(6000) // 6 seconds exhale
+                    delay(6000)
                     phase = BreathPhase.REST
                 }
                 BreathPhase.REST -> {
-                    delay(1000) // 1 second rest
+                    delay(1000)
                     cycleCount++
                     if (cycleCount >= 3) {
-                        isRunning = false // Complete after 3 cycles
+                        isRunning = false
                     } else {
                         phase = BreathPhase.INHALE
                     }
@@ -129,22 +121,13 @@ fun GuidedBreathingScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF1a1a2e),
-                        Color(0xFF16213e),
-                        Color(0xFF0f3460)
-                    )
-                )
-            ),
+            .background(SmartyBrushes.zenBackground),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Phase instruction
             Text(
                 text = when (phase) {
                     BreathPhase.INHALE -> "Breathe In"
@@ -159,42 +142,24 @@ fun GuidedBreathingScreen(
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // Breathing circle
             Box(
                 modifier = Modifier
                     .size(200.dp)
                     .scale(if (phase == BreathPhase.INHALE) scale else if (phase == BreathPhase.EXHALE) 1.4f - (scale - 0.6f) * 2 else 1f)
                     .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Color(0xFF4facfe),
-                                Color(0xFF00f2fe),
-                                Color(0xFF4facfe).copy(alpha = 0.3f)
-                            )
-                        )
-                    ),
+                    .background(SmartyBrushes.breathingCircle),
                 contentAlignment = Alignment.Center
             ) {
-                // Inner glow
                 Box(
                     modifier = Modifier
                         .size(120.dp)
                         .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.3f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
+                        .background(SmartyBrushes.innerGlow)
                 )
             }
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // Cycle counter
             Text(
                 text = "Cycle $cycleCount of 3",
                 style = MaterialTheme.typography.bodyLarge,
@@ -203,7 +168,6 @@ fun GuidedBreathingScreen(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // Timer dots
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -213,7 +177,7 @@ fun GuidedBreathingScreen(
                             .size(12.dp)
                             .clip(CircleShape)
                             .background(
-                                if (index < cycleCount) Color(0xFF4facfe)
+                                if (index < cycleCount) ComponentColors.breathingAccent
                                 else Color.White.copy(alpha = 0.3f)
                             )
                     )
@@ -222,7 +186,6 @@ fun GuidedBreathingScreen(
             
             Spacer(modifier = Modifier.height(48.dp))
             
-            // Close button
             TextButton(onClick = onDismiss) {
                 Text("Skip", color = Color.White.copy(alpha = 0.5f))
             }
@@ -230,9 +193,6 @@ fun GuidedBreathingScreen(
     }
 }
 
-/**
- * Breathing exercise trigger button for use in other screens.
- */
 @Composable
 fun BreathingExerciseButton(
     onClick: () -> Unit,
@@ -242,7 +202,7 @@ fun BreathingExerciseButton(
         onClick = onClick,
         modifier = modifier,
         colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = Color(0xFF4facfe)
+            contentColor = ComponentColors.breathingAccent
         )
     ) {
         Icon(

@@ -459,7 +459,7 @@ private fun InlineAudioPlayer(
     onSeek: (Float) -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(24.dp),
+        shape = LocalShapes.current.cardSmall,
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -521,7 +521,7 @@ private fun AttachmentChip(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = LocalShapes.current.skeleton,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
     ) {

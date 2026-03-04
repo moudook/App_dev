@@ -34,6 +34,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.SemanticColors
 
 /**
  * Digest Screen - Displays daily and weekly AI-generated summaries.
@@ -219,7 +221,7 @@ private fun DigestCard(
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = LocalShapes.current.card,
         colors = CardDefaults.cardColors(
             containerColor = if (hasCriticalInfo) {
                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
@@ -267,7 +269,7 @@ private fun DigestCard(
 
                 if (hasCriticalInfo) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = LocalShapes.current.tag,
                         color = MaterialTheme.colorScheme.error
                     ) {
                         Row(
@@ -461,7 +463,7 @@ private fun CriticalInfoBanner(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = LocalShapes.current.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
         )
@@ -564,7 +566,7 @@ private fun InsightsSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = LocalShapes.current.button,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
                 )
@@ -623,9 +625,9 @@ private fun GoalProgressCard(
     modifier: Modifier = Modifier
 ) {
     val statusColor = when (goal.status) {
-        "completed" -> Color(0xFF4CAF50)
-        "on-track" -> Color(0xFF2196F3)
-        "at-risk" -> Color(0xFFFF9800)
+        "completed" -> SemanticColors.success
+        "on-track" -> SemanticColors.info
+        "at-risk" -> SemanticColors.warning
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -641,7 +643,7 @@ private fun GoalProgressCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = LocalShapes.current.button
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
@@ -716,7 +718,7 @@ private fun PrioritiesSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp),
+                shape = LocalShapes.current.button,
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
                 )
@@ -749,7 +751,7 @@ private fun StatsCard(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = LocalShapes.current.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         )

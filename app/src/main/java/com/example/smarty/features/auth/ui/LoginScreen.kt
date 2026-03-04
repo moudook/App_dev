@@ -20,11 +20,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AlternateEmail
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.VpnKey
+import com.example.smarty.ui.theme.SmartyIcons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -58,7 +54,13 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.features.auth.domain.AuthViewModel
 import com.example.smarty.features.auth.domain.AuthViewModelFactory
 import com.example.smarty.features.auth.domain.AuthFeatureManager
+import com.example.smarty.ui.theme.BrandOrange
+import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.IconSize
+import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.rememberMonochromeAccent
+import com.example.smarty.ui.components.GeometricGradientBackground
+import com.example.smarty.ui.components.SmartyButton
 
 // 
 // LOGIN SCREEN - STACKS / NOTECARD DESIGN
@@ -110,12 +112,11 @@ fun LoginScreen(
 
     // --- LANDING SCREEN ---
     if (!showForm) {
-        val imageOrange = Color(0xFFD66A48) // Extracted from the user's image
+        val imageOrange = BrandOrange
+        val shapes = LocalShapes.current
 
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background) // Keeping dark theme
+        GeometricGradientBackground(
+            modifier = modifier.fillMaxSize()
         ) {
             // Top Illustration Placeholder
             Box(
@@ -140,7 +141,7 @@ fun LoginScreen(
                     .fillMaxHeight(0.65f)
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+                        shape = shapes.bottomSheet
                     )
             ) {
                 Column(
@@ -154,11 +155,12 @@ fun LoginScreen(
                         // Badge "New"
                         Box(
                             modifier = Modifier
-                                .border(1.dp, imageOrange.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                                .background(imageOrange.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                                .border(1.dp, imageOrange.copy(alpha = 0.3f), shapes.tag)
+                                .background(imageOrange.copy(alpha = 0.1f), shapes.tag)
                                 .padding(horizontal = 12.dp, vertical = 6.dp)
                         ) {
-                            Text("New", color = imageOrange, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("New", color = imageOrange,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold))
                         }
 
                         // Title
@@ -204,26 +206,25 @@ fun LoginScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(26.dp))
+                                .height(ComponentSpacing.buttonHeight)
+                                .clip(shapes.pill)
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(26.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), shapes.pill)
                                 .clickable { showForm = true }
                                 .padding(horizontal = 24.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AlternateEmail,
+                                imageVector = SmartyIcons.Email,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(IconSize.xl)
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(
                                 text = "Continue with Email",
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
                             )
                         }
 
@@ -231,10 +232,10 @@ fun LoginScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(56.dp)
-                                .clip(RoundedCornerShape(26.dp))
+                                .height(ComponentSpacing.buttonHeight)
+                                .clip(shapes.pill)
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(26.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), shapes.pill)
                                 .clickable {
                                     if (!isLoading) googleSignInLauncher.launch(viewModel.getGoogleSignInIntent())
                                 }
@@ -244,22 +245,21 @@ fun LoginScreen(
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_google_logo),
                                 contentDescription = "Google Logo",
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(IconSize.xl),
                                 tint = Color.Unspecified
                             )
                             Spacer(modifier = Modifier.width(16.dp))
                             Text(
                                 text = "Continue with Google",
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
                             )
                         }
                     }
                 }
             }
         }
-        return // Short-circuit, don't show the form if we are on the landing page
+        return
     }
 
     // Handle system back press to return from the form to landing
@@ -268,12 +268,11 @@ fun LoginScreen(
         viewModel.clearError()
     }
 
-    val imageOrange = Color(0xFFD66A48) // Extracted from the user's image
+    val imageOrange = BrandOrange
+    val shapes = LocalShapes.current
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+    GeometricGradientBackground(
+        modifier = modifier.fillMaxSize()
     ) {
         // Top Illustration Placeholder
         Box(
@@ -285,7 +284,7 @@ fun LoginScreen(
             Icon(
                 painter = painterResource(id = R.drawable.ic_launcher_monochrome),
                 contentDescription = "App Illustration",
-                modifier = Modifier.size(160.dp),
+                modifier = Modifier.size(IconSize.brandLogo),
                 tint = imageOrange
             )
         }
@@ -298,7 +297,7 @@ fun LoginScreen(
                 .fillMaxHeight(0.65f)
                 .background(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+                    shape = shapes.bottomSheet
                 )
         ) {
             Column(
@@ -339,7 +338,7 @@ fun LoginScreen(
                 val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
                 val pillBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
                 val pillBorder = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                val pillShape = RoundedCornerShape(26.dp)
+                val pillShape = shapes.pill
 
                 // 2. FORM FIELDS
                 Column(
@@ -393,8 +392,8 @@ fun LoginScreen(
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
-                                if (passwordVisible) Icons.Default.VisibilityOff
-                                else Icons.Default.Visibility,
+                                if (passwordVisible) SmartyIcons.VisibilityOff
+                                else SmartyIcons.Visibility,
                                 stringResource(if (passwordVisible) R.string.hide else R.string.show),
                                 modifier = Modifier.size(20.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -500,7 +499,7 @@ fun LoginScreen(
                             .fillMaxWidth()
                             .background(
                                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f),
-                                RoundedCornerShape(8.dp)
+                                shapes.skeleton
                             )
                             .padding(12.dp)
                     ) {
@@ -607,7 +606,7 @@ fun LoginScreen(
                         ),
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(shapes.skeleton)
                             .clickable {
                                 isLoginMode = !isLoginMode
                                 viewModel.clearError()

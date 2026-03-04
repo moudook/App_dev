@@ -118,6 +118,25 @@ object ComponentSpacing {
     val miniPlayerHeight = 72.dp
     val waveformHeight = 36.dp
     val albumArtSize = 56.dp
+
+    // ─── Size constants used across all screens ──────────────────────────────
+    /** Standard full-width button height used on Login, Settings, etc. */
+    val buttonHeight = 56.dp
+
+    /** Pill/navigation bar height (FloatingActionBar, HorizontalActionBar, InputField) */
+    val pillHeight = 44.dp
+
+    /** Input Field Specifics */
+    val inputCircleSize = 44.dp
+    val inputCircleIconSize = 22.dp
+    val inputPillHeight = 44.dp
+    val inputPillCornerRadius = 22.dp
+
+    /** Icon button touch target size (action bars, floating bars) */
+    val iconButtonSize = 36.dp
+
+    /** Corner radius for pill-shaped buttons (Login, Settings cards) */
+    val pillButtonCornerRadius = 26.dp
 }
 
 /**

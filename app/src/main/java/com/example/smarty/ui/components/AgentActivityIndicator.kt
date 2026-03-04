@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.smarty.features.chat.domain.ChatFeatureManager.AgentActivity
+import com.example.smarty.ui.theme.LocalShapes
 
 /**
  * Displays the current agent activity (thinking, tool execution, searching).
@@ -98,7 +99,7 @@ private fun ActivityBadge(
         modifier = modifier
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .alpha(alpha),
-        shape = RoundedCornerShape(20.dp),
+        shape = LocalShapes.current.pill,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
         tonalElevation = 2.dp
     ) {

@@ -63,6 +63,7 @@ import androidx.compose.runtime.Composable
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.*
+import com.example.smarty.ui.theme.SmartyIcons
 
 /**
  * Utility object providing icons and colors for different note types.
@@ -239,27 +240,28 @@ object NoteCardIcons {
      * Centralized here for consistency.
      */
     object Actions {
-        val Archive = Icons.Default.Archive             // Standard archive
-        val Unarchive = Icons.Default.Unarchive
-        val Delete = Icons.Default.DeleteOutline         // Standard delete
-        val Edit = Icons.Default.Edit                    // Standard edit
-        val Share = Icons.Default.Share                   // Standard share
-        val Copy = Icons.Default.ContentCopy             // Standard copy
-        val Todo = Icons.Default.CheckCircle             // Standard check
-        val Search = Icons.Default.Search                // Standard search
-        val Add = Icons.Default.Add                      // Standard add
-        val Settings = Icons.Default.Settings            // Standard settings
-        val Back = Icons.AutoMirrored.Filled.ArrowBack
-        val Close = Icons.Default.Close
-        val Done = Icons.Default.Check
+        val Archive = SmartyIcons.Archive
+        val Unarchive = SmartyIcons.Unarchive
+        val Delete = SmartyIcons.Delete
+        val Edit = SmartyIcons.Edit
+        val Share = SmartyIcons.Share
+        val Copy = SmartyIcons.Copy
+        val Todo = SmartyIcons.CheckCircle
+        val Search = SmartyIcons.Search
+        val Add = SmartyIcons.Add
+        val Settings = SmartyIcons.Settings
+        val Back = SmartyIcons.Back
+        val Close = SmartyIcons.Close
+        val Done = SmartyIcons.Check
         val ExpandMore = Icons.Default.ExpandMore
         val ExpandLess = Icons.Default.ExpandLess
-        val MoreVert = Icons.Default.MoreVert
-        val Lock = Icons.Default.Lock
-        val LockOpen = Icons.Default.LockOpen
-        val Visibility = Icons.Default.Visibility
-        val VisibilityOff = Icons.Default.VisibilityOff
+        val MoreVert = SmartyIcons.More
+        val Lock = SmartyIcons.Lock
+        val LockOpen = SmartyIcons.LockOpen
+        val Visibility = SmartyIcons.Visibility
+        val VisibilityOff = SmartyIcons.VisibilityOff
     }
+
 
     // ==================== Status Colors ====================
 

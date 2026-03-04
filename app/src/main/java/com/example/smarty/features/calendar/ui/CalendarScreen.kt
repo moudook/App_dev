@@ -593,11 +593,11 @@ private fun ActiveTimersRow(
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(50.dp),
+                    shape = LocalShapes.current.pill,
                     color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier
                         .widthIn(min = 140.dp)
-                        .softCardShadow(shape = RoundedCornerShape(50.dp))
+                        .softCardShadow(shape = LocalShapes.current.pill)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -778,8 +778,8 @@ private fun PremiumEventCard(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .softCardShadow(shape = RoundedCornerShape(26.dp)),
-        shape = RoundedCornerShape(26.dp),
+            .softCardShadow(shape = LocalShapes.current.card),
+        shape = LocalShapes.current.card,
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
@@ -792,7 +792,7 @@ private fun PremiumEventCard(
                 Column(modifier = Modifier.weight(1f)) {
                     // Time Pill
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
+                        shape = LocalShapes.current.button,
                         color = bgColor.copy(alpha = 0.6f)
                     ) {
                         val timeText = if (event.isAllDay) stringResource(R.string.all_day) else {

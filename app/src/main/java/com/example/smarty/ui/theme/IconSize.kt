@@ -18,4 +18,14 @@ object IconSize {
     val huge = 32.dp       // Major visual anchors
     val massive = 44.dp    // Icon containers (settings sections)
     val container = 48.dp  // Icon button containers
+
+    // ─── Navigation-specific sizes ──────────────────────────────────
+    /** Navigation bar / action bar icons (HorizontalActionBar) */
+    val nav = 26.dp
+    /** Prominent navigation icons (draggable bar active state) */
+    val navLarge = 32.dp
+
+    // ─── Branding ───────────────────────────────────────────────────
+    /** App logo icon on login/splash screens */
+    val brandLogo = 160.dp
 }

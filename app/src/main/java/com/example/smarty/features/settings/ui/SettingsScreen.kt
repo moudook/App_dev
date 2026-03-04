@@ -72,8 +72,10 @@ import java.util.Locale
 import com.example.smarty.ui.components.ShakeSensitivityControl
 import com.example.smarty.ui.components.UnifiedBottomSheet
 import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.MonoFont
 import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.SemanticColors
 import com.example.smarty.ui.theme.SystemGreen
 import com.example.smarty.ui.theme.softCardShadow
 import androidx.compose.ui.platform.LocalContext
@@ -224,7 +226,7 @@ fun SettingsScreen(
                                 Box(
                                     modifier = Modifier
                                         .size(80.dp)
-                                        .background(Color(0xFFEAB308), CircleShape), // Yellow circle
+                                        .background(SemanticColors.warning, CircleShape), // Yellow circle
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text("CH", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Normal)
@@ -240,7 +242,7 @@ fun SettingsScreen(
                                         contentColor = MaterialTheme.colorScheme.onBackground,
                                         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) // Added subtle background for better contrast
                                     ),
-                                    shape = RoundedCornerShape(20.dp),
+                                    shape = LocalShapes.current.buttonLarge,
                                     modifier = Modifier.height(38.dp),
                                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp)
                                 ) {
@@ -592,7 +594,7 @@ private fun CalendarSelectorView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(calendar.id) },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = LocalShapes.current.buttonLarge,
                     color = if (isSelected) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     border = if (isSelected) BorderStroke(1.dp, LocalAccentColor.current) else null
                 ) {
@@ -686,9 +688,9 @@ private fun SettingsItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(26.dp))
+            .clip(LocalShapes.current.card)
             .clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(26.dp),
+        shape = LocalShapes.current.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -790,9 +792,9 @@ private fun SettingsToggleItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(26.dp))
+            .clip(LocalShapes.current.card)
             .clickable(enabled = enabled) { onCheckedChange(!isChecked) },
-        shape = RoundedCornerShape(26.dp),
+        shape = LocalShapes.current.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
@@ -910,7 +912,7 @@ private fun SettingsSection(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(LocalShapes.current.chipLarge)
                 .background(separatorColor),
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
@@ -954,7 +956,7 @@ private fun SettingsRow(
             imageVector = icon,
             contentDescription = null,
             tint = iconColor,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(IconSize.xl)
         )
 
         Spacer(modifier = Modifier.width(16.dp))
@@ -962,9 +964,8 @@ private fun SettingsRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 17.sp
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Normal
                 ),
                 color = contentColor
             )
@@ -1004,16 +1005,15 @@ private fun SettingsToggleRow(
             imageVector = icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(IconSize.xl)
         )
 
         Spacer(modifier = Modifier.width(16.dp))
 
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontWeight = FontWeight.Normal,
-                fontSize = 17.sp
+            style = MaterialTheme.typography.titleSmall.copy(
+                fontWeight = FontWeight.Normal
             ),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
@@ -1024,7 +1024,7 @@ private fun SettingsToggleRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF34C759), // Semantic green positive
+                checkedTrackColor = SemanticColors.success,
                 uncheckedThumbColor = MaterialTheme.colorScheme.outline,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
                 uncheckedBorderColor = Color.Transparent
@@ -1070,7 +1070,7 @@ private fun ProviderStrategyView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelect(strategy) },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = LocalShapes.current.button,
                     color = if (isSelected) LocalAccentColor.current.copy(alpha = 0.1f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     border = if (isSelected) BorderStroke(1.dp, LocalAccentColor.current) else null
                 ) {

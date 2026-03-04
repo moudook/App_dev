@@ -6,6 +6,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.ui.Alignment
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -13,14 +14,27 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.animation.ShimmerDirection
 import com.example.smarty.ui.animation.directionalShimmer
 import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.theme.ComponentSpacing
+import androidx.compose.animation.core.*
+import androidx.compose.ui.composed
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntSize
 
 /**
  * Skeleton loader for category cards with halftone shimmer effect.
@@ -55,7 +69,7 @@ fun CategoryCardSkeleton(
                 modifier = Modifier
                     .fillMaxWidth(0.6f)
                     .height(20.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(LocalShapes.current.skeleton)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             )
             
@@ -64,7 +78,7 @@ fun CategoryCardSkeleton(
                 modifier = Modifier
                     .fillMaxWidth(0.4f)
                     .height(14.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(LocalShapes.current.skeleton)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
             )
         }
@@ -103,7 +117,7 @@ fun NoteCardSkeleton(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(LocalShapes.current.tag)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
             )
 
@@ -118,7 +132,7 @@ fun NoteCardSkeleton(
                     modifier = Modifier
                         .fillMaxWidth(0.7f)
                         .height(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(LocalShapes.current.skeleton)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                 )
 
@@ -127,7 +141,7 @@ fun NoteCardSkeleton(
                     modifier = Modifier
                         .fillMaxWidth(0.9f)
                         .height(12.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(LocalShapes.current.skeleton)
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
                 )
             }
@@ -212,7 +226,7 @@ fun BackupCardSkeleton(
                 color = MaterialTheme.colorScheme.onSurface,
                 direction = ShimmerDirection.LEFT_TO_RIGHT
             ),
-        shape = RoundedCornerShape(26.dp),
+        shape = LocalShapes.current.card,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.1f)
         )
@@ -242,7 +256,7 @@ fun BackupCardSkeleton(
                         modifier = Modifier
                             .fillMaxWidth(0.4f)
                             .height(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(LocalShapes.current.skeleton)
                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -251,7 +265,7 @@ fun BackupCardSkeleton(
                         modifier = Modifier
                             .fillMaxWidth(0.7f)
                             .height(12.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(LocalShapes.current.skeleton)
                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
                     )
                 }
@@ -297,7 +311,7 @@ fun ChatSessionSkeleton(
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(LocalShapes.current.iconButton)
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
         )
 
@@ -309,7 +323,7 @@ fun ChatSessionSkeleton(
                 modifier = Modifier
                     .fillMaxWidth(0.5f)
                     .height(16.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(LocalShapes.current.skeleton)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -318,7 +332,7 @@ fun ChatSessionSkeleton(
                 modifier = Modifier
                     .fillMaxWidth(0.8f)
                     .height(12.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(LocalShapes.current.skeleton)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
             )
         }
@@ -385,7 +399,7 @@ fun SettingsMainSkeleton(
                 modifier = Modifier
                     .width(100.dp)
                     .height(24.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(LocalShapes.current.skeleton)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -393,7 +407,7 @@ fun SettingsMainSkeleton(
                 modifier = Modifier
                     .width(180.dp)
                     .height(14.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(LocalShapes.current.skeleton)
                     .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -401,7 +415,7 @@ fun SettingsMainSkeleton(
                 modifier = Modifier
                     .width(80.dp)
                     .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .clip(LocalShapes.current.dialog)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
             )
         }
@@ -417,7 +431,7 @@ fun SettingsMainSkeleton(
                     modifier = Modifier
                         .width(80.dp)
                         .height(16.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(LocalShapes.current.skeleton)
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 )
                 
@@ -449,7 +463,7 @@ fun SettingsMainSkeleton(
                                     modifier = Modifier
                                         .width(120.dp)
                                         .height(16.dp)
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .clip(LocalShapes.current.skeleton)
                                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -457,7 +471,7 @@ fun SettingsMainSkeleton(
                                     modifier = Modifier
                                         .width(160.dp)
                                         .height(12.dp)
-                                        .clip(RoundedCornerShape(2.dp))
+                                        .clip(LocalShapes.current.skeleton)
                                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))
                                 )
                             }
@@ -471,6 +485,121 @@ fun SettingsMainSkeleton(
                     }
                 }
             }
+        }
+    }
+}
+
+// ─── Generic & Specialized Skeletons ──────────────────────────────────────────
+
+/**
+ * Basic Shimmer effect modifier for generic background placeholders.
+ */
+fun Modifier.shimmerEffect(): Modifier = composed {
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val startOffsetX by transition.animateFloat(
+        initialValue = -2 * size.width.toFloat(),
+        targetValue = 2 * size.width.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000)
+        ),
+        label = "shimmer"
+    )
+
+    background(
+        brush = Brush.linearGradient(
+            colors = listOf(
+                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.colorScheme.surface,
+                MaterialTheme.colorScheme.surfaceVariant,
+            ),
+            start = Offset(startOffsetX, 0f),
+            end = Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
+        )
+    ).onGloballyPositioned {
+        size = it.size
+    }
+}
+
+/**
+ * Skeleton for Calendar Event card.
+ */
+@Composable
+fun EventCardSkeleton(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = LocalShapes.current.cardSmall,
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
+    ) {
+        Row(
+            modifier = Modifier.padding(ComponentSpacing.inputPadding),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.size(ComponentSpacing.iconButtonSize).clip(LocalShapes.current.iconButton).shimmerEffect())
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Box(modifier = Modifier.fillMaxWidth(0.6f).height(16.dp).clip(LocalShapes.current.skeleton).shimmerEffect())
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(modifier = Modifier.fillMaxWidth(0.4f).height(12.dp).clip(LocalShapes.current.skeleton).shimmerEffect())
+            }
+        }
+    }
+}
+
+/**
+ * Loading state for Calendar (Grid/List).
+ */
+@Composable
+fun CalendarLoadingState(
+    count: Int = 4,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        repeat(count) {
+             EventCardSkeleton(modifier = Modifier.padding(horizontal = 16.dp))
+        }
+    }
+}
+
+/**
+ * Skeleton placeholder for a Chat Message bubble.
+ */
+@Composable
+fun ChatMessageSkeleton(isFromUser: Boolean = false) {
+    val alignment = if (isFromUser) Alignment.End else Alignment.Start
+    val bubbleShape = if (isFromUser) LocalShapes.current.bubbleUser else LocalShapes.current.bubbleAi
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+        horizontalAlignment = alignment
+    ) {
+         Surface(
+            shape = bubbleShape,
+            color = if (isFromUser) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent,
+            modifier = Modifier.widthIn(min = 100.dp, max = ComponentSpacing.bubbleMaxWidth)
+         ) {
+             Column(modifier = Modifier.padding(ComponentSpacing.inputPadding)) {
+                 Box(modifier = Modifier.width(180.dp).height(16.dp).clip(LocalShapes.current.skeleton).shimmerEffect())
+                 Spacer(modifier = Modifier.height(8.dp))
+                 Box(modifier = Modifier.width(120.dp).height(16.dp).clip(LocalShapes.current.skeleton).shimmerEffect())
+             }
+         }
+    }
+}
+
+/**
+ * Generic Skeleton List container.
+ */
+@Composable
+fun SkeletonList(
+    count: Int = 3,
+    modifier: Modifier = Modifier,
+    skeleton: @Composable () -> Unit
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(count) {
+            skeleton()
         }
     }
 }

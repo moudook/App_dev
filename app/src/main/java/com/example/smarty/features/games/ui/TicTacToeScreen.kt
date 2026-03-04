@@ -26,6 +26,7 @@ import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyButton
 import com.example.smarty.ui.theme.SmartyShadow
 import com.example.smarty.ui.theme.softCardShadow
+import com.example.smarty.ui.theme.LocalShapes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -51,8 +52,8 @@ fun TicTacToeScreen(onClose: () -> Unit) {
     // Cell styling for better visibility
     // Dark mode: Use a slightly lighter gray (0xFF1E1E1E) against the black background for minimal but clear contrast
     // Light mode: Use standard surface white
-    val cellColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.surface
-    val cellBorder = if (isDark) BorderStroke(1.dp, Color(0xFF2C2C2E)) else null
+    val cellColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface
+    val cellBorder = if (isDark) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)) else null
 
     // Win checking logic
     fun checkWinner(currentBoard: List<String?>): String? {
@@ -176,7 +177,7 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                             .aspectRatio(1f)
                             .softCardShadow(
                                 elevation = SmartyShadow.cardElevation,
-                                shape = RoundedCornerShape(26.dp)
+                                shape = LocalShapes.current.card,
                             )
                             .clickable(enabled = cellValue == null && winner == null && !isDraw && !isComputerThinking) {
                                 // Human Move
@@ -212,7 +213,7 @@ fun TicTacToeScreen(onClose: () -> Unit) {
                                     }
                                 }
                             },
-                        shape = RoundedCornerShape(26.dp),
+                        shape = LocalShapes.current.card,
                         color = cellColor,
                         border = cellBorder
                     ) {

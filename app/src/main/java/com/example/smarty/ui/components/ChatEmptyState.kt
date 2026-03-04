@@ -19,6 +19,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.theme.ComponentSpacing
+import com.example.smarty.ui.theme.LocalShapes
 
 /**
  * =============================================================================
@@ -104,7 +106,7 @@ fun CompactEmptyState(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.padding(24.dp),
+        modifier = modifier.padding(ComponentSpacing.sheetPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -138,7 +140,7 @@ fun CompactEmptyState(
 fun CalmLoadingState(
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 100.dp,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(16.dp)
+    shape: androidx.compose.ui.graphics.Shape = LocalShapes.current.card
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "calm_shimmer")
     val shimmerAlpha by infiniteTransition.animateFloat(
@@ -178,7 +180,7 @@ fun TextSkeletonLoader(
             val widthFraction = if (index == lines - 1) 0.6f else 1f
             CalmLoadingState(
                 height = 14.dp,
-                shape = RoundedCornerShape(4.dp),
+                shape = LocalShapes.current.skeleton,
                 modifier = Modifier.fillMaxWidth(widthFraction)
             )
         }

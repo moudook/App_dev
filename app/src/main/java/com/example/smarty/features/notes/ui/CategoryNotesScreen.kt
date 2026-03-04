@@ -37,6 +37,7 @@ import com.example.smarty.core.domain.model.Note
 import com.example.smarty.ui.components.CategoryEmptyState
 import com.example.smarty.ui.components.NoteCard
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.core.common.util.CategoryShareManager
 import kotlinx.coroutines.launch
 import kotlin.math.min
@@ -257,12 +258,12 @@ private fun QRCodeDialog(
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = LocalShapes.current.dialog,
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.border(
                 1.dp,
                 MaterialTheme.colorScheme.outline,
-                RoundedCornerShape(18.dp)
+                LocalShapes.current.dialog
             )
         ) {
             Column(
@@ -302,7 +303,7 @@ private fun QRCodeDialog(
                     Box(
                         modifier = Modifier
                             .size(200.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(LocalShapes.current.tag)
                             .background(qrBackground)
                             .padding(8.dp)
                     ) {
@@ -342,7 +343,7 @@ private fun QRCodeDialog(
                     OutlinedButton(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = LocalShapes.current.button
                     ) {
                         Text(stringResource(R.string.close), style = MaterialTheme.typography.labelLarge)
                     }
@@ -350,7 +351,7 @@ private fun QRCodeDialog(
                     Button(
                         onClick = onShare,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = LocalShapes.current.button,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = LocalAccentColor.current,
                             contentColor = MaterialTheme.colorScheme.surface
