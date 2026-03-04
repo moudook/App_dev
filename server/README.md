@@ -1,3 +1,13 @@
+---
+title: Friday Server
+emoji: 🌻
+colorFrom: purple
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Friday Server (Ktor Backend)
 
 This is the cloud-hosted backend for Smarty, designed as a "Thin Client" brain. It hosts the KOOG agent, handles RAG (Retrieval Augmented Generation) with Supabase, and orchestrates device commands.
