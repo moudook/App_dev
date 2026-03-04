@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.utils.AnimationLifecycleState
+import com.example.smarty.ui.utils.rememberAnimationLifecycleState
 import kotlin.math.*
 import kotlin.random.Random
 
@@ -31,9 +33,14 @@ fun LiquidLoader(
 ) {
     val isDark = isSystemInDarkTheme()
 
-    // High-frequency time driver
+    // LIFECYCLE-AWARE: Only animate when app is in foreground
+    val lifecycleState by rememberAnimationLifecycleState()
+    val shouldAnimate = lifecycleState == AnimationLifecycleState.RUNNING
+
+    // High-frequency time driver — pauses when backgrounded
     var time by remember { mutableDoubleStateOf(0.0) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(shouldAnimate) {
+        if (!shouldAnimate) return@LaunchedEffect  // Zero CPU when backgrounded
         var last = withFrameNanos { it }
         while (true) {
             withFrameNanos { now ->
@@ -44,18 +51,31 @@ fun LiquidLoader(
         }
     }
 
-    // 1. Background Particle System (Star Dust with Depth)
+    // OPTIMIZED: Reduced from 120 to 60 particles (halves per-frame math, similar visual)
     val backgroundParticles = remember {
-        List(120) {
+        List(60) {
             CosmicParticle(
                 x = Random.nextFloat(),
                 y = Random.nextFloat(),
-                depth = Random.nextFloat(), // 0 = far, 1 = near
+                depth = Random.nextFloat(),
                 size = Random.nextFloat() * 1.5f + 0.5f,
                 driftSpeed = Random.nextFloat() * 0.02f + 0.005f,
                 twinkleSpeed = Random.nextFloat() * 3f + 1f
             )
         }
+    }
+
+    // Pre-allocate planet list once (avoids list creation on every frame)
+    val planets = remember {
+        listOf(
+            PlanetInfo(0.20f, 0.025f, 5.0f, Color(0xFF9E9E9E)),
+            PlanetInfo(0.30f, 0.042f, 2.2f, Color(0xFFFFB74D)),
+            PlanetInfo(0.42f, 0.048f, 1.4f, Color(0xFF4FC3F7)),
+            PlanetInfo(0.55f, 0.035f, 0.8f, Color(0xFFFF5252)),
+            PlanetInfo(0.70f, 0.105f, 0.4f, Color(0xFFFFE0B2)),
+            PlanetInfo(0.85f, 0.090f, 0.25f, Color(0xFFFFF176)),
+            PlanetInfo(0.95f, 0.065f, 0.15f, Color(0xFF80DEEA))
+        )
     }
 
     // 2. Solar Pulse Animation
@@ -75,11 +95,11 @@ fun LiquidLoader(
         val center = Offset(size.width / 2, size.height / 2)
         val viewRadius = size.minDimension * 0.48f
 
-        // --- DRAW BACKGROUND PARTICLES ---
+        // --- DRAW BACKGROUND PARTICLES (lifecycle-aware: uses frozen 'time' when paused) ---
         backgroundParticles.forEach { p ->
             val drift = (time * p.driftSpeed).toFloat()
-            var px = (p.x + drift * p.depth) % 1f
-            var py = p.y
+            val px = (p.x + drift * p.depth) % 1f
+            val py = p.y
             
             val twinkle = (sin(time * p.twinkleSpeed + p.x * 100).toFloat() + 1f) / 2f
             val alpha = if (isDark) (0.1f + 0.4f * twinkle * p.depth) else (0.05f + 0.1f * twinkle)
@@ -132,16 +152,7 @@ fun LiquidLoader(
             center = center
         )
 
-        // --- DRAW PLANETS ---
-        val planets = listOf(
-            PlanetInfo(0.20f, 0.025f, 5.0f, Color(0xFF9E9E9E)), // Mercury
-            PlanetInfo(0.30f, 0.042f, 2.2f, Color(0xFFFFB74D)), // Venus
-            PlanetInfo(0.42f, 0.048f, 1.4f, Color(0xFF4FC3F7)), // Earth
-            PlanetInfo(0.55f, 0.035f, 0.8f, Color(0xFFFF5252)), // Mars
-            PlanetInfo(0.70f, 0.105f, 0.4f, Color(0xFFFFE0B2)), // Jupiter
-            PlanetInfo(0.85f, 0.090f, 0.25f, Color(0xFFFFF176)), // Saturn
-            PlanetInfo(0.95f, 0.065f, 0.15f, Color(0xFF80DEEA))  // Uranus
-        )
+        // --- DRAW PLANETS (precomputed planet list from remember) ---
 
         planets.forEachIndexed { idx, p ->
             val orbitRadius = viewRadius * p.orbitFactor

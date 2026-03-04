@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
+import com.example.smarty.ui.theme.SmartyIcons
 import com.example.smarty.ui.components.ConnectionStatusIndicator
 import com.example.smarty.ui.components.ConnectionStatus
 import androidx.compose.material3.*
@@ -175,7 +176,7 @@ fun SettingsScreen(
                     navigationIcon = {
                         IconButton(onClick = onBackClick) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                imageVector = SmartyIcons.Back,
                                 contentDescription = stringResource(R.string.back)
                             )
                         }
@@ -264,13 +265,13 @@ fun SettingsScreen(
                                 SmartySettingsCard {
                                     SmartySettingsRow(
                                         label = "AI Strategy",
-                                        icon = Icons.Default.Analytics,
+                                        icon = SmartyIcons.Analytics,
                                         subtitle = providerStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
                                         onClick = { currentView = SettingsView.ProviderStrategy }
                                     )
                                     SmartySettingsRow(
                                         label = "Smarty Server",
-                                        icon = Icons.Default.Cloud,
+                                        icon = SmartyIcons.Cloud,
                                         subtitle = "Configure remote connection",
                                         onClick = { currentView = SettingsView.ServerConfig }
                                     )
@@ -288,7 +289,7 @@ fun SettingsScreen(
                                 SmartySettingsCard {
                                     SmartySettingsSwitchRow(
                                         label = stringResource(R.string.sync_to_google_calendar),
-                                        icon = Icons.Default.Sync,
+                                        icon = SmartyIcons.Refresh,
                                         checked = isCalendarSyncEnabled,
                                         onCheckedChange = { 
                                             onSetCalendarSyncEnabled(it) 
@@ -300,7 +301,7 @@ fun SettingsScreen(
                                         val selectedCalendar = deviceCalendars.find { it.id == targetCalendarId }
                                         SmartySettingsRow(
                                             label = stringResource(R.string.default_calendar),
-                                            icon = Icons.Default.Event,
+                                            icon = SmartyIcons.Calendar,
                                             subtitle = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select_calendar),
                                             onClick = { currentView = SettingsView.CalendarSelector }
                                         )
@@ -319,7 +320,7 @@ fun SettingsScreen(
                                 SmartySettingsCard {
                                     SmartySettingsRow(
                                         label = stringResource(R.string.backup_sync),
-                                        icon = Icons.Default.CloudSync,
+                                        icon = SmartyIcons.CloudSync,
                                         subtitle = if (lastBackupTime > 0) {
                                             val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
                                             "${stringResource(R.string.last_)} ${sdf.format(java.util.Date(lastBackupTime))}"
@@ -328,7 +329,7 @@ fun SettingsScreen(
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.google_calendar_sync),
-                                        icon = Icons.Default.Sync,
+                                        icon = SmartyIcons.Refresh,
                                         subtitle = if (lastCalendarSyncTime > 0) {
                                             val sdf = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
                                             "${stringResource(R.string.last_sync_)} ${sdf.format(java.util.Date(lastCalendarSyncTime))}"
@@ -337,13 +338,13 @@ fun SettingsScreen(
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.export_data),
-                                        icon = Icons.Default.FileDownload,
+                                        icon = SmartyIcons.Download,
                                         subtitle = stringResource(R.string.export_all_notes_and_settings),
                                         onClick = onExportData
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.clear_cache),
-                                        icon = Icons.Filled.DeleteOutline,
+                                        icon = SmartyIcons.DeleteOutline,
                                         subtitle = formatCacheSize(cacheSizeBytes),
                                         onClick = onClearCache,
                                         enabled = !isClearingCache && cacheSizeBytes > 0
@@ -362,13 +363,13 @@ fun SettingsScreen(
                                 SmartySettingsCard {
                                     SmartySettingsRow(
                                         label = stringResource(R.string.shake_sensitivity),
-                                        icon = Icons.Filled.Waves,
+                                        icon = SmartyIcons.Vibration,
                                         subtitle = "${(shakeSensitivity * 100).toInt()}% Sensitivity",
                                         onClick = { currentView = SettingsView.ShakeSensitivity }
                                     )
                                     SmartySettingsRow(
                                         label = "Coin Toss",
-                                        icon = Icons.Default.MonetizationOn,
+                                        icon = SmartyIcons.Casino,
                                         subtitle = "Flip a coin to decide",
                                         onClick = {
                                             android.widget.Toast.makeText(context, "Opening Coin Toss...", android.widget.Toast.LENGTH_SHORT).show()
@@ -377,7 +378,7 @@ fun SettingsScreen(
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.default_assistant),
-                                        icon = Icons.Default.Build,
+                                        icon = SmartyIcons.Assistant,
                                         subtitle = stringResource(R.string.set_as_device_assistant),
                                         onClick = {
                                             try {
@@ -393,7 +394,7 @@ fun SettingsScreen(
                                     )
                                     SmartySettingsRow(
                                         label = stringResource(R.string.about_smarty),
-                                        icon = Icons.Default.Info,
+                                        icon = SmartyIcons.Info,
                                         subtitle = "Version ${stringResource(R.string.smarty_version)}",
                                         onClick = { currentView = SettingsView.About }
                                     )
@@ -411,7 +412,7 @@ fun SettingsScreen(
                                 SmartySettingsCard {
                                     SmartySettingsRow(
                                         label = stringResource(R.string.sign_out),
-                                        icon = Icons.AutoMirrored.Filled.Logout,
+                                        icon = SmartyIcons.Logout,
                                         onClick = onSignOut,
                                         textColor = MaterialTheme.colorScheme.error,
                                         showChevron = false
@@ -513,7 +514,7 @@ private fun SettingsHeader(
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    imageVector = SmartyIcons.Back,
                     contentDescription = stringResource(R.string.back),
                     tint = MaterialTheme.colorScheme.onSurface
                 )
@@ -654,7 +655,7 @@ private fun CalendarSelectorView(
                         }
                         if (isSelected) {
                             Icon(
-                                imageVector = Icons.Default.Check,
+                                imageVector = SmartyIcons.Check,
                                 contentDescription = stringResource(R.string.selected),
                                 tint = LocalAccentColor.current,
                                 modifier = Modifier.size(20.dp)
@@ -796,7 +797,7 @@ private fun SettingsItem(
                 )
             } else if (showArrow) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    imageVector = SmartyIcons.ChevronRight,
                     contentDescription = null,
                     tint = Color.White.copy(alpha = 0.3f),
                     modifier = Modifier.size(24.dp)

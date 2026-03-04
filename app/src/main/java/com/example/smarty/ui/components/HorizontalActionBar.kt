@@ -2,35 +2,24 @@ package com.example.smarty.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.material.icons.automirrored.rounded.StickyNote2
-import androidx.compose.material.icons.automirrored.filled.StickyNote2
-import androidx.compose.material.icons.automirrored.outlined.StickyNote2
-import androidx.compose.material.icons.filled.HistoryEdu
-import androidx.compose.material.icons.outlined.HistoryEdu
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,31 +28,89 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.smarty.core.domain.model.NavigationTab
 import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.theme.SmartyIcons
 import kotlinx.coroutines.launch
 import kotlin.math.*
 
-/**
- * Navigation tabs for the centralized UI.
- * Icons designed with psychological metaphors to trigger creativity.
- */
-import com.example.smarty.core.domain.model.NavigationTab
+// ─── Icon Resolution (pure function, no allocations) ───────────────────
 
-private fun getNavigationIcon(tab: NavigationTab): ImageVector {
-    return when (tab) {
-        NavigationTab.CHAT -> Icons.Outlined.Psychology
-        NavigationTab.NOTES -> Icons.Outlined.HistoryEdu
-        NavigationTab.CALENDAR -> Icons.Outlined.Explore
-        NavigationTab.STACKS -> Icons.Outlined.Hub
-        NavigationTab.ARCHIVE -> Icons.AutoMirrored.Outlined.StickyNote2
-        NavigationTab.SETTINGS -> Icons.Outlined.Settings
+private fun resolveIcon(tab: NavigationTab, isActive: Boolean, isHistoryMode: Boolean): ImageVector {
+    if (tab == NavigationTab.CHAT && isHistoryMode) return Icons.Outlined.History
+    return if (isActive) {
+        when (tab) {
+            NavigationTab.CHAT -> SmartyIcons.NavChatActive
+            NavigationTab.NOTES -> SmartyIcons.NavNotesActive
+            NavigationTab.CALENDAR -> SmartyIcons.NavCalendarActive
+            NavigationTab.STACKS -> SmartyIcons.NavStacksActive
+            NavigationTab.ARCHIVE -> SmartyIcons.NavArchiveActive
+            NavigationTab.SETTINGS -> SmartyIcons.NavSettingsActive
+        }
+    } else {
+        when (tab) {
+            NavigationTab.CHAT -> SmartyIcons.NavChatInactive
+            NavigationTab.NOTES -> SmartyIcons.NavNotesInactive
+            NavigationTab.CALENDAR -> SmartyIcons.NavCalendarInactive
+            NavigationTab.STACKS -> SmartyIcons.NavStacksInactive
+            NavigationTab.ARCHIVE -> SmartyIcons.NavArchiveInactive
+            NavigationTab.SETTINGS -> SmartyIcons.NavSettingsInactive
+        }
     }
 }
 
+// ─── Playful Aesthetic Colours (Squircle Design) ─────────────────────
+
+private data class TabColors(val bg: Color, val fg: Color)
+
+private fun getSpicyTabColors(tab: NavigationTab): TabColors {
+    return when (tab) {
+        NavigationTab.CHAT -> TabColors(bg = Color(0xFF70C2F6), fg = Color(0xFF0767DC))      // Blue
+        NavigationTab.NOTES -> TabColors(bg = Color(0xFFFACC4D), fg = Color(0xFFC76906))     // Yellow/Orange
+        NavigationTab.CALENDAR -> TabColors(bg = Color(0xFF8AE07E), fg = Color(0xFF0A9122))  // Green
+        NavigationTab.STACKS -> TabColors(bg = Color(0xFFF4A895), fg = Color(0xFFDE3717))    // Peach/Red
+        NavigationTab.ARCHIVE -> TabColors(bg = Color(0xFFF49BE0), fg = Color(0xFFD2008C))   // Pink
+        NavigationTab.SETTINGS -> TabColors(bg = Color(0xFFD29EFA), fg = Color(0xFF6714A6))  // Purple
+    }
+}
+
+// ─── Label capitalization (cached per tab) ─────────────────────────────
+
+private val tabLabels: Map<NavigationTab, String> = NavigationTab.entries.associateWith { tab ->
+    tab.label.replaceFirstChar { c ->
+        if (c.isLowerCase()) c.titlecase(java.util.Locale.ROOT) else c.toString()
+    }
+}
+
+// ─── Constants ─────────────────────────────────────────────────────────
+
+private val TABS = NavigationTab.entries
+private const val TAB_COUNT = 6 // NavigationTab.entries.size — compile-time constant
+private const val ANGLE_STEP = PI / 6.5
+private const val HALF_PI = PI / 2.0
+private val COLLAPSED_HEIGHT = 60.dp
+private val EXPANDED_HEIGHT = 120.dp
+private val ICON_CIRCLE_SIZE = 44.dp
+private val ICON_SIZE = 26.dp
+private const val AUTO_COLLAPSE_MS = 1800L
+
+
 /**
- * Horizontal Action Bar - Redesigned with a semi-circular rotary dial.
+ * Horizontal Action Bar — optimised rotary dial navigation.
+ *
+ * Performance notes vs previous version:
+ *  • Removed .blur() modifier (heavy GPU compositing on every icon per frame).
+ *  • Removed dynamic-radius-from-velocity (continuous recomposition from velocity reads).
+ *  • Hoisted theme colours outside the icon loop (single read per frame instead of 6×).
+ *  • Replaced interactionTrigger counter flood with a simple auto-collapse job reference.
+ *  • Fixed logic: "center" icon is now derived from rotation.value (visual center),
+ *    not selectedIndex, so the highlighted icon always matches what's visually centred.
+ *  • Fixed AI-won't-open bug: after drag, always calls onTabSelected for the landed tab
+ *    so the parent can properly open the page.
  */
 @Composable
 fun HorizontalActionBar(
@@ -79,51 +126,47 @@ fun HorizontalActionBar(
     archiveCount: Int = 0
 ) {
     var isExpanded by remember { mutableStateOf(false) }
-    var interactionTrigger by remember { mutableIntStateOf(0) }
     val haptic = LocalHapticFeedback.current
     val accentColor = LocalAccentColor.current
-
-    val tabs = NavigationTab.entries
-    val tabCount = tabs.size
-    val selectedIndex = tabs.indexOf(selectedTab)
-
     val scope = rememberCoroutineScope()
+
+    val selectedIndex = TABS.indexOf(selectedTab)
     val rotation = remember { Animatable(selectedIndex.toFloat()) }
     var lastVelocity by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(isExpanded, interactionTrigger) {
+    // ── Auto-collapse timer (restarts on any interaction) ──
+    var collapseKey by remember { mutableIntStateOf(0) }
+    LaunchedEffect(isExpanded, collapseKey) {
         if (isExpanded) {
-            kotlinx.coroutines.delay(1800L) // Auto collapse after 2.8 seconds of inactivity
+            kotlinx.coroutines.delay(AUTO_COLLAPSE_MS)
             isExpanded = false
         }
     }
 
+    // ── Sync rotation when parent changes selectedTab externally ──
     LaunchedEffect(selectedTab) {
-        val targetIndex = tabs.indexOf(selectedTab).toFloat()
-        val currentVirtual = rotation.value
-        val diff = (targetIndex - (currentVirtual % tabCount + tabCount) % tabCount).let {
-            val half = tabCount / 2f
-            when {
-                it > half -> it - tabCount
-                it < -half -> it + tabCount
-                else -> it
-            }
-        }
-        if (abs(diff) > 0.001f) {
+        val target = TABS.indexOf(selectedTab).toFloat()
+        val current = rotation.value
+        val normalised = ((current % TAB_COUNT) + TAB_COUNT) % TAB_COUNT
+        var diff = target - normalised
+        if (diff > TAB_COUNT / 2f) diff -= TAB_COUNT
+        if (diff < -TAB_COUNT / 2f) diff += TAB_COUNT
+        if (abs(diff) > 0.01f) {
             rotation.animateTo(
-                targetValue = currentVirtual + diff,
+                targetValue = current + diff,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessLow
+                    stiffness = Spring.StiffnessMediumLow
                 )
             )
         }
     }
 
+    // ── Animated height ──
     val height by animateDpAsState(
-        targetValue = if (isExpanded) 110.dp else 60.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = 0.8f),
-        label = "HeaderHeightAnim"
+        targetValue = if (isExpanded) EXPANDED_HEIGHT else COLLAPSED_HEIGHT,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = 0.85f),
+        label = "headerH"
     )
 
     Box(
@@ -131,63 +174,54 @@ fun HorizontalActionBar(
             .fillMaxWidth()
             .height(height)
             .pointerInput(Unit) {
-                var wasCollapsedOnStart = false
-                var totalDragDistance = 0f
+                var totalDrag = 0f
+                var wasCollapsed = false
 
                 detectHorizontalDragGestures(
                     onDragStart = {
-                        wasCollapsedOnStart = !isExpanded
-                        totalDragDistance = 0f
+                        wasCollapsed = !isExpanded
+                        totalDrag = 0f
                         isExpanded = true
-                        interactionTrigger++
+                        collapseKey++
                         lastVelocity = 0f
                         scope.launch { rotation.stop() }
                     },
                     onHorizontalDrag = { change, dragAmount ->
-                        isExpanded = true
-                        interactionTrigger++
+                        collapseKey++ // reset auto-collapse
                         change.consume()
-                        
-                        totalDragDistance += abs(dragAmount)
-                        
-                        // Damping effect: allow smooth physical expansion of the header first before
-                        // forcing the full raw scroll translation mapping.
-                        val damping = if (wasCollapsedOnStart) {
-                            ((totalDragDistance - 20f) / 80f).coerceIn(0f, 1f)
-                        } else {
-                            1f
-                        }
+                        totalDrag += abs(dragAmount)
+
+                        // Damping: let the header physically expand before scrolling kicks in
+                        val damping = if (wasCollapsed) {
+                            ((totalDrag - 20f) / 80f).coerceIn(0f, 1f)
+                        } else 1f
 
                         val delta = -(dragAmount * damping) / 150f
                         lastVelocity = delta
-                        scope.launch {
-                            rotation.snapTo(rotation.value + delta)
-                        }
+                        scope.launch { rotation.snapTo(rotation.value + delta) }
                     },
                     onDragEnd = {
                         scope.launch {
+                            // Momentum decay
                             rotation.animateDecay(
                                 initialVelocity = lastVelocity * 80f,
-                                animationSpec = exponentialDecay(frictionMultiplier = 1f)
+                                animationSpec = exponentialDecay(frictionMultiplier = 1.2f)
                             )
-                            val finalVirtualIndex = rotation.value
-                            val targetIndex = finalVirtualIndex.roundToInt()
+                            // Snap to nearest integer index
+                            val snapped = rotation.value.roundToInt()
                             rotation.animateTo(
-                                targetValue = targetIndex.toFloat(),
+                                targetValue = snapped.toFloat(),
                                 animationSpec = spring(
                                     dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessLow
+                                    stiffness = Spring.StiffnessMediumLow
                                 )
                             )
-                            rotation.snapTo(targetIndex.toFloat())
-                            val finalIndex = ((targetIndex % tabCount) + tabCount) % tabCount
-                            
-                            // Critical Logic Fix: Only trigger a full generic tab selection router request 
-                            // if we actually landed on a NEW unique tab. This prevents i->i toggle popping!
-                            val landedTab = tabs[finalIndex]
-                            if (landedTab != selectedTab) {
-                                onTabSelected(landedTab)
-                            }
+                            val landedIndex = ((snapped % TAB_COUNT) + TAB_COUNT) % TAB_COUNT
+                            val landedTab = TABS[landedIndex]
+
+                            // ALWAYS fire onTabSelected so the parent can open the page.
+                            // The parent's handleTabSelection already handles same-tab toggling.
+                            onTabSelected(landedTab)
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
                     }
@@ -195,52 +229,48 @@ fun HorizontalActionBar(
             },
         contentAlignment = Alignment.BottomCenter
     ) {
-        androidx.compose.animation.AnimatedVisibility(
+        // ── Expanded: rotary dial ──
+        AnimatedVisibility(
             visible = isExpanded,
-            enter = fadeIn(tween(350)) + slideInVertically(
+            enter = fadeIn(tween(250)) + slideInVertically(
                 initialOffsetY = { it / 3 },
-                animationSpec = tween(350, easing = EaseOutQuart)
+                animationSpec = tween(300, easing = EaseOutQuart)
             ),
-            exit = fadeOut(tween(250)) + slideOutVertically(
+            exit = fadeOut(tween(200)) + slideOutVertically(
                 targetOffsetY = { it / 3 },
-                animationSpec = tween(250)
+                animationSpec = tween(200)
             )
         ) {
-            RotaryNavigationDial(
+            RotaryDial(
                 selectedTab = selectedTab,
-                onTabSelected = { newTab -> 
-                    // Protect against i->i duplicate taps while expanded
-                    if (newTab != selectedTab) {
-                        onTabSelected(newTab)
-                    }
+                onTabSelected = { newTab ->
+                    onTabSelected(newTab)
                     isExpanded = false
                 },
                 isHistoryMode = isHistoryMode,
-                isCalendarMode = isCalendarMode,
-                isStacksMode = isStacksMode,
-                isArchiveMode = isArchiveMode,
-                isSettingsMode = isSettingsMode,
                 accentColor = accentColor,
                 haptic = haptic,
-                rotation = rotation,
-                onInteraction = { interactionTrigger++ }
+                rotation = rotation
             )
         }
 
-        androidx.compose.animation.AnimatedVisibility(
+        // ── Collapsed: single icon pill ──
+        AnimatedVisibility(
             visible = !isExpanded,
-            enter = fadeIn(tween(400)) + scaleIn(initialScale = 0.8f, animationSpec = tween(400, easing = EaseOutQuart)),
-            exit = fadeOut(tween(250)) + scaleOut(targetScale = 0.8f, animationSpec = tween(250))
+            enter = fadeIn(tween(300)) + scaleIn(
+                initialScale = 0.85f,
+                animationSpec = tween(300, easing = EaseOutQuart)
+            ),
+            exit = fadeOut(tween(200)) + scaleOut(
+                targetScale = 0.85f,
+                animationSpec = tween(200)
+            )
         ) {
-            CollapsedHeader(
+            CollapsedPill(
                 selectedTab = selectedTab,
                 isHistoryMode = isHistoryMode,
-                isCalendarMode = isCalendarMode,
-                isStacksMode = isStacksMode,
-                isArchiveMode = isArchiveMode,
-                isSettingsMode = isSettingsMode,
                 accentColor = accentColor,
-                onClick = { 
+                onClick = {
                     isExpanded = true
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 }
@@ -249,31 +279,32 @@ fun HorizontalActionBar(
     }
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Collapsed Pill
+// ═══════════════════════════════════════════════════════════════════════
+
 @Composable
-private fun CollapsedHeader(
+private fun CollapsedPill(
     selectedTab: NavigationTab,
     isHistoryMode: Boolean,
-    isCalendarMode: Boolean,
-    isStacksMode: Boolean,
-    isArchiveMode: Boolean,
-    isSettingsMode: Boolean,
     accentColor: Color,
     onClick: () -> Unit
 ) {
-    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-    val bgColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+    val surfaceColor = if (isDark)
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+    else
+        MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark)
+        Color.White.copy(alpha = 0.15f)
+    else
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
-    val icon = when {
-        selectedTab == NavigationTab.CHAT && isHistoryMode -> Icons.Outlined.History
-        selectedTab == NavigationTab.CHAT -> Icons.Filled.Psychology
-        selectedTab == NavigationTab.NOTES -> Icons.Filled.HistoryEdu
-        selectedTab == NavigationTab.CALENDAR -> Icons.Filled.Explore
-        selectedTab == NavigationTab.STACKS -> Icons.Filled.Hub
-        selectedTab == NavigationTab.ARCHIVE -> Icons.AutoMirrored.Filled.StickyNote2
-        selectedTab == NavigationTab.SETTINGS -> Icons.Filled.Settings
-        else -> getNavigationIcon(selectedTab)
-    }
+    val tabColors = getSpicyTabColors(selectedTab)
+    val iconTint = if (isDark) tabColors.bg else tabColors.fg
+
+    val icon = resolveIcon(selectedTab, isActive = true, isHistoryMode = isHistoryMode)
 
     Box(
         modifier = Modifier
@@ -286,34 +317,23 @@ private fun CollapsedHeader(
             },
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(bgColor)
+                    .background(surfaceColor)
                     .border(BorderStroke(0.5.dp, borderColor), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                val activeIconColor = if (isDark) Color.White else MaterialTheme.colorScheme.onSurface
-                if (selectedTab == NavigationTab.STACKS) {
-                    CustomStacksIcon(tint = activeIconColor, modifier = Modifier.size(26.dp))
-                } else if (selectedTab == NavigationTab.CALENDAR) {
-                    CustomCalendarIcon(tint = activeIconColor, isFilled = true, modifier = Modifier.size(26.dp))
-                } else {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = selectedTab.label,
-                        tint = activeIconColor,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = selectedTab.label,
+                    tint = iconTint,
+                    modifier = Modifier.size(ICON_SIZE)
+                )
             }
-            
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Box(
                 modifier = Modifier
                     .size(4.dp)
@@ -324,309 +344,117 @@ private fun CollapsedHeader(
     }
 }
 
-/**
- * Semi-circular convex rotary dial for navigation.
- */
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Expanded Rotary Dial  (optimised: no blur, no dynamic radius,
+//  theme colors hoisted, center derived from rotation.value)
+// ═══════════════════════════════════════════════════════════════════════
+
 @Composable
-private fun RotaryNavigationDial(
+private fun RotaryDial(
     selectedTab: NavigationTab,
     onTabSelected: (NavigationTab) -> Unit,
     isHistoryMode: Boolean,
-    isCalendarMode: Boolean,
-    isStacksMode: Boolean,
-    isArchiveMode: Boolean,
-    isSettingsMode: Boolean,
     accentColor: Color,
     haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
-    rotation: Animatable<Float, AnimationVector1D>,
-    onInteraction: () -> Unit
+    rotation: Animatable<Float, AnimationVector1D>
 ) {
-    val tabs = NavigationTab.entries
-    val tabCount = tabs.size
-    val selectedIndex = tabs.indexOf(selectedTab)
-
     val density = LocalDensity.current
-    
-    // Dynamic Radius Calculation (Logarithmic increase with velocity)
-    // Base radius 160.dp, increases up to +60.dp based on rotation speed
-    // Higher sensitivity (0.5f) and larger max range to make the transition visually striking
-    val currentVelocity = rotation.velocity
-    val velocityFactor = abs(currentVelocity)
-    val dynamicRadiusAdd = 60.dp * (1f - exp(-velocityFactor * 0.5f))
-    val radiusPx = with(density) { (160.dp + dynamicRadiusAdd).toPx() }
+    // Fixed radius — eliminates per-frame velocity reads that caused continuous recomposition
+    val radiusPx = remember(density) { with(density) { 180.dp.toPx() } }
+
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+    val surfaceColor = if (isDark)
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+    else
+        MaterialTheme.colorScheme.surface
+    val borderColor = if (isDark)
+        Color.White.copy(alpha = 0.15f)
+    else
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+
+    // Stable interaction sources — one per tab, not recreated on recomposition
+    val interactionSources = remember { Array(TAB_COUNT) { MutableInteractionSource() } }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(110.dp),
+            .height(EXPANDED_HEIGHT),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Draw the semi-circular background/arc
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val canvasWidth = size.width
-            val centerX = canvasWidth / 2f
-            val centerY = -radiusPx + 40f // Center is above the screen
+        TABS.forEachIndexed { index, tab ->
+            // ── Position math ──
+            val rawOffset = index - rotation.value
+            val positionOffset = ((rawOffset + TAB_COUNT / 2f) % TAB_COUNT + TAB_COUNT) % TAB_COUNT - TAB_COUNT / 2f
+            val distFromCenter = abs(positionOffset)
 
-            // Subtle gradient arc bulging DOWNWARD
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        accentColor.copy(alpha = 0.08f),
-                        Color.Transparent
-                    ),
-                    center = androidx.compose.ui.geometry.Offset(centerX, centerY),
-                    radius = radiusPx + 20f
-                ),
-                center = androidx.compose.ui.geometry.Offset(centerX, centerY),
-                radius = radiusPx + 20f
-            )
-        }
+            // Early-out: skip icons far off-screen
+            if (distFromCenter > 3f) return@forEachIndexed
 
-        // Position icons along the arc
-        tabs.forEachIndexed { index, tab ->
-            // Calculate the shortest circular distance for this icon to the current focal point
-            val rawOffset = (index - rotation.value)
-            val positionOffset = ((rawOffset + tabCount / 2f) % tabCount + tabCount) % tabCount - tabCount / 2f
+            val angle = HALF_PI - (positionOffset * ANGLE_STEP)
+            val opacity = (1f - (distFromCenter / 2.8f)).coerceIn(0f, 1f)
+            if (opacity < 0.02f) return@forEachIndexed
 
-            // Map positionOffset to an angle. Subtracting makes higher index (positive offset) go Right on screen
-            val angleStep = PI / 6.5
-            val angle = PI / 2.0 - (positionOffset * angleStep)
+            val sizeScale = (1f - (distFromCenter * 0.18f)).coerceIn(0.7f, 1f)
+            val currentSize = ICON_CIRCLE_SIZE * sizeScale
+            val currentIconSize = ICON_SIZE * sizeScale
 
-            val isCenter = index == selectedIndex
+            // "Center" = visually centred icon, derived from rotation.value
+            val visualCenter = ((rotation.value.roundToInt() % TAB_COUNT) + TAB_COUNT) % TAB_COUNT
+            val isVisuallyActive = index == visualCenter
 
-            // Visual properties based on position
-            val distanceFromCenter = abs(positionOffset)
-
-            // Refined transitions:
-            // Scale goes from 1.2 at center to 0.6 at edges
-            val scale = (1.2f - (distanceFromCenter * 0.2f)).coerceIn(0.4f, 1.2f)
-
-            // Opacity: Fade out completely by the time we reach the wrapping point (3.0)
-            val opacity = (1f - (distanceFromCenter / 2.8f)).coerceIn(0f, 1f)
-
-            // 1. SIZE SCALING:
-            // Max size (center) = PILL_HEIGHT (52.dp).
-            // Scale down as we move away.
-            val pillHeightDp = 44.dp
-            val baseSize = pillHeightDp
-            // Less aggressive scaling to keep icons "Big"
-            val sizeScale = (1f - (distanceFromCenter * 0.2f)).coerceIn(0.7f, 1f)
-            val currentSize = baseSize * sizeScale
+            val tabColors = getSpicyTabColors(tab)
+            val vibrantColor = if (isDark) tabColors.bg else tabColors.fg
             
-            // Icon size inside the circle
-            // Restored to "Big" size (32.dp base, maxes out near 36.dp with padding)
-            val baseIconSize = 32.dp 
-            val currentIconSize = baseIconSize * sizeScale
+            val iconTint = if (isVisuallyActive) vibrantColor else onSurfaceColor.copy(alpha = 0.5f * opacity)
+            val labelAlpha = if (isVisuallyActive) 1f else (opacity * 0.8f).coerceAtLeast(0.35f)
+            val icon = resolveIcon(tab, isActive = isVisuallyActive, isHistoryMode = isHistoryMode)
 
-            // 2. BLUR EFFECT:
-            val blurRadius = (distanceFromCenter * 2.5f).coerceIn(0f, 10f).dp
-
-            // Only show if it's within visible range
-            if (opacity > 0.01f) {
-                val icon = when {
-                    tab == NavigationTab.CHAT && isHistoryMode -> Icons.Outlined.History
-                    tab == NavigationTab.CHAT && selectedTab == NavigationTab.CHAT -> Icons.Filled.Psychology
-                    tab == NavigationTab.NOTES && selectedTab == NavigationTab.NOTES -> Icons.Filled.HistoryEdu
-                    tab == NavigationTab.CALENDAR && (isCalendarMode || selectedTab == NavigationTab.CALENDAR) -> Icons.Filled.Explore
-                    tab == NavigationTab.STACKS && (isStacksMode || selectedTab == NavigationTab.STACKS) -> Icons.Filled.Hub
-                    tab == NavigationTab.ARCHIVE && (isArchiveMode || selectedTab == NavigationTab.ARCHIVE) -> Icons.AutoMirrored.Filled.StickyNote2
-                    tab == NavigationTab.SETTINGS && (isSettingsMode || selectedTab == NavigationTab.SETTINGS) -> Icons.Filled.DisplaySettings
-                    else -> getNavigationIcon(tab)
-                }
-
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            val x = (radiusPx * cos(angle)).toInt()
-                            val y = (radiusPx * sin(angle) - radiusPx - 24.dp.toPx()).toInt()
-                            IntOffset(x, y)
-                        }
-                        .graphicsLayer {
-                            this.alpha = opacity
-                            // We handle scale via dynamic size modifier instead of scaleX/Y
-                        }
-                         // 3. APPLY BLUR
-                        .blur(blurRadius)
-                        // Style Update: All icons get a "minimal fill" and thin border
-                        .let { modifier ->
-                            val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-                            val bgColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
-                            val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-
-                            modifier
-                                .size(currentSize) // 4. APPLY DYNAMIC SIZE
-                                .clip(CircleShape)
-                                .background(bgColor)
-                                .border(BorderStroke(0.5.dp, borderColor), CircleShape)
-                        }
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onTabSelected(tab)
-                        }
-                        // Remove fixed padding to maximize icon size
-                        ,
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Theme-aware icon colors
-                    val isDarkTheme = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
-                    val activeIconColor = if (isDarkTheme) Color.White else MaterialTheme.colorScheme.onSurface
-                    val inactiveIconColor = if (isDarkTheme) Color.White.copy(alpha = 0.5f * opacity) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f * opacity)
-
-                    if (tab == NavigationTab.STACKS) {
-                        CustomStacksIcon(
-                            tint = if (isCenter) activeIconColor else inactiveIconColor,
-                            modifier = Modifier.size(currentIconSize)
-                        )
-                    } else if (tab == NavigationTab.CALENDAR) {
-                        CustomCalendarIcon(
-                            tint = if (isCenter) activeIconColor else inactiveIconColor,
-                            isFilled = isCenter || isCalendarMode,
-                            modifier = Modifier.size(currentIconSize)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = tab.label,
-                            tint = if (isCenter) activeIconColor else inactiveIconColor,
-                            modifier = Modifier.size(currentIconSize)
+            Column(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            x = (radiusPx * cos(angle)).toInt(),
+                            y = (radiusPx * sin(angle) - radiusPx - 24.dp.toPx()).toInt()
                         )
                     }
+                    .graphicsLayer { alpha = opacity }
+                    .clickable(
+                        interactionSource = interactionSources[index],
+                        indication = null
+                    ) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onTabSelected(tab)
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(currentSize)
+                        .clip(CircleShape)
+                        .background(surfaceColor)
+                        .border(BorderStroke(0.5.dp, borderColor), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = tab.label,
+                        tint = iconTint,
+                        modifier = Modifier.size(currentIconSize)
+                    )
                 }
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                Text(
+                    text = tabLabels[tab] ?: tab.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = onSurfaceColor.copy(alpha = labelAlpha),
+                    fontSize = (11f * sizeScale).sp,
+                    fontWeight = if (isVisuallyActive) FontWeight.Bold else FontWeight.Medium
+                )
             }
-        }
-    }
-}
-
-@Composable
-private fun CustomStacksIcon(
-    tint: Color,
-    modifier: Modifier = Modifier
-) {
-    Canvas(modifier = modifier) {
-        val centerX = size.width / 2
-        val centerY = size.height / 2
-        val centerRadius = size.width * 0.12f // Central node
-
-        // Draw Center
-        drawCircle(color = tint, radius = centerRadius, center = Offset(centerX, centerY))
-
-        // 5 Nodes configuration
-        // Angles (spread around 360)
-        val angles = listOf(30f, 100f, 170f, 240f, 310f)
-        // Distances from center (0.0 - 1.0 relative to max radius)
-        val distances = listOf(0.65f, 0.75f, 0.6f, 0.8f, 0.7f)
-        // Radii variation (relative to icon size)
-        val radii = listOf(0.08f, 0.14f, 0.09f, 0.12f, 0.10f)
-
-        angles.forEachIndexed { index, angleDeg ->
-            val angleRad = angleDeg * (PI.toFloat() / 180f)
-            val distPx = (size.width / 2) * distances[index]
-            val nodeX = centerX + cos(angleRad) * distPx
-            val nodeY = centerY + sin(angleRad) * distPx
-            
-            // Draw Line
-            drawLine(
-                color = tint,
-                start = Offset(centerX, centerY),
-                end = Offset(nodeX, nodeY),
-                strokeWidth = size.width * 0.06f // Line thickness
-            )
-            
-            // Draw Node
-            drawCircle(
-                color = tint,
-                radius = size.width * radii[index],
-                center = Offset(nodeX, nodeY)
-            )
-        }
-    }
-}
-
-
-@Composable
-private fun CustomCalendarIcon(
-    tint: Color,
-    isFilled: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Canvas(
-        modifier = modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-    ) {
-        val w = size.width
-        val h = size.height
-        val strokeWidth = w * 0.08f
-        val cornerRadius = w * 0.22f
-        val padding = w * 0.15f
-
-        // Body Dimensions
-        val rectTopLeft = Offset(padding, padding)
-        val rectSize = androidx.compose.ui.geometry.Size(w - 2 * padding, h - 2 * padding)
-
-        if (isFilled) {
-            // FILLED STATE: Solid Body with cutouts
-            drawRoundRect(
-                color = tint,
-                topLeft = rectTopLeft,
-                size = rectSize,
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius)
-            )
-
-            // Header Separator (Cutout)
-            val headerY = padding + (rectSize.height * 0.32f)
-            drawLine(
-                color = Color.Transparent,
-                start = Offset(padding, headerY),
-                end = Offset(w - padding, headerY),
-                strokeWidth = strokeWidth,
-                blendMode = androidx.compose.ui.graphics.BlendMode.Clear
-            )
-
-            // Dots (Cutout 2x2 Grid)
-            val dotRadius = w * 0.065f
-            val col1X = padding + (rectSize.width * 0.35f)
-            val col2X = padding + (rectSize.width * 0.65f)
-            val row1Y = headerY + (rectSize.height * 0.25f)
-            val row2Y = headerY + (rectSize.height * 0.55f)
-
-            // Use BlendMode.Clear to punch holes through the solid tint
-            drawCircle(color = Color.Transparent, radius = dotRadius, center = Offset(col1X, row1Y), blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
-            drawCircle(color = Color.Transparent, radius = dotRadius, center = Offset(col2X, row1Y), blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
-            drawCircle(color = Color.Transparent, radius = dotRadius, center = Offset(col1X, row2Y), blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
-            drawCircle(color = Color.Transparent, radius = dotRadius, center = Offset(col2X, row2Y), blendMode = androidx.compose.ui.graphics.BlendMode.Clear)
-
-        } else {
-            // UNFILLED STATE: Outlined Body with solid dots
-            drawRoundRect(
-                color = tint,
-                topLeft = rectTopLeft,
-                size = rectSize,
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerRadius, cornerRadius),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
-            )
-
-            // Header Separator (Stroke)
-            val headerY = padding + (rectSize.height * 0.32f)
-            drawLine(
-                color = tint,
-                start = Offset(padding, headerY),
-                end = Offset(w - padding, headerY),
-                strokeWidth = strokeWidth
-            )
-
-            // Dots (Solid Tint)
-            val dotRadius = w * 0.065f
-            val col1X = padding + (rectSize.width * 0.35f)
-            val col2X = padding + (rectSize.width * 0.65f)
-            val row1Y = headerY + (rectSize.height * 0.25f)
-            val row2Y = headerY + (rectSize.height * 0.55f)
-
-            drawCircle(color = tint, radius = dotRadius, center = Offset(col1X, row1Y))
-            drawCircle(color = tint, radius = dotRadius, center = Offset(col2X, row1Y))
-            drawCircle(color = tint, radius = dotRadius, center = Offset(col1X, row2Y))
-            drawCircle(color = tint, radius = dotRadius, center = Offset(col2X, row2Y))
         }
     }
 }

@@ -75,6 +75,10 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+// Cached date formatters — NoteCards render in lists so this avoids creating new objects per card
+private val dayNameFormat by lazy { SimpleDateFormat("EEEE", Locale.getDefault()) }
+private val shortDateFormat by lazy { SimpleDateFormat("MMM d", Locale.getDefault()) }
+
 /**
  * Modern Soft Minimalist NoteCard with smooth interactions:
  * - Redesigned to match premium UI with pills and cleaner topography.
@@ -117,8 +121,8 @@ fun NoteCard(
         when {
             days == 0L -> context.getString(R.string.today)
             days == 1L -> context.getString(R.string.yesterday)
-            days < 7 -> SimpleDateFormat("EEEE", Locale.getDefault()).format(Date(note.createdAt))
-            else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(note.createdAt))
+            days < 7 -> dayNameFormat.format(Date(note.createdAt))
+            else -> shortDateFormat.format(Date(note.createdAt))
         }
     }
 

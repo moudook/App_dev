@@ -43,8 +43,11 @@ import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowUp
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
@@ -103,9 +106,7 @@ import com.example.smarty.ui.components.AttachmentPreviewRow
 import com.example.smarty.ui.animation.SmartyEasing
 import com.example.smarty.ui.animation.SmartyMotion
 import com.example.smarty.ui.theme.SmartyShadow
-import com.example.smarty.ui.animation.halftoneShimmer
-import com.example.smarty.ui.animation.directionalShimmer
-import com.example.smarty.ui.animation.ShimmerDirection
+import com.example.smarty.ui.animation.shimmerEffect
 import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.ui.theme.*
 import com.example.smarty.ui.utils.AnimationLifecycleState
@@ -129,8 +130,8 @@ private val CIRCLE_SIZE = ComponentSpacing.inputCircleSize
 private val CIRCLE_ICON_SIZE = ComponentSpacing.inputCircleIconSize
 private val PILL_HEIGHT = ComponentSpacing.inputPillHeight
 private val PILL_CORNER_RADIUS = ComponentSpacing.inputPillCornerRadius
-private val ELEMENT_SPACING = ComponentSpacing.buttonGap        // 12.dp
-private val HORIZONTAL_PADDING = ComponentSpacing.inputPadding   // 16.dp
+private val ELEMENT_SPACING = 8.dp
+private val HORIZONTAL_PADDING = 12.dp
 
 /**
  * 
@@ -202,7 +203,12 @@ fun SmartyInputField(
     onClearFilters: () -> Unit = {},
     // @Mention support (Chat mode only)
     mentionState: MentionState = MentionState(),
-    onMentionSelected: (MentionSuggestion) -> Unit = {}
+    onMentionSelected: (MentionSuggestion) -> Unit = {},
+    // Scrolling support
+    showScrollButton: Boolean = false,
+    isAtLatest: Boolean = true,
+    onScrollToBottom: () -> Unit = {},
+    onScrollToTop: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -310,57 +316,90 @@ fun SmartyInputField(
         val pillBorder = if (isDarkForPill) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
         AnimatedVisibility(
-            visible = isChatMode && !mentionState.isActive && showHistoryOption,
+            visible = isChatMode && !mentionState.isActive,
             enter = slideInVertically(initialOffsetY = { 20 }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { 20 }) + fadeOut()
         ) {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                contentAlignment = Alignment.Center
+                    .padding(bottom = 12.dp, start = 8.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val interactionSource = remember { MutableInteractionSource() }
-                val isPressedState by interactionSource.collectIsPressedAsState()
-                val scale by animateFloatAsState(
-                    targetValue = if (isPressedState) 0.95f else 1f,
-                    animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-                    label = "historyPillScale"
-                )
+                // Left side: Reserved for future Mention Floating Pills
+                Box(modifier = Modifier.weight(1f)) {
+                    // Soon: LazyRow of selectedMentions
+                }
 
-                Surface(
-                    modifier = Modifier
-                        .scale(scale)
-                        .clickable(
-                            interactionSource = interactionSource,
-                            indication = null
-                        ) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            if (isHistoryMode) onNewChat() else onOpenChatHistory()
-                        },
-                    shape = RoundedCornerShape(PILL_CORNER_RADIUS),
-                    color = pillBackground,
-                    border = BorderStroke(0.5.dp, pillBorder)
+                // Right side: Scroll arrow + History pill
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    // Scroll Arrow
+                    AnimatedVisibility(
+                        visible = showScrollButton,
+                        enter = fadeIn() + scaleIn(initialScale = 0.5f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.5f)
                     ) {
-                        Icon(
-                            imageVector = if (isHistoryMode) Icons.Default.Add else Icons.Default.History,
-                            contentDescription = null,
-                            tint = monochromeColor,
-                            modifier = Modifier.size(16.dp)
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                if (isAtLatest) onScrollToBottom() else onScrollToTop()
+                            },
+                            shape = CircleShape,
+                            color = pillBackground,
+                            border = BorderStroke(0.5.dp, pillBorder),
+                            modifier = Modifier.requiredSize(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isAtLatest) Icons.Default.KeyboardDoubleArrowDown else Icons.Default.KeyboardDoubleArrowUp,
+                                    contentDescription = if (isAtLatest) "Scroll to oldest" else "Scroll to latest",
+                                    tint = monochromeColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // History Pill
+                    if (showHistoryOption) {
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressedState by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (isPressedState) 0.95f else 1f,
+                            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+                            label = "historyPillScale"
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = if (isHistoryMode) stringResource(R.string.new_chat) else stringResource(R.string.history),
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            ),
-                            color = monochromeColor
-                        )
+                        Surface(
+                            modifier = Modifier
+                                .scale(scale)
+                                .requiredSize(36.dp)
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null
+                                ) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (isHistoryMode) onNewChat() else onOpenChatHistory()
+                                },
+                            shape = CircleShape,
+                            color = pillBackground,
+                            border = BorderStroke(0.5.dp, pillBorder)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                Icon(
+                                    imageVector = if (isHistoryMode) Icons.Default.Add else Icons.Default.History,
+                                    contentDescription = if (isHistoryMode) stringResource(R.string.new_chat) else stringResource(R.string.history),
+                                    tint = monochromeColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -418,46 +457,16 @@ fun SmartyInputField(
             )
         }
 
-        // Attachment/Filter type selector (Normal mode only, above input)
-        // Centralized UI: Same "Pill" design for both Search Filters and Attachment Types
-        if (!isChatMode) {
+        // Search filter selector (Normal mode + search active only)
+        // Pill-type AttachmentTypeSelector removed — only dropdown menu in InputPill remains
+        if (!isChatMode && isSearchMode) {
             Box(contentAlignment = Alignment.BottomCenter, modifier = Modifier.fillMaxWidth()) {
-                if (isSearchMode) {
-                    SearchFilterTypeSelector(
-                        visible = true,
-                        selectedFilters = selectedFilters,
-                        onFilterToggle = onFilterToggle,
-                        onClearFilters = onClearFilters
-                    )
-                } else if (showAttachmentPanel) {
-                     AttachmentTypeSelector(
-                        visible = true,
-                        onSelectImage = { 
-                            showAttachmentPanel = false
-                            onPickImage() 
-                        },
-                        onSelectVideo = { 
-                            showAttachmentPanel = false
-                            onPickVideo() 
-                        },
-                        onSelectDocument = { 
-                            showAttachmentPanel = false
-                            onPickDocument() 
-                        },
-                        onSelectAudio = { 
-                            showAttachmentPanel = false
-                            onPickAudio() 
-                        },
-                        onSelectFile = { 
-                            showAttachmentPanel = false
-                            onPickFile() 
-                        },
-                        onSelectLink = { 
-                            showAttachmentPanel = false
-                            onPickLink() 
-                        }
-                     )
-                }
+                SearchFilterTypeSelector(
+                    visible = true,
+                    selectedFilters = selectedFilters,
+                    onFilterToggle = onFilterToggle,
+                    onClearFilters = onClearFilters
+                )
             }
         }
 
@@ -481,48 +490,35 @@ fun SmartyInputField(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = HORIZONTAL_PADDING),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom, // Anchors base of pill and voice button to bottom
                 horizontalArrangement = Arrangement.spacedBy(ELEMENT_SPACING)
             ) {
-                if (isChatMode) {
-                    // 
-                    // CHAT MODE: [Voice Circle] [Input Pill]
-                    // 
-
-                    // Voice Circle (Chat Mode only - triggers STT)
-                    ActionCircle(
-                        icon = if (isVoiceListening) Icons.Default.StopCircle else Icons.Default.Mic,
-                        contentDescription = if (isVoiceListening) stringResource(R.string.stop_listening) else stringResource(R.string.voice_input),
-                        onClick = {
+                // Voice/Wave Circle (both modes — unified voice input)
+                // Voice Button - No circle, just bold icon with rounded edges
+                val voiceIcon = if (isVoiceListening) Icons.Default.StopCircle else Icons.Default.Mic
+                val voiceColor by animateColorAsState(
+                    targetValue = if (isVoiceListening) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(200),
+                    label = "voiceIconColor"
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .requiredSize(44.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             if (isVoiceListening) onStopVoiceInput() else onStartVoiceInput()
                         },
-                        isActive = isVoiceListening,
-                        activeColor = LocalAccentColor.current
-                    )
-                } else {
-                    // 
-                    // NORMAL MODE: [Search Circle] [Input Pill]
-                    // 
-
-                    // Search Circle
-                    ActionCircle(
-                        icon = Icons.Default.Search, // Metaphor: Compass
-                        contentDescription = stringResource(R.string.search),
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-
-                            // Ensure attachment panel is closed when entering search
-                            showAttachmentPanel = false
-
-                            // Reset filters if exiting search mode
-                            if (isSearchMode) {
-                                onClearFilters()
-                            }
-                            onToggleSearch()
-                        },
-                        isActive = isSearchMode && !showAttachmentPanel,
-                        activeColor = LocalAccentColor.current
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = voiceIcon,
+                        contentDescription = if (isVoiceListening) stringResource(R.string.stop_listening) else stringResource(R.string.voice_input),
+                        tint = voiceColor,
+                        modifier = Modifier.size(28.dp) // Make it slightly larger and bold
                     )
                 }
 
@@ -735,31 +731,8 @@ private fun InputPill(
     attachments: List<Attachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {}
 ) {
-    // Attachment preview visibility
-    var showAttachmentPreview by remember { mutableStateOf(false) }
-    
-    // Auto-show attachment preview when attachments are added
-    LaunchedEffect(attachments.isNotEmpty()) {
-        if (attachments.isNotEmpty()) showAttachmentPreview = true
-    }
-    
-    // Attachment preview row above input (existing design)
-    AnimatedVisibility(
-        visible = attachments.isNotEmpty() && showAttachmentPreview,
-        enter = slideInVertically(initialOffsetY = { 20 }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { 20 }) + fadeOut()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp)
-        ) {
-            AttachmentPreviewRow(
-                attachments = attachments,
-                onRemoveAttachment = onRemoveAttachment
-            )
-        }
-    }
+    // Attachment preview handled by parent SmartyInputField — removed duplicate here
+    // (Fixes bug: double preview rows + input block disappearing)
     
     // Soft Minimalist: Determine colors based on theme
     val monochromeColor = rememberMonochromeAccent()
@@ -779,59 +752,53 @@ private fun InputPill(
     // Elevation changes on focus
     val elevation = if (isFocused) 8.dp else 2.dp
 
-    // Soft floating pill container - original design
+    // Soft floating pill container - expandable height locked to bottom
     Surface(
         modifier = modifier
-            .requiredHeight(PILL_HEIGHT)
+            .heightIn(min = PILL_HEIGHT, max = 200.dp)
             .softCardShadow(shape = RoundedCornerShape(PILL_CORNER_RADIUS), elevation = elevation),
         shape = RoundedCornerShape(PILL_CORNER_RADIUS),
         color = backgroundColor,
         border = BorderStroke(0.5.dp, currentBorderColor)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxWidth().wrapContentHeight()
+        ) {
             // Shimmer overlay for voice/agent states
             val showShimmer = autoSendActive || isVoiceListening || isAgentWorking
             if (showShimmer) {
-                val shimmerDirection = when {
-                    isAgentWorking && !isVoiceListening && !autoSendActive -> ShimmerDirection.RIGHT_TO_LEFT
-                    else -> ShimmerDirection.LEFT_TO_RIGHT
-                }
-                val shimmerColor = LocalAccentColor.current.copy(alpha = 0.1f)
-                val shimmerSpeed = if (autoSendActive) 3.5f else 1f
-
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .directionalShimmer(
-                            isVisible = showShimmer,
-                            color = shimmerColor,
-                            direction = shimmerDirection,
-                            speed = shimmerSpeed
+                        .shimmerEffect(
+                            shimmerColor = LocalAccentColor.current.copy(alpha = 0.2f),
+                            durationMs = if (autoSendActive) 600 else 1200
                         )
                 )
             }
 
             Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 20.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 4.dp) 
+                    .defaultMinSize(minHeight = PILL_HEIGHT),
+                verticalAlignment = Alignment.Bottom 
             ) {
                 // Text input area
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxHeight()
+                        .padding(vertical = 12.dp) // Maintain consistent padding
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) {
                             focusRequester.requestFocus()
                         },
-                    contentAlignment = Alignment.CenterStart
+                    contentAlignment = Alignment.CenterStart // Use CenterStart for proper text centering
                 ) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.CenterVertically, // Center text vertically
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Box(modifier = Modifier.weight(1f)) {
@@ -848,13 +815,13 @@ private fun InputPill(
                                 textStyle = TextStyle(
                                     fontFamily = MonoFont,
                                     fontSize = 17.sp,
-                                    fontWeight = FontWeight.Black,
+                                    fontWeight = FontWeight.Normal, // Changed from Black to Normal
                                     color = if (isVoiceListening) LocalAccentColor.current
                                             else if (isDark) Color.White else Color.Black
                                 ),
                                 cursorBrush = SolidColor(LocalAccentColor.current),
-                                singleLine = true,
-                                maxLines = 1,
+                                singleLine = false,
+                                maxLines = 10,
                                 decorationBox = { innerTextField ->
                                     Box {
                                         if (value.text.isEmpty()) {
@@ -863,7 +830,7 @@ private fun InputPill(
                                                 style = MaterialTheme.typography.bodyMedium.copy(
                                                     fontFamily = MonoFont,
                                                     fontSize = 15.sp,
-                                                    fontWeight = FontWeight.Black
+                                                    fontWeight = FontWeight.Normal // Changed from Black to Normal
                                                 ),
                                                 color = if (isDark) Color.White else Color.Black
                                             )
@@ -876,8 +843,10 @@ private fun InputPill(
                     }
                 }
 
-                // Action icon (Stop when generating, Plus when empty, Send when has content)
-                Box {
+                // Action icon
+                Box(
+                    modifier = Modifier.padding(bottom = 4.dp) // Dock icon to bottom while keeping it centered in small state
+                ) {
                     val haptic = LocalHapticFeedback.current
                     var showMenu by remember { mutableStateOf(false) }
 
@@ -929,6 +898,8 @@ private fun InputPill(
                                             when {
                                                 isStopMode -> onStopGeneration()
                                                 canSend -> onSend()
+                                                // In chat mode: no attachment menu, just ignore tap
+                                                isChatMode -> { /* no-op: dimmed send icon */ }
                                                 else -> {
                                                     onAddOptionsClick()
                                                     showMenu = true
@@ -941,11 +912,13 @@ private fun InputPill(
                             contentAlignment = Alignment.Center
                         ) {
                             Crossfade(
-                                targetState = Triple(isStopMode, canSend, isAgentWorking),
+                                targetState = listOf(isStopMode, canSend, isAgentWorking, isChatMode),
                                 animationSpec = tween(200),
                                 label = "iconTransition"
                             ) { state ->
-                                val (stopMode, canSendNow, working) = state
+                                val stopMode = state[0]
+                                val canSendNow = state[1]
+                                val chatMode = state[3]
                                 when {
                                     stopMode -> Icon(
                                         imageVector = Icons.Default.StopCircle,
@@ -967,6 +940,13 @@ private fun InputPill(
                                                 scaleY = flyScale
                                             }
                                     )
+                                    // In chat mode: always show send arrow (dimmed when empty)
+                                    chatMode -> Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.Send,
+                                        contentDescription = stringResource(R.string.share),
+                                        tint = sendIconColor,
+                                        modifier = Modifier.size(20.dp)
+                                    )
                                     else -> Icon(
                                         imageVector = Icons.Default.Add,
                                         contentDescription = stringResource(R.string.add_attachment),
@@ -978,7 +958,8 @@ private fun InputPill(
                         }
                     }
 
-                    // Dropdown menu for + button
+                    // Dropdown menu for + button (Notes mode only — hidden in chat mode)
+                    if (!isChatMode) {
                     val menuBackground = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f) else MaterialTheme.colorScheme.surface
                     val menuBorder = if (isDark) Color.White.copy(alpha = 0.2f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
 
@@ -1073,6 +1054,7 @@ private fun InputPill(
                             }
                         }
                     }
+                    } // if (!isChatMode) — hide attachment menu in chat
                 }
             }
         }

@@ -146,12 +146,10 @@ private object MarkdownPatterns {
     val autolink = Regex("<([a-zA-Z][a-zA-Z0-9+.-]*://[^>]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,})>")
     
     // Bold - **text** or __text__ - must check before italic
-    // Must not match if it's part of larger sequence (e.g., ***text*** should be bold+italic, not three asterisks)
     val boldAsterisk = Regex("(?<![*])\\*\\*(.+?)\\*\\*(?![*])")
     val boldUnderscore = Regex("(?<![a-zA-Z])__(.+?)__(?![a-zA-Z])")
     
     // Italic - *text* or _text_ (but not ** or __ which are bold)
-    // Must not match if preceded/followed by another asterisk (would be bold or bold+italic)
     val italicAsterisk = Regex("(?<!\\*)\\*([^*]+)\\*(?!\\*)")
     val italicUnderscore = Regex("(?<!_) _([^_]+) _(?!_)")
     
@@ -166,6 +164,34 @@ private object MarkdownPatterns {
     
     // Code block fence
     val codeFence = Regex("^```(\\w*)$", RegexOption.MULTILINE)
+    
+    // --- PRECOMPILED patterns (previously created inline on every recomposition) ---
+    // Task list line detection
+    val taskListUnchecked = Regex("^\\s*[-*]\\s+\\[\\s*\\]\\s+.*")
+    val taskListChecked = Regex("^\\s*[-*]\\s+\\[\\s*[xX]\\s*\\]\\s+.*")
+    val taskListParse = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$")
+    val taskListDetect = Regex("^\\s*[-*]\\s+\\[\\s*[xX]?\\s*\\]")
+    // Numbered list detection (not task list)
+    val numberedListNotTask = Regex("^\\s*\\d+\\.\\s+\\[.*")
+    // Horizontal rule
+    val horizontalRule = Regex("^(---+|\\*\\*\\*+|___+)$")
+    // Table separator
+    val tableSeparator = Regex("[|\\-:\\s]")
+    // Inline math detection (for StandardText)
+    val inlineMathDetect = Regex("(?<!\\$)\\$(?!\\$)[^\\n]+\\$(?!\\$)")
+    // formatActionName regex
+    val actionNameSplit = Regex("([A-Z])")
+}
+
+// Precompiled regex for cleanContent — called on every AI message render
+private val THINK_TAG_REGEX = Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL)
+private val THINK_OPEN_REGEX = Regex("<think>.*", RegexOption.DOT_MATCHES_ALL)
+private val PARTIAL_FINAL_REGEX = Regex("<fi?n?a?l?$")
+private val PARTIAL_THINK_REGEX = Regex("<th?i?n?k?$")
+
+// Cached SimpleDateFormat for timestamp formatting (avoids re-creation per message)
+private val timestampDateFormat by lazy {
+    java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
 }
 
 private data class TextSegment(
@@ -176,7 +202,7 @@ private data class TextSegment(
 
 private fun parseTextWithInlineMath(text: String): List<TextSegment> {
     val segments = mutableListOf<TextSegment>()
-    val inlinePattern = Regex("(?<!\\$)\\$(?!\\$)([^\n$]+)\\$(?!\\$)")
+    val inlinePattern = MarkdownPatterns.inlineMath  // Reuse precompiled pattern
     
     var lastEnd = 0
     inlinePattern.findAll(text).forEach { match ->
@@ -247,16 +273,6 @@ fun ChatMessageItem(
     
     val codeBorderColor = MaterialTheme.colorScheme.outline
     val linkColor = MaterialTheme.colorScheme.primary
-    
-    val userBubbleShape = RoundedCornerShape(
-        topStart = 24.dp,
-        topEnd = 24.dp,
-        bottomStart = 24.dp,
-        bottomEnd = 4.dp
-    )
-    val aiBubbleShape = RoundedCornerShape(6.dp)
-    
-    val bubbleShape = if (isUser) userBubbleShape else aiBubbleShape
 
     Column(
         modifier = modifier
@@ -381,28 +397,20 @@ fun ChatMessageItem(
                     
                     // Show thinking dots when streaming with no content yet and no thinking
                     if (message.isStreaming && message.content.isEmpty() && message.thinking.isNullOrBlank()) {
+                        // OPTIMIZED: Single animation drives all 3 dots via phase offset math
                         val infiniteTransition = rememberInfiniteTransition(label = "thinking")
-                        val dotAlpha1 by infiniteTransition.animateFloat(
-                            initialValue = 0.2f, targetValue = 1f,
+                        val thinkingProgress by infiniteTransition.animateFloat(
+                            initialValue = 0f, targetValue = 1f,
                             animationSpec = infiniteRepeatable(
-                                animation = tween(600, easing = LinearEasing),
-                                repeatMode = RepeatMode.Reverse
-                            ), label = "dot1"
+                                animation = tween(1800, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ), label = "thinkDots"
                         )
-                        val dotAlpha2 by infiniteTransition.animateFloat(
-                            initialValue = 0.2f, targetValue = 1f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(600, delayMillis = 200, easing = LinearEasing),
-                                repeatMode = RepeatMode.Reverse
-                            ), label = "dot2"
-                        )
-                        val dotAlpha3 by infiniteTransition.animateFloat(
-                            initialValue = 0.2f, targetValue = 1f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(600, delayMillis = 400, easing = LinearEasing),
-                                repeatMode = RepeatMode.Reverse
-                            ), label = "dot3"
-                        )
+                        // Derive 3 dot alphas from single progress with 120° phase separation
+                        val pi2 = 2f * Math.PI.toFloat()
+                        val dotAlpha1 = (0.2f + 0.8f * ((kotlin.math.sin(thinkingProgress * pi2) + 1f) / 2f))
+                        val dotAlpha2 = (0.2f + 0.8f * ((kotlin.math.sin(thinkingProgress * pi2 + pi2 / 3f) + 1f) / 2f))
+                        val dotAlpha3 = (0.2f + 0.8f * ((kotlin.math.sin(thinkingProgress * pi2 + 2f * pi2 / 3f) + 1f) / 2f))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -424,8 +432,7 @@ fun ChatMessageItem(
                     
                     // MAIN CONTENT - Shows BELOW thinking (Smarty style)
                     if (message.content.isNotEmpty()) {
-                        val normalColor = MaterialTheme.colorScheme.onSurface
-                        val boldColor = normalColor
+                        // normalColor and boldColor from outer scope
 
                         val rawContent = if (isUser) message.content else cleanContent(message.content)
                         val targetLength = rawContent.length
@@ -685,8 +692,7 @@ fun ChatMessageItem(
             }
         }
 
-        // Apply Bubble or Container
-        val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
+        // Apply Bubble or Container (isDark already computed above)
 
         // Inverted colors for user bubble: opposite of theme
         val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else Color(0xFF1A1A1A)
@@ -1232,7 +1238,7 @@ private fun ActionResultChip(
 private fun formatActionName(actionName: String): String {
     return actionName
         .replace("Action", "")
-        .replace(Regex("([A-Z])"), " $1")
+        .replace(MarkdownPatterns.actionNameSplit, " $1")
         .trim()
 }
 
@@ -1331,8 +1337,7 @@ private fun formatTimestamp(timestamp: Long): String {
         diff < 3600_000 -> stringResource(R.string.minutes_ago, diff / 60_000)
         diff < 86400_000 -> stringResource(R.string.hours_ago, diff / 3600_000)
         else -> {
-            val date = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.getDefault())
-            date.format(java.util.Date(timestamp)).lowercase()
+            timestampDateFormat.format(java.util.Date(timestamp)).lowercase()
         }
     }
 }
@@ -1496,12 +1501,12 @@ fun MarkdownRenderer(
                         }
                         
                         // Task Lists: - [ ] or - [x]
-                        trimmedLine.matches(Regex("^\\s*[-*]\\s+\\[\\s*\\]\\s+.*")) || 
-                        trimmedLine.matches(Regex("^\\s*[-*]\\s+\\[\\s*[xX]\\s*\\]\\s+.*")) -> {
+                        trimmedLine.matches(MarkdownPatterns.taskListUnchecked) || 
+                        trimmedLine.matches(MarkdownPatterns.taskListChecked) -> {
                             val taskItems = mutableListOf<Pair<Boolean, String>>()
                             
                             // Parse first item
-                            val taskMatch = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$").find(trimmedLine)
+                            val taskMatch = MarkdownPatterns.taskListParse.find(trimmedLine)
                             if (taskMatch != null) {
                                 val isChecked = taskMatch.groupValues[1].trim().isNotEmpty()
                                 val taskText = taskMatch.groupValues[2]
@@ -1511,7 +1516,7 @@ fun MarkdownRenderer(
                             i++
                             while (i < lines.size) {
                                 val nextTrimmed = lines[i].trim()
-                                val nextMatch = Regex("^\\s*[-*]\\s+\\[(\\s*[xX]?\\s*)\\]\\s+(.+)$").find(nextTrimmed)
+                                val nextMatch = MarkdownPatterns.taskListParse.find(nextTrimmed)
                                 if (nextMatch != null) {
                                     val isChecked = nextMatch.groupValues[1].trim().isNotEmpty()
                                     val taskText = nextMatch.groupValues[2]
@@ -1522,7 +1527,7 @@ fun MarkdownRenderer(
                                            nextTrimmed.startsWith("> ") || (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
                                     break
                                 } else {
-                                    // Continuation of previous task item
+                                    // Continuation of previous task item (no regex needed)
                                     if (taskItems.isNotEmpty()) {
                                         val lastTask = taskItems.last()
                                         taskItems[taskItems.lastIndex] = Pair(lastTask.first, lastTask.second + "\n" + nextTrimmed)
@@ -1581,7 +1586,7 @@ fun MarkdownRenderer(
                                 val nextTrimmed = lines[i].trim()
                                 if (nextTrimmed.isBlank() || nextTrimmed.startsWith("- ") || nextTrimmed.startsWith("* ") || 
                                     nextTrimmed.startsWith("### ") || nextTrimmed.startsWith("## ") || nextTrimmed.startsWith("# ") || 
-                                    nextTrimmed.startsWith("> ") || nextTrimmed.matches(Regex("^\\s*[-*]\\s+\\[\\s*[xX]?\\s*\\]")) ||
+                                    nextTrimmed.startsWith("> ") || nextTrimmed.matches(MarkdownPatterns.taskListDetect) ||
                                     (nextTrimmed.firstOrNull()?.isDigit() == true && nextTrimmed.contains(". "))) {
                                     break
                                 }
@@ -1606,7 +1611,7 @@ fun MarkdownRenderer(
                         
                         // Lists (Numbered) - but not task lists which start with - [ ]
                         trimmedLine.firstOrNull()?.isDigit() == true && trimmedLine.contains(". ") && 
-                        !trimmedLine.matches(Regex("^\\s*\\d+\\.\\s+\\[.*")) -> {
+                        !trimmedLine.matches(MarkdownPatterns.numberedListNotTask) -> {
                              val dotIndex = trimmedLine.indexOf(". ")
                              if (dotIndex in 1..3) {
                                  val prefix = trimmedLine.substring(0, dotIndex + 2)
@@ -1722,7 +1727,7 @@ fun MarkdownRenderer(
                         }
                         
                         // Horizontal Line
-                        trimmedLine.matches(Regex("^(---+|\\*\\*\\*+|___+)$")) -> {
+                        trimmedLine.matches(MarkdownPatterns.horizontalRule) -> {
                             Spacer(modifier = Modifier.height(16.dp))
                             HorizontalDivider(
                                 color = normalColor.copy(alpha = 0.2f),
@@ -1795,7 +1800,7 @@ fun MarkdownTable(
     }
 
     val parsedRows = tableLines.mapIndexedNotNull { index, line ->
-        if (index == 1 && line.replace(Regex("[|\\-:\\s]"), "").isEmpty()) {
+        if (index == 1 && line.replace(MarkdownPatterns.tableSeparator, "").isEmpty()) {
             null
         } else {
             line.split("|").map { it.trim() }.let {
@@ -1904,7 +1909,7 @@ fun StandardText(
     if (text.isBlank()) return
     
     // Check if there's inline math in the text
-    val hasInlineMath = text.contains(Regex("(?<!\\$)\\$(?!\\$)[^\\n]+\\$(?!\\$)"))
+    val hasInlineMath = text.contains(MarkdownPatterns.inlineMathDetect)
     
     if (hasInlineMath) {
         // Render with inline LaTeX support
@@ -2342,13 +2347,13 @@ private fun ClarificationBubble(
 
 private fun cleanContent(raw: String): String {
     var text = raw
-    text = text.replace(Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL), "")
-    text = text.replace(Regex("<think>.*", RegexOption.DOT_MATCHES_ALL), "")
+    text = text.replace(THINK_TAG_REGEX, "")
+    text = text.replace(THINK_OPEN_REGEX, "")
     text = text.replace("<final>", "").replace("</final>", "")
     
     // Clean up partial tags when streaming
-    text = text.replace(Regex("<fi?n?a?l?$"), "")
-    text = text.replace(Regex("<th?i?n?k?$"), "")
+    text = text.replace(PARTIAL_FINAL_REGEX, "")
+    text = text.replace(PARTIAL_THINK_REGEX, "")
     
     return text.trim()
 }

@@ -66,7 +66,7 @@ internal data class TextSegment(
  */
 internal fun parseTextWithInlineMath(text: String): List<TextSegment> {
     val segments = mutableListOf<TextSegment>()
-    val inlinePattern = Regex("(?<!\\$)\\$(?!\\$)([^\n$]+)\\$(?!\\$)")
+    val inlinePattern = MarkdownPatterns.inlineMath  // Reuse precompiled pattern
     
     var lastEnd = 0
     inlinePattern.findAll(text).forEach { match ->

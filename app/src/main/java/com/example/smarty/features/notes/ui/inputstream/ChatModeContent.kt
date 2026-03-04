@@ -245,57 +245,6 @@ fun ChatModeContent(
             }
         }
 
-        // Scroll to latest/oldest button
-        val showScrollButton by remember {
-            derivedStateOf {
-                chatListState.canScrollForward || chatListState.canScrollBackward
-            }
-        }
-        val isAtLatest = !chatListState.canScrollBackward
-        val coroutineScope = rememberCoroutineScope()
-        
-        AnimatedVisibility(
-            visible = showScrollButton,
-            enter = fadeIn(tween(300)) + scaleIn(initialScale = 0.5f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)),
-            exit = fadeOut(tween(300)) + scaleOut(targetScale = 0.5f, animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f)),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(
-                    end = 20.dp, 
-                    bottom = contentPadding.calculateBottomPadding() + 16.dp
-                )
-        ) {
-            Surface(
-                onClick = {
-                    coroutineScope.launch {
-                        if (isAtLatest) {
-                            // Scroll to OLDEST at the BOTTOM
-                            val total = chatListState.layoutInfo.totalItemsCount
-                            if (total > 0) {
-                                chatListState.animateScrollToItem(total - 1, scrollOffset = 10000)
-                            }
-                        } else {
-                            // Scroll to LATEST at the TOP
-                            chatListState.animateScrollToItem(0, scrollOffset = -10000)
-                        }
-                    }
-                },
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                tonalElevation = 6.dp,
-                shadowElevation = 8.dp,
-                modifier = Modifier.size(44.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = if (isAtLatest) Icons.Default.KeyboardDoubleArrowDown else Icons.Default.KeyboardDoubleArrowUp,
-                        contentDescription = if (isAtLatest) "Scroll to oldest" else "Scroll to latest",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
     }
 }
 

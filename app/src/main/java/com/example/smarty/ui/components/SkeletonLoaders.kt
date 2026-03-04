@@ -489,37 +489,6 @@ fun SettingsMainSkeleton(
     }
 }
 
-// ─── Generic & Specialized Skeletons ──────────────────────────────────────────
-
-/**
- * Basic Shimmer effect modifier for generic background placeholders.
- */
-fun Modifier.shimmerEffect(): Modifier = composed {
-    var size by remember { mutableStateOf(IntSize.Zero) }
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val startOffsetX by transition.animateFloat(
-        initialValue = -2 * size.width.toFloat(),
-        targetValue = 2 * size.width.toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000)
-        ),
-        label = "shimmer"
-    )
-
-    background(
-        brush = Brush.linearGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.surfaceVariant,
-                MaterialTheme.colorScheme.surface,
-                MaterialTheme.colorScheme.surfaceVariant,
-            ),
-            start = Offset(startOffsetX, 0f),
-            end = Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
-        )
-    ).onGloballyPositioned {
-        size = it.size
-    }
-}
 
 /**
  * Skeleton for Calendar Event card.

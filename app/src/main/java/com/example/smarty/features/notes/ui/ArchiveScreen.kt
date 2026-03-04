@@ -19,10 +19,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.example.smarty.ui.animation.shimmerEffect
 import com.example.smarty.ui.animation.directionalShimmer
+import com.example.smarty.ui.animation.ShimmerDirection
 import com.example.smarty.ui.components.ArchiveEmptyState
 import com.example.smarty.ui.components.NotesLoadingState
-import com.example.smarty.ui.animation.ShimmerDirection
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color

@@ -31,6 +31,9 @@ import com.example.smarty.ui.theme.rememberMonochromeAccent
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Cached date formatter for chat history items
+private val shortDateFormat by lazy { SimpleDateFormat("MMM d", Locale.getDefault()) }
+
 /**
  * Bottom sheet showing chat history with all previous sessions.
  * Allows user to switch between sessions, create new ones, or delete old ones.
@@ -293,8 +296,7 @@ private fun formatRelativeTime(timestamp: Long): String {
         diff < 172800_000 -> stringResource(R.string.yesterday)
         diff < 604800_000 -> stringResource(R.string.days_ago, diff / 86400_000)
         else -> {
-            val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
-            sdf.format(Date(timestamp)).lowercase()
+            shortDateFormat.format(Date(timestamp)).lowercase()
         }
     }
 }

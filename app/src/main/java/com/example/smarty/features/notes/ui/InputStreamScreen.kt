@@ -986,6 +986,8 @@ onPlayYouTube: (String) -> Unit = {},
         }
     }
 
+    val coroutineScope = rememberCoroutineScope()
+
     // --- Chat Scrolling State Management ---
     var autoScrollEnabled by remember { mutableStateOf(true) }
     var userIsScrolling by remember { mutableStateOf(false) }
@@ -1569,12 +1571,27 @@ onPlayYouTube: (String) -> Unit = {},
                 )
             }
             
-            Box(
+            // Input block only visible on Notes and Chat pages
+            val showInputBlock = !showCalendarInline && !showStacksInline && !showArchiveInline && !showSettingsInline
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showInputBlock,
+                enter = slideInVertically(
+                    initialOffsetY = { it / 2 },
+                    animationSpec = spring(dampingRatio = 0.85f, stiffness = 300f)
+                ) + fadeIn(tween(250)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it / 2 },
+                    animationSpec = tween(200)
+                ) + fadeOut(tween(200)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(bottom = bottomContentPadding + miniPlayerPadding)
                     .navigationBarsPadding()
+            ) {
+            Box(
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Box(
                     modifier = Modifier
@@ -1593,8 +1610,8 @@ onPlayYouTube: (String) -> Unit = {},
                         .widthIn(max = 540.dp)
                         .fillMaxWidth()
                         .padding(
-                            start = ComponentSpacing.screenPadding,
-                            end = ComponentSpacing.screenPadding,
+                            start = 8.dp,
+                            end = 8.dp,
                             bottom = ComponentSpacing.screenPadding,
                             top = 0.dp
                         )
@@ -1627,7 +1644,7 @@ onPlayYouTube: (String) -> Unit = {},
                     // (AnimatedVisibility block was here)
 
                     // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
-                    Box(contentAlignment = Alignment.Center) {
+                    Box(contentAlignment = Alignment.BottomCenter) {
                         // The Actual Input Field with halftone shimmer inside
                         SmartyInputField(
                             value = textValue,
@@ -1803,6 +1820,21 @@ onPlayYouTube: (String) -> Unit = {},
                                     text = updatedText,
                                     selection = androidx.compose.ui.text.TextRange(updatedText.length)
                                 )
+                            },
+                            showScrollButton = chatListState.canScrollForward || chatListState.canScrollBackward,
+                            isAtLatest = !chatListState.canScrollBackward,
+                            onScrollToBottom = {
+                                coroutineScope.launch {
+                                    val total = chatListState.layoutInfo.totalItemsCount
+                                    if (total > 0) {
+                                        chatListState.animateScrollToItem(total - 1, scrollOffset = 10000)
+                                    }
+                                }
+                            },
+                            onScrollToTop = {
+                                coroutineScope.launch {
+                                    chatListState.animateScrollToItem(0, scrollOffset = -10000)
+                                }
                             }
                         )
                     }
@@ -1810,6 +1842,7 @@ onPlayYouTube: (String) -> Unit = {},
             }
 
         }
+        } // AnimatedVisibility (input block)
     }
 
 

@@ -14,12 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.outlined.Logout
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import com.example.smarty.ui.theme.SmartyIcons
 import androidx.compose.material3.*
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
@@ -125,13 +120,13 @@ fun SettingsContent(
         item {
             SmartySettingsCard {
                 SmartySettingsRow(
-                    icon = Icons.Default.CloudSync,
+                    icon = SmartyIcons.CloudSync,
                     label = stringResource(R.string.backup),
                     onClick = { showBackupSheet = true },
                     iconColor = accentColor
                 )
                 SmartySettingsSwitchRow(
-                    icon = Icons.Filled.Sync,
+                    icon = SmartyIcons.Refresh,
                     label = stringResource(R.string.google_calendar_sync),
                     checked = isCalendarSyncEnabled,
                     onCheckedChange = {
@@ -143,7 +138,7 @@ fun SettingsContent(
                 if (isCalendarSyncEnabled) {
                     val selectedCalendar = deviceCalendars.find { it.id == targetCalendarId }
                     SmartySettingsRow(
-                        icon = Icons.Filled.Event,
+                        icon = SmartyIcons.Calendar,
                         label = stringResource(R.string.default_calendar),
                         subtitle = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select),
                         onClick = {
@@ -161,7 +156,7 @@ fun SettingsContent(
             SmartySettingsCard {
                 // Theme
                 SmartySettingsSwitchRow(
-                    icon = Icons.Default.Brightness4,
+                    icon = SmartyIcons.DarkMode,
                     label = stringResource(R.string.dark_mode),
                     checked = isDarkTheme,
                     onCheckedChange = onToggleTheme,
@@ -169,7 +164,7 @@ fun SettingsContent(
                 )
                 // Friday (Assistant)
                 SmartySettingsRow(
-                    icon = Icons.Default.AutoAwesome,
+                    icon = SmartyIcons.Assistant,
                     label = stringResource(R.string.default_assistant),
                     onClick = {
                          try {
@@ -186,21 +181,21 @@ fun SettingsContent(
                 )
                 // Coin Toss
                 SmartySettingsRow(
-                    icon = Icons.Default.Casino,
+                    icon = SmartyIcons.Casino,
                     label = "Coin Toss",
                     onClick = onNavigateToCoinToss,
                     iconColor = accentColor
                 )
                 // Mental Break
                 SmartySettingsRow(
-                    icon = Icons.Default.Games,
+                    icon = SmartyIcons.Games,
                     label = "Mental Break",
                     onClick = onNavigateToTicTacToe,
                     iconColor = accentColor
                 )
                 // Motion (Shake Sensitivity)
                 SmartySettingsRow(
-                    icon = Icons.Default.Vibration,
+                    icon = SmartyIcons.Vibration,
                     label = stringResource(R.string.shake_sensitivity),
                     subtitle = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.medium) else stringResource(R.string.high),
                     onClick = { showShakeSensitivitySheet = true },
@@ -213,7 +208,7 @@ fun SettingsContent(
         item {
             SmartySettingsCard {
                 SmartySettingsRow(
-                    icon = Icons.Default.DeleteOutline,
+                    icon = SmartyIcons.DeleteOutline,
                     label = stringResource(R.string.clear_cache),
                     subtitle = formatCacheSize(cacheSizeBytes).lowercase(),
                     onClick = onClearCache,
@@ -227,7 +222,7 @@ fun SettingsContent(
         item {
             SmartySettingsCard {
                 SmartySettingsRow(
-                    icon = Icons.AutoMirrored.Outlined.Logout,
+                    icon = SmartyIcons.Logout,
                     label = stringResource(R.string.sign_out),
                     onClick = onSignOut,
                     textColor = Color(0xFFFF3B30),
@@ -301,7 +296,7 @@ fun SettingsContent(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Vibration,
+                        imageVector = SmartyIcons.Vibration,
                         contentDescription = null,
                         tint = accentColor,
                         modifier = Modifier.size(28.dp)
@@ -366,7 +361,7 @@ fun SettingsContent(
                                     Text(calendar.displayName, style = MaterialTheme.typography.titleMedium, color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface)
                                     Text(calendar.accountName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                if (isSelected) Icon(Icons.Default.Check, null, tint = accentColor, modifier = Modifier.size(20.dp))
+                                if (isSelected) Icon(SmartyIcons.Check, null, tint = accentColor, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -382,13 +377,13 @@ fun SettingsContent(
 fun ServerStatusIndicator() {
     SmartySettingsRow(
         label = "Smarty Server",
-        icon = Icons.Default.Cloud,
+        icon = SmartyIcons.Cloud,
         subtitle = "Connected",
         enabled = true,
         showChevron = false,
         trailingContent = {
             Icon(
-                Icons.Default.CheckCircle,
+                SmartyIcons.CheckCircle,
                 contentDescription = "Connected",
                 tint = Color(0xFF2E7D32),
                 modifier = Modifier.size(24.dp)
@@ -443,7 +438,7 @@ fun InlineHeader(
         }
 
         Icon(
-            imageVector = if(isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            imageVector = if(isExpanded) SmartyIcons.ChevronUp else SmartyIcons.ChevronDown,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )

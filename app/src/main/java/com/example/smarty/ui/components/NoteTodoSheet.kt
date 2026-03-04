@@ -493,6 +493,9 @@ private fun TodoItemRow(
     }
 }
 
+// Precompiled regex for todo item splitting (avoids re-creation on every parse)
+private val TODO_SPLIT_REGEX = Regex("[\\n,;]|[-•*]\\s")
+
 /**
  * Parse input text into todo items.
  * Supports multiple items separated by newlines, commas, or bullet points.
@@ -500,7 +503,7 @@ private fun TodoItemRow(
 private fun parseNewTodos(input: String): List<TodoItem> {
     // Split by newlines, commas, or common bullet characters
     val items = input
-        .split(Regex("[\\n,;]|[-•*]\\s"))
+        .split(TODO_SPLIT_REGEX)
         .map { it.trim() }
         .filter { it.isNotBlank() }
 
