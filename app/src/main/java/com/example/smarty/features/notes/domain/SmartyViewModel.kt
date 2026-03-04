@@ -930,6 +930,7 @@ class SmartyViewModel(
         sourceUrl: String? = null,
         excludeFromAiChat: Boolean = false
     ) {
+        Log.d(TAG, "addNote: Generating new note. type=$type, excludeAI=$excludeFromAiChat, contentLen=${content.length}")
         noteOperationsManager.addNote(content, type, sourceUrl, excludeFromAiChat)
     }
 
@@ -1084,10 +1085,12 @@ class SmartyViewModel(
     }
 
     fun deleteNote(note: Note) {
+        Log.d(TAG, "deleteNote: Deleting note with object reference. Note ID: ${note.id}")
         noteOperationsManager.deleteNote(note)
     }
 
     fun deleteNoteById(noteId: String) {
+        Log.d(TAG, "deleteNoteById: Deleting note explicitly by ID. Note ID: $noteId")
         viewModelScope.launch {
             noteOperationsManager.deleteNoteById(noteId, notes.value, archivedNotes.value)
         }
@@ -1192,6 +1195,7 @@ class SmartyViewModel(
      * Edit a note's title, content, and optionally attachments.
      */
     fun editNote(noteId: String, newTitle: String, newContent: String, newSummary: String?, newWhySaved: String?, newAttachments: List<NoteAttachment>? = null) {
+        Log.d(TAG, "editNote: Updating note. Note ID: $noteId")
         noteOperationsManager.editNote(noteId, newTitle, newContent, newSummary, newWhySaved, newAttachments)
     }
 
@@ -1246,6 +1250,7 @@ class SmartyViewModel(
 
     // Delete Category (BUG-028: Proper cascade cleanup)
     fun deleteCategory(category: Category) {
+        Log.d(TAG, "deleteCategory: Removing category. ID: ${category.id}, Name: ${category.name}")
         noteOperationsManager.deleteCategory(category)
     }
 
@@ -1505,6 +1510,7 @@ class SmartyViewModel(
     // ==================== Chat Mode ====================
 
     fun deleteChatMessage(messageId: String) {
+        Log.d(TAG, "deleteChatMessage: Passing deletion request from UI down to Feature Manager for messageId: $messageId")
         viewModelScope.launch {
             chatFeatureManager.deleteMessage(messageId)
         }

@@ -1576,7 +1576,15 @@ fun dismissSuggestion() {
     }
 
     suspend fun deleteMessage(messageId: String): Boolean {
-        return chatManager.deleteMessage(messageId)
+        Log.d(TAG, "deleteMessage: Passing request to ChatManager for messageId: $messageId")
+        return try {
+            val success = chatManager.deleteMessage(messageId)
+            Log.d(TAG, "deleteMessage: ChatManager returned $success for messageId: $messageId")
+            success
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteMessage: Exception thrown by ChatManager for messageId: $messageId - ${e.message}", e)
+            false
+        }
     }
 
     fun regenerateResponse(messageId: String) {

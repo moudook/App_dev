@@ -25,6 +25,8 @@ class ChatRepository(private val chatDao: ChatDao) {
         private const val MIN_MESSAGES_TO_SAVE = 2  // Need at least user + smarty response
     }
 
+
+
     // ==================== Session Operations ====================
 
     /**
@@ -78,9 +80,17 @@ class ChatRepository(private val chatDao: ChatDao) {
      */
     @Transaction
     suspend fun deleteSession(sessionId: String) {
-        chatDao.deleteMessagesForSession(sessionId)
-        chatDao.deleteSessionById(sessionId)
-        Log.d(TAG, "Deleted session: $sessionId")
+        Log.d(TAG, "Entering deleteSession. Attempting to delete session and its messages. sessionId: $sessionId")
+        try {
+            chatDao.deleteMessagesForSession(sessionId)
+            Log.d(TAG, "deleteSession: Successfully executed chatDao.deleteMessagesForSession for $sessionId")
+            
+            chatDao.deleteSessionById(sessionId)
+            Log.d(TAG, "deleteSession: Successfully executed chatDao.deleteSessionById for $sessionId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during deleteSession for sessionId $sessionId: ${e.message}", e)
+            throw e
+        }
     }
 
     /**
@@ -106,12 +116,13 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
     }
 
     suspend fun deleteMessage(messageId: String): Boolean {
+        Log.d(TAG, "Entering ChatRepository.deleteMessage for messageId: $messageId")
         return try {
             chatDao.deleteMessageById(messageId)
-            Log.d(TAG, "Deleted message: $messageId")
+            Log.d(TAG, "Successfully executed chatDao.deleteMessageById for messageId: $messageId")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to delete message: $messageId", e)
+            Log.e(TAG, "Failed to execute chatDao.deleteMessageById for message: $messageId", e)
             false
         }
     }
@@ -146,13 +157,16 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
         message: ChatMessage,
         allNotes: List<Note>? = null
     ): Boolean {
+        Log.d(TAG, "Entering saveMessage for session: $sessionId, messageId: ${message.id}, role: ${message.role}")
         // Skip system messages - they're for internal use
         if (message.role == ChatRole.SYSTEM) {
+            Log.d(TAG, "saveMessage: Skipping System message.")
             return false
         }
 
         // Skip empty messages
         if (message.content.isBlank()) {
+            Log.d(TAG, "saveMessage: Skipping blank message.")
             return false
         }
 
@@ -171,25 +185,33 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
         }
 
         val entity = ChatMessageEntity.fromChatMessage(sanitizedMessage, sessionId)
-        chatDao.insertMessage(entity)
+        
+        try {
+            chatDao.insertMessage(entity)
+            Log.d(TAG, "saveMessage: Successfully inserted ChatMessageEntity for message ID: ${message.id}")
 
-        // Update session metadata
-        val preview = if (message.content.length > 50) {
-            message.content.take(50) + "..."
-        } else {
-            message.content
+            // Update session metadata
+            val preview = if (message.content.length > 50) {
+                message.content.take(50) + "..."
+            } else {
+                message.content
+            }
+            chatDao.incrementMessageCount(sessionId, preview)
+
+            // Auto-generate title from first user message
+            val session = chatDao.getSessionById(sessionId)
+            if (session?.title == "New Chat" && message.role == ChatRole.USER) {
+                val autoTitle = generateTitleFromContent(message.content)
+                chatDao.updateSessionTitle(sessionId, autoTitle)
+                Log.d(TAG, "saveMessage: Auto-generated and updated session title to: $autoTitle")
+            }
+
+            Log.d(TAG, "saveMessage: Finished saving message: ${message.id} to session: $sessionId")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "saveMessage: Error inserting message ID ${message.id} to session $sessionId - ${e.message}", e)
+            return false
         }
-        chatDao.incrementMessageCount(sessionId, preview)
-
-        // Auto-generate title from first user message
-        val session = chatDao.getSessionById(sessionId)
-        if (session?.title == "New Chat" && message.role == ChatRole.USER) {
-            val autoTitle = generateTitleFromContent(message.content)
-            chatDao.updateSessionTitle(sessionId, autoTitle)
-        }
-
-        Log.d(TAG, "Saved message: ${message.id} to session: $sessionId")
-        return true
     }
 
     /**

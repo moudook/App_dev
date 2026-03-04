@@ -117,9 +117,9 @@ override suspend fun stream(
                 header("Accept-Encoding", "identity")
                 header("Cache-Control", "no-cache")
                 timeout {
-                    requestTimeoutMillis = 300_000
-                    connectTimeoutMillis = 30_000
-                    socketTimeoutMillis = 300_000
+                    requestTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
+                    connectTimeoutMillis = 60_000
+                    socketTimeoutMillis = HttpTimeout.INFINITE_TIMEOUT_MS
                 }
                 setBody(requestBody)
             }.execute { httpResponse ->

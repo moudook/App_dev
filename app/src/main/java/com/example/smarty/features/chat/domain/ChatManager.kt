@@ -193,16 +193,21 @@ class ChatManager(
 
     fun deleteChatSession(sessionId: String) {
         scope.launch {
+            Log.d(TAG, "Entering deleteChatSession for sessionId: $sessionId")
             val isCurrentSession = sessionId == _currentSessionId.value
-            chatRepository.deleteSession(sessionId)
-
-            if (isCurrentSession) {
-                _currentSessionId.value = null
-                chatMutex.withLock {
-                    _chatMessages.value = emptyList()
+            try {
+                chatRepository.deleteSession(sessionId)
+                if (isCurrentSession) {
+                    Log.d(TAG, "deleteChatSession: Session $sessionId is the current session, clearing state.")
+                    _currentSessionId.value = null
+                    chatMutex.withLock {
+                        _chatMessages.value = emptyList()
+                    }
                 }
+                Log.d(TAG, "Successfully deleted chat session: $sessionId. Current Session ID is now: ${_currentSessionId.value}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in deleteChatSession for sessionId: $sessionId", e)
             }
-            Log.d(TAG, "Deleted chat session: $sessionId")
         }
     }
 
@@ -219,6 +224,7 @@ class ChatManager(
     }
 
     suspend fun addUserMessage(content: String, attachments: List<Attachment> = emptyList()): ChatMessage {
+        Log.d(TAG, "Entering addUserMessage. Content length: ${content.length}, Attachments: ${attachments.size}")
         val userMessage = ChatMessage(
             id = UUID.randomUUID().toString(),
             role = ChatRole.USER,
@@ -228,21 +234,24 @@ class ChatManager(
         )
         chatMutex.withLock {
             if (_chatMessages.value.any { it.id == userMessage.id }) {
-                Log.w(TAG, "Duplicate message ID detected, skipping: ${userMessage.id}")
+                Log.w(TAG, "addUserMessage: Duplicate message ID detected, skipping: ${userMessage.id}")
                 return@withLock
             }
             _chatMessages.value = _chatMessages.value + userMessage
+            Log.d(TAG, "addUserMessage: Successfully added user message ${userMessage.id} to StateFlow.")
         }
         return userMessage
     }
 
     suspend fun addSmartyMessage(message: ChatMessage) {
+        Log.d(TAG, "Entering addSmartyMessage. Message ID: ${message.id}, Role: ${message.role}")
         chatMutex.withLock {
             if (_chatMessages.value.any { it.id == message.id }) {
-                Log.w(TAG, "Duplicate message ID detected, skipping: ${message.id}")
+                Log.w(TAG, "addSmartyMessage: Duplicate message ID detected, skipping: ${message.id}")
                 return@withLock
             }
             _chatMessages.value = _chatMessages.value + message
+            Log.d(TAG, "addSmartyMessage: Successfully added Smarty message ${message.id} to StateFlow.")
         }
     }
 
@@ -263,24 +272,37 @@ class ChatManager(
     }
 
     suspend fun replaceMessage(messageId: String, newMessage: ChatMessage) {
+        Log.d(TAG, "Entering replaceMessage. Target messageId: $messageId, New message ID: ${newMessage.id}")
         chatMutex.withLock {
+            val exists = _chatMessages.value.any { it.id == messageId }
+            if (!exists) {
+                Log.w(TAG, "replaceMessage: Target messageId $messageId not found in StateFlow memory.")
+            }
             _chatMessages.value = _chatMessages.value.map { msg ->
                 if (msg.id == messageId) newMessage else msg
             }
+            Log.d(TAG, "replaceMessage: Completed replace operation for $messageId.")
         }
     }
 
     suspend fun deleteMessage(messageId: String): Boolean {
+        Log.d(TAG, "Entering deleteMessage for messageId: $messageId")
         return chatMutex.withLock {
             val messageToDelete = _chatMessages.value.find { it.id == messageId }
             if (messageToDelete != null) {
+                Log.d(TAG, "deleteMessage: Message $messageId found in StateFlow memory. Proceeding to delete from memory and repository.")
                 _chatMessages.value = _chatMessages.value.filter { it.id != messageId }
                 scope.launch {
-                    chatRepository.deleteMessage(messageId)
+                    try {
+                        val success = chatRepository.deleteMessage(messageId)
+                        Log.d(TAG, "Successfully deleted message from repository: $messageId (repository returned: $success)")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error deleting message from repository: $messageId", e)
+                    }
                 }
-                Log.d(TAG, "Deleted message: $messageId")
                 true
             } else {
+                Log.w(TAG, "deleteMessage: Message $messageId NOT found in StateFlow memory. Deletion aborted at ChatManager level.")
                 false
             }
         }
@@ -332,19 +354,26 @@ class ChatManager(
         userMessage: ChatMessage,
         smartyMessage: ChatMessage
     ): Result<Unit> {
+        Log.d(TAG, "Entering saveMessagePair. UserMsgId: ${userMessage.id}, SmartyMsgId: ${smartyMessage.id}. CurrentSessionId: ${_currentSessionId.value}")
         return chatMutex.withLock {
             try {
+                if (_currentSessionId.value == null) {
+                    Log.w(TAG, "saveMessagePair: currentSessionId is null. Cannot save message pair.")
+                }
                 _currentSessionId.value?.let { sessionId ->
+                    val saveAllowed = shouldSaveChat()
+                    Log.d(TAG, "saveMessagePair: Invoking chatRepository.saveMessagePair. sessionId: $sessionId, shouldSave: $saveAllowed")
                     chatRepository.saveMessagePair(
                         sessionId = sessionId,
                         userMessage = userMessage,
                         smartyMessage = smartyMessage,
-                        shouldSave = shouldSaveChat()
+                        shouldSave = saveAllowed
                     )
                 }
+                Log.d(TAG, "saveMessagePair: Completed successfully.")
                 Result.success(Unit)
             } catch (e: Exception) {
-                Log.e(TAG, "Error saving message pair: ${e.message}", e)
+                Log.e(TAG, "Error in saveMessagePair: ${e.message}", e)
                 _lastError.value = context.getString(com.example.smarty.R.string.error_save_message)
                 Result.failure(e)
             }
