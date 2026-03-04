@@ -121,7 +121,7 @@ fun SettingsContent(
             }
         }
 
-        // --- GROUP 1: PERSONALIZATION ---
+        // --- GROUP 1: STORAGE & SYNC ---
         item {
             SmartySettingsCard {
                 SmartySettingsRow(
@@ -156,21 +156,10 @@ fun SettingsContent(
             }
         }
 
-        // --- GROUP 2: APP SETTINGS ---
+        // --- GROUP 2: PREFERENCES & GAMES ---
         item {
             SmartySettingsCard {
-                SmartySettingsRow(
-                    icon = Icons.Default.Games,
-                    label = "Mental Break",
-                    onClick = onNavigateToTicTacToe,
-                    iconColor = accentColor
-                )
-                SmartySettingsRow(
-                    icon = Icons.Default.Casino,
-                    label = "Coin Toss",
-                    onClick = onNavigateToCoinToss,
-                    iconColor = accentColor
-                )
+                // Theme
                 SmartySettingsSwitchRow(
                     icon = Icons.Default.Brightness4,
                     label = stringResource(R.string.dark_mode),
@@ -178,13 +167,7 @@ fun SettingsContent(
                     onCheckedChange = onToggleTheme,
                     iconColor = accentColor
                 )
-                 SmartySettingsRow(
-                    icon = Icons.Default.Vibration,
-                    label = stringResource(R.string.shake_sensitivity),
-                    subtitle = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.medium) else stringResource(R.string.high),
-                    onClick = { showShakeSensitivitySheet = true },
-                    iconColor = accentColor
-                )
+                // Friday (Assistant)
                 SmartySettingsRow(
                     icon = Icons.Default.AutoAwesome,
                     label = stringResource(R.string.default_assistant),
@@ -201,10 +184,32 @@ fun SettingsContent(
                     },
                     iconColor = accentColor
                 )
+                // Coin Toss
+                SmartySettingsRow(
+                    icon = Icons.Default.Casino,
+                    label = "Coin Toss",
+                    onClick = onNavigateToCoinToss,
+                    iconColor = accentColor
+                )
+                // Mental Break
+                SmartySettingsRow(
+                    icon = Icons.Default.Games,
+                    label = "Mental Break",
+                    onClick = onNavigateToTicTacToe,
+                    iconColor = accentColor
+                )
+                // Motion (Shake Sensitivity)
+                SmartySettingsRow(
+                    icon = Icons.Default.Vibration,
+                    label = stringResource(R.string.shake_sensitivity),
+                    subtitle = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.medium) else stringResource(R.string.high),
+                    onClick = { showShakeSensitivitySheet = true },
+                    iconColor = accentColor
+                )
             }
         }
 
-        // --- GROUP 3: SYSTEM ---
+        // --- GROUP 3: WORKSPACE ---
         item {
             SmartySettingsCard {
                 SmartySettingsRow(
@@ -215,7 +220,13 @@ fun SettingsContent(
                     enabled = !isClearingCache && cacheSizeBytes > 0,
                     iconColor = accentColor
                 )
-                 SmartySettingsRow(
+            }
+        }
+
+        // --- GROUP 4: ACCOUNT ---
+        item {
+            SmartySettingsCard {
+                SmartySettingsRow(
                     icon = Icons.AutoMirrored.Outlined.Logout,
                     label = stringResource(R.string.sign_out),
                     onClick = onSignOut,
