@@ -71,7 +71,6 @@ This action cannot be reversed.</string>
     <string name="settings_">Settings</string>
     <string name="ai_voice">Friday and voice</string>
     <string name="ai_connection">AI Connection</string>
-    <string name="ai_models">Model Settings</string>
     <string name="models_and_connection">Server Connection</string>
     <string name="calendar">Calendar</string>
     <string name="sync_to_google_calendar">Sync with Google Calendar</string>
@@ -467,7 +466,6 @@ Privacy is fundamental: all data is stored locally, and sensitive configuration 
 Thank you for using Friday.</string>
     <string name="smarty_version">Friday v1.1.0</string>
     <string name="ai_intelligence">Friday Intelligence</string>
-    <string name="configure_server_connection_and_models">Configure connection and model settings</string>
     <string name="web_search_label">Web search</string>
     <string name="enable_ai_web_search_capabilities">Enable Friday web search capabilities</string>
     <string name="web_search_info">Web search provides real-time information for Friday.</string>
