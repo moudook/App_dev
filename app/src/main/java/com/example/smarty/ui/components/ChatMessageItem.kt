@@ -278,7 +278,7 @@ fun ChatMessageItem(
             ) {
                 if (!isUser) {
                     
-                    // THINKING SECTION - ChatGPT style (shows ABOVE content)
+                    // THINKING SECTION - Smarty style (shows ABOVE content)
                     // During streaming: shows live thinking with expandable view
                     // After completion: shows "Thought for X seconds" collapsed
                     if (message.hasThinking || (message.isStreaming && !message.thinking.isNullOrBlank())) {
@@ -422,7 +422,7 @@ fun ChatMessageItem(
                         }
                     }
                     
-                    // MAIN CONTENT - Shows BELOW thinking (ChatGPT style)
+                    // MAIN CONTENT - Shows BELOW thinking (Smarty style)
                     if (message.content.isNotEmpty()) {
                         val normalColor = MaterialTheme.colorScheme.onSurface
                         val boldColor = normalColor
@@ -1676,7 +1676,7 @@ fun MarkdownRenderer(
                             MarkdownTable(tableLines, normalColor, boldColor, linkColor, codeColor)
                         }
                         
-                        // Blockquote - ChatGPT Style
+                        // Blockquote - ChatBot Style
                         trimmedLine.startsWith("> ") -> {
                             val quoteLines = mutableListOf<String>()
                             quoteLines.add(trimmedLine.substring(2).trim())

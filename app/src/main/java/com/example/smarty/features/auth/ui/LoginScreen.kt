@@ -58,6 +58,8 @@ import com.example.smarty.ui.theme.BrandOrange
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.LocalShapes
+import com.example.smarty.ui.components.SmartySettingsCard
+import com.example.smarty.ui.components.SmartySettingsRow
 import com.example.smarty.ui.theme.rememberMonochromeAccent
 import com.example.smarty.ui.components.GeometricGradientBackground
 import com.example.smarty.ui.components.SmartyButton
@@ -202,57 +204,34 @@ fun LoginScreen(
                             .padding(bottom = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp) 
                     ) {
-                        // Main Button: Continue with Email
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(ComponentSpacing.buttonHeight)
-                                .clip(shapes.pill)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), shapes.pill)
-                                .clickable { showForm = true }
-                                .padding(horizontal = 24.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = SmartyIcons.Email,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(IconSize.xl)
+                        // Combined Button Card: Continue with Email & Google
+                        SmartySettingsCard(horizontalPadding = 0.dp) {
+                            // Option 1: Email
+                            SmartySettingsRow(
+                                label = "Continue with Email",
+                                icon = SmartyIcons.Email,
+                                onClick = { showForm = true },
+                                showChevron = true
                             )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = "Continue with Email",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
-                            )
-                        }
-
-                        // Secondary Button: Continue with Google
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(ComponentSpacing.buttonHeight)
-                                .clip(shapes.pill)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), shapes.pill)
-                                .clickable {
+                            
+                            // Separator is handled by the Card's spacedBy logic
+                            
+                            // Option 2: Google
+                            SmartySettingsRow(
+                                label = "Continue with Google",
+                                onClick = {
                                     if (!isLoading) googleSignInLauncher.launch(viewModel.getGoogleSignInIntent())
+                                },
+                                showChevron = true,
+                                leadingContent = {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_google_logo),
+                                        contentDescription = "Google Logo",
+                                        modifier = Modifier.size(24.dp), // Matched size
+                                        tint = Color.Unspecified
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
                                 }
-                                .padding(horizontal = 24.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_google_logo),
-                                contentDescription = "Google Logo",
-                                modifier = Modifier.size(IconSize.xl),
-                                tint = Color.Unspecified
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text(
-                                text = "Continue with Google",
-                                color = MaterialTheme.colorScheme.onSurface,
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
                             )
                         }
                     }

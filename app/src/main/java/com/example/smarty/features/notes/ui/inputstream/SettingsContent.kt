@@ -45,6 +45,9 @@ import com.example.smarty.features.settings.ui.formatCacheSize
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
+import com.example.smarty.ui.components.SmartySettingsCard
+import com.example.smarty.ui.components.SmartySettingsRow
+import com.example.smarty.ui.components.SmartySettingsSwitchRow
 
 /**
  * Inline settings content with "Chroma Studio" aesthetic.
@@ -111,7 +114,7 @@ fun SettingsContent(
                     modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                 )
 
-                SettingsCard {
+                SmartySettingsCard {
                     // Server Status Indicator (URL is hardcoded and hidden)
                     ServerStatusIndicator()
                 }
@@ -120,15 +123,14 @@ fun SettingsContent(
 
         // --- GROUP 1: PERSONALIZATION ---
         item {
-            SettingsCard {
-                SettingsItem(
+            SmartySettingsCard {
+                SmartySettingsRow(
                     icon = Icons.Default.CloudSync,
                     label = stringResource(R.string.backup),
                     onClick = { showBackupSheet = true },
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f)
+                    iconColor = accentColor
                 )
-                SettingsSwitch(
+                SmartySettingsSwitchRow(
                     icon = Icons.Filled.Sync,
                     label = stringResource(R.string.google_calendar_sync),
                     checked = isCalendarSyncEnabled,
@@ -136,23 +138,19 @@ fun SettingsContent(
                         onSetCalendarSyncEnabled(it)
                         if (it) onLoadDeviceCalendars()
                     },
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f),
-                    showDivider = isCalendarSyncEnabled
+                    iconColor = accentColor
                 )
                 if (isCalendarSyncEnabled) {
                     val selectedCalendar = deviceCalendars.find { it.id == targetCalendarId }
-                    SettingsItem(
+                    SmartySettingsRow(
                         icon = Icons.Filled.Event,
                         label = stringResource(R.string.default_calendar),
-                        value = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select),
+                        subtitle = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select),
                         onClick = {
                             onLoadDeviceCalendars()
                             showCalendarSelectorSheet = true
                         },
-                        showDivider = false,
-                        iconColor = accentColor,
-                        containerColor = accentColor.copy(alpha = 0.1f)
+                        iconColor = accentColor
                     )
                 }
             }
@@ -160,38 +158,34 @@ fun SettingsContent(
 
         // --- GROUP 2: APP SETTINGS ---
         item {
-            SettingsCard {
-                SettingsItem(
+            SmartySettingsCard {
+                SmartySettingsRow(
                     icon = Icons.Default.Games,
                     label = "Mental Break",
                     onClick = onNavigateToTicTacToe,
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f)
+                    iconColor = accentColor
                 )
-                SettingsItem(
+                SmartySettingsRow(
                     icon = Icons.Default.Casino,
                     label = "Coin Toss",
                     onClick = onNavigateToCoinToss,
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f)
+                    iconColor = accentColor
                 )
-                SettingsSwitch(
+                SmartySettingsSwitchRow(
                     icon = Icons.Default.Brightness4,
                     label = stringResource(R.string.dark_mode),
                     checked = isDarkTheme,
                     onCheckedChange = onToggleTheme,
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f)
+                    iconColor = accentColor
                 )
-                 SettingsItem(
+                 SmartySettingsRow(
                     icon = Icons.Default.Vibration,
                     label = stringResource(R.string.shake_sensitivity),
-                    value = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.medium) else stringResource(R.string.high),
+                    subtitle = if (shakeSensitivity < 0.3f) stringResource(R.string.low) else if (shakeSensitivity < 0.7f) stringResource(R.string.medium) else stringResource(R.string.high),
                     onClick = { showShakeSensitivitySheet = true },
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f)
+                    iconColor = accentColor
                 )
-                SettingsItem(
+                SmartySettingsRow(
                     icon = Icons.Default.AutoAwesome,
                     label = stringResource(R.string.default_assistant),
                     onClick = {
@@ -205,33 +199,29 @@ fun SettingsContent(
                             } catch (_: Exception) {}
                         }
                     },
-                    showDivider = false,
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f)
+                    iconColor = accentColor
                 )
             }
         }
 
         // --- GROUP 3: SYSTEM ---
         item {
-            SettingsCard {
-                SettingsItem(
+            SmartySettingsCard {
+                SmartySettingsRow(
                     icon = Icons.Default.DeleteOutline,
                     label = stringResource(R.string.clear_cache),
-                    value = formatCacheSize(cacheSizeBytes).lowercase(),
+                    subtitle = formatCacheSize(cacheSizeBytes).lowercase(),
                     onClick = onClearCache,
                     enabled = !isClearingCache && cacheSizeBytes > 0,
-                    iconColor = accentColor,
-                    containerColor = accentColor.copy(alpha = 0.1f)
+                    iconColor = accentColor
                 )
-                 SettingsItem(
+                 SmartySettingsRow(
                     icon = Icons.AutoMirrored.Outlined.Logout,
                     label = stringResource(R.string.sign_out),
                     onClick = onSignOut,
                     textColor = Color(0xFFFF3B30),
                     iconColor = Color(0xFFFF3B30),
-                    showChevron = false,
-                    showDivider = false
+                    showChevron = false
                 )
             }
         }
@@ -377,49 +367,23 @@ fun SettingsContent(
 
 // --- Inline AI Config Components ---
 
-/**
- * Simple server status indicator - URL is hardcoded and hidden from users.
- * Shows only connection status without revealing the server address.
- */
 @Composable
 fun ServerStatusIndicator() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Replaced Card background logic
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            Icons.Default.Cloud,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Smarty Server",
-                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "Connected",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF2E7D32)
+    SmartySettingsRow(
+        label = "Smarty Server",
+        icon = Icons.Default.Cloud,
+        subtitle = "Connected",
+        enabled = true,
+        showChevron = false,
+        trailingContent = {
+            Icon(
+                Icons.Default.CheckCircle,
+                contentDescription = "Connected",
+                tint = Color(0xFF2E7D32),
+                modifier = Modifier.size(24.dp)
             )
         }
-
-        Icon(
-            Icons.Default.CheckCircle,
-            contentDescription = "Connected",
-            tint = Color(0xFF2E7D32),
-            modifier = Modifier.size(24.dp)
-        )
-    }
+    )
 }
 
 @Composable
@@ -476,85 +440,4 @@ fun InlineHeader(
 }
 
 // Components from previous file needed for layout
-@Composable
-private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp)
-            .clip(RoundedCornerShape(26.dp))
-            .background(if (androidx.compose.foundation.isSystemInDarkTheme()) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)), // Gap separator line color
-        verticalArrangement = Arrangement.spacedBy(1.dp) // Creates the thin separator lines
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun SettingsItem(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    value: String? = null,
-    textColor: Color = MaterialTheme.colorScheme.onSurface,
-    iconColor: Color = MaterialTheme.colorScheme.onSurface,
-    containerColor: Color = Color.Transparent,
-    showChevron: Boolean = true,
-    showDivider: Boolean = false, // Ignored intentionally
-    enabled: Boolean = true
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Theme-adaptive card layer
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, null, tint = if (enabled) iconColor else iconColor.copy(alpha = 0.4f), modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(label, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium), color = if (enabled) textColor else textColor.copy(alpha = 0.4f), modifier = Modifier.weight(1f))
-        if (value != null) Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(end = 8.dp))
-        if (showChevron) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
-    }
-}
-
-@Composable
-private fun SettingsSwitch(
-    icon: ImageVector,
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    iconColor: Color = MaterialTheme.colorScheme.onSurface,
-    containerColor: Color = Color.Transparent,
-    showDivider: Boolean = false, // Ignored intentionally 
-    accentColor: Color = LocalAccentColor.current
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)) // Theme-adaptive card layer
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, null, tint = iconColor, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(label, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = accentColor,
-                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                uncheckedBorderColor = Color.Transparent
-            ),
-            modifier = Modifier.scale(0.8f)
-        )
-    }
-}
 
