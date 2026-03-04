@@ -108,7 +108,7 @@ fun SettingsContent(
         item {
             Column {
                 Text(
-                    text = stringResource(R.string.ai_models),
+                    text = stringResource(R.string.models_and_connection),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
