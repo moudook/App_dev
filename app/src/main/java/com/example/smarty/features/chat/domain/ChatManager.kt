@@ -208,11 +208,14 @@ class ChatManager(
 
     fun clearChatHistory() {
         scope.launch {
+            chatRepository.deleteAllChatData()
+            
+            _currentSessionId.value = null
             chatMutex.withLock {
                 _chatMessages.value = emptyList()
             }
+            Log.d(TAG, "Chat history cleared from database and memory")
         }
-        Log.d(TAG, "Chat history cleared")
     }
 
     suspend fun addUserMessage(content: String, attachments: List<Attachment> = emptyList()): ChatMessage {
