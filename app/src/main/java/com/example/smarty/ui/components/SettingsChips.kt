@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.smarty.ui.theme.LocalShapes
 import androidx.compose.foundation.shape.CornerBasedShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 
@@ -35,18 +36,23 @@ private val LocalCardContainerColor = staticCompositionLocalOf { Color.Transpare
  */
 object SmartySettingsDefaults {
     val CardPaddingHorizontal = 20.dp
-    val RowMinHeight = 64.dp
+    val RowMinHeight = 68.dp // Height for rows with subtitles
+    val RowCompactMinHeight = 54.dp // Height for single-line rows
     val RowHorizontalPadding = 20.dp
     val RowVerticalPadding = 8.dp
     val IconSize = 24.dp
     val ChevronSize = 20.dp
     val LabelFontSize = 17.sp
-    val SeparatorHeight = 1.dp
+    val SeparatorHeight = 2.5.dp
+    val ItemCornerRadius = 3.dp
 
     val CardShape: CornerBasedShape
         @Composable
         @ReadOnlyComposable
         get() = LocalShapes.current.card
+
+    val ItemShape: CornerBasedShape
+        get() = RoundedCornerShape(ItemCornerRadius)
 
     val ContainerColor: Color
         @Composable
@@ -121,10 +127,17 @@ fun SmartySettingsRow(
 ) {
     val itemBackground = LocalCardContainerColor.current
 
+    val minHeight = if (subtitle != null) {
+        SmartySettingsDefaults.RowMinHeight
+    } else {
+        SmartySettingsDefaults.RowCompactMinHeight
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = SmartySettingsDefaults.RowMinHeight)
+            .heightIn(min = minHeight)
+            .clip(SmartySettingsDefaults.ItemShape)
             .background(itemBackground)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(
