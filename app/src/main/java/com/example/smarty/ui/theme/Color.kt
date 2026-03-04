@@ -22,6 +22,8 @@ val TextCoolGrey = Color(0xFF58585E)         // Text Secondary
 val SubtleBorder = Color(0xFFE5E5EA)         // Borders - very subtle
 val InputBackground = Color(0xFFF2F2F7)      // Input field - standard iOS-like gray
 val SecondaryButtonBg = Color(0xFFE5E5EA)
+val SmartyChipGrayLight = Color(0xFFF3F3F3)
+val SmartyChipSeparatorLight = Color(0xFFFFFFFF)
 
 // =============================================================================
 // MODERN SOFT MINIMALIST - DARK THEME (True Black AMOLED)
@@ -35,6 +37,8 @@ val DarkTextSecondary = Color(0xFF8A8A8E)
 val DarkBorder = Color(0xFF1A1A1C)
 val DarkInputBackground = Color(0xFF252528)  // Lighter input block for better visibility
 val DarkSurfaceElevated = Color(0xFF141416)
+val SmartyChipGrayDark = Color(0xFF2F2F2F)
+val SmartyChipSeparatorDark = Color(0xFFFFFFFF).copy(alpha = 0.08f)
 
 // =============================================================================
 // LEGACY COLORS (kept for compatibility)
