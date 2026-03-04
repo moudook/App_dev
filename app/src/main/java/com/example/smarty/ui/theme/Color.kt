@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Color
 // =============================================================================
 // MODERN SOFT MINIMALIST - LIGHT THEME (Comfort Edition)
 // =============================================================================
-val SoftBackground = Color(0xFFF2F1EE)       // Warm Stone - slightly lighter for better contrast
+val SoftBackground = Color(0xFFFDFDFD)       // Light theme background
 val CardWhite = Color(0xFFFFFFFF)            // Pure White cards for crispness
 val ElectricBlue = Color(0xFF0066FF)         // Primary Accent (Brand)
 val PaleBlueGrey = Color(0xFFEBEFF5)         // Secondary Accent - cool tint
