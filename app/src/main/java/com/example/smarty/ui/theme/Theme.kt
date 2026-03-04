@@ -51,11 +51,11 @@ private val DarkColorScheme = darkColorScheme(
     // Surface - Near black card
     surface = Color(0xFF0A0A0A),
     onSurface = Color.White,
-    surfaceVariant = DarkInputBackground,
+    surfaceVariant = SmartyChipGrayDark,
     onSurfaceVariant = DarkTextSecondary,
 
     // Borders - Subtle dark
-    outline = DarkBorder,
+    outline = SmartyChipSeparatorDark,
     outlineVariant = DarkBorder.copy(alpha = 0.5f),
 
     // Error - System Red (Calmer than Safety Orange)
@@ -104,11 +104,11 @@ private val LightColorScheme = lightColorScheme(
     // Surface - Pure white cards
     surface = Color.White,
     onSurface = Color.Black,
-    surfaceVariant = InputBackground,
+    surfaceVariant = SmartyChipGrayLight,
     onSurfaceVariant = TextCoolGrey,
 
     // Borders - Very subtle
-    outline = SubtleBorder,
+    outline = SmartyChipSeparatorLight,
     outlineVariant = SubtleBorder.copy(alpha = 0.5f),
 
     // Error

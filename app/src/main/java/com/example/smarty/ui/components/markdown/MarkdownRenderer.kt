@@ -393,7 +393,7 @@ fun MarkdownRenderer(
                             MarkdownTable(tableLines, normalColor, boldColor, linkColor, codeColor)
                         }
                         
-                        // Blockquote - ChatGPT Style
+                        // Blockquote - Smarty Style
                         trimmedLine.startsWith("> ") -> {
                             val quoteLines = mutableListOf<String>()
                             quoteLines.add(trimmedLine.substring(2).trim())

@@ -84,6 +84,9 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.example.smarty.ui.components.SmartySettingsCard
+import com.example.smarty.ui.components.SmartySettingsRow
+import com.example.smarty.ui.components.SmartySettingsSwitchRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 enum class SettingsView {
@@ -251,141 +254,169 @@ fun SettingsScreen(
                             }
 
                             // SECTION 1: AI & VOICE
-                            SettingsSection(title = "My Smarty") {
-                                SettingsRow(
-                                    title = "AI Strategy",
-                                    icon = Icons.Default.Analytics,
-                                    subtitle = providerStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
-                                    onClick = { currentView = SettingsView.ProviderStrategy },
-                                    showDivider = true
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = "My Smarty",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                                 )
-                                SettingsRow(
-                                    title = "Smarty Server",
-                                    icon = Icons.Default.Cloud,
-                                    subtitle = "Configure remote connection",
-                                    onClick = { currentView = SettingsView.ServerConfig },
-                                    showDivider = false
-                                )
-                            }
-
-                            // SECTION 2: CALENDAR INTEGRATION
-                            SettingsSection(title = "Calendar Integration") {
-                                SettingsToggleRow(
-                                    title = stringResource(R.string.sync_to_google_calendar),
-                                    icon = Icons.Default.Sync,
-                                    isChecked = isCalendarSyncEnabled,
-                                    onCheckedChange = { 
-                                        onSetCalendarSyncEnabled(it) 
-                                        if (it) onLoadDeviceCalendars() 
-                                    },
-                                    showDivider = isCalendarSyncEnabled
-                                )
-
-                                if (isCalendarSyncEnabled) {
-                                    val selectedCalendar = deviceCalendars.find { it.id == targetCalendarId }
-                                    SettingsRow(
-                                        title = stringResource(R.string.default_calendar),
-                                        icon = Icons.Default.Event,
-                                        subtitle = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select_calendar),
-                                        onClick = { currentView = SettingsView.CalendarSelector },
-                                        showDivider = false
+                                SmartySettingsCard {
+                                    SmartySettingsRow(
+                                        label = "AI Strategy",
+                                        icon = Icons.Default.Analytics,
+                                        subtitle = providerStrategy.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() },
+                                        onClick = { currentView = SettingsView.ProviderStrategy }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Smarty Server",
+                                        icon = Icons.Default.Cloud,
+                                        subtitle = "Configure remote connection",
+                                        onClick = { currentView = SettingsView.ServerConfig }
                                     )
                                 }
                             }
 
+                            // SECTION 2: CALENDAR INTEGRATION
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = "Calendar Integration",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
+                                )
+                                SmartySettingsCard {
+                                    SmartySettingsSwitchRow(
+                                        label = stringResource(R.string.sync_to_google_calendar),
+                                        icon = Icons.Default.Sync,
+                                        checked = isCalendarSyncEnabled,
+                                        onCheckedChange = { 
+                                            onSetCalendarSyncEnabled(it) 
+                                            if (it) onLoadDeviceCalendars() 
+                                        }
+                                    )
+
+                                    if (isCalendarSyncEnabled) {
+                                        val selectedCalendar = deviceCalendars.find { it.id == targetCalendarId }
+                                        SmartySettingsRow(
+                                            label = stringResource(R.string.default_calendar),
+                                            icon = Icons.Default.Event,
+                                            subtitle = selectedCalendar?.displayName?.lowercase() ?: stringResource(R.string.select_calendar),
+                                            onClick = { currentView = SettingsView.CalendarSelector }
+                                        )
+                                    }
+                                }
+                            }
+
                             // SECTION 3: DATA
-                            SettingsSection(title = "Data & Storage") {
-                                SettingsRow(
-                                    title = stringResource(R.string.backup_sync),
-                                    icon = Icons.Default.CloudSync,
-                                    subtitle = if (lastBackupTime > 0) {
-                                        val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
-                                        "${stringResource(R.string.last_)} ${sdf.format(java.util.Date(lastBackupTime))}"
-                                    } else stringResource(R.string.not_backed_up),
-                                    onClick = { currentView = SettingsView.Backup },
-                                    showDivider = true
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = "Data & Storage",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                                 )
-                                SettingsRow(
-                                    title = stringResource(R.string.google_calendar_sync),
-                                    icon = Icons.Default.Sync,
-                                    subtitle = if (lastCalendarSyncTime > 0) {
-                                        val sdf = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
-                                        "${stringResource(R.string.last_sync_)} ${sdf.format(java.util.Date(lastCalendarSyncTime))}"
-                                    } else stringResource(R.string.not_synced),
-                                    onClick = onCalendarSync,
-                                    showDivider = true
-                                )
-                                SettingsRow(
-                                    title = stringResource(R.string.export_data),
-                                    icon = Icons.Default.FileDownload,
-                                    subtitle = stringResource(R.string.export_all_notes_and_settings),
-                                    onClick = onExportData,
-                                    showDivider = true
-                                )
-                                SettingsRow(
-                                    title = stringResource(R.string.clear_cache),
-                                    icon = Icons.Filled.DeleteOutline,
-                                    subtitle = formatCacheSize(cacheSizeBytes),
-                                    onClick = onClearCache,
-                                    enabled = !isClearingCache && cacheSizeBytes > 0,
-                                    showDivider = false
-                                )
+                                SmartySettingsCard {
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.backup_sync),
+                                        icon = Icons.Default.CloudSync,
+                                        subtitle = if (lastBackupTime > 0) {
+                                            val sdf = java.text.SimpleDateFormat("MMM dd", java.util.Locale.getDefault())
+                                            "${stringResource(R.string.last_)} ${sdf.format(java.util.Date(lastBackupTime))}"
+                                        } else stringResource(R.string.not_backed_up),
+                                        onClick = { currentView = SettingsView.Backup }
+                                    )
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.google_calendar_sync),
+                                        icon = Icons.Default.Sync,
+                                        subtitle = if (lastCalendarSyncTime > 0) {
+                                            val sdf = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
+                                            "${stringResource(R.string.last_sync_)} ${sdf.format(java.util.Date(lastCalendarSyncTime))}"
+                                        } else stringResource(R.string.not_synced),
+                                        onClick = onCalendarSync
+                                    )
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.export_data),
+                                        icon = Icons.Default.FileDownload,
+                                        subtitle = stringResource(R.string.export_all_notes_and_settings),
+                                        onClick = onExportData
+                                    )
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.clear_cache),
+                                        icon = Icons.Filled.DeleteOutline,
+                                        subtitle = formatCacheSize(cacheSizeBytes),
+                                        onClick = onClearCache,
+                                        enabled = !isClearingCache && cacheSizeBytes > 0
+                                    )
+                                }
                             }
 
                             // SECTION 4: PREFERENCES
-                            SettingsSection(title = "App Preferences") {
-                                SettingsRow(
-                                    title = stringResource(R.string.shake_sensitivity),
-                                    icon = Icons.Filled.Waves,
-                                    subtitle = "${(shakeSensitivity * 100).toInt()}% Sensitivity",
-                                    onClick = { currentView = SettingsView.ShakeSensitivity },
-                                    showDivider = true
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = "App Preferences",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                                 )
-                                SettingsRow(
-                                    title = "Coin Toss",
-                                    icon = Icons.Default.MonetizationOn,
-                                    subtitle = "Flip a coin to decide",
-                                    onClick = {
-                                        android.widget.Toast.makeText(context, "Opening Coin Toss...", android.widget.Toast.LENGTH_SHORT).show()
-                                        onNavigateToCoinToss()
-                                    },
-                                    showDivider = true
-                                )
-                                SettingsRow(
-                                    title = stringResource(R.string.default_assistant),
-                                    icon = Icons.Default.Build,
-                                    subtitle = stringResource(R.string.set_as_device_assistant),
-                                    onClick = {
-                                        try {
-                                            val intent = android.content.Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            try {
-                                                val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
-                                                context.startActivity(intent)
-                                            } catch (e2: Exception) {}
+                                SmartySettingsCard {
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.shake_sensitivity),
+                                        icon = Icons.Filled.Waves,
+                                        subtitle = "${(shakeSensitivity * 100).toInt()}% Sensitivity",
+                                        onClick = { currentView = SettingsView.ShakeSensitivity }
+                                    )
+                                    SmartySettingsRow(
+                                        label = "Coin Toss",
+                                        icon = Icons.Default.MonetizationOn,
+                                        subtitle = "Flip a coin to decide",
+                                        onClick = {
+                                            android.widget.Toast.makeText(context, "Opening Coin Toss...", android.widget.Toast.LENGTH_SHORT).show()
+                                            onNavigateToCoinToss()
                                         }
-                                    },
-                                    showDivider = true
-                                )
-                                SettingsRow(
-                                    title = stringResource(R.string.about_smarty),
-                                    icon = Icons.Default.Info,
-                                    subtitle = "Version ${stringResource(R.string.smarty_version)}",
-                                    onClick = { currentView = SettingsView.About },
-                                    showDivider = false
-                                )
+                                    )
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.default_assistant),
+                                        icon = Icons.Default.Build,
+                                        subtitle = stringResource(R.string.set_as_device_assistant),
+                                        onClick = {
+                                            try {
+                                                val intent = android.content.Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS)
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                try {
+                                                    val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                                                    context.startActivity(intent)
+                                                } catch (e2: Exception) {}
+                                            }
+                                        }
+                                    )
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.about_smarty),
+                                        icon = Icons.Default.Info,
+                                        subtitle = "Version ${stringResource(R.string.smarty_version)}",
+                                        onClick = { currentView = SettingsView.About }
+                                    )
+                                }
                             }
 
                             // SECTION 5: ACCOUNT
-                            SettingsSection(title = "Account") {
-                                SettingsRow(
-                                    title = stringResource(R.string.sign_out),
-                                    icon = Icons.AutoMirrored.Filled.Logout,
-                                    onClick = onSignOut,
-                                    isDestructive = true,
-                                    showDivider = false
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    text = "Account",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 20.dp, bottom = 8.dp)
                                 )
+                                SmartySettingsCard {
+                                    SmartySettingsRow(
+                                        label = stringResource(R.string.sign_out),
+                                        icon = Icons.AutoMirrored.Filled.Logout,
+                                        onClick = onSignOut,
+                                        textColor = MaterialTheme.colorScheme.error,
+                                        showChevron = false
+                                    )
+                                }
                             }
                         }
                     }
@@ -874,165 +905,6 @@ private fun SettingsToggleItem(
     }
 }
 
-// 
-// CENTRALIZED SETTINGS COMPONENTS - Minimal, Stacked Cards
-// 
-
-@Composable
-private fun SettingsSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        if (title.isNotEmpty()) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, // Themed light gray heading
-                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
-            )
-        }
-        val separatorColor by animateColorAsState(
-            targetValue = if (MaterialTheme.colorScheme.surface.luminance() <= 0.5f) {
-                // In dark mode, use a slightly lighter gray for separators
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
-            } else {
-                // In light mode, use a subtle divider color
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-            },
-            animationSpec = tween(500), // Smoother transition
-            label = "separatorColor"
-        )
-        
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(LocalShapes.current.chipLarge)
-                .background(separatorColor),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
-        ) {
-            content()
-        }
-    }
-}
-
-@Composable
-private fun SettingsRow(
-    title: String,
-    icon: ImageVector,
-    subtitle: String? = null,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    isDestructive: Boolean = false,
-    showDivider: Boolean = true // Ignored intentionally
-) {
-    val contentColor = when {
-        !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-        isDestructive -> MaterialTheme.colorScheme.error // iOS desctructive red adaptively
-        else -> MaterialTheme.colorScheme.onSurface
-    }
-    val iconColor = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-
-    val rowBackgroundColor by animateColorAsState(
-        targetValue = MaterialTheme.colorScheme.surface,
-        animationSpec = tween(500), // Smoother transition
-        label = "rowBackgroundColor"
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(rowBackgroundColor)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 16.dp, horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconColor,
-            modifier = Modifier.size(IconSize.xl)
-        )
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    fontWeight = FontWeight.Normal
-                ),
-                color = contentColor
-            )
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsToggleRow(
-    title: String,
-    icon: ImageVector,
-    isChecked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    showDivider: Boolean = true // Ignored intentionally 
-) {
-    val rowBackgroundColor by animateColorAsState(
-        targetValue = MaterialTheme.colorScheme.surface,
-        animationSpec = tween(500), // Smoother transition
-        label = "rowBackgroundColor"
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(rowBackgroundColor)
-            .padding(vertical = 12.dp, horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(IconSize.xl)
-        )
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall.copy(
-                fontWeight = FontWeight.Normal
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-
-        Switch(
-            checked = isChecked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = SemanticColors.success,
-                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant,
-                uncheckedBorderColor = Color.Transparent
-            ),
-            modifier = Modifier.scale(0.8f) // Scale iOS matching
-        )
-    }
-}
 
 // formatCacheSize is now imported from DataManagementSection
 
