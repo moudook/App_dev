@@ -683,6 +683,20 @@ ${goalMemoryManager.getProgressContext()}
                 llmProvider.stream(messagesForAgent, tools, modelOverride).collect { chunk ->
                     chunk.usage?.let { totalUsage = it }
 
+                    // Handle API-level reasoning (from providers like GLM-5, DeepSeek that use reasoning_content field)
+                    if (!chunk.reasoning.isNullOrEmpty()) {
+                        currentThinkingContent += chunk.reasoning
+                        // Emit thinking progress so UI can show "Thinking for Xs" with content
+                        if (agentIteration == 1 || !isToolCallInProgress) {
+                            emit(AgentEvent.Processing(
+                                eventId = UUID.randomUUID().toString(),
+                                timestamp = System.currentTimeMillis(),
+                                content = "",
+                                thinking = currentThinkingContent
+                            ))
+                        }
+                    }
+
                     // Handle Content
                     if (!chunk.content.isNullOrEmpty()) {
                         val newContent = chunk.content

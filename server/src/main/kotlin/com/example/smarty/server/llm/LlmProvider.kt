@@ -51,6 +51,7 @@ data class LlmResponse(
 @Serializable
 data class LlmChunk(
     val content: String?, // Partial text
+    val reasoning: String? = null, // Reasoning/thinking content (separate from content)
     val toolCall: LlmToolCall? = null, // Partial or complete tool call
     val usage: LlmUsage? = null // Optional usage info (usually in the last chunk)
 )

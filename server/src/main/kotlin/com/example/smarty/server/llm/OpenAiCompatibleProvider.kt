@@ -163,17 +163,13 @@ override suspend fun stream(
                                     )
                                 }
 
-                                val combinedContent = buildString {
-                                    if (!reasoning.isNullOrBlank()) {
-                                        append(reasoning)
-                                    }
-                                    if (!content.isNullOrBlank()) {
-                                        append(content)
-                                    }
-                                }
-
-                                if (combinedContent.isNotEmpty() || toolCall != null) {
-                                    emit(LlmChunk(combinedContent.ifEmpty { null }, toolCall))
+                                // Emit reasoning and content as separate fields
+                                if (!reasoning.isNullOrEmpty() || !content.isNullOrEmpty() || toolCall != null) {
+                                    emit(LlmChunk(
+                                        content = content,
+                                        reasoning = reasoning,
+                                        toolCall = toolCall
+                                    ))
                                 }
                             }
                         } catch (e: Exception) {
