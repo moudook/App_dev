@@ -25,6 +25,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -119,6 +120,8 @@ import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.IconSize
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.MonoFont
+import com.example.smarty.ui.theme.thinkingColors
+import com.example.smarty.ui.theme.smartyShapes
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.LaTeXView
 import kotlinx.coroutines.delay
@@ -285,7 +288,6 @@ fun ChatMessageItem(
     ) {
         @Composable
         fun MessageContent() {
-            var actionsExpanded by remember { mutableStateOf(false) }
             Column(
                 modifier = Modifier.padding(
                     horizontal = if (isUser) 16.dp else 16.dp,
@@ -296,98 +298,142 @@ fun ChatMessageItem(
                     
                     // THINKING SECTION - Smarty style (shows ABOVE content)
                     // During streaming: shows live thinking with expandable view
-                    // After completion: shows "Thought for X seconds" collapsed
+                    // After completion: shows "Thought process" collapsed
                     if (message.hasThinking || (message.isStreaming && !message.thinking.isNullOrBlank())) {
                         var thinkingExpanded by remember { mutableStateOf(message.isStreaming) }
                         val thinkingText = message.thinking ?: ""
+                        val thinkingColors = MaterialTheme.thinkingColors
                         
+                        // Optimize: Resource-efficient typewriter for thinking text
+                        // Only runs if expanded and streaming
+                        val displayThinkingLength = remember(message.id) { mutableIntStateOf(if (message.isStreaming) 0 else thinkingText.length) }
+                        
+                        LaunchedEffect(thinkingText, thinkingExpanded, message.isStreaming) {
+                            if (message.isStreaming && thinkingExpanded) {
+                                while (displayThinkingLength.intValue < thinkingText.length) {
+                                    displayThinkingLength.intValue += minOf(3, thinkingText.length - displayThinkingLength.intValue)
+                                    delay(20)
+                                }
+                            } else if (!message.isStreaming) {
+                                displayThinkingLength.intValue = thinkingText.length
+                            }
+                        }
+
+                        val visibleThinkingText = remember(displayThinkingLength.intValue, thinkingText) {
+                            if (displayThinkingLength.intValue >= thinkingText.length) thinkingText
+                            else thinkingText.substring(0, displayThinkingLength.intValue)
+                        }
+
                         Surface(
-                            onClick = { thinkingExpanded = !thinkingExpanded },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                            shape = MaterialTheme.smartyShapes.thinkingContainer,
+                            // Differentiate from response: use subtle border and slight elevation/different surface
+                            color = thinkingColors.background,
+                            border = BorderStroke(
+                                width = 0.5.dp,
+                                color = thinkingColors.border
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 12.dp)
+                                .padding(bottom = ComponentSpacing.thinkingMarginBottom)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null // REMOVE ripple effect (N circle impact)
+                                ) { 
+                                    thinkingExpanded = !thinkingExpanded 
+                                }
                         ) {
-                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                            Column(modifier = Modifier.padding(
+                                horizontal = ComponentSpacing.thinkingPaddingHorizontal, 
+                                vertical = ComponentSpacing.thinkingPaddingVertical
+                            )) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(ComponentSpacing.thinkingHeaderGap)
                                 ) {
+                                    // Removed sparkle icon as requested
                                     if (message.isStreaming) {
                                         val infiniteTransition = rememberInfiniteTransition(label = "thinking_pulse")
                                         val pulseAlpha by infiniteTransition.animateFloat(
-                                            initialValue = 0.4f, targetValue = 1f,
+                                            initialValue = Alpha.prominent, targetValue = Alpha.opaque,
                                             animationSpec = infiniteRepeatable(
-                                                animation = tween(500, easing = LinearEasing),
+                                                animation = tween(800, easing = LinearEasing),
                                                 repeatMode = RepeatMode.Reverse
                                             ), label = "pulse"
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = accentColor.copy(alpha = pulseAlpha),
-                                            modifier = Modifier.size(16.dp)
                                         )
                                         Text(
                                             text = "Thinking...",
                                             style = MaterialTheme.typography.labelMedium.copy(
-                                                fontWeight = FontWeight.Medium
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 0.5.sp
                                             ),
-                                            color = accentColor
+                                            color = accentColor.copy(alpha = pulseAlpha)
                                         )
                                     } else {
-                                        Icon(
-                                            imageVector = Icons.Default.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = accentColor.copy(alpha = 0.7f),
-                                            modifier = Modifier.size(16.dp)
-                                        )
                                         Text(
                                             text = "Thought process",
                                             style = MaterialTheme.typography.labelMedium.copy(
-                                                fontWeight = FontWeight.Medium
+                                                fontWeight = FontWeight.SemiBold,
+                                                letterSpacing = 0.5.sp
                                             ),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = thinkingColors.text.copy(alpha = Alpha.mostlyOpaque)
                                         )
                                     }
                                     Spacer(modifier = Modifier.weight(1f))
                                     Icon(
                                         imageVector = if (thinkingExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                        modifier = Modifier.size(18.dp)
+                                        tint = thinkingColors.text.copy(alpha = Alpha.half),
+                                        modifier = Modifier.size(ComponentSpacing.thinkingIndicatorSize)
                                     )
                                 }
                                 
                                 AnimatedVisibility(
                                     visible = thinkingExpanded,
-                                    enter = expandVertically() + fadeIn(),
-                                    exit = shrinkVertically() + fadeOut()
+                                    enter = expandVertically(animationSpec = tween(300)) + fadeIn(),
+                                    exit = shrinkVertically(animationSpec = tween(250)) + fadeOut()
                                 ) {
                                     Column {
-                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Spacer(modifier = Modifier.height(ComponentSpacing.thinkingTextGap))
                                         Box(
                                             modifier = Modifier
-                                                .padding(start = 8.dp)
+                                                .padding(start = ComponentSpacing.thinkingLineMargin)
                                                 .drawBehind {
+                                                    // Thinner, more professional accent line
                                                     drawLine(
-                                                        color = accentColor.copy(alpha = 0.3f),
+                                                        color = accentColor.copy(alpha = Alpha.moderate),
                                                         start = Offset(0f, 0f),
                                                         end = Offset(0f, this@drawBehind.size.height),
-                                                        strokeWidth = 2.dp.toPx()
+                                                        strokeWidth = ComponentSpacing.thinkingLineWidth.toPx()
                                                     )
                                                 }
-                                                .padding(start = 12.dp)
+                                                .padding(start = ComponentSpacing.thinkingLineGap)
                                         ) {
                                             Text(
-                                                text = thinkingText,
+                                                text = visibleThinkingText,
                                                 style = MaterialTheme.typography.bodySmall.copy(
                                                     fontFamily = FontFamily.Monospace,
-                                                    lineHeight = 22.sp
+                                                    lineHeight = 20.sp,
+                                                    fontSize = 11.sp
                                                 ),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                color = thinkingColors.text.copy(alpha = Alpha.nearlyOpaque)
                                             )
+                                        }
+
+                                        // Tool execution log integrated directly into thinking section
+                                        if (message.executedActions.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(ComponentSpacing.thinkingTextGap))
+                                            Column(
+                                                modifier = Modifier.padding(start = ComponentSpacing.thinkingLineGap + ComponentSpacing.thinkingLineMargin)
+                                            ) {
+                                                message.executedActions.forEach { actionResult ->
+                                                    MinimalActionResultChip(
+                                                        actionName = actionResult.action,
+                                                        success = actionResult.success,
+                                                        summary = actionResult.resultSummary,
+                                                        thinkingColors = thinkingColors
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -601,80 +647,6 @@ fun ChatMessageItem(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                 color = if (isUser) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
-                    }
-
-                    // Agent Activity (Collapsible)
-                    if (!isUser && message.hasActions) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                        ) {
-                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                                // Clickable header
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { actionsExpanded = !actionsExpanded },
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.AutoAwesome,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "${message.executedActions.size} action${if (message.executedActions.size > 1) "s" else ""} performed",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = if (actionsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = if (actionsExpanded) "Collapse" else "Expand",
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                // Expandable content
-                                AnimatedVisibility(visible = actionsExpanded) {
-                                    Column(modifier = Modifier.padding(top = 8.dp)) {
-                                        message.executedActions.forEach { actionResult ->
-                                            ActionResultChip(
-                                                actionName = actionResult.action,
-                                                success = actionResult.success,
-                                                summary = actionResult.resultSummary
-                                            )
-                                            if (actionResult.affectedNoteIds.isNotEmpty()) {
-                                                Spacer(modifier = Modifier.height(6.dp))
-                                                actionResult.affectedNoteIds.forEach { noteId ->
-                                                    val note = getNote(noteId)
-                                                    if (note != null) {
-                                                        NoteCard(
-                                                            note = note,
-                                                            onClick = { onNoteClick(note) },
-                                                            onDelete = {},
-                                                            onOpenTodo = {},
-                                                            modifier = Modifier.fillMaxWidth(),
-                                                            isSelectionMode = true,
-                                                            onLongPress = { }
-                                                        )
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                    }
-                                                }
-                                            }
-                                            Spacer(modifier = Modifier.height(6.dp))
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
 
@@ -1163,74 +1135,54 @@ private fun SourceCard(
     }
 }
 
+/**
+ * Minified tool call result for the thinking section.
+ * Stripped of bulky elements to fit perfectly within reasoning flow.
+ */
 @Composable
-private fun ActionResultChip(
+private fun MinimalActionResultChip(
     actionName: String,
     success: Boolean,
-    summary: String
+    summary: String,
+    thinkingColors: com.example.smarty.ui.theme.ThinkingColors
 ) {
-    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.5f
-    // ElevenLabs 'Badge' Style: Thin border, subtle background, crisp text
-    val backgroundColor = if (success) {
-        if (isDark) Color(0xFF064E3B) else Color(0xFFECFDF5) // Green-900 / Green-50
-    } else {
-        if (isDark) Color(0xFF7F1D1D) else Color(0xFFFEF2F2) // Red-900 / Red-50
-    }
-    
-    val contentColor = if (success) {
-        if (isDark) Color(0xFF34D399) else Color(0xFF059669) // Green-400 / Green-600
-    } else {
-        if (isDark) Color(0xFFF87171) else Color(0xFFDC2626) // Red-400 / Red-600
-    }
-
-    val borderColor = contentColor.copy(alpha = 0.3f)
-
-    Surface(
-        shape = RoundedCornerShape(percent = 50),
-        color = backgroundColor,
-        border = BorderStroke(1.dp, borderColor),
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(vertical = 2.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-            Icon(
-                imageVector = if (success) Icons.Default.Check else Icons.Default.Close,
-                contentDescription = null,
-                modifier = Modifier.size(12.dp),
-                tint = contentColor
-            )
-            Spacer(modifier = Modifier.width(6.dp))
+        Icon(
+            imageVector = if (success) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+            contentDescription = null,
+            modifier = Modifier.size(10.dp),
+            tint = if (success) MaterialTheme.colorScheme.primary.copy(alpha = Alpha.prominent) 
+                   else MaterialTheme.colorScheme.error.copy(alpha = Alpha.prominent)
+        )
+        
+        Spacer(modifier = Modifier.width(ComponentSpacing.extraSmall))
+        
+        Text(
+            text = "[${formatActionName(actionName)}]",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp,
+                letterSpacing = 0.2.sp
+            ),
+            color = thinkingColors.text.copy(alpha = Alpha.heavy)
+        )
+        
+        if (summary.isNotBlank()) {
+            Spacer(modifier = Modifier.width(ComponentSpacing.extraSmall))
             Text(
-                text = formatActionName(actionName),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 11.sp,
-                    letterSpacing = 0.sp
+                text = summary,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 10.sp
                 ),
-                color = contentColor
+                color = thinkingColors.text.copy(alpha = Alpha.half),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            if (summary.isNotBlank()) {
-                Spacer(modifier = Modifier.width(6.dp))
-                // Separator dot
-                Box(
-                    modifier = Modifier
-                        .size(3.dp)
-                        .background(contentColor.copy(alpha = 0.5f), CircleShape)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Normal
-                    ),
-                    color = contentColor.copy(alpha = 0.9f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
     }
 }

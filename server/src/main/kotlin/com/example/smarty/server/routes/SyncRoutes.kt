@@ -74,6 +74,7 @@ data class MessagePushItem(
     val id: String? = null,
     val role: String,
     val content: String,
+    val thinking: String? = null,
     val createdAt: Long
 )
 
@@ -201,7 +202,7 @@ fun Application.configureSyncRoutes() {
                                 }
                                 
                                 sessionItem.messages?.forEach { msg ->
-                                    chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content)
+                                    chatRepository.saveMessage(userId, sessionItem.id, msg.role, msg.content, msg.thinking)
                                 }
                             } catch (e: Exception) {
                                 errors.add("Session error: ${e.message}")

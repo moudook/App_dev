@@ -46,6 +46,12 @@ data class Spacing(
  * Updated for Modern Soft Minimalist "airy" feel
  */
 object ComponentSpacing {
+    // Basic units for reuse
+    val micro = 2.dp
+    val tiny = 4.dp
+    val extraSmall = 8.dp
+    val small = 8.dp
+
     // Card spacing - GENEROUS for "airy" feel
     val cardPadding = 24.dp             // Increased from 16dp
     val cardPaddingLarge = 32.dp        // For larger cards/modals
@@ -103,6 +109,17 @@ object ComponentSpacing {
     val bubbleMaxWidth = 320.dp
     val bubbleCornerLarge = 24.dp
     val bubbleCornerSmall = 6.dp
+
+    // Thinking section constants
+    val thinkingPaddingHorizontal = 12.dp
+    val thinkingPaddingVertical = 10.dp
+    val thinkingHeaderGap = 8.dp
+    val thinkingTextGap = 8.dp
+    val thinkingLineGap = 12.dp
+    val thinkingLineMargin = 4.dp
+    val thinkingLineWidth = 1.5.dp
+    val thinkingIndicatorSize = 16.dp
+    val thinkingMarginBottom = 12.dp
 
     // Note card constants
     val noteCardHeight = 100.dp

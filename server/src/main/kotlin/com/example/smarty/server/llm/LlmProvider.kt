@@ -33,6 +33,7 @@ interface LlmProvider {
 data class LlmMessage(
     val role: Role,
     val content: String,
+    val thinking: String? = null,
     val name: String? = null,
     val images: List<ByteArray>? = null // Optional image attachments
 ) {

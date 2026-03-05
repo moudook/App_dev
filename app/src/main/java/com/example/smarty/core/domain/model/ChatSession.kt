@@ -147,7 +147,8 @@ data class ChatMessageEntity(
                 timestamp = message.timestamp,
                 referencedNoteIds = message.referencedNoteIds.joinToString(","),
                 citationsJson = citationsJson,
-                inlineImagesJson = inlineImagesJson
+                inlineImagesJson = inlineImagesJson,
+                thinking = message.thinking
             )
         }
 

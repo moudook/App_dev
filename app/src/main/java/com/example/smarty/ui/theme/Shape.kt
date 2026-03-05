@@ -1,6 +1,9 @@
 package com.example.smarty.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.dp
 
@@ -41,6 +44,9 @@ data class SmartyShapes(
     val fab: RoundedCornerShape = RoundedCornerShape(16.dp),
     val iconButton: RoundedCornerShape = RoundedCornerShape(12.dp),
 
+    // Thinking section shape
+    val thinkingContainer: RoundedCornerShape = RoundedCornerShape(12.dp),
+
     // Avatar (circular)
     val avatar: RoundedCornerShape = RoundedCornerShape(50),
 
@@ -56,3 +62,11 @@ data class SmartyShapes(
 )
 
 val LocalShapes = staticCompositionLocalOf { SmartyShapes() }
+
+/**
+ * Access shapes from any composable
+ */
+val MaterialTheme.smartyShapes: SmartyShapes
+    @Composable
+    @ReadOnlyComposable
+    get() = LocalShapes.current

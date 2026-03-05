@@ -81,13 +81,24 @@ class SyncCoordinator(
                     sessionData.messages.forEach { msgData ->
                         // Check by server ID first
                         val existingById = chatDao.getMessageById(msgData.id)
-                        // Also check if a message with same role+content already exists locally
+                        // Also check if a message with same role+normalized content already exists locally
                         // (app and server generate different UUIDs for the same message)
+                        // BUG FIX: Normalize content before comparing - strip <think> tags and trim
+                        // so server content (with think tags) matches app content (tags stripped)
+                        val normalizedServerContent = normalizeContentForDedup(msgData.content)
                         val existingByContent = existingLocalMessages.any { local ->
                             local.role == msgData.role.uppercase() &&
-                            local.content == msgData.content
+                            normalizeContentForDedup(local.content) == normalizedServerContent
                         }
                         if (existingById == null && !existingByContent) {
+                            // Extract thinking from server content if embedded in <think> tags
+                            val thinking = msgData.thinking ?: extractThinkingFromContent(msgData.content)
+                            val cleanContent = if (thinking != null && msgData.thinking == null) {
+                                // Server had thinking embedded in content, strip it
+                                stripThinkTags(msgData.content)
+                            } else {
+                                msgData.content
+                            }
                             val message = ChatMessage(
                                 id = msgData.id,
                                 role = when (msgData.role.uppercase()) {
@@ -95,7 +106,8 @@ class SyncCoordinator(
                                     "SMARTY", "ASSISTANT" -> ChatRole.SMARTY
                                     else -> ChatRole.SYSTEM
                                 },
-                                content = msgData.content,
+                                content = cleanContent,
+                                thinking = thinking,
                                 timestamp = msgData.createdAt
                             )
                             val entity = com.example.smarty.core.domain.model.ChatMessageEntity.fromChatMessage(message, sessionData.id)
@@ -251,6 +263,46 @@ class SyncCoordinator(
         private const val PREFS_NAME = "sync_prefs"
         private const val KEY_LAST_PULL = "last_pull"
         private const val KEY_LAST_PUSH = "last_push"
+
+        // Regex patterns for content normalization (deduplication)
+        private val THINK_TAG_REGEX = Regex("<think>.*?</think>", RegexOption.DOT_MATCHES_ALL)
+        private val THINK_OPEN_REGEX = Regex("<think>.*", RegexOption.DOT_MATCHES_ALL)
+        private val FINAL_TAG_REGEX = Regex("<final>.*?</final>", RegexOption.DOT_MATCHES_ALL)
+
+        /**
+         * Normalize content for deduplication comparison.
+         * Strips <think> and <final> tags, trims whitespace.
+         * This ensures that server content (with think tags) matches app content (tags stripped).
+         */
+        fun normalizeContentForDedup(content: String): String {
+            return content
+                .replace(THINK_TAG_REGEX, "")
+                .replace(THINK_OPEN_REGEX, "")
+                .replace(FINAL_TAG_REGEX, "")
+                .trim()
+        }
+
+        /**
+         * Extract thinking content from <think> tags in the message content.
+         */
+        fun extractThinkingFromContent(content: String): String? {
+            val match = THINK_TAG_REGEX.find(content)
+            return match?.groupValues?.getOrNull(0)
+                ?.removePrefix("<think>")
+                ?.removeSuffix("</think>")
+                ?.trim()
+                ?.ifBlank { null }
+        }
+
+        /**
+         * Strip <think> tags from content, leaving only the actual response.
+         */
+        fun stripThinkTags(content: String): String {
+            return content
+                .replace(THINK_TAG_REGEX, "")
+                .replace(THINK_OPEN_REGEX, "")
+                .trim()
+        }
     }
 }
 

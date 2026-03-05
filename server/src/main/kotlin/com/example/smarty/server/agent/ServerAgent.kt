@@ -368,9 +368,9 @@ You can manage notes, reminders, calendar events, timers, web searches, and devi
 <output_format>
 You MUST structure EVERY response using exactly these two tags:
 
-秒钟
+<think>
 [Your internal reasoning — only when genuinely needed. For simple chat or requests, write a single short line or skip entirely. NEVER show this to the user.]
-```
+</think>
 
 <final>
 [What the user sees. This is your ONLY visible output.]
@@ -378,7 +378,7 @@ You MUST structure EVERY response using exactly these two tags:
 
 RULES:
 - ALWAYS include both tags in every response, no exceptions.
-- 秒钟 is private scratch space. Keep it proportional to task complexity.
+- <think> is private scratch space. Keep it proportional to task complexity.
   - Casual chat or simple task? → one line or skip.
   - Multi-step task? → brief bullet outline only.
   - NEVER write paragraphs of reasoning for simple requests.
@@ -420,22 +420,22 @@ When including mathematics, use LaTeX syntax:
 EXAMPLES — Casual conversation (no tools needed):
 
 User: "I'm so tired today"
-秒钟Empathize, keep it light.```
+<think>Empathize, keep it light.</think>
 
 <final>One of those days, huh? Hope you can take it easy later. What's been draining you?</final>
 
 User: "I just finished a big project at work"
-秒钟Celebrate with them.```
+<think>Celebrate with them.</think>
 
 <final>That's a big deal — how are you feeling about it? Relief? Triumph? Ready to sleep for a week?</final>
 
 User: "What do you think about pineapple on pizza?"
-秒钟Fun opinion question.```
+<think>Fun opinion question.</think>
 
 <final>Honestly? It works. The **sweet-salty contrast** is underrated. But I get why people have strong feelings about it. Where do you stand?</final>
 
 User: "Explain the quadratic formula"
-秒钟Standard math explanation with formula.```
+<think>Standard math explanation with formula.</think>
 
 <final>The quadratic formula solves any equation of the form `${'$'}`ax^2 + bx + c = 0`${'$'}`:
 
@@ -451,33 +451,33 @@ Where:
 EXAMPLES — Simple tasks (minimal thinking):
 
 User: "Set a timer for 10 minutes"
-秒钟Timer 10 min.```
+<think>Timer 10 min.</think>
 
 <final>Done — timer set for 10 minutes.</final>
 
 User: "What's the capital of France?"
-秒钟Paris.```
+<think>Paris.</think>
 
 <final>Paris.</final>
 
 User: "Open Spotify"
-秒钟Launch Spotify.```
+<think>Launch Spotify.</think>
 
 <final>Opening Spotify.</final>
 
 User: "Turn on WiFi"
-秒钟toggle_setting wifi on.```
+<think>toggle_setting wifi on.</think>
 
 <final>WiFi turned on.</final>
 
 EXAMPLES — Complex tasks (brief reasoning OK):
 
 User: "Search for the best productivity apps and save the top 3 as a note"
-秒钟
+<think>
 1. search_web → top productivity apps
 2. Pick top 3 from results
 3. save_note with findings
-```
+</think>
 
 <final>On it — searching and I'll save the top 3 picks as a note.</final>
 </output_format>
@@ -665,6 +665,12 @@ ${goalMemoryManager.getProgressContext()}
         val toolCallHistory = mutableListOf<Pair<String, String>>() // (toolName, argsHash)
         val maxSameToolCalls = 3 // Max times same tool with similar args can be called
 
+        // State machine for separating <think> and <final> streams
+        // Hoisted OUTSIDE loop so thinking persists across tool call iterations
+        var inThinkingState = false
+        var inFinalState = false
+        var currentThinkingContent = ""
+
         while (agentIteration < maxAgentIterations) {
             agentIteration++
             var currentContent = ""
@@ -675,11 +681,6 @@ ${goalMemoryManager.getProgressContext()}
             var totalUsage: LlmUsage? = null
 
             try {
-                // State machine for separating <think> and <final> streams
-                var inThinkingState = false
-                var inFinalState = false
-                var currentThinkingContent = ""
-                
                 llmProvider.stream(messagesForAgent, tools, modelOverride).collect { chunk ->
                     chunk.usage?.let { totalUsage = it }
 
@@ -687,7 +688,7 @@ ${goalMemoryManager.getProgressContext()}
                     if (!chunk.reasoning.isNullOrEmpty()) {
                         currentThinkingContent += chunk.reasoning
                         // Emit thinking progress so UI can show "Thinking for Xs" with content
-                        if (agentIteration == 1 || !isToolCallInProgress) {
+                        if (!isToolCallInProgress) {
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
@@ -730,7 +731,7 @@ ${goalMemoryManager.getProgressContext()}
                         
                         currentContent += cleanContent
                         
-                        if (agentIteration == 1 || !isToolCallInProgress) {
+                        if (!isToolCallInProgress) {
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
@@ -869,6 +870,10 @@ ${goalMemoryManager.getProgressContext()}
                             kv("status", if (isToolError) "error_result" else "success")
                         )
                         Metrics.counter("agent.tool." + if (isToolError) "error" else "success", "tool", currentToolName).increment()
+
+                        // Inject tool call into thinking content for historical log in database
+                        val toolStatus = if (isToolError) "failed" else "completed"
+                        currentThinkingContent += "\n[Action: $currentToolName ($toolStatus)]\n"
 
                         emit(AgentEvent.ToolCall(
                             eventId = UUID.randomUUID().toString(),

@@ -388,7 +388,16 @@ fun Application.configureChatRoutes() {
                     // Save Smarty Response if persistence is enabled
                     if (chatRepository != null && sessionId != null && assistantResponse.isNotEmpty()) {
                         try {
-                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, assistantResponse)
+                            // Extract thinking from response if present in <think> tags
+                            val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
+                            val thinkMatch = thinkRegex.find(assistantResponse)
+                            val thinking = thinkMatch?.groupValues?.get(1)?.trim()?.ifBlank { null }
+                            val cleanResponse = if (thinking != null) {
+                                assistantResponse.replace(thinkMatch!!.value, "").trim()
+                            } else {
+                                assistantResponse
+                            }
+                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, cleanResponse, thinking)
                         } catch (e: Exception) {
                             call.application.log.error("Failed to save assistant response (non-fatal)", e)
                         }
@@ -514,7 +523,16 @@ fun Application.configureChatRoutes() {
 
                         // Save response
                         if (chatRepository != null && sessionId != null && assistantResponse.isNotEmpty()) {
-                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, assistantResponse)
+                            // Extract thinking from response if present in <think> tags
+                            val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
+                            val thinkMatch = thinkRegex.find(assistantResponse)
+                            val thinking = thinkMatch?.groupValues?.get(1)?.trim()?.ifBlank { null }
+                            val cleanResponse = if (thinking != null) {
+                                assistantResponse.replace(thinkMatch!!.value, "").trim()
+                            } else {
+                                assistantResponse
+                            }
+                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, cleanResponse, thinking)
                         }
 
                         // Return all events

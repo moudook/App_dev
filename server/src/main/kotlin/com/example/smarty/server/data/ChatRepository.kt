@@ -99,7 +99,7 @@ class ChatRepository(private val dataSource: DataSource) {
         val history = mutableListOf<LlmMessage>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT cm.role, cm.content
+                SELECT cm.role, cm.content, cm.thinking
                 FROM chat_messages cm
                 JOIN chat_sessions cs ON cm.session_id = cs.id
                 WHERE cm.session_id = ? AND cs.user_id = ?
@@ -289,7 +289,8 @@ class ChatRepository(private val dataSource: DataSource) {
 
         return LlmMessage(
             role = role,
-            content = rs.getString("content")
+            content = rs.getString("content"),
+            thinking = rs.getString("thinking")
         )
     }
 }

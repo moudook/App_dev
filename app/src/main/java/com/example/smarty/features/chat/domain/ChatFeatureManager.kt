@@ -1451,7 +1451,15 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                             chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
                         }
                         is AgentEvent.ToolCall -> {
-                            // Tool calls handled by eventSink, not content
+                            // Also add to pending actions so it appears inside the thinking block immediately
+                            val actionResult = com.example.smarty.core.domain.model.AgentActionResult(
+                                action = event.displayName,
+                                success = event.status == "completed" || event.status == "started",
+                                resultSummary = "Server action ${event.status}"
+                            )
+                            pendingActions.removeAll { it.action == event.displayName }
+                            pendingActions.add(actionResult)
+                            chatManager.updateSmartyMessageActions(streamingMessageId, pendingActions.toList())
                         }
                         is AgentEvent.Command -> {
                             // Commands handled by eventSink
