@@ -1,5 +1,6 @@
 package com.example.smarty.server.routes
 
+import com.example.smarty.server.data.DigestPreferences
 import com.example.smarty.server.data.DigestPreferencesRepository
 import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.DigestScheduler
@@ -10,6 +11,7 @@ import io.ktor.server.routing.*
 import io.ktor.server.request.*
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import javax.sql.DataSource
 
 /**
  * Routes for digest management.
@@ -21,15 +23,20 @@ import org.slf4j.LoggerFactory
  * - GET /digests/preferences - Get user preferences
  * - PUT /digests/preferences - Update user preferences
  */
-fun Route.configureDigestRoutes(
+fun Application.configureDigestRoutes(
     digestService: DigestService,
     digestScheduler: DigestScheduler,
-    dataSource: javax.sql.DataSource
+    dataSource: DataSource?
 ) {
+    if (dataSource == null) {
+        LoggerFactory.getLogger("DigestRoutes").warn("Database not configured - Digest routes disabled")
+        return
+    }
+    
     val logger = LoggerFactory.getLogger("DigestRoutes")
     val preferencesRepository = DigestPreferencesRepository(dataSource)
-
-    route("/digests") {
+    
+    routing {
         authenticate("firebase-auth") {
             // Get all digests for user
             get {
@@ -101,7 +108,7 @@ fun Route.configureDigestRoutes(
 
                 try {
                     val prefs = preferencesRepository.getPreferences(userId)
-                        ?: DigestPreferencesRepository.DigestPreferences(
+                        ?: DigestPreferences(
                             userId = userId,
                             dailyEnabled = true,
                             dailyTime = "07:00",

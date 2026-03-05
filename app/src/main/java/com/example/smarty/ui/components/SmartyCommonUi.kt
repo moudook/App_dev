@@ -69,8 +69,22 @@ fun SmartyButton(
 
 /**
  * Standard Outlined Text Field for Smarty App
+ * 
+ * @param value Current text value
+ * @param onValueChange Callback when value changes
+ * @param label Field label
+ * @param modifier Compose modifier
+ * @param enabled Whether field is enabled
+ * @param isError Whether field has error
+ * @param errorMessage Error message to display
+ * @param keyboardOptions Keyboard configuration
+ * @param keyboardActions Keyboard actions
+ * @param trailingIcon Optional trailing icon
+ * @param visualTransformation Text visual transformation
+ * @param singleLine Whether to display as single line
  */
 @Composable
+@Suppress("LongParameterList") // Required for Compose UI component flexibility
 fun SmartyOutlinedTextField(
     value: String,
     onValueChange: (String) -> Unit,

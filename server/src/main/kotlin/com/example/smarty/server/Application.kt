@@ -28,6 +28,7 @@ import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.routes.configureDigestRoutes
+import javax.sql.DataSource
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -180,7 +181,7 @@ fun Application.module() {
     configureDataRoutes()
     configureSyncRoutes()
     if (digestService != null && digestScheduler != null && ds != null) {
-        configureDigestRoutes(digestService, digestScheduler, ds)
+        configureDigestRoutes(digestService, digestScheduler, ds!!)
     }
 
     // Configure Monitoring
