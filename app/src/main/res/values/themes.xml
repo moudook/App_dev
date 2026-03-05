@@ -4,6 +4,8 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
+        <!-- Window background matches gradient for seamless status bar look -->
+        <item name="android:windowBackground">@color/gradient_pink</item>
     </style>
 
     <!-- Assistant-Style Transparent Overlay - Crystal Clear Background -->

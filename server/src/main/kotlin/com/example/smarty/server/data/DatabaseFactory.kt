@@ -52,6 +52,7 @@ object DatabaseFactory {
                         "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS referenced_note_ids TEXT DEFAULT ''",
                         "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS citations_json TEXT DEFAULT '[]'",
                         "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS inline_images_json TEXT DEFAULT '[]'",
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS thinking TEXT",
                         
                         // Create indexes
                         "CREATE INDEX IF NOT EXISTS idx_sessions_user ON chat_sessions(user_id)",

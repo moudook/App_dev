@@ -27,4 +27,7 @@
     <color name="assist_surface_dark_m3">#FF121212</color>
     <color name="assist_surface_container_m3">#FFF3EDF7</color>
     <color name="assist_surface_container_dark_m3">#FF1D1B20</color>
+
+    <!-- Gradient Pink - for status bar and scrim backgrounds -->
+    <color name="gradient_pink">#FFFFF0F5</color>
 </resources>

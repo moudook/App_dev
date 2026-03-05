@@ -88,6 +88,7 @@ import com.example.smarty.ui.components.getNoteTypeIcon
 import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SmartyShapes
+import com.example.smarty.ui.theme.SmartyBrushes
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.ConnectionStatusIndicator
 import com.example.smarty.ui.components.NotesEmptyState
@@ -1042,8 +1043,20 @@ onPlayYouTube: (String) -> Unit = {},
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background) // Base background
     ) {
+        // Root-level gradient that spans behind status bar (edge-to-edge)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(brush = if (isDarkTheme) SmartyBrushes.topScrimDark else SmartyBrushes.topScrimLight)
+        )
+
+        // Content Box with transparent background to let gradient show through
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Transparent)
+        ) {
         Scaffold(
         modifier = Modifier.imePadding(), // This handles keyboard
         snackbarHost = {
@@ -1101,33 +1114,10 @@ onPlayYouTube: (String) -> Unit = {},
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-            val scrimColor = if (isDarkTheme) {
-                MaterialTheme.colorScheme.scrim
+            val topGradientBrush = if (isDarkTheme) {
+                SmartyBrushes.topScrimDark
             } else {
-                MaterialTheme.colorScheme.surface
-            }
-            
-            val topGradientBrush = remember(scrimColor, isLandscape) {
-                if (isLandscape) {
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            scrimColor,
-                            scrimColor.copy(alpha = 0.85f),
-                            scrimColor.copy(alpha = 0.5f),
-                            Color.Transparent
-                        )
-                    )
-                } else {
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            scrimColor,
-                            scrimColor.copy(alpha = 0.9f),
-                            scrimColor.copy(alpha = 0.6f),
-                            scrimColor.copy(alpha = 0.2f),
-                            Color.Transparent
-                        )
-                    )
-                }
+                SmartyBrushes.topScrimLight
             }
             Column(
                 modifier = Modifier
@@ -1555,22 +1545,10 @@ onPlayYouTube: (String) -> Unit = {},
             )
             
 
-            val bottomScrimColor = if (isDarkTheme) {
-                MaterialTheme.colorScheme.scrim
+            val bottomGradientBrush = if (isDarkTheme) {
+                SmartyBrushes.bottomScrimDark
             } else {
-                Color(0xFFFFF0F5) // Lavender Blush (Light Pink)
-            }
-            val bottomGradientBrush = remember(bottomScrimColor) {
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        bottomScrimColor.copy(alpha = 0.3f),
-                        bottomScrimColor.copy(alpha = 0.6f),
-                        bottomScrimColor.copy(alpha = 0.85f),
-                        bottomScrimColor.copy(alpha = 0.95f),
-                        bottomScrimColor
-                    )
-                )
+                SmartyBrushes.bottomScrimLight
             }
             
             // Input block only visible on Notes and Chat pages
@@ -2013,14 +1991,14 @@ onPlayYouTube: (String) -> Unit = {},
     }
 }
 }
-
+}
 
 /**
  * Displays a dropdown of recent search suggestions.
  * Shows when search field is focused and has suggestions available.
  */
 @Composable
-private fun SearchSuggestionsDropdown(
+fun SearchSuggestionsDropdown(
     suggestions: List<String>,
     onSuggestionClick: (String) -> Unit,
     onClearHistory: () -> Unit,
@@ -2070,7 +2048,7 @@ private fun SearchSuggestionsDropdown(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-    }
+        }
     }
 }
 

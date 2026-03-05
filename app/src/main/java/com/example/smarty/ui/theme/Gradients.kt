@@ -9,7 +9,58 @@ import androidx.compose.ui.graphics.Color
  * These tokens represent complex visual styles used in specific components.
  */
 object SmartyBrushes {
-    
+
+    /** Bottom Scrim Gradient Colors - Light Theme (Lavender Blush Pink) */
+    val bottomScrimLightPink = Color(0xFFFFF0F5)
+
+    /** Bottom Scrim Gradient - Light Theme (Pinkish, more opaque/dense) */
+    val bottomScrimLight = Brush.verticalGradient(
+        colors = listOf(
+            Color.Transparent,
+            bottomScrimLightPink.copy(alpha = 0.5f),
+            bottomScrimLightPink.copy(alpha = 0.75f),
+            bottomScrimLightPink.copy(alpha = 0.92f),
+            bottomScrimLightPink.copy(alpha = 0.98f),
+            bottomScrimLightPink
+        )
+    )
+
+    /** Bottom Scrim Gradient - Dark Theme */
+    val bottomScrimDark = Brush.verticalGradient(
+        colors = listOf(
+            Color.Transparent,
+            Color.Black.copy(alpha = 0.5f),
+            Color.Black.copy(alpha = 0.75f),
+            Color.Black.copy(alpha = 0.92f),
+            Color.Black.copy(alpha = 0.98f),
+            Color.Black
+        )
+    )
+
+    /** Top Scrim Gradient - Light Theme (Pinkish, matches bottom) */
+    val topScrimLight = Brush.verticalGradient(
+        colors = listOf(
+            bottomScrimLightPink,
+            bottomScrimLightPink.copy(alpha = 0.98f),
+            bottomScrimLightPink.copy(alpha = 0.92f),
+            bottomScrimLightPink.copy(alpha = 0.75f),
+            bottomScrimLightPink.copy(alpha = 0.5f),
+            Color.Transparent
+        )
+    )
+
+    /** Top Scrim Gradient - Dark Theme (matches bottom) */
+    val topScrimDark = Brush.verticalGradient(
+        colors = listOf(
+            Color.Black,
+            Color.Black.copy(alpha = 0.98f),
+            Color.Black.copy(alpha = 0.92f),
+            Color.Black.copy(alpha = 0.75f),
+            Color.Black.copy(alpha = 0.5f),
+            Color.Transparent
+        )
+    )
+
     /** Metallic Silver gradient for the Coin Toss / Technical elements */
     val metallicSilver = Brush.linearGradient(
         colors = listOf(
