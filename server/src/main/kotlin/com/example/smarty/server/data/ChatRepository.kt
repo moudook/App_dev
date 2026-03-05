@@ -67,6 +67,7 @@ class ChatRepository(private val dataSource: DataSource) {
                 stmt.setString(2, userId)
                 stmt.setString(3, role)
                 stmt.setString(4, content)
+                stmt.setString(5, thinking)
                 stmt.executeUpdate()
             }
 
@@ -191,6 +192,7 @@ class ChatRepository(private val dataSource: DataSource) {
                             id = rs.getObject("id") as UUID,
                             role = rs.getString("role"),
                             content = rs.getString("content"),
+                            thinking = rs.getString("thinking"),
                             createdAt = rs.getTimestamp("created_at").time
                         ))
                     }
@@ -315,5 +317,6 @@ data class MessageRecord(
     val id: UUID,
     val role: String,
     val content: String,
+    val thinking: String?,
     val createdAt: Long
 )

@@ -1090,37 +1090,32 @@ private fun VoiceWaveformIcon(
         label = "waveformColor"
     )
 
-    if (isListening) {
-        WaveformBars(
-            modifier = modifier.size(24.dp),
-            color = animatedColor,
-            barCount = 5
-        )
-    } else {
-        Icon(
-            imageVector = Icons.Default.Mic,
-            contentDescription = stringResource(R.string.voice_input),
-            tint = animatedColor,
-            modifier = modifier.size(24.dp)
-        )
-    }
+    WaveformBars(
+        modifier = modifier.size(24.dp),
+        color = animatedColor,
+        isListening = isListening
+    )
 }
 
 @Composable
 private fun WaveformBars(
     modifier: Modifier = Modifier,
     color: Color,
+    isListening: Boolean = false,
     barCount: Int = 5
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "waveform")
 
     val animations = (0 until barCount).map { index ->
+        val duration = if (isListening) 300 + (index * 60) else 800 + (index * 100)
+        val minHeight = if (isListening) 0.3f else 0.5f
+
         infiniteTransition.animateFloat(
-            initialValue = 0.3f,
-            targetValue = 1f,
+            initialValue = minHeight,
+            targetValue = if (isListening) 1f else 0.7f,
             animationSpec = infiniteRepeatable(
                 animation = tween(
-                    durationMillis = 400 + (index * 80),
+                    durationMillis = duration,
                     easing = FastOutSlowInEasing
                 ),
                 repeatMode = RepeatMode.Reverse
