@@ -193,4 +193,11 @@ object ComponentColors {
     /** AI/Assistant Accent Colors (HAL aesthetic) */
     val assistantPurple = Color(0xFFB39DDB)
     val assistantCyan = Color(0xFF00F2FE)
+
+    /** Voice Input Accent Color - Active/Listening state */
+    val voiceAccent = ElectricBlue
+
+    /** Input Field Background Colors */
+    val inputPillBackgroundLight = Color(0xFFF2F2F7)
+    val inputPillBackgroundDark = Color(0xFF1A1A1E)  // Darker than default for better contrast
 }

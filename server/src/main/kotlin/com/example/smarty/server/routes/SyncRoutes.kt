@@ -41,6 +41,7 @@ data class MessageInfoData(
     val id: String,
     val role: String,
     val content: String,
+    val thinking: String? = null,
     val createdAt: Long
 )
 

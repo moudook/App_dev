@@ -731,7 +731,7 @@ private fun InputPill(
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
     val accentColor = LocalAccentColor.current
 
-    val backgroundColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f) else MaterialTheme.colorScheme.surface
+    val backgroundColor = if (isDark) ComponentColors.inputPillBackgroundDark else MaterialTheme.colorScheme.surface
     val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
     // Border: Subtle normally, colored when focused
@@ -1082,7 +1082,7 @@ private fun VoiceWaveformIcon(
 ) {
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
     val idleColor = if (isDark) Color.White else Color.Black
-    val activeColor = Color(0xFF0066FF)
+    val activeColor = ComponentColors.voiceAccent
 
     val animatedColor by animateColorAsState(
         targetValue = if (isListening) activeColor else idleColor,
