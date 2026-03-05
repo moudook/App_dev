@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     user_id TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL,
     content TEXT NOT NULL,
+    thinking TEXT DEFAULT NULL,  -- AI reasoning/thinking content for collapsible display
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

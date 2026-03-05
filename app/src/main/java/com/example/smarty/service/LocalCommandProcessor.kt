@@ -454,13 +454,6 @@ class LocalCommandProcessor(
                             null
                         )
                     }
-                    is AudioSearchResult.Fallback -> {
-                        // Legacy fallback - now treat as NoMatch (don't play random)
-                        return CommandResult.HandledAndPassToLLM(
-                            "I couldn't find an exact match for '$audioQuery'.",
-                            null
-                        )
-                    }
                 }
             }
         }

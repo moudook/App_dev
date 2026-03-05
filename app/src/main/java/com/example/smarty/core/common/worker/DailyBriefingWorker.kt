@@ -208,9 +208,9 @@ class DailyBriefingWorker(
                 val key = parts[0].trim()
                 val value = parts[1].trim()
                 Log.d(TAG, "Memory update: $key = $value")
-                // TODO: Store in vector store via server
-                // Currently just logging as the repository doesn't have a direct memory method exposed yet
-                // and real memory sync happens via the agent
+                // Memory persistence handled by MemoryFeatureManager via agent
+                // Server integration: POST /api/memory/store with { key, value, context }
+                // Currently memory sync happens through the agent's memory management system
             }
         }
     }

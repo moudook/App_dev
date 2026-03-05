@@ -1,5 +1,6 @@
 package com.example.smarty.ui.components.chat
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -174,7 +175,9 @@ fun CitationsInline(
                                     try {
                                         uriHandler.openUri(citation.url)
                                         showSelectionPopup = false
-                                    } catch (e: Exception) { }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Failed to open citation URL: ${citation.url}", e)
+                                    }
                                 }
                             )
                         }
@@ -306,3 +309,5 @@ private fun SourceCard(
         }
     }
 }
+
+private const val TAG = "CitationsSection"

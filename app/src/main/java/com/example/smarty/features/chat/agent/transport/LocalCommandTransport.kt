@@ -148,7 +148,7 @@ class LocalCommandTransport(
                         executor.requestAudioPlayback(result.track)
                         "Playing: ${result.track.title}"
                     }
-                    is AudioFeatureManager.AudioSearchResult.Fallback -> {
+                    is AudioFeatureManager.AudioSearchResult.Suggestions -> {
                         if (result.tracks.isNotEmpty()) {
                             executor.playAudioList(result.tracks)
                             "Playing ${result.tracks.size} tracks found for query"
@@ -159,14 +159,6 @@ class LocalCommandTransport(
                     is AudioFeatureManager.AudioSearchResult.FuzzyMatch -> {
                         executor.requestAudioPlayback(result.track)
                         "Playing: ${result.track.title}"
-                    }
-                    is AudioFeatureManager.AudioSearchResult.Suggestions -> {
-                        if (result.tracks.isNotEmpty()) {
-                            executor.playAudioList(result.tracks)
-                            "Playing ${result.tracks.size} suggested tracks"
-                        } else {
-                            result.message
-                        }
                     }
                     is AudioFeatureManager.AudioSearchResult.NoMatch -> {
                         result.reason

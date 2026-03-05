@@ -546,7 +546,7 @@ private fun LargeAmplitudeVisualizer(
         ) {
             Icon(
                 imageVector = Icons.Default.Mic,
-                contentDescription = null,
+                contentDescription = null, // Decorative icon - microphone button for voice recording
                 tint = if (isRecording) {
                     accentColor
                 } else {

@@ -333,7 +333,14 @@ fun Application.configureSyncRoutes() {
 
                     try {
                         val request = call.receive<SaveMessageRequest>()
-                        chatRepository.saveMessage(user.userId, request.sessionId, request.role, request.content)
+                        // ✅ Pass thinking parameter to repository for persistence
+                        chatRepository.saveMessage(
+                            user.userId,
+                            request.sessionId,
+                            request.role,
+                            request.content,
+                            request.thinking
+                        )
                         call.respond(HttpStatusCode.OK)
                     } catch (e: Exception) {
                         logger.error("Failed to save message", e)
@@ -369,5 +376,18 @@ fun Application.configureSyncRoutes() {
 @Serializable
 data class CreateSessionRequest(val title: String? = null)
 
+/**
+ * Request to save a chat message to the server.
+ * 
+ * @param sessionId Chat session ID
+ * @param role Message role (USER, ASSISTANT, SYSTEM)
+ * @param content Message content
+ * @param thinking Optional AI thinking/reasoning content (for collapsible display)
+ */
 @Serializable
-data class SaveMessageRequest(val sessionId: String, val role: String, val content: String)
+data class SaveMessageRequest(
+    val sessionId: String,
+    val role: String,
+    val content: String,
+    val thinking: String? = null  // ✅ Added thinking field for AI reasoning persistence
+)

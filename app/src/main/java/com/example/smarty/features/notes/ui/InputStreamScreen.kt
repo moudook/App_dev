@@ -2038,7 +2038,7 @@ fun SearchSuggestionsDropdown(
             ) {
                 Icon(
                     imageVector = Icons.Default.History,
-                    contentDescription = null,
+                    contentDescription = null, // Decorative icon - indicates search history
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )

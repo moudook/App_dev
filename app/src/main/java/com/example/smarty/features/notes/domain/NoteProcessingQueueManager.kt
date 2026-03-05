@@ -328,7 +328,11 @@ class NoteProcessingQueueManager(
                     } catch (e: Exception) {
                         Log.e(TAG, "Parallel processing error for ${note.id}: ${e.message}")
                         // Save with default on error
-                        try { saveWithDefaultCategory(note) } catch (_: Exception) {}
+                        try {
+                            saveWithDefaultCategory(note)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to save note ${note.id} with default category", e)
+                        }
                         false
                     }
                 }

@@ -1,5 +1,6 @@
 package com.example.smarty.ui.components
 
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -126,6 +127,8 @@ import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.LaTeXView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val TAG = "ChatMessageItem"
 
 /**
  * Pre-compiled regex patterns for markdown parsing.
@@ -1011,7 +1014,9 @@ private fun CitationsInline(
                                     try {
                                         uriHandler.openUri(citation.url)
                                         showSelectionPopup = false
-                                    } catch (e: Exception) { }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Failed to open citation URL: ${citation.url}", e)
+                                    }
                                 }
                             )
                         }

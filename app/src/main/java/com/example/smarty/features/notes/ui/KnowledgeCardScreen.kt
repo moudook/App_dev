@@ -316,7 +316,7 @@ fun KnowledgeCardScreen(
                         Spacer(modifier = Modifier.weight(1f))
                         Icon(
                             imageVector = getNoteTypeIcon(note.type),
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - note type indicator
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                             modifier = Modifier.size(16.dp)
                         )
@@ -532,7 +532,7 @@ private fun AttachmentChip(
         ) {
             Icon(
                 imageVector = Icons.Outlined.AttachFile,
-                contentDescription = null,
+                contentDescription = null, // Decorative icon - attachment indicator, filename shown in text
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )

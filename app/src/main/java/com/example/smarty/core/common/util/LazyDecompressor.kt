@@ -157,14 +157,16 @@ object LazyDecompressor {
     }
 
     /**
-     * Shutdown the decompressor and release resources
+     * Shutdown the decompressor and release resources.
      */
     fun shutdown() {
         workerJob?.cancel()
         workerJob = null
         try {
             requestChannel.close()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to close request channel during shutdown", e)
+        }
         clearCache()
         _workerState.value = WorkerState.SLEEPING
         contextRef = null

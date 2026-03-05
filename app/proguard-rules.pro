@@ -235,6 +235,35 @@
 -keep class com.example.smarty.agent.** { *; }
 
 # ============================================================================
+# OPTIMIZATION: Keep new utility classes for reflection/callbacks
+# ============================================================================
+
+# TokenManager - Keep for SharedPreferences and Flow
+-keep class com.example.smarty.util.TokenManager { *; }
+-keep class com.example.smarty.util.TokenState { *; }
+-keepclassmembers class com.example.smarty.util.TokenState {
+    public static ** INSTANCE;
+    public static ** Companion;
+}
+
+# PdfChunker - Keep for PDF processing
+-keep class com.example.smarty.util.PdfChunker { *; }
+-keep class com.example.smarty.util.PDFTextExtractor { *; }
+-keep class com.example.smarty.data.model.DocumentChunk { *; }
+-keep class com.example.smarty.util.PDFChunkedResult { *; }
+-keepclassmembers class com.example.smarty.util.PDFChunkedResult {
+    public static ** INSTANCE;
+    public static ** Companion;
+}
+
+# FCM Service - Keep for Firebase and serialization
+-keep class com.example.smarty.service.FCMService { *; }
+-keepclassmembers class com.example.smarty.service.FCMService {
+    public static ** INSTANCE;
+    public static ** Companion;
+}
+
+# ============================================================================
 # Missing optional dependencies - dontwarn for R8
 # ============================================================================
 

@@ -277,11 +277,17 @@ class CapabilityNegotiator(
             val request = buildHandshakeRequest()
             Log.d(TAG, "Performing handshake: deviceId=${request.deviceId}, protocol=${request.protocolVersion}")
 
-            // TODO: Call actual server endpoint
-            // For now, return a mock response
-            // val response = client.post("${serverUrl}/session/init") { ... }
+            // Server integration point: POST /api/session/init
+            // Expected request: HandshakeRequest(deviceId, protocolVersion, capabilities)
+            // Expected response: HandshakeResponse(sessionId, executionPolicy)
+            // 
+            // Example implementation:
+            // val response = client.post("${serverUrl}/api/session/init") {
+            //     contentType(ContentType.Application.Json)
+            //     setBody(request)
+            // }.body<HandshakeResponse>()
 
-            // Mock response for development
+            // Mock response for development/testing
             HandshakeResponse(
                 sessionId = "session_${System.currentTimeMillis()}",
                 executionPolicy = ExecutionPolicy(

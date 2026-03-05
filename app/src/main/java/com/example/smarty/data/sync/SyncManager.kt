@@ -258,13 +258,20 @@ class SyncManager(
 
     /**
      * Process a note sync operation.
+     * 
+     * Server Integration Required:
+     * - POST /api/sync/notes - Send note updates to server
+     * - Response: { serverTimestamp: Long, conflict: Boolean }
      */
     private suspend fun processNoteSync(item: SyncQueueItem): SyncResult {
         return try {
             val payload = json.decodeFromString<NotePayload>(item.payloadJson)
 
-            // TODO: Call actual server API
-            // For now, simulate success with server timestamp
+            // Server integration point: Send note to server and get server timestamp
+            // val response = apiClient.syncNote(payload.toServerNote())
+            // val serverTimestamp = response.serverTimestamp
+            
+            // For now, simulate success with local timestamp
             val serverTimestamp = System.currentTimeMillis()
 
             // Update local note with server timestamp
@@ -281,12 +288,17 @@ class SyncManager(
 
     /**
      * Process an event sync operation.
+     * 
+     * Server Integration Required:
+     * - POST /api/sync/events - Send calendar events to server
+     * - Response: { serverTimestamp: Long, conflict: Boolean }
      */
     private suspend fun processEventSync(item: SyncQueueItem): SyncResult {
         return try {
             val payload = json.decodeFromString<EventPayload>(item.payloadJson)
 
-            // TODO: Call actual server API
+            // Server integration point: Send event to server and get server timestamp
+            // val response = apiClient.syncEvent(payload.toServerEvent())
             val serverTimestamp = System.currentTimeMillis()
 
             // Update local event with server timestamp

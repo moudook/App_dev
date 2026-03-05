@@ -207,8 +207,8 @@ class SystemFeatureManager(
         return if (match != null) {
             AudioSearchResult.ExactMatch(match)
         } else {
-            @Suppress("DEPRECATION")
-            AudioSearchResult.Fallback(tracks.shuffled().take(20), "No match found")
+            // No match found - return NoMatch with reason
+            AudioSearchResult.NoMatch("No matching track found for query")
         }
     }
 

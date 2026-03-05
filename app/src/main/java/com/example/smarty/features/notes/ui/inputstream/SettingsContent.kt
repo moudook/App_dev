@@ -1,5 +1,6 @@
 package com.example.smarty.features.notes.ui.inputstream
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -43,6 +44,8 @@ import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.Dev
 import com.example.smarty.ui.components.SmartySettingsCard
 import com.example.smarty.ui.components.SmartySettingsRow
 import com.example.smarty.ui.components.SmartySettingsSwitchRow
+
+private const val TAG = "SettingsContent"
 
 /**
  * Inline settings content with "Chroma Studio" aesthetic.
@@ -174,7 +177,9 @@ fun SettingsContent(
                             try {
                                 val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
                                 context.startActivity(intent)
-                            } catch (_: Exception) {}
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to open voice input settings or fallback settings", e)
+                            }
                         }
                     },
                     iconColor = accentColor

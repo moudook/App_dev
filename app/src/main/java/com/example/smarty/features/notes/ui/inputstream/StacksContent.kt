@@ -250,7 +250,7 @@ fun StacksContent(
                 ) {
                     Icon(
                         imageVector = androidx.compose.material.icons.Icons.Default.Folder, // Explicit path to avoid import issues
-                        contentDescription = null,
+                        contentDescription = null, // Decorative icon - "Notes will be unfiled" text provides context
                         tint = LocalAccentColor.current,
                         modifier = Modifier.size(20.dp)
                     )
@@ -425,7 +425,7 @@ private fun InlineCategoryCard(
 
                     Icon(
                         imageVector = categoryIcon,
-                        contentDescription = null,
+                        contentDescription = null, // Decorative icon - category name displayed in text
                         tint = textColor.copy(alpha = 0.6f),
                         modifier = Modifier.size(18.dp)
                     )
@@ -515,7 +515,7 @@ private fun CreateCategorySheet(
             // Header Icon
             Icon(
                 imageVector = if (isRename) Icons.Default.Edit else Icons.Default.Add,
-                contentDescription = null,
+                contentDescription = null, // Decorative icon - title provides context
                 tint = accentColor,
                 modifier = Modifier.size(32.dp)
             )
@@ -621,7 +621,7 @@ private fun CreateCategorySheet(
                         shape = RoundedCornerShape(18.dp),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) // Decorative icon - "Delete stack" text provides context
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.delete_stack))
                     }

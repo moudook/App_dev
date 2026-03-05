@@ -342,7 +342,21 @@ class RemoteDataSource(
         }
     }
 
-    suspend fun saveChatMessage(sessionId: String, role: String, content: String): Boolean {
+    /**
+     * Save a chat message to the server.
+     * 
+     * @param sessionId Chat session ID
+     * @param role Message role (USER, ASSISTANT, SYSTEM)
+     * @param content Message content
+     * @param thinking Optional AI thinking/reasoning content (for collapsible display)
+     * @return true if successful
+     */
+    suspend fun saveChatMessage(
+        sessionId: String,
+        role: String,
+        content: String,
+        thinking: String? = null  // ✅ Added thinking parameter
+    ): Boolean {
         return try {
             val baseUrl = serverUrlProvider()
             val token = getFirebaseToken() ?: return false
@@ -350,7 +364,14 @@ class RemoteDataSource(
             val response = client.post("$baseUrl/api/v1/chat/messages") {
                 addAuthHeaders(token)
                 contentType(ContentType.Application.Json)
-                setBody(mapOf("sessionId" to sessionId, "role" to role, "content" to content))
+                setBody(
+                    mapOf(
+                        "sessionId" to sessionId,
+                        "role" to role,
+                        "content" to content,
+                        "thinking" to thinking  // ✅ Send thinking to server
+                    )
+                )
             }
 
             response.status.isSuccess()

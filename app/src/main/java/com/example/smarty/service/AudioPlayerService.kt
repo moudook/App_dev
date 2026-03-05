@@ -515,7 +515,9 @@ class AudioPlayerService : MediaSessionService() {
             try {
                 newVisualizer?.enabled = false
                 newVisualizer?.release()
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to release visualizer during cleanup", e)
+            }
         }
     }
 

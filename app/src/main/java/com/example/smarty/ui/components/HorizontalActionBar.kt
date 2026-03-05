@@ -28,40 +28,36 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.smarty.R
 import com.example.smarty.core.domain.model.NavigationTab
 import com.example.smarty.ui.LocalAccentColor
-import com.example.smarty.ui.theme.SmartyIcons
 import kotlinx.coroutines.launch
 import kotlin.math.*
 
 // ─── Icon Resolution (pure function, no allocations) ───────────────────
+// CUSTOM ICONS: Uses SVG icons from _private/icons folder via drawable resources
+// Active = Pink tint, Inactive = Neutral (no pink)
 
-private fun resolveIcon(tab: NavigationTab, isActive: Boolean, isHistoryMode: Boolean): ImageVector {
-    if (tab == NavigationTab.CHAT && isHistoryMode) return Icons.Outlined.History
-    return if (isActive) {
-        when (tab) {
-            NavigationTab.CHAT -> SmartyIcons.NavChatActive
-            NavigationTab.NOTES -> SmartyIcons.NavNotesActive
-            NavigationTab.CALENDAR -> SmartyIcons.NavCalendarActive
-            NavigationTab.STACKS -> SmartyIcons.NavStacksActive
-            NavigationTab.ARCHIVE -> SmartyIcons.NavArchiveActive
-            NavigationTab.SETTINGS -> SmartyIcons.NavSettingsActive
-        }
-    } else {
-        when (tab) {
-            NavigationTab.CHAT -> SmartyIcons.NavChatInactive
-            NavigationTab.NOTES -> SmartyIcons.NavNotesInactive
-            NavigationTab.CALENDAR -> SmartyIcons.NavCalendarInactive
-            NavigationTab.STACKS -> SmartyIcons.NavStacksInactive
-            NavigationTab.ARCHIVE -> SmartyIcons.NavArchiveInactive
-            NavigationTab.SETTINGS -> SmartyIcons.NavSettingsInactive
-        }
+@Composable
+private fun resolveIconPainter(tab: NavigationTab, isHistoryMode: Boolean): androidx.compose.ui.graphics.painter.Painter {
+    if (tab == NavigationTab.CHAT && isHistoryMode) return painterResource(R.drawable.ic_nav_chat)
+    return when (tab) {
+        NavigationTab.CHAT -> painterResource(R.drawable.ic_nav_chat)
+        NavigationTab.NOTES -> painterResource(R.drawable.ic_nav_notes)
+        NavigationTab.CALENDAR -> painterResource(R.drawable.ic_nav_calendar)
+        NavigationTab.STACKS -> painterResource(R.drawable.ic_nav_stacks)
+        NavigationTab.ARCHIVE -> painterResource(R.drawable.ic_nav_archive)
+        NavigationTab.SETTINGS -> painterResource(R.drawable.ic_nav_settings)
     }
 }
+
+// Pink color for active icons - hard rule from user
+private val ActivePink = Color(0xFFF49BE0)
 
 // ─── Playful Aesthetic Colours (Squircle Design) ─────────────────────
 
@@ -301,10 +297,10 @@ private fun CollapsedPill(
     else
         MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
 
-    val tabColors = getSpicyTabColors(selectedTab)
-    val iconTint = if (isDark) tabColors.bg else tabColors.fg
+    // Active = Pink, Inactive = neutral (user requirement)
+    val iconTint = ActivePink
 
-    val icon = resolveIcon(selectedTab, isActive = true, isHistoryMode = isHistoryMode)
+    val iconPainter = resolveIconPainter(selectedTab, isHistoryMode = isHistoryMode)
 
     Box(
         modifier = Modifier
@@ -327,7 +323,7 @@ private fun CollapsedPill(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = icon,
+                    painter = iconPainter,
                     contentDescription = selectedTab.label,
                     tint = iconTint,
                     modifier = Modifier.size(ICON_SIZE)
@@ -404,12 +400,10 @@ private fun RotaryDial(
             val visualCenter = ((rotation.value.roundToInt() % TAB_COUNT) + TAB_COUNT) % TAB_COUNT
             val isVisuallyActive = index == visualCenter
 
-            val tabColors = getSpicyTabColors(tab)
-            val vibrantColor = if (isDark) tabColors.bg else tabColors.fg
-            
-            val iconTint = if (isVisuallyActive) vibrantColor else onSurfaceColor.copy(alpha = 0.5f * opacity)
+            // Active = Pink, Inactive = neutral (user requirement)
+            val iconTint = if (isVisuallyActive) ActivePink else onSurfaceColor.copy(alpha = 0.5f * opacity)
             val labelAlpha = if (isVisuallyActive) 1f else (opacity * 0.8f).coerceAtLeast(0.35f)
-            val icon = resolveIcon(tab, isActive = isVisuallyActive, isHistoryMode = isHistoryMode)
+            val iconPainter = resolveIconPainter(tab, isHistoryMode = isHistoryMode)
 
             Column(
                 modifier = Modifier
@@ -438,7 +432,7 @@ private fun RotaryDial(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = icon,
+                        painter = iconPainter,
                         contentDescription = tab.label,
                         tint = iconTint,
                         modifier = Modifier.size(currentIconSize)

@@ -1,5 +1,6 @@
 package com.example.smarty.features.settings.ui
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
@@ -32,12 +33,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
-import com.example.smarty.ui.theme.SmartyIcons
-import com.example.smarty.ui.components.ConnectionStatusIndicator
-import com.example.smarty.ui.components.ConnectionStatus
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,39 +52,29 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
-import com.example.smarty.R
-import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
-import com.example.smarty.ui.components.CompactEmptyState
-import com.example.smarty.ui.components.SettingsInputRow
-import com.example.smarty.ui.components.SettingsMainSkeleton
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.util.concurrent.TimeUnit
-import com.example.smarty.ui.LocalAccentColor
-import androidx.compose.ui.graphics.Brush
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import com.example.smarty.ui.components.ShakeSensitivityControl
-import com.example.smarty.ui.components.UnifiedBottomSheet
-import com.example.smarty.ui.theme.ComponentSpacing
-import com.example.smarty.ui.theme.IconSize
-import com.example.smarty.ui.theme.MonoFont
-import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.theme.SemanticColors
-import com.example.smarty.ui.theme.SystemGreen
-import com.example.smarty.ui.theme.softCardShadow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.smarty.ui.components.SmartySettingsCard
-import com.example.smarty.ui.components.SmartySettingsRow
-import com.example.smarty.ui.components.SmartySettingsSwitchRow
+import com.example.smarty.R
+import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.DeviceCalendar
+import com.example.smarty.ui.LocalAccentColor
+import com.example.smarty.ui.components.*
+import com.example.smarty.ui.theme.*
+import androidx.compose.ui.graphics.Brush
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
+
+private const val TAG = "SettingsScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
 enum class SettingsView {
@@ -388,7 +375,9 @@ fun SettingsScreen(
                                                 try {
                                                     val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
                                                     context.startActivity(intent)
-                                                } catch (e2: Exception) {}
+                                                } catch (e2: Exception) {
+                                                    Log.e(TAG, "Failed to open app settings or fallback settings", e2)
+                                                }
                                             }
                                         }
                                     )
@@ -744,7 +733,7 @@ private fun SettingsItem(
                 ) {
                     Icon(
                         imageVector = icon,
-                        contentDescription = null,
+                        contentDescription = null, // Decorative icon - title provides context
                         tint = iconColor,
                         modifier = Modifier.size(20.dp)
                     )
@@ -798,7 +787,7 @@ private fun SettingsItem(
             } else if (showArrow) {
                 Icon(
                     imageVector = SmartyIcons.ChevronRight,
-                    contentDescription = null,
+                    contentDescription = "Navigate to $title settings",
                     tint = Color.White.copy(alpha = 0.3f),
                     modifier = Modifier.size(24.dp)
                 )

@@ -364,7 +364,7 @@ private fun PdfViewerContent(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Description,
-                        contentDescription = null,
+                        contentDescription = null, // Decorative icon - document placeholder
                         tint = contentColor.copy(alpha = 0.6f),
                         modifier = Modifier.size(64.dp)
                     )
@@ -726,7 +726,7 @@ private fun UnsupportedDocumentContent(
         ) {
             Icon(
                 imageVector = Icons.Default.Description,
-                contentDescription = null,
+                contentDescription = null, // Decorative icon - document placeholder
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )

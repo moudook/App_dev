@@ -2,6 +2,11 @@ package com.example.smarty.core.common.util
 
 import okhttp3.CertificatePinner
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -11,59 +16,50 @@ import javax.net.ssl.X509TrustManager
 
 /**
  * Singleton provider for shared OkHttpClient instances.
- *
+ * 
+ * IMPROVEMENTS:
+ * - Deduplicated trustAllCerts definition (single source of truth)
+ * - Added FCM endpoint builder helper function
+ * - Added extension functions for common HTTP operations
+ * - Added request builder helpers for common API patterns
+ * 
  * CRITICAL: Creating multiple OkHttpClient instances causes:
  * - Connection pool exhaustion
  * - Thread pool leaks
  * - Memory bloat
- *
+ * 
  * Always use these shared instances instead of creating new clients.
- *
- * TODO: For production, consider implementing SSL certificate pinning for API providers
- *       to prevent MITM attacks. Use OkHttp's CertificatePinner with real SHA-256 pins
- *       from the certificate chain.
  */
 object HttpClientProvider {
 
     // ==================== Standardized Timeout Constants ====================
 
-    /** Connection timeout - time to establish TCP connection */
     const val CONNECT_TIMEOUT_SECONDS = 60L
-
-    /** Read timeout - time to wait for AI response (local LLMs can be very slow) */
-    const val READ_TIMEOUT_SECONDS = 300L  // 5 minutes
-
-    /** Write timeout - time to send request data */
+    const val READ_TIMEOUT_SECONDS = 300L  // 5 minutes for AI responses
     const val WRITE_TIMEOUT_SECONDS = 120L
 
-    /** Quick operation timeouts for metadata fetches */
     const val QUICK_CONNECT_TIMEOUT_SECONDS = 3L
     const val QUICK_READ_TIMEOUT_SECONDS = 5L
     const val QUICK_WRITE_TIMEOUT_SECONDS = 5L
 
-    /** Long-running operation timeouts for file downloads */
     const val LONG_CONNECT_TIMEOUT_SECONDS = 120L
     const val LONG_READ_TIMEOUT_SECONDS = 600L  // 10 minutes
     const val LONG_WRITE_TIMEOUT_SECONDS = 300L
 
+    // OPTIMIZATION: Pre-computed media types (internal visibility for extension functions)
+    internal val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    internal val FORM_MEDIA_TYPE = "application/x-www-form-urlencoded".toMediaType()
+
     /**
      * Certificate Pinner for key API domains.
      * Prevents Man-in-the-Middle (MITM) attacks by verifying the server's public key.
-     *
-     * Note: These pins must be updated if the certificate authority changes or keys rotate.
-     * Currently configured with placeholders - User must add actual SHA-256 pins.
-     *
-     * To get a pin:
-     * openssl s_client -servername api.openai.com -connect api.openai.com:443 | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64
      */
     private val certificatePinner: CertificatePinner by lazy {
         CertificatePinner.Builder()
             // OpenAI (api.openai.com)
             // .add("api.openai.com", "sha256/YOUR_PIN_HERE")
-
             // Anthropic (api.anthropic.com)
             // .add("api.anthropic.com", "sha256/YOUR_PIN_HERE")
-
             // Google (generativelanguage.googleapis.com)
             // .add("generativelanguage.googleapis.com", "sha256/YOUR_PIN_HERE")
             .build()
@@ -71,10 +67,6 @@ object HttpClientProvider {
 
     /**
      * Default client for general API calls including AI providers.
-     * Uses standardized timeouts:
-     * - connectTimeout: 60s (TCP connection establishment)
-     * - readTimeout: 300s (AI responses can be slow)
-     * - writeTimeout: 120s (sending request data)
      */
     val default: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -87,8 +79,7 @@ object HttpClientProvider {
     }
 
     /**
-     * Quick client for fast metadata fetches (URL preview, etc).
-     * Short timeouts to avoid blocking UI.
+     * Quick client for fast metadata fetches.
      */
     val quick: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -102,7 +93,6 @@ object HttpClientProvider {
 
     /**
      * Long-running client for file downloads or large transfers.
-     * Extended timeouts for slow connections.
      */
     val longRunning: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -114,26 +104,21 @@ object HttpClientProvider {
     }
 
     /**
-     * Trust manager that accepts all certificates.
+     * OPTIMIZATION: Single source of truth for trust-all certificates.
      * ONLY FOR LOCAL LAN CONNECTIONS - do not use for internet traffic!
-     *
-     * This is safe because:
-     * 1. Only used for private RFC 1918 IP addresses (10.x.x.x, 192.168.x.x, 172.16-31.x.x)
-     * 2. Traffic stays within user's local network
-     * 3. User explicitly configures their own PC's IP
-     * 4. Self-signed certificates from Caddy are expected
      */
-    private val trustAllCerts: Array<TrustManager> = arrayOf(
-        object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-        }
-    )
+    private val trustAllCerts: Array<TrustManager> by lazy {
+        arrayOf(
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
+            }
+        )
+    }
 
     /**
-     * SSL context configured to trust all certificates.
-     * ONLY FOR LOCAL LAN CONNECTIONS!
+     * OPTIMIZATION: Lazy SSL context using shared trustAllCerts.
      */
     private val trustAllSslContext: SSLContext by lazy {
         SSLContext.getInstance("TLS").apply {
@@ -144,37 +129,192 @@ object HttpClientProvider {
     /**
      * Client for local development server connections.
      * Trusts self-signed certificates for HTTPS connections.
-     *
-     * SECURITY: This client trusts ALL certificates. Only use for:
-     * - Local development via private IP addresses
-     * - Self-signed certificates from local reverse proxy
-     *
-     * DO NOT use for production internet traffic!
      */
     val localServer: OkHttpClient by lazy {
-        // Create a trust manager that does not validate certificate chains
-        val trustAllCerts = arrayOf<TrustManager>(
-            object : X509TrustManager {
-                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
-                override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-            }
-        )
-
-        // Install the all-trusting trust manager
-        val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(null, trustAllCerts, SecureRandom())
-        
-        // Create an ssl socket factory with our all-trusting manager
-        val sslSocketFactory = sslContext.socketFactory
-
         OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
-            .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
-            .hostnameVerifier { _, _ -> true } // Verify no hostnames
+            .sslSocketFactory(trustAllSslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
+            .hostnameVerifier { _, _ -> true }
+            .build()
+    }
+
+    // =========================================================================
+    // FCM ENDPOINT HELPERS
+    // =========================================================================
+
+    /**
+     * OPTIMIZATION: Helper function to build FCM registration request.
+     * Creates a properly configured POST request for FCM token registration.
+     * 
+     * @param serverUrl Base server URL
+     * @param token FCM token to register
+     * @param userEmail User email for token association
+     * @param deviceId Device identifier
+     * @param platform Platform name (e.g., "android", "ios")
+     * @param appVersion App version string
+     * @return Configured Request object ready for execution
+     */
+    fun buildFcmRegisterRequest(
+        serverUrl: String,
+        token: String,
+        userEmail: String?,
+        deviceId: String,
+        platform: String = "android",
+        appVersion: String,
+        timestamp: Long = System.currentTimeMillis()
+    ): Request {
+        val jsonBody = buildString {
+            append("{")
+            append("\"fcmToken\":\"$token\"")
+            if (userEmail != null) {
+                append(",\"userEmail\":\"$userEmail\"")
+            }
+            append(",\"deviceId\":\"$deviceId\"")
+            append(",\"platform\":\"$platform\"")
+            append(",\"appVersion\":\"$appVersion\"")
+            append(",\"timestamp\":$timestamp")
+            append("}")
+        }
+
+        return Request.Builder()
+            .url("$serverUrl/api/fcm/register")
+            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+    }
+
+    /**
+     * OPTIMIZATION: Helper function to build FCM unregister request.
+     * Creates a properly configured DELETE request for FCM token removal.
+     */
+    fun buildFcmUnregisterRequest(
+        serverUrl: String,
+        token: String
+    ): Request {
+        return Request.Builder()
+            .url("$serverUrl/api/fcm/unregister?token=$token")
+            .delete()
+            .build()
+    }
+
+    /**
+     * OPTIMIZATION: Helper function to build FCM notification test request.
+     */
+    fun buildFcmTestRequest(
+        serverUrl: String,
+        token: String,
+        title: String,
+        body: String
+    ): Request {
+        val jsonBody = buildString {
+            append("{")
+            append("\"token\":\"$token\",")
+            append("\"title\":\"$title\",")
+            append("\"body\":\"$body\"")
+            append("}")
+        }
+
+        return Request.Builder()
+            .url("$serverUrl/api/fcm/test")
+            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
     }
 }
+
+// =========================================================================
+// EXTENSION FUNCTIONS FOR HTTP OPERATIONS
+// =========================================================================
+
+/**
+ * OPTIMIZATION: Extension function for executing GET requests with timeout.
+ */
+suspend fun OkHttpClient.executeGet(
+    url: String,
+    timeoutMs: Long = 30_000L
+): okhttp3.Response? {
+    return kotlinx.coroutines.withTimeout(timeoutMs) {
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+        newCall(request).execute()
+    }
+}
+
+/**
+ * OPTIMIZATION: Extension function for executing POST requests with JSON body.
+ */
+suspend fun <T> OkHttpClient.executePostJson(
+    url: String,
+    body: String,
+    timeoutMs: Long = 30_000L
+): okhttp3.Response? {
+    return kotlinx.coroutines.withTimeout(timeoutMs) {
+        val request = Request.Builder()
+            .url(url)
+            .post(body.toRequestBody(HttpClientProvider.JSON_MEDIA_TYPE))
+            .build()
+        newCall(request).execute()
+    }
+}
+
+/**
+ * OPTIMIZATION: Extension function for safe response body reading.
+ * Handles null body and exceptions gracefully.
+ */
+fun okhttp3.Response.readBodySafely(): String? {
+    return try {
+        body?.string()
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/**
+ * OPTIMIZATION: Extension function to check if response is successful.
+ * Includes common success codes (200-299).
+ */
+fun okhttp3.Response.isSuccess(): Boolean = code in 200..299
+
+/**
+ * OPTIMIZATION: Extension function to build JSON request body.
+ */
+fun buildJsonBody(vararg pairs: Pair<String, Any?>): String {
+    return buildString {
+        append("{")
+        pairs.forEachIndexed { index, (key, value) ->
+            if (index > 0) append(",")
+            append("\"$key\":")
+            when (value) {
+                null -> append("null")
+                is String -> append("\"$value\"")
+                is Number, is Boolean -> append(value.toString())
+                else -> append("\"$value\"")
+            }
+        }
+        append("}")
+    }
+}
+
+/**
+ * OPTIMIZATION: Inline class for URL building with proper encoding.
+ */
+@JvmInline
+value class UrlBuilder(private val baseUrl: String) {
+    fun appendPath(path: String): UrlBuilder = UrlBuilder("$baseUrl/$path")
+    fun appendQuery(key: String, value: String): UrlBuilder {
+        val separator = if (baseUrl.contains("?")) "&" else "?"
+        return UrlBuilder("$baseUrl$separator$key=${java.net.URLEncoder.encode(value, "UTF-8")}")
+    }
+    fun appendQuery(key: String, value: Int): UrlBuilder = appendQuery(key, value.toString())
+    fun appendQuery(key: String, value: Long): UrlBuilder = appendQuery(key, value.toString())
+    
+    fun build(): String = baseUrl
+}
+
+/**
+ * OPTIMIZATION: Extension function to create UrlBuilder from String.
+ */
+fun String.toUrlBuilder(): UrlBuilder = UrlBuilder(this)

@@ -580,7 +580,7 @@ private fun GoogleAccountCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Face,
-                        contentDescription = null,
+                        contentDescription = "Account profile", // Decorative icon - account info displayed in text
                         tint = LocalAccentColor.current,
                         modifier = Modifier.size(24.dp)
                     )
@@ -616,7 +616,7 @@ private fun GoogleAccountCard(
             } else {
                 Icon(
                     imageVector = Icons.Default.CloudOff,
-                    contentDescription = null,
+                    contentDescription = "Cloud backup unavailable", // Indicates backup is disabled
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     modifier = Modifier.size(32.dp)
                 )
@@ -683,7 +683,7 @@ private fun BackupStatusCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.CloudSync,
-                    contentDescription = null,
+                    contentDescription = null, // Decorative icon - "Last backup" text provides context
                     tint = SemanticColors.info,
                     modifier = Modifier.size(24.dp)
                 )
@@ -732,7 +732,7 @@ private fun BackupStatusCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CloudUpload,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - "Backup now" text provides context
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.surface
                         )
@@ -767,7 +767,7 @@ private fun BackupStatusCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - success status shown in text
                             tint = SemanticColors.success
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -791,7 +791,7 @@ private fun BackupStatusCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.GppBad,
-                                contentDescription = null,
+                                contentDescription = null, // Decorative icon - error status shown in text
                                 tint = SemanticColors.error
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -820,7 +820,7 @@ private fun BackupStatusCard(
                                 shape = LocalShapes.current.button,
                                 colors = ButtonDefaults.buttonColors(containerColor = SemanticColors.error)
                             ) {
-                                Icon(Icons.Default.VpnKey, contentDescription = null)
+                                Icon(Icons.Default.VpnKey, contentDescription = null) // Decorative icon - "Fix permissions" text provides context
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(stringResource(R.string.fix_permissions_token))
                             }
@@ -917,7 +917,7 @@ private fun AutoBackupCard(
 
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.TrendingFlat,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - indicates clickable row
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -958,7 +958,7 @@ private fun BackupListItem(
             ) {
                 Icon(
                     imageVector = Icons.Default.CloudQueue,
-                    contentDescription = null,
+                    contentDescription = null, // Decorative icon - cloud backup indicator
                     tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), // Monochrome
                     modifier = Modifier.size(20.dp)
                 )
@@ -1116,7 +1116,7 @@ private fun LocalBackupCard(
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
+                    contentDescription = null, // Decorative icon - local backup feature indicator
                     tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), // Monochrome
                     modifier = Modifier.size(24.dp)
                 )
@@ -1153,7 +1153,7 @@ private fun LocalBackupCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CloudUpload,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - "Create backup" text provides context
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.surface
                         )
@@ -1188,7 +1188,7 @@ private fun LocalBackupCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - success status shown in text
                             tint = SemanticColors.success
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -1207,7 +1207,7 @@ private fun LocalBackupCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.GppBad,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - error status shown in text
                             tint = SemanticColors.error
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -1251,7 +1251,7 @@ private fun LocalBackupListItem(
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
+                    contentDescription = null, // Decorative icon - local backup indicator
                     tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), // Monochrome
                     modifier = Modifier.size(20.dp)
                 )
@@ -1288,7 +1288,7 @@ private fun LocalBackupListItem(
                 TextButton(onClick = onDelete) {
                     Icon(
                         imageVector = Icons.Default.DeleteOutline,
-                        contentDescription = null,
+                        contentDescription = null, // Decorative icon - "Delete" text provides context
                         modifier = Modifier.size(18.dp),
                         tint = SemanticColors.error.copy(alpha = 0.8f)
                     )
@@ -1308,8 +1308,8 @@ private fun LocalBackupListItem(
                     elevation = ButtonDefaults.buttonElevation(0.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Share, 
-                        contentDescription = null,
+                        imageVector = Icons.Default.Share,
+                        contentDescription = null, // Decorative icon - "Share" text provides context
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.surface
                     )

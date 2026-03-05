@@ -723,9 +723,9 @@ private fun InputPill(
     attachments: List<Attachment> = emptyList(),
     onRemoveAttachment: (String) -> Unit = {}
 ) {
-    // Attachment preview handled by parent SmartyInputField — removed duplicate here
-    // (Fixes bug: double preview rows + input block disappearing)
-    
+    // Attachment preview handled by parent SmartyInputField to avoid duplication
+    // This prevents UI issues with double preview rows
+
     // Soft Minimalist: Determine colors based on theme
     val monochromeColor = rememberMonochromeAccent()
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
@@ -985,7 +985,7 @@ private fun InputPill(
                                     text = { Text(stringResource(R.string.photo), fontSize = 14.sp) },
                                     leadingIcon = {
                                         Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(accentColor.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Image, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Image, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp)) // Attach image
                                         }
                                     },
                                     onClick = { showMenu = false; onPickImage() },
@@ -995,7 +995,7 @@ private fun InputPill(
                                     text = { Text(stringResource(R.string.video), fontSize = 14.sp) },
                                     leadingIcon = {
                                         Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.VideoRed.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Videocam, contentDescription = null, tint = com.example.smarty.ui.theme.VideoRed, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Videocam, contentDescription = null, tint = com.example.smarty.ui.theme.VideoRed, modifier = Modifier.size(18.dp)) // Record video
                                         }
                                     },
                                     onClick = { showMenu = false; onPickVideo() },
@@ -1005,7 +1005,7 @@ private fun InputPill(
                                     text = { Text(stringResource(R.string.document), fontSize = 14.sp) },
                                     leadingIcon = {
                                         Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.DocumentBlue.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Description, contentDescription = null, tint = com.example.smarty.ui.theme.DocumentBlue, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Description, contentDescription = null, tint = com.example.smarty.ui.theme.DocumentBlue, modifier = Modifier.size(18.dp)) // Attach document
                                         }
                                     },
                                     onClick = { showMenu = false; onPickDocument() },
@@ -1017,7 +1017,7 @@ private fun InputPill(
                                     text = { Text(stringResource(R.string.audio_label), fontSize = 14.sp) },
                                     leadingIcon = {
                                         Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(com.example.smarty.ui.theme.AudioPink.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = com.example.smarty.ui.theme.AudioPink, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Audiotrack, contentDescription = null, tint = com.example.smarty.ui.theme.AudioPink, modifier = Modifier.size(18.dp)) // Attach audio
                                         }
                                     },
                                     onClick = { showMenu = false; onPickAudio() },
@@ -1027,7 +1027,7 @@ private fun InputPill(
                                     text = { Text(stringResource(R.string.link), fontSize = 14.sp) },
                                     leadingIcon = {
                                         Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF80DEEA).copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF80DEEA), modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF80DEEA), modifier = Modifier.size(18.dp)) // Attach link
                                         }
                                     },
                                     onClick = { showMenu = false; onPickLink() },
@@ -1037,7 +1037,7 @@ private fun InputPill(
                                     text = { Text(stringResource(R.string.camera), fontSize = 14.sp) },
                                     leadingIcon = {
                                         Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) // Open camera
                                         }
                                     },
                                     onClick = { showMenu = false; onOpenCamera() },

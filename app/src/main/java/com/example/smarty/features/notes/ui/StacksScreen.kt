@@ -165,7 +165,7 @@ fun StacksScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = null
+                        contentDescription = null // Decorative icon - "New stack" text provides context
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
@@ -302,7 +302,7 @@ fun StacksScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Folder,
-                        contentDescription = null,
+                        contentDescription = null, // Decorative icon - "Notes will be unfiled" text provides context
                         tint = LocalAccentColor.current,
                         modifier = Modifier.size(20.dp)
                     )
@@ -516,7 +516,7 @@ private fun CategoryCard(
 
                     Icon(
                         imageVector = categoryIcon,
-                        contentDescription = null,
+                        contentDescription = null, // Decorative icon - category name displayed in text
                         tint = textColor.copy(alpha = if (isEmpty) 0.3f else 0.8f),
                         modifier = Modifier.size(24.dp)
                     )
@@ -625,7 +625,7 @@ private fun CreateCategoryBottomSheet(
             // Header with Standard Icon
             Icon(
                 imageVector = if (isRename) Icons.Default.Edit else Icons.Default.Add,
-                contentDescription = null,
+                contentDescription = null, // Decorative icon - title provides context
                 tint = LocalAccentColor.current,
                 modifier = Modifier.size(32.dp)
             )
@@ -759,7 +759,7 @@ private fun CreateCategoryBottomSheet(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - "Delete stack" text provides context
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))

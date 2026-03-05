@@ -209,7 +209,7 @@ private fun UnifiedSheetHeader(
                     shape = RoundedCornerShape(16.dp),
                     color = containerColor(isDark).copy(alpha = 0.8f),
                     border = androidx.compose.foundation.BorderStroke(
-                        1.dp, 
+                        1.dp,
                         Brush.linearGradient(listOf(Color.White.copy(alpha = 0.2f), Color.Transparent))
                     ),
                     modifier = Modifier.size(44.dp)
@@ -217,7 +217,7 @@ private fun UnifiedSheetHeader(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
-                            contentDescription = null,
+                            contentDescription = null, // Decorative icon - sheet title provides context
                             tint = iconTint,
                             modifier = Modifier.size(24.dp)
                         )

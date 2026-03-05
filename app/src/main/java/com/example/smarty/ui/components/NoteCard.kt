@@ -179,7 +179,7 @@ fun NoteCard(
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = null,
+                    contentDescription = null, // Decorative icon - swipe action indicator
                     tint = if (isSwipeRight && isArchiveView) Color.White else if (isDark) Color.Black else Color.White, // High contrast for monochrome bg
                     modifier = Modifier
                         .padding(horizontal = 16.dp)
@@ -476,7 +476,7 @@ fun NoteCardPill(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = null, // Decorative icon - attachment type indicator
                 tint = content,
                 modifier = Modifier.size(14.dp)
             )

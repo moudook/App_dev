@@ -385,7 +385,9 @@ class CalendarManager(
                     }
                     return date.time
                 }
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to parse date/time: ${e.message}")
+            }
         }
 
         return null

@@ -28,19 +28,19 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("../friday-release-key.keystore")
-            storePassword = System.getenv("FRIDAY_STORE_PASSWORD") ?: "friday123"
-            keyAlias = System.getenv("FRIDAY_KEY_ALIAS") ?: "friday-key-alias"
-            keyPassword = System.getenv("FRIDAY_KEY_PASSWORD") ?: "friday123"
+            // Security: Require environment variables for sensitive credentials
+            // Never hardcode passwords or aliases in build files
+            storePassword = System.getenv("FRIDAY_STORE_PASSWORD")
+            keyAlias = System.getenv("FRIDAY_KEY_ALIAS")
+            keyPassword = System.getenv("FRIDAY_KEY_PASSWORD")
         }
     }
-    
+
     buildTypes {
         release {
-            // IMPORTANT: R8 minification is DISABLED because the app relies on many
-            // reflection-based frameworks (Firebase, Ktor SSE, WorkManager, Room,
-            // EncryptedSharedPreferences, Kotlinx Serialization, Vosk JNI).
-            // Enabling R8 strips these classes and causes immediate crash on launch.
-            // TODO: Incrementally enable with thorough ProGuard rule testing
+            // R8 minification is ENABLED with comprehensive ProGuard rules
+            // Rules configured for: Firebase, Ktor SSE, WorkManager, Room,
+            // EncryptedSharedPreferences, Kotlinx Serialization, PDFBox, Media3
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -53,16 +53,17 @@ android {
             }
             // Apply the release signing config
             signingConfig = signingConfigs.getByName("release")
-            // Task 16: Production Server URL
-            buildConfigField("String", "SERVER_URL", "\"https://your-space-name.hf.space\"")
+            // Production Server URL - Configure via environment variable or update before build
+            buildConfigField("String", "SERVER_URL", System.getenv("SMARTY_SERVER_URL")?.let { "\"$it\"" } ?: "\"https://your-space-name.hf.space\"")
         }
         debug {
             // Keep debug builds fast - no minification
             isMinifyEnabled = false
-            // Task 16: Local Server URL (Emulator Loopback)
-            // buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:7860\"")
-            // Task 16: Remote Server URL (Ngrok)
-            buildConfigField("String", "SERVER_URL", "\"https://largest-camron-usuriously.ngrok-free.dev\"")
+            // Debug Server URL - Configure via environment variable
+            // Examples:
+            //   Local: export SMARTY_SERVER_URL="http://10.0.2.2:7860"
+            //   Ngrok: export SMARTY_SERVER_URL="https://your-ngrok-url.ngrok-free.dev"
+            buildConfigField("String", "SERVER_URL", System.getenv("SMARTY_SERVER_URL")?.let { "\"$it\"" } ?: "\"http://10.0.2.2:7860\"")
         }
     }
     compileOptions {

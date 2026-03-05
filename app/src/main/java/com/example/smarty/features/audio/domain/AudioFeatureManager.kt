@@ -160,10 +160,6 @@ class AudioFeatureManager(
 
         /** No match found - do NOT play random music */
         data class NoMatch(val reason: String) : AudioSearchResult()
-
-        /** Legacy: No direct match found, providing fallback recommendations */
-        @Deprecated("Use Suggestions or NoMatch instead")
-        data class Fallback(val tracks: List<AudioTrack>, val reason: String) : AudioSearchResult()
     }
 
     /**
