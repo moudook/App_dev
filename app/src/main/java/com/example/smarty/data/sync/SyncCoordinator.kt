@@ -76,9 +76,18 @@ class SyncCoordinator(
                     }
 
                     // Sync messages for this session
+                    // Get all existing local messages for deduplication
+                    val existingLocalMessages = chatDao.getMessagesForSessionOnce(sessionData.id)
                     sessionData.messages.forEach { msgData ->
-                        val existingMsg = chatDao.getMessageById(msgData.id)
-                        if (existingMsg == null) {
+                        // Check by server ID first
+                        val existingById = chatDao.getMessageById(msgData.id)
+                        // Also check if a message with same role+content already exists locally
+                        // (app and server generate different UUIDs for the same message)
+                        val existingByContent = existingLocalMessages.any { local ->
+                            local.role == msgData.role.uppercase() &&
+                            local.content == msgData.content
+                        }
+                        if (existingById == null && !existingByContent) {
                             val message = ChatMessage(
                                 id = msgData.id,
                                 role = when (msgData.role.uppercase()) {

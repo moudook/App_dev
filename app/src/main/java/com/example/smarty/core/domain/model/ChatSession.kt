@@ -74,7 +74,8 @@ data class ChatMessageEntity(
     val executedActionsJson: String = "[]",  // JSON serialized actions
     val referencedNoteIds: String = "",  // Comma-separated note IDs
     val citationsJson: String = "[]",  // JSON serialized citations from web search
-    val inlineImagesJson: String = "[]"  // JSON serialized inline images from ViewImageTool
+    val inlineImagesJson: String = "[]",  // JSON serialized inline images from ViewImageTool
+    val thinking: String? = null  // AI reasoning/thinking content
 ) {
     /**
      * Convert to domain model ChatMessage
@@ -114,7 +115,8 @@ data class ChatMessageEntity(
             executedActions = actions,
             referencedNoteIds = referencedNoteIds.split(",").filter { it.isNotBlank() },
             citations = citations,
-            inlineImages = inlineImages
+            inlineImages = inlineImages,
+            thinking = thinking
         )
     }
 

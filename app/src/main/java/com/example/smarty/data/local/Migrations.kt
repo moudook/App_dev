@@ -661,5 +661,15 @@ object Migrations {
             db.execSQL("ALTER TABLE calendar_events ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
         }
     }
+
+    /**
+     * Migration 33 → 34: Add thinking column to chat_messages.
+     * Stores AI reasoning/thinking content for collapsible display.
+     */
+    val MIGRATION_33_34 = object : Migration(33, 34) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE chat_messages ADD COLUMN thinking TEXT DEFAULT NULL")
+        }
+    }
 }
 
