@@ -56,9 +56,13 @@ override suspend fun generate(
 
             val choice = response.choices.firstOrNull() ?: return LlmResponse(content = null)
 
+            // Some providers (GLM-5, DeepSeek) return content=null with reasoning_content
+            val effectiveContent = choice.message.content
+                ?: choice.message.effectiveReasoning
+
             return LlmResponse(
-                content = choice.message.content,
-                toolCalls = choice.message.toolCalls?.map { it.toLlmToolCall() } ?: emptyList(),
+                content = effectiveContent,
+                toolCalls = choice.message.effectiveToolCalls?.map { it.toLlmToolCall() } ?: emptyList(),
                 usage = response.usage?.let { LlmUsage(it.promptTokens, it.completionTokens, it.totalTokens) }
             )
         } catch (e: Exception) {
@@ -284,8 +288,8 @@ private data class OpenAiMessage(
     val role: String,
     val content: String?,
     val name: String? = null,
-    val toolCallId: String? = null,
-    val toolCalls: List<OpenAiToolCall>? = null
+    @SerialName("tool_call_id") val toolCallId: String? = null,
+    @SerialName("tool_calls") val toolCalls: List<OpenAiToolCall>? = null
 )
 
 @Serializable
@@ -365,7 +369,7 @@ private data class OpenAiFunctionCall(
 
 @Serializable
 private data class OpenAiUsage(
-    val promptTokens: Int,
-    val completionTokens: Int,
-    val totalTokens: Int
+    @SerialName("prompt_tokens") val promptTokens: Int = 0,
+    @SerialName("completion_tokens") val completionTokens: Int = 0,
+    @SerialName("total_tokens") val totalTokens: Int = 0
 )
