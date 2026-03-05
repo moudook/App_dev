@@ -61,6 +61,7 @@ data class MessageInfoData(
     val id: String,
     val role: String,
     val content: String,
+    val thinking: String? = null,
     val createdAt: Long
 )
 
@@ -93,6 +94,7 @@ data class MessagePushItem(
     val id: String? = null,
     val role: String,
     val content: String,
+    val thinking: String? = null,
     val createdAt: Long
 )
 

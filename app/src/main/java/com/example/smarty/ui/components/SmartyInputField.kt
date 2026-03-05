@@ -25,6 +25,7 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -494,14 +495,7 @@ fun SmartyInputField(
                 horizontalArrangement = Arrangement.spacedBy(ELEMENT_SPACING)
             ) {
                 // Voice/Wave Circle (both modes — unified voice input)
-                // Voice Button - No circle, just bold icon with rounded edges
-                val voiceIcon = if (isVoiceListening) Icons.Default.StopCircle else Icons.Default.Mic
-                val voiceColor by animateColorAsState(
-                    targetValue = if (isVoiceListening) LocalAccentColor.current else MaterialTheme.colorScheme.onSurfaceVariant,
-                    animationSpec = tween(200),
-                    label = "voiceIconColor"
-                )
-                
+                // Voice Button with animated waveform (ChatGPT-style)
                 Box(
                     modifier = Modifier
                         .requiredSize(44.dp)
@@ -514,11 +508,9 @@ fun SmartyInputField(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = voiceIcon,
-                        contentDescription = if (isVoiceListening) stringResource(R.string.stop_listening) else stringResource(R.string.voice_input),
-                        tint = voiceColor,
-                        modifier = Modifier.size(28.dp) // Make it slightly larger and bold
+                    VoiceWaveformIcon(
+                        isListening = isVoiceListening,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
 
@@ -1078,6 +1070,79 @@ private fun MoreAttachmentsChip(count: Int) {
                 text = "+$count",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = if (isDark) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.5f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoiceWaveformIcon(
+    isListening: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
+    val idleColor = if (isDark) Color.White else Color.Black
+    val activeColor = Color(0xFF0066FF)
+
+    val animatedColor by animateColorAsState(
+        targetValue = if (isListening) activeColor else idleColor,
+        animationSpec = tween(200),
+        label = "waveformColor"
+    )
+
+    if (isListening) {
+        WaveformBars(
+            modifier = modifier.size(24.dp),
+            color = animatedColor,
+            barCount = 5
+        )
+    } else {
+        Icon(
+            imageVector = Icons.Default.Mic,
+            contentDescription = stringResource(R.string.voice_input),
+            tint = animatedColor,
+            modifier = modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
+private fun WaveformBars(
+    modifier: Modifier = Modifier,
+    color: Color,
+    barCount: Int = 5
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
+
+    val animations = (0 until barCount).map { index ->
+        infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(
+                    durationMillis = 400 + (index * 80),
+                    easing = FastOutSlowInEasing
+                ),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "bar_$index"
+        )
+    }
+
+    Canvas(modifier = modifier) {
+        val barWidth = size.width / (barCount * 2 - 1)
+        val maxHeight = size.height * 0.8f
+        val centerY = size.height / 2
+
+        animations.forEachIndexed { index, anim ->
+            val barHeight = maxHeight * anim.value
+            val x = barWidth / 2 + (index * barWidth * 2) - (barWidth / 2)
+
+            drawRoundRect(
+                color = color,
+                topLeft = androidx.compose.ui.geometry.Offset(x, centerY - barHeight / 2),
+                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2, barWidth / 2)
             )
         }
     }

@@ -46,7 +46,7 @@ class ChatRepository(private val dataSource: DataSource) {
      * @param role The message role (USER, SMARTY, TOOL, etc.)
      * @param content The message content
      */
-    suspend fun saveMessage(userId: String, sessionId: String, role: String, content: String) = withContext(Dispatchers.IO) {
+    suspend fun saveMessage(userId: String, sessionId: String, role: String, content: String, thinking: String? = null) = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             // Verify session belongs to user before inserting message
             val verifySql = "SELECT 1 FROM chat_sessions WHERE id = ? AND user_id = ?"
@@ -61,7 +61,7 @@ class ChatRepository(private val dataSource: DataSource) {
             }
 
             // Insert the message
-            val sql = "INSERT INTO chat_messages (session_id, user_id, role, content) VALUES (?, ?, ?, ?)"
+            val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking) VALUES (?, ?, ?, ?, ?)"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
                 stmt.setString(2, userId)
@@ -175,7 +175,7 @@ class ChatRepository(private val dataSource: DataSource) {
         val messages = mutableListOf<MessageRecord>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT cm.id, cm.role, cm.content, cm.created_at
+                SELECT cm.id, cm.role, cm.content, cm.thinking, cm.created_at
                 FROM chat_messages cm
                 JOIN chat_sessions cs ON cm.session_id = cs.id
                 WHERE cm.session_id = ? AND cs.user_id = ?

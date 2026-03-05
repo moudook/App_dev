@@ -140,6 +140,7 @@ fun Application.configureSyncRoutes() {
                                         id = msg.id.toString(),
                                         role = msg.role,
                                         content = msg.content,
+                                        thinking = msg.thinking,
                                         createdAt = msg.createdAt
                                     )
                                 }
