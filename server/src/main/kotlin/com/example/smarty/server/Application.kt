@@ -27,6 +27,7 @@ import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.PostgresVectorStore
 import com.example.smarty.server.llm.LlmProviderFactory
+import com.example.smarty.server.routes.configureDigestRoutes
 
 /**
  * Friday Server - Cloud-hosted agent runtime.
@@ -147,30 +148,22 @@ fun Application.module() {
     // Configure SSE plugin for streaming
     install(SSE)
 
-    // Configure routes
-    configureHealthRoutes()
-    configureChatRoutes()
-    configureProcessingRoutes()
-    configureHandshakeRoutes()
-    configureDataRoutes()
-    configureSyncRoutes()
-
-    // Configure Monitoring
-    configureMonitoring()
-
     // Initialize Digest System
     val ds = DatabaseFactory.getDataSource()
+    var digestService: DigestService? = null
+    var digestScheduler: DigestScheduler? = null
+    
     if (ds != null) {
-        val digestService = DigestService(
+        digestService = DigestService(
             dataSource = ds,
             chatRepository = ChatRepository(ds),
             vectorStore = PostgresVectorStore(),
             llmProvider = LlmProviderFactory.create(io.ktor.client.HttpClient())
         )
-        
+
         val fcmService = FcmNotificationService.fromEnvironment(ds)
-        
-        val digestScheduler = DigestScheduler(
+
+        digestScheduler = DigestScheduler(
             application = this,
             dataSource = ds,
             digestService = digestService,
@@ -179,7 +172,25 @@ fun Application.module() {
         digestScheduler.start()
     }
 
+    // Configure routes
+    configureHealthRoutes()
+    configureChatRoutes()
+    configureProcessingRoutes()
+    configureHandshakeRoutes()
+    configureDataRoutes()
+    configureSyncRoutes()
+    if (digestService != null && digestScheduler != null && ds != null) {
+        configureDigestRoutes(digestService, digestScheduler, ds)
+    }
+
+    // Configure Monitoring
+    configureMonitoring()
+
     // Log startup
     log.info("Friday Server started on port $serverPort")
-    log.info("Digest Scheduler started - daily digests will be generated at configured times")
+    if (digestScheduler != null) {
+        log.info("Digest Scheduler started - daily digests will be generated at configured times")
+    } else {
+        log.warn("Database not configured - Digest Scheduler disabled")
+    }
 }

@@ -115,7 +115,7 @@ object FileStorageHelper {
                 mimeType = mimeType ?: getMimeTypeFromFile(destFile)
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Failed to copy file to internal storage", e)
             null
         }
     }
@@ -167,7 +167,7 @@ object FileStorageHelper {
                 mimeType = mimeType ?: getMimeTypeFromFile(destFile)
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Failed to copy file to internal storage as file", e)
             null
         }
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import androidx.core.content.FileProvider
 import com.example.smarty.core.domain.model.Category
 import com.example.smarty.core.domain.model.Note
@@ -104,7 +105,7 @@ object CategoryShareManager {
                 file
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("CategoryShareManager", "Failed to save QR code to cache", e)
             null
         }
     }
@@ -167,7 +168,7 @@ object CategoryShareManager {
         return try {
             gson.fromJson(jsonData, ShareableCategory::class.java)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("CategoryShareManager", "Failed to parse shareable category data", e)
             null
         }
     }
@@ -181,7 +182,7 @@ object CategoryShareManager {
             val jsonData = String(Base64.getDecoder().decode(encodedData))
             parseShareableData(jsonData)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("CategoryShareManager", "Failed to parse deep link", e)
             null
         }
     }

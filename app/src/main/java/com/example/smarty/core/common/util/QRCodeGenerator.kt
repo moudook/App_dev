@@ -2,6 +2,7 @@ package com.example.smarty.core.common.util
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.util.Log
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -9,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object QRCodeGenerator {
+    private const val TAG = "QRCodeGenerator"
+    
     /**
      * Generate QR code bitmap on background thread to avoid blocking main thread.
      * Uses setPixels() batch operation instead of individual setPixel() calls for better performance.
@@ -40,7 +43,7 @@ object QRCodeGenerator {
             bitmap.setPixels(pixels, 0, size, 0, 0, size, size)
             bitmap
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Failed to generate QR code", e)
             null
         }
     }

@@ -267,15 +267,38 @@ class DigestScheduler(
      */
     private suspend fun createCalendarEvent(userId: String, digest: DigestService.DigestResult) {
         try {
-            // This would integrate with the CalendarRepository to create an event
-            // For now, we'll just log it
-            logger.info("Calendar event creation for digest ${digest.id} - to be implemented")
-            
-            // TODO: Implement calendar event creation
-            // val eventId = calendarRepository.createEvent(...)
-            // digestService.setCalendarEventId(digest.id, eventId)
+            // Create a calendar event to log the digest summary
+            // This allows users to see their daily/weekly summary in their calendar
+            dataSource.connection.use { conn ->
+                val eventTitle = "Smarty ${digest.digestType.replaceFirstChar { it.uppercase() }} Digest"
+                val eventDescription = digest.summary.take(500) // Limit description length
+                
+                // Create event for end of day (10 PM) to review the day's activities
+                val eventStartTime = java.time.LocalDate.now()
+                    .atTime(22, 0) // 10:00 PM
+                    .toEpochSecond(java.time.ZoneOffset.UTC) * 1000
+                val eventEndTime = eventStartTime + (60 * 60 * 1000) // 1 hour duration
+                
+                val insertSql = """
+                    INSERT INTO calendar_events 
+                    (user_id, title, description, start_time, end_time, reminder_minutes)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """.trimIndent()
+                
+                conn.prepareStatement(insertSql).use { stmt ->
+                    stmt.setString(1, userId)
+                    stmt.setString(2, eventTitle)
+                    stmt.setString(3, eventDescription)
+                    stmt.setLong(4, eventStartTime)
+                    stmt.setLong(5, eventEndTime)
+                    stmt.setInt(6, 30) // 30 minute reminder
+                    stmt.executeUpdate()
+                }
+                
+                logger.info("Created calendar event for digest ${digest.id} for user $userId")
+            }
         } catch (e: Exception) {
-            logger.error("Failed to create calendar event: ${e.message}", e)
+            logger.error("Failed to create calendar event for digest ${digest.id}: ${e.message}", e)
         }
     }
 

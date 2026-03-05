@@ -27,7 +27,12 @@ class UtilityService(
         if (matcher.find()) {
             val amount = matcher.group(1).toLong()
             val unit = matcher.group(2).lowercase()
-            val now = LocalDateTime.now() // TODO: Adjust for user timezone
+            // Use user's timezone for proper date/time calculation
+            val now = java.time.LocalDateTime.now(
+                java.time.ZoneId.of(userTimezone).rules.getOffset(java.time.Instant.now()).let { 
+                    java.time.ZoneId.ofOffset("UTC", java.time.ZoneOffset.ofTotalSeconds(it.totalSeconds)) 
+                }
+            )
 
             // Simplified relative logic
             return when {

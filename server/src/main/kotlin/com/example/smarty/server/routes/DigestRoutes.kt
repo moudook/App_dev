@@ -1,5 +1,6 @@
 package com.example.smarty.server.routes
 
+import com.example.smarty.server.data.DigestPreferencesRepository
 import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.DigestScheduler
 import io.ktor.server.application.*
@@ -12,7 +13,7 @@ import org.slf4j.LoggerFactory
 
 /**
  * Routes for digest management.
- * 
+ *
  * Endpoints:
  * - GET /digests - Get all digests for user
  * - GET /digests/{id} - Get specific digest
@@ -22,9 +23,11 @@ import org.slf4j.LoggerFactory
  */
 fun Route.configureDigestRoutes(
     digestService: DigestService,
-    digestScheduler: DigestScheduler
+    digestScheduler: DigestScheduler,
+    dataSource: javax.sql.DataSource
 ) {
     val logger = LoggerFactory.getLogger("DigestRoutes")
+    val preferencesRepository = DigestPreferencesRepository(dataSource)
 
     route("/digests") {
         authenticate("firebase-auth") {
@@ -97,9 +100,26 @@ fun Route.configureDigestRoutes(
                     ?: return@get call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
-                    // Return default preferences if not set
-                    val prefs = getDigestPreferences(userId)
-                    call.respond(prefs)
+                    val prefs = preferencesRepository.getPreferences(userId)
+                        ?: DigestPreferencesRepository.DigestPreferences(
+                            userId = userId,
+                            dailyEnabled = true,
+                            dailyTime = "07:00",
+                            weeklyEnabled = true,
+                            weeklyDay = 0,
+                            weeklyTime = "08:00",
+                            pushNotification = true,
+                            calendarLogging = true
+                        )
+                    call.respond(DigestPreferencesResponse(
+                        dailyEnabled = prefs.dailyEnabled,
+                        dailyTime = prefs.dailyTime,
+                        weeklyEnabled = prefs.weeklyEnabled,
+                        weeklyDay = prefs.weeklyDay,
+                        weeklyTime = prefs.weeklyTime,
+                        pushNotification = prefs.pushNotification,
+                        calendarLogging = prefs.calendarLogging
+                    ))
                 } catch (e: Exception) {
                     logger.error("Failed to get preferences: ${e.message}", e)
                     call.respond(mapOf("error" to "Failed to get preferences"))
@@ -113,7 +133,16 @@ fun Route.configureDigestRoutes(
 
                 try {
                     val request = call.receive<UpdatePreferencesRequest>()
-                    updateDigestPreferences(userId, request)
+                    preferencesRepository.updatePreferences(
+                        userId = userId,
+                        dailyEnabled = request.dailyEnabled,
+                        dailyTime = request.dailyTime,
+                        weeklyEnabled = request.weeklyEnabled,
+                        weeklyDay = request.weeklyDay,
+                        weeklyTime = request.weeklyTime,
+                        pushNotification = request.pushNotification,
+                        calendarLogging = request.calendarLogging
+                    )
                     call.respond(mapOf("success" to true))
                 } catch (e: Exception) {
                     logger.error("Failed to update preferences: ${e.message}", e)
@@ -150,21 +179,3 @@ data class DigestPreferencesResponse(
     val pushNotification: Boolean,
     val calendarLogging: Boolean
 )
-
-// TODO: Implement actual database operations for preferences
-private suspend fun getDigestPreferences(userId: String): DigestPreferencesResponse {
-    // Return defaults for now
-    return DigestPreferencesResponse(
-        dailyEnabled = true,
-        dailyTime = "07:00",
-        weeklyEnabled = true,
-        weeklyDay = 0,
-        weeklyTime = "08:00",
-        pushNotification = true,
-        calendarLogging = true
-    )
-}
-
-private suspend fun updateDigestPreferences(userId: String, request: UpdatePreferencesRequest) {
-    // TODO: Implement actual database update
-}
