@@ -337,6 +337,27 @@ fun Application.configureSyncRoutes() {
                         call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to save message"))
                     }
                 }
+
+                delete("/sessions/{id}") {
+                    val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized)
+                    if (chatRepository == null) {
+                        return@delete call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+                    }
+
+                    val sessionId = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
+                    
+                    try {
+                        val deleted = chatRepository.deleteSession(user.userId, sessionId)
+                        if (deleted) {
+                            call.respond(HttpStatusCode.OK)
+                        } else {
+                            call.respond(HttpStatusCode.NotFound)
+                        }
+                    } catch (e: Exception) {
+                        logger.error("Failed to delete session", e)
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to delete session"))
+                    }
+                }
             }
         }
     }

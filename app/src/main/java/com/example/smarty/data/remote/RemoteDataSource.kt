@@ -359,4 +359,20 @@ class RemoteDataSource(
             false
         }
     }
+
+    suspend fun deleteChatSession(sessionId: String): Boolean {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return false
+
+            val response = client.delete("$baseUrl/api/v1/chat/sessions/$sessionId") {
+                addAuthHeaders(token)
+            }
+
+            response.status.isSuccess()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting chat session: ${e.message}", e)
+            false
+        }
+    }
 }

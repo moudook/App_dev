@@ -1191,6 +1191,9 @@ is AgentCommand.GetSystemStatus -> "(no params)"
 
     fun deleteChatSession(sessionId: String) {
         chatManager.deleteChatSession(sessionId)
+        scope.launch {
+            remoteAgentService.deleteChatSession(sessionId)
+        }
     }
 
     fun clearChatHistory() {
@@ -1424,11 +1427,12 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                     when (event) {
                         is AgentEvent.Processing -> {
                             responseBuilder.append(event.content)
-                            // Handle thinking from server if available
+                            // Handle thinking from server - replace, not append (server sends full accumulated thinking)
                             event.thinking?.let { thinking ->
+                                thinkingBuilder.clear()
                                 thinkingBuilder.append(thinking)
                             }
-                            chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                            chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().ifEmpty { null })
                         }
                         is AgentEvent.Result -> {
                             // Only append content if it's new (not already in builder), some servers send full result at end
@@ -1436,11 +1440,11 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                                 responseBuilder.append(event.content)
                             }
                             event.thinking?.let { thinking ->
-                                if (!thinkingBuilder.toString().contains(thinking)) {
-                                    thinkingBuilder.append(thinking)
-                                }
+                                // Final thinking - replace to ensure clean content
+                                thinkingBuilder.clear()
+                                thinkingBuilder.append(thinking)
                             }
-                            chatManager.updateMessageById(streamingMessageId, responseBuilder.toString())
+                            chatManager.updateMessageWithThinking(streamingMessageId, responseBuilder.toString(), thinkingBuilder.toString().ifEmpty { null })
                         }
                         is AgentEvent.Error -> {
                             responseBuilder.append("\n[Error: ${event.message}]")

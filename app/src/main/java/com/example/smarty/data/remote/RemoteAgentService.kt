@@ -181,6 +181,26 @@ class RemoteAgentService(
     }
 
     /**
+     * Delete a chat session from the server (Supabase sync).
+     */
+    suspend fun deleteChatSession(sessionId: String): Boolean {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return false
+            
+            val response = client.delete("$baseUrl/api/v1/chat/sessions/$sessionId") {
+                if (token != null) {
+                    header(HttpHeaders.Authorization, "Bearer $token")
+                }
+            }
+            response.status.isSuccess()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete remote chat session", e)
+            false
+        }
+    }
+
+    /**
      * Analyze content on the server.
      */
     suspend fun analyzeContent(
