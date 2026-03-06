@@ -183,9 +183,7 @@ fun Application.module() {
     configureDataRoutes()
     configureResearchRoutes(com.example.smarty.server.agent.DeepResearchAgent(
         llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(io.ktor.client.HttpClient()),
-        webSearchTool = com.example.smarty.server.tools.WebSearchTool(
-            apiKey = System.getenv("SERPER_API_KEY") ?: ""
-        ),
+        tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),
         webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
         progressFileManager = com.example.smarty.server.agent.ProgressFileManager()
     ))

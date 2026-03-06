@@ -412,14 +412,24 @@ fun SmartyInputField(
                     
                     // Deep Research Button (Icon + Text)
                     if (isChatMode) {
+                        val researchAccentColor = LocalAccentColor.current
+                        val researchPillBackground = if (isResearchMode) 
+                            researchAccentColor.copy(alpha = 0.15f) 
+                        else 
+                            pillBackground
+                        val researchPillBorder = if (isResearchMode) 
+                            researchAccentColor 
+                        else 
+                            pillBorder
+                        
                         Surface(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onToggleResearchMode()
                             },
                             shape = RoundedCornerShape(16.dp),
-                            color = if (isResearchMode) Color(0xFF7C4DFF).copy(alpha = 0.15f) else pillBackground,
-                            border = BorderStroke(0.5.dp, if (isResearchMode) Color(0xFF7C4DFF) else pillBorder),
+                            color = researchPillBackground,
+                            border = BorderStroke(0.5.dp, researchPillBorder),
                             modifier = Modifier.height(36.dp)
                         ) {
                             Row(
@@ -430,13 +440,13 @@ fun SmartyInputField(
                                 Icon(
                                     imageVector = Icons.Default.Science,
                                     contentDescription = "Deep Research",
-                                    tint = if (isResearchMode) Color(0xFF7C4DFF) else monochromeColor,
+                                    tint = if (isResearchMode) researchAccentColor else monochromeColor,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
                                     text = "Deep Research",
                                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = if (isResearchMode) Color(0xFF7C4DFF) else monochromeColor,
+                                    color = if (isResearchMode) researchAccentColor else monochromeColor,
                                     maxLines = 1
                                 )
                             }

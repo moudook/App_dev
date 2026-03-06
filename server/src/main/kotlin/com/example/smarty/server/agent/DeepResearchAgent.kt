@@ -2,7 +2,7 @@ package com.example.smarty.server.agent
 
 import com.example.smarty.server.llm.LlmProvider
 import com.example.smarty.server.llm.LlmMessage
-import com.example.smarty.server.tools.WebSearchTool
+import com.example.smarty.server.tools.TavilySearchTool
 import com.example.smarty.server.tools.WebScrapeTool
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
@@ -18,7 +18,7 @@ import java.util.UUID
  */
 class DeepResearchAgent(
     private val llmProvider: LlmProvider,
-    private val webSearchTool: WebSearchTool,
+    private val tavilyTool: TavilySearchTool,
     private val webScrapeTool: WebScrapeTool,
     private val progressFileManager: ProgressFileManager
 ) {
@@ -154,13 +154,17 @@ class DeepResearchAgent(
     ): ResearchSession {
         logger.info("Searching: $query")
         
-        val searchResults = webSearchTool.search(query, 10)
+        // Use Tavily API for search
+        val searchResultString = tavilyTool.search(query)
         
+        // Parse Tavily results (format: "Title: ...\nURL: ...\nSnippet: ...\n\n")
+        val searchResults = parseTavilyResults(searchResultString)
+
         val searchQuery = SearchQuery(
             query = query,
             results = searchResults.map { result ->
                 SearchResult(
-                    url = result.link,
+                    url = result.url,
                     title = result.title,
                     snippet = result.snippet,
                     position = result.position
@@ -168,11 +172,11 @@ class DeepResearchAgent(
             },
             purpose = purpose
         )
-        
+
         // Add citations from top results
         val newCitations = searchResults.take(5).map { result ->
             Citation(
-                url = result.link,
+                url = result.url,
                 title = result.title,
                 snippet = result.snippet,
                 keyFindings = listOf(result.snippet.take(200))
@@ -215,6 +219,26 @@ class DeepResearchAgent(
         )
     }
     
+    /**
+     * Parse Tavily search results string into structured data
+     */
+    private fun parseTavilyResults(resultString: String): List<SearchResult> {
+        val results = mutableListOf<SearchResult>()
+        val blocks = resultString.split("\n\n").filter { it.isNotBlank() }
+        
+        blocks.forEachIndexed { index, block ->
+            val title = block.lines().find { it.startsWith("Title:") }?.substringAfter("Title:")?.trim() ?: ""
+            val url = block.lines().find { it.startsWith("URL:") }?.substringAfter("URL:")?.trim() ?: ""
+            val snippet = block.lines().find { it.startsWith("Snippet:") }?.substringAfter("Snippet:")?.trim() ?: ""
+            
+            if (url.isNotBlank()) {
+                results.add(SearchResult(url = url, title = title, snippet = snippet, position = index + 1))
+            }
+        }
+        
+        return results
+    }
+
     /**
      * Change research direction
      */
