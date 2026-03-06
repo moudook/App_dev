@@ -671,5 +671,56 @@ object Migrations {
             db.execSQL("ALTER TABLE chat_messages ADD COLUMN thinking TEXT DEFAULT NULL")
         }
     }
+
+    /**
+     * Migration 34 → 35: Add missing performance indexes.
+     * PERFORMANCE: Improves query performance for common operations.
+     * 
+     * Indexes added:
+     * - chat_messages: sessionId + timestamp for message list queries
+     * - calendar_events: endTime for upcoming event queries
+     * - note_versions: noteId + versionNumber for version lookup
+     * - impressed_log: actionType + timestamp for analytics
+     * - ai_memories: type + confidence for memory retrieval
+     */
+    val MIGRATION_34_35 = object : Migration(34, 35) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Chat messages: Optimize message list loading
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_chat_messages_sessionId_timestamp " +
+                "ON chat_messages(sessionId, timestamp ASC)"
+            )
+
+            // Calendar events: Optimize upcoming event queries
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_calendar_events_endTime " +
+                "ON calendar_events(endTime)"
+            )
+
+            // Note versions: Optimize version lookup
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_note_versions_noteId_versionNumber " +
+                "ON note_versions(noteId, versionNumber DESC)"
+            )
+
+            // Impressed log: Optimize analytics queries
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_impressed_log_actionType_timestamp " +
+                "ON impressed_log(actionType, timestamp DESC)"
+            )
+
+            // AI memories: Optimize memory retrieval by type and confidence
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_ai_memories_type_confidence " +
+                "ON ai_memories(type, confidence DESC)"
+            )
+
+            // Sync queue: Optimize pending item queries
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_sync_queue_status_createdAt " +
+                "ON sync_queue(status, createdAt ASC)"
+            )
+        }
+    }
 }
 

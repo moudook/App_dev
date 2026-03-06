@@ -24,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 /**
  * Main repository for data operations.
@@ -689,16 +688,6 @@ class SmartyRepository(
      */
     suspend fun getAllCategoriesOneShot(): List<Category> =
         categoryDao.getAllCategories().first()
-
-    /**
-     * DEPRECATED: Use getAllCategoriesOneShot() instead.
-     */
-    @Deprecated("Use getAllCategoriesOneShot() or getAllCategories() Flow instead",
-                ReplaceWith("getAllCategoriesOneShot()"))
-    fun getAllCategoriesSync(): List<Category> =
-        runBlocking(Dispatchers.IO) {
-            categoryDao.getAllCategories().first()
-        }
 
     // =========================================================================
     // EVENT OPERATIONS (ALIASES)

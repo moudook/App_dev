@@ -106,13 +106,28 @@ class DailyDigestWorker(
         Log.d(TAG, "Daily digest worker started")
 
         try {
+            // Check for cancellation
+            if (isStopped) {
+                Log.d(TAG, "Worker stopped before generating digest")
+                return Result.failure()
+            }
+
             // Generate digest content
             val digest = generateDigest()
+
+            // Check for cancellation before showing notification
+            if (isStopped) {
+                Log.d(TAG, "Worker stopped before showing notification")
+                return Result.failure()
+            }
 
             // Show notification
             showNotification(digest)
 
             return Result.success()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            Log.w(TAG, "Daily digest worker cancelled", e)
+            return Result.failure()
         } catch (e: Exception) {
             Log.e(TAG, "Daily digest failed: ${e.message}", e)
             return Result.retry()

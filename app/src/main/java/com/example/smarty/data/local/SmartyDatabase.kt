@@ -34,7 +34,7 @@ import com.example.smarty.data.local.CachedAIResponse
         SyncQueueItem::class,
         ConflictRecord::class
     ],
-    version = 34,
+    version = 35,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -282,7 +282,8 @@ abstract class SmartyDatabase : RoomDatabase() {
                         Migrations.MIGRATION_30_31,   // Feature: ai_cache user_id for multi-tenant
                         Migrations.MIGRATION_31_32,   // Feature: sync_queue for cloud-first sync
                         Migrations.MIGRATION_32_33,   // Feature: calendar_events updatedAt for sync
-                        Migrations.MIGRATION_33_34    // Feature: thinking column for AI reasoning
+                        Migrations.MIGRATION_33_34,   // Feature: thinking column for AI reasoning
+                        Migrations.MIGRATION_34_35    // Performance: Additional indices for common queries
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt

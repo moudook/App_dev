@@ -70,6 +70,12 @@ class DailyBriefingWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         return@withContext try {
+            // Check for cancellation at the start
+            if (isStopped) {
+                Log.w(TAG, "Daily briefing worker cancelled before starting")
+                return@withContext Result.failure()
+            }
+
             Log.i(TAG, "Generating daily briefing...")
 
             val db = SmartyDatabase.getDatabase(applicationContext)
@@ -80,7 +86,13 @@ class DailyBriefingWorker(
 
             // Get recent notes
             val recentNotes = db.noteDao().getNotesModifiedSince(threeDaysAgo)
-            
+
+            // Check for cancellation
+            if (isStopped) {
+                Log.w(TAG, "Daily briefing worker cancelled after fetching notes")
+                return@withContext Result.failure()
+            }
+
             // Get upcoming calendar events
             val upcomingEvents = db.calendarDao().getUpcomingEvents(
                 System.currentTimeMillis(),
@@ -101,12 +113,18 @@ class DailyBriefingWorker(
             val hasNotes = recentNotes.isNotEmpty()
             val hasEvents = upcomingEvents.isNotEmpty()
             val hasChats = recentSessions.isNotEmpty()
-            
+
             if (!hasNotes && !hasEvents && !hasChats) {
                 Log.i(TAG, "Skipping daily briefing - no user activity found (fresh/inactive user)")
                 // Return success but don't show notification
                 // This is not a failure - it's intentional behavior
                 return@withContext Result.success()
+            }
+
+            // Check for cancellation before building briefing
+            if (isStopped) {
+                Log.w(TAG, "Daily briefing worker cancelled before building briefing")
+                return@withContext Result.failure()
             }
 
             // Build summaries only if we have data
@@ -137,6 +155,12 @@ class DailyBriefingWorker(
             // Build the briefing prompt
             val briefingPrompt = buildBriefingPrompt(notesSummary, eventsSummary, chatSummary)
 
+            // Check for cancellation before sending to server
+            if (isStopped) {
+                Log.w(TAG, "Daily briefing worker cancelled before sending to server")
+                return@withContext Result.failure()
+            }
+
             // Send to server for AI generation
             val remoteService = ServiceLocator.provideRemoteAgentService(applicationContext as android.app.Application)
             val briefingResponse = remoteService.generateBriefing(briefingPrompt)
@@ -158,6 +182,9 @@ class DailyBriefingWorker(
                 Log.e(TAG, "Empty briefing response")
                 if (runAttemptCount < 3) Result.retry() else Result.failure()
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            Log.w(TAG, "Daily briefing worker cancelled", e)
+            Result.failure()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to generate briefing: ${e.message}", e)
             if (runAttemptCount < 3) Result.retry() else Result.failure()

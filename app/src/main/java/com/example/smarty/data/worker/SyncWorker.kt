@@ -13,6 +13,7 @@ import com.example.smarty.data.sync.SyncCoordinator
 import com.example.smarty.data.sync.NetworkMonitor
 import com.example.smarty.data.sync.MigrationManager
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
 
 class SyncWorker(
@@ -22,24 +23,30 @@ class SyncWorker(
 
     override suspend fun doWork(): Result {
         Log.i(TAG, "Starting sync worker...")
-        
+
         return try {
+            // Check for cancellation at the start
+            if (isStopped) {
+                Log.d(TAG, "Worker stopped before starting")
+                return Result.failure()
+            }
+
             val networkMonitor = NetworkMonitor(applicationContext)
-            
+
             if (!networkMonitor.isOnline.value) {
                 Log.d(TAG, "Device offline, skipping sync")
                 return Result.success()
             }
-            
+
             val database = SmartyDatabase.getDatabase(applicationContext)
             val securePrefs = com.example.smarty.data.local.SecurePreferences.getInstance(applicationContext)
-            
+
             val remoteDataSource = RemoteDataSource(
                 client = createHttpClient(),
                 serverUrlProvider = { securePrefs.getSmartyServerUrl() },
                 deviceIdProvider = { securePrefs.getDeviceId() }
             )
-            
+
             val syncCoordinator = SyncCoordinator(
                 context = applicationContext,
                 remoteDataSource = remoteDataSource,
@@ -49,7 +56,7 @@ class SyncWorker(
                 syncQueueDao = database.syncQueueDao(),
                 networkMonitor = networkMonitor
             )
-            
+
             val migrationManager = MigrationManager(
                 context = applicationContext,
                 remoteDataSource = remoteDataSource,
@@ -58,7 +65,13 @@ class SyncWorker(
                 chatDao = database.chatDao(),
                 syncQueueDao = database.syncQueueDao()
             )
-            
+
+            // Check for cancellation before migration
+            if (isStopped) {
+                Log.d(TAG, "Worker stopped before migration")
+                return Result.failure()
+            }
+
             when (migrationManager.migrateIfNeeded()) {
                 is com.example.smarty.data.sync.MigrationResult.Success -> {
                     Log.i(TAG, "Migration completed")
@@ -70,7 +83,13 @@ class SyncWorker(
                     Log.e(TAG, "Migration failed")
                 }
             }
-            
+
+            // Check for cancellation before pull
+            if (isStopped) {
+                Log.d(TAG, "Worker stopped before pull")
+                return Result.failure()
+            }
+
             when (val result = syncCoordinator.pullFromServer()) {
                 is com.example.smarty.data.sync.PullResult.Success -> {
                     Log.i(TAG, "Pull complete: ${result.notes} notes, ${result.sessions} sessions, ${result.events} events")
@@ -82,7 +101,13 @@ class SyncWorker(
                     Log.e(TAG, "Pull failed: ${result.message}")
                 }
             }
-            
+
+            // Check for cancellation before push
+            if (isStopped) {
+                Log.d(TAG, "Worker stopped before push")
+                return Result.failure()
+            }
+
             when (val result = syncCoordinator.pushPendingChanges()) {
                 is com.example.smarty.data.sync.PushResult.Success -> {
                     Log.i(TAG, "Push complete: ${result.notes} notes, ${result.sessions} sessions, ${result.events} events")
@@ -94,9 +119,13 @@ class SyncWorker(
                     Log.e(TAG, "Push failed: ${result.message}")
                 }
             }
-            
+
             Log.i(TAG, "Sync worker completed successfully")
             Result.success()
+        } catch (e: CancellationException) {
+            // Handle worker cancellation properly
+            Log.w(TAG, "Sync worker cancelled", e)
+            Result.failure()
         } catch (e: Exception) {
             Log.e(TAG, "Sync worker failed", e)
             Result.retry()

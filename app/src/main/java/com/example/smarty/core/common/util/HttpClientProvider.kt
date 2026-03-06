@@ -67,8 +67,23 @@ object HttpClientProvider {
 
     /**
      * Default client for general API calls including AI providers.
+     * Includes retry on connection failure for resilience.
      */
     val default: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(WRITE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
+            .certificatePinner(certificatePinner)
+            .build()
+    }
+
+    /**
+     * Client with exponential backoff retry for critical operations.
+     * Retries: 3 attempts with increasing delays (1s, 2s, 4s).
+     */
+    val withRetry: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
