@@ -154,40 +154,43 @@ class NoteOperationsManager(
         initialCategory: String? = null
     ) {
         scope.launch {
-            if (!checkNoteCreationRateLimit()) {
-                Log.w("NoteOps", "Note creation rate limit exceeded")
-                return@launch
-            }
-            val detectedType = if (type == NoteType.BRAIN_DUMP) {
-                ContentTypeDetector.detectContentType(content)
-            } else type
+            // FIX: Add mutex protection for entire note creation chain to prevent duplicates
+            noteOperationMutex.withLock {
+                if (!checkNoteCreationRateLimit()) {
+                    Log.w("NoteOps", "Note creation rate limit exceeded")
+                    return@withLock
+                }
+                val detectedType = if (type == NoteType.BRAIN_DUMP) {
+                    ContentTypeDetector.detectContentType(content)
+                } else type
 
-            val shouldProcess = NoteType.isAnalyzable(detectedType)
+                val shouldProcess = NoteType.isAnalyzable(detectedType)
 
-            // Resolve initial category if provided
-            val category = initialCategory?.let { repository.getOrCreateCategory(it) } ?: repository.getOrCreateCategory(context.getString(com.example.smarty.R.string.category_quick_notes))
+                // Resolve initial category if provided
+                val category = initialCategory?.let { repository.getOrCreateCategory(it) } ?: repository.getOrCreateCategory(context.getString(com.example.smarty.R.string.category_quick_notes))
 
-            val note = Note(
-                id = java.util.UUID.randomUUID().toString(),
-                title = ContentTypeDetector.extractTitle(context, content, detectedType),
-                content = content,
-                type = detectedType,
-                categoryId = category.id,
-                categoryName = category.name,
-                sourceUrl = sourceUrl ?: if (detectedType != NoteType.BRAIN_DUMP && content.startsWith("http")) content else null,
-                processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
-                excludeFromAiChat = excludeFromAiChat
-            )
-            repository.insertNote(note)
-            Log.d(TAG, "Note inserted: ${note.id}")
+                val note = Note(
+                    id = java.util.UUID.randomUUID().toString(),
+                    title = ContentTypeDetector.extractTitle(context, content, detectedType),
+                    content = content,
+                    type = detectedType,
+                    categoryId = category.id,
+                    categoryName = category.name,
+                    sourceUrl = sourceUrl ?: if (detectedType != NoteType.BRAIN_DUMP && content.startsWith("http")) content else null,
+                    processingStatus = if (shouldProcess) ProcessingStatus.PROCESSING else ProcessingStatus.COMPLETED,
+                    excludeFromAiChat = excludeFromAiChat
+                )
+                repository.insertNote(note)
+                Log.d(TAG, "Note inserted: ${note.id}")
 
-            // Refresh home screen widget
-            QuickNoteWidgetProvider.updateAllWidgets(context)
+                // Refresh home screen widget
+                QuickNoteWidgetProvider.updateAllWidgets(context)
 
-            if (shouldProcess) {
-                processNoteWithAi(note)
-            } else {
-                storeWithoutAnalysis(note)
+                if (shouldProcess) {
+                    processNoteWithAi(note)
+                } else {
+                    storeWithoutAnalysis(note)
+                }
             }
         }
     }

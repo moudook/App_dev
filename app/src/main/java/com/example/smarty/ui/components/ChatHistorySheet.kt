@@ -2,6 +2,7 @@ package com.example.smarty.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -173,21 +174,29 @@ private fun ChatSessionItem(
     // UI Constants
     // Apple Design: "Continuous" curves. For a 48dp Icon, ~10-12dp radius is the "Squircle" sweet spot.
     // For the list item container, a subtle 14dp radius is cleaner than 16dp.
-    val containerShape = RoundedCornerShape(14.dp)
-    val iconShape = RoundedCornerShape(12.dp)
+    // Modern "Pill" shape for history items - 28dp for a perfect 56dp height pill
+    val containerShape = RoundedCornerShape(28.dp)
+    val iconShape = RoundedCornerShape(18.dp) // Softer squircle for the icon
 
     val containerColor = if (isSelected)
-        MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp)
+        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
     else
-        MaterialTheme.colorScheme.surface
+        Color.Transparent
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(containerShape)
             .background(containerColor)
+            .then(
+                if (isSelected) Modifier.border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    shape = containerShape
+                ) else Modifier
+            )
             .clickable { onClick() }
-            .padding(all = 8.dp), // Tighter outer padding to allow internal breathing
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val isNewChat = session.title.isBlank() || session.title.equals("new_chat", ignoreCase = true) || session.title.equals("new_conversation", ignoreCase = true)

@@ -43,13 +43,34 @@ class SyncCoordinator(
             var sessionsUpdated = 0
             var eventsUpdated = 0
 
-            // Sync notes
+            // Sync notes with deduplication
             response.notes.forEach { noteInfo ->
                 val existing = noteDao.getNoteByIdSync(noteInfo.id)
                 val note = mapToNote(noteInfo)
-                
-                if (existing == null || existing.updatedAt < noteInfo.updatedAt) {
-                    noteDao.insertNote(note)
+
+                // ADD: Content-based deduplication to prevent duplicates
+                val shouldInsert = if (existing == null) {
+                    // Check for notes with similar content (within last 5 seconds to catch race conditions)
+                    val recentNotes = noteDao.getNotesCreatedAfter(System.currentTimeMillis() - 5000)
+                    val isDuplicateByContent = recentNotes.any { recentNote -> 
+                        recentNote.content.trim() == note.content.trim() && 
+                        recentNote.title.trim() == note.title.trim() 
+                    }
+                    if (isDuplicateByContent) {
+                        Log.w(TAG, "Skipping duplicate note by content: ${noteInfo.id}")
+                    }
+                    !isDuplicateByContent
+                } else {
+                    // Existing note - update if server version is newer
+                    existing.updatedAt < noteInfo.updatedAt
+                }
+
+                if (shouldInsert && (existing == null || existing.updatedAt < noteInfo.updatedAt)) {
+                    if (existing != null) {
+                        noteDao.updateNote(note)
+                    } else {
+                        noteDao.insertNote(note)
+                    }
                     notesUpdated++
                 }
             }

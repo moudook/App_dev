@@ -673,25 +673,19 @@ fun ChatMessageItem(
         val userBubbleBackground = if (isDark) Color(0xFFF5F5F5) else Color(0xFF1A1A1A)
         val userBubbleTextColor = if (isDark) Color(0xFF1A1A1A) else Color(0xFFF5F5F5)
         
-        // Dynamic pulse-shaped bubble - corners adapt based on content length
-        // Longer content = more rounded, shorter content = more pill-like
-        val userBubbleShape = RoundedCornerShape(
-            topStart = 26.dp,
-            topEnd = 6.dp,
-            bottomStart = 26.dp,
-            bottomEnd = 26.dp
-        )
+        // Pill-shaped bubble for user messages
+        val userBubbleShape = RoundedCornerShape(26.dp)
 
 if (isUser) {
             Box(
                 modifier = Modifier
+                    .padding(start = 48.dp) // Ensure bubble doesn't extend to the far left
                     .widthIn(max = 640.dp)
             ) {
                 Surface(
                     color = userBubbleBackground,
                     shape = userBubbleShape,
                     modifier = Modifier
-                        .fillMaxWidth()
                         .combinedClickable(
                             onClick = {},
                             onLongClick = { if (showActions) showContextMenu = true }
@@ -700,7 +694,7 @@ if (isUser) {
                     Box(
                         modifier = Modifier.padding(
                             horizontal = 16.dp,
-                            vertical = 16.dp
+                            vertical = 10.dp
                         )
                     ) {
                         val userTextColor = userBubbleTextColor
@@ -709,7 +703,7 @@ if (isUser) {
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.SansSerif,
                                 fontSize = 16.sp,
-                                lineHeight = 26.sp,
+                                lineHeight = 22.sp,
                                 fontWeight = FontWeight.Medium,
                                 letterSpacing = 0.sp
                             ),
