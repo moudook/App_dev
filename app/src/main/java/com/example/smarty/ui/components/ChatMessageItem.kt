@@ -353,33 +353,59 @@ fun ChatMessageItem(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(ComponentSpacing.thinkingHeaderGap)
                                 ) {
-                                    // Removed sparkle icon as requested
+                                    // Animated thinking emojis that rotate while agent is reasoning
                                     if (message.isStreaming) {
-                                        val infiniteTransition = rememberInfiniteTransition(label = "thinking_pulse")
-                                        val pulseAlpha by infiniteTransition.animateFloat(
-                                            initialValue = Alpha.prominent, targetValue = Alpha.opaque,
+                                        val infiniteTransition = rememberInfiniteTransition(label = "thinking_emojis")
+                                        val emojiProgress by infiniteTransition.animateFloat(
+                                            initialValue = 0f, targetValue = 1f,
                                             animationSpec = infiniteRepeatable(
-                                                animation = tween(800, easing = LinearEasing),
-                                                repeatMode = RepeatMode.Reverse
-                                            ), label = "pulse"
+                                                animation = tween(1800, easing = LinearEasing),
+                                                repeatMode = RepeatMode.Restart
+                                            ), label = "emoji_progress"
                                         )
-                                        Text(
-                                            text = "Thinking...",
-                                            style = MaterialTheme.typography.labelMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                letterSpacing = 0.5.sp
-                                            ),
-                                            color = accentColor.copy(alpha = pulseAlpha)
-                                        )
+                                        
+                                        val thinkingEmojis = listOf("🧠", "👻", "🌻")
+                                        val currentEmojiIndex = ((emojiProgress * 2.99f).toInt()).coerceIn(0, 2)
+                                        val currentEmoji = thinkingEmojis[currentEmojiIndex]
+                                        
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            // Animated emoji prefix
+                                            Text(
+                                                text = currentEmoji,
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            // Thinking text suffix
+                                            Text(
+                                                text = "Thinking...",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    letterSpacing = 0.5.sp
+                                                ),
+                                                color = accentColor.copy(alpha = Alpha.prominent)
+                                            )
+                                        }
                                     } else {
-                                        Text(
-                                            text = "Thought process",
-                                            style = MaterialTheme.typography.labelMedium.copy(
-                                                fontWeight = FontWeight.SemiBold,
-                                                letterSpacing = 0.5.sp
-                                            ),
-                                            color = thinkingColors.text.copy(alpha = Alpha.mostlyOpaque)
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            // Static brain emoji for completed thinking
+                                            Text(
+                                                text = "🧠",
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Text(
+                                                text = "Thought process",
+                                                style = MaterialTheme.typography.labelMedium.copy(
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    letterSpacing = 0.5.sp
+                                                ),
+                                                color = thinkingColors.text.copy(alpha = Alpha.mostlyOpaque)
+                                            )
+                                        }
                                     }
                                     Spacer(modifier = Modifier.weight(1f))
                                     Icon(
