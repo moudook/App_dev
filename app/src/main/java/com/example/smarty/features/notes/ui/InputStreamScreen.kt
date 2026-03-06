@@ -650,8 +650,10 @@ onPlayYouTube: (String) -> Unit = {},
     fun toggleSelection(noteId: String) {
         selectedNoteIds = if (noteId in selectedNoteIds)
             selectedNoteIds - noteId
-        else
+        else {
+            isSelectionMode = true  // Enable selection mode when adding
             selectedNoteIds + noteId
+        }
         if (selectedNoteIds.isEmpty()) isSelectionMode = false
     }
 
