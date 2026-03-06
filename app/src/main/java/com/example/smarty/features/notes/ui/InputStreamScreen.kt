@@ -15,6 +15,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -32,6 +34,11 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,6 +48,7 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -91,6 +99,7 @@ import com.example.smarty.ui.theme.ComponentSpacing
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.theme.SmartyShapes
 import com.example.smarty.ui.theme.SmartyBrushes
+import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.components.ConnectionStatus
 import com.example.smarty.ui.components.ConnectionStatusIndicator
 import com.example.smarty.ui.components.NotesEmptyState
@@ -1487,46 +1496,28 @@ onPlayYouTube: (String) -> Unit = {},
             }
             } // Close Box wrapper for centered content
 
-            // 
-            // SELECTION MODE: Floating Action Bar
-            // 
-            AnimatedVisibility(
-                visible = isSelectionMode,
-                enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 100.dp + bottomContentPadding)
-                    .zIndex(10f)
-            ) {
-                SelectionFloatingBar(
-                    selectedCount = selectedNoteIds.size,
-                    onPin = { pinSelected() },
-                    onShare = { shareSelected() },
-                    onArchive = { archiveSelected() },
-                    onDelete = { deleteSelected() },
-                    onCategorize = { showCategorizeDialog = true }
-                )
-            }
-
-// Floating Input Field Container (Overlaying content)
+// Floating Input Field Container OR Selection Pill Bar (mutually exclusive)
             val density = LocalDensity.current
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
+
+            // Selection mode replaces input field with action pill
+            val showSelectionPill = isSelectionMode && selectedNoteIds.isNotEmpty()
             
             val miniPlayerHeight = ComponentSpacing.miniPlayerHeight
             val miniPlayerExtraMargin = 16.dp
             val miniPlayerPadding = if (isMiniPlayerVisible && !isKeyboardVisible) miniPlayerHeight + miniPlayerExtraMargin else 0.dp
-            
+
             val attachmentCount = currentInputAttachments.size
             val attachmentRowHeight = if (attachmentCount > 0) 60.dp else 0.dp
             val multiLineExtraHeight = if (textValue.text.count { it == '\n' } > 0) 40.dp else 0.dp
-            
-            val inputFieldHeight = 72.dp + attachmentRowHeight + multiLineExtraHeight
+
+            // Input field height (hidden when selection mode active)
+            val inputFieldHeight = if (showSelectionPill) 0.dp else (72.dp + attachmentRowHeight + multiLineExtraHeight)
             val inputFieldPadding = ComponentSpacing.screenPadding
             val isSearchSuggestionsVisible = isSearchMode && textValue.text.isEmpty() && recentSearches.isNotEmpty()
-            val searchSuggestionsHeight = if (isSearchSuggestionsVisible) {
+            val searchSuggestionsHeight = if (isSearchSuggestionsVisible && !showSelectionPill) {
                 when {
                     isKeyboardVisible -> 100.dp
                     isLandscape -> 120.dp
@@ -1642,12 +1633,28 @@ onPlayYouTube: (String) -> Unit = {},
                         )
                     }
 
-                    // Processing indicator
                     // Processing indicator REMOVED as per user request (shimmer is sufficient)
                     // (AnimatedVisibility block was here)
 
+                    // SELECTION PILL BAR - Replaces input field when notes selected
+                    if (showSelectionPill) {
+                        SelectionPillBar(
+                            selectedCount = selectedNoteIds.size,
+                            onPin = { pinSelected() },
+                            onShare = { shareSelected() },
+                            onArchive = { archiveSelected() },
+                            onDelete = { deleteSelected() },
+                            onCategorize = { showCategorizeDialog = true },
+                            onClose = { clearSelection() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+
                     // Floating Input Field (Blue blur glow removed - only halftone particles visible now)
-                    Box(contentAlignment = Alignment.BottomCenter) {
+                    if (!showSelectionPill) {
+                        Box(contentAlignment = Alignment.BottomCenter) {
                         // The Actual Input Field with halftone shimmer inside
                         SmartyInputField(
                             value = textValue,
@@ -1840,7 +1847,8 @@ onPlayYouTube: (String) -> Unit = {},
                                 }
                             }
                         )
-                    }
+                        }  // Close Box for input field
+                    }  // Close if (!showSelectionPill)
                 }
             }
 
@@ -2131,6 +2139,164 @@ fun SearchSuggestionsDropdown(
                     text = suggestion,
                     style = MaterialTheme.typography.bodyMedium
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Selection Pill Bar - Replaces input field when notes are selected.
+ * Has same UI properties as input field (shape, elevation, styling).
+ * Shows selection actions and count.
+ */
+@Composable
+fun SelectionPillBar(
+    selectedCount: Int,
+    onPin: () -> Unit,
+    onShare: () -> Unit,
+    onArchive: () -> Unit,
+    onDelete: () -> Unit,
+    onCategorize: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isDark = !MaterialTheme.colorScheme.surface.luminance().let { it > 0.5f }
+    val backgroundColor = if (isDark) Color(0xFF2C2C35) else Color(0xFFFCFCFD)
+    val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE5E5EA)
+    val accentColor = LocalAccentColor.current
+    
+    Surface(
+        shape = RoundedCornerShape(28.dp),  // Same as input field
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor),
+        shadowElevation = 8.dp,  // Same as input field
+        modifier = modifier
+            .softCardShadow(
+                elevation = 8.dp,
+                shape = RoundedCornerShape(28.dp)
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left side: Close button + Count
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Close button (X)
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close selection",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                
+                // Selected count pill
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = accentColor.copy(alpha = 0.15f),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "$selectedCount selected",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.SemiBold
+                        ),
+                        color = accentColor,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            
+            // Right side: Action buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Categorize
+                IconButton(
+                    onClick = onCategorize,
+                    modifier = Modifier.size(36.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = "Categorize",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                
+                // Pin
+                IconButton(
+                    onClick = onPin,
+                    modifier = Modifier.size(36.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PushPin,
+                        contentDescription = "Pin",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                
+                // Share
+                IconButton(
+                    onClick = onShare,
+                    modifier = Modifier.size(36.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                
+                // Archive
+                IconButton(
+                    onClick = onArchive,
+                    modifier = Modifier.size(36.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Archive,
+                        contentDescription = "Archive",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                
+                // Delete (red)
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteOutline,
+                        contentDescription = "Delete",
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
