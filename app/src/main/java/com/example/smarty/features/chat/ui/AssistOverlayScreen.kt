@@ -7,68 +7,74 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalConfiguration
 import com.example.smarty.R
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.components.SmartyInputField
 import com.example.smarty.features.notes.ui.inputstream.ChatModeContent
 import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.theme.LocalShapes
-import com.example.smarty.ui.components.TechnicalSurface
+import com.example.smarty.ui.theme.ComponentColors
 import com.example.smarty.features.chat.domain.AssistViewModel
 import kotlinx.coroutines.launch
 
 /**
- * Modern "Soft Tech" AI Assistant Overlay.
+ * AI Assistant Bottom Sheet Overlay.
  *
  * Design:
- * - OPAQUE background (no transparency issues)
- * - Floating "Pill" container at the bottom
- * - Proper keyboard inset handling
- * - Auto-starts voice listening on activation
- * - Matches main Chat UI aesthetic
+ * - Card-like bottom sheet with margins (left, right, bottom)
+ * - Adapts to app theme (light/dark)
+ * - Starts FRESH every time (no previous chats)
+ * - Auto-starts Google Speech Recognizer
+ * - Proper contrast for both light and dark themes
  */
 @Composable
 fun AssistOverlayScreen(
     viewModel: AssistViewModel,
     onDismiss: () -> Unit
 ) {
-    // State from ViewModel
-    val messages by viewModel.messages.collectAsState()
-    val isProcessing by viewModel.isProcessing.collectAsState()
-    val isListening by viewModel.isListening.collectAsState()
-
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    
+    // Theme-aware colors
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val backgroundColor = if (isDark) Color(0xFF1A1C1E) else Color(0xFFFFFFFF)
+    val textColor = if (isDark) Color(0xFFFFFFFF) else Color(0xFF1A1C1E)
+    val borderColor = if (isDark) Color(0xFF3C3C45) else Color(0xFFE0E0E0)
+    
+    // Input text state
     var inputText by remember { mutableStateOf(TextFieldValue("")) }
-    var isVisible by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
-
-    // Auto-start voice listening when assistant activates
+    
+    // ALWAYS start fresh - clear previous messages
     LaunchedEffect(Unit) {
-        isVisible = true
-        // Auto-request permission and start listening
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) 
-            == PackageManager.PERMISSION_GRANTED) {
-            viewModel.setListening(true)
-        }
+        viewModel.clearMessages()
     }
 
     // Permission launcher for voice
@@ -76,23 +82,44 @@ fun AssistOverlayScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
+            // Start listening immediately after permission granted
             viewModel.setListening(true)
         }
     }
 
-    // Dismiss logic with animation
+    // Auto-start voice listening when assistant activates
+    LaunchedEffect(Unit) {
+        // Request permission and start listening automatically
+        when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
+            PackageManager.PERMISSION_GRANTED -> {
+                viewModel.setListening(true)
+            }
+            else -> {
+                // Auto-request permission
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+        }
+    }
+
+    // Bottom sheet state
+    var isVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        isVisible = true
+    }
+
+    // Dismiss with cleanup
     fun handleDismiss() {
         isVisible = false
-        // Stop listening when dismissing
-        viewModel.setListening(false)
+        viewModel.setListening(false)  // Stop listening
+        viewModel.clearMessages()       // Clear chat for next time
         onDismiss()
     }
 
-    // Transparent Scrim
+    // Main bottom sheet UI
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))  // Dim background
+            .background(Color.Black.copy(alpha = 0.5f))
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
@@ -110,75 +137,99 @@ fun AssistOverlayScreen(
             ),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .imePadding()  // Proper keyboard inset handling
+                .imePadding()
         ) {
-            // Floating Card Container - OPAQUE background
-            TechnicalSurface(
+            // Card-like container with MARGINS (not padding)
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = false) {} // Consume clicks
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),  // MARGINS
+                shape = RoundedCornerShape(28.dp),
+                color = backgroundColor,
+                border = BorderStroke(1.dp, borderColor),
+                shadowElevation = 16.dp
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // 1. Chat Content (if messages exist)
-                    if (messages.isNotEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .heightIn(max = 300.dp) // Reduced height for better keyboard clearance
-                                .fillMaxWidth()
+                    // Header with title and close button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "AI Assistant",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = textColor,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        IconButton(
+                            onClick = { handleDismiss() },
+                            modifier = Modifier.size(32.dp)
                         ) {
-                            ChatModeContent(
-                                chatMessages = messages,
-                                chatListState = listState,
-                                notes = emptyList(),
-                                onNoteClick = {},
-                                onSendChatMessage = { text, _ -> viewModel.sendMessage(text) },
-                                contentPadding = PaddingValues(16.dp),
-                                isChatProcessing = isProcessing,
-                                modifier = Modifier.fillMaxSize()
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = textColor.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        HorizontalDivider(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                    }
+
+                    // Content area - FRESH chat every time
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp, horizontal = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = LocalAccentColor.current,
+                            modifier = Modifier.size(48.dp)
                         )
-                    } else {
-                        // 2. Empty State with larger padding
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp, horizontal = 24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            if (isProcessing) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "How can I help you today?",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = textColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Speak or type your question",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = textColor.copy(alpha = 0.6f)
+                        )
+                        
+                        // Voice listening indicator
+                        val isListening by viewModel.isListening.collectAsState()
+                        if (isListening) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(48.dp),
-                                    color = LocalAccentColor.current
+                                    modifier = Modifier.size(24.dp),
+                                    color = LocalAccentColor.current,
+                                    strokeWidth = 2.dp
                                 )
-                                Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "Processing...",
+                                    text = "Listening...",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            } else {
-                                Text(
-                                    text = "How can I help you today?",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                                Text(
-                                    text = "Tap microphone or type to start",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = LocalAccentColor.current,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
                     }
 
-                    // 3. Input Field with proper keyboard handling
+                    // Input field at bottom
                     SmartyInputField(
                         value = inputText,
                         onValueChange = { inputText = it },
@@ -191,21 +242,21 @@ fun AssistOverlayScreen(
                         modifier = Modifier.padding(16.dp),
                         isChatMode = true,
                         chatPlaceholder = "Ask anything...",
-                        isVoiceListening = isListening,
-                        isProcessing = isProcessing,
-                        isAgentWorking = isProcessing,
+                        isVoiceListening = viewModel.isListening.value,
+                        isProcessing = viewModel.isProcessing.value,
+                        isAgentWorking = viewModel.isProcessing.value,
                         onStopGeneration = { viewModel.stopGeneration() },
                         onStartVoiceInput = {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) 
-                                == PackageManager.PERMISSION_GRANTED) {
-                                viewModel.setListening(true)
-                            } else {
-                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            when (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)) {
+                                PackageManager.PERMISSION_GRANTED -> {
+                                    viewModel.setListening(true)
+                                }
+                                else -> {
+                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
                             }
                         },
-                        onStopVoiceInput = {
-                            viewModel.setListening(false)
-                        },
+                        onStopVoiceInput = { viewModel.setListening(false) },
                         onPickFile = { },
                         onOpenCamera = { },
                         showHistoryOption = false
