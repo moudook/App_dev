@@ -409,6 +409,39 @@ fun SmartyInputField(
                             }
                         }
                     }
+                    
+                    // Deep Research Button (Icon + Text)
+                    if (isChatMode) {
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onToggleResearchMode()
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isResearchMode) Color(0xFF7C4DFF).copy(alpha = 0.15f) else pillBackground,
+                            border = BorderStroke(0.5.dp, if (isResearchMode) Color(0xFF7C4DFF) else pillBorder),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Science,
+                                    contentDescription = "Deep Research",
+                                    tint = if (isResearchMode) Color(0xFF7C4DFF) else monochromeColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Deep Research",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (isResearchMode) Color(0xFF7C4DFF) else monochromeColor,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -518,27 +551,6 @@ fun SmartyInputField(
                     VoiceWaveformIcon(
                         isListening = isVoiceListening,
                         modifier = Modifier.size(28.dp)
-                    )
-                }
-                
-                // Research Mode Toggle Button
-                Box(
-                    modifier = Modifier
-                        .requiredSize(40.dp)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onToggleResearchMode()
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isResearchMode) Icons.Default.Science else Icons.Default.Psychology,
-                        contentDescription = if (isResearchMode) "Research Agent Active" else "Normal Agent Active",
-                        tint = if (isResearchMode) Color(0xFF7C4DFF) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(22.dp)
                     )
                 }
 
