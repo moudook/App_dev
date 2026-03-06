@@ -1,6 +1,5 @@
 ---
-title: Smarty - Advanced AI Research Agent
-emoji: 🧠
+title: Smarty - Advanced AI  Agent(AAA)
 colorFrom: purple
 colorTo: blue
 sdk: docker
@@ -8,11 +7,11 @@ pinned: true
 license: mit
 ---
 
-# Smarty 🧠
+# Smarty
 
-> **Advanced AI Research Agent** with Deep Research capabilities, thinking persistence, and multi-agent architecture for Android.
+Advanced AI Research Agent with deep research capabilities, persistent reasoning, and a multi-agent architecture designed for Android.
 
-Smarty is a next-generation AI companion featuring **autonomous research agents**, **real-time thinking display**, **comprehensive citations**, and **privacy-first architecture**. Built with advanced agentic frameworks, tool calling, and intelligent automation.
+Smarty is an AI companion built with autonomous research agents, real-time reasoning visualization, comprehensive citation management, and a privacy-first architecture.
 
 ![Platform](https://img.shields.io/badge/Platform-Android-blue)
 ![Version](https://img.shields.io/badge/Version-3.2.0-purple)
@@ -21,400 +20,373 @@ Smarty is a next-generation AI companion featuring **autonomous research agents*
 
 ---
 
-## 🚀 Key Features
+# Overview
 
-### **Deep Research Agent** 🔬
-- **Autonomous Research**: Conducts comprehensive web research with automatic citation tracking
-- **Clarification Questions**: Always asks 2-5 questions before starting research
-- **Progress Tracking**: Saves findings to progress files during long research sessions
-- **Timeout System**: 12-minute warning, 15-minute forced completion
-- **User Interruption**: Redirect research mid-flow with user feedback
-- **Auto-Synthesis**: Creates comprehensive note cards with full citations
+Smarty provides an intelligent assistant capable of performing autonomous research, managing structured notes, and interacting with external tools. The system uses a thin-client Android architecture connected to a scalable server backend capable of coordinating multiple specialized AI agents.
 
-### **Thinking Persistence** 💭
-- **Real-Time Display**: Shows AI reasoning in collapsible thinking sections
-- **Persistent Storage**: Thinking content saved to database and survives app restarts
-- **Emoji Indicators**: Animated 🧠👻🌻 emojis while agent is reasoning
-- **Transparent Process**: See exactly how AI reaches conclusions
+Key design goals:
 
-### **Multi-Agent Architecture** 🤖
-- **Normal Agent**: General-purpose assistant with tool calling
-- **Research Agent**: Specialized for deep web research (limited toolset)
-- **Agent Switching**: Toggle between agents via UI
-- **Specialized Tools**: Each agent has purpose-built tool access
-
-### **Advanced UI/UX** 🎨
-- **Theme-Aware**: Adapts to light/dark themes with accent colors
-- **Selection Pill Bar**: Replaces input field when notes selected
-- **Research Mode Toggle**: Icon + "Deep Research" text in chat input
-- **Citation Display**: Inline citations with expandable source cards
-- **Chat History**: Full conversation management with search
-
-### **Comprehensive Citations** 📚
-- **Auto-Tracking**: All web sources automatically cited
-- **Inline Display**: Citation pills expand to show full sources
-- **Click-Through**: Tap citations to open source URLs
-- **Research Reports**: Full bibliography in research notes
-
-### **Privacy-First** 🔒
-- **BYO-Key**: Bring Your Own API keys
-- **Local Storage**: Room database with FTS5 search
-- **Encrypted Preferences**: Secure credential storage
-- **No Data Logging**: Private conversations stay private
+- Autonomous research workflows
+- Transparent reasoning
+- Structured knowledge storage
+- Privacy-first data handling
+- Modular multi-agent architecture
 
 ---
 
-## 🏗️ Architecture
+# Key Features
 
-```
+## Deep Research Agent
+
+The research agent is designed to conduct structured multi-step research sessions.
+
+Capabilities include:
+
+- Autonomous multi-source web research
+- Automatic citation tracking
+- Clarification questions before research begins
+- Progress persistence during long research tasks
+- User interruption and redirection during research
+- Automated synthesis into structured note cards
+- Built-in research time management with timeout controls
+
+## Thinking Persistence
+
+The system provides transparent reasoning visibility.
+
+Features include:
+
+- Real-time reasoning display
+- Collapsible reasoning sections
+- Persistent storage of reasoning content
+- Recovery of reasoning data after application restart
+
+## Multi-Agent Architecture
+
+Smarty supports multiple specialized agents that can be switched dynamically.
+
+| Agent | Purpose | Tool Access | Timeout |
+|------|------|------|------|
+| Normal Agent | General assistant tasks | Full tool access | None |
+| Research Agent | Structured research | Web search and note creation | 15 minutes |
+
+## User Experience
+
+The Android application is designed with a modern responsive interface.
+
+Key UI capabilities:
+
+- Dynamic theme support
+- Inline citation display
+- Chat history and conversation management
+- Selection mode for multi-note operations
+- Contextual toolbars and action menus
+- Searchable knowledge base
+
+## Citation Management
+
+All research operations include source tracking.
+
+Features include:
+
+- Automatic citation recording
+- Inline citation references
+- Expandable source cards
+- Clickable links to original sources
+- Full bibliography generation for research outputs
+
+## Privacy and Security
+
+Smarty is designed with a privacy-first architecture.
+
+- Bring-Your-Own API keys
+- Local encrypted credential storage
+- Private conversation storage
+- No conversation logging
+- Secure communication using HTTPS
+
+---
+
+# Architecture
+
+
 ┌─────────────────────────┐
-│  Smarty Android App     │
-│  (Thin Client)          │
-│  - Jetpack Compose UI   │
-│  - Room Database        │
-│  - Media3 ExoPlayer     │
+│ Smarty Android Client │
+│ │
+│ Jetpack Compose UI │
+│ Room Database │
+│ Media3 ExoPlayer │
 └───────────┬─────────────┘
-            │ HTTPS/SSE
-            ▼
+│ HTTPS / SSE
+▼
 ┌─────────────────────────┐
-│  Smarty Server          │
-│  (Hugging Face Spaces)  │
-│  - Ktor Server          │
-│  - Multi-Agent System   │
-│  - Tool Orchestrator    │
+│ Smarty Server │
+│ │
+│ Ktor Backend │
+│ Multi-Agent System │
+│ Tool Orchestration │
 └───────────┬─────────────┘
-            │
-            ▼
+│
+▼
 ┌─────────────────────────┐
-│  External Services      │
-│  - LLM (Gemini/OpenAI)  │
-│  - Tavily Search        │
-│  - PostgreSQL+pgvector  │
+│ External Services │
+│ │
+│ LLM Providers │
+│ Tavily Search API │
+│ PostgreSQL + pgvector │
 └─────────────────────────┘
-```
 
-### **Agent Types**
-
-| Agent | Purpose | Tools | Timeout |
-|-------|---------|-------|---------|
-| **Normal Agent** | General assistant | All tools | None |
-| **Research Agent** | Deep research | Web search, notes only | 15 min |
 
 ---
 
-## 📋 Complete Feature List
+# Complete Feature List
 
-### **Core Features**
-- ✅ Voice input (hold-to-talk, release-to-stop)
-- ✅ Text chat with SSE streaming
-- ✅ Thinking persistence with collapsible UI
-- ✅ Deep Research Agent with citations
-- ✅ Multi-agent switching (Normal/Research)
-- ✅ Note creation with AI categorization
-- ✅ File attachments (images, audio, documents, video)
-- ✅ Share from other apps (auto-saves files)
-- ✅ Calendar integration with Google Calendar sync
-- ✅ Timer and alarm management
-- ✅ Stacks/Categories for note organization
-- ✅ Archive with bulk operations
-- ✅ Search with filters
-- ✅ Chat history with session management
-- ✅ Settings with theme toggle
-- ✅ Server configuration in-app
+## Core Capabilities
 
-### **Advanced Features**
-- ✅ Real-time thinking display (🧠👻🌻 emojis)
-- ✅ Citation tracking with inline display
-- ✅ Progress file for long research sessions
-- ✅ Context overflow handling
-- ✅ User interruption during research
-- ✅ Timeout warnings (12min) and forced completion (15min)
-- ✅ Auto-create note cards from research
-- ✅ Selection mode with multi-select actions
-- ✅ Pill bar replaces input when selecting
-- ✅ Theme-aware UI colors
-- ✅ Shimmer loading effects
-- ✅ Unread indicators for notes
-- ✅ Server status indicator (real-time connection)
+- Voice input support
+- Text chat with streaming responses
+- Persistent reasoning display
+- Deep research agent
+- Multi-agent switching
+- Structured note creation
+- File attachments (image, audio, video, documents)
+- External sharing support
+- Calendar integration
+- Timer and alarm management
+- Category and stack organization
+- Chat history management
+- Server configuration within the application
 
-### **Research Agent Features**
-- ✅ Clarification questions (2-5 before research)
-- ✅ Limited toolset (web search + notes only)
-- ✅ Progress file tracking
-- ✅ Citation auto-generation
-- ✅ User redirection mid-research
-- ✅ Timeout system with warnings
-- ✅ Auto-synthesis of findings
-- ✅ Full bibliography in notes
+## Advanced Capabilities
+
+- Long-running research sessions
+- Context overflow handling
+- User redirection during research
+- Automated research synthesis
+- Multi-select note operations
+- Real-time server status monitoring
+- Loading state animations
+- Unread note indicators
+
+## Research Workflow
+
+Research sessions support:
+
+- Clarification question phase
+- Multi-step web search
+- Source collection
+- Citation generation
+- Progress tracking
+- Final synthesis into research notes
 
 ---
 
-## 🚀 Quick Start
+# Quick Start
 
-### **Step 1: Deploy Server to Hugging Face**
+## 1. Deploy the Server
 
-1. Go to [Hugging Face Spaces](https://huggingface.co/spaces)
-2. Click **New Space**
-3. Configure:
-   - **Space Name**: `smarty-server`
-   - **SDK**: Docker
-   - **Template**: Blank
-4. Connect this repository
+1. Open Hugging Face Spaces  
+2. Create a new Space  
 
-### **Step 2: Add Secrets**
+Configuration:
 
-In your Space settings → **Repository secrets**, add:
+- Space Name: `smarty-server`
+- SDK: Docker
+- Template: Blank
+
+Connect this repository to the Space.
+
+---
+
+## 2. Configure Secrets
+
+Add the following repository secrets.
 
 | Secret | Required | Description |
-|--------|----------|-------------|
-| `DB_URL` | ✅ Yes | PostgreSQL JDBC (Supabase/Neon) |
-| `DB_USER` | ✅ Yes | Database username |
-| `DB_PASSWORD` | ✅ Yes | Database password |
-| `TAVILY_API_KEY` | ✅ Yes | Tavily API for web search |
-| `ACTIVE_PROVIDER` | ⚠️ Optional | `GEMINI` or `OPENAI` (default: GEMINI) |
-| `GEMINI_API_KEY` | ⚠️ Conditional | Required if using Gemini |
-| `OPENAI_API_KEY` | ⚠️ Conditional | Required if using OpenAI |
+|------|------|------|
+| DB_URL | Yes | PostgreSQL JDBC URL |
+| DB_USER | Yes | Database username |
+| DB_PASSWORD | Yes | Database password |
+| TAVILY_API_KEY | Yes | Tavily search API key |
+| ACTIVE_PROVIDER | Optional | GEMINI or OPENAI |
+| GEMINI_API_KEY | Conditional | Required if Gemini is used |
+| OPENAI_API_KEY | Conditional | Required if OpenAI is used |
 
-### **Step 3: Setup Database**
+---
 
-Hugging Face doesn't provide persistent storage. Use **Supabase** or **Neon**:
+## 3. Configure Database
+
+Example setup using PostgreSQL.
 
 ```sql
--- 1. Create PostgreSQL database
--- 2. Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- 3. Run the schema
--- Copy contents of COMPLETE_SCHEMA_v3.0_RESEARCH.sql
--- Paste into Supabase SQL Editor and run
-```
+Run the schema file:
 
-### **Step 4: Connect Android App**
+COMPLETE_SCHEMA_v3.0_RESEARCH.sql
+4. Connect the Android Application
+In-App Configuration
 
-**Option 1: In-App Settings** (Recommended)
-1. Open Smarty app
-2. Go to **Settings** → **Server Configuration**
-3. Enter your Space URL: `https://your-username-smarty.hf.space`
+Open the application
 
-**Option 2: Modify Source**
-1. Open `app/src/main/java/com/example/smarty/data/local/SecurePreferences.kt`
-2. Change line 101:
-```kotlin
+Navigate to Settings
+
+Select Server Configuration
+
+Enter your Space URL
+
+Example:
+
+https://your-username-smarty.hf.space
+Source Configuration
+
+Modify:
+
+app/src/main/java/.../SecurePreferences.kt
+
+Update:
+
 private const val DEFAULT_SERVER_URL = "https://your-username-smarty.hf.space"
-```
-3. Rebuild app
-
-### **Step 5: Verify Deployment**
-
-```bash
-# Test server health
+5. Verify Deployment
 curl https://your-space.hf.space/health
 
-# Expected response:
-# {"status":"ok","module":"smarty-server","timestamp":...}
-```
+Expected response:
 
----
+{"status":"ok","module":"smarty-server"}
+Local Development
+Requirements
 
-## 🎯 Using Deep Research
+Java JDK 17
 
-### **Activate Research Mode**
-1. Open AI Chat in the app
-2. Look for **"Deep Research"** button (🔬 icon + text) next to History button
-3. Tap to activate (turns purple when active)
+Docker Desktop
 
-### **Start Research**
-1. Enter your research topic
-2. Agent will ask 2-5 clarification questions
-3. Answer the questions
-4. Agent begins research with web searches
-5. Watch real-time progress with citations
-6. Interrupt anytime to redirect research
-7. Receive comprehensive note card with full citations
+Android Studio
 
-### **Timeout System**
-- **12 minutes**: ⚠️ Warning ("3 minutes left!")
-- **15 minutes**: 🛑 Forced completion (synthesizes available findings)
+Git
 
----
-
-## 🛠️ Local Development
-
-### **Prerequisites**
-- Java JDK 17
-- Docker Desktop
-- Android Studio Ladybug or later
-- Git
-
-### **Database Setup**
-```bash
-# Start PostgreSQL with pgvector
+Database Setup
 docker-compose up -d db
 
-# Run schema
-docker exec -i smarty-db psql -U smarty_user -d smarty_db < COMPLETE_SCHEMA_v3.0_RESEARCH.sql
-```
+Load schema:
 
-### **Server Setup**
-```bash
-# Set environment variables
+docker exec -i smarty-db psql -U smarty_user -d smarty_db < COMPLETE_SCHEMA_v3.0_RESEARCH.sql
+Server Setup
 export DB_URL=jdbc:postgresql://localhost:5432/smarty_db
 export DB_USER=smarty_user
 export DB_PASSWORD=smarty_pass
-export TAVILY_API_KEY=your_tavily_key
-export GEMINI_API_KEY=your_gemini_key
+export TAVILY_API_KEY=your_key
+export GEMINI_API_KEY=your_key
 
-# Run server
 ./gradlew :server:run
-```
+Android Setup
 
-### **App Setup**
-```bash
-# Open in Android Studio
-# Sync Gradle
-# Run on device/emulator
-```
+Open the project in Android Studio, synchronize Gradle, and run the application on an emulator or device.
 
----
+Technology Stack
+Android Client
 
-## 📊 Tech Stack
+Kotlin
 
-### **Android Client**
-- **Language**: Kotlin
-- **UI**: Jetpack Compose
-- **Architecture**: MVVM
-- **Database**: Room with FTS5
-- **Media**: Media3 ExoPlayer
-- **Networking**: OkHttp 4, Ktor Client
-- **Streaming**: SSE (Server-Sent Events)
+Jetpack Compose
 
-### **Server**
-- **Framework**: Ktor Server
-- **Database**: PostgreSQL + pgvector
-- **Connection Pool**: HikariCP
-- **PDF Processing**: Apache PDFBox 3.0
-- **Search**: Tavily API
-- **LLM**: Gemini/OpenAI with multi-provider routing
+MVVM Architecture
 
-### **Infrastructure**
-- **Hosting**: Hugging Face Spaces (Docker)
-- **Database**: Supabase/Neon PostgreSQL
-- **CI/CD**: Git push to deploy
+Room Database with FTS5
 
----
+Media3 ExoPlayer
 
-## 📝 Environment Variables
+OkHttp
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DB_URL` | ✅ Yes | - | PostgreSQL JDBC URL |
-| `DB_USER` | ✅ Yes | - | Database username |
-| `DB_PASSWORD` | ✅ Yes | - | Database password |
-| `TAVILY_API_KEY` | ✅ Yes | - | Tavily search API key |
-| `ACTIVE_PROVIDER` | ⚠️ No | `GEMINI` | `OPENAI` or `GEMINI` |
-| `GEMINI_API_KEY` | ⚠️ If using Gemini | - | Google Gemini API key |
-| `OPENAI_API_KEY` | ⚠️ If using OpenAI | - | OpenAI API key |
-| `SERVER_PORT` | ⚠️ No | `7860` | Server port |
+Ktor Client
 
----
+Server-Sent Events streaming
 
-## 🔧 API Endpoints
+Server
 
-### **Research Agent**
-- `POST /api/v1/research/start` - Start research session
-- `POST /api/v1/research/{id}/answer` - Submit clarification answers
-- `POST /api/v1/research/{id}/interrupt` - User interruption
-- `GET /api/v1/research/{id}/timeout` - Check timeout status
-- `GET /api/v1/research/{id}` - Get session status
+Ktor Server
 
-### **Chat & Messages**
-- `POST /api/v1/chat/stream` - SSE chat stream
-- `GET /api/v1/chat/sessions` - List sessions
-- `POST /api/v1/chat/sessions` - Create session
+PostgreSQL with pgvector
 
-### **Sync**
-- `POST /api/v1/sync/pull` - Pull changes from server
-- `POST /api/v1/sync/push` - Push changes to server
+HikariCP
 
----
+Apache PDFBox
 
-## 📚 Database Schema
+Tavily Search API
 
-Version **3.0** includes:
-- Chat system (sessions, messages with thinking)
-- Notes system (notes, categories)
-- Research system (sessions, searches, citations, logs, progress files)
-- Calendar system (events)
-- Timers & alarms
-- Agent memory & context
-- Digest system
-- Security & sync
+Multi-provider LLM routing
 
-Full schema in `COMPLETE_SCHEMA_v3.0_RESEARCH.sql`
+Infrastructure
 
----
+Hugging Face Spaces
 
-## 🎨 UI Components
+Supabase / Neon PostgreSQL
 
-### **Input Block Features**
-- Voice button (animated waveform)
-- Deep Research toggle (🔬 icon + text)
-- History/Add button
-- Scroll indicators
-- Attachment picker (+ menu)
-- Theme-aware colors
+Git-based CI/CD deployment
 
-### **Message Display**
-- Thinking section (collapsible with animated emojis)
-- Citations inline (expandable source cards)
-- Agent activity indicator
-- Message grouping (Today/Yesterday/Earlier)
+API Endpoints
+Research
+Endpoint	Description
+POST /api/v1/research/start	Start research session
+POST /api/v1/research/{id}/answer	Submit clarification answers
+POST /api/v1/research/{id}/interrupt	Interrupt research
+GET /api/v1/research/{id}	Retrieve research session
+Chat
+Endpoint	Description
+POST /api/v1/chat/stream	Streaming chat responses
+GET /api/v1/chat/sessions	List chat sessions
+POST /api/v1/chat/sessions	Create chat session
+Synchronization
+Endpoint	Description
+POST /api/v1/sync/pull	Pull changes
+POST /api/v1/sync/push	Push changes
+Database
 
-### **Selection Mode**
-- Pill bar replaces input when notes selected
-- Multi-select with checkboxes
-- Actions: Pin, Categorize, Share, Archive, Delete
-- Count display
+Schema version: 3.0
 
----
+Includes systems for:
 
-## 🔒 Privacy & Security
+Chat sessions
 
-- **No Data Logging**: Conversations not logged
-- **Encrypted Storage**: Preferences encrypted with Android Keystore
-- **Local Database**: Room with encrypted preferences
-- **BYO-Key**: You control API keys
-- **Secure Communication**: HTTPS/SSE only
-- **Row Level Security**: Optional database isolation
+Messages with reasoning storage
 
----
+Notes and categories
 
-## 📄 License
+Research sessions
 
-MIT License - See [LICENSE](LICENSE) file
+Citation tracking
 
----
+Calendar events
 
-## 🙏 Acknowledgments
+Timers and alarms
 
-- **Tavily** for web search API
-- **Google** for Gemini AI
-- **Hugging Face** for hosting
-- **Supabase/Neon** for PostgreSQL
-- **Jetpack Compose** for modern UI
+Agent memory
 
----
+Synchronization
 
-## 📞 Support
+Security
 
-- **Issues**: GitHub Issues
-- **Discussions**: GitHub Discussions
-- **Documentation**: This README + inline code comments
+No conversation logging
 
----
+Encrypted credential storage
 
-**Built with ❤️ using Kotlin, Ktor, and Jetpack Compose**
+Local database usage
 
-**Version 3.2.0** | **Last Updated**: March 2026
+Secure HTTPS communication
+
+Optional database row-level security
+
+License
+
+MIT License
+
+Support
+
+GitHub Issues
+
+GitHub Discussions
+
+Repository documentation
+
+Version 3.2.0

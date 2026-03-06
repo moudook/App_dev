@@ -110,6 +110,7 @@ object Migrations {
                     sessionId TEXT NOT NULL,
                     role TEXT NOT NULL,
                     content TEXT NOT NULL,
+                    thinking TEXT DEFAULT NULL,
                     timestamp INTEGER NOT NULL,
                     attachmentsJson TEXT NOT NULL,
                     executedActionsJson TEXT NOT NULL,
