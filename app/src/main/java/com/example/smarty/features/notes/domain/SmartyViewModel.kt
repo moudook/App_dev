@@ -900,6 +900,11 @@ class SmartyViewModel(
         _selectedNoteId.value = note?.id
         // Persist to SavedStateHandle for process death recovery (BUG-053)
         savedStateHandle[KEY_SELECTED_NOTE_ID] = note?.id
+        
+        // Mark note as viewed to clear the unread indicator dot
+        note?.id?.let { noteId ->
+            noteOperationsManager.markNoteAsViewed(noteId)
+        }
     }
 
     /**

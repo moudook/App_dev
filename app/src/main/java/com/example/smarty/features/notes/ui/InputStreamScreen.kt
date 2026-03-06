@@ -1445,9 +1445,9 @@ onPlayYouTube: (String) -> Unit = {},
                             isSelectionMode = isSelectionMode,
                             selectedNoteIds = selectedNoteIds,
                             onToggleSelection = { noteId -> toggleSelection(noteId) },
-                            onEnterSelectionMode = { noteId, offset ->
-                                pinterestMenuPosition = offset
-                                activePinterestNoteId = noteId
+                            onEnterSelectionMode = { noteId, _ ->
+                                // Normal selection mode - no Pinterest menu
+                                toggleSelection(noteId)
                             },
                             onNoteClick = onNoteClick,
                             onArchiveNote = onArchiveNote,

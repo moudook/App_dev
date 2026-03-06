@@ -461,17 +461,11 @@ class MainActivity : ComponentActivity() {
                                         viewModel.unpinNote(noteId)
                                     },
                                     onShareNotes = { notesToShare ->
-                                        // Create share intent with note titles and descriptions
+                                        // Create share intent with full note titles and descriptions
                                         val shareText = notesToShare.joinToString("\n\n") { note ->
                                             val body = when {
                                                 !note.summary.isNullOrBlank() -> note.summary
-                                                note.content.isNotBlank() -> {
-                                                    if (note.content.length > 200) {
-                                                        getString(R.string.share_note_truncated_format, note.content.take(200))
-                                                    } else {
-                                                        note.content
-                                                    }
-                                                }
+                                                note.content.isNotBlank() -> note.content  // Full content, no truncation
                                                 else -> ""
                                             }
                                             getString(R.string.share_note_format, note.title, body).trim()
