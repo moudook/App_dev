@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.*
@@ -166,6 +167,7 @@ fun SmartyInputField(
     onPickVideo: () -> Unit = {},
     onPickDocument: () -> Unit = {},
     onPickAudio: () -> Unit = {},
+    onPickResearch: () -> Unit = {},
     onPickFile: () -> Unit = {},
     onPickLink: () -> Unit = {},
     onRemoveAttachment: (String) -> Unit = {},
@@ -578,6 +580,9 @@ fun SmartyInputField(
                     onPickAudio = {
                         onPickAudio()
                     },
+                    onPickResearch = {
+                        onPickResearch()
+                    },
                     onPickLink = {
                         onPickLink()
                     },
@@ -717,6 +722,7 @@ private fun InputPill(
     onPickVideo: () -> Unit = {},
     onPickDocument: () -> Unit = {},
     onPickAudio: () -> Unit = {},
+    onPickResearch: () -> Unit = {},
     onPickLink: () -> Unit = {},
     modifier: Modifier = Modifier,
     // Attachment support
@@ -1021,6 +1027,16 @@ private fun InputPill(
                                         }
                                     },
                                     onClick = { showMenu = false; onPickAudio() },
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Deep Research", fontSize = 14.sp, fontWeight = FontWeight.SemiBold) },
+                                    leadingIcon = {
+                                        Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF7C4DFF).copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.School, contentDescription = null, tint = Color(0xFF7C4DFF), modifier = Modifier.size(18.dp)) // Deep Research
+                                        }
+                                    },
+                                    onClick = { showMenu = false; onPickResearch() },
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                 )
                                 DropdownMenuItem(
