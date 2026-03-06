@@ -2,6 +2,7 @@ package com.example.smarty.server.routes
 
 import com.example.smarty.server.data.DigestPreferences
 import com.example.smarty.server.data.DigestPreferencesRepository
+import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.services.DigestService
 import com.example.smarty.server.services.DigestScheduler
 import io.ktor.server.application.*
@@ -35,12 +36,12 @@ fun Application.configureDigestRoutes(
     
     val logger = LoggerFactory.getLogger("DigestRoutes")
     val preferencesRepository = DigestPreferencesRepository(dataSource)
-    
+
     routing {
-        authenticate("firebase-auth") {
+        authenticate("firebase") {
             // Get all digests for user
-            get {
-                val userId = call.principal<UserIdPrincipal>()?.name
+            get("/digests") {
+                val userId = call.principal<FirebaseUserPrincipal>()?.userId
                     ?: return@get call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
@@ -54,8 +55,8 @@ fun Application.configureDigestRoutes(
             }
 
             // Get specific digest
-            get("/{id}") {
-                val userId = call.principal<UserIdPrincipal>()?.name
+            get("/digests/{id}") {
+                val userId = call.principal<FirebaseUserPrincipal>()?.userId
                     ?: return@get call.respond(mapOf("error" to "Unauthorized"))
 
                 val digestId = call.parameters["id"]
@@ -75,8 +76,8 @@ fun Application.configureDigestRoutes(
             }
 
             // Manually trigger digest generation
-            post("/trigger") {
-                val userId = call.principal<UserIdPrincipal>()?.name
+            post("/digests/trigger") {
+                val userId = call.principal<FirebaseUserPrincipal>()?.userId
                     ?: return@post call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
@@ -102,8 +103,8 @@ fun Application.configureDigestRoutes(
             }
 
             // Get user preferences
-            get("/preferences") {
-                val userId = call.principal<UserIdPrincipal>()?.name
+            get("/digests/preferences") {
+                val userId = call.principal<FirebaseUserPrincipal>()?.userId
                     ?: return@get call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
@@ -134,8 +135,8 @@ fun Application.configureDigestRoutes(
             }
 
             // Update user preferences
-            put("/preferences") {
-                val userId = call.principal<UserIdPrincipal>()?.name
+            put("/digests/preferences") {
+                val userId = call.principal<FirebaseUserPrincipal>()?.userId
                     ?: return@put call.respond(mapOf("error" to "Unauthorized"))
 
                 try {
