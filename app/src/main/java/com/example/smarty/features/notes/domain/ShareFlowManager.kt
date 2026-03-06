@@ -9,6 +9,7 @@ import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.core.domain.model.ProcessingStatus
 import com.example.smarty.data.repository.SmartyRepository
 import com.example.smarty.ui.components.PendingShareData
+import com.example.smarty.ui.components.PendingFileInfo
 import com.example.smarty.core.common.util.ContentTypeDetector
 import com.example.smarty.core.common.util.FileStorageHelper
 import com.example.smarty.core.common.util.PrivacyGuard
@@ -21,6 +22,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import com.example.smarty.core.domain.model.SharedContent
 import com.example.smarty.core.domain.model.SharedFileInfo
@@ -61,6 +64,10 @@ class ShareFlowManager(
     /**
      * Intercept shared content for preview in bottom sheet.
      * Enhanced with URL metadata extraction for web clipper functionality.
+     * 
+     * CRITICAL FIX (BUG-061): Files are now copied to app storage IMMEDIATELY to prevent
+     * data loss from expired content URI permissions. Previously, files were only copied
+     * in confirmShare(), which could fail if permissions expired.
      */
     fun interceptShareForPreview(sharedContent: SharedContent) {
         scope.launch {
@@ -97,17 +104,102 @@ class ShareFlowManager(
                                 append("\n$it\n")
                             }
                             append("\nSource: $url")
-                            
+
                             // READER MODE: Append full article text for AI searchability
                             urlMetadata.articleContent?.let { article ->
                                 append("\n\n--- Article Content ---\n\n")
                                 append(article)
                             }
                         }
-                        
+
                         Log.d(TAG, "Web clipper: Saved ${urlMetadata.articleContent?.length ?: 0} chars of article content")
                     }
                 }
+            }
+
+            // CRITICAL FIX: Copy files to app storage IMMEDIATELY to prevent permission expiration
+            var copiedFileUri: String? = null
+            var copiedFileName: String? = null
+            var copiedFileSize: Long? = null
+            
+            // Handle single file share
+            if (sharedContent.fileUri != null) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        val sourceUri = Uri.parse(sharedContent.fileUri)
+                        val result = FileStorageHelper.compressAndStore(
+                            context = context,
+                            sourceUri = sourceUri,
+                            mimeType = sharedContent.mimeType,
+                            originalFileName = sharedContent.fileName
+                        )
+                        
+                        if (result != null) {
+                            copiedFileUri = result.uri
+                            copiedFileName = result.fileName
+                            copiedFileSize = result.compressedSize
+                            Log.d(TAG, "File copied immediately: ${sharedContent.fileName} -> ${result.fileName}")
+                        } else {
+                            // Fallback: use original URI (might fail later if permissions expire)
+                            copiedFileUri = sharedContent.fileUri
+                            copiedFileName = sharedContent.fileName
+                            copiedFileSize = sharedContent.fileSize
+                            Log.w(TAG, "File copy returned null, using original URI")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to copy shared file immediately: ${e.message}", e)
+                        // Fallback to original URI
+                        copiedFileUri = sharedContent.fileUri
+                        copiedFileName = sharedContent.fileName
+                        copiedFileSize = sharedContent.fileSize
+                    }
+                }
+            }
+            
+            // Handle multiple file shares
+            val copiedFiles = if (sharedContent.files.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    sharedContent.files.mapNotNull { file ->
+                        try {
+                            val sourceUri = Uri.parse(file.fileUri)
+                            val result = FileStorageHelper.compressAndStore(
+                                context = context,
+                                sourceUri = sourceUri,
+                                mimeType = file.mimeType,
+                                originalFileName = file.fileName
+                            )
+                            
+                            if (result != null) {
+                                Log.d(TAG, "File copied immediately: ${file.fileName} -> ${result.fileName}")
+                                // Convert to PendingFileInfo for PendingShareData
+                                PendingFileInfo(
+                                    fileUri = result.uri,
+                                    fileName = result.fileName,
+                                    mimeType = file.mimeType,
+                                    fileSize = result.compressedSize
+                                )
+                            } else {
+                                Log.w(TAG, "File copy returned null for ${file.fileName}")
+                                PendingFileInfo(
+                                    fileUri = file.fileUri,
+                                    fileName = file.fileName,
+                                    mimeType = file.mimeType,
+                                    fileSize = file.fileSize
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to copy shared file immediately: ${e.message}", e)
+                            PendingFileInfo(
+                                fileUri = file.fileUri,
+                                fileName = file.fileName,
+                                mimeType = file.mimeType,
+                                fileSize = file.fileSize
+                            )
+                        }
+                    }
+                }
+            } else {
+                emptyList()
             }
 
             // Find potentially related notes
@@ -115,13 +207,14 @@ class ShareFlowManager(
 
             _pendingShare.value = PendingShareData(
                 text = enhancedText,
-                fileUri = sharedContent.fileUri,
-                fileName = urlMetadata?.title ?: sharedContent.fileName,
+                fileUri = copiedFileUri ?: sharedContent.fileUri,
+                fileName = urlMetadata?.title ?: copiedFileName ?: sharedContent.fileName,
                 mimeType = sharedContent.mimeType,
-                fileSize = sharedContent.fileSize,
+                fileSize = copiedFileSize ?: sharedContent.fileSize,
                 detectedType = type,
                 suggestedCategory = null,  // Let AI decide by default
-                relatedNotes = relatedNotes
+                relatedNotes = relatedNotes,
+                files = copiedFiles
             )
         }
     }
@@ -134,8 +227,11 @@ class ShareFlowManager(
     }
 
     /**
-     * Confirm the share and create the note
-     * Returns the created note for further processing
+     * Confirm the share and create the note.
+     * Returns the created note for further processing.
+     * 
+     * NOTE: Files are already copied to app storage in interceptShareForPreview(),
+     * so this function just uses the already-copied file URIs.
      */
     suspend fun confirmShare(
         selectedCategory: String?,
@@ -145,74 +241,30 @@ class ShareFlowManager(
         val pending = _pendingShare.value ?: return null
         val isFullPrivacy = _pendingShareFullPrivacy.value
 
-        // Get all files to process (handles both single and multiple)
+        // Get all files (already copied to app storage in interceptShareForPreview)
         val allFiles = pending.getAllFiles()
 
-        // Process all files - compress and store each one
-        // PARALLEL PROCESSING: Use async to process files concurrently for speed
-        val processedAttachments = java.util.concurrent.CopyOnWriteArrayList<NoteAttachment>()
-        var firstFileUri: String? = null
-        var firstFileName: String? = null
-        var firstMimeType: String? = null
-        var firstFileSize: Long? = null
-
-        // BUG-061 fix: Track failed files to prevent silent data loss
-        val failedFiles = java.util.concurrent.CopyOnWriteArrayList<String>()
-
-        kotlinx.coroutines.coroutineScope {
-            val deferreds = allFiles.mapIndexed { index, file ->
-                async(kotlinx.coroutines.Dispatchers.IO) {
-                    try {
-                        val compressed = FileStorageHelper.compressAndStore(
-                            context = context,
-                            sourceUri = Uri.parse(file.fileUri),
-                            mimeType = file.mimeType,
-                            originalFileName = file.fileName
-                        )
-
-                        val finalUri = compressed?.uri ?: file.fileUri
-                        val finalName = compressed?.fileName ?: file.fileName ?: "file_${index + 1}"
-                        val finalMime = compressed?.mimeType ?: file.mimeType ?: "application/octet-stream"
-                        val finalSize = compressed?.compressedSize ?: file.fileSize ?: 0
-
-                        // Add to attachments list
-                        processedAttachments.add(NoteAttachment(
-                            id = java.util.UUID.randomUUID().toString(),
-                            uri = finalUri,
-                            fileName = finalName,
-                            mimeType = finalMime,
-                            fileSize = finalSize
-                        ))
-
-                        // Store first file info for backward compatibility
-                        // Note: Synchronization might be loose here but first file usually finishes fast or we just take 'some' file
-                        if (index == 0) {
-                            firstFileUri = finalUri
-                            firstFileName = finalName
-                            firstMimeType = finalMime
-                            firstFileSize = finalSize
-                        }
-
-                        // Log compression savings
-                        compressed?.let {
-                            if (it.isCompressed) {
-                                Log.i(TAG, "File compressed: ${it.fileName} saved ${formatSize(context, it.savedBytes)} " +
-                                        "(${String.format("%.1f", it.compressionRatio)}% reduction)")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        val fileName = file.fileName ?: "file_${index + 1}"
-                        failedFiles.add(fileName)
-                        Log.e(TAG, "Failed to process file '$fileName': ${e.message}", e)
-                    }
-                }
-            }
-            deferreds.forEach { it.await() }
+        // Convert to NoteAttachment - files are already copied, no need to compress again
+        val processedAttachments = allFiles.map { file ->
+            NoteAttachment(
+                id = java.util.UUID.randomUUID().toString(),
+                uri = file.fileUri,
+                fileName = file.fileName ?: "unknown",
+                mimeType = file.mimeType ?: "application/octet-stream",
+                fileSize = file.fileSize ?: 0
+            )
         }
 
-        // Log warning if some files failed
-        if (failedFiles.isNotEmpty()) {
-            Log.w(TAG, "BUG-061: ${failedFiles.size} file(s) failed to process: ${failedFiles.joinToString()}")
+        // Get first file info for backward compatibility
+        val firstFile = allFiles.firstOrNull()
+        val firstFileUri = firstFile?.fileUri
+        val firstFileName = firstFile?.fileName
+        val firstMimeType = firstFile?.mimeType
+        val firstFileSize = firstFile?.fileSize
+
+        // Log if files failed to process
+        if (allFiles.isEmpty() && pending.fileUri != null) {
+            Log.w(TAG, "BUG-061: No files in pending share data")
         }
 
         // Build content description
@@ -288,7 +340,7 @@ class ShareFlowManager(
 
         // Reset share mode state
         resetShareState()
-
+        
         return note
     }
 

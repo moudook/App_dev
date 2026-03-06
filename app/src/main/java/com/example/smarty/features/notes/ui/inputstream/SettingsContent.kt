@@ -44,6 +44,7 @@ import com.example.smarty.features.calendar.domain.GoogleCalendarSyncManager.Dev
 import com.example.smarty.ui.components.SmartySettingsCard
 import com.example.smarty.ui.components.SmartySettingsRow
 import com.example.smarty.ui.components.SmartySettingsSwitchRow
+import com.example.smarty.ui.components.ConnectionStatus
 
 private const val TAG = "SettingsContent"
 
@@ -80,7 +81,9 @@ fun SettingsContent(
     deviceCalendars: List<DeviceCalendar> = emptyList(),
     targetCalendarId: Long = -1L,
     onSetTargetCalendarId: (Long) -> Unit = {},
-    onLoadDeviceCalendars: () -> Unit = {}
+    onLoadDeviceCalendars: () -> Unit = {},
+    // Server Connection Status
+    connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED
 ) {
     val accentColor = LocalAccentColor.current
     val context = LocalContext.current
@@ -114,7 +117,7 @@ fun SettingsContent(
 
                 SmartySettingsCard {
                     // Server Status Indicator (URL is hardcoded and hidden)
-                    ServerStatusIndicator()
+                    ServerStatusIndicator(connectionStatus = connectionStatus)
                 }
             }
         }
@@ -379,18 +382,32 @@ fun SettingsContent(
 // --- Inline AI Config Components ---
 
 @Composable
-fun ServerStatusIndicator() {
+fun ServerStatusIndicator(connectionStatus: ConnectionStatus = ConnectionStatus.CONNECTED) {
+    val subtitle = when (connectionStatus) {
+        ConnectionStatus.CONNECTED -> "Connected"
+        ConnectionStatus.CONNECTING -> "Connecting..."
+        ConnectionStatus.DISCONNECTED -> "Disconnected"
+        ConnectionStatus.OFFLINE -> "Offline"
+    }
+    
+    val (icon, tint) = when (connectionStatus) {
+        ConnectionStatus.CONNECTED -> SmartyIcons.CheckCircle to Color(0xFF2E7D32)
+        ConnectionStatus.CONNECTING -> SmartyIcons.Refresh to Color(0xFFFFA000)
+        ConnectionStatus.DISCONNECTED -> SmartyIcons.CloudOff to Color(0xFF757575)
+        ConnectionStatus.OFFLINE -> SmartyIcons.Warning to Color(0xFFD32F2F)
+    }
+    
     SmartySettingsRow(
         label = "Smarty Server",
         icon = SmartyIcons.Cloud,
-        subtitle = "Connected",
+        subtitle = subtitle,
         enabled = true,
         showChevron = false,
         trailingContent = {
             Icon(
-                SmartyIcons.CheckCircle,
-                contentDescription = "Connected",
-                tint = Color(0xFF2E7D32),
+                icon,
+                contentDescription = subtitle,
+                tint = tint,
                 modifier = Modifier.size(24.dp)
             )
         }

@@ -1297,7 +1297,8 @@ onPlayYouTube: (String) -> Unit = {},
                             onSetTargetCalendarId = onSetTargetCalendarId,
                             onLoadDeviceCalendars = onLoadDeviceCalendars,
                             onNavigateToTicTacToe = onNavigateToTicTacToe,
-                            onNavigateToCoinToss = onNavigateToCoinToss
+                            onNavigateToCoinToss = onNavigateToCoinToss,
+                            connectionStatus = connectionStatus
                         )
                     }
                     "calendar" -> {
