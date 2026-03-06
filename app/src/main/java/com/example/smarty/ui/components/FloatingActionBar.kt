@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -168,6 +169,7 @@ fun SelectionFloatingBar(
     onShare: () -> Unit,
     onArchive: () -> Unit,
     onDelete: () -> Unit,
+    onCategorize: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Apply soft shadow to the selection bar as well
@@ -206,6 +208,14 @@ fun SelectionFloatingBar(
                 Icon(
                     imageVector = Icons.Default.PushPin,
                     contentDescription = stringResource(R.string.pin),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            IconButton(onClick = onCategorize, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = "Categorize",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -80,6 +81,7 @@ import com.example.smarty.ui.components.NoteTodoSheet
 import com.example.smarty.core.domain.model.NoteType
 import com.example.smarty.ui.components.AttachmentOption
 import com.example.smarty.ui.components.SearchFilterTypeSelector
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import com.example.smarty.ui.components.PendingShareData
@@ -150,6 +152,7 @@ fun InputStreamScreen(
     isArchiveLoading: Boolean = false,
     isChatHistoryLoading: Boolean = false,
     onUpdateNoteTodos: (String, List<TodoItem>, onComplete: (() -> Unit)?) -> Unit,
+    onUpdateNoteCategory: (String, String, String) -> Unit = { _, _, _ -> },
     onNavigateToStacks: () -> Unit,
     onNavigateToSettings: () -> Unit,
     selectedTab: NavigationTab = NavigationTab.NOTES,
@@ -716,6 +719,20 @@ onPlayYouTube: (String) -> Unit = {},
         }
     }
 
+    // Categorize selected notes
+    fun categorizeSelected(categoryId: String, categoryName: String) {
+        val ids = selectedNoteIds.toList()
+        ids.forEach { onUpdateNoteCategory(it, categoryId, categoryName) }
+        val count = ids.size
+        clearSelection()
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                message = "Notes categorized ($count)",
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
+
     // Share selected notes
     fun shareSelected() {
         val selectedNotes = displayedNotes.filter { it.id in selectedNoteIds }
@@ -786,6 +803,8 @@ onPlayYouTube: (String) -> Unit = {},
     var noteToDeleteId by remember { mutableStateOf<String?>(null) }
     val noteToDelete = noteToDeleteId?.let { id -> notes.find { it.id == id } }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showCategorizeDialog by remember { mutableStateOf(false) }
+    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
 
     // MIME type detection from file extension (fallback when ContentResolver fails)
     fun getMimeTypeFromExtension(fileName: String): String {
@@ -1483,7 +1502,8 @@ onPlayYouTube: (String) -> Unit = {},
                     onPin = { pinSelected() },
                     onShare = { shareSelected() },
                     onArchive = { archiveSelected() },
-                    onDelete = { deleteSelected() }
+                    onDelete = { deleteSelected() },
+                    onCategorize = { showCategorizeDialog = true }
                 )
             }
 
@@ -1990,8 +2010,69 @@ onPlayYouTube: (String) -> Unit = {},
             initialDate = selectedDateForNewEvent ?: java.util.Calendar.getInstance()
         )
     }
+
+    // Categorize selected notes dialog
+    if (showCategorizeDialog) {
+        CategorizeNotesDialog(
+            categories = categories,
+            onCategorySelected = { categoryId, categoryName ->
+                categorizeSelected(categoryId, categoryName)
+                showCategorizeDialog = false
+            },
+            onDismiss = {
+                showCategorizeDialog = false
+            }
+        )
+    }
 }
 }
+}
+
+/**
+ * Dialog for categorizing selected notes.
+ * Shows a list of categories to choose from.
+ */
+@Composable
+fun CategorizeNotesDialog(
+    categories: List<Category>,
+    onCategorySelected: (String, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Categorize Notes",
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
+        text = {
+            LazyColumn {
+                items(categories.size) { index ->
+                    val category = categories[index]
+                    ListItem(
+                        headlineContent = { Text(category.name) },
+                        leadingContent = {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        modifier = Modifier
+                            .clickable {
+                                onCategorySelected(category.id, category.name)
+                            }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 /**
