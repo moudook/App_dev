@@ -645,6 +645,9 @@ onPlayYouTube: (String) -> Unit = {},
 
     // Search Mode State
     var isSearchMode by remember { mutableStateOf(false) }
+    
+    // Research Mode State
+    var isResearchMode by remember { mutableStateOf(false) }
 
     // Filtered Notes Logic
     // OPTIMIZATION: Filter logic moved to ViewModel (SmartyViewModel.notes)
@@ -1830,6 +1833,11 @@ onPlayYouTube: (String) -> Unit = {},
                                     text = updatedText,
                                     selection = androidx.compose.ui.text.TextRange(updatedText.length)
                                 )
+                            },
+                            // Research mode toggle
+                            isResearchMode = isResearchMode,
+                            onToggleResearchMode = {
+                                isResearchMode = !isResearchMode
                             },
                             showScrollButton = chatListState.canScrollForward || chatListState.canScrollBackward,
                             isAtLatest = !chatListState.canScrollBackward,

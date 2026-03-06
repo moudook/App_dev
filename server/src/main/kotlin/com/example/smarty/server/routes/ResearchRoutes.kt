@@ -72,25 +72,48 @@ fun Application.configureResearchRoutes(
                     }
                 }
                 
-                // Change research direction
-                post("/{id}/redirect") {
+                // Change research direction (user interruption)
+                post("/{id}/interrupt") {
                     val user = call.principal<FirebaseUserPrincipal>()
                         ?: return@post call.respond(HttpStatusCode.Unauthorized)
                     
                     try {
                         val sessionId = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
-                        val request = call.receive<RedirectResearchRequest>()
+                        val request = call.receive<UserInterruptionRequest>()
                         
-                        logger.info("Redirecting research $sessionId: ${request.newDirection}")
+                        logger.info("User interrupting research $sessionId: ${request.message}")
                         
                         val mockSession = DeepResearchAgent.ResearchSession(id = sessionId, topic = "Topic")
-                        val updatedSession = researchAgent.changeDirection(mockSession, request.newDirection)
+                        val updatedSession = researchAgent.handleUserInterruption(mockSession, request.message)
                         call.respond(ResearchResponse(updatedSession))
                         
                     } catch (e: Exception) {
-                        logger.error("Failed to redirect research", e)
+                        logger.error("Failed to process interruption", e)
                         call.respond(HttpStatusCode.InternalServerError,
-                            mapOf("error" to "Failed to redirect: ${e.message}"))
+                            mapOf("error" to "Failed to process interruption: ${e.message}"))
+                    }
+                }
+                
+                // Check timeout status
+                get("/{id}/timeout") {
+                    val user = call.principal<FirebaseUserPrincipal>()
+                        ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                    
+                    try {
+                        val sessionId = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                        
+                        val mockSession = DeepResearchAgent.ResearchSession(id = sessionId, topic = "Topic")
+                        val timeoutStatus = researchAgent.checkTimeout(mockSession)
+                        
+                        call.respond(mapOf(
+                            "status" to timeoutStatus.name,
+                            "elapsed" to (System.currentTimeMillis() - mockSession.startTime)
+                        ))
+                        
+                    } catch (e: Exception) {
+                        logger.error("Failed to check timeout", e)
+                        call.respond(HttpStatusCode.InternalServerError,
+                            mapOf("error" to "Failed to check timeout: ${e.message}"))
                     }
                 }
                 
@@ -123,6 +146,9 @@ data class AnswerQuestionsRequest(val answers: Map<String, String>)
 
 @Serializable
 data class RedirectResearchRequest(val newDirection: String)
+
+@Serializable
+data class UserInterruptionRequest(val message: String)
 
 @Serializable
 data class ResearchResponse(

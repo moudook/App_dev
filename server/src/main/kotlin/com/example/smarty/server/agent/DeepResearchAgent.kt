@@ -25,6 +25,10 @@ class DeepResearchAgent(
     companion object {
         private val logger = LoggerFactory.getLogger(DeepResearchAgent::class.java)
         
+        // Timeout thresholds (milliseconds)
+        private const val TIMEOUT_WARNING_MS = 12 * 60 * 1000L  // 12 minutes - warning
+        private const val TIMEOUT_FORCE_COMPLETE_MS = 15 * 60 * 1000L  // 15 minutes - forced completion
+        
         // Context overflow threshold (tokens)
         private const val CONTEXT_THRESHOLD = 8000
     }
@@ -43,7 +47,17 @@ class DeepResearchAgent(
         val finalReport: String? = null,
         val progressFileId: String? = null,
         val contextTokenCount: Int = 0,
+        val startTime: Long = System.currentTimeMillis(),
+        val userInterruptions: List<UserInterruption> = emptyList(),
+        val timeoutWarningSent: Boolean = false,
         val createdAt: Long = System.currentTimeMillis()
+    )
+    
+    @Serializable
+    data class UserInterruption(
+        val message: String,
+        val timestamp: Long = System.currentTimeMillis(),
+        val addressed: Boolean = false
     )
     
     @Serializable
@@ -217,6 +231,89 @@ class DeepResearchAgent(
                 details = "User redirected: $newDirection"
             )
         )
+    }
+    
+    /**
+     * Check timeout status and return appropriate message
+     */
+    fun checkTimeout(session: ResearchSession): TimeoutStatus {
+        val elapsed = System.currentTimeMillis() - session.startTime
+        
+        return when {
+            elapsed >= TIMEOUT_FORCE_COMPLETE_MS -> TimeoutStatus.FORCE_COMPLETE
+            elapsed >= TIMEOUT_WARNING_MS && !session.timeoutWarningSent -> TimeoutStatus.WARNING
+            else -> TimeoutStatus.CONTINUE
+        }
+    }
+    
+    /**
+     * Handle user interruption during research
+     */
+    suspend fun handleUserInterruption(
+        session: ResearchSession,
+        interruptionMessage: String
+    ): ResearchSession {
+        logger.info("User interrupted research: $interruptionMessage")
+        
+        val updatedSession = session.copy(
+            userInterruptions = session.userInterruptions + UserInterruption(
+                message = interruptionMessage,
+                addressed = false
+            ),
+            researchLog = session.researchLog + ResearchLogEntry(
+                action = "user_interruption",
+                details = "User interrupted: $interruptionMessage"
+            )
+        )
+        
+        // Send interruption to agent context for next iteration
+        return updatedSession
+    }
+    
+    /**
+     * Send timeout warning to agent
+     */
+    suspend fun sendTimeoutWarning(session: ResearchSession): ResearchSession {
+        logger.info("Sending timeout warning to research agent")
+        
+        return session.copy(
+            timeoutWarningSent = true,
+            userInterruptions = session.userInterruptions + UserInterruption(
+                message = "⚠️ TIME WARNING: You have only 3 minutes left. Wrap up your research quickly and prepare to synthesize findings.",
+                addressed = false
+            ),
+            researchLog = session.researchLog + ResearchLogEntry(
+                action = "timeout_warning",
+                details = "12-minute warning sent to agent"
+            )
+        )
+    }
+    
+    /**
+     * Force complete research due to timeout
+     */
+    suspend fun forceComplete(session: ResearchSession): ResearchSession {
+        logger.info("Forcing research completion due to 15-minute timeout")
+        
+        // Synthesize with whatever findings we have
+        val forcedCompletionSession = synthesizeReport(session)
+        
+        return forcedCompletionSession.copy(
+            researchLog = forcedCompletionSession.researchLog + ResearchLogEntry(
+                action = "forced_completion",
+                details = "Research forced to complete at 15-minute timeout",
+                metadata = mapOf(
+                    "finalCitations" to forcedCompletionSession.citations.size.toString(),
+                    "finalSearches" to forcedCompletionSession.searchQueries.size.toString()
+                )
+            )
+        )
+    }
+    
+    enum class TimeoutStatus {
+        CONTINUE,
+        WARNING,
+        FORCE_COMPLETE
     }
     
     /**
