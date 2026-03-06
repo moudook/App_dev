@@ -10,6 +10,8 @@ import kotlinx.serialization.json.Json
 import com.example.smarty.server.routes.configureHealthRoutes
 import com.example.smarty.server.routes.configureChatRoutes
 import com.example.smarty.server.routes.configureSyncRoutes
+import com.example.smarty.server.routes.configureDataRoutes
+import com.example.smarty.server.routes.configureResearchRoutes
 import com.example.smarty.server.data.DatabaseFactory
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.http.*
@@ -179,6 +181,14 @@ fun Application.module() {
     configureProcessingRoutes()
     configureHandshakeRoutes()
     configureDataRoutes()
+    configureResearchRoutes(com.example.smarty.server.agent.DeepResearchAgent(
+        llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(io.ktor.client.HttpClient()),
+        webSearchTool = com.example.smarty.server.tools.WebSearchTool(
+            apiKey = System.getenv("SERPER_API_KEY") ?: ""
+        ),
+        webScrapeTool = com.example.smarty.server.tools.WebScrapeTool(),
+        progressFileManager = com.example.smarty.server.agent.ProgressFileManager()
+    ))
     configureSyncRoutes()
     if (digestService != null && digestScheduler != null && ds != null) {
         configureDigestRoutes(digestService, digestScheduler, ds!!)
