@@ -60,6 +60,8 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.outlined.Analytics
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.*
@@ -207,6 +209,9 @@ fun SmartyInputField(
     // @Mention support (Chat mode only)
     mentionState: MentionState = MentionState(),
     onMentionSelected: (MentionSuggestion) -> Unit = {},
+    // Research mode toggle
+    isResearchMode: Boolean = false,
+    onToggleResearchMode: () -> Unit = {},
     // Scrolling support
     showScrollButton: Boolean = false,
     isAtLatest: Boolean = true,
@@ -513,6 +518,27 @@ fun SmartyInputField(
                     VoiceWaveformIcon(
                         isListening = isVoiceListening,
                         modifier = Modifier.size(28.dp)
+                    )
+                }
+                
+                // Research Mode Toggle Button
+                Box(
+                    modifier = Modifier
+                        .requiredSize(40.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onToggleResearchMode()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isResearchMode) Icons.Default.Science else Icons.Default.Psychology,
+                        contentDescription = if (isResearchMode) "Research Agent Active" else "Normal Agent Active",
+                        tint = if (isResearchMode) Color(0xFF7C4DFF) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 

@@ -9,16 +9,24 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 
 /**
- * Deep Research Agent - Simplified working version.
- * Performs web research with citations and transparency.
+ * Advanced Deep Research Agent with progress file tracking.
+ * Features:
+ * - Limited tools (web search + notes only)
+ * - Progress file for long-running research
+ * - Context overflow handling via progress files
+ * - Auto-creates note card with findings on completion
  */
 class DeepResearchAgent(
     private val llmProvider: LlmProvider,
     private val webSearchTool: WebSearchTool,
-    private val webScrapeTool: WebScrapeTool
+    private val webScrapeTool: WebScrapeTool,
+    private val progressFileManager: ProgressFileManager
 ) {
     companion object {
         private val logger = LoggerFactory.getLogger(DeepResearchAgent::class.java)
+        
+        // Context overflow threshold (tokens)
+        private const val CONTEXT_THRESHOLD = 8000
     }
     
     @Serializable
@@ -33,6 +41,8 @@ class DeepResearchAgent(
         val citations: List<Citation> = emptyList(),
         val researchLog: List<ResearchLogEntry> = emptyList(),
         val finalReport: String? = null,
+        val progressFileId: String? = null,
+        val contextTokenCount: Int = 0,
         val createdAt: Long = System.currentTimeMillis()
     )
     
@@ -121,7 +131,7 @@ class DeepResearchAgent(
     }
     
     /**
-     * Perform web search
+     * Perform web search with progress tracking
      */
     suspend fun performSearch(
         session: ResearchSession,
@@ -155,15 +165,37 @@ class DeepResearchAgent(
             )
         }
         
+        // Check if context is getting too large
+        val newContextCount = session.contextTokenCount + estimateTokens(searchResults.size * 500)
+        val shouldOffload = progressFileManager.shouldOffloadToProgress(session.citations.size + newCitations.size)
+        
+        // If context exceeded, save to progress file and continue
+        if (shouldOffload && newContextCount > CONTEXT_THRESHOLD) {
+            logger.info("Context threshold reached, offloading to progress file")
+            
+            // Save key findings to progress file
+            newCitations.forEach { citation ->
+                progressFileManager.saveFinding(
+                    sessionId = session.id,
+                    topic = session.topic,
+                    finding = citation.snippet,
+                    source = citation.url,
+                    category = "web_search"
+                )
+            }
+        }
+        
         return session.copy(
             searchQueries = session.searchQueries + searchQuery,
             citations = session.citations + newCitations,
+            contextTokenCount = newContextCount,
             researchLog = session.researchLog + ResearchLogEntry(
                 action = "performed_search",
                 details = "Searched: $query",
                 metadata = mapOf(
                     "query" to query,
-                    "results" to searchResults.size.toString()
+                    "results" to searchResults.size.toString(),
+                    "offloaded" to shouldOffload.toString()
                 )
             )
         )
@@ -182,25 +214,40 @@ class DeepResearchAgent(
             researchPlan = "${session.researchPlan}\n\nDirection change: $newDirection",
             researchLog = session.researchLog + ResearchLogEntry(
                 action = "changed_direction",
-                details = "User redirected: $newDirection",
-                metadata = mapOf("newDirection" to newDirection)
+                details = "User redirected: $newDirection"
             )
         )
     }
     
     /**
-     * Synthesize final report
+     * Read from progress file (for context recovery)
+     */
+    fun readProgress(session: ResearchSession, category: String? = null): String {
+        return progressFileManager.getProgressText(session.id, session.topic)
+    }
+    
+    /**
+     * Synthesize final report and create note card
      */
     suspend fun synthesizeReport(session: ResearchSession): ResearchSession {
         logger.info("Synthesizing report")
-
+        
+        // Read progress file if exists
+        val progressText = if (session.citations.size > 10) {
+            "\n\n=== PROGRESS FILE FINDINGS ===\n" + 
+            progressFileManager.getProgressText(session.id, session.topic)
+        } else ""
+        
         val messages = listOf(
-            LlmMessage(role = LlmMessage.Role.SYSTEM, content = "You are a research assistant. Create a comprehensive report with citations."),
-            LlmMessage(role = LlmMessage.Role.USER, content = buildReportPrompt(session))
+            LlmMessage(role = LlmMessage.Role.SYSTEM, content = buildSystemPrompt()),
+            LlmMessage(role = LlmMessage.Role.USER, content = buildReportPrompt(session) + progressText)
         )
-
+        
         val response = llmProvider.generate(messages)
-
+        
+        // Clear progress file after completion
+        progressFileManager.clearProgress(session.id)
+        
         return session.copy(
             finalReport = response.content,
             status = "completed",
@@ -214,7 +261,34 @@ class DeepResearchAgent(
             )
         )
     }
+    
+    /**
+     * Build system prompt for research agent
+     */
+    private fun buildSystemPrompt(): String {
+        return """
+You are a Deep Research Agent with access to:
+- Web search tool (find information online)
+- Web scrape tool (extract full page content)
+- Progress file (save/read findings during long research)
 
+RULES:
+1. Always save important findings to progress file using save_progress tool
+2. If context gets too large, read from progress file instead of keeping everything in memory
+3. Track all sources with proper citations
+4. Be thorough but organized
+5. When research is complete, create a comprehensive report with all findings
+
+TOOLS AVAILABLE:
+- web_search: Search for information
+- web_scrape: Extract full content from URLs
+- save_progress: Save key findings to progress file
+- read_progress: Read saved findings when needed
+
+Your goal is comprehensive research with full transparency and citations.
+"""
+    }
+    
     private fun buildReportPrompt(session: ResearchSession): String {
         return """
 Topic: ${session.topic}
@@ -227,5 +301,12 @@ ${session.citations.joinToString("\n") { "- ${it.title} (${it.url})" }}
 
 Create a comprehensive research report with citations.
 """
+    }
+    
+    /**
+     * Estimate token count (rough approximation)
+     */
+    private fun estimateTokens(charCount: Int): Int {
+        return charCount / 4  // Rough estimate: 1 token ≈ 4 characters
     }
 }
