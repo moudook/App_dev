@@ -107,11 +107,11 @@ private val DarkColorScheme = darkColorScheme(
  * Primary: #000000 (Pure Black)
  */
 private val LightColorScheme = lightColorScheme(
-    // Primary - Monochrome Black
-    primary = Color.Black,
-    onPrimary = Color.White,
-    primaryContainer = Color.Black.copy(alpha = 0.1f),
-    onPrimaryContainer = Color.Black,
+    // Primary - Pink Theme
+    primary = PinkAccent,
+    onPrimary = PinkDark,
+    primaryContainer = PinkLight,
+    onPrimaryContainer = PinkDark,
 
     // Secondary - Grayscale
     secondary = TextCoolGrey,

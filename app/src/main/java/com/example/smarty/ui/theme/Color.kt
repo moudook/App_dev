@@ -25,6 +25,12 @@ val SecondaryButtonBg = Color(0xFFE5E5EA)
 val SmartyChipGrayLight = Color(0xFFEDEDED)
 val SmartyChipSeparatorLight = Color(0xFFFFFFFF)
 
+// Pink Theme Tokens
+val PinkAccent = Color(0xFFF49BE0)            // Main Pink accent
+val PinkLight = Color(0xFFFFF0F5)             // Light Pink background
+val PinkMedium = Color(0xFFF49BE0).copy(alpha = 0.35f) // Stronger pink tint
+val PinkDark = Color(0xFFD2008C)              // Dark Pink for text/icons on pink backgrounds
+
 // =============================================================================
 // MODERN SOFT MINIMALIST - DARK THEME (True Black AMOLED)
 // =============================================================================

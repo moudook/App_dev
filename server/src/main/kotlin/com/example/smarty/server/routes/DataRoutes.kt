@@ -13,6 +13,9 @@ import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.FcmTokenRepository
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.plugins.firebaseUser
+import com.example.smarty.protocol.NoteInfo
+import com.example.smarty.protocol.CalendarEventInfo
+import com.example.smarty.protocol.TimerInfo
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
@@ -234,7 +237,46 @@ fun Application.configureDataRoutes() {
                         call.respond(HttpStatusCode.OK)
                     }
                 }
+
+                // --- EXPORT ALL DATA (Cloud Backup) ---
+                get("/export/all") {
+                    val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized)
+                    if (noteRepository == null || calendarRepository == null || timerRepository == null) {
+                        return@get call.respond(HttpStatusCode.ServiceUnavailable, "Database not available")
+                    }
+
+                    try {
+                        val userId = user.userId
+                        
+                        // Fetch ALL user data (high limits for complete export)
+                        val notes = noteRepository.listByUser(userId, limit = 10000)
+                        val events = calendarRepository.listAllEvents(userId, limit = 5000)
+                        val timers = timerRepository.listActive(userId)
+                        
+                        // Build export response
+                        val exportData = ExportAllDataResponse(
+                            notes = notes,
+                            events = events,
+                            timers = timers,
+                            exportedAt = System.currentTimeMillis()
+                        )
+                        
+                        call.application.log.info("Export requested for user $userId: ${notes.size} notes, ${events.size} events, ${timers.size} timers")
+                        call.respond(exportData)
+                    } catch (e: Exception) {
+                        call.application.log.error("Export failed for user ${user.userId}", e)
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Export failed: ${e.message}"))
+                    }
+                }
             }
         }
     }
 }
+
+@Serializable
+data class ExportAllDataResponse(
+    val notes: List<NoteInfo>,
+    val events: List<CalendarEventInfo>,
+    val timers: List<TimerInfo>,
+    val exportedAt: Long
+)

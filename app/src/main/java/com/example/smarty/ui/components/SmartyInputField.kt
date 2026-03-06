@@ -731,8 +731,8 @@ private fun InputPill(
     val isDark = MaterialTheme.colorScheme.surface.luminance() <= 0.51f
     val accentColor = LocalAccentColor.current
 
-    val backgroundColor = if (isDark) ComponentColors.inputPillBackgroundDark else MaterialTheme.colorScheme.surface
-    val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+    val backgroundColor = if (isDark) ComponentColors.inputPillBackgroundDark else PinkLight
+    val borderColor = if (isDark) Color.White.copy(alpha = 0.15f) else PinkMedium
 
     // Border: Subtle normally, colored when focused
     val currentBorderColor by animateColorAsState(
@@ -865,12 +865,12 @@ private fun InputPill(
                         val sendBtnColor = when {
                             isStopMode -> Color(0xFFE57373)
                             canSend -> LocalAccentColor.current
-                            else -> MaterialTheme.colorScheme.surfaceVariant
+                            else -> if (isDark) MaterialTheme.colorScheme.surfaceVariant else PinkMedium
                         }
                         val sendIconColor = when {
                             isStopMode -> Color.White
                             canSend -> MaterialTheme.colorScheme.onPrimary
-                            else -> if (isDark) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            else -> if (isDark) Color.White.copy(alpha = 0.7f) else PinkDark.copy(alpha = 0.5f)
                         }
 
                         Box(
