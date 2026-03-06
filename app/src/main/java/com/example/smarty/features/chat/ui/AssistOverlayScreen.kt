@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -31,14 +32,17 @@ import com.example.smarty.ui.theme.softCardShadow
 import com.example.smarty.ui.theme.LocalShapes
 import com.example.smarty.ui.components.TechnicalSurface
 import com.example.smarty.features.chat.domain.AssistViewModel
+import kotlinx.coroutines.launch
 
 /**
- * Modern "Soft Tech" Assistant Overlay.
+ * Modern "Soft Tech" AI Assistant Overlay.
  *
  * Design:
- * - Transparent background (scrim) that dismisses on tap
+ * - OPAQUE background (no transparency issues)
  * - Floating "Pill" container at the bottom
- * - Matches the aesthetic of the main Chat UI
+ * - Proper keyboard inset handling
+ * - Auto-starts voice listening on activation
+ * - Matches main Chat UI aesthetic
  */
 @Composable
 fun AssistOverlayScreen(
@@ -51,13 +55,20 @@ fun AssistOverlayScreen(
     val isListening by viewModel.isListening.collectAsState()
 
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
     var inputText by remember { mutableStateOf(TextFieldValue("")) }
     var isVisible by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    // Animation entry
+    // Auto-start voice listening when assistant activates
     LaunchedEffect(Unit) {
         isVisible = true
+        // Auto-request permission and start listening
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) 
+            == PackageManager.PERMISSION_GRANTED) {
+            viewModel.setListening(true)
+        }
     }
 
     // Permission launcher for voice
@@ -72,6 +83,8 @@ fun AssistOverlayScreen(
     // Dismiss logic with animation
     fun handleDismiss() {
         isVisible = false
+        // Stop listening when dismissing
+        viewModel.setListening(false)
         onDismiss()
     }
 
@@ -79,7 +92,7 @@ fun AssistOverlayScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Transparent)
+            .background(Color.Black.copy(alpha = 0.5f))  // Dim background
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }
@@ -95,120 +108,110 @@ fun AssistOverlayScreen(
                 targetOffsetY = { it },
                 animationSpec = tween(200)
             ),
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .imePadding()  // Proper keyboard inset handling
         ) {
-            // Floating Card Container
-            SmartyContainer(
+            // Floating Card Container - OPAQUE background
+            TechnicalSurface(
                 modifier = Modifier
+                    .fillMaxWidth()
                     .clickable(enabled = false) {} // Consume clicks
             ) {
-                // 1. Chat Content (if messages exist)
-                if (messages.isNotEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .heightIn(max = 450.dp) // Limit height so it doesn't cover screen
-                            .fillMaxWidth()
-                    ) {
-                        ChatModeContent(
-                            chatMessages = messages,
-                            chatListState = listState,
-                            notes = emptyList(), // Overlay doesn't access full note db
-                            onNoteClick = {},
-                            onSendChatMessage = { text, _ -> viewModel.sendMessage(text) },
-                            contentPadding = PaddingValues(16.dp),
-                            isChatProcessing = isProcessing,
-                            modifier = Modifier.fillMaxSize()
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // 1. Chat Content (if messages exist)
+                    if (messages.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .heightIn(max = 300.dp) // Reduced height for better keyboard clearance
+                                .fillMaxWidth()
+                        ) {
+                            ChatModeContent(
+                                chatMessages = messages,
+                                chatListState = listState,
+                                notes = emptyList(),
+                                onNoteClick = {},
+                                onSendChatMessage = { text, _ -> viewModel.sendMessage(text) },
+                                contentPadding = PaddingValues(16.dp),
+                                isChatProcessing = isProcessing,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        HorizontalDivider(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                         )
-                    }
-                } else {
-                    // 2. Empty State
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (isProcessing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(48.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = stringResource(R.string.processing),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            Text(
-                                text = stringResource(R.string.how_can_i_help_you),
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                    } else {
+                        // 2. Empty State with larger padding
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp, horizontal = 24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            if (isProcessing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(48.dp),
+                                    color = LocalAccentColor.current
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Processing...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            } else {
+                                Text(
+                                    text = "How can I help you today?",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                Text(
+                                    text = "Tap microphone or type to start",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
-                }
 
-                // 3. Input Field
-                SmartyInputField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    onSubmit = {
-                        if (inputText.text.isNotBlank()) {
-                            viewModel.sendMessage(inputText.text)
-                            inputText = TextFieldValue("")
-                        }
-                    },
-                    modifier = Modifier.padding(16.dp),
-                    isChatMode = true,
-                    chatPlaceholder = stringResource(R.string.ask_anything),
-                    isVoiceListening = isListening,
-                    isProcessing = isProcessing,
-                    isAgentWorking = isProcessing,
-                    onStopGeneration = { viewModel.stopGeneration() },
-                    onStartVoiceInput = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            viewModel.setListening(true)
-                        } else {
-                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
-                    },
-                    onStopVoiceInput = {
-                        viewModel.setListening(false)
-                    },
-                    onPickFile = {
-                        // Overlay file picker support
-                        // Not fully implemented for overlay in this scope, but needed for compilation
-                    },
-                    onOpenCamera = {
-                        // Overlay camera support
-                    },
-                    showHistoryOption = false
-                )
+                    // 3. Input Field with proper keyboard handling
+                    SmartyInputField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        onSubmit = {
+                            if (inputText.text.isNotBlank()) {
+                                viewModel.sendMessage(inputText.text)
+                                inputText = TextFieldValue("")
+                            }
+                        },
+                        modifier = Modifier.padding(16.dp),
+                        isChatMode = true,
+                        chatPlaceholder = "Ask anything...",
+                        isVoiceListening = isListening,
+                        isProcessing = isProcessing,
+                        isAgentWorking = isProcessing,
+                        onStopGeneration = { viewModel.stopGeneration() },
+                        onStartVoiceInput = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) 
+                                == PackageManager.PERMISSION_GRANTED) {
+                                viewModel.setListening(true)
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        },
+                        onStopVoiceInput = {
+                            viewModel.setListening(false)
+                        },
+                        onPickFile = { },
+                        onOpenCamera = { },
+                        showHistoryOption = false
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun SmartyContainer(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val density = LocalDensity.current
-    // Handle keyboard/nav bar insets
-    val bottomPadding = WindowInsets.ime.getBottom(density).dp.coerceAtLeast(WindowInsets.navigationBars.getBottom(density).dp)
-
-    TechnicalSurface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .padding(bottom = bottomPadding + 4.dp),
-        shape = LocalShapes.current.cardLarge
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            content = content
-        )
     }
 }

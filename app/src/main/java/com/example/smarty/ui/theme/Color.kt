@@ -198,13 +198,14 @@ object SemanticColors {
  * Component-specific color roles for consistent application-wide styling.
  */
 object ComponentColors {
-    /** 
-     * Technical Surface (Glassy feel) Background. 
+    /**
+     * Technical Surface (Glassy feel) Background.
      * Used in overlays and floating panels.
+     * OPAQUE - No transparency for solid background
      */
-    val technicalSurfaceLight = Color(0xFF1A1C1E).copy(alpha = 0.7f)
-    val technicalSurfaceDark = Color(0xFF050E1E).copy(alpha = 0.8f)
-    
+    val technicalSurfaceLight = Color(0xFF1A1C1E)  // Opaque dark
+    val technicalSurfaceDark = Color(0xFF050E1E)    // Opaque darker blue
+
     /** Breath instruction/skipped button color */
     val breathingAccent = Color(0xFF4FACFE)
 
