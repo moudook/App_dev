@@ -413,27 +413,29 @@ fun SmartyInputField(
                     // Deep Research Button (Icon + Text)
                     if (isChatMode) {
                         val researchAccentColor = LocalAccentColor.current
-                        val researchPillBackground = if (isResearchMode) 
-                            researchAccentColor.copy(alpha = 0.15f) 
-                        else 
+                        val researchPillBackground = if (isResearchMode)
+                            researchAccentColor.copy(alpha = 0.15f)
+                        else
                             pillBackground
-                        val researchPillBorder = if (isResearchMode) 
-                            researchAccentColor 
-                        else 
+                        val researchPillBorder = if (isResearchMode)
+                            researchAccentColor
+                        else
                             pillBorder
-                        
+
                         Surface(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 onToggleResearchMode()
                             },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(18.dp),
                             color = researchPillBackground,
                             border = BorderStroke(0.5.dp, researchPillBorder),
-                            modifier = Modifier.height(36.dp)
+                            modifier = Modifier
+                                .height(36.dp)
+                                .padding(top = 0.dp)  // Align with other icons
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 0.dp),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -441,7 +443,7 @@ fun SmartyInputField(
                                     imageVector = Icons.Default.Science,
                                     contentDescription = "Deep Research",
                                     tint = if (isResearchMode) researchAccentColor else monochromeColor,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 Text(
                                     text = "Deep Research",
