@@ -251,6 +251,13 @@ fun SmartyNavHost(
 
             route?.let {
                 android.util.Log.i("SmartyNavigation", "AI navigating to: $it")
+                // Update selected tab to match navigation
+                when (route) {
+                    Screen.InputStream.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.NOTES)
+                    Screen.Stacks.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.STACKS)
+                    Screen.Settings.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.SETTINGS)
+                    Screen.Calendar.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.CALENDAR)
+                }
                 navController.navigate(it)
                 onClearNavigationRequest()
             }
@@ -262,6 +269,13 @@ fun SmartyNavHost(
         navController.currentBackStackEntryFlow.collect { backStackEntry ->
             val route = backStackEntry.destination.route ?: "unknown"
             onScreenChange(route)
+            // Sync selected tab with current route
+            when (route) {
+                Screen.InputStream.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.NOTES)
+                Screen.Stacks.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.STACKS)
+                Screen.Settings.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.SETTINGS)
+                Screen.Calendar.route -> viewModel.setSelectedTab(com.example.smarty.core.domain.model.NavigationTab.CALENDAR)
+            }
         }
     }
 

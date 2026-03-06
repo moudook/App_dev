@@ -1,5 +1,9 @@
 package com.example.smarty.features.calendar.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -30,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
 import com.example.smarty.R
 import com.example.smarty.core.domain.model.CalendarEvent
 import com.example.smarty.core.domain.model.SmartyTimer
@@ -102,14 +108,37 @@ fun CalendarScreen(
     isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val accentColor = LocalAccentColor.current
     val accentLight = accentColor.copy(alpha = 0.7f)
 
+    // Check calendar permissions
+    val hasReadPermission = remember {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
+    }
+    val hasWritePermission = remember {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
+    }
+    val hasCalendarPermission = hasReadPermission && hasWritePermission
+
+    // Permission request launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val readGranted = permissions[Manifest.permission.READ_CALENDAR] ?: false
+        val writeGranted = permissions[Manifest.permission.WRITE_CALENDAR] ?: false
+        if (readGranted && writeGranted) {
+            // Permission granted, trigger sync
+            onSyncClick()
+        }
+    }
+
     // Calendar state
     var selectedDate by remember { mutableStateOf(Calendar.getInstance()) }
     var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
+    var showPermissionRationale by remember { mutableStateOf(false) }
 
     // Filter events for selected date
     val selectedDateEvents = remember(events, selectedDate) {
@@ -225,7 +254,17 @@ fun CalendarScreen(
                     FilledIconButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSyncClick()
+                            if (!hasCalendarPermission) {
+                                // Request permission first
+                                permissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.READ_CALENDAR,
+                                        Manifest.permission.WRITE_CALENDAR
+                                    )
+                                )
+                            } else {
+                                onSyncClick()
+                            }
                         },
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = surfaceColor,

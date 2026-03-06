@@ -72,6 +72,9 @@ class MainActivity : ComponentActivity() {
 
     // Track mic permission state for enrollment check
     private val _micPermissionGranted = mutableStateOf(false)
+    
+    // Track calendar permission state
+    private val _calendarPermissionGranted = mutableStateOf(false)
 
     // Permission launcher for multiple permissions
     private val permissionLauncher = registerForActivityResult(
@@ -85,6 +88,11 @@ class MainActivity : ComponentActivity() {
         // Update state to complete splash - whether granted or denied
         // This allows the splash to complete even if user denies permission
         _micPermissionGranted.value = true
+        
+        // Check calendar permissions
+        val readCalendar = permissions[Manifest.permission.READ_CALENDAR] ?: false
+        val writeCalendar = permissions[Manifest.permission.WRITE_CALENDAR] ?: false
+        _calendarPermissionGranted.value = readCalendar && writeCalendar
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -869,6 +877,7 @@ class MainActivity : ComponentActivity() {
      * Request all required permissions based on Android version.
      * - Android 13+ (API 33): Media permissions (READ_MEDIA_IMAGES, etc.) and POST_NOTIFICATIONS
      * - Android 12 and below: READ_EXTERNAL_STORAGE
+     * - All versions: READ_CALENDAR, WRITE_CALENDAR for calendar sync
      */
     private fun requestRequiredPermissions() {
         val permissionsToRequest = mutableListOf<String>()
@@ -877,6 +886,16 @@ class MainActivity : ComponentActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
+        }
+
+        // Calendar permissions - Required for Google Calendar sync
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.READ_CALENDAR)
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.WRITE_CALENDAR)
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
