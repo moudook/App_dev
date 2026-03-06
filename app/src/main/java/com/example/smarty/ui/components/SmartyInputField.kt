@@ -331,16 +331,11 @@ fun SmartyInputField(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp, start = 8.dp, end = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left side: Reserved for future Mention Floating Pills
-                Box(modifier = Modifier.weight(1f)) {
-                    // Soon: LazyRow of selectedMentions
-                }
-
-                // Right side: Scroll arrow + History pill
+                // Icon Container with centered alignment
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
