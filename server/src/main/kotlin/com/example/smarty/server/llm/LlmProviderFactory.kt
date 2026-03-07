@@ -432,7 +432,7 @@ class KeyRotatingOpenAiProvider(
                         // Transient error: retry same key with backoff first
                         if (attempt < maxAttempts - 1) {
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error::class.simpleName}. " +
                                 "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
                             )
                             delayWithBackoff(attempt)
@@ -440,9 +440,9 @@ class KeyRotatingOpenAiProvider(
                             // Continue loop with same key index (don't rotate yet)
                         } else {
                             // Max retries reached: rotate to next key
-                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error::class.simpleName}. " +
                                 "Rotating to next key."
                             )
                             attempt++
@@ -452,7 +452,7 @@ class KeyRotatingOpenAiProvider(
                     is ApiKeyError.UnknownError -> {
                         // Unknown error: fail fast, don't rotate
                         logger.error(
-                            "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error.message}. " +
+                            "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error::class.simpleName}. " +
                             "Failing fast without rotation."
                         )
                         throw e
