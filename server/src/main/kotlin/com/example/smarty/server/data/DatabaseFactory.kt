@@ -218,6 +218,8 @@ object DatabaseFactory {
 
             if (dbUrl.isNullOrBlank()) {
                 logger.warn("DB_URL environment variable not set. Database operations disabled.")
+                logger.warn("Server will start but database-dependent features won't work.")
+                logger.warn("Set DB_URL, DB_USER, DB_PASSWORD environment variables to enable database.")
                 return null
             }
 
@@ -237,16 +239,19 @@ object DatabaseFactory {
                 maximumPoolSize = 4
                 minimumIdle = 1
                 idleTimeout = 120000
-                connectionTimeout = 30000
+                connectionTimeout = 10000  // Reduced from 30s to 10s for faster startup
                 maxLifetime = 600000
                 leakDetectionThreshold = 60000
                 addDataSourceProperty("prepareThreshold", "0")
             }
 
             dataSource = try {
-                HikariDataSource(config)
+                val ds = HikariDataSource(config)
+                logger.info("Database connection established successfully")
+                ds
             } catch (e: Exception) {
-                logger.error("Failed to initialize DataSource", e)
+                logger.error("Failed to initialize DataSource: ${e.message}")
+                logger.error("Server will continue without database support")
                 null
             }
         }
