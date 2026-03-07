@@ -31,6 +31,7 @@ import io.micrometer.core.instrument.Metrics
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 import java.time.Instant
+import com.example.smarty.server.agent.ThinkingStorageManagerSingleton
 
 /**
  * Local representation of a chat session.
@@ -662,20 +663,29 @@ ${goalMemoryManager.getProgressContext()}
             return finalContent
         }
 
-        var agentIteration = 0
-        val maxAgentIterations = 50 // Allow extensive research with many tool calls
-        var lastFailedToolName: String? = null
-        var consecutiveToolFailures = 0
+        // ═══════════════════════════════════════════════════════════════════
+        // COMPLETELY REWRITTEN: Thinking Section Storage
+        // ═══════════════════════════════════════════════════════════════════
         
-        // Chain breaking: Track tool call patterns to detect loops
-        val toolCallHistory = mutableListOf<Pair<String, String>>() // (toolName, argsHash)
-        val maxSameToolCalls = 3 // Max times same tool with similar args can be called
-
-        // State machine for separating <think> and <final> streams
-        // Hoisted OUTSIDE loop so thinking persists across tool call iterations
+        // Extract session ID from first user message for stable session tracking
+        val sessionId = messagesForAgent.find { it.role == LlmMessage.Role.USER }
+            ?.content?.hashCode()?.toString() ?: UUID.randomUUID().toString()
+        
+        // Get thinking storage manager for this session
+        val thinkingStorage = ThinkingStorageManagerSingleton.instance
+        
+        // State machine for <think> tag detection
         var inThinkingState = false
         var inFinalState = false
-        var currentThinkingContent = ""
+        
+        var agentIteration = 0
+        val maxAgentIterations = 50
+        var lastFailedToolName: String? = null
+        var consecutiveToolFailures = 0
+
+        // Chain breaking: Track tool call patterns to detect loops
+        val toolCallHistory = mutableListOf<Pair<String, String>>()
+        val maxSameToolCalls = 3
 
         while (agentIteration < maxAgentIterations) {
             agentIteration++
@@ -690,26 +700,34 @@ ${goalMemoryManager.getProgressContext()}
                 llmProvider.stream(messagesForAgent, tools, modelOverride).collect { chunk ->
                     chunk.usage?.let { totalUsage = it }
 
-                    // Handle API-level reasoning (from providers like GLM-5, DeepSeek that use reasoning_content field)
+                    // ═══════════════════════════════════════════════════════════
+                    // REASONING CONTENT (from API reasoning_content field)
+                    // ═══════════════════════════════════════════════════════════
                     if (!chunk.reasoning.isNullOrEmpty()) {
-                        currentThinkingContent += chunk.reasoning
-                        // Emit thinking progress so UI can show "Thinking for Xs" with content
+                        // Add to thinking storage
+                        thinkingStorage.addReasoning(sessionId, chunk.reasoning)
+                        
+                        // Get current accumulated thinking for streaming UI
+                        val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
+                        
+                        // Emit thinking progress for UI
                         if (!isToolCallInProgress) {
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
                                 content = "",
-                                thinking = currentThinkingContent
+                                thinking = currentThinking
                             ))
                         }
                     }
 
-                    // Handle Content
+                    // ═══════════════════════════════════════════════════════════
+                    // CONTENT WITH <think> TAGS
+                    // ═══════════════════════════════════════════════════════════
                     if (!chunk.content.isNullOrEmpty()) {
                         val newContent = chunk.content
-                        
-                        // Track state for tag detection
-                        // Models may use either </final> or </think> or standard </thought>
+
+                        // Track thinking state from tags
                         if (newContent.contains("<think>") || newContent.contains("<thought>")) {
                             inThinkingState = true
                             inFinalState = false
@@ -718,12 +736,12 @@ ${goalMemoryManager.getProgressContext()}
                             inFinalState = true
                             inThinkingState = false
                         }
-                        
-                        // Accumulate thinking separately (only while in thinking state, before final)
+
+                        // Accumulate <think> content into thinking storage
                         if (inThinkingState && !inFinalState) {
-                            currentThinkingContent += newContent
+                            thinkingStorage.addReasoning(sessionId, newContent)
                         }
-                        
+
                         // Extract clean content (remove thinking tags for display)
                         val cleanContent = newContent
                             .replace(Regex("<think>.*?</final>", RegexOption.DOT_MATCHES_ALL), "")
@@ -734,20 +752,25 @@ ${goalMemoryManager.getProgressContext()}
                             .replace("</think>", "")
                             .replace("</thought>", "")
                             .replace("<final>", "")
-                        
+
                         currentContent += cleanContent
-                        
+
                         if (!isToolCallInProgress) {
+                            // Get current thinking for UI
+                            val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
+                            
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),
                                 content = cleanContent,
-                                thinking = if (currentThinkingContent.isNotEmpty()) currentThinkingContent else null
+                                thinking = currentThinking.takeIf { it.isNotEmpty() }
                             ))
                         }
                     }
 
-                    // Handle Tool Call Accumulation
+                    // ═══════════════════════════════════════════════════════════
+                    // TOOL CALL ACCUMULATION
+                    // ═══════════════════════════════════════════════════════════
                     val toolCall = chunk.toolCall
                     if (toolCall != null) {
                         if (!isToolCallInProgress) {
@@ -877,9 +900,12 @@ ${goalMemoryManager.getProgressContext()}
                         )
                         Metrics.counter("agent.tool." + if (isToolError) "error" else "success", "tool", currentToolName).increment()
 
-                        // Inject tool call into thinking content for historical log in database
+                        // ═══════════════════════════════════════════════════════════
+                        // ADD TOOL CALL TO THINKING STORAGE (COMPLETELY REWRITTEN)
+                        // ═══════════════════════════════════════════════════════════
                         val toolStatus = if (isToolError) "failed" else "completed"
-                        currentThinkingContent += "\n[Action: $currentToolName ($toolStatus)]\n"
+                        thinkingStorage.addToolCall(sessionId, currentToolName, toolStatus)
+                        logger.info("Added tool call to thinking: $currentToolName ($toolStatus)")
 
                         emit(AgentEvent.ToolCall(
                             eventId = UUID.randomUUID().toString(),
@@ -947,34 +973,35 @@ ${goalMemoryManager.getProgressContext()}
                 } else if (currentContent.isNotEmpty()) {
                     LlmCache.put(cacheKey, currentContent, hadToolCalls = toolCallCount > 0)
 
-                    val thinking = extractThinking(currentContent)
+                    // ═══════════════════════════════════════════════════════════
+                    // FINAL THINKING EMSSION (COMPLETELY REWRITTEN)
+                    // ═══════════════════════════════════════════════════════════
+                    
+                    // Finalize and get complete thinking (reasoning + all tool calls)
+                    val finalThinking = thinkingStorage.finalizeAndGetThinking(sessionId)
+                    
+                    // Emit final thinking state
+                    if (finalThinking.isNotEmpty()) {
+                        emit(AgentEvent.Processing(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            content = "",
+                            thinking = finalThinking
+                        ))
+                    }
 
-                    if (thinking != null && currentThinkingContent.isEmpty()) {
-                        emit(AgentEvent.Processing(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            content = "",
-                            thinking = thinking
-                        ))
-                    }
-                    
-                    // Emit final thinking state with all tool calls included
-                    if (currentThinkingContent.isNotEmpty()) {
-                        emit(AgentEvent.Processing(
-                            eventId = UUID.randomUUID().toString(),
-                            timestamp = System.currentTimeMillis(),
-                            content = "",
-                            thinking = currentThinkingContent
-                        ))
-                    }
-                    
+                    // Emit result with final thinking
                     emit(AgentEvent.Result(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
                         content = "",
-                        thinking = currentThinkingContent.takeIf { it.isNotEmpty() },
+                        thinking = finalThinking,
                         isFinal = true
                     ))
+                    
+                    // Clear thinking storage after emission
+                    thinkingStorage.clear(sessionId)
+                    
                     tracer.trace(AgentTraceEvent(
                         sessionId = sessionId,
                         stepType = AgentStepType.FINAL,
