@@ -946,9 +946,9 @@ ${goalMemoryManager.getProgressContext()}
                     }
                 } else if (currentContent.isNotEmpty()) {
                     LlmCache.put(cacheKey, currentContent, hadToolCalls = toolCallCount > 0)
-                    
+
                     val thinking = extractThinking(currentContent)
-                    
+
                     if (thinking != null && currentThinkingContent.isEmpty()) {
                         emit(AgentEvent.Processing(
                             eventId = UUID.randomUUID().toString(),
@@ -957,10 +957,22 @@ ${goalMemoryManager.getProgressContext()}
                             thinking = thinking
                         ))
                     }
+                    
+                    // Emit final thinking state with all tool calls included
+                    if (currentThinkingContent.isNotEmpty()) {
+                        emit(AgentEvent.Processing(
+                            eventId = UUID.randomUUID().toString(),
+                            timestamp = System.currentTimeMillis(),
+                            content = "",
+                            thinking = currentThinkingContent
+                        ))
+                    }
+                    
                     emit(AgentEvent.Result(
                         eventId = UUID.randomUUID().toString(),
                         timestamp = System.currentTimeMillis(),
                         content = "",
+                        thinking = currentThinkingContent.takeIf { it.isNotEmpty() },
                         isFinal = true
                     ))
                     tracer.trace(AgentTraceEvent(

@@ -185,8 +185,17 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
         }
 
         val entity = ChatMessageEntity.fromChatMessage(sanitizedMessage, sessionId)
-        
+
         try {
+            // Debug logging for thinking section storage
+            if (message.role == ChatRole.SMARTY) {
+                Log.d(TAG, "saveMessage: SMARTY message thinking length=${entity.thinking?.length}")
+                if (entity.thinking != null) {
+                    Log.d(TAG, "saveMessage: thinking preview=${entity.thinking.take(300)}")
+                    Log.d(TAG, "saveMessage: thinking hasToolCalls=${entity.thinking.contains("[Action:")}")
+                }
+            }
+
             chatDao.insertMessage(entity)
             Log.d(TAG, "saveMessage: Successfully inserted ChatMessageEntity for message ID: ${message.id}")
 

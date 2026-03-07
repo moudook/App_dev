@@ -4,7 +4,6 @@ import io.ktor.client.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.slf4j.LoggerFactory
-import java.util.concurrent.atomic.AtomicInteger
 
 object LlmProviderFactory {
     private val logger = LoggerFactory.getLogger(LlmProviderFactory::class.java)
@@ -179,131 +178,319 @@ class KeyRotatingOpenAiProvider(
 ) : LlmProvider {
 
     private val logger = LoggerFactory.getLogger(KeyRotatingOpenAiProvider::class.java)
-    private val currentIndex = AtomicInteger(0)
-    private val invalidKeys = mutableSetOf<Int>()
 
-    override val providerName: String = "$baseProviderName (Rotating ${apiKeys.size} keys, ${invalidKeys.size} invalid)"
+    /**
+     * Session-scoped key rotation manager.
+     * Ensures the same API key is used throughout a user request/session,
+     * only rotating on errors (401, 403, 429, network errors).
+     */
+    private val rotationManager = KeyRotationManager(apiKeys, baseProviderName)
 
-    private fun isPermanentError(error: Throwable): Boolean {
-        val msg = error.message?.lowercase() ?: ""
-        return msg.contains("401") || msg.contains("invalid token") || msg.contains("unauthorized")
-    }
-
-    private fun isRetryableError(error: Throwable): Boolean {
-        val msg = error.message?.lowercase() ?: ""
-        return msg.contains("403") || 
-               msg.contains("429") || msg.contains("rate") ||
-               msg.contains("500") || msg.contains("502") || 
-               msg.contains("503") || msg.contains("timeout") ||
-               msg.contains("reset") || msg.contains("connection") ||
-               msg.contains("closed") || msg.contains("broken") ||
-               msg.contains("stream was reset")
-    }
-
-    private suspend fun delayWithBackoff(attempt: Int) {
-        val baseDelay = 500L // 500ms base delay
-        val maxDelay = 3000L // 3 seconds max
-        val delay = minOf(baseDelay * (1 shl attempt), maxDelay)
-        kotlinx.coroutines.delay(delay)
-    }
-
-    private fun getValidKeyIndex(): Int? {
-        val startIndex = currentIndex.getAndIncrement() % apiKeys.size
-        var index = startIndex
-        repeat(apiKeys.size) {
-            if (index !in invalidKeys) return index
-            index = (index + 1) % apiKeys.size
+    override val providerName: String
+        get() {
+            val invalidCount = kotlinx.coroutines.runBlocking { rotationManager.getInvalidKeys().size }
+            return "$baseProviderName (Rotating ${apiKeys.size} keys, ${invalidCount} invalid)"
         }
-        return null
+
+    /**
+     * Exponential backoff with jitter for retry logic.
+     *
+     * **Algorithm**: baseDelay * 2^attempt + randomJitter
+     * - Prevents thundering herd problem
+     * - Adds randomness to avoid synchronization with other clients
+     *
+     * @param attempt Retry attempt number (0-based)
+     * @param baseDelay Base delay in milliseconds (default: 500ms)
+     * @param maxDelay Maximum delay cap (default: 5 seconds)
+     * @param jitter Factor for random jitter (default: 0.1 = ±10%)
+     */
+    private suspend fun delayWithBackoff(
+        attempt: Int,
+        baseDelay: Long = 500L,
+        maxDelay: Long = 5000L,
+        jitter: Double = 0.1
+    ) {
+        // Exponential backoff: baseDelay * 2^attempt
+        val exponentialDelay = baseDelay * (1L shl attempt)
+        val cappedDelay = minOf(exponentialDelay, maxDelay)
+
+        // Add jitter to prevent synchronized retries
+        val jitterRange = cappedDelay * jitter
+        val jitteredDelay = cappedDelay + (Math.random() * jitterRange * 2 - jitterRange).toLong()
+
+        kotlinx.coroutines.delay(jitteredDelay)
     }
 
-    private fun markKeyInvalid(keyIndex: Int) {
-        if (invalidKeys.add(keyIndex)) {
-            logger.error("Marked key #$keyIndex as permanently INVALID for $baseProviderName. Valid keys remaining: ${apiKeys.size - invalidKeys.size}")
-        }
+    /**
+     * Creates a provider instance with the specified API key.
+     * Factory method for easy testing and key rotation.
+     */
+    private fun createProvider(apiKey: String): OpenAiCompatibleProvider {
+        return OpenAiCompatibleProvider(
+            client = client,
+            providerName = baseProviderName,
+            baseUrl = baseUrl,
+            apiKey = apiKey,
+            defaultModel = defaultModel
+        )
     }
 
-    override suspend fun generate(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): LlmResponse {
+    /**
+     * Generates a complete response with session-scoped key rotation.
+     *
+     * **Key Rotation Strategy**:
+     * 1. Uses the same API key for all calls within a session (session affinity)
+     * 2. Only rotates on error (401, 403, 429, network errors)
+     * 3. Retries with exponential backoff for transient errors
+     * 4. Marks keys as invalid for permanent failures (401, 403)
+     *
+     * **Error Handling**:
+     * - InvalidKey (401/403): Mark key invalid, rotate to next key
+     * - RateLimited (429): Rotate to next key with backoff
+     * - ServerError/NetworkError: Retry same key with backoff, then rotate
+     *
+     * @param messages LLM messages to send
+     * @param tools Tool definitions for function calling
+     * @param model Optional model override
+     * @return LLM response with content and/or tool calls
+     * @throws IllegalStateException if all API keys fail
+     */
+    override suspend fun generate(
+        messages: List<LlmMessage>,
+        tools: List<ToolDefinition>,
+        model: String?
+    ): LlmResponse {
+        // Use a default session ID for generate calls (no session tracking needed for non-streaming)
+        val sessionId = "generate-${System.currentTimeMillis()}"
+        val sessionContext = rotationManager.createSessionContext(sessionId)
+
         var lastException: Exception? = null
-        val triedKeys = mutableSetOf<Int>()
         var attempt = 0
+        val maxAttempts = apiKeys.size
 
-        while (triedKeys.size < apiKeys.size - invalidKeys.size) {
-            val keyIndex = getValidKeyIndex() ?: break
-            if (keyIndex in triedKeys) continue
-            triedKeys.add(keyIndex)
+        while (attempt < maxAttempts) {
+            // Get current key index (session-affine, skips invalid keys)
+            val keyIndex = sessionContext.getCurrentKeyIndex()
+                ?: throw IllegalStateException("[$baseProviderName] No valid API keys remaining")
 
-            val provider = OpenAiCompatibleProvider(
-                client = client,
-                providerName = baseProviderName,
-                baseUrl = baseUrl,
-                apiKey = apiKeys[keyIndex],
-                defaultModel = defaultModel
-            )
+            val apiKey = apiKeys[keyIndex]
+            val provider = createProvider(apiKey)
 
             try {
-                logger.debug("Trying generate with key #$keyIndex for $baseProviderName (attempt ${attempt + 1})")
+                logger.debug(
+                    "[$sessionId] Generate with key #$keyIndex for $baseProviderName (attempt ${attempt + 1}/$maxAttempts)"
+                )
+
                 return provider.generate(messages, tools, model)
+
             } catch (e: Exception) {
                 lastException = e
-                val isRetryable = isRetryableError(e)
-                if (isPermanentError(e)) {
-                    markKeyInvalid(keyIndex)
-                    logger.warn("Key #$keyIndex is INVALID for $baseProviderName: ${e.message}")
-                } else if (isRetryable) {
-                    logger.warn("Key #$keyIndex failed for $baseProviderName: ${e.message}, retrying with backoff...")
-                    delayWithBackoff(attempt)
-                    attempt++
-                } else {
-                    throw e
+                val error = ApiKeyErrorClassifier.classify(e)
+
+                when (error) {
+                    is ApiKeyError.InvalidKey -> {
+                        // Permanent failure: mark key invalid, rotate
+                        rotationManager.markKeyInvalid(keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: ${error.message}. " +
+                            "Rotating to next key."
+                        )
+                        attempt++
+                    }
+
+                    is ApiKeyError.RateLimited -> {
+                        // Rate limited: rotate to next key with backoff
+                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: ${error.message}. " +
+                            "Rotating and retrying with backoff..."
+                        )
+                        delayWithBackoff(attempt)
+                        attempt++
+                    }
+
+                    is ApiKeyError.ServerError,
+                    is ApiKeyError.NetworkError -> {
+                        // Transient error: retry same key with backoff first
+                        if (attempt < maxAttempts - 1) {
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error.message}. " +
+                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
+                            )
+                            delayWithBackoff(attempt)
+                            attempt++
+                            // Continue loop with same key index (don't rotate yet)
+                        } else {
+                            // Max retries reached: rotate to next key
+                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error.message}. " +
+                                "Rotating to next key."
+                            )
+                            attempt++
+                        }
+                    }
+
+                    is ApiKeyError.UnknownError -> {
+                        // Unknown error: fail fast, don't rotate
+                        logger.error(
+                            "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error.message}. " +
+                            "Failing fast without rotation."
+                        )
+                        throw e
+                    }
                 }
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed or invalid for $baseProviderName")
+        throw lastException ?: IllegalStateException("[$baseProviderName] All API keys failed after $maxAttempts attempts")
     }
 
-    override suspend fun stream(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): Flow<LlmChunk> = flow {
+    /**
+     * Streams a response with session-scoped key rotation.
+     *
+     * **Key Rotation Strategy**:
+     * - Same as [generate], but maintains the key throughout the entire stream
+     * - If stream fails mid-way, rotates to next key and restarts the stream
+     * - Session affinity ensures consistent key usage across multiple stream calls
+     *   (e.g., tool call iterations in agent loop)
+     *
+     * **Important**: The session ID should be consistent across all stream calls
+     * within the same user request to maintain session affinity.
+     *
+     * @param messages LLM messages to send
+     * @param tools Tool definitions for function calling
+     * @param model Optional model override
+     * @return Flow of LLM chunks
+     * @throws IllegalStateException if all API keys fail
+     */
+    override suspend fun stream(
+        messages: List<LlmMessage>,
+        tools: List<ToolDefinition>,
+        model: String?
+    ): Flow<LlmChunk> = flow {
+        // Extract or generate session ID from messages for session affinity
+        // This ensures all stream calls within the same agent loop use the same key
+        val sessionId = extractSessionId(messages) ?: "stream-${System.currentTimeMillis()}"
+        val sessionContext = rotationManager.createSessionContext(sessionId)
+
         var lastException: Exception? = null
-        val triedKeys = mutableSetOf<Int>()
         var attempt = 0
+        val maxAttempts = apiKeys.size
 
-        while (triedKeys.size < apiKeys.size - invalidKeys.size) {
-            val keyIndex = getValidKeyIndex() ?: break
-            if (keyIndex in triedKeys) continue
-            triedKeys.add(keyIndex)
+        while (attempt < maxAttempts) {
+            // Get current key index (session-affine, skips invalid keys)
+            val keyIndex = sessionContext.getCurrentKeyIndex()
+                ?: throw IllegalStateException("[$baseProviderName] No valid API keys remaining")
 
-            val provider = OpenAiCompatibleProvider(
-                client = client,
-                providerName = baseProviderName,
-                baseUrl = baseUrl,
-                apiKey = apiKeys[keyIndex],
-                defaultModel = defaultModel
-            )
+            val apiKey = apiKeys[keyIndex]
+            val provider = createProvider(apiKey)
 
             try {
-                logger.debug("Trying stream with key #$keyIndex for $baseProviderName (attempt ${attempt + 1})")
+                logger.debug(
+                    "[$sessionId] Stream with key #$keyIndex for $baseProviderName (attempt ${attempt + 1}/$maxAttempts)"
+                )
+
+                // Stream with this key
                 provider.stream(messages, tools, model).collect { chunk ->
                     emit(chunk)
                 }
+
+                // Stream completed successfully
                 return@flow
+
             } catch (e: Exception) {
                 lastException = e
-                val isRetryable = isRetryableError(e)
-                if (isPermanentError(e)) {
-                    markKeyInvalid(keyIndex)
-                    logger.warn("Key #$keyIndex is INVALID for $baseProviderName: ${e.message}")
-                } else if (isRetryable) {
-                    logger.warn("Key #$keyIndex failed during stream for $baseProviderName: ${e.message}, retrying with backoff...")
-                    delayWithBackoff(attempt)
-                    attempt++
-                } else {
-                    throw e
+                val error = ApiKeyErrorClassifier.classify(e)
+
+                when (error) {
+                    is ApiKeyError.InvalidKey -> {
+                        // Permanent failure: mark key invalid, rotate
+                        rotationManager.markKeyInvalid(keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: ${error.message}. " +
+                            "Rotating to next key."
+                        )
+                        attempt++
+                    }
+
+                    is ApiKeyError.RateLimited -> {
+                        // Rate limited: rotate to next key with backoff
+                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: ${error.message}. " +
+                            "Rotating and retrying with backoff..."
+                        )
+                        delayWithBackoff(attempt)
+                        attempt++
+                    }
+
+                    is ApiKeyError.ServerError,
+                    is ApiKeyError.NetworkError -> {
+                        // Transient error: retry same key with backoff first
+                        if (attempt < maxAttempts - 1) {
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error.message}. " +
+                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
+                            )
+                            delayWithBackoff(attempt)
+                            attempt++
+                            // Continue loop with same key index (don't rotate yet)
+                        } else {
+                            // Max retries reached: rotate to next key
+                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error.message}. " +
+                                "Rotating to next key."
+                            )
+                            attempt++
+                        }
+                    }
+
+                    is ApiKeyError.UnknownError -> {
+                        // Unknown error: fail fast, don't rotate
+                        logger.error(
+                            "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error.message}. " +
+                            "Failing fast without rotation."
+                        )
+                        throw e
+                    }
                 }
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed or invalid for $baseProviderName")
+        throw lastException ?: IllegalStateException("[$baseProviderName] All API keys failed after $maxAttempts attempts")
+    }
+
+    /**
+     * Extracts session ID from messages for session affinity.
+     *
+     * **Strategy**: Uses a hash of the conversation context to derive a stable session ID
+     * across multiple stream calls within the same agent loop iteration.
+     *
+     * **Why**: This ensures that tool call iterations (which add TOOL messages to the
+     * conversation) still use the same API key, preventing mid-conversation key rotation.
+     *
+     * @param messages LLM messages
+     * @return Session ID derived from conversation context, or null if extraction fails
+     */
+    private fun extractSessionId(messages: List<LlmMessage>): String? {
+        // Use the first USER message as the session anchor
+        // This provides stability across tool call iterations
+        val userMessage = messages.find { it.role == LlmMessage.Role.USER }
+        return userMessage?.content?.hashCode()?.toString()
+    }
+
+    /**
+     * Cleans up session state after request completion.
+     * Call this when a user request is fully processed to free memory.
+     *
+     * @param sessionId Session ID to clean up
+     */
+    fun cleanupSession(sessionId: String) {
+        rotationManager.removeSessionContext(sessionId)
     }
 }
 
@@ -313,89 +500,262 @@ class KeyRotatingGeminiProvider(
 ) : LlmProvider {
 
     private val logger = LoggerFactory.getLogger(KeyRotatingGeminiProvider::class.java)
-    private val currentIndex = AtomicInteger(0)
 
-    override val providerName: String = "Gemini (Rotating ${apiKeys.size} keys)"
+    /**
+     * Session-scoped key rotation manager.
+     * Ensures the same API key is used throughout a user request/session,
+     * only rotating on errors (401, 403, 429, network errors).
+     */
+    private val rotationManager = KeyRotationManager(apiKeys, "Gemini")
 
-    private fun isRetryableError(error: Throwable): Boolean {
-        val msg = error.message?.lowercase() ?: ""
-        return msg.contains("401") || msg.contains("403") || 
-               msg.contains("429") || msg.contains("rate") ||
-               msg.contains("500") || msg.contains("502") || 
-               msg.contains("503") || msg.contains("timeout")
+    override val providerName: String
+        get() {
+            val invalidCount = kotlinx.coroutines.runBlocking { rotationManager.getInvalidKeys().size }
+            return "Gemini (Rotating ${apiKeys.size} keys, ${invalidCount} invalid)"
+        }
+
+    /**
+     * Exponential backoff with jitter for retry logic.
+     *
+     * @param attempt Retry attempt number (0-based)
+     * @param baseDelay Base delay in milliseconds (default: 500ms)
+     * @param maxDelay Maximum delay cap (default: 5 seconds)
+     * @param jitter Factor for random jitter (default: 0.1 = ±10%)
+     */
+    private suspend fun delayWithBackoff(
+        attempt: Int,
+        baseDelay: Long = 500L,
+        maxDelay: Long = 5000L,
+        jitter: Double = 0.1
+    ) {
+        val exponentialDelay = baseDelay * (1L shl attempt)
+        val cappedDelay = minOf(exponentialDelay, maxDelay)
+        val jitterRange = cappedDelay * jitter
+        val jitteredDelay = cappedDelay + (Math.random() * jitterRange * 2 - jitterRange).toLong()
+        kotlinx.coroutines.delay(jitteredDelay)
     }
 
-    private suspend fun delayWithBackoff(attempt: Int) {
-        val baseDelay = 500L
-        val maxDelay = 3000L
-        val delay = minOf(baseDelay * (1 shl attempt), maxDelay)
-        kotlinx.coroutines.delay(delay)
+    /**
+     * Creates a provider instance with the specified API key.
+     */
+    private fun createProvider(apiKey: String): GeminiProvider {
+        return GeminiProvider(client = client, apiKey = apiKey)
     }
 
-    private fun getNextKeyIndex(): Int {
-        return currentIndex.getAndIncrement() % apiKeys.size
-    }
+    /**
+     * Generates a complete response with session-scoped key rotation.
+     *
+     * **Key Rotation Strategy**:
+     * 1. Uses the same API key for all calls within a session (session affinity)
+     * 2. Only rotates on error (401, 403, 429, network errors)
+     * 3. Retries with exponential backoff for transient errors
+     * 4. Marks keys as invalid for permanent failures (401, 403)
+     *
+     * @param messages LLM messages to send
+     * @param tools Tool definitions for function calling
+     * @param model Optional model override
+     * @return LLM response with content and/or tool calls
+     * @throws IllegalStateException if all API keys fail
+     */
+    override suspend fun generate(
+        messages: List<LlmMessage>,
+        tools: List<ToolDefinition>,
+        model: String?
+    ): LlmResponse {
+        val sessionId = "generate-${System.currentTimeMillis()}"
+        val sessionContext = rotationManager.createSessionContext(sessionId)
 
-    override suspend fun generate(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): LlmResponse {
         var lastException: Exception? = null
-        val triedKeys = mutableSetOf<Int>()
         var attempt = 0
+        val maxAttempts = apiKeys.size
 
-        while (triedKeys.size < apiKeys.size) {
-            val keyIndex = getNextKeyIndex()
-            if (keyIndex in triedKeys) continue
-            triedKeys.add(keyIndex)
+        while (attempt < maxAttempts) {
+            val keyIndex = sessionContext.getCurrentKeyIndex()
+                ?: throw IllegalStateException("[Gemini] No valid API keys remaining")
 
-            val provider = GeminiProvider(client = client, apiKey = apiKeys[keyIndex])
+            val apiKey = apiKeys[keyIndex]
+            val provider = createProvider(apiKey)
 
             try {
-                logger.debug("Trying generate with key #$keyIndex for Gemini (attempt ${attempt + 1})")
+                logger.debug(
+                    "[$sessionId] Generate with key #$keyIndex for Gemini (attempt ${attempt + 1}/$maxAttempts)"
+                )
+
                 return provider.generate(messages, tools, model)
+
             } catch (e: Exception) {
                 lastException = e
-                if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed for Gemini: ${e.message}, retrying with backoff...")
-                    delayWithBackoff(attempt)
-                    attempt++
-                } else {
-                    throw e
+                val error = ApiKeyErrorClassifier.classify(e)
+
+                when (error) {
+                    is ApiKeyError.InvalidKey -> {
+                        rotationManager.markKeyInvalid(keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex INVALID for Gemini: ${error.message}. " +
+                            "Rotating to next key."
+                        )
+                        attempt++
+                    }
+
+                    is ApiKeyError.RateLimited -> {
+                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex rate limited for Gemini: ${error.message}. " +
+                            "Rotating and retrying with backoff..."
+                        )
+                        delayWithBackoff(attempt)
+                        attempt++
+                    }
+
+                    is ApiKeyError.ServerError,
+                    is ApiKeyError.NetworkError -> {
+                        if (attempt < maxAttempts - 1) {
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex transient error for Gemini: ${error.message}. " +
+                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
+                            )
+                            delayWithBackoff(attempt)
+                            attempt++
+                        } else {
+                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error.message}. " +
+                                "Rotating to next key."
+                            )
+                            attempt++
+                        }
+                    }
+
+                    is ApiKeyError.UnknownError -> {
+                        logger.error(
+                            "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error.message}. " +
+                            "Failing fast without rotation."
+                        )
+                        throw e
+                    }
                 }
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed for Gemini")
+        throw lastException ?: IllegalStateException("[Gemini] All API keys failed after $maxAttempts attempts")
     }
 
-    override suspend fun stream(messages: List<LlmMessage>, tools: List<ToolDefinition>, model: String?): Flow<LlmChunk> = flow {
+    /**
+     * Streams a response with session-scoped key rotation.
+     *
+     * **Key Rotation Strategy**:
+     * - Maintains the same API key throughout the entire stream
+     * - Session affinity ensures consistent key usage across multiple stream calls
+     * - Only rotates on errors (401, 403, 429, network errors)
+     *
+     * @param messages LLM messages to send
+     * @param tools Tool definitions for function calling
+     * @param model Optional model override
+     * @return Flow of LLM chunks
+     * @throws IllegalStateException if all API keys fail
+     */
+    override suspend fun stream(
+        messages: List<LlmMessage>,
+        tools: List<ToolDefinition>,
+        model: String?
+    ): Flow<LlmChunk> = flow {
+        val sessionId = extractSessionId(messages) ?: "stream-${System.currentTimeMillis()}"
+        val sessionContext = rotationManager.createSessionContext(sessionId)
+
         var lastException: Exception? = null
-        val triedKeys = mutableSetOf<Int>()
         var attempt = 0
+        val maxAttempts = apiKeys.size
 
-        while (triedKeys.size < apiKeys.size) {
-            val keyIndex = getNextKeyIndex()
-            if (keyIndex in triedKeys) continue
-            triedKeys.add(keyIndex)
+        while (attempt < maxAttempts) {
+            val keyIndex = sessionContext.getCurrentKeyIndex()
+                ?: throw IllegalStateException("[Gemini] No valid API keys remaining")
 
-            val provider = GeminiProvider(client = client, apiKey = apiKeys[keyIndex])
+            val apiKey = apiKeys[keyIndex]
+            val provider = createProvider(apiKey)
 
             try {
-                logger.debug("Trying stream with key #$keyIndex for Gemini (attempt ${attempt + 1})")
+                logger.debug(
+                    "[$sessionId] Stream with key #$keyIndex for Gemini (attempt ${attempt + 1}/$maxAttempts)"
+                )
+
                 provider.stream(messages, tools, model).collect { chunk ->
                     emit(chunk)
                 }
+
                 return@flow
+
             } catch (e: Exception) {
                 lastException = e
-                if (isRetryableError(e)) {
-                    logger.warn("Key #$keyIndex failed during stream for Gemini: ${e.message}, retrying with backoff...")
-                    delayWithBackoff(attempt)
-                    attempt++
-                } else {
-                    throw e
+                val error = ApiKeyErrorClassifier.classify(e)
+
+                when (error) {
+                    is ApiKeyError.InvalidKey -> {
+                        rotationManager.markKeyInvalid(keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex INVALID for Gemini: ${error.message}. " +
+                            "Rotating to next key."
+                        )
+                        attempt++
+                    }
+
+                    is ApiKeyError.RateLimited -> {
+                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        logger.warn(
+                            "[$sessionId] Key #$keyIndex rate limited for Gemini: ${error.message}. " +
+                            "Rotating and retrying with backoff..."
+                        )
+                        delayWithBackoff(attempt)
+                        attempt++
+                    }
+
+                    is ApiKeyError.ServerError,
+                    is ApiKeyError.NetworkError -> {
+                        if (attempt < maxAttempts - 1) {
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex transient error for Gemini: ${error.message}. " +
+                                "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
+                            )
+                            delayWithBackoff(attempt)
+                            attempt++
+                        } else {
+                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            logger.warn(
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error.message}. " +
+                                "Rotating to next key."
+                            )
+                            attempt++
+                        }
+                    }
+
+                    is ApiKeyError.UnknownError -> {
+                        logger.error(
+                            "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error.message}. " +
+                            "Failing fast without rotation."
+                        )
+                        throw e
+                    }
                 }
             }
         }
 
-        throw lastException ?: IllegalStateException("All API keys failed for Gemini")
+        throw lastException ?: IllegalStateException("[Gemini] All API keys failed after $maxAttempts attempts")
+    }
+
+    /**
+     * Extracts session ID from messages for session affinity.
+     * Uses the first USER message as the session anchor.
+     */
+    private fun extractSessionId(messages: List<LlmMessage>): String? {
+        val userMessage = messages.find { it.role == LlmMessage.Role.USER }
+        return userMessage?.content?.hashCode()?.toString()
+    }
+
+    /**
+     * Cleans up session state after request completion.
+     */
+    fun cleanupSession(sessionId: String) {
+        rotationManager.removeSessionContext(sessionId)
     }
 }

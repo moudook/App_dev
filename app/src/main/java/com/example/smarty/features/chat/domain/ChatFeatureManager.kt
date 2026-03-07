@@ -1478,6 +1478,12 @@ is AgentCommand.GetSystemStatus -> "(no params)"
             val fullResponse = responseBuilder.toString()
             val fullThinking = thinkingBuilder.toString()
 
+            // Debug logging for thinking section verification
+            Log.d("ChatFeatureManager", "saveMessage: fullThinking length=${fullThinking.length}, hasToolCalls=${fullThinking.contains("[Action:")}")
+            if (fullThinking.isNotEmpty()) {
+                Log.d("ChatFeatureManager", "saveMessage: fullThinking preview=${fullThinking.take(300)}")
+            }
+
             // Handle success - replace streaming message with final message
             chatManager.markApiCallSuccessful()
 
@@ -1493,7 +1499,13 @@ is AgentCommand.GetSystemStatus -> "(no params)"
             } else {
                 ThinkingParser.parse(fullResponse)
             }
-            
+
+            // Debug logging for parsed thinking
+            Log.d("ChatFeatureManager", "saveMessage: parsedResponse.thinking length=${parsedResponse.thinking?.length}")
+            if (parsedResponse.thinking != null) {
+                Log.d("ChatFeatureManager", "saveMessage: parsedResponse.thinking preview=${parsedResponse.thinking.take(300)}")
+            }
+
             val smartyMessage = ChatMessage(
                 id = streamingMessageId,
                 role = ChatRole.SMARTY,
