@@ -921,7 +921,7 @@ private fun InputPill(
                         val sendIconColor = when {
                             isStopMode -> Color.White
                             canSend -> MaterialTheme.colorScheme.onPrimary
-                            else -> if (isDark) Color.White.copy(alpha = 0.7f) else PinkDark.copy(alpha = 0.5f)
+                            else -> if (isDark) Color.White.copy(alpha = 0.7f) else TextCoolGrey.copy(alpha = 0.5f)
                         }
 
                         Box(

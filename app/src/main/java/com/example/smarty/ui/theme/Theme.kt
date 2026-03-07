@@ -109,9 +109,9 @@ private val DarkColorScheme = darkColorScheme(
 private val LightColorScheme = lightColorScheme(
     // Primary - Pink Theme
     primary = PinkAccent,
-    onPrimary = PinkDark,
+    onPrimary = PinkText,  // Use non-pink text color for readability
     primaryContainer = PinkLight,
-    onPrimaryContainer = PinkDark,
+    onPrimaryContainer = PinkText,  // Use non-pink text color for readability
 
     // Secondary - Grayscale
     secondary = TextCoolGrey,

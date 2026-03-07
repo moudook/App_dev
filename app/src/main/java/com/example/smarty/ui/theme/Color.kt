@@ -30,6 +30,7 @@ val PinkAccent = Color(0xFFF49BE0)            // Main Pink accent
 val PinkLight = Color(0xFFFFF0F5)             // Light Pink background
 val PinkMedium = Color(0xFFF49BE0).copy(alpha = 0.35f) // Stronger pink tint
 val PinkDark = Color(0xFFD2008C)              // Dark Pink for text/icons on pink backgrounds
+val PinkText = Color(0xFF1A1A1C)              // Text color for pink-themed elements (not pink)
 
 // =============================================================================
 // MODERN SOFT MINIMALIST - DARK THEME (True Black AMOLED)
