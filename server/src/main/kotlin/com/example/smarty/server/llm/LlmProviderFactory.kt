@@ -291,9 +291,9 @@ class KeyRotatingOpenAiProvider(
                     is ApiKeyError.InvalidKey -> {
                         // Permanent failure: mark key invalid, rotate
                         rotationManager.markKeyInvalid(keyIndex)
-                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: InvalidKey. " +
                             "Rotating to next key."
                         )
                         attempt++
@@ -301,9 +301,9 @@ class KeyRotatingOpenAiProvider(
 
                     is ApiKeyError.RateLimited -> {
                         // Rate limited: rotate to next key with backoff
-                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("RateLimited", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: RateLimited. " +
                             "Rotating and retrying with backoff..."
                         )
                         delayWithBackoff(attempt)
@@ -315,7 +315,7 @@ class KeyRotatingOpenAiProvider(
                         // Transient error: retry same key with backoff first
                         if (attempt < maxAttempts - 1) {
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex transient error for $baseProviderName: ${error::class.simpleName}. " +
                                 "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
                             )
                             delayWithBackoff(attempt)
@@ -323,9 +323,9 @@ class KeyRotatingOpenAiProvider(
                             // Continue loop with same key index (don't rotate yet)
                         } else {
                             // Max retries reached: rotate to next key
-                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for $baseProviderName: ${error::class.simpleName}. " +
                                 "Rotating to next key."
                             )
                             attempt++
@@ -335,7 +335,7 @@ class KeyRotatingOpenAiProvider(
                     is ApiKeyError.UnknownError -> {
                         // Unknown error: fail fast, don't rotate
                         logger.error(
-                            "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error.message}. " +
+                            "[$sessionId] Unknown error for $baseProviderName with key #$keyIndex: ${error::class.simpleName}. " +
                             "Failing fast without rotation."
                         )
                         throw e
@@ -408,9 +408,9 @@ class KeyRotatingOpenAiProvider(
                     is ApiKeyError.InvalidKey -> {
                         // Permanent failure: mark key invalid, rotate
                         rotationManager.markKeyInvalid(keyIndex)
-                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex INVALID for $baseProviderName: InvalidKey. " +
                             "Rotating to next key."
                         )
                         attempt++
@@ -418,9 +418,9 @@ class KeyRotatingOpenAiProvider(
 
                     is ApiKeyError.RateLimited -> {
                         // Rate limited: rotate to next key with backoff
-                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("RateLimited", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex rate limited for $baseProviderName: RateLimited. " +
                             "Rotating and retrying with backoff..."
                         )
                         delayWithBackoff(attempt)
@@ -590,18 +590,18 @@ class KeyRotatingGeminiProvider(
                 when (error) {
                     is ApiKeyError.InvalidKey -> {
                         rotationManager.markKeyInvalid(keyIndex)
-                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex INVALID for Gemini: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex INVALID for Gemini: InvalidKey. " +
                             "Rotating to next key."
                         )
                         attempt++
                     }
 
                     is ApiKeyError.RateLimited -> {
-                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("RateLimited", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex rate limited for Gemini: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex rate limited for Gemini: RateLimited. " +
                             "Rotating and retrying with backoff..."
                         )
                         delayWithBackoff(attempt)
@@ -612,15 +612,15 @@ class KeyRotatingGeminiProvider(
                     is ApiKeyError.NetworkError -> {
                         if (attempt < maxAttempts - 1) {
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex transient error for Gemini: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex transient error for Gemini: ${error::class.simpleName}. " +
                                 "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
                             )
                             delayWithBackoff(attempt)
                             attempt++
                         } else {
-                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error::class.simpleName}. " +
                                 "Rotating to next key."
                             )
                             attempt++
@@ -629,7 +629,7 @@ class KeyRotatingGeminiProvider(
 
                     is ApiKeyError.UnknownError -> {
                         logger.error(
-                            "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error.message}. " +
+                            "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error::class.simpleName}. " +
                             "Failing fast without rotation."
                         )
                         throw e
@@ -692,18 +692,18 @@ class KeyRotatingGeminiProvider(
                 when (error) {
                     is ApiKeyError.InvalidKey -> {
                         rotationManager.markKeyInvalid(keyIndex)
-                        sessionContext.rotateToNextKey("InvalidKey: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("InvalidKey", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex INVALID for Gemini: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex INVALID for Gemini: InvalidKey. " +
                             "Rotating to next key."
                         )
                         attempt++
                     }
 
                     is ApiKeyError.RateLimited -> {
-                        sessionContext.rotateToNextKey("RateLimited: ${error.message}", keyIndex)
+                        sessionContext.rotateToNextKey("RateLimited", keyIndex)
                         logger.warn(
-                            "[$sessionId] Key #$keyIndex rate limited for Gemini: ${error.message}. " +
+                            "[$sessionId] Key #$keyIndex rate limited for Gemini: RateLimited. " +
                             "Rotating and retrying with backoff..."
                         )
                         delayWithBackoff(attempt)
@@ -714,15 +714,15 @@ class KeyRotatingGeminiProvider(
                     is ApiKeyError.NetworkError -> {
                         if (attempt < maxAttempts - 1) {
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex transient error for Gemini: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex transient error for Gemini: ${error::class.simpleName}. " +
                                 "Retrying with backoff (attempt ${attempt + 1}/$maxAttempts)..."
                             )
                             delayWithBackoff(attempt)
                             attempt++
                         } else {
-                            sessionContext.rotateToNextKey("${error::class.simpleName}: ${error.message}", keyIndex)
+                            sessionContext.rotateToNextKey("${error::class.simpleName}", keyIndex)
                             logger.warn(
-                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error.message}. " +
+                                "[$sessionId] Key #$keyIndex failed after ${attempt + 1} retries for Gemini: ${error::class.simpleName}. " +
                                 "Rotating to next key."
                             )
                             attempt++
@@ -731,7 +731,7 @@ class KeyRotatingGeminiProvider(
 
                     is ApiKeyError.UnknownError -> {
                         logger.error(
-                            "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error.message}. " +
+                            "[$sessionId] Unknown error for Gemini with key #$keyIndex: ${error::class.simpleName}. " +
                             "Failing fast without rotation."
                         )
                         throw e
