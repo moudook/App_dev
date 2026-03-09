@@ -182,6 +182,7 @@ fun InputStreamScreen(
     onEnterChatMode: () -> Unit = {},  // Enter chat mode when clicking AI tab
     onExitChatMode: () -> Unit = {},  // Back button handler for chat mode
     onSendChatMessage: (String, List<Attachment>) -> Unit = { _, _ -> },
+    onStopGeneration: () -> Unit = {},
     // Chat history parameters
     chatSessions: List<ChatSession> = emptyList(),
     currentSessionId: String? = null,
