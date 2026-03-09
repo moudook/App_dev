@@ -708,20 +708,12 @@ fun ChatMessageItem(
 if (isUser) {
             Box(
                 modifier = Modifier
-                    .padding(start = 48.dp) // Ensure bubble doesn't extend to the far left
+                    .padding(start = 48.dp)
                     .widthIn(max = 640.dp)
             ) {
                 Surface(
                     color = userBubbleBackground,
                     shape = userBubbleShape,
-                    modifier = Modifier
-                        // FIXED: Remove combinedClickable to allow text selection
-                        // Only handle long-press for context menu
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onLongPress = { if (showActions) showContextMenu = true }
-                            )
-                        }
                 ) {
                     Box(
                         modifier = Modifier.padding(
@@ -770,18 +762,11 @@ if (isUser) {
                 }
             }
         } else {
-            // Assistant message
+            // Assistant message - NO gesture blocking!
             Box(
                 modifier = Modifier
                     .widthIn(max = 640.dp)
                     .fillMaxWidth()
-                    // FIXED: Remove combinedClickable to allow text selection
-                    // Only handle long-press for context menu
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onLongPress = { if (showActions) showContextMenu = true }
-                        )
-                    }
             ) {
                 MessageContent()
             }
