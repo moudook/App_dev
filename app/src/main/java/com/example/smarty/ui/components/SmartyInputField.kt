@@ -243,9 +243,6 @@ fun SmartyInputField(
     var showAttachmentPreview by remember { mutableStateOf(false) }
     var isVoiceFocusRequested by remember { mutableStateOf(false) }
 
-    // Animation for send button flight
-    val flyAnimation = remember { Animatable(0f) }
-
     // Send button enabled state
     // FIX: Use isNotEmpty() to ensure any input triggers send button
     val canSend = value.text.isNotEmpty() || attachments.isNotEmpty()
@@ -585,12 +582,6 @@ fun SmartyInputField(
                     canSend = canSend,
                     onSend = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        scope.launch {
-                            flyAnimation.snapTo(0f)
-                            flyAnimation.animateTo(1f, tween(300, easing = SmartyEasing.appleEaseOut))
-                            delay(50)
-                            flyAnimation.snapTo(0f)
-                        }
                         showAttachmentPanel = false
                         scope.launch {
                             delay(60)
@@ -601,7 +592,6 @@ fun SmartyInputField(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         showAttachmentPanel = true
                     },
-                    flyProgress = flyAnimation.value,
                     isVoiceListening = isVoiceListening,
                     isAgentWorking = isAgentWorking,
                     autoSendActive = autoSendActive,
@@ -755,7 +745,6 @@ private fun InputPill(
     canSend: Boolean,
     onSend: () -> Unit,
     onAddOptionsClick: () -> Unit,
-    flyProgress: Float,
     isVoiceListening: Boolean,
     isAgentWorking: Boolean,
     autoSendActive: Boolean,
@@ -896,13 +885,6 @@ private fun InputPill(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.width(8.dp))
 
-                        val easedProgress = FastOutSlowInEasing.transform(flyProgress)
-                        val flyX = easedProgress * 120f
-                        val flyY = -easedProgress * 15f
-                        val flyRotation = easedProgress * 10f
-                        val flyScale = 1f - (easedProgress * 0.2f)
-                        val flyAlpha = (1f - easedProgress * 1.5f).coerceIn(0f, 1f)
-
                         val density = androidx.compose.ui.platform.LocalDensity.current.density
 
                         var isPressed by remember { mutableStateOf(false) }
@@ -954,49 +936,34 @@ private fun InputPill(
                                 .padding(8.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Crossfade(
-                                targetState = listOf(isStopMode, canSend, isAgentWorking, isChatMode),
-                                animationSpec = tween(200),
-                                label = "iconTransition"
-                            ) { state ->
-                                val stopMode = state[0]
-                                val canSendNow = state[1]
-                                val chatMode = state[3]
-                                when {
-                                    stopMode -> Icon(
-                                        imageVector = Icons.Default.StopCircle,
-                                        contentDescription = stringResource(R.string.stop),
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    canSendNow -> Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Send,
-                                        contentDescription = stringResource(R.string.share),
-                                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = flyAlpha),
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .graphicsLayer {
-                                                translationX = flyX * density
-                                                translationY = flyY * density
-                                                rotationZ = flyRotation
-                                                scaleX = flyScale
-                                                scaleY = flyScale
-                                            }
-                                    )
-                                    // In chat mode: always show send arrow (dimmed when empty)
-                                    chatMode -> Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.Send,
-                                        contentDescription = stringResource(R.string.share),
-                                        tint = sendIconColor,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    else -> Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = stringResource(R.string.add_attachment),
-                                        tint = sendIconColor,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                            // FIXED: Icon now matches action - no animation mismatch
+                            when {
+                                isStopMode -> Icon(
+                                    imageVector = Icons.Default.StopCircle,
+                                    contentDescription = stringResource(R.string.stop),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                canSend -> Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = stringResource(R.string.share),
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                // In chat mode: show dimmed send icon (no action)
+                                isChatMode -> Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Message field empty",
+                                    tint = sendIconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                // Notes mode, empty field: show Add icon
+                                else -> Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.add_attachment),
+                                    tint = sendIconColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                     }
