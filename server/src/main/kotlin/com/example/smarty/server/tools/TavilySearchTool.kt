@@ -7,6 +7,11 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -86,6 +91,58 @@ class TavilySearchTool {
         }
 
         return "Error performing web search: All configured keys failed. Last error: $lastErrorMessage"
+    }
+
+    /**
+     * Perform MULTIPLE searches in PARALLEL and aggregate results.
+     * All queries run simultaneously, results combined and deduplicated.
+     * 
+     * @param queries List of search queries to run in parallel
+     * @return Combined search results from all queries
+     */
+    suspend fun searchParallel(queries: List<String>): String = withContext(Dispatchers.IO) {
+        if (queries.isEmpty()) {
+            return@withContext "Error: No search queries provided."
+        }
+        
+        if (apiKeys.isEmpty()) {
+            return@withContext "Error: Web search is not configured (missing TAVILY_API_KEY)."
+        }
+
+        logger.info("Running ${queries.size} parallel searches")
+
+        // Run all searches concurrently using coroutineScope
+        val results = kotlinx.coroutines.coroutineScope {
+            queries.map { query ->
+                async {
+                    val result = search(query)
+                    query to result
+                }
+            }.awaitAll()
+        }
+
+        // Aggregate and deduplicate results
+        val allResults = mutableListOf<String>()
+        val seenUrls = mutableSetOf<String>()
+
+        results.forEach { (query, resultText) ->
+            allResults.add("## Query: $query\n")
+            allResults.add(resultText)
+            allResults.add("\n")
+            
+            // Extract URLs for deduplication
+            val urlRegex = Regex("\\((https?://[^)]+)\\)")
+            urlRegex.findAll(resultText).forEach { match ->
+                seenUrls.add(match.groupValues[1])
+            }
+        }
+
+        buildString {
+            appendLine("### Combined Search Results")
+            appendLine("Queries: ${queries.joinToString(", ")}")
+            appendLine("Unique sources: ${seenUrls.size}\n")
+            append(allResults.joinToString("\n"))
+        }
     }
 
     private fun formatResults(results: List<TavilyResult>): String {
