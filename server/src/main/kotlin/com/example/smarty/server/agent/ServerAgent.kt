@@ -212,15 +212,25 @@ Use for: opening apps, media control, settings, device status.""",
 ACTIONS:
 - web: Search for anything (query)
 
+PARALLEL SEARCH (RECOMMENDED):
+To run MULTIPLE searches simultaneously, use this format in your query:
+SEARCH: query 1
+SEARCH: query 2
+SEARCH: query 3
+
+This executes all searches in PARALLEL and returns combined results.
+Much faster than sequential searches for research tasks.
+
 EXAMPLES:
 - search(action='web', query='current weather in New York')
-- search(action='web', query='who won the game yesterday')
+- search(action='web', query='SEARCH: AI advancements 2025\nSEARCH: machine learning breakthroughs\nSEARCH: neural network research')
+- search(action='web', query='SEARCH: best productivity apps\nSEARCH: note-taking apps comparison')
 
-Use for: web searches, weather, news, facts, current events.""",
+Use for: web searches, weather, news, facts, current events, research.""",
             parameters = ToolParameters(
                 properties = mapOf(
                     "action" to ToolProperty("string", "Action: web", enum = listOf("web")),
-                    "query" to ToolProperty("string", "What to search for")
+                    "query" to ToolProperty("string", "What to search for. For multiple parallel searches, use format:\nSEARCH: query 1\nSEARCH: query 2\nSEARCH: query 3")
                 ),
                 required = listOf("action", "query")
             )
@@ -531,6 +541,27 @@ WHEN TO USE TOOLS vs. ANSWER DIRECTLY:
 - "Find my grocery note" → find_note tool.
 - "Remind me at 3pm" → set_reminder tool.
 
+PARALLEL SEARCH STRATEGY (RECOMMENDED FOR RESEARCH):
+When researching a topic that requires multiple angles or sources:
+1. Break the research into 2-5 focused sub-questions
+2. Call search_web ONCE with all queries in this format:
+   SEARCH: sub-question 1
+   SEARCH: sub-question 2
+   SEARCH: sub-question 3
+3. All searches run in PARALLEL (much faster than sequential)
+4. Synthesize the combined results into your answer
+
+Example research workflow:
+User: "Research AI advancements in 2025"
+<think>
+This needs multiple sources. I'll run parallel searches:
+1. search_web(action='web', query='SEARCH: AI breakthroughs 2025\nSEARCH: machine learning advances 2025\nSEARCH: neural network research 2025')
+2. Synthesize combined results
+3. Present comprehensive answer with citations
+</think>
+
+<final>Running comprehensive research on AI advancements...</final>
+
 TOOL FAILURE PROTOCOL:
 - If a tool fails: STOP. Tell the user in one sentence. Do NOT auto-retry.
 - Maximum 1 manual retry per tool per query, only if user explicitly asks.
@@ -552,7 +583,7 @@ TOOL QUICK REFERENCE:
 | "pause / play / next track"        | control_music     |
 | "turn on/off [wifi/bt/flashlight]" | toggle_setting    |
 | "screenshot"                       | take_screenshot   |
-| "search / look up / news"          | search_web        |
+| "search / look up / news / research" | search_web (use PARALLEL for multiple queries) |
 | "weather"                          | get_weather       |
 | "battery / storage / device info"  | get_device_info   |
 | "go to [screen] / open calendar"   | go_to_screen      |

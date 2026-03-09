@@ -45,9 +45,56 @@ class TavilySearchTool {
 
     /**
      * Perform a search and return a formatted markdown string.
+     * Automatically detects single or multiple queries.
+     * 
+     * FORMAT FOR MULTIPLE QUERIES:
+     * - Send queries separated by newlines with "SEARCH:" prefix
+     * - Example:
+     *   SEARCH: query 1
+     *   SEARCH: query 2
+     *   SEARCH: query 3
+     * 
      * Rotates through available API keys on each call and retries on failure.
      */
     suspend fun search(query: String): String {
+        // Check if this is a multi-query request
+        val queries = parseMultiQuery(query)
+        
+        return if (queries.size > 1) {
+            // Multiple queries: run in parallel
+            searchParallel(queries)
+        } else {
+            // Single query: standard search
+            searchSingle(queries.firstOrNull() ?: query)
+        }
+    }
+
+    /**
+     * Parse multi-query format from agent.
+     * Detects "SEARCH: query" lines and extracts all queries.
+     */
+    private fun parseMultiQuery(input: String): List<String> {
+        val queries = mutableListOf<String>()
+        val lines = input.split("\n")
+        
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("SEARCH:", ignoreCase = true)) {
+                val query = trimmed.substringAfter("SEARCH:", "").trim()
+                if (query.isNotEmpty()) {
+                    queries.add(query)
+                }
+            }
+        }
+        
+        // If no SEARCH: prefixes found, treat entire input as single query
+        return if (queries.isEmpty()) listOf(input) else queries
+    }
+
+    /**
+     * Perform a single search.
+     */
+    private suspend fun searchSingle(query: String): String {
         if (apiKeys.isEmpty()) {
             return "Error: Web search is not configured (missing TAVILY_API_KEY)."
         }
