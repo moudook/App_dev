@@ -69,16 +69,30 @@ class ChatRepository(private val dataSource: DataSource) {
                 }
             }
 
-            // Insert the message with citations
-            val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations_json) VALUES (?, ?, ?, ?, ?, ?)"
-            conn.prepareStatement(sql).use { stmt ->
-                stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, userId)
-                stmt.setString(3, role)
-                stmt.setString(4, content)
-                stmt.setString(5, thinking)
-                stmt.setString(6, citationsJson ?: "[]")
-                stmt.executeUpdate()
+            // Insert the message - handle citations_json column that may not exist yet
+            try {
+                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations_json) VALUES (?, ?, ?, ?, ?, ?)"
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(sessionId))
+                    stmt.setString(2, userId)
+                    stmt.setString(3, role)
+                    stmt.setString(4, content)
+                    stmt.setString(5, thinking)
+                    stmt.setString(6, citationsJson ?: "[]")
+                    stmt.executeUpdate()
+                }
+            } catch (e: Exception) {
+                // Fallback: citations_json column doesn't exist yet, save without it
+                logger.warn("citations_json column not available, saving without citations: ${e.message}")
+                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking) VALUES (?, ?, ?, ?, ?)"
+                conn.prepareStatement(sql).use { stmt ->
+                    stmt.setObject(1, UUID.fromString(sessionId))
+                    stmt.setString(2, userId)
+                    stmt.setString(3, role)
+                    stmt.setString(4, content)
+                    stmt.setString(5, thinking)
+                    stmt.executeUpdate()
+                }
             }
 
             // Update session stats (message count, last preview, updated_at)
