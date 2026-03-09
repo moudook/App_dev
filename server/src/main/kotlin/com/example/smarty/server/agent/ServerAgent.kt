@@ -300,12 +300,12 @@ Use for: screen navigation, sharing to other apps.""",
         var toolCallCount = 0
 
         val startTime = System.currentTimeMillis()
-        logger.info("Agent starting for query: $query (Session: $sessionId)")
+        logger.info("Agent execution starting for query: $query (Session: $sessionId, User: $userId)")
 
         // Initialize Goal Memory Manager
         val goalMemoryManager = GoalMemoryManager(sessionId, query)
         goalMemoryManager.initializeWithGoal()
-        
+
         // Query remains unmasked
         val maskedQuery = query
 
@@ -695,13 +695,9 @@ ${goalMemoryManager.getProgressContext()}
         }
 
         // ═══════════════════════════════════════════════════════════════════
-        // COMPLETELY REWRITTEN: Thinking Section Storage
+        // Thinking Section Storage - uses sessionId from runInternal parameter
         // ═══════════════════════════════════════════════════════════════════
-        
-        // Extract session ID from first user message for stable session tracking
-        val sessionId = messagesForAgent.find { it.role == LlmMessage.Role.USER }
-            ?.content?.hashCode()?.toString() ?: UUID.randomUUID().toString()
-        
+
         // Get thinking storage manager for this session
         val thinkingStorage = ThinkingStorageManagerSingleton.instance
         
