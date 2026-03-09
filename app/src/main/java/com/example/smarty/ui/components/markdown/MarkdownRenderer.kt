@@ -589,22 +589,37 @@ fun MarkdownTable(
                             }
                             .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
-                        Text(
-                            text = parseMarkdownToAnnotatedString(
-                                content = cellText,
+                        // FIXED: Check for inline math in table cells
+                        val hasMath = cellText.contains(RenderPatterns.inlineMathDetect)
+                        if (hasMath) {
+                            // Render with LaTeX support
+                            RichTextWithLatex(
+                                text = cellText,
                                 normalColor = if (isHeader) boldColor else normalColor,
                                 boldColor = boldColor,
-                                italicColor = normalColor,
                                 linkColor = linkColor,
-                                codeColor = codeColor
-                            ),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 14.sp,
-                                fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
-                                lineHeight = 20.sp
-                            ),
-                            color = if (isHeader) boldColor else normalColor
-                        )
+                                codeColor = codeColor,
+                                isStreaming = false
+                            )
+                        } else {
+                            // Regular markdown rendering
+                            Text(
+                                text = parseMarkdownToAnnotatedString(
+                                    content = cellText,
+                                    normalColor = if (isHeader) boldColor else normalColor,
+                                    boldColor = boldColor,
+                                    italicColor = normalColor,
+                                    linkColor = linkColor,
+                                    codeColor = codeColor
+                                ),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
+                                    lineHeight = 20.sp
+                                ),
+                                color = if (isHeader) boldColor else normalColor
+                            )
+                        }
                     }
                 }
             }
