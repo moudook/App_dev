@@ -1497,6 +1497,15 @@ class SmartyViewModel(
     }
 
     /**
+     * Stop agent generation - cancels current streaming job
+     * Called when user presses stop button during agent response
+     */
+    fun stopGeneration() {
+        Log.d(TAG, "ViewModel: stopGeneration() called")
+        chatFeatureManager.stopGeneration()
+    }
+
+    /**
      * Toggle between note input mode and chat mode (delegated to ChatFeatureManager)
      * @param fromShake Whether this toggle was triggered by a shake gesture
      */

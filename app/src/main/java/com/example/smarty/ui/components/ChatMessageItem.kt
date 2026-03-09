@@ -25,6 +25,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -103,8 +104,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
@@ -712,10 +715,13 @@ if (isUser) {
                     color = userBubbleBackground,
                     shape = userBubbleShape,
                     modifier = Modifier
-                        .combinedClickable(
-                            onClick = {},
-                            onLongClick = { if (showActions) showContextMenu = true }
-                        )
+                        // FIXED: Remove combinedClickable to allow text selection
+                        // Only handle long-press for context menu
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onLongPress = { if (showActions) showContextMenu = true }
+                            )
+                        }
                 ) {
                     Box(
                         modifier = Modifier.padding(
@@ -764,14 +770,18 @@ if (isUser) {
                 }
             }
         } else {
+            // Assistant message
             Box(
                 modifier = Modifier
                     .widthIn(max = 640.dp)
                     .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = {},
-                        onLongClick = { if (showActions) showContextMenu = true }
-                    )
+                    // FIXED: Remove combinedClickable to allow text selection
+                    // Only handle long-press for context menu
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = { if (showActions) showContextMenu = true }
+                        )
+                    }
             ) {
                 MessageContent()
             }

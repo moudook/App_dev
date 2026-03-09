@@ -371,6 +371,7 @@ fun SmartyNavHost(
                 isChatProcessing = isChatProcessing,
                 agentActivity = agentActivity,
                 onSendChatMessage = onSendChatMessage,
+                onStopGeneration = viewModel::stopGeneration,
                 onExitChatMode = onExitChatMode,
                 onEnterChatMode = onEnterChatMode,
                 // Chat history
