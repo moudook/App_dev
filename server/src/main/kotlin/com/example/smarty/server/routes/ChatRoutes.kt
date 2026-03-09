@@ -337,7 +337,10 @@ fun Application.configureChatRoutes() {
                     emptyList()
                 }
 
-// Create agent instance for this request with userId for multi-tenant isolation
+                // Collect citations during stream
+                val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
+                
+                // Create agent instance for this request with userId for multi-tenant isolation
                 val agent = ServerAgent(
                     llmProvider = streamProvider,
                     tavilyTool = tavilyTool,
@@ -348,6 +351,14 @@ fun Application.configureChatRoutes() {
                     calendarRepository = calendarRepository,
                     eventEmitter = { event ->
                         try {
+                            // Collect citations from NotifyCitations command
+                            if (event is AgentEvent.Command) {
+                                val command = event.command
+                                if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
+                                    collectedCitations.addAll(command.citations)
+                                }
+                            }
+                            
                             val eventType = when(event) {
                                 is AgentEvent.Processing -> "processing"
                                 is AgentEvent.ToolCall -> "tool_call"
@@ -397,7 +408,24 @@ fun Application.configureChatRoutes() {
                             } else {
                                 assistantResponse
                             }
-                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, cleanResponse, thinking)
+                            
+                            // Convert citations to JSON
+                            val citationsJson = if (collectedCitations.isNotEmpty()) {
+                                json.encodeToString(collectedCitations)
+                            } else {
+                                "[]"
+                            }
+                            
+                            // Save with citations
+                            chatRepository.saveMessage(
+                                userId = userId,
+                                sessionId = sessionId!!,
+                                role = LlmMessage.Role.SMARTY.name,
+                                content = cleanResponse,
+                                thinking = thinking,
+                                citationsJson = citationsJson
+                            )
+                            call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
                         } catch (e: Exception) {
                             call.application.log.error("Failed to save assistant response (non-fatal)", e)
                         }
@@ -492,8 +520,9 @@ fun Application.configureChatRoutes() {
                         emptyList()
                     }
 
-// Collect events for response
+// Collect events for response and citations
                     val events = mutableListOf<AgentEvent>()
+                    val collectedCitations = mutableListOf<com.example.smarty.protocol.ProtocolWebCitation>()
 
                     val agent = ServerAgent(
                         llmProvider = streamProvider,
@@ -503,7 +532,16 @@ fun Application.configureChatRoutes() {
                         noteRepository = noteRepository,
                         timerRepository = timerRepository,
                         calendarRepository = calendarRepository,
-                        eventEmitter = { event -> events.add(event) },
+                        eventEmitter = { event ->
+                            events.add(event)
+                            // Collect citations
+                            if (event is AgentEvent.Command) {
+                                val command = event.command
+                                if (command is com.example.smarty.protocol.AgentCommand.NotifyCitations) {
+                                    collectedCitations.addAll(command.citations)
+                                }
+                            }
+                        },
                         userId = userId
                     )
 
@@ -521,7 +559,7 @@ fun Application.configureChatRoutes() {
                             clientTimeMillis = request.clientTime
                         )
 
-                        // Save response
+                        // Save response with citations
                         if (chatRepository != null && sessionId != null && assistantResponse.isNotEmpty()) {
                             // Extract thinking from response if present in <think> tags
                             val thinkRegex = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
@@ -532,7 +570,24 @@ fun Application.configureChatRoutes() {
                             } else {
                                 assistantResponse
                             }
-                            chatRepository.saveMessage(userId, sessionId!!, LlmMessage.Role.SMARTY.name, cleanResponse, thinking)
+                            
+                            // Convert citations to JSON
+                            val citationsJson = if (collectedCitations.isNotEmpty()) {
+                                json.encodeToString(collectedCitations)
+                            } else {
+                                "[]"
+                            }
+                            
+                            // Save with citations
+                            chatRepository.saveMessage(
+                                userId = userId,
+                                sessionId = sessionId!!,
+                                role = LlmMessage.Role.SMARTY.name,
+                                content = cleanResponse,
+                                thinking = thinking,
+                                citationsJson = citationsJson
+                            )
+                            call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
                         }
 
                         // Return all events
