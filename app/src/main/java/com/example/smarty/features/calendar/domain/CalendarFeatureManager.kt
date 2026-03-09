@@ -76,6 +76,9 @@ class CalendarFeatureManager(
 
     /**
      * Add a new calendar event with optional Google Calendar sync.
+     * 
+     * OPTIMIZED: Save to local database FIRST (instant), then sync to Google Calendar in background.
+     * This eliminates UI latency during event creation.
      */
     fun addCalendarEvent(
         title: String,
@@ -89,28 +92,8 @@ class CalendarFeatureManager(
         isPrivate: Boolean = false
     ) {
         scope.launch {
-            var googleEventId: String? = null
-
-            // Handle Google Calendar Sync
-            if (securePreferences.isSyncToGoogleCalendarEnabled()) {
-                val targetCalendarId = securePreferences.getTargetGoogleCalendarId()
-                if (targetCalendarId != -1L) {
-                    val tempEvent = CalendarEvent(
-                        title = title,
-                        description = description,
-                        startTime = startTime,
-                        endTime = endTime,
-                        isAllDay = isAllDay,
-                        location = location,
-                        color = color,
-                        reminderMinutes = reminderMinutes,
-                        isEventPrivate = isPrivate
-                    )
-                    googleEventId = googleCalendarSyncManager.exportEventToDeviceCalendar(tempEvent, targetCalendarId)
-                }
-            }
-
-            calendarManager.addCalendarEvent(
+            // FIRST: Save to local database immediately (FAST - <10ms)
+            val localEvent = calendarManager.addCalendarEventAndReturn(
                 title = title,
                 description = description,
                 startTime = startTime,
@@ -120,8 +103,41 @@ class CalendarFeatureManager(
                 color = color,
                 reminderMinutes = reminderMinutes,
                 isPrivate = isPrivate,
-                googleEventId = googleEventId
+                googleEventId = null // Will be updated after Google sync
             )
+            
+            // THEN: Sync to Google Calendar in background (SLOW - 500-2000ms)
+            // This happens AFTER local save, so UI is not blocked
+            if (securePreferences.isSyncToGoogleCalendarEnabled()) {
+                val targetCalendarId = securePreferences.getTargetGoogleCalendarId()
+                if (targetCalendarId != -1L) {
+                    scope.launch {
+                        try {
+                            val tempEvent = CalendarEvent(
+                                title = title,
+                                description = description,
+                                startTime = startTime,
+                                endTime = endTime,
+                                isAllDay = isAllDay,
+                                location = location,
+                                color = color,
+                                reminderMinutes = reminderMinutes,
+                                isEventPrivate = isPrivate
+                            )
+                            val googleEventId = googleCalendarSyncManager.exportEventToDeviceCalendar(tempEvent, targetCalendarId)
+                            
+                            // Update local event with Google event ID (if sync was successful)
+                            if (googleEventId != null) {
+                                val updatedEvent = localEvent.copy(googleEventId = googleEventId)
+                                calendarManager.updateCalendarEvent(updatedEvent)
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Background Google Calendar sync failed: ${e.message}")
+                            // Event is already saved locally, so this is non-fatal
+                        }
+                    }
+                }
+            }
         }
     }
 

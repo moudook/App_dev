@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 import java.text.SimpleDateFormat
@@ -101,31 +102,74 @@ class CalendarManager(
     ) {
         scope.launch(Dispatchers.IO) {
             try {
-                val event = CalendarEvent(
-                    title = title,
-                    description = description,
-                    startTime = startTime,
-                    endTime = endTime,
-                    isAllDay = isAllDay,
-                    location = location,
-                    color = color,
-                    reminderMinutes = reminderMinutes,
-                    isEventPrivate = isPrivate,
-                    linkedNoteId = linkedNoteId,
-                    googleEventId = googleEventId
-                )
-
-                repository.insertEvent(event)
-                Log.d(TAG, "Added calendar event: $title")
-
-                // Schedule alarm if reminder is set
-                reminderMinutes?.let { minutes ->
-                    scheduleReminder(event, minutes)
-                }
+                addCalendarEventInternal(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate, linkedNoteId, googleEventId)
             } catch (e: Exception) {
                 Log.e(TAG, "Error adding calendar event: ${e.message}", e)
             }
         }
+    }
+
+    /**
+     * Add a new calendar event and return it (synchronous).
+     * Used for immediate local save before background Google sync.
+     * @return The created CalendarEvent
+     */
+    suspend fun addCalendarEventAndReturn(
+        title: String,
+        description: String? = null,
+        startTime: Long,
+        endTime: Long,
+        isAllDay: Boolean = false,
+        location: String? = null,
+        color: Int? = null,
+        reminderMinutes: Int? = null,
+        isPrivate: Boolean = false,
+        linkedNoteId: String? = null,
+        googleEventId: String? = null
+    ): CalendarEvent = withContext(Dispatchers.IO) {
+        addCalendarEventInternal(title, description, startTime, endTime, isAllDay, location, color, reminderMinutes, isPrivate, linkedNoteId, googleEventId)
+    }
+
+    /**
+     * Internal method to create and insert a calendar event.
+     * @return The created CalendarEvent
+     */
+    private suspend fun addCalendarEventInternal(
+        title: String,
+        description: String? = null,
+        startTime: Long,
+        endTime: Long,
+        isAllDay: Boolean = false,
+        location: String? = null,
+        color: Int? = null,
+        reminderMinutes: Int? = null,
+        isPrivate: Boolean = false,
+        linkedNoteId: String? = null,
+        googleEventId: String? = null
+    ): CalendarEvent {
+        val event = CalendarEvent(
+            title = title,
+            description = description,
+            startTime = startTime,
+            endTime = endTime,
+            isAllDay = isAllDay,
+            location = location,
+            color = color,
+            reminderMinutes = reminderMinutes,
+            isEventPrivate = isPrivate,
+            linkedNoteId = linkedNoteId,
+            googleEventId = googleEventId
+        )
+
+        repository.insertEvent(event)
+        Log.d(TAG, "Added calendar event: $title")
+
+        // Schedule alarm if reminder is set
+        reminderMinutes?.let { minutes ->
+            scheduleReminder(event, minutes)
+        }
+        
+        return event
     }
 
     /**
