@@ -31,6 +31,7 @@ data class AgentActionResult(
 /**
  * Citation/source from web research
  */
+@Serializable
 data class Citation(
     val title: String,
     val url: String,

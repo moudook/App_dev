@@ -3,6 +3,7 @@ package com.example.smarty.protocol
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import com.example.smarty.protocol.AgentCommand
+import com.example.smarty.core.domain.model.Citation
 
 /**
  * Events streamed from the Cloud Agent to the Android Client via SSE.
@@ -62,6 +63,7 @@ sealed class AgentEvent {
         override val timestamp: Long,
         val content: String,
         val thinking: String? = null,
+        val citations: List<Citation> = emptyList(),
         @SerialName("is_final") val isFinal: Boolean = false
     ) : AgentEvent()
 

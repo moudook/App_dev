@@ -45,8 +45,17 @@ class ChatRepository(private val dataSource: DataSource) {
      * @param sessionId The session UUID
      * @param role The message role (USER, SMARTY, TOOL, etc.)
      * @param content The message content
+     * @param thinking Optional thinking/reasoning content
+     * @param citationsJson Optional JSON-serialized citations list
      */
-    suspend fun saveMessage(userId: String, sessionId: String, role: String, content: String, thinking: String? = null) = withContext(Dispatchers.IO) {
+    suspend fun saveMessage(
+        userId: String,
+        sessionId: String,
+        role: String,
+        content: String,
+        thinking: String? = null,
+        citationsJson: String? = null
+    ) = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             // Verify session belongs to user before inserting message
             val verifySql = "SELECT 1 FROM chat_sessions WHERE id = ? AND user_id = ?"
@@ -60,20 +69,21 @@ class ChatRepository(private val dataSource: DataSource) {
                 }
             }
 
-            // Insert the message
-            val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking) VALUES (?, ?, ?, ?, ?)"
+            // Insert the message with citations
+            val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations_json) VALUES (?, ?, ?, ?, ?, ?)"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
                 stmt.setString(2, userId)
                 stmt.setString(3, role)
                 stmt.setString(4, content)
                 stmt.setString(5, thinking)
+                stmt.setString(6, citationsJson ?: "[]")
                 stmt.executeUpdate()
             }
 
             // Update session stats (message count, last preview, updated_at)
             val updateSessionSql = """
-                UPDATE chat_sessions 
+                UPDATE chat_sessions
                 SET message_count = message_count + 1,
                     last_message_preview = ?,
                     updated_at = NOW()
