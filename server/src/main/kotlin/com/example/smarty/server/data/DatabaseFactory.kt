@@ -73,6 +73,13 @@ object DatabaseFactory {
                             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                         )""",
                         "CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)",
+                        
+                        // Notes content_hash column for deduplication
+                        "ALTER TABLE notes ADD COLUMN IF NOT EXISTS content_hash TEXT",
+                        "CREATE INDEX IF NOT EXISTS idx_notes_content_hash ON notes(content_hash)",
+                        
+                        // Backfill content_hash for existing notes
+                        """UPDATE notes SET content_hash = ENCODE(SHA256(content::bytea), 'hex') WHERE content_hash IS NULL""",
 
                         // Timers/Alarms table (server-side source of truth)
                         """CREATE TABLE IF NOT EXISTS timers (

@@ -10,13 +10,20 @@ import com.example.smarty.protocol.NoteInfo
 /**
  * Server-side repository for notes.
  * PostgreSQL is the source of truth; Android caches via StateSync events.
+ * 
+ * DEDUPLICATION: Automatically detects and prevents duplicate notes.
+ * - Checks for existing notes with identical content before creating
+ * - Returns existing note ID if duplicate found
+ * - Keeps oldest note, prevents newer duplicates
  */
 class NoteRepository(private val dataSource: DataSource) {
     private val logger = LoggerFactory.getLogger(NoteRepository::class.java)
+    private val deduplicationManager = NoteDeduplicationManager(dataSource)
 
     /**
-     * Create a new note.
-     * @return The UUID of the created note.
+     * Create a new note with automatic deduplication.
+     * @return The UUID of the created note (or existing note if duplicate).
+     * @return Existing note ID if duplicate content found
      */
     suspend fun create(
         userId: String,
@@ -24,6 +31,14 @@ class NoteRepository(private val dataSource: DataSource) {
         content: String,
         category: String? = null
     ): String = withContext(Dispatchers.IO) {
+        // CHECK FOR DUPLICATES FIRST
+        val existingNoteId = deduplicationManager.findDuplicateNote(userId, content, title)
+        if (existingNoteId != null) {
+            logger.info("Duplicate note detected: returning existing note id={} for user={}", existingNoteId, userId)
+            return@withContext existingNoteId
+        }
+        
+        // No duplicate found, create new note
         val id = UUID.randomUUID()
         dataSource.connection.use { conn ->
             val sql = """
@@ -166,6 +181,16 @@ class NoteRepository(private val dataSource: DataSource) {
                 stmt.executeUpdate() > 0
             }
         }
+    }
+
+    /**
+     * Clean up existing duplicate notes in the database.
+     * Keeps the oldest note, deletes newer duplicates.
+     * @param userId Optional user ID to clean duplicates for (null = all users)
+     * @return Number of duplicates removed
+     */
+    suspend fun cleanupDuplicates(userId: String? = null): Int {
+        return deduplicationManager.cleanupExistingDuplicates(userId)
     }
 }
 
