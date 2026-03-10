@@ -118,310 +118,345 @@ fun EnhancedEventDialog(
     val dialogTitle = if (isEditing) stringResource(R.string.edit_event) else stringResource(R.string.new_event)
     val confirmText = if (isEditing) stringResource(R.string.save) else stringResource(R.string.add)
 
-    com.example.smarty.ui.components.common.SmartyDialog(
-        title = dialogTitle,
-        onDismiss = onDismiss,
-        confirmText = confirmText,
-        dismissText = stringResource(R.string.cancel),
-        confirmEnabled = title.isNotBlank(),
-        onConfirm = {
-            if (title.isNotBlank()) {
-                val finalStartTime = if (isAllDay) {
-                    Calendar.getInstance().apply {
-                        timeInMillis = startTime
-                        set(Calendar.HOUR_OF_DAY, 0)
-                        set(Calendar.MINUTE, 0)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                } else {
-                    startTime
-                }
-
-                val finalEndTime = if (isAllDay) {
-                    Calendar.getInstance().apply {
-                        timeInMillis = startTime
-                        set(Calendar.HOUR_OF_DAY, 23)
-                        set(Calendar.MINUTE, 59)
-                        set(Calendar.SECOND, 59)
-                        set(Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                } else {
-                    endTime
-                }
-
-                val event = CalendarEvent(
-                    id = existingEvent?.id ?: java.util.UUID.randomUUID().toString(),
-                    title = title.trim(),
-                    description = description.ifBlank { null },
-                    location = location.ifBlank { null },
-                    startTime = finalStartTime,
-                    endTime = finalEndTime,
-                    isAllDay = isAllDay,
-                    color = selectedColor?.toArgb(),
-                    reminderMinutes = reminderMinutes,
-                    isRecurring = isRecurring,
-                    recurrenceRule = recurrenceRule.ifBlank { null },
-                    linkedNoteId = existingEvent?.linkedNoteId,
-                    isEventPrivate = existingEvent?.isEventPrivate ?: false,
-                    createdAt = existingEvent?.createdAt ?: System.currentTimeMillis(),
-                    updatedAt = System.currentTimeMillis()
-                )
-                onSave(event)
-            }
-        },
-        customContent = {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface
+        ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp) // Limit height so it doesn't overflow screen
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // 1. Title field (required)
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.event_title)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    isError = title.isBlank()
-                )
-
-                // 2. Description field
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text(stringResource(R.string.description)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    maxLines = 4
-                )
-
-                // 3. Location field with icon
-                OutlinedTextField(
-                    value = location,
-                    onValueChange = { location = it },
-                    label = { Text(stringResource(R.string.add_location)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = stringResource(R.string.add_location)
-                        )
-                    }
-                )
-
-                // 4. Date display
                 Text(
-                    text = "${stringResource(R.string.date_label, dateFormat.format(Date(startTime)).lowercase())}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = dialogTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
-                // 5. All-day toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(stringResource(R.string.all_day_event))
-                    Switch(
-                        checked = isAllDay,
-                        onCheckedChange = { isAllDay = it }
-                    )
-                }
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // Time pickers (only if not all day)
-                if (!isAllDay) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp) // Limit height so it doesn't overflow screen
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 1. Title field (required)
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text(stringResource(R.string.event_title)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        isError = title.isBlank()
+                    )
+
+                    // 2. Description field
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text(stringResource(R.string.description)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4
+                    )
+
+                    // 3. Location field with icon
+                    OutlinedTextField(
+                        value = location,
+                        onValueChange = { location = it },
+                        label = { Text(stringResource(R.string.add_location)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = stringResource(R.string.add_location)
+                            )
+                        }
+                    )
+
+                    // 4. Date display
+                    Text(
+                        text = "${stringResource(R.string.date_label, dateFormat.format(Date(startTime)).lowercase())}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // 5. All-day toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Start time
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.start),
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                OutlinedTextField(
-                                    value = startHour.toString().padStart(2, '0'),
-                                    onValueChange = {
-                                        it.toIntOrNull()?.let { h ->
-                                            if (h in 0..23) startHour = h
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
+                        Text(stringResource(R.string.all_day_event))
+                        Switch(
+                            checked = isAllDay,
+                            onCheckedChange = { isAllDay = it }
+                        )
+                    }
+
+                    // Time pickers (only if not all day)
+                    if (!isAllDay) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // Start time
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.start),
+                                    style = MaterialTheme.typography.labelMedium
                                 )
-                                Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
-                                OutlinedTextField(
-                                    value = startMinute.toString().padStart(2, '0'),
-                                    onValueChange = {
-                                        it.toIntOrNull()?.let { m ->
-                                            if (m in 0..59) startMinute = m
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    OutlinedTextField(
+                                        value = startHour.toString().padStart(2, '0'),
+                                        onValueChange = {
+                                            it.toIntOrNull()?.let { h ->
+                                                if (h in 0..23) startHour = h
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                    Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
+                                    OutlinedTextField(
+                                        value = startMinute.toString().padStart(2, '0'),
+                                        onValueChange = {
+                                            it.toIntOrNull()?.let { m ->
+                                                if (m in 0..59) startMinute = m
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                }
+                            }
+
+                            // End time
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.end),
+                                    style = MaterialTheme.typography.labelMedium
                                 )
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    OutlinedTextField(
+                                        value = endHour.toString().padStart(2, '0'),
+                                        onValueChange = {
+                                            it.toIntOrNull()?.let { h ->
+                                                if (h in 0..23) endHour = h
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                    Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
+                                    OutlinedTextField(
+                                        value = endMinute.toString().padStart(2, '0'),
+                                        onValueChange = {
+                                            it.toIntOrNull()?.let { m ->
+                                                if (m in 0..59) endMinute = m
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true
+                                    )
+                                }
                             }
                         }
+                    }
 
-                        // End time
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.end),
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                OutlinedTextField(
-                                    value = endHour.toString().padStart(2, '0'),
-                                    onValueChange = {
-                                        it.toIntOrNull()?.let { h ->
-                                            if (h in 0..23) endHour = h
+                    // 6. Color picker
+                    Column {
+                        Text(
+                            text = stringResource(R.string.accent_color),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            eventColors.forEach { color ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .then(
+                                            if (selectedColor == color) {
+                                                Modifier.border(
+                                                    width = 3.dp,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    shape = CircleShape
+                                                )
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                        .clickable {
+                                            selectedColor = if (selectedColor == color) null else color
                                         }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
-                                )
-                                Text(stringResource(R.string.colon_separator), modifier = Modifier.padding(top = 16.dp))
-                                OutlinedTextField(
-                                    value = endMinute.toString().padStart(2, '0'),
-                                    onValueChange = {
-                                        it.toIntOrNull()?.let { m ->
-                                            if (m in 0..59) endMinute = m
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true
                                 )
                             }
                         }
                     }
-                }
 
-                // 6. Color picker
-                Column {
-                    Text(
-                        text = stringResource(R.string.accent_color),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        eventColors.forEach { color ->
-                            Box(
+                    // 7. Reminder dropdown
+                    Column {
+                        Text(
+                            text = stringResource(R.string.reminder),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        ExposedDropdownMenuBox(
+                            expanded = reminderExpanded,
+                            onExpandedChange = { reminderExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = stringResource(reminderOptions.find { it.first == reminderMinutes }?.second ?: R.string.none).lowercase(),
+                                onValueChange = {},
+                                readOnly = true,
                                 modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                                    .then(
-                                        if (selectedColor == color) {
-                                            Modifier.border(
-                                                width = 3.dp,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                shape = CircleShape
-                                            )
-                                        } else {
-                                            Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = reminderExpanded) }
+                            )
+                            ExposedDropdownMenu(
+                                expanded = reminderExpanded,
+                                onDismissRequest = { reminderExpanded = false }
+                            ) {
+                                reminderOptions.forEach { (minutes, labelRes) ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(labelRes).lowercase()) },
+                                        onClick = {
+                                            reminderMinutes = minutes
+                                            reminderExpanded = false
                                         }
                                     )
-                                    .clickable {
-                                        selectedColor = if (selectedColor == color) null else color
-                                    }
-                            )
+                                }
+                            }
                         }
                     }
-                }
 
-                // 7. Reminder dropdown
-                Column {
-                    Text(
-                        text = stringResource(R.string.reminder),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    ExposedDropdownMenuBox(
-                        expanded = reminderExpanded,
-                        onExpandedChange = { reminderExpanded = it }
+                    // 8. Recurring toggle with picker
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
-                            value = stringResource(reminderOptions.find { it.first == reminderMinutes }?.second ?: R.string.none).lowercase(),
-                            onValueChange = {},
-                            readOnly = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = reminderExpanded) }
+                        Text(stringResource(R.string.recurring_event))
+                        Switch(
+                            checked = isRecurring,
+                            onCheckedChange = {
+                                isRecurring = it
+                                if (!it) recurrenceRule = ""
+                            }
                         )
-                        ExposedDropdownMenu(
-                            expanded = reminderExpanded,
-                            onDismissRequest = { reminderExpanded = false }
+                    }
+
+                    if (isRecurring) {
+                        ExposedDropdownMenuBox(
+                            expanded = recurrenceExpanded,
+                            onExpandedChange = { recurrenceExpanded = it }
                         ) {
-                            reminderOptions.forEach { (minutes, labelRes) ->
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(labelRes).lowercase()) },
-                                    onClick = {
-                                        reminderMinutes = minutes
-                                        reminderExpanded = false
-                                    }
-                                )
+                            OutlinedTextField(
+                                value = stringResource(recurrenceOptions.find { it.first == recurrenceRule }?.second ?: R.string.does_not_repeat).lowercase(),
+                                onValueChange = {},
+                                readOnly = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceExpanded) }
+                            )
+                            ExposedDropdownMenu(
+                                expanded = recurrenceExpanded,
+                                onDismissRequest = { recurrenceExpanded = false }
+                            ) {
+                                recurrenceOptions.drop(1).forEach { (rule, labelRes) ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(labelRes).lowercase()) },
+                                        onClick = {
+                                            recurrenceRule = rule
+                                            recurrenceExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                // 8. Recurring toggle with picker
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(stringResource(R.string.recurring_event))
-                    Switch(
-                        checked = isRecurring,
-                        onCheckedChange = {
-                            isRecurring = it
-                            if (!it) recurrenceRule = ""
-                        }
-                    )
-                }
-
-                if (isRecurring) {
-                    ExposedDropdownMenuBox(
-                        expanded = recurrenceExpanded,
-                        onExpandedChange = { recurrenceExpanded = it }
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
                     ) {
-                        OutlinedTextField(
-                            value = stringResource(recurrenceOptions.find { it.first == recurrenceRule }?.second ?: R.string.does_not_repeat).lowercase(),
-                            onValueChange = {},
-                            readOnly = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = recurrenceExpanded) }
-                        )
-                        ExposedDropdownMenu(
-                            expanded = recurrenceExpanded,
-                            onDismissRequest = { recurrenceExpanded = false }
-                        ) {
-                            recurrenceOptions.drop(1).forEach { (rule, labelRes) ->
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(labelRes).lowercase()) },
-                                    onClick = {
-                                        recurrenceRule = rule
-                                        recurrenceExpanded = false
-                                    }
+                        Text(stringResource(R.string.cancel))
+                    }
+
+                    Button(
+                        onClick = {
+                            if (title.isNotBlank()) {
+                                val finalStartTime = if (isAllDay) {
+                                    Calendar.getInstance().apply {
+                                        timeInMillis = startTime
+                                        set(Calendar.HOUR_OF_DAY, 0)
+                                        set(Calendar.MINUTE, 0)
+                                        set(Calendar.SECOND, 0)
+                                        set(Calendar.MILLISECOND, 0)
+                                    }.timeInMillis
+                                } else {
+                                    startTime
+                                }
+
+                                val finalEndTime = if (isAllDay) {
+                                    Calendar.getInstance().apply {
+                                        timeInMillis = startTime
+                                        set(Calendar.HOUR_OF_DAY, 23)
+                                        set(Calendar.MINUTE, 59)
+                                        set(Calendar.SECOND, 59)
+                                        set(Calendar.MILLISECOND, 0)
+                                    }.timeInMillis
+                                } else {
+                                    endTime
+                                }
+
+                                val event = CalendarEvent(
+                                    id = existingEvent?.id ?: java.util.UUID.randomUUID().toString(),
+                                    title = title.trim(),
+                                    description = description.ifBlank { null },
+                                    location = location.ifBlank { null },
+                                    startTime = finalStartTime,
+                                    endTime = finalEndTime,
+                                    isAllDay = isAllDay,
+                                    color = selectedColor?.toArgb(),
+                                    reminderMinutes = reminderMinutes,
+                                    isRecurring = isRecurring,
+                                    recurrenceRule = recurrenceRule.ifBlank { null },
+                                    linkedNoteId = existingEvent?.linkedNoteId,
+                                    isEventPrivate = existingEvent?.isEventPrivate ?: false,
+                                    createdAt = existingEvent?.createdAt ?: System.currentTimeMillis(),
+                                    updatedAt = System.currentTimeMillis()
                                 )
+                                onSave(event)
                             }
-                        }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium,
+                        enabled = title.isNotBlank()
+                    ) {
+                        Text(confirmText)
                     }
                 }
             }
         }
-    )
+    }
 }

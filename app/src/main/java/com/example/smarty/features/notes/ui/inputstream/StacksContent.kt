@@ -221,48 +221,96 @@ fun StacksContent(
 
     // Delete confirmation dialog
     if (showDeleteDialog && categoryToDelete != null) {
-        com.example.smarty.ui.components.common.SmartyDialog(
-            title = stringResource(R.string.delete_stack),
-            text = stringResource(R.string.delete_stack_confirm, categoryToDelete?.name.orEmpty().lowercase()),
-            onConfirm = {
-                categoryToDelete?.let { onDeleteCategory(it) }
-                showDeleteDialog = false
-                categoryToDelete = null
-            },
-            onDismiss = {
-                showDeleteDialog = false
-                categoryToDelete = null
-            },
-            confirmText = stringResource(R.string.delete),
-            dismissText = stringResource(R.string.cancel),
-            isDestructive = true,
-            customContent = {
-                // Visual reassurance that notes are safe
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .padding(12.dp)
+        Dialog(onDismissRequest = {
+            showDeleteDialog = false
+            categoryToDelete = null
+        }) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.Folder, // Explicit path to avoid import issues
-                        contentDescription = null, // Decorative icon - "Notes will be unfiled" text provides context
-                        tint = LocalAccentColor.current,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = stringResource(R.string.notes_will_be_unfiled, categoryToDelete?.noteCount ?: 0),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                        text = stringResource(R.string.delete_stack),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = stringResource(R.string.delete_stack_confirm, categoryToDelete?.name.orEmpty().lowercase()),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Visual reassurance that notes are safe
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Default.Folder, // Explicit path to avoid import issues
+                            contentDescription = null, // Decorative icon - "Notes will be unfiled" text provides context
+                            tint = LocalAccentColor.current,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = stringResource(R.string.notes_will_be_unfiled, categoryToDelete?.noteCount ?: 0),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                showDeleteDialog = false
+                                categoryToDelete = null
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Text(stringResource(R.string.cancel))
+                        }
+
+                        Button(
+                            onClick = {
+                                categoryToDelete?.let { onDeleteCategory(it) }
+                                showDeleteDialog = false
+                                categoryToDelete = null
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text(stringResource(R.string.delete))
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
     // Create category bottom sheet

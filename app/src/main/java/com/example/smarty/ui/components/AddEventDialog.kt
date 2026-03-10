@@ -38,42 +38,34 @@ fun AddEventDialog(
     val dateFormat = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
     val displayDate = remember(selectedDate) { dateFormat.format(selectedDate.time) }
 
-    com.example.smarty.ui.components.common.SmartyDialog(
-        title = stringResource(R.string.new_event),
-        onDismiss = onDismiss,
-        confirmText = stringResource(R.string.add),
-        dismissText = stringResource(R.string.cancel),
-        confirmEnabled = title.isNotBlank(),
-        onConfirm = {
-            if (title.isNotBlank()) {
-                val startCal = (selectedDate.clone() as Calendar).apply {
-                    set(Calendar.HOUR_OF_DAY, if (isAllDay) 0 else startHour)
-                    set(Calendar.MINUTE, if (isAllDay) 0 else startMinute)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                val endCal = (selectedDate.clone() as Calendar).apply {
-                    set(Calendar.HOUR_OF_DAY, if (isAllDay) 23 else endHour)
-                    set(Calendar.MINUTE, if (isAllDay) 59 else endMinute)
-                    set(Calendar.SECOND, if (isAllDay) 59 else 0)
-                    set(Calendar.MILLISECOND, 0)
-                }
-                onConfirm(
-                    title,
-                    description.ifBlank { null },
-                    startCal.timeInMillis,
-                    endCal.timeInMillis,
-                    isAllDay
-                )
-            }
-        },
-        customContent = {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface
+        ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(24.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Text(
+                    text = stringResource(R.string.new_event),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Custom content
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                 // Title
                 OutlinedTextField(
                     value = title,
@@ -183,6 +175,53 @@ fun AddEventDialog(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text(stringResource(R.string.cancel))
+                }
+
+                Button(
+                    onClick = {
+                        if (title.isNotBlank()) {
+                            val startCal = (selectedDate.clone() as Calendar).apply {
+                                set(Calendar.HOUR_OF_DAY, if (isAllDay) 0 else startHour)
+                                set(Calendar.MINUTE, if (isAllDay) 0 else startMinute)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            val endCal = (selectedDate.clone() as Calendar).apply {
+                                set(Calendar.HOUR_OF_DAY, if (isAllDay) 23 else endHour)
+                                set(Calendar.MINUTE, if (isAllDay) 59 else endMinute)
+                                set(Calendar.SECOND, if (isAllDay) 59 else 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }
+                            onConfirm(
+                                title,
+                                description.ifBlank { null },
+                                startCal.timeInMillis,
+                                endCal.timeInMillis,
+                                isAllDay
+                            )
+                        }
+                    },
+                    enabled = title.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text(stringResource(R.string.add))
+                }
+            }
         }
-    )
+    }
 }

@@ -528,58 +528,114 @@ fun EditEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        com.example.smarty.ui.components.common.SmartyDialog(
-            title = stringResource(R.string.reminder),
-            onDismiss = { showReminderMenu = false },
-            onConfirm = {},
-            customContent = {
-                Column {
-                    reminderOptions.forEach { (minutes, label) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    selectedReminder = minutes
-                                    showReminderMenu = false
+        Dialog(onDismissRequest = { showReminderMenu = false }) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.reminder),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Column {
+                        reminderOptions.forEach { (minutes, label) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedReminder = minutes
+                                        showReminderMenu = false
+                                    }
+                                    .padding(vertical = 14.dp, horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label.lowercase(), color = MaterialTheme.colorScheme.onSurface)
+                                if (selectedReminder == minutes) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = stringResource(R.string.selected),
+                                        tint = accentColor
+                                    )
                                 }
-                                .padding(vertical = 14.dp, horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(label.lowercase(), color = MaterialTheme.colorScheme.onSurface)
-                            if (selectedReminder == minutes) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = stringResource(R.string.selected),
-                                    tint = accentColor
-                                )
                             }
                         }
                     }
                 }
-            },
-            confirmText = "",
-            confirmEnabled = false // Hide/Disable confirm as selection closes it
-        )
+            }
+        }
     }
 
     // Delete Confirmation Dialog
     if (showDeleteConfirmation) {
-        com.example.smarty.ui.components.common.SmartyDialog(
-            title = stringResource(R.string.delete_event),
-            text = stringResource(R.string.delete_event_confirm, event.title),
-            onConfirm = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                showDeleteConfirmation = false
-                onDelete()
-            },
-            onDismiss = { showDeleteConfirmation = false },
-            confirmText = stringResource(R.string.remove),
-            dismissText = stringResource(R.string.cancel),
-            isDestructive = true
-        )
+        Dialog(onDismissRequest = { showDeleteConfirmation = false }) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.delete_event),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = stringResource(R.string.delete_event_confirm, event.title),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showDeleteConfirmation = false },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Text(stringResource(R.string.cancel))
+                        }
+
+                        Button(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showDeleteConfirmation = false
+                                onDelete()
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text(stringResource(R.string.remove))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -712,19 +768,54 @@ private fun EditDarkTimePickerDialog(
     onConfirm: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    com.example.smarty.ui.components.common.SmartyDialog(
-        title = stringResource(R.string.select_time),
-        onDismiss = onDismiss,
-        onConfirm = onConfirm,
-        customContent = {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                content()
+                Text(
+                    text = stringResource(R.string.select_time),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    content()
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text(stringResource(R.string.cancel))
+                    }
+
+                    Button(
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text(stringResource(R.string.ok))
+                    }
+                }
             }
-        },
-        confirmText = stringResource(R.string.ok),
-        dismissText = stringResource(R.string.cancel)
-    )
+        }
+    }
 }

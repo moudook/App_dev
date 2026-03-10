@@ -489,41 +489,53 @@ fun AddEventSheet(
 
     // Reminder Menu
     if (showReminderMenu) {
-        com.example.smarty.ui.components.common.SmartyDialog(
-            title = stringResource(R.string.reminder),
-            onDismiss = { showReminderMenu = false },
-            onConfirm = {},
-            customContent = {
-                Column {
-                    reminderOptions.forEach { (minutes, labelResId) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    selectedReminder = minutes
-                                    showReminderMenu = false
+        Dialog(onDismissRequest = { showReminderMenu = false }) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.reminder),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Column {
+                        reminderOptions.forEach { (minutes, labelResId) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedReminder = minutes
+                                        showReminderMenu = false
+                                    }
+                                    .padding(vertical = 14.dp, horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(stringResource(labelResId), color = MaterialTheme.colorScheme.onSurface)
+                                if (selectedReminder == minutes) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = stringResource(R.string.selected),
+                                        tint = accentColor
+                                    )
                                 }
-                                .padding(vertical = 14.dp, horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(stringResource(labelResId), color = MaterialTheme.colorScheme.onSurface)
-                            if (selectedReminder == minutes) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = stringResource(R.string.selected),
-                                    tint = accentColor
-                                )
                             }
                         }
                     }
                 }
-            },
-            confirmText = "",
-            confirmEnabled = false // Hide/Disable confirm as selection closes it
-        )
+            }
+        }
     }
 }
 

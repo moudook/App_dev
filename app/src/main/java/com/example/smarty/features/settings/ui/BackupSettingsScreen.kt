@@ -1045,48 +1045,74 @@ private fun IntervalPickerDialog(
     onDismiss: () -> Unit,
     onSelectInterval: (Int) -> Unit
 ) {
-    SmartyDialog(
-        title = stringResource(R.string.backup_interval),
-        onDismiss = onDismiss,
-        confirmText = "",
-        dismissText = stringResource(R.string.cancel),
-        confirmEnabled = false,
-        onConfirm = {},
-        customContent = {
-            Column {
-                AutoBackupConfig.INTERVAL_OPTIONS.forEach { days ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(LocalShapes.current.skeleton)
-                            .clickable { onSelectInterval(days) }
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = currentInterval == days,
-                            onClick = { onSelectInterval(days) },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = SemanticColors.info
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.backup_interval),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Column {
+                    AutoBackupConfig.INTERVAL_OPTIONS.forEach { days ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(LocalShapes.current.skeleton)
+                                .clickable { onSelectInterval(days) }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = currentInterval == days,
+                                onClick = { onSelectInterval(days) },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = SemanticColors.info
+                                )
                             )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = when (days) {
-                                30 -> stringResource(R.string.every_30_days)
-                                60 -> stringResource(R.string.every_60_days)
-                                100 -> stringResource(R.string.every_100_days)
-                                180 -> stringResource(R.string.every_180_days)
-                                365 -> stringResource(R.string.every_365_days)
-                                else -> stringResource(R.string.every_x_days, days)
-                            }.lowercase(),
-                            style = MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.2.sp)
-                        )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = when (days) {
+                                    30 -> stringResource(R.string.every_30_days)
+                                    60 -> stringResource(R.string.every_60_days)
+                                    100 -> stringResource(R.string.every_100_days)
+                                    180 -> stringResource(R.string.every_180_days)
+                                    365 -> stringResource(R.string.every_365_days)
+                                    else -> stringResource(R.string.every_x_days, days)
+                                }.lowercase(),
+                                style = MaterialTheme.typography.bodyLarge.copy(letterSpacing = 0.2.sp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text(stringResource(R.string.cancel))
                     }
                 }
             }
         }
-    )
+    }
 }
 
 @Composable
