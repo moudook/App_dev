@@ -134,14 +134,12 @@ fun InputPillBorder(
 ) {
     val currentBorderColor by androidx.compose.animation.core.animateColorAsState(
         targetValue = if (isFocused) borderColor else defaultBorderColor,
-        animationSpec = androidx.compose.animation.core.tween(200),
-        label = "pill_border"
+        animationSpec = androidx.compose.animation.core.tween(200)
     )
 
     val borderWidth by androidx.compose.animation.core.animateDpAsState(
         targetValue = if (isFocused) 1.5.dp else 0.5.dp,
-        animationSpec = androidx.compose.animation.core.tween(200),
-        label = "pill_border_width"
+        animationSpec = androidx.compose.animation.core.tween(200)
     )
 
     Box(
