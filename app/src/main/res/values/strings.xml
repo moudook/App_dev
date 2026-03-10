@@ -464,7 +464,7 @@ Calendar integration allows you to sync with your schedule, with Friday able to 
 Privacy is fundamental: all data is stored locally, and sensitive configuration is managed securely. Only necessary API calls leave the device.
 
 Thank you for using Friday.</string>
-    <string name="smarty_version">Friday v1.2.0</string>
+    <string name="smarty_version">Friday v1.2.1</string>
     <string name="ai_intelligence">Friday Intelligence</string>
     <string name="web_search_label">Web search</string>
     <string name="enable_ai_web_search_capabilities">Enable Friday web search capabilities</string>
