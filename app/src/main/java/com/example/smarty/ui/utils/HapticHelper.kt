@@ -57,7 +57,7 @@ object HapticHelper {
     @Composable
     fun keyboardTap() {
         val haptic = LocalHapticFeedback.current
-        haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
     
     /**
@@ -66,7 +66,7 @@ object HapticHelper {
     @Composable
     fun virtualKey() {
         val haptic = LocalHapticFeedback.current
-        haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
     
     /**
@@ -75,7 +75,7 @@ object HapticHelper {
     @Composable
     fun gestureEnd() {
         val haptic = LocalHapticFeedback.current
-        haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     }
     
     /**
@@ -119,7 +119,7 @@ fun HapticInteraction.toFeedbackType(): HapticFeedbackType {
         HapticInteraction.SCROLL -> HapticFeedbackType.TextHandleMove
         HapticInteraction.SWIPE -> HapticFeedbackType.TextHandleMove
         HapticInteraction.DRAG -> HapticFeedbackType.TextHandleMove
-        HapticInteraction.DROP -> HapticFeedbackType.GestureEnd
+        HapticInteraction.DROP -> HapticFeedbackType.TextHandleMove
         HapticInteraction.SUCCESS -> HapticFeedbackType.TextHandleMove
         HapticInteraction.ERROR -> HapticFeedbackType.LongPress
         HapticInteraction.WARNING -> HapticFeedbackType.LongPress

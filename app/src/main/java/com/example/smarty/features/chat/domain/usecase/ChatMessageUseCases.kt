@@ -3,6 +3,7 @@ package com.example.smarty.features.chat.domain.usecase
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.data.repository.ChatRepository
+import com.example.smarty.data.repository.getMessagesForSessionOnce
 import com.example.smarty.features.chat.domain.mapper.ChatMessageMapper
 import kotlinx.coroutines.flow.Flow
 
@@ -65,12 +66,15 @@ class UpdateMessageUseCase(
         thinking: String? = null,
         isStreaming: Boolean = true
     ) {
-        chatRepository.updateMessage(sessionId, messageId) { message ->
-            message.copy(
+        // Get existing message and update it
+        val existingMessage = chatRepository.getMessageById(messageId)
+        if (existingMessage != null) {
+            val updatedMessage = existingMessage.copy(
                 content = content,
-                thinking = thinking ?: message.thinking,
+                thinking = thinking ?: existingMessage.thinking,
                 isStreaming = isStreaming
             )
+            chatRepository.saveMessage(sessionId, updatedMessage)
         }
     }
 }
@@ -87,15 +91,15 @@ class GetMessagesUseCase(
     /**
      * Execute: Get flow of messages for a session.
      */
-    fun execute(sessionId: String): Flow<List<ChatMessage>> {
-        return chatRepository.getMessagesFlow(sessionId)
+    fun execute(sessionId: String): kotlinx.coroutines.flow.Flow<List<ChatMessage>> {
+        return chatRepository.getMessagesForSession(sessionId)
     }
     
     /**
      * Execute: Get all messages for a session (one-time).
      */
     suspend fun getAllMessages(sessionId: String): List<ChatMessage> {
-        return chatRepository.getMessages(sessionId)
+        return getMessagesForSessionOnce(sessionId)
     }
 }
 
@@ -109,10 +113,14 @@ class ClearMessagesUseCase(
 ) {
     
     /**
-     * Execute: Clear all messages for a session.
+     * Execute: Clear all messages (not directly supported, delete individually).
      */
     suspend fun execute(sessionId: String) {
-        chatRepository.clearMessages(sessionId)
+        // Clear by getting all messages and deleting them
+        val messages = chatRepository.getMessagesForSessionOnce(sessionId)
+        messages.forEach { message ->
+            chatRepository.deleteMessage(message.id)
+        }
     }
 }
 
@@ -128,7 +136,7 @@ class DeleteMessageUseCase(
     /**
      * Execute: Delete a specific message.
      */
-    suspend fun execute(sessionId: String, messageId: String) {
-        chatRepository.deleteMessage(sessionId, messageId)
+    suspend fun execute(messageId: String): Boolean {
+        return chatRepository.deleteMessage(messageId)
     }
 }

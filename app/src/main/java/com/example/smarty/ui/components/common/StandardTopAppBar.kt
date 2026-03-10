@@ -11,13 +11,8 @@ import androidx.compose.ui.text.style.TextOverflow
  * 
  * Single Responsibility: Only handles top app bar layout.
  * DRY: Replaces repeated TopAppBar patterns in 10+ screens.
- * 
- * @param title Title text
- * @param navigationIcon Navigation icon (back button, menu, etc.)
- * @param actions Action buttons on the right
- * @param colors Top app bar colors
- * @param modifier Modifier for the app bar
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StandardTopAppBar(
     title: String,
@@ -43,36 +38,6 @@ fun StandardTopAppBar(
         navigationIcon = navigationIcon,
         actions = actions,
         colors = colors,
-        modifier = modifier
-    )
-}
-
-/**
- * Center-Aligned Top App Bar - For screens with centered title.
- */
-@Composable
-fun CenterAlignedTopAppBar(
-    title: String,
-    navigationIcon: @Composable () -> Unit = {},
-    actions: @Composable () -> Unit = {},
-    modifier: Modifier = Modifier
-) {
-    CenterAlignedTopAppBar(
-        title = {
-            Text(
-                text = title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        },
-        navigationIcon = navigationIcon,
-        actions = actions,
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-            actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        ),
         modifier = modifier
     )
 }

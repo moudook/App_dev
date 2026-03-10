@@ -103,9 +103,8 @@ class LoadingState {
         override val replayCache: List<Boolean>
             get() = listOf(value)
         
-        override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Boolean>): Unit {
+        override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Boolean>) {
             collector.emit(value)
-            // In production, you'd want to observe the main flow and emit changes
         }
     }
 }

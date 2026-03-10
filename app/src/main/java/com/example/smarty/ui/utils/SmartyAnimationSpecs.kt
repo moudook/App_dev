@@ -1,5 +1,7 @@
 package com.example.smarty.ui.utils
 
+import androidx.compose.animation.core.*
+
 /**
  * Shared animation specifications for consistent motion across the app.
  * 
@@ -31,7 +33,7 @@ object SmartyAnimationSpecs {
     /**
      * Default spring for most UI interactions
      */
-    fun defaultSpring() = androidx.compose.animation.core.spring(
+    fun defaultSpring(): SpringSpec<Float> = spring(
         dampingRatio = DAMPING_NORMAL,
         stiffness = STIFFNESS_HIGH
     )
@@ -39,7 +41,7 @@ object SmartyAnimationSpecs {
     /**
      * Bouncy spring for playful interactions
      */
-    fun bouncySpring() = androidx.compose.animation.core.spring(
+    fun bouncySpring(): SpringSpec<Float> = spring(
         dampingRatio = DAMPING_BOUNCY,
         stiffness = STIFFNESS_HIGH
     )
@@ -47,7 +49,7 @@ object SmartyAnimationSpecs {
     /**
      * Gentle spring for subtle transitions
      */
-    fun gentleSpring() = androidx.compose.animation.core.spring(
+    fun gentleSpring(): SpringSpec<Float> = spring(
         dampingRatio = DAMPING_GENTLE,
         stiffness = STIFFNESS_NORMAL
     )
@@ -57,18 +59,18 @@ object SmartyAnimationSpecs {
      */
     fun tween(
         durationMs: Int = NORMAL_MS,
-        easing: androidx.compose.animation.core.Easing = androidx.compose.animation.core.FastOutSlowInEasing
-    ) = androidx.compose.animation.core.tween(durationMs, easing = easing)
+        easing: Easing = FastOutSlowInEasing
+    ): TweenSpec<Float> = androidx.compose.animation.core.tween(durationMs, easing = easing)
     
     /**
      * Infinite repeatable for loading indicators
      */
     fun infiniteRepeatable(
         durationMs: Int = NORMAL_MS,
-        easing: androidx.compose.animation.core.Easing = androidx.compose.animation.core.LinearEasing
-    ) = androidx.compose.animation.core.infiniteRepeatable(
+        easing: Easing = LinearEasing
+    ): InfiniteTransition = androidx.compose.animation.core.InfiniteTransition(
         animation = androidx.compose.animation.core.tween(durationMs, easing = easing),
-        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        repeatMode = RepeatMode.Restart
     )
 }
 
@@ -90,25 +92,25 @@ object AnimationPresets {
     )
     
     // Dialog appearance
-    val dialogFadeTween = tween<Int>(
+    val dialogFadeTween = androidx.compose.animation.core.tween<Int>(
         durationMs = 250,
         easing = FastOutSlowInEasing
     )
     
     // Shimmer effect
-    val shimmerTween = tween<Int>(
+    val shimmerTween = androidx.compose.animation.core.tween<Int>(
         durationMs = 1200,
         easing = LinearEasing
     )
     
     // Thinking dots animation
-    val thinkingDotsTween = tween<Float>(
+    val thinkingDotsTween = androidx.compose.animation.core.tween<Float>(
         durationMs = 1200,
         easing = FastOutSlowInEasing
     )
     
     // Streaming cursor blink
-    val cursorBlinkTween = tween<Float>(
+    val cursorBlinkTween = androidx.compose.animation.core.tween<Float>(
         durationMs = 1000,
         easing = LinearEasing
     )

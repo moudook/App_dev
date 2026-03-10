@@ -63,6 +63,8 @@ sealed class AttachmentOption {
                 com.example.smarty.core.domain.model.AttachmentType.AUDIO -> Audio
                 com.example.smarty.core.domain.model.AttachmentType.LINK -> Link
                 com.example.smarty.core.domain.model.AttachmentType.RESEARCH -> Research
+                // Handle other types with else
+                else -> Document // Default fallback
             }
         }
     }

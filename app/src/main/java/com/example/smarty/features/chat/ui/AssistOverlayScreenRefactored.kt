@@ -50,7 +50,7 @@ fun AssistOverlayScreen(
     // Collect global state - single source of truth
     val chatState by viewModel.chatState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    val isListening by viewModel.uiState.collectAsState { it.isVoiceListening }
+    val isListening = uiState.isVoiceListening
     val isProcessing by viewModel.isProcessing.collectAsState()
     
     // Theme-aware colors
