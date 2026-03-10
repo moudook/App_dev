@@ -4,11 +4,6 @@ import androidx.compose.animation.core.*
 
 /**
  * Shared animation specifications for consistent motion across the app.
- * 
- * Principles:
- * - DRY: Single source of truth for animation specs
- * - Consistency: Same easing and durations everywhere
- * - Maintainability: Change once, apply everywhere
  */
 object SmartyAnimationSpecs {
     
@@ -53,25 +48,6 @@ object SmartyAnimationSpecs {
         dampingRatio = DAMPING_GENTLE,
         stiffness = STIFFNESS_NORMAL
     )
-    
-    /**
-     * Tween for timed animations
-     */
-    fun tween(
-        durationMs: Int = NORMAL_MS,
-        easing: Easing = FastOutSlowInEasing
-    ): TweenSpec<Float> = androidx.compose.animation.core.tween(durationMs, easing = easing)
-    
-    /**
-     * Infinite repeatable for loading indicators
-     */
-    fun infiniteRepeatable(
-        durationMs: Int = NORMAL_MS,
-        easing: Easing = LinearEasing
-    ): InfiniteTransition = androidx.compose.animation.core.InfiniteTransition(
-        animation = androidx.compose.animation.core.tween(durationMs, easing = easing),
-        repeatMode = RepeatMode.Restart
-    )
 }
 
 /**
@@ -91,27 +67,12 @@ object AnimationPresets {
         stiffness = 400f
     )
     
-    // Dialog appearance
-    val dialogFadeTween = androidx.compose.animation.core.tween<Int>(
-        durationMs = 250,
-        easing = FastOutSlowInEasing
-    )
+    // Shimmer effect (duration in ms)
+    const val SHIMMER_DURATION_MS = 1200
     
-    // Shimmer effect
-    val shimmerTween = androidx.compose.animation.core.tween<Int>(
-        durationMs = 1200,
-        easing = LinearEasing
-    )
+    // Thinking dots animation (duration in ms)
+    const val THINKING_DOTS_DURATION_MS = 1200
     
-    // Thinking dots animation
-    val thinkingDotsTween = androidx.compose.animation.core.tween<Float>(
-        durationMs = 1200,
-        easing = FastOutSlowInEasing
-    )
-    
-    // Streaming cursor blink
-    val cursorBlinkTween = androidx.compose.animation.core.tween<Float>(
-        durationMs = 1000,
-        easing = LinearEasing
-    )
+    // Streaming cursor blink (duration in ms)
+    const val CURSOR_BLINK_DURATION_MS = 1000
 }

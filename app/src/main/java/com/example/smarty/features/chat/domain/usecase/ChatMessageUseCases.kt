@@ -3,7 +3,6 @@ package com.example.smarty.features.chat.domain.usecase
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatRole
 import com.example.smarty.data.repository.ChatRepository
-import com.example.smarty.data.repository.getMessagesForSessionOnce
 import com.example.smarty.features.chat.domain.mapper.ChatMessageMapper
 import kotlinx.coroutines.flow.Flow
 
@@ -99,7 +98,7 @@ class GetMessagesUseCase(
      * Execute: Get all messages for a session (one-time).
      */
     suspend fun getAllMessages(sessionId: String): List<ChatMessage> {
-        return getMessagesForSessionOnce(sessionId)
+        return chatRepository.getMessagesForSessionOnce(sessionId)
     }
 }
 
@@ -137,6 +136,23 @@ class DeleteMessageUseCase(
      * Execute: Delete a specific message.
      */
     suspend fun execute(messageId: String): Boolean {
+        return chatRepository.deleteMessage(messageId)
+    }
+}
+
+/**
+ * Use Case: Delete a chat message by session.
+ * 
+ * Single Responsibility: Only handles message deletion by session.
+ */
+class DeleteMessageBySessionUseCase(
+    private val chatRepository: ChatRepository
+) {
+    
+    /**
+     * Execute: Delete a specific message from a session.
+     */
+    suspend fun execute(sessionId: String, messageId: String): Boolean {
         return chatRepository.deleteMessage(messageId)
     }
 }

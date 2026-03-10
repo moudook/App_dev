@@ -42,7 +42,7 @@ sealed class ChatEvent {
     data class ThinkingExpanded(val messageId: String) : ChatEvent()
     data class ThinkingCollapsed(val messageId: String) : ChatEvent()
     data class ContextMenuOpened(val messageId: String) : ChatEvent()
-    data class ContextMenuClosed : ChatEvent()
+    data object ContextMenuClosed : ChatEvent()
     data class ScrollPositionChanged(val position: Int, val isAtLatest: Boolean) : ChatEvent()
     data object ScrollToBottomRequested : ChatEvent()
     data object ScrollToTopRequested : ChatEvent()
@@ -91,15 +91,14 @@ sealed class AttachmentType {
     
     companion object {
         fun fromDomain(type: com.example.smarty.core.domain.model.AttachmentType): AttachmentType {
-            return when (type) {
-                com.example.smarty.core.domain.model.AttachmentType.IMAGE -> Image
-                com.example.smarty.core.domain.model.AttachmentType.VIDEO -> Video
-                com.example.smarty.core.domain.model.AttachmentType.DOCUMENT -> Document
-                com.example.smarty.core.domain.model.AttachmentType.AUDIO -> Audio
-                com.example.smarty.core.domain.model.AttachmentType.LINK -> Link
-                com.example.smarty.core.domain.model.AttachmentType.RESEARCH -> Research
-                // Handle other types with else
-                else -> Document // Default fallback
+            return when (type.name) {
+                "IMAGE" -> Image
+                "VIDEO" -> Video
+                "DOCUMENT" -> Document
+                "AUDIO" -> Audio
+                "LINK" -> Link
+                "RESEARCH" -> Research
+                else -> Document // Default fallback for any other type
             }
         }
     }

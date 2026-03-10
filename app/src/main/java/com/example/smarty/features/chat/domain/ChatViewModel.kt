@@ -82,7 +82,15 @@ class ChatViewModel(
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     // Derived state for convenience - expose directly from state flows
-    val messages: StateFlow<List<ChatMessage>> = _chatState
+    val messages: StateFlow<List<ChatMessage>> get() = _chatState.asStateFlow().let { flow ->
+        object : StateFlow<List<ChatMessage>> {
+            override val value: List<ChatMessage> get() = flow.value.messages
+            override val replayCache: List<List<ChatMessage>> get() = listOf(flow.value.messages)
+            override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<List<ChatMessage>>) {
+                flow.collect { collector.emit(it.messages) }
+            }
+        }
+    }
     val isProcessing: StateFlow<Boolean> = _chatState
         .asStateFlow()
         .let { flow ->
@@ -236,8 +244,7 @@ class ChatViewModel(
     private fun handleDeleteMessage(messageId: String) {
         viewModelScope.launch {
             try {
-                val sessionId = _chatState.value.currentSessionId ?: return@launch
-                deleteMessageUseCase.execute(sessionId, messageId)
+                deleteMessageUseCase.execute(messageId)
 
                 // Update state
                 _chatState.update { state ->
@@ -248,7 +255,7 @@ class ChatViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error deleting message: ${e.message}", e)
-                _chatState.update { 
+                _chatState.update {
                     it.copy(errorMessage = "Failed to delete message: ${e.message}")
                 }
             }

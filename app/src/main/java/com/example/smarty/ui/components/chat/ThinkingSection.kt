@@ -8,7 +8,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.drawBehind
+import androidx.compose.foundation.drawbehind
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,7 +27,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.smarty.core.domain.model.ActionResult
 import com.example.smarty.ui.LocalAccentColor
 import com.example.smarty.ui.theme.*
 import kotlinx.coroutines.delay
@@ -42,7 +41,6 @@ import kotlinx.coroutines.delay
  * @param isExpanded Whether the thinking section is expanded
  * @param isStreaming Whether the AI is still streaming the response
  * @param onExpandToggle Callback when expand/collapse is triggered
- * @param executedActions Optional list of tool execution results
  */
 @Composable
 fun ThinkingSection(
@@ -50,7 +48,6 @@ fun ThinkingSection(
     isExpanded: Boolean,
     isStreaming: Boolean,
     onExpandToggle: () -> Unit,
-    executedActions: List<com.example.smarty.core.domain.model.ActionResult> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val accentColor = LocalAccentColor.current
@@ -121,19 +118,6 @@ fun ThinkingSection(
                         accentColor = accentColor,
                         thinkingColors = thinkingColors
                     )
-                    
-                    // Tool execution log
-                    if (executedActions.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(ComponentSpacing.thinkingTextGap))
-                        executedActions.forEach { actionResult ->
-                            MinimalActionResultChip(
-                                actionName = actionResult.action,
-                                success = actionResult.success,
-                                summary = actionResult.resultSummary,
-                                thinkingColors = thinkingColors
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -245,47 +229,6 @@ private fun ThinkingContent(
                 ),
                 color = thinkingColors.text.copy(alpha = Alpha.nearlyOpaque)
             )
-        }
-    }
-}
-
-@Composable
-fun MinimalActionResultChip(
-    actionName: String,
-    success: Boolean,
-    summary: String?,
-    thinkingColors: ThinkingColors,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = thinkingColors.background.copy(alpha = 0.5f),
-        modifier = modifier.padding(vertical = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (success) Icons.Default.Check else Icons.Default.Close,
-                contentDescription = null,
-                tint = if (success) thinkingColors.border else Color.Red,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = actionName,
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                color = thinkingColors.text.copy(alpha = Alpha.nearlyOpaque)
-            )
-            if (!summary.isNullOrBlank()) {
-                Text(
-                    text = "• $summary",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = thinkingColors.text.copy(alpha = Alpha.half),
-                    maxLines = 1
-                )
-            }
         }
     }
 }

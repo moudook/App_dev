@@ -17,7 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 fun StandardTopAppBar(
     title: String,
     navigationIcon: @Composable () -> Unit = {},
-    actions: @Composable () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {},
     colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors(
         containerColor = MaterialTheme.colorScheme.surface,
         titleContentColor = MaterialTheme.colorScheme.onSurface,
