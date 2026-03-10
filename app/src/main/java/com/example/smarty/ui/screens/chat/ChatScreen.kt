@@ -118,8 +118,8 @@ fun ChatScreen(
                         },
                         onSuggestionClick = { suggestion ->
                             viewModel.onEvent(ChatEvent.SuggestionClicked(suggestion))
-                        },
-                        modifier = Modifier.animateItemPlacement()
+                        }
+                        // modifier = Modifier.animateItemPlacement() // Removed experimental API
                     )
                 }
             }
