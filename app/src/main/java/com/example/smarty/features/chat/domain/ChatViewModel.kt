@@ -81,26 +81,8 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState.initial())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    // Derived state for convenience - expose directly from state flows
-    val messages: StateFlow<List<ChatMessage>> = _chatState.asStateFlow().let { flow ->
-        object : StateFlow<List<ChatMessage>> {
-            override val value: List<ChatMessage> get() = flow.value.messages
-            override val replayCache: List<List<ChatMessage>> get() = listOf(flow.value.messages)
-            override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<List<ChatMessage>>) =
-                kotlinx.coroutines.flow.flow { emit(flow.value.messages) }.collect(collector)
-        }
-    }
-    val isProcessing: StateFlow<Boolean> = _chatState
-        .asStateFlow()
-        .let { flow ->
-            object : StateFlow<Boolean> {
-                override val value: Boolean get() = flow.value.isProcessing
-                override val replayCache: List<Boolean> get() = listOf(flow.value.isProcessing)
-                override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Boolean>) =
-                    kotlinx.coroutines.flow.flow { emit(flow.value.isProcessing) }.collect(collector)
-            }
-        }
-    
+    // Expose state directly - callers can access .value.messages and .value.isProcessing
+    val chatState: StateFlow<ChatState> = _chatState
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
 
     // Current streaming job

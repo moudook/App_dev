@@ -90,23 +90,6 @@ class LoadingState {
     fun stopAll() {
         _loadingOperations.value = _loadingOperations.value.mapValues { false }
     }
-    
-    /**
-     * Inner class to provide StateFlow for individual operations.
-     */
-    private inner class LoadingStateFlow(
-        private val operationId: String
-    ) : StateFlow<Boolean> {
-        override val value: Boolean
-            get() = this@LoadingState.isLoading(operationId)
-        
-        override val replayCache: List<Boolean>
-            get() = listOf(value)
-        
-        override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Boolean>) {
-            kotlinx.coroutines.flow.flow { emit(value) }.collect(collector)
-        }
-    }
 }
 
 /**

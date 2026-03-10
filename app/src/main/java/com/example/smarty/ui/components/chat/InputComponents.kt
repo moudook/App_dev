@@ -3,6 +3,7 @@ package com.example.smarty.ui.components.chat
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.drawBehind
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -132,13 +133,13 @@ fun InputPillBorder(
     borderColor: Color = LocalAccentColor.current,
     defaultBorderColor: Color = MaterialTheme.colorScheme.outlineVariant
 ) {
-    val currentBorderColor by animateColorAsState(
+    val currentBorderColor by androidx.compose.animation.core.animateColorAsState(
         targetValue = if (isFocused) borderColor else defaultBorderColor,
         animationSpec = androidx.compose.animation.core.tween(200),
         label = "pill_border"
     )
 
-    val borderWidth by animateDpAsState(
+    val borderWidth by androidx.compose.animation.core.animateDpAsState(
         targetValue = if (isFocused) 1.5.dp else 0.5.dp,
         animationSpec = androidx.compose.animation.core.tween(200),
         label = "pill_border_width"
@@ -146,21 +147,15 @@ fun InputPillBorder(
 
     Box(
         modifier = modifier
-            .then(
-                Modifier.background(
-                    color = Color.Transparent,
-                    shape = RoundedCornerShape(24.dp)
+            .background(
+                color = Color.Transparent,
+                shape = RoundedCornerShape(24.dp)
+            )
+            .drawBehind {
+                drawRect(
+                    color = currentBorderColor,
+                    style = Stroke(width = borderWidth.toPx())
                 )
-            )
-            .then(
-                Modifier.drawBehind {
-                    drawRect(
-                        brush = Brush.linearGradient(
-                            colors = listOf(currentBorderColor, currentBorderColor)
-                        ),
-                        style = Stroke(width = borderWidth.toPx())
-                    )
-                }
-            )
+            }
     )
 }
