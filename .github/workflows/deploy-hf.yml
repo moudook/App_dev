@@ -1,31 +1,78 @@
-name: Deploy to Hugging Face Spaces
+name: Deploy Server to Hugging Face Spaces
 
 on:
-  # Disabled - pushing directly to HF Space instead
-  # push:
-  #   branches: [main]
+  push:
+    branches: [ main ]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-hf.yml'
   workflow_dispatch:
+
+env:
+  HF_SPACE_NAME: smarty-server
+  HF_USERNAME: K1tt3n
 
 jobs:
   deploy:
+    name: Deploy to Hugging Face Spaces
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Push to Hugging Face
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Server
+        run: ./gradlew :server:build --stacktrace
+
+      - name: Run Server Tests
+        run: ./gradlew :server:test --stacktrace
+
+      - name: Verify Server Build
+        run: |
+          if [ ! -f server/build/libs/server-1.0.0-all.jar ]; then
+            echo "Server build failed - JAR not found"
+            exit 1
+          fi
+          echo "Server build successful"
+
+      - name: Deploy to Hugging Face Spaces
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # Configure git
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           
-          # Add HF remote if not exists
-          git remote add hf https://K1tt3n:$HF_TOKEN@huggingface.co/spaces/K1tt3n/Friday_server 2>/dev/null || true
-           
-           # Push to HF Spaces
-           git push hf main --force
-           
-           echo "Deployed to https://huggingface.co/spaces/K1tt3n/Friday_server"
+          # Remove any existing HF remote
+          git remote remove hf 2>/dev/null || true
+          
+          # Add HF remote
+          git remote add hf https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME
+          
+          # Push to HF Spaces (force push to update Docker image)
+          git push hf main --force
+          
+          echo "✅ Deployed to https://huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME"
+
+      - name: Wait for Deployment
+        run: |
+          echo "⏳ Waiting for Hugging Face Spaces to deploy..."
+          echo "Check deployment status at: https://huggingface.co/spaces/$HF_USERNAME/$HF_SPACE_NAME"
+          sleep 30
+
+      - name: Health Check
+        run: |
+          # Try to ping the space (may not be ready yet)
+          curl -f https://$HF_USERNAME-$HF_SPACE_NAME.hf.space/api/health || echo "Space may still be starting up..."
