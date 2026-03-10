@@ -104,7 +104,7 @@ class LoadingState {
             get() = listOf(value)
         
         override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Boolean>) {
-            collector.emit(value)
+            kotlinx.coroutines.flow.flow { emit(value) }.collect(collector)
         }
     }
 }

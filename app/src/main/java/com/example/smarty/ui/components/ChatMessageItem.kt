@@ -320,8 +320,7 @@ fun ChatMessageItem(
                             thinkingText = thinkingText,
                             isExpanded = thinkingExpanded,
                             isStreaming = message.isStreaming,
-                            onExpandToggle = { thinkingExpanded = !thinkingExpanded },
-                            executedActions = message.executedActions
+                            onExpandToggle = { thinkingExpanded = !thinkingExpanded }
                         )
                     }
 

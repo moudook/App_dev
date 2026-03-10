@@ -122,7 +122,7 @@ fun ShimmerOverlay(
 
 /**
  * InputPillBorder - Animated border for input field.
- * 
+ *
  * Single Responsibility: Only handles border animation.
  */
 @Composable
@@ -134,22 +134,33 @@ fun InputPillBorder(
 ) {
     val currentBorderColor by animateColorAsState(
         targetValue = if (isFocused) borderColor else defaultBorderColor,
-        animationSpec = tween(200),
+        animationSpec = androidx.compose.animation.core.tween(200),
         label = "pill_border"
     )
-    
+
     val borderWidth by animateDpAsState(
         targetValue = if (isFocused) 1.5.dp else 0.5.dp,
-        animationSpec = tween(200),
+        animationSpec = androidx.compose.animation.core.tween(200),
         label = "pill_border_width"
     )
-    
+
     Box(
         modifier = modifier
-            .background(
-                color = Color.Transparent,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                border = androidx.compose.foundation.BorderStroke(borderWidth, currentBorderColor)
+            .then(
+                Modifier.background(
+                    color = Color.Transparent,
+                    shape = RoundedCornerShape(24.dp)
+                )
+            )
+            .then(
+                Modifier.drawBehind {
+                    drawRect(
+                        brush = Brush.linearGradient(
+                            colors = listOf(currentBorderColor, currentBorderColor)
+                        ),
+                        style = Stroke(width = borderWidth.toPx())
+                    )
+                }
             )
     )
 }

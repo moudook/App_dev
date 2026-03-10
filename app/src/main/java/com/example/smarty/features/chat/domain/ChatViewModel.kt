@@ -82,13 +82,12 @@ class ChatViewModel(
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     // Derived state for convenience - expose directly from state flows
-    val messages: StateFlow<List<ChatMessage>> get() = _chatState.asStateFlow().let { flow ->
+    val messages: StateFlow<List<ChatMessage>> = _chatState.asStateFlow().let { flow ->
         object : StateFlow<List<ChatMessage>> {
             override val value: List<ChatMessage> get() = flow.value.messages
             override val replayCache: List<List<ChatMessage>> get() = listOf(flow.value.messages)
-            override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<List<ChatMessage>>) {
-                flow.collect { collector.emit(it.messages) }
-            }
+            override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<List<ChatMessage>>) =
+                kotlinx.coroutines.flow.flow { emit(flow.value.messages) }.collect(collector)
         }
     }
     val isProcessing: StateFlow<Boolean> = _chatState
@@ -97,9 +96,8 @@ class ChatViewModel(
             object : StateFlow<Boolean> {
                 override val value: Boolean get() = flow.value.isProcessing
                 override val replayCache: List<Boolean> get() = listOf(flow.value.isProcessing)
-                override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Boolean>) {
-                    flow.collect { collector.emit(it.isProcessing) }
-                }
+                override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Boolean>) =
+                    kotlinx.coroutines.flow.flow { emit(flow.value.isProcessing) }.collect(collector)
             }
         }
     
