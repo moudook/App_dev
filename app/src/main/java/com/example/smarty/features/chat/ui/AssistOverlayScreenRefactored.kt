@@ -51,7 +51,7 @@ fun AssistOverlayScreen(
     val chatState by viewModel.chatState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val isListening = uiState.isVoiceListening
-    val isProcessing by viewModel.isProcessing.collectAsState()
+    val isProcessing = chatState.isProcessing
     
     // Theme-aware colors
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f

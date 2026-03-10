@@ -43,8 +43,8 @@ fun ChatScreen(
     // Collect global state - single source of truth
     val chatState by viewModel.chatState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    val messages by viewModel.messages.collectAsState()
-    val isProcessing by viewModel.isProcessing.collectAsState()
+    val messages = chatState.messages
+    val isProcessing = chatState.isProcessing
     
     // List state for scroll management
     val listState = rememberLazyListState()

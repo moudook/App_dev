@@ -61,8 +61,8 @@ class LoadingState {
     /**
      * Get StateFlow for a specific operation's loading state.
      */
-    fun isLoadingFlow(operationId: String): StateFlow<Boolean> {
-        return LoadingStateFlow(operationId)
+    fun isLoadingFlow(operationId: String): Boolean {
+        return isLoading(operationId)
     }
     
     /**

@@ -81,8 +81,6 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState.initial())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    // Expose state directly - callers can access .value.messages and .value.isProcessing
-    val chatState: StateFlow<ChatState> = _chatState
     val connectionStatus: StateFlow<ConnectionStatus> = sharedAppState.connectionStatus
 
     // Current streaming job
