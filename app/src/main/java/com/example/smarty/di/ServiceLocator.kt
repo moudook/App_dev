@@ -506,5 +506,10 @@ object ServiceLocator {
             com.example.smarty.features.chat.domain.memory.MemorySyncManager(featureManager, noteOps).also { memorySyncManager = it }
         }
     }
+
+    // Chat ViewModel Factory - provides ChatViewModel with all dependencies
+    fun provideChatViewModel(application: Application): com.example.smarty.features.chat.domain.ChatViewModel {
+        return com.example.smarty.features.chat.domain.ChatViewModel(application)
+    }
 }
 
