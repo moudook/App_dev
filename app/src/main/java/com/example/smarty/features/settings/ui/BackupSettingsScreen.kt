@@ -1,5 +1,6 @@
 package com.example.smarty.features.settings.ui
 
+import androidx.compose.ui.window.Dialog
 import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult

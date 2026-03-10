@@ -1,5 +1,6 @@
 package com.example.smarty.ui.components
 
+import androidx.compose.ui.window.Dialog
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background

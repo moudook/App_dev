@@ -1,5 +1,6 @@
 package com.example.smarty.features.notes.ui.inputstream
 
+import androidx.compose.ui.window.Dialog
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background

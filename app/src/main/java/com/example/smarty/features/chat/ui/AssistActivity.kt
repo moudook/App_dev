@@ -115,6 +115,7 @@ class AssistActivity : ComponentActivity() {
     /**
      * Handle back button press with smooth finish animation
      */
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         finishWithAnimation()
     }

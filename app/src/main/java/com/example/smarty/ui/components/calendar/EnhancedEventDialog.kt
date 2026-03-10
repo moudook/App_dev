@@ -1,5 +1,7 @@
 package com.example.smarty.ui.components.calendar
 
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
 import com.example.smarty.R
 import androidx.compose.foundation.background

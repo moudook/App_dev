@@ -1,6 +1,7 @@
 package com.example.smarty.features.notes.ui
 
 
+import androidx.compose.ui.window.Dialog
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 

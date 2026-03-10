@@ -189,9 +189,7 @@ class RemoteAgentService(
             val token = getFirebaseToken() ?: return false
             
             val response = client.delete("$baseUrl/api/v1/chat/sessions/$sessionId") {
-                if (token != null) {
-                    header(HttpHeaders.Authorization, "Bearer $token")
-                }
+                header(HttpHeaders.Authorization, "Bearer $token")
             }
             response.status.isSuccess()
         } catch (e: Exception) {
