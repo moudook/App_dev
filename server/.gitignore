@@ -1,0 +1,27 @@
+# Build output
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials (use environment variables instead)
+firebase-service-account.json
+local.properties
+secrets/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/

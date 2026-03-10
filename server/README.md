@@ -1,59 +1,59 @@
 ---
-title: Friday Server
-emoji: 🌻
-colorFrom: purple
-colorTo: blue
+title: Smarty Server
+emoji: 🧠
+colorFrom: blue
+colorTo: gray
 sdk: docker
-app_port: 7860
 pinned: false
+license: mit
 ---
 
-# Friday Server (Ktor Backend)
+# Smarty Server - AI Backend
 
-This is the cloud-hosted backend for Smarty, designed as a "Thin Client" brain. It hosts the KOOG agent, handles RAG (Retrieval Augmented Generation) with Supabase, and orchestrates device commands.
+This is the server component of the Smarty AI assistant application.
 
-## Prerequisites
-- **Hugging Face Account**: For hosting the Dockerized Ktor service.
-- **Supabase Account**: For PostgreSQL + `pgvector` storage.
-- **Firebase Project**: For user authentication (JWT verification).
+## Features
 
-## Setup Instructions
+- 🧠 AI Chat with LLM integration (Gemini, OpenAI)
+- 📅 Calendar management
+- 📝 Note-taking with deduplication
+- ⏰ Timer and reminder system
+- 🔍 Web search via Tavily API
+- 📱 Firebase push notifications
+- 🔄 Real-time sync
 
-### 1. Database (Supabase)
-1. Go to your Supabase Project -> SQL Editor.
-2. Open the [init-db.sql](../init-db.sql) file from the root directory.
-3. Paste and run the SQL script to enable `pgvector` and create the required tables and hybrid search functions.
+## Deployment
 
-### 2. Environment Variables
-You must set the following environment variables in your Hugging Face Space (or local environment):
-- `DB_URL`: JDBC URL for Supabase (e.g., `jdbc:postgresql://db.xxxx.supabase.co:5432/postgres`)
-- `DB_USER`: Supabase database user (usually `postgres`)
-- `DB_PASSWORD`: Supabase database password
-- `FIREBASE_PROJECT_ID`: Your Firebase project ID
-- `FIREBASE_CREDENTIALS`: JSON content of your Firebase Admin SDK service account key
+This space uses Docker deployment. The server builds automatically on push.
 
-### 3. Deployment (Hugging Face Spaces)
-1. Create a new "Space" on Hugging Face.
-2. Select **Docker** as the SDK.
-3. Template: **Blank**.
-4. **Prepare your repository**:
-   - Hugging Face expects the `Dockerfile` to be at the root of your repository.
-   - Copy the `server/Dockerfile` to the project root: `cp server/Dockerfile ./Dockerfile`.
-   - Ensure the root project (including `common/`, `gradle/`, `gradlew`, etc.) is pushed.
-5. Push your code to the Space repository:
-   ```bash
-   git remote add hf https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME
-   git push hf main --force
-   ```
-6. The `Dockerfile` is pre-configured for Hugging Face (Port 7860, UID 1000).
+## Environment Variables
 
-### 4. Configuration Tips
-- **Firebase**: Copy the entire content of your Firebase Service Account JSON file into the `FIREBASE_CREDENTIALS` environment variable in HF Space settings.
-- **Port**: HF uses port 7860. The server handles this automatically via the `SERVER_PORT` env var.
+Required environment variables (set in Hugging Face Space settings):
+
+- `DB_URL` - PostgreSQL database URL
+- `DB_USER` - Database username
+- `DB_PASSWORD` - Database password
+- `GEMINI_API_KEY` - Google Gemini API key
+- `TAVILY_API_KEY` - Tavily search API key
+- `FIREBASE_CREDENTIALS` - Firebase admin SDK credentials (JSON)
 
 ## Local Development
-Run the server locally using Gradle:
+
 ```bash
-./gradlew :server:run
+cd server
+../gradlew :server:run
 ```
-Make sure to have the environment variables set in your shell or IDE.
+
+Server runs on port 7860 by default.
+
+## API Endpoints
+
+- `POST /api/chat` - Chat with AI assistant
+- `GET /api/health` - Health check
+- `POST /api/data/notes` - Create note
+- `GET /api/data/calendar` - Get calendar events
+- `POST /api/digest/generate` - Generate daily digest
+
+## Documentation
+
+See `SERVER_SDE_IMPROVEMENTS.md` in the root directory for architecture details.
