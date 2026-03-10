@@ -962,65 +962,6 @@ private fun SourceCard(
     }
 }
 
-/**
- * Minified tool call result for the thinking section.
- * Stripped of bulky elements to fit perfectly within reasoning flow.
- */
-@Composable
-private fun MinimalActionResultChip(
-    actionName: String,
-    success: Boolean,
-    summary: String,
-    thinkingColors: com.example.smarty.ui.theme.ThinkingColors
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 2.dp)
-    ) {
-        Icon(
-            imageVector = if (success) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-            contentDescription = null,
-            modifier = Modifier.size(10.dp),
-            tint = if (success) MaterialTheme.colorScheme.primary.copy(alpha = Alpha.prominent) 
-                   else MaterialTheme.colorScheme.error.copy(alpha = Alpha.prominent)
-        )
-        
-        Spacer(modifier = Modifier.width(ComponentSpacing.extraSmall))
-        
-        Text(
-            text = "[${formatActionName(actionName)}]",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-                fontSize = 10.sp,
-                letterSpacing = 0.2.sp
-            ),
-            color = thinkingColors.text.copy(alpha = Alpha.heavy)
-        )
-        
-        if (summary.isNotBlank()) {
-            Spacer(modifier = Modifier.width(ComponentSpacing.extraSmall))
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp
-                ),
-                color = thinkingColors.text.copy(alpha = Alpha.half),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-private fun formatActionName(actionName: String): String {
-    return actionName
-        .replace("Action", "")
-        .replace(MarkdownPatterns.actionNameSplit, " $1")
-        .trim()
-}
-
 @Composable
 fun CodeBlock(
     code: String,
