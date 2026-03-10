@@ -98,6 +98,12 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+
+// Import extracted chat components for DRY principle
+import com.example.smarty.ui.components.chat.ThinkingSection
+import com.example.smarty.ui.components.chat.ThinkingDots
+import com.example.smarty.ui.components.chat.StreamingCursor
+import com.example.smarty.ui.components.chat.rememberTypewriterState
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -301,211 +307,27 @@ fun ChatMessageItem(
                 )
             ) {
                 if (!isUser) {
-                    
-                    // THINKING SECTION - Smarty style (shows ABOVE content)
+
+                    // THINKING SECTION - Using extracted component (DRY principle)
                     // During streaming: shows live thinking with expandable view
                     // After completion: shows "Thought process" collapsed
                     if (message.hasThinking || (message.isStreaming && !message.thinking.isNullOrBlank())) {
                         var thinkingExpanded by remember { mutableStateOf(message.isStreaming) }
                         val thinkingText = message.thinking ?: ""
-                        val thinkingColors = MaterialTheme.thinkingColors
                         
-                        // Optimize: Resource-efficient typewriter for thinking text
-                        // Only runs if expanded and streaming
-                        val displayThinkingLength = remember(message.id) { mutableIntStateOf(if (message.isStreaming) 0 else thinkingText.length) }
-                        
-                        LaunchedEffect(thinkingText, thinkingExpanded, message.isStreaming) {
-                            if (message.isStreaming && thinkingExpanded) {
-                                while (displayThinkingLength.intValue < thinkingText.length) {
-                                    displayThinkingLength.intValue += minOf(3, thinkingText.length - displayThinkingLength.intValue)
-                                    delay(20)
-                                }
-                            } else if (!message.isStreaming) {
-                                displayThinkingLength.intValue = thinkingText.length
-                            }
-                        }
-
-                        val visibleThinkingText = remember(displayThinkingLength.intValue, thinkingText) {
-                            if (displayThinkingLength.intValue >= thinkingText.length) thinkingText
-                            else thinkingText.substring(0, displayThinkingLength.intValue)
-                        }
-
-                        Surface(
-                            shape = MaterialTheme.smartyShapes.thinkingContainer,
-                            // Differentiate from response: use subtle border and slight elevation/different surface
-                            color = thinkingColors.background,
-                            border = BorderStroke(
-                                width = 0.5.dp,
-                                color = thinkingColors.border
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = ComponentSpacing.thinkingMarginBottom)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null // REMOVE ripple effect (N circle impact)
-                                ) { 
-                                    thinkingExpanded = !thinkingExpanded 
-                                }
-                        ) {
-                            Column(modifier = Modifier.padding(
-                                horizontal = ComponentSpacing.thinkingPaddingHorizontal, 
-                                vertical = ComponentSpacing.thinkingPaddingVertical
-                            )) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(ComponentSpacing.thinkingHeaderGap)
-                                ) {
-                                    // Animated thinking emojis that rotate while agent is reasoning
-                                    if (message.isStreaming) {
-                                        val infiniteTransition = rememberInfiniteTransition(label = "thinking_emojis")
-                                        val emojiProgress by infiniteTransition.animateFloat(
-                                            initialValue = 0f, targetValue = 1f,
-                                            animationSpec = infiniteRepeatable(
-                                                animation = tween(1800, easing = LinearEasing),
-                                                repeatMode = RepeatMode.Restart
-                                            ), label = "emoji_progress"
-                                        )
-                                        
-                                        val thinkingEmojis = listOf("🧠", "👻", "🌻")
-                                        val currentEmojiIndex = ((emojiProgress * 2.99f).toInt()).coerceIn(0, 2)
-                                        val currentEmoji = thinkingEmojis[currentEmojiIndex]
-                                        
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            // Animated emoji prefix
-                                            Text(
-                                                text = currentEmoji,
-                                                style = MaterialTheme.typography.titleMedium
-                                            )
-                                            // Thinking text suffix
-                                            Text(
-                                                text = "Thinking...",
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    letterSpacing = 0.5.sp
-                                                ),
-                                                color = accentColor.copy(alpha = Alpha.prominent)
-                                            )
-                                        }
-                                    } else {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            // Static brain emoji for completed thinking
-                                            Text(
-                                                text = "🧠",
-                                                style = MaterialTheme.typography.titleMedium
-                                            )
-                                            Text(
-                                                text = "Thought process",
-                                                style = MaterialTheme.typography.labelMedium.copy(
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    letterSpacing = 0.5.sp
-                                                ),
-                                                color = thinkingColors.text.copy(alpha = Alpha.mostlyOpaque)
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Icon(
-                                        imageVector = if (thinkingExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = null,
-                                        tint = thinkingColors.text.copy(alpha = Alpha.half),
-                                        modifier = Modifier.size(ComponentSpacing.thinkingIndicatorSize)
-                                    )
-                                }
-                                
-                                AnimatedVisibility(
-                                    visible = thinkingExpanded,
-                                    enter = expandVertically(animationSpec = tween(300)) + fadeIn(),
-                                    exit = shrinkVertically(animationSpec = tween(250)) + fadeOut()
-                                ) {
-                                    Column {
-                                        Spacer(modifier = Modifier.height(ComponentSpacing.thinkingTextGap))
-                                        Box(
-                                            modifier = Modifier
-                                                .padding(start = ComponentSpacing.thinkingLineMargin)
-                                                .drawBehind {
-                                                    // Thinner, more professional accent line
-                                                    drawLine(
-                                                        color = accentColor.copy(alpha = Alpha.moderate),
-                                                        start = Offset(0f, 0f),
-                                                        end = Offset(0f, this@drawBehind.size.height),
-                                                        strokeWidth = ComponentSpacing.thinkingLineWidth.toPx()
-                                                    )
-                                                }
-                                                .padding(start = ComponentSpacing.thinkingLineGap)
-                                        ) {
-                                            Text(
-                                                text = visibleThinkingText,
-                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    lineHeight = 20.sp,
-                                                    fontSize = 11.sp
-                                                ),
-                                                color = thinkingColors.text.copy(alpha = Alpha.nearlyOpaque)
-                                            )
-                                        }
-
-                                        // Tool execution log integrated directly into thinking section
-                                        if (message.executedActions.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.height(ComponentSpacing.thinkingTextGap))
-                                            Column(
-                                                modifier = Modifier.padding(start = ComponentSpacing.thinkingLineGap + ComponentSpacing.thinkingLineMargin)
-                                            ) {
-                                                message.executedActions.forEach { actionResult ->
-                                                    MinimalActionResultChip(
-                                                        actionName = actionResult.action,
-                                                        success = actionResult.success,
-                                                        summary = actionResult.resultSummary,
-                                                        thinkingColors = thinkingColors
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        // Use extracted ThinkingSection component
+                        ThinkingSection(
+                            thinkingText = thinkingText,
+                            isExpanded = thinkingExpanded,
+                            isStreaming = message.isStreaming,
+                            onExpandToggle = { thinkingExpanded = !thinkingExpanded },
+                            executedActions = message.executedActions
+                        )
                     }
-                    
+
                     // Show thinking dots when streaming with no content yet and no thinking
                     if (message.isStreaming && message.content.isEmpty() && message.thinking.isNullOrBlank()) {
-                        // OPTIMIZED: Single animation drives all 3 dots via phase offset math
-                        val infiniteTransition = rememberInfiniteTransition(label = "thinking")
-                        val thinkingProgress by infiniteTransition.animateFloat(
-                            initialValue = 0f, targetValue = 1f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(1800, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
-                            ), label = "thinkDots"
-                        )
-                        // Derive 3 dot alphas from single progress with 120° phase separation
-                        val pi2 = 2f * Math.PI.toFloat()
-                        val dotAlpha1 = (0.2f + 0.8f * ((kotlin.math.sin(thinkingProgress * pi2) + 1f) / 2f))
-                        val dotAlpha2 = (0.2f + 0.8f * ((kotlin.math.sin(thinkingProgress * pi2 + pi2 / 3f) + 1f) / 2f))
-                        val dotAlpha3 = (0.2f + 0.8f * ((kotlin.math.sin(thinkingProgress * pi2 + 2f * pi2 / 3f) + 1f) / 2f))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "Thinking",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontSize = 14.sp,
-                                    fontStyle = FontStyle.Italic
-                                ),
-                                color = textSubColor
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha1), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha2), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text(".", color = MaterialTheme.colorScheme.primary.copy(alpha = dotAlpha3), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        }
+                        ThinkingDots()
                     }
                     
                     // MAIN CONTENT - Shows BELOW thinking (Smarty style)
@@ -556,25 +378,10 @@ fun ChatMessageItem(
                             codeHeaderBg = codeHeaderBg,
                             isStreaming = message.isStreaming && displayPosition < targetLength
                         )
-                        
+
+                        // Streaming cursor - using extracted component (DRY)
                         if (message.isStreaming && displayPosition < targetLength) {
-                            // Streaming Cursor Attachment
-                            val infiniteTransition = rememberInfiniteTransition(label = "cursor")
-                            val cursorAlpha by infiniteTransition.animateFloat(
-                                initialValue = 1f, targetValue = 0f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(1000, easing = LinearEasing),
-                                    repeatMode = RepeatMode.Restart
-                                ), label = "cursor_opacity"
-                            )
-                            Box(modifier = Modifier.padding(top=4.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(start = 2.dp)
-                                        .size(width = 8.dp, height = 20.dp)
-                                        .background(brandPrimary.copy(alpha = if (cursorAlpha > 0.5f) 1f else 0f))
-                                )
-                            }
+                            StreamingCursor(cursorColor = brandPrimary)
                         }
 
                     // Inline Image Preview
