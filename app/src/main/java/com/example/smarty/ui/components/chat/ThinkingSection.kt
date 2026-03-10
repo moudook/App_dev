@@ -8,7 +8,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.drawBehind
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,7 +20,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -204,31 +202,27 @@ private fun ThinkingContent(
     accentColor: Color,
     thinkingColors: ThinkingColors
 ) {
-    Column(
-        modifier = Modifier.padding(start = ComponentSpacing.thinkingLineGap + ComponentSpacing.thinkingLineMargin)
+    Row(
+        modifier = Modifier.padding(start = ComponentSpacing.thinkingLineGap + ComponentSpacing.thinkingLineMargin),
+        horizontalArrangement = Arrangement.spacedBy(ComponentSpacing.thinkingLineGap)
     ) {
-        Box(
+        // Accent line
+        Spacer(
             modifier = Modifier
-                .padding(start = ComponentSpacing.thinkingLineMargin)
-                .drawBehind {
-                    drawLine(
-                        color = accentColor.copy(alpha = Alpha.moderate),
-                        start = Offset(0f, 0f),
-                        end = Offset(0f, this.size.height),
-                        strokeWidth = ComponentSpacing.thinkingLineWidth.toPx()
-                    )
-                }
-                .padding(start = ComponentSpacing.thinkingLineGap)
-        ) {
-            Text(
-                text = visibleThinkingText,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    lineHeight = 20.sp,
-                    fontSize = 11.sp
-                ),
-                color = thinkingColors.text.copy(alpha = Alpha.nearlyOpaque)
-            )
-        }
+                .width(ComponentSpacing.thinkingLineWidth)
+                .fillMaxHeight()
+                .background(accentColor.copy(alpha = Alpha.moderate))
+        )
+        
+        // Thinking text
+        Text(
+            text = visibleThinkingText,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                lineHeight = 20.sp,
+                fontSize = 11.sp
+            ),
+            color = thinkingColors.text.copy(alpha = Alpha.nearlyOpaque)
+        )
     }
 }
