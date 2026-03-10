@@ -5,9 +5,10 @@ import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.plugins.logging.*
-import io.ktor.serialization.kotlinjson.*
+import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /**
  * Centralized HTTP Client Factory.
@@ -43,11 +44,6 @@ object HttpClientFactory {
             json(json)
         }
         
-        install(Logging) {
-            logger = Logger.DEFAULT
-            level = if (AppConfig.isDevelopment) LogLevel.INFO else LogLevel.ERROR
-        }
-        
         install(HttpTimeout) {
             requestTimeoutMillis = AppConfig.httpTimeoutMs
             connectTimeoutMillis = AppConfig.connectionTimeoutMs
@@ -61,9 +57,9 @@ object HttpClientFactory {
         
         engine {
             config {
-                connectTimeout(AppConfig.connectionTimeoutMs.toInt(), java.util.concurrent.TimeUnit.MILLISECONDS)
-                readTimeout(AppConfig.httpTimeoutMs.toInt(), java.util.concurrent.TimeUnit.MILLISECONDS)
-                writeTimeout(AppConfig.httpTimeoutMs.toInt(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                connectTimeout(AppConfig.connectionTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                readTimeout(AppConfig.httpTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                writeTimeout(AppConfig.httpTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
             }
         }
     }
@@ -85,8 +81,8 @@ object HttpClientFactory {
         
         engine {
             config {
-                connectTimeout(5_000, java.util.concurrent.TimeUnit.MILLISECONDS)
-                readTimeout(10_000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                connectTimeout(5_000, TimeUnit.MILLISECONDS)
+                readTimeout(10_000, TimeUnit.MILLISECONDS)
             }
         }
     }
@@ -108,8 +104,8 @@ object HttpClientFactory {
         
         engine {
             config {
-                connectTimeout(30_000, java.util.concurrent.TimeUnit.MILLISECONDS)
-                readTimeout(600_000, java.util.concurrent.TimeUnit.MILLISECONDS)
+                connectTimeout(30_000, TimeUnit.MILLISECONDS)
+                readTimeout(600_000, TimeUnit.MILLISECONDS)
             }
         }
     }
@@ -119,18 +115,10 @@ object HttpClientFactory {
      */
     fun create(
         requestTimeoutMs: Long,
-        connectTimeoutMs: Long,
-        enableLogging: Boolean = AppConfig.isDevelopment
+        connectTimeoutMs: Long
     ): HttpClient = HttpClient(OkHttp) {
         install(ContentNegotiation) {
             json(json)
-        }
-        
-        if (enableLogging) {
-            install(Logging) {
-                logger = Logger.DEFAULT
-                level = LogLevel.INFO
-            }
         }
         
         install(HttpTimeout) {
@@ -141,8 +129,8 @@ object HttpClientFactory {
         
         engine {
             config {
-                connectTimeout(connectTimeoutMs.toInt(), java.util.concurrent.TimeUnit.MILLISECONDS)
-                readTimeout(requestTimeoutMs.toInt(), java.util.concurrent.TimeUnit.MILLISECONDS)
+                connectTimeout(connectTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                readTimeout(requestTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
             }
         }
     }

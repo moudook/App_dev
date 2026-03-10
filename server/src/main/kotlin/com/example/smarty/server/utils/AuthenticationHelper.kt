@@ -1,6 +1,7 @@
 package com.example.smarty.server.utils
 
-import com.example.smarty.server.services.FirebaseUserPrincipal
+import com.example.smarty.server.plugins.FirebaseUserPrincipal
+import com.example.smarty.server.plugins.firebaseUser
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
@@ -76,17 +77,3 @@ object AuthenticationHelper {
  * Exception thrown when authentication is required but not provided.
  */
 class UnauthorizedException(message: String) : Exception(message)
-
-/**
- * Extension function for responding with unauthorized error.
- */
-suspend fun ApplicationCall.respondUnauthorized(message: String = "Unauthorized") {
-    respond(HttpStatusCode.Unauthorized, mapOf("error" to message))
-}
-
-/**
- * Extension function for responding with forbidden error.
- */
-suspend fun ApplicationCall.respondForbidden(message: String = "Forbidden") {
-    respond(HttpStatusCode.Forbidden, mapOf("error" to message))
-}

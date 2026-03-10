@@ -61,20 +61,6 @@ suspend fun ApplicationCall.respondBadRequest(message: String) {
 }
 
 /**
- * Respond with an unauthorized error (401).
- */
-suspend fun ApplicationCall.respondUnauthorized(message: String = "Unauthorized") {
-    respondError(HttpStatusCode.Unauthorized, message)
-}
-
-/**
- * Respond with a forbidden error (403).
- */
-suspend fun ApplicationCall.respondForbidden(message: String = "Forbidden") {
-    respondError(HttpStatusCode.Forbidden, message)
-}
-
-/**
  * Respond with a not found error (404).
  */
 suspend fun ApplicationCall.respondNotFound(message: String = "Not found") {

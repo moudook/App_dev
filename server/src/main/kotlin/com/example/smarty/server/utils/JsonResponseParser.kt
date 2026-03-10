@@ -62,17 +62,17 @@ object JsonResponseParser {
     /**
      * Parse a JSON response to a specific type.
      */
-    inline fun <reified T> parseToJson(response: String): T {
+    fun <T> parseToJson(response: String, deserializer: (String) -> T): T {
         val cleaned = cleanResponse(response)
-        return json.decodeFromString(cleaned)
+        return deserializer(cleaned)
     }
     
     /**
      * Safely parse a JSON response, returning null on failure.
      */
-    inline fun <reified T> parseToJsonSafe(response: String): T? {
+    fun <T> parseToJsonSafe(response: String, deserializer: (String) -> T): T? {
         return try {
-            parseToJson(response)
+            parseToJson(response, deserializer)
         } catch (e: Exception) {
             null
         }
@@ -97,7 +97,7 @@ object JsonResponseParser {
     fun extractField(response: String, fieldName: String): String? {
         return try {
             val jsonElement = parseToJsonElement(response)
-            jsonElement.asJsonObject[fieldName]?.toString()
+            jsonElement.toString()
         } catch (e: Exception) {
             null
         }

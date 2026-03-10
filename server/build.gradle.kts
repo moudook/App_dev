@@ -45,6 +45,7 @@ dependencies {
     // Ktor Client (for external APIs)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
 
     // PDF Processing (minimal - only core needed)
     implementation("org.apache.pdfbox:pdfbox:3.0.1")
