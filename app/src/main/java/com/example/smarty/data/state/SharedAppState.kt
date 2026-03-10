@@ -8,7 +8,12 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Singleton holder for shared app state to decouple ViewModels.
- * Used by ChatFeatureManager and other components that need global context.
+ * Now includes global error, loading, and navigation state.
+ * 
+ * Principles:
+ * - Single source of truth for cross-feature state
+ * - Separated concerns (domain state vs UI state)
+ * - Immutable state flows
  */
 class SharedAppState {
     private val _currentScreen = MutableStateFlow("startup")
@@ -31,6 +36,11 @@ class SharedAppState {
 
     private val _selectedTab = MutableStateFlow<NavigationTab>(NavigationTab.NOTES)
     val selectedTab: StateFlow<NavigationTab> = _selectedTab.asStateFlow()
+    
+    // Global state managers - Single Responsibility for cross-cutting concerns
+    val errorState = GlobalErrorState()
+    val loadingState = LoadingState()
+    val navigationState = NavigationState()
 
     fun setCurrentScreen(screen: String) {
         _currentScreen.value = screen
