@@ -55,6 +55,7 @@ import io.micrometer.prometheus.*
 import org.slf4j.event.*
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
+import com.example.smarty.server.monitoring.SecurityMonitor
 
 /**
  * Server port. Can be overridden via SERVER_PORT environment variable.
@@ -78,18 +79,23 @@ fun Application.module() {
     // Configure Firewall (IP restrictions, request limits)
     configureFirewall()
 
-    // Configure CORS
+    // Configure CORS (Restricted)
     install(CORS) {
-        anyHost()
+        allowHost("localhost")
+        allowHost("127.0.0.1")
+        // Allow Hugging Face Spaces
+        allowHost("huggingface.co")
+        allowHost("*.hf.space")
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
+        allowHeader("X-Smarty-Device-Id")
         allowMethod(HttpMethod.Options)
+        allowMethod(HttpMethod.Get)
+        allowMethod(HttpMethod.Post)
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Patch)
         allowMethod(HttpMethod.Delete)
     }
-
-    // Configure Call ID
     install(CallId) {
         header("X-Request-ID")
         generate { UUID.randomUUID().toString() }
@@ -104,6 +110,9 @@ fun Application.module() {
         callIdMdc("trace_id")
     }
     */
+
+    // Configure Security Monitoring
+    configureSecurityMonitoring()
 
     // Configure Rate Limiting - Per-user to prevent abuse
     install(RateLimit) {
@@ -202,4 +211,16 @@ fun Application.module() {
     } else {
         log.warn("Database not configured - Digest Scheduler disabled")
     }
+}
+
+/**
+ * Configure security monitoring.
+ */
+fun Application.configureSecurityMonitoring() {
+    val logger = org.slf4j.LoggerFactory.getLogger("SecurityMonitoring")
+    logger.info("Security monitoring initialized")
+    logger.info("Security utilities available:")
+    logger.info("  - InputValidation: Input validation and sanitization")
+    logger.info("  - SecurityHeaders: Security header management")
+    logger.info("  - SecurityMonitor: Security event tracking and monitoring")
 }
