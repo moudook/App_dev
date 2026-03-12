@@ -3,6 +3,7 @@ package com.example.smarty.data.repository
 import android.util.Log
 import androidx.room.Transaction
 import com.example.smarty.data.local.ChatDao
+import com.example.smarty.data.local.ChatMessageNotesDao
 import com.example.smarty.core.domain.model.ChatMessage
 import com.example.smarty.core.domain.model.ChatMessageEntity
 import com.example.smarty.core.domain.model.ChatRole
@@ -16,8 +17,15 @@ import kotlinx.coroutines.flow.map
 /**
  * Repository for managing chat sessions and messages.
  * Implements smart saving logic to avoid storing redundant data.
+ * 
+ * SINGLE RESPONSIBILITY: Only manages chat_sessions and chat_messages tables.
+ * Delegates note relationship management to ChatMessageNotesDao.
+ * GLOBAL STATE: All operations respect user isolation and cascade deletes.
  */
-class ChatRepository(private val chatDao: ChatDao) {
+class ChatRepository(
+    private val chatDao: ChatDao,
+    private val chatMessageNotesDao: ChatMessageNotesDao
+) {
 
     companion object {
         private const val TAG = "ChatRepository"
@@ -309,6 +317,64 @@ suspend fun getMessagesForSessionOnce(sessionId: String): List<ChatMessage> {
     suspend fun deleteAllChatData() {
         chatDao.deleteAllChatData()
         Log.d(TAG, "Deleted all chat data")
+    }
+
+    // =============================================================================
+    // NOTE RELATIONSHIP METHODS (Delegated to ChatMessageNotesDao)
+    // =============================================================================
+
+    /**
+     * Link a note to a chat message.
+     */
+    @Transaction
+    suspend fun linkNoteToMessage(messageId: String, noteId: String) {
+        chatMessageNotesDao.linkMessageToNote(messageId, noteId)
+        Log.d(TAG, "Linked note $noteId to message $messageId")
+    }
+
+    /**
+     * Unlink a note from a chat message.
+     */
+    suspend fun unlinkNoteFromMessage(messageId: String, noteId: String) {
+        chatMessageNotesDao.unlinkMessageFromNote(messageId, noteId)
+        Log.d(TAG, "Unlinked note $noteId from message $messageId")
+    }
+
+    /**
+     * Get all notes linked to a chat message.
+     */
+    suspend fun getLinkedNoteIds(messageId: String): List<String> {
+        return chatMessageNotesDao.getLinkedNoteIds(messageId)
+    }
+
+    /**
+     * Get all notes linked to a chat message as Flow.
+     */
+    fun getLinkedNoteIdsFlow(messageId: String): Flow<List<String>> {
+        return chatMessageNotesDao.getLinkedNoteIdsFlow(messageId)
+    }
+
+    /**
+     * Link multiple notes to a message.
+     */
+    @Transaction
+    suspend fun linkMultipleNotesToMessage(messageId: String, noteIds: List<String>) {
+        chatMessageNotesDao.linkMultipleNotesToMessage(messageId, noteIds)
+        Log.d(TAG, "Linked ${noteIds.size} notes to message $messageId")
+    }
+
+    /**
+     * Check if a message is linked to a specific note.
+     */
+    suspend fun isMessageLinkedToNote(messageId: String, noteId: String): Boolean {
+        return chatMessageNotesDao.isLinked(messageId, noteId)
+    }
+
+    /**
+     * Get count of notes linked to a message.
+     */
+    suspend fun getLinkedNoteCount(messageId: String): Int {
+        return chatMessageNotesDao.getLinkCountForMessage(messageId)
     }
 
     // ==================== Helper Functions ====================

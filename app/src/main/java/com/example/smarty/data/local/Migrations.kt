@@ -723,5 +723,51 @@ object Migrations {
             )
         }
     }
+
+    /**
+     * Migration from version 35 to 36
+     * Adds junction tables for note relationships (v4.2.0 SDE principles)
+     * - chat_message_notes: Links chat messages to notes
+     * - calendar_event_notes: Links calendar events to notes
+     */
+    val MIGRATION_35_36 = object : Migration(35, 36) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Create chat_message_notes junction table
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS chat_message_notes (" +
+                "message_id TEXT NOT NULL, " +
+                "note_id TEXT NOT NULL, " +
+                "PRIMARY KEY (message_id, note_id))"
+            )
+
+            // Create calendar_event_notes junction table
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS calendar_event_notes (" +
+                "event_id TEXT NOT NULL, " +
+                "note_id TEXT NOT NULL, " +
+                "PRIMARY KEY (event_id, note_id))"
+            )
+
+            // Create indexes for chat_message_notes
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_chat_message_notes_message_id " +
+                "ON chat_message_notes(message_id)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_chat_message_notes_note_id " +
+                "ON chat_message_notes(note_id)"
+            )
+
+            // Create indexes for calendar_event_notes
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_calendar_event_notes_event_id " +
+                "ON calendar_event_notes(event_id)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS index_calendar_event_notes_note_id " +
+                "ON calendar_event_notes(note_id)"
+            )
+        }
+    }
 }
 

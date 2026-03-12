@@ -32,10 +32,13 @@ import com.example.smarty.data.local.CachedAIResponse
         CachedAIResponse::class,
         com.example.smarty.data.model.AIMemory::class,
         SyncQueueItem::class,
-        ConflictRecord::class
+        ConflictRecord::class,
+        // Junction tables for note relationships (v4.2.0)
+        ChatMessageNote::class,
+        CalendarEventNote::class
     ],
-    version = 35,
-    exportSchema = false
+    version = 36,  // Incremented for v4.2.0 junction tables
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class SmartyDatabase : RoomDatabase() {
@@ -49,6 +52,9 @@ abstract class SmartyDatabase : RoomDatabase() {
     abstract fun aiCacheDao(): AICacheDao
     abstract fun aiMemoryDao(): com.example.smarty.features.chat.domain.memory.AIMemoryDao
     abstract fun syncQueueDao(): SyncQueueDao
+    // Junction table DAOs (v4.2.0)
+    abstract fun chatMessageNotesDao(): ChatMessageNotesDao
+    abstract fun calendarEventNotesDao(): CalendarEventNotesDao
 
     companion object {
         private const val TAG = "SmartyDatabase"
@@ -283,7 +289,8 @@ abstract class SmartyDatabase : RoomDatabase() {
                         Migrations.MIGRATION_31_32,   // Feature: sync_queue for cloud-first sync
                         Migrations.MIGRATION_32_33,   // Feature: calendar_events updatedAt for sync
                         Migrations.MIGRATION_33_34,   // Feature: thinking column for AI reasoning
-                        Migrations.MIGRATION_34_35    // Performance: Additional indices for common queries
+                        Migrations.MIGRATION_34_35,   // Performance: Additional indices for common queries
+                        Migrations.MIGRATION_35_36    // Feature: Junction tables for note relationships (v4.2.0)
                     )
                     // NOTE: Removed fallbackToDestructiveMigration to preserve user data
                     // All migrations must be properly defined in Migrations.kt
