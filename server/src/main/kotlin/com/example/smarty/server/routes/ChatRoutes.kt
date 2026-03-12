@@ -129,10 +129,12 @@ fun Application.configureChatRoutes() {
 
     // Database and Repository
     val dataSource = DatabaseFactory.getDataSource()
-    val chatRepository = dataSource?.let { ChatRepository(it) }
-    val noteRepository = dataSource?.let { NoteRepository(it) }
+    val chatMessageNotesRepo = dataSource?.let { ChatMessageNotesRepository(it) }
+    val calendarEventNotesRepo = dataSource?.let { CalendarEventNotesRepository(it) }
+    val chatRepository = dataSource?.let { ChatRepository(it, chatMessageNotesRepo!!) }
+    val noteRepository = dataSource?.let { NoteRepository(it, chatMessageNotesRepo!!, calendarEventNotesRepo!!) }
     val timerRepository = dataSource?.let { TimerRepository(it) }
-    val calendarRepository = dataSource?.let { CalendarRepository(it) }
+    val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
 
     routing {
         // Authenticated routes
@@ -640,6 +642,81 @@ fun Application.configureChatRoutes() {
                 json.encodeToString(testEvents),
                 ContentType.Application.Json
             )
+        }
+
+        // =============================================================================
+        // NOTE RELATIONSHIP ENDPOINTS (v4.2.0 - Junction Table Support)
+        // =============================================================================
+
+        /**
+         * POST /chat/messages/{messageId}/notes/{noteId}
+         * Link a note to a chat message.
+         */
+        post("/chat/messages/{messageId}/notes/{noteId}") {
+            val userId = call.firebaseUser().uid
+            val messageId = call.parameters["messageId"] ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "messageId required"))
+            val noteId = call.parameters["noteId"] ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "noteId required"))
+
+            try {
+                chatRepository?.linkNoteToMessage(userId, messageId, noteId)
+                call.respond(HttpStatusCode.OK, mapOf(
+                    "success" to true,
+                    "messageId" to messageId,
+                    "noteId" to noteId
+                ))
+            } catch (e: IllegalAccessException) {
+                call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to link note to message", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to link note"))
+            }
+        }
+
+        /**
+         * DELETE /chat/messages/{messageId}/notes/{noteId}
+         * Unlink a note from a chat message.
+         */
+        delete("/chat/messages/{messageId}/notes/{noteId}") {
+            val userId = call.firebaseUser().uid
+            val messageId = call.parameters["messageId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "messageId required"))
+            val noteId = call.parameters["noteId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "noteId required"))
+
+            try {
+                val success = chatRepository?.unlinkNoteFromMessage(userId, messageId, noteId) ?: false
+                call.respond(HttpStatusCode.OK, mapOf(
+                    "success" to success,
+                    "messageId" to messageId,
+                    "noteId" to noteId
+                ))
+            } catch (e: IllegalAccessException) {
+                call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to unlink note from message", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to unlink note"))
+            }
+        }
+
+        /**
+         * GET /chat/messages/{messageId}/notes
+         * Get all notes linked to a chat message.
+         */
+        get("/chat/messages/{messageId}/notes") {
+            val userId = call.firebaseUser().uid
+            val messageId = call.parameters["messageId"] ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "messageId required"))
+
+            try {
+                val linkedNoteIds = chatRepository?.getLinkedNotes(userId, messageId) ?: emptyList()
+                call.respond(HttpStatusCode.OK, mapOf(
+                    "messageId" to messageId,
+                    "linkedNoteIds" to linkedNoteIds,
+                    "count" to linkedNoteIds.size
+                ))
+            } catch (e: IllegalAccessException) {
+                call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+            } catch (e: Exception) {
+                call.application.log.error("Failed to get linked notes", e)
+                call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to get linked notes"))
+            }
         }
     }
 }

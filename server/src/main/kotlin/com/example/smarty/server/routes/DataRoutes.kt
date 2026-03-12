@@ -11,6 +11,8 @@ import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.TimerRepository
 import com.example.smarty.server.data.FcmTokenRepository
+import com.example.smarty.server.data.ChatMessageNotesRepository
+import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.plugins.FirebaseUserPrincipal
 import com.example.smarty.server.plugins.firebaseUser
 import com.example.smarty.protocol.NoteInfo
@@ -44,8 +46,10 @@ data class VaultResponse(val encryptedBlob: String, val version: Int, val update
 
 fun Application.configureDataRoutes() {
     val dataSource = DatabaseFactory.getDataSource()
-    val noteRepository = dataSource?.let { NoteRepository(it) }
-    val calendarRepository = dataSource?.let { CalendarRepository(it) }
+    val chatMessageNotesRepo = dataSource?.let { ChatMessageNotesRepository(it) }
+    val calendarEventNotesRepo = dataSource?.let { CalendarEventNotesRepository(it) }
+    val noteRepository = dataSource?.let { NoteRepository(it, chatMessageNotesRepo!!, calendarEventNotesRepo!!) }
+    val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
     val timerRepository = dataSource?.let { TimerRepository(it) }
     val fcmTokenRepository = dataSource?.let { FcmTokenRepository(it) }
     val database = DatabaseFactory.getDatabase()
@@ -247,12 +251,12 @@ fun Application.configureDataRoutes() {
 
                     try {
                         val userId = user.userId
-                        
+
                         // Fetch ALL user data (high limits for complete export)
                         val notes = noteRepository.listByUser(userId, limit = 10000)
                         val events = calendarRepository.listAllEvents(userId, limit = 5000)
                         val timers = timerRepository.listActive(userId)
-                        
+
                         // Build export response
                         val exportData = ExportAllDataResponse(
                             notes = notes,
@@ -260,12 +264,87 @@ fun Application.configureDataRoutes() {
                             timers = timers,
                             exportedAt = System.currentTimeMillis()
                         )
-                        
+
                         call.application.log.info("Export requested for user $userId: ${notes.size} notes, ${events.size} events, ${timers.size} timers")
                         call.respond(exportData)
                     } catch (e: Exception) {
                         call.application.log.error("Export failed for user ${user.userId}", e)
                         call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Export failed: ${e.message}"))
+                    }
+                }
+
+                // =============================================================================
+                // CALENDAR EVENT NOTE RELATIONSHIP ENDPOINTS (v4.2.0)
+                // =============================================================================
+
+                /**
+                 * POST /api/v1/calendar/events/{eventId}/notes/{noteId}
+                 * Link a note to a calendar event.
+                 */
+                post("/calendar/events/{eventId}/notes/{noteId}") {
+                    val userId = call.firebaseUser().uid
+                    val eventId = call.parameters["eventId"] ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "eventId required"))
+                    val noteId = call.parameters["noteId"] ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "noteId required"))
+
+                    try {
+                        calendarRepository?.linkNoteToEvent(userId, eventId, noteId)
+                        call.respond(HttpStatusCode.OK, mapOf(
+                            "success" to true,
+                            "eventId" to eventId,
+                            "noteId" to noteId
+                        ))
+                    } catch (e: IllegalAccessException) {
+                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+                    } catch (e: Exception) {
+                        call.application.log.error("Failed to link note to event", e)
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to link note"))
+                    }
+                }
+
+                /**
+                 * DELETE /api/v1/calendar/events/{eventId}/notes/{noteId}
+                 * Unlink a note from a calendar event.
+                 */
+                delete("/calendar/events/{eventId}/notes/{noteId}") {
+                    val userId = call.firebaseUser().uid
+                    val eventId = call.parameters["eventId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "eventId required"))
+                    val noteId = call.parameters["noteId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "noteId required"))
+
+                    try {
+                        val success = calendarRepository?.unlinkNoteFromEvent(userId, eventId, noteId) ?: false
+                        call.respond(HttpStatusCode.OK, mapOf(
+                            "success" to success,
+                            "eventId" to eventId,
+                            "noteId" to noteId
+                        ))
+                    } catch (e: IllegalAccessException) {
+                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+                    } catch (e: Exception) {
+                        call.application.log.error("Failed to unlink note from event", e)
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to unlink note"))
+                    }
+                }
+
+                /**
+                 * GET /api/v1/calendar/events/{eventId}/notes
+                 * Get all notes linked to a calendar event.
+                 */
+                get("/calendar/events/{eventId}/notes") {
+                    val userId = call.firebaseUser().uid
+                    val eventId = call.parameters["eventId"] ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "eventId required"))
+
+                    try {
+                        val linkedNoteIds = calendarRepository?.getLinkedNotes(userId, eventId) ?: emptyList()
+                        call.respond(HttpStatusCode.OK, mapOf(
+                            "eventId" to eventId,
+                            "linkedNoteIds" to linkedNoteIds,
+                            "count" to linkedNoteIds.size
+                        ))
+                    } catch (e: IllegalAccessException) {
+                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+                    } catch (e: Exception) {
+                        call.application.log.error("Failed to get linked notes", e)
+                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to get linked notes"))
                     }
                 }
             }
