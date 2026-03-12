@@ -10,13 +10,21 @@ import com.example.smarty.protocol.NoteInfo
 /**
  * Server-side repository for notes.
  * PostgreSQL is the source of truth; Android caches via StateSync events.
- * 
+ *
  * DEDUPLICATION: Automatically detects and prevents duplicate notes.
  * - Checks for existing notes with identical content before creating
  * - Returns existing note ID if duplicate found
  * - Keeps oldest note, prevents newer duplicates
+ * 
+ * SINGLE RESPONSIBILITY: Only manages notes table.
+ * Delegates relationship queries to junction repositories.
+ * GLOBAL STATE: All tables reference users(firebase_uid) with cascade deletes.
  */
-class NoteRepository(private val dataSource: DataSource) {
+class NoteRepository(
+    private val dataSource: DataSource,
+    private val chatMessageNotesRepo: ChatMessageNotesRepository,
+    private val calendarEventNotesRepo: CalendarEventNotesRepository
+) {
     private val logger = LoggerFactory.getLogger(NoteRepository::class.java)
     private val deduplicationManager = NoteDeduplicationManager(dataSource)
 
@@ -179,6 +187,84 @@ class NoteRepository(private val dataSource: DataSource) {
                 stmt.setObject(1, UUID.fromString(noteId))
                 stmt.setString(2, userId)
                 stmt.executeUpdate() > 0
+            }
+        }
+    }
+
+    // =============================================================================
+    // RELATIONSHIP QUERY METHODS (Delegated to junction repositories)
+    // =============================================================================
+
+    /**
+     * Get all chat messages linked to a note.
+     */
+    suspend fun getLinkedMessages(userId: String, noteId: String): List<String> = withContext(Dispatchers.IO) {
+        // Verify note belongs to user
+        val note = getNoteById(userId, noteId)
+        if (note == null) {
+            logger.warn("Note {} does not belong to user {}", noteId, userId)
+            throw IllegalAccessException("Note does not belong to user")
+        }
+        // Delegate to junction repository
+        chatMessageNotesRepo.getLinkedMessages(UUID.fromString(noteId))
+            .map { it.toString() }
+    }
+
+    /**
+     * Get all calendar events linked to a note.
+     */
+    suspend fun getLinkedEvents(userId: String, noteId: String): List<String> = withContext(Dispatchers.IO) {
+        // Verify note belongs to user
+        val note = getNoteById(userId, noteId)
+        if (note == null) {
+            logger.warn("Note {} does not belong to user {}", noteId, userId)
+            throw IllegalAccessException("Note does not belong to user")
+        }
+        // Delegate to junction repository
+        calendarEventNotesRepo.getLinkedEvents(UUID.fromString(noteId))
+            .map { it.toString() }
+    }
+
+    /**
+     * Get count of linked messages for a note.
+     */
+    suspend fun getLinkedMessageCount(noteId: String): Int = withContext(Dispatchers.IO) {
+        chatMessageNotesRepo.getLinkCountForNote(UUID.fromString(noteId))
+    }
+
+    /**
+     * Get count of linked events for a note.
+     */
+    suspend fun getLinkedEventCount(noteId: String): Int = withContext(Dispatchers.IO) {
+        calendarEventNotesRepo.getLinkCountForNote(UUID.fromString(noteId))
+    }
+
+    /**
+     * Helper method to get a note by ID (for verification).
+     */
+    private suspend fun getNoteById(userId: String, noteId: String): NoteInfo? = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT id, title, content, category, is_archived, created_at, updated_at
+                FROM notes
+                WHERE id = ? AND user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(noteId))
+                stmt.setString(2, userId)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) {
+                        NoteInfo(
+                            id = rs.getString("id"),
+                            title = rs.getString("title"),
+                            content = rs.getString("content"),
+                            category = rs.getString("category"),
+                            isArchived = rs.getBoolean("is_archived"),
+                            createdAt = rs.getTimestamp("created_at").time,
+                            updatedAt = rs.getTimestamp("updated_at").time
+                        )
+                    } else null
+                }
             }
         }
     }

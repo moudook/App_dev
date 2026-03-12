@@ -10,8 +10,15 @@ import com.example.smarty.protocol.CalendarEventInfo
 /**
  * Server-side repository for calendar events.
  * PostgreSQL is the source of truth; Android caches via StateSync events.
+ * 
+ * SINGLE RESPONSIBILITY: Only manages calendar_events table.
+ * Delegates note relationship management to CalendarEventNotesRepository.
+ * GLOBAL STATE: All tables reference users(firebase_uid) with cascade deletes.
  */
-class CalendarRepository(private val dataSource: DataSource) {
+class CalendarRepository(
+    private val dataSource: DataSource,
+    private val calendarEventNotesRepo: CalendarEventNotesRepository
+) {
     private val logger = LoggerFactory.getLogger(CalendarRepository::class.java)
 
     /**
@@ -184,6 +191,85 @@ class CalendarRepository(private val dataSource: DataSource) {
                 stmt.executeUpdate() > 0
             }
         }
+    }
+
+    // =============================================================================
+    // NOTE RELATIONSHIP METHODS (Delegated to CalendarEventNotesRepository)
+    // =============================================================================
+
+    /**
+     * Link a note to a calendar event.
+     * Validates that the event belongs to the user before linking.
+     */
+    suspend fun linkNoteToEvent(userId: String, eventId: String, noteId: String): Unit = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // Verify event belongs to user
+            val verifySql = """
+                SELECT 1 FROM calendar_events
+                WHERE id = ? AND user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(verifySql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(eventId))
+                stmt.setString(2, userId)
+                val exists = stmt.executeQuery().next()
+                if (!exists) {
+                    logger.warn("Event {} does not belong to user {}", eventId, userId)
+                    throw IllegalAccessException("Event does not belong to user")
+                }
+            }
+        }
+        // Delegate to junction repository
+        calendarEventNotesRepo.linkEventToNote(UUID.fromString(eventId), UUID.fromString(noteId))
+        logger.info("Linked note {} to event {} for user {}", noteId, eventId, userId)
+    }
+
+    /**
+     * Unlink a note from a calendar event.
+     */
+    suspend fun unlinkNoteFromEvent(userId: String, eventId: String, noteId: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // Verify event belongs to user
+            val verifySql = """
+                SELECT 1 FROM calendar_events
+                WHERE id = ? AND user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(verifySql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(eventId))
+                stmt.setString(2, userId)
+                val exists = stmt.executeQuery().next()
+                if (!exists) {
+                    logger.warn("Event {} does not belong to user {}", eventId, userId)
+                    throw IllegalAccessException("Event does not belong to user")
+                }
+            }
+        }
+        // Delegate to junction repository
+        calendarEventNotesRepo.unlinkEventFromNote(UUID.fromString(eventId), UUID.fromString(noteId))
+    }
+
+    /**
+     * Get all notes linked to a calendar event.
+     */
+    suspend fun getLinkedNotes(userId: String, eventId: String): List<String> = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // Verify event belongs to user
+            val verifySql = """
+                SELECT 1 FROM calendar_events
+                WHERE id = ? AND user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(verifySql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(eventId))
+                stmt.setString(2, userId)
+                val exists = stmt.executeQuery().next()
+                if (!exists) {
+                    logger.warn("Event {} does not belong to user {}", eventId, userId)
+                    throw IllegalAccessException("Event does not belong to user")
+                }
+            }
+        }
+        // Delegate to junction repository
+        calendarEventNotesRepo.getLinkedNotes(UUID.fromString(eventId))
+            .map { it.toString() }
     }
 }
 
