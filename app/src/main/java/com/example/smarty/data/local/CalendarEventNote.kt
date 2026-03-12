@@ -17,13 +17,13 @@ import androidx.room.Index
     primaryKeys = ["event_id", "note_id"],
     foreignKeys = [
         ForeignKey(
-            entity = com.example.smarty.core.domain.model.CalendarEventEntity::class,
+            entity = "calendar_events",
             parentColumns = ["id"],
             childColumns = ["event_id"],
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
-            entity = com.example.smarty.core.domain.model.NoteEntity::class,
+            entity = "notes",
             parentColumns = ["id"],
             childColumns = ["note_id"],
             onDelete = ForeignKey.CASCADE

@@ -7,7 +7,7 @@ import androidx.room.Index
 
 /**
  * Junction table entity for chat message to note relationships.
- * 
+ *
  * SINGLE RESPONSIBILITY: Represents ONLY the relationship between messages and notes.
  * DRY: Same pattern as CalendarEventNote.
  * GLOBAL STATE: Foreign keys ensure referential integrity with cascade deletes.
@@ -17,13 +17,13 @@ import androidx.room.Index
     primaryKeys = ["message_id", "note_id"],
     foreignKeys = [
         ForeignKey(
-            entity = ChatMessageEntity::class,
+            entity = "chat_messages",
             parentColumns = ["id"],
             childColumns = ["message_id"],
             onDelete = ForeignKey.CASCADE
         ),
         ForeignKey(
-            entity = com.example.smarty.core.domain.model.NoteEntity::class,
+            entity = "notes",
             parentColumns = ["id"],
             childColumns = ["note_id"],
             onDelete = ForeignKey.CASCADE
