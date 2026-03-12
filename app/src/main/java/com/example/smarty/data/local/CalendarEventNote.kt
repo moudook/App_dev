@@ -2,7 +2,6 @@ package com.example.smarty.data.local
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.Index
 
 /**
@@ -10,25 +9,11 @@ import androidx.room.Index
  * 
  * SINGLE RESPONSIBILITY: Represents ONLY the relationship between events and notes.
  * DRY: Same pattern as ChatMessageNote.
- * GLOBAL STATE: Foreign keys ensure referential integrity with cascade deletes.
+ * GLOBAL STATE: Foreign keys enforced at database level, not Room level.
  */
 @Entity(
     tableName = "calendar_event_notes",
     primaryKeys = ["event_id", "note_id"],
-    foreignKeys = [
-        ForeignKey(
-            entity = "calendar_events",
-            parentColumns = ["id"],
-            childColumns = ["event_id"],
-            onDelete = ForeignKey.CASCADE
-        ),
-        ForeignKey(
-            entity = "notes",
-            parentColumns = ["id"],
-            childColumns = ["note_id"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index(value = ["event_id"]),
         Index(value = ["note_id"])
