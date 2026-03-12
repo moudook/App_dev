@@ -62,7 +62,8 @@ data class MessageInfoData(
     val role: String,
     val content: String,
     val thinking: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    val linkedNoteIds: List<String> = emptyList()
 )
 
 @Serializable
@@ -95,7 +96,8 @@ data class MessagePushItem(
     val role: String,
     val content: String,
     val thinking: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    val linkedNoteIds: List<String> = emptyList()
 )
 
 @Serializable

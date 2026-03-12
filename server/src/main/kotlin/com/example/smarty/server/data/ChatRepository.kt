@@ -11,8 +11,15 @@ import javax.sql.DataSource
 /**
  * Repository for managing chat sessions and persistent history in the database.
  * All operations are isolated by userId for multi-tenant security.
+ * 
+ * SINGLE RESPONSIBILITY: Only manages chat_sessions and chat_messages tables.
+ * Delegates note relationship management to ChatMessageNotesRepository.
+ * GLOBAL STATE: All tables reference users(firebase_uid) with cascade deletes.
  */
-class ChatRepository(private val dataSource: DataSource) {
+class ChatRepository(
+    private val dataSource: DataSource,
+    private val chatMessageNotesRepo: ChatMessageNotesRepository
+) {
     private val logger = LoggerFactory.getLogger(ChatRepository::class.java)
 
     /**
@@ -276,7 +283,7 @@ class ChatRepository(private val dataSource: DataSource) {
     suspend fun getSession(userId: String, sessionId: String): SessionInfo? = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, created_at, updated_at, message_count, 
+                SELECT id, title, created_at, updated_at, message_count,
                        last_message_preview, is_active, summary, summary_generated_at
                 FROM chat_sessions
                 WHERE id = ? AND user_id = ?
@@ -301,6 +308,88 @@ class ChatRepository(private val dataSource: DataSource) {
                 }
             }
         }
+    }
+
+    // =============================================================================
+    // NOTE RELATIONSHIP METHODS (Delegated to ChatMessageNotesRepository)
+    // =============================================================================
+
+    /**
+     * Link a note to a chat message.
+     * Validates that the message belongs to the user before linking.
+     */
+    suspend fun linkNoteToMessage(userId: String, messageId: String, noteId: String): Unit = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // Verify message belongs to user
+            val verifySql = """
+                SELECT 1 FROM chat_messages cm
+                JOIN chat_sessions cs ON cm.session_id = cs.id
+                WHERE cm.id = ? AND cs.user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(verifySql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(messageId))
+                stmt.setString(2, userId)
+                val exists = stmt.executeQuery().next()
+                if (!exists) {
+                    logger.warn("Message {} does not belong to user {}", messageId, userId)
+                    throw IllegalAccessException("Message does not belong to user")
+                }
+            }
+        }
+        // Delegate to junction repository
+        chatMessageNotesRepo.linkMessageToNote(UUID.fromString(messageId), UUID.fromString(noteId))
+        logger.info("Linked note {} to message {} for user {}", noteId, messageId, userId)
+    }
+
+    /**
+     * Unlink a note from a chat message.
+     */
+    suspend fun unlinkNoteFromMessage(userId: String, messageId: String, noteId: String): Boolean = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // Verify message belongs to user
+            val verifySql = """
+                SELECT 1 FROM chat_messages cm
+                JOIN chat_sessions cs ON cm.session_id = cs.id
+                WHERE cm.id = ? AND cs.user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(verifySql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(messageId))
+                stmt.setString(2, userId)
+                val exists = stmt.executeQuery().next()
+                if (!exists) {
+                    logger.warn("Message {} does not belong to user {}", messageId, userId)
+                    throw IllegalAccessException("Message does not belong to user")
+                }
+            }
+        }
+        // Delegate to junction repository
+        chatMessageNotesRepo.unlinkMessageFromNote(UUID.fromString(messageId), UUID.fromString(noteId))
+    }
+
+    /**
+     * Get all notes linked to a chat message.
+     */
+    suspend fun getLinkedNotes(userId: String, messageId: String): List<String> = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            // Verify message belongs to user
+            val verifySql = """
+                SELECT 1 FROM chat_messages cm
+                JOIN chat_sessions cs ON cm.session_id = cs.id
+                WHERE cm.id = ? AND cs.user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(verifySql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(messageId))
+                stmt.setString(2, userId)
+                val exists = stmt.executeQuery().next()
+                if (!exists) {
+                    logger.warn("Message {} does not belong to user {}", messageId, userId)
+                    throw IllegalAccessException("Message does not belong to user")
+                }
+            }
+        }
+        // Delegate to junction repository
+        chatMessageNotesRepo.getLinkedNotes(UUID.fromString(messageId))
+            .map { it.toString() }
     }
 
     private fun mapRowToMessage(rs: ResultSet): LlmMessage {
@@ -343,5 +432,6 @@ data class MessageRecord(
     val role: String,
     val content: String,
     val thinking: String?,
-    val createdAt: Long
+    val createdAt: Long,
+    val linkedNoteIds: List<String> = emptyList()
 )
