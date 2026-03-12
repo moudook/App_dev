@@ -282,9 +282,10 @@ fun Application.configureDataRoutes() {
                  * Link a note to a calendar event.
                  */
                 post("/calendar/events/{eventId}/notes/{noteId}") {
-                    val userId = call.firebaseUser().uid
-                    val eventId = call.parameters["eventId"] ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "eventId required"))
-                    val noteId = call.parameters["noteId"] ?: return@post call.respond(HttpStatusCode.BadRequest, mapOf("error" to "noteId required"))
+                    val user = call.firebaseUser() ?: return@post call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+                    val userId = user.userId
+                    val eventId = call.parameters["eventId"] ?: return@post call.respond(HttpStatusCode.BadRequest, "eventId required")
+                    val noteId = call.parameters["noteId"] ?: return@post call.respond(HttpStatusCode.BadRequest, "noteId required")
 
                     try {
                         calendarRepository?.linkNoteToEvent(userId, eventId, noteId)
@@ -294,10 +295,10 @@ fun Application.configureDataRoutes() {
                             "noteId" to noteId
                         ))
                     } catch (e: IllegalAccessException) {
-                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+                        call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
                     } catch (e: Exception) {
                         call.application.log.error("Failed to link note to event", e)
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to link note"))
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to link note")
                     }
                 }
 
@@ -306,9 +307,10 @@ fun Application.configureDataRoutes() {
                  * Unlink a note from a calendar event.
                  */
                 delete("/calendar/events/{eventId}/notes/{noteId}") {
-                    val userId = call.firebaseUser().uid
-                    val eventId = call.parameters["eventId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "eventId required"))
-                    val noteId = call.parameters["noteId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "noteId required"))
+                    val user = call.firebaseUser() ?: return@delete call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+                    val userId = user.userId
+                    val eventId = call.parameters["eventId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, "eventId required")
+                    val noteId = call.parameters["noteId"] ?: return@delete call.respond(HttpStatusCode.BadRequest, "noteId required")
 
                     try {
                         val success = calendarRepository?.unlinkNoteFromEvent(userId, eventId, noteId) ?: false
@@ -318,10 +320,10 @@ fun Application.configureDataRoutes() {
                             "noteId" to noteId
                         ))
                     } catch (e: IllegalAccessException) {
-                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+                        call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
                     } catch (e: Exception) {
                         call.application.log.error("Failed to unlink note from event", e)
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to unlink note"))
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to unlink note")
                     }
                 }
 
@@ -330,8 +332,9 @@ fun Application.configureDataRoutes() {
                  * Get all notes linked to a calendar event.
                  */
                 get("/calendar/events/{eventId}/notes") {
-                    val userId = call.firebaseUser().uid
-                    val eventId = call.parameters["eventId"] ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "eventId required"))
+                    val user = call.firebaseUser() ?: return@get call.respond(HttpStatusCode.Unauthorized, "User not authenticated")
+                    val userId = user.userId
+                    val eventId = call.parameters["eventId"] ?: return@get call.respond(HttpStatusCode.BadRequest, "eventId required")
 
                     try {
                         val linkedNoteIds = calendarRepository?.getLinkedNotes(userId, eventId) ?: emptyList()
@@ -341,10 +344,10 @@ fun Application.configureDataRoutes() {
                             "count" to linkedNoteIds.size
                         ))
                     } catch (e: IllegalAccessException) {
-                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to e.message ?: "Access denied"))
+                        call.respond(HttpStatusCode.Forbidden, e.message ?: "Access denied")
                     } catch (e: Exception) {
                         call.application.log.error("Failed to get linked notes", e)
-                        call.respond(HttpStatusCode.InternalServerError, mapOf("error" to "Failed to get linked notes"))
+                        call.respond(HttpStatusCode.InternalServerError, "Failed to get linked notes")
                     }
                 }
             }

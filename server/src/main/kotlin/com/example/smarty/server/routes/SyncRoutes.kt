@@ -10,6 +10,8 @@ import com.example.smarty.server.data.DatabaseFactory
 import com.example.smarty.server.data.NoteRepository
 import com.example.smarty.server.data.CalendarRepository
 import com.example.smarty.server.data.ChatRepository
+import com.example.smarty.server.data.ChatMessageNotesRepository
+import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.plugins.firebaseUser
 import com.example.smarty.protocol.NoteInfo
 import com.example.smarty.protocol.CalendarEventInfo
@@ -106,9 +108,11 @@ data class SyncStatusResponse(
 fun Application.configureSyncRoutes() {
     val logger = LoggerFactory.getLogger("SyncRoutes")
     val dataSource = DatabaseFactory.getDataSource()
-    val noteRepository = dataSource?.let { NoteRepository(it) }
-    val calendarRepository = dataSource?.let { CalendarRepository(it) }
-    val chatRepository = dataSource?.let { ChatRepository(it) }
+    val chatMessageNotesRepo = dataSource?.let { ChatMessageNotesRepository(it) }
+    val calendarEventNotesRepo = dataSource?.let { CalendarEventNotesRepository(it) }
+    val noteRepository = dataSource?.let { NoteRepository(it, chatMessageNotesRepo!!, calendarEventNotesRepo!!) }
+    val calendarRepository = dataSource?.let { CalendarRepository(it, calendarEventNotesRepo!!) }
+    val chatRepository = dataSource?.let { ChatRepository(it, chatMessageNotesRepo!!) }
     val syncRepository = dataSource?.let { com.example.smarty.server.data.SyncRepository(it) }
 
     routing {

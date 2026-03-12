@@ -254,7 +254,10 @@ object ServiceLocator {
     fun provideChatRepository(application: Application): com.example.smarty.data.repository.ChatRepository {
         return chatRepository ?: synchronized(this) {
             val database = SmartyDatabase.getDatabase(application)
-            com.example.smarty.data.repository.ChatRepository(database.chatDao()).also { chatRepository = it }
+            com.example.smarty.data.repository.ChatRepository(
+                chatDao = database.chatDao(),
+                chatMessageNotesDao = database.chatMessageNotesDao()
+            ).also { chatRepository = it }
         }
     }
 

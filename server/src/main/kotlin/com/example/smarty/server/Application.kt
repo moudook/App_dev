@@ -28,6 +28,8 @@ import com.example.smarty.server.services.DigestScheduler
 import com.example.smarty.server.services.FcmNotificationService
 import com.example.smarty.server.data.ChatRepository
 import com.example.smarty.server.data.PostgresVectorStore
+import com.example.smarty.server.data.ChatMessageNotesRepository
+import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.routes.configureDigestRoutes
 import javax.sql.DataSource
@@ -166,9 +168,12 @@ fun Application.module() {
     var digestScheduler: DigestScheduler? = null
     
     if (ds != null) {
+        val chatMessageNotesRepo = ChatMessageNotesRepository(ds)
+        val calendarEventNotesRepo = CalendarEventNotesRepository(ds)
+        
         digestService = DigestService(
             dataSource = ds,
-            chatRepository = ChatRepository(ds),
+            chatRepository = ChatRepository(ds, chatMessageNotesRepo),
             vectorStore = PostgresVectorStore(),
             llmProvider = LlmProviderFactory.create(io.ktor.client.HttpClient())
         )
