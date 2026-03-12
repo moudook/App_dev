@@ -31,7 +31,7 @@ object DatabaseFactory {
      * NOTE: Full schema should be applied via DATABASE_SCHEMA_v4.2.0_OPTIMIZED.sql
      * This migration ensures critical tables exist for server startup.
      */
-    private fun runMigrations(ds: DataSource) {
+private fun runMigrations(ds: DataSource) {
         try {
             ds.connection.use { conn ->
                 conn.createStatement().use { stmt ->
@@ -47,9 +47,51 @@ object DatabaseFactory {
                             display_name TEXT,
                             avatar_url TEXT,
                             is_active BOOLEAN DEFAULT true,
+                            is_premium BOOLEAN DEFAULT false,
+                            subscription_expires_at TIMESTAMP WITH TIME ZONE,
+                            feature_flags JSONB DEFAULT '{}',
                             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                            last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                         )""",
+                        
+                        // Ensure chat_sessions table has user_id column and foreign key to users
+                        """DO $$
+                        BEGIN
+                            -- Add user_id column if it doesn't exist
+                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                           WHERE table_name = 'chat_sessions' AND column_name = 'user_id') THEN
+                                ALTER TABLE chat_sessions ADD COLUMN user_id TEXT NOT NULL;
+                            END IF;
+                            
+                            -- Add foreign key constraint if it doesn't exist
+                            IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                                          WHERE constraint_name = 'chat_sessions_user_id_fkey' 
+                                          AND table_name = 'chat_sessions') THEN
+                                ALTER TABLE chat_sessions 
+                                ADD CONSTRAINT chat_sessions_user_id_fkey 
+                                FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE;
+                            END IF;
+                        END $$;""",
+                        
+                        // Ensure chat_messages table has user_id column and foreign key to users
+                        """DO $$
+                        BEGIN
+                            -- Add user_id column if it doesn't exist
+                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                           WHERE table_name = 'chat_messages' AND column_name = 'user_id') THEN
+                                ALTER TABLE chat_messages ADD COLUMN user_id TEXT NOT NULL;
+                            END IF;
+                            
+                            -- Add foreign key constraint if it doesn't exist
+                            IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                                          WHERE constraint_name = 'chat_messages_user_id_fkey' 
+                                          AND table_name = 'chat_messages') THEN
+                                ALTER TABLE chat_messages 
+                                ADD CONSTRAINT chat_messages_user_id_fkey 
+                                FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE;
+                            END IF;
+                        END $$;""",
                         
                         // Verify junction tables exist (v4.2.0)
                         """CREATE TABLE IF NOT EXISTS chat_message_notes (

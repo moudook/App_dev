@@ -1,5 +1,6 @@
 package com.example.smarty.server.plugins
 
+import com.example.smarty.server.data.DatabaseFactory
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
@@ -12,6 +13,9 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import org.slf4j.LoggerFactory
 import java.io.FileInputStream
+import javax.sql.DataSource
+import java.sql.Connection
+import java.sql.PreparedStatement
 
 /**
  * Principal representing an authenticated Firebase user.
@@ -158,6 +162,7 @@ fun initializeFirebase() {
 
 /**
  * Verifies a Firebase ID token and returns the user principal.
+ * Also ensures the user exists in the database.
  * 
  * SECURITY: This function NEVER allows bypassing authentication.
  * - In production: ALWAYS requires valid Firebase token
@@ -174,18 +179,77 @@ fun verifyFirebaseToken(token: String, deviceId: String?): FirebaseUserPrincipal
 
     return try {
         val decodedToken = FirebaseAuth.getInstance().verifyIdToken(token)
-        FirebaseUserPrincipal(
-            userId = decodedToken.uid,
-            email = decodedToken.email,
-            displayName = decodedToken.name,
+        val uid = decodedToken.uid
+        val email = decodedToken.email
+        val displayName = decodedToken.name
+        
+        // Create FirebaseUserPrincipal first
+        val principal = FirebaseUserPrincipal(
+            userId = uid,
+            email = email,
+            displayName = displayName,
             deviceId = deviceId
         )
+        
+        // Ensure user exists in database (synchronous to prevent FK constraint violations)
+        // This runs synchronously to ensure the user record is created before returning
+        try {
+            ensureUserExistsInDatabase(uid, email, displayName)
+        } catch (e: Exception) {
+            logger.warn("Failed to ensure user exists in database: ${e.message}")
+        }
+        
+        return principal
     } catch (e: FirebaseAuthException) {
         logger.warn("Firebase token verification failed: ${e.message}")
         null
     } catch (e: Exception) {
         logger.error("Unexpected error verifying Firebase token: ${e.message}")
         null
+    }
+}
+
+/**
+ * Ensures a user exists in the database. Creates the user record if it doesn't exist.
+ * This is called after successful Firebase authentication to prevent foreign key constraint errors.
+ */
+private fun ensureUserExistsInDatabase(
+    firebaseUid: String, 
+    email: String?, 
+    displayName: String?
+) {
+    val ds = DatabaseFactory.getDataSource()
+    if (ds == null) {
+        LoggerFactory.getLogger("FirebaseAuth").warn("DataSource not available, skipping user creation")
+        return
+    }
+    
+    ds.connection.use { conn ->
+        // Check if user already exists
+        val checkSql = "SELECT 1 FROM users WHERE firebase_uid = ?"
+        conn.prepareStatement(checkSql).use { stmt ->
+            stmt.setString(1, firebaseUid)
+            stmt.executeQuery().use { rs ->
+                if (rs.next()) {
+                    // User already exists, nothing to do
+                    return
+                }
+            }
+        }
+        
+        // User doesn't exist, create them
+        val insertSql = """
+            INSERT INTO users (firebase_uid, email, display_name, created_at, updated_at)
+            VALUES (?, ?, ?, NOW(), NOW())
+        """.trimIndent()
+        conn.prepareStatement(insertSql).use { stmt ->
+            stmt.setString(1, firebaseUid)
+            stmt.setString(2, email)
+            stmt.setString(3, displayName)
+            stmt.executeUpdate()
+            
+            LoggerFactory.getLogger("FirebaseAuth").info("Created user record for Firebase UID: {}", firebaseUid)
+        }
     }
 }
 

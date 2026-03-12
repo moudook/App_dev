@@ -4,6 +4,21 @@
 -- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Users table (Firebase authentication integration)
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    firebase_uid TEXT UNIQUE NOT NULL,
+    email TEXT,
+    display_name TEXT,
+    avatar_url TEXT,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for fast user lookup by Firebase UID
+CREATE INDEX IF NOT EXISTS idx_users_firebase_uid ON users(firebase_uid);
+
 -- Agent Context Table (with multi-tenant user isolation)
 CREATE TABLE IF NOT EXISTS agent_context (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -24,9 +39,10 @@ CREATE INDEX IF NOT EXISTS idx_context_user ON agent_context(user_id);
 -- Chat Sessions (with multi-tenant user isolation)
 CREATE TABLE IF NOT EXISTS chat_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id TEXT NOT NULL DEFAULT '',
+    user_id TEXT NOT NULL,
     title TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE
 );
 
 -- Index for user isolation on sessions
@@ -36,10 +52,11 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON chat_sessions(user_id);
 CREATE TABLE IF NOT EXISTS chat_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL DEFAULT '',
+    user_id TEXT NOT NULL,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE
 );
 
 -- Index for fast history retrieval
@@ -117,17 +134,35 @@ $$;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                   WHERE table_name = 'agent_context' AND column_name = 'user_id') THEN
+                    WHERE table_name = 'agent_context' AND column_name = 'user_id') THEN
         ALTER TABLE agent_context ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                   WHERE table_name = 'chat_sessions' AND column_name = 'user_id') THEN
+                    WHERE table_name = 'chat_sessions' AND column_name = 'user_id') THEN
         ALTER TABLE chat_sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+        
+        -- Add foreign key constraint if it doesn't exist
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                      WHERE constraint_name = 'chat_sessions_user_id_fkey' 
+                      AND table_name = 'chat_sessions') THEN
+            ALTER TABLE chat_sessions 
+            ADD CONSTRAINT chat_sessions_user_id_fkey 
+            FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE;
+        END IF;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                   WHERE table_name = 'chat_messages' AND column_name = 'user_id') THEN
+                    WHERE table_name = 'chat_messages' AND column_name = 'user_id') THEN
         ALTER TABLE chat_messages ADD COLUMN user_id TEXT NOT NULL DEFAULT '';
+        
+        -- Add foreign key constraint if it doesn't exist
+        IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
+                      WHERE constraint_name = 'chat_messages_user_id_fkey' 
+                      AND table_name = 'chat_messages') THEN
+            ALTER TABLE chat_messages 
+            ADD CONSTRAINT chat_messages_user_id_fkey 
+            FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE;
+        END IF;
     END IF;
 END $$;
