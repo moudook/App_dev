@@ -323,25 +323,25 @@ class DigestScheduler(
             // Use createStatement to avoid prepared statement conflicts in connection pool
             conn.createStatement().use { stmt ->
                 val sql = """
-                    SELECT user_id, daily_enabled, daily_time, 
-                           weekly_enabled, weekly_day, 
-                           weekly_time, push_notification, 
-                           calendar_logging, 'UTC' as timezone
+                    SELECT user_id, enabled, delivery_time, frequency,
+                           push_notification, include_calendar, include_notes, include_chat,
+                           timezone
                     FROM digest_preferences
-                    WHERE daily_enabled = TRUE OR weekly_enabled = TRUE
+                    WHERE enabled = TRUE
                 """.trimIndent()
                 stmt.executeQuery(sql).use { rs ->
                     val prefs = mutableListOf<UserDigestPreferences>()
                     while (rs.next()) {
+                        val frequency = rs.getString("frequency") ?: "daily"
                         prefs.add(UserDigestPreferences(
                             userId = rs.getString("user_id"),
-                            dailyEnabled = rs.getBoolean("daily_enabled"),
-                            dailyTime = rs.getTime("daily_time")?.toLocalTime() ?: LocalTime.of(7, 0),
-                            weeklyEnabled = rs.getBoolean("weekly_enabled"),
-                            weeklyDay = rs.getInt("weekly_day"),
-                            weeklyTime = rs.getTime("weekly_time")?.toLocalTime() ?: LocalTime.of(8, 0),
+                            dailyEnabled = frequency == "daily",
+                            dailyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
+                            weeklyEnabled = frequency == "weekly",
+                            weeklyDay = 1, // Default to Monday
+                            weeklyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
                             pushNotification = rs.getBoolean("push_notification"),
-                            calendarLogging = rs.getBoolean("calendar_logging"),
+                            calendarLogging = rs.getBoolean("include_calendar"),
                             timezone = rs.getString("timezone") ?: "UTC"
                         ))
                     }
