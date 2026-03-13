@@ -179,6 +179,53 @@ private fun runMigrations(ds: DataSource) {
                             PRIMARY KEY (message_id, note_id)
                         )""",
 
+                        // Timers table
+                        """CREATE TABLE IF NOT EXISTS timers (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            name TEXT NOT NULL,
+                            duration_ms BIGINT NOT NULL,
+                            trigger_at TIMESTAMPTZ NOT NULL,
+                            is_alarm BOOLEAN NOT NULL DEFAULT false,
+                            is_active BOOLEAN NOT NULL DEFAULT true,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // User FCM tokens table
+                        """CREATE TABLE IF NOT EXISTS user_fcm_tokens (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            token TEXT NOT NULL,
+                            device_name TEXT,
+                            device_id TEXT,
+                            last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // Daily digests table
+                        """CREATE TABLE IF NOT EXISTS daily_digests (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            digest_date DATE NOT NULL,
+                            digest_type TEXT NOT NULL,
+                            content JSONB NOT NULL DEFAULT '{}',
+                            notification_sent BOOLEAN NOT NULL DEFAULT false,
+                            calendar_event_id UUID,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // Agent checkpoints table
+                        """CREATE TABLE IF NOT EXISTS agent_checkpoints (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id UUID NOT NULL,
+                            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            workflow_id UUID,
+                            state_json JSONB NOT NULL,
+                            version INTEGER NOT NULL DEFAULT 1,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
                         // Indexes for performance
                         "CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL",
                         "CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, created_at ASC)",
