@@ -2,6 +2,11 @@ package com.example.smarty.data.remote
 
 import android.util.Log
 import com.example.smarty.BuildConfig
+import com.example.smarty.data.model.LogReasoningRequest
+import com.example.smarty.data.model.LogReasoningResponse
+import com.example.smarty.data.model.ProgressiveDisclosureResponse
+import com.example.smarty.data.model.ReasoningTimelineResponse
+import com.example.smarty.data.model.ReasoningTracesResponse
 import com.example.smarty.protocol.*
 import com.google.firebase.auth.FirebaseAuth
 import io.ktor.client.*
@@ -394,6 +399,125 @@ class RemoteDataSource(
         } catch (e: Exception) {
             Log.e(TAG, "Error deleting chat session: ${e.message}", e)
             false
+        }
+    }
+
+    // ==================== REASONING API ====================
+
+    /**
+     * Get reasoning timeline for a session
+     * @param sessionId The chat session ID
+     * @return ReasoningTimelineResponse or null if failed
+     */
+    suspend fun getReasoningTimeline(sessionId: String): ReasoningTimelineResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.get("$baseUrl/api/reasoning/session/$sessionId") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get reasoning timeline: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting reasoning timeline: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Get reasoning traces for a session (with optional message filter)
+     * @param sessionId The chat session ID
+     * @param messageId Optional message ID to filter traces
+     * @return ReasoningTracesResponse or null if failed
+     */
+    suspend fun getReasoningTraces(
+        sessionId: String,
+        messageId: String? = null
+    ): ReasoningTracesResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val url = buildString {
+                append("$baseUrl/api/reasoning/session/$sessionId/traces")
+                if (messageId != null) {
+                    append("?messageId=$messageId")
+                }
+            }
+
+            val response = client.get(url) {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get reasoning traces: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting reasoning traces: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Get progressive disclosure levels for UI
+     * @param sessionId The chat session ID
+     * @return ProgressiveDisclosureResponse or null if failed
+     */
+    suspend fun getProgressiveDisclosure(sessionId: String): ProgressiveDisclosureResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.get("$baseUrl/api/reasoning/session/$sessionId/disclosure") {
+                addAuthHeaders(token)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to get progressive disclosure: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting progressive disclosure: ${e.message}", e)
+            null
+        }
+    }
+
+    /**
+     * Log a reasoning step
+     * @param request The reasoning step data
+     * @return LogReasoningResponse or null if failed
+     */
+    suspend fun logReasoningStep(request: LogReasoningRequest): LogReasoningResponse? {
+        return try {
+            val baseUrl = serverUrlProvider()
+            val token = getFirebaseToken() ?: return null
+
+            val response = client.post("$baseUrl/api/reasoning/log") {
+                addAuthHeaders(token)
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+
+            if (response.status.isSuccess()) {
+                response.body()
+            } else {
+                Log.w(TAG, "Failed to log reasoning step: ${response.status}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error logging reasoning step: ${e.message}", e)
+            null
         }
     }
 }
