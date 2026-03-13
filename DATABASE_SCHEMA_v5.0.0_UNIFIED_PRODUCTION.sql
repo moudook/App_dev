@@ -801,9 +801,10 @@ CREATE TRIGGER update_ach_stats_on_evidence AFTER INSERT OR UPDATE OR DELETE ON 
 -- Research session summary
 CREATE OR REPLACE VIEW research_session_summary AS
 SELECT 
-    rs.id, rs.topic, rs.status, rs.current_phase, rs.confidence_level,
-    rs.human_review_required, rv.tier1_source_count, rv.tier2_source_count,
-    rv.independent_source_count, rv.rule_of_three_satisfied,
+    rs.id, rs.topic, rs.original_question, rs.status, rs.current_phase, 
+    rs.confidence_level, rs.human_review_required,
+    rv.tier1_source_count, rv.tier2_source_count, rv.tier3_source_count,
+    rv.independent_source_count, rv.rule_of_three_satisfied AS verification_rule_of_three,
     COUNT(DISTINCT c.citation_id) as total_citations,
     COUNT(DISTINCT h.hypothesis_id) as total_hypotheses,
     MAX(h.confidence_percent) as leading_hypothesis_confidence,
@@ -814,11 +815,18 @@ LEFT JOIN research_verification_state rv ON rs.id = rv.session_id
 LEFT JOIN research_citations c ON rs.id = c.session_id
 LEFT JOIN research_ach_hypotheses h ON rs.id = h.session_id
 LEFT JOIN research_bias_checks bc ON rs.id = bc.session_id
-GROUP BY rs.id, rv.tier1_source_count, rv.tier2_source_count, rv.independent_source_count, rv.rule_of_three_satisfied;
+GROUP BY rs.id, rv.tier1_source_count, rv.tier2_source_count, rv.tier3_source_count, 
+         rv.independent_source_count, rv.rule_of_three_satisfied;
 
 -- High-confidence citations
 CREATE OR REPLACE VIEW high_confidence_citations AS
-SELECT c.*, rv.rule_of_three_satisfied, rv.tier1_source_count
+SELECT 
+    c.citation_id, c.session_id, c.url, c.title, c.domain, c.snippet, c.full_text,
+    c.trust_tier, c.tier_justification, c.alcoa_verified, c.credibility_score,
+    c.relevance_score, c.diagnosticity_score, c.freshness_flag,
+    c.rule_of_three_satisfied, c.independent_confirmation_count,
+    c.used_in_ach_matrix, c.ach_evidence_judgment,
+    rv.tier1_source_count, rv.tier2_source_count, rv.independent_source_count AS verification_independent_count
 FROM research_citations c
 JOIN research_verification_state rv ON c.session_id = rv.session_id
 WHERE rv.rule_of_three_satisfied = true AND c.trust_tier IN (1, 2);
