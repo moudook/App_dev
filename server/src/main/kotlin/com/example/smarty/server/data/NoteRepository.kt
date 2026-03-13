@@ -50,7 +50,7 @@ class NoteRepository(
         val id = UUID.randomUUID()
         dataSource.connection.use { conn ->
             val sql = """
-                INSERT INTO notes (id, user_id, title, content, category)
+                INSERT INTO notes (id, user_id, title, content, category_id)
                 VALUES (?, ?, ?, ?, ?)
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -73,25 +73,23 @@ class NoteRepository(
         val results = mutableListOf<NoteInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category, is_archived, created_at, updated_at
+                SELECT id, title, content, category_id, is_archived, created_at, updated_at
                 FROM notes
-                WHERE user_id = ? AND NOT is_archived
-                  AND (title ILIKE ? OR content ILIKE ?)
+                WHERE user_id = ? AND is_pinned = true
                 ORDER BY updated_at DESC
                 LIMIT ?
             """.trimIndent()
+
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, userId)
-                stmt.setString(2, "%$query%")
-                stmt.setString(3, "%$query%")
-                stmt.setInt(4, limit)
+                stmt.setInt(2, limit)
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         results.add(NoteInfo(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
                             content = rs.getString("content"),
-                            category = rs.getString("category"),
+                            category = rs.getString("category_id"),
                             isArchived = rs.getBoolean("is_archived"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time
@@ -103,14 +101,11 @@ class NoteRepository(
         results
     }
 
-    /**
-     * List all active notes for a user.
-     */
     suspend fun listByUser(userId: String, limit: Int = 50): List<NoteInfo> = withContext(Dispatchers.IO) {
         val results = mutableListOf<NoteInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category, is_archived, created_at, updated_at
+                SELECT id, title, content, category_id, is_archived, created_at, updated_at
                 FROM notes
                 WHERE user_id = ? AND NOT is_archived
                 ORDER BY updated_at DESC
@@ -125,7 +120,7 @@ class NoteRepository(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
                             content = rs.getString("content"),
-                            category = rs.getString("category"),
+                            category = rs.getString("category_id"),
                             isArchived = rs.getBoolean("is_archived"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time
@@ -138,6 +133,37 @@ class NoteRepository(
     }
 
     /**
+     * Gets a single note by ID.
+     */
+    suspend fun getById(userId: String, noteId: String): NoteInfo? = withContext(Dispatchers.IO) {
+        dataSource.connection.use { conn ->
+            val sql = """
+                SELECT id, title, content, category_id, is_archived, created_at, updated_at
+                FROM notes
+                WHERE id = ? AND user_id = ?
+            """.trimIndent()
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(noteId))
+                stmt.setString(2, userId)
+                stmt.executeQuery().use { rs ->
+                    if (rs.next()) {
+                        return@withContext NoteInfo(
+                            id = rs.getString("id"),
+                            title = rs.getString("title"),
+                            content = rs.getString("content"),
+                            category = rs.getString("category_id"),
+                            isArchived = rs.getBoolean("is_archived"),
+                            createdAt = rs.getTimestamp("created_at").time,
+                            updatedAt = rs.getTimestamp("updated_at").time
+                        )
+                    }
+                }
+            }
+        }
+        null
+    }
+
+    /**
      * Update an existing note.
      */
     suspend fun update(userId: String, noteId: String, title: String?, content: String?, category: String?): Boolean = withContext(Dispatchers.IO) {
@@ -145,7 +171,7 @@ class NoteRepository(
             val setClauses = mutableListOf<String>()
             if (title != null) setClauses.add("title = ?")
             if (content != null) setClauses.add("content = ?")
-            if (category != null) setClauses.add("category = ?")
+            if (category != null) setClauses.add("category_id = ?")
             setClauses.add("updated_at = NOW()")
 
             if (setClauses.isEmpty()) return@withContext false
@@ -245,7 +271,7 @@ class NoteRepository(
     private suspend fun getNoteById(userId: String, noteId: String): NoteInfo? = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category, is_archived, created_at, updated_at
+                SELECT id, title, content, category_id, is_archived, created_at, updated_at
                 FROM notes
                 WHERE id = ? AND user_id = ?
             """.trimIndent()
@@ -258,7 +284,7 @@ class NoteRepository(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
                             content = rs.getString("content"),
-                            category = rs.getString("category"),
+                            category = rs.getString("category_id"),
                             isArchived = rs.getBoolean("is_archived"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time
