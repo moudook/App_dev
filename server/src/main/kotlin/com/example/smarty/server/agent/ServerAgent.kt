@@ -1,5 +1,7 @@
 package com.example.smarty.server.agent
 
+// BUILD TEST: v6.0.0 schema integration - triggered at ${new Date()}
+
 import com.example.smarty.protocol.AgentCommand
 import com.example.smarty.protocol.AgentEvent
 import com.example.smarty.protocol.TimerInfo
