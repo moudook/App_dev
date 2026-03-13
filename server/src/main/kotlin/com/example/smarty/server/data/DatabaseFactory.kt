@@ -67,6 +67,80 @@ private fun runMigrations(ds: DataSource) {
                             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
 
+                        // v6: tasks table
+                        """CREATE TABLE IF NOT EXISTS tasks (
+                            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            session_id      UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
+                            note_id         UUID REFERENCES notes(id) ON DELETE SET NULL,
+                            title           TEXT NOT NULL,
+                            description     TEXT,
+                            status          TEXT NOT NULL DEFAULT 'todo',
+                            priority        INTEGER NOT NULL DEFAULT 2,
+                            due_date        TIMESTAMPTZ,
+                            completed_at    TIMESTAMPTZ,
+                            sort_order      INTEGER NOT NULL DEFAULT 0,
+                            is_recurring    BOOLEAN NOT NULL DEFAULT false,
+                            recurrence_rule TEXT,
+                            metadata        JSONB NOT NULL DEFAULT '{}',
+                            created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            deleted_at      TIMESTAMPTZ
+                        )""",
+
+                        // v6: tags table
+                        """CREATE TABLE IF NOT EXISTS tags (
+                            id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            name       TEXT NOT NULL,
+                            color      TEXT DEFAULT '#6200EE',
+                            usage_count INTEGER NOT NULL DEFAULT 0,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            UNIQUE(user_id, lower(name))
+                        )""",
+
+                        // v6: note_tags junction table
+                        """CREATE TABLE IF NOT EXISTS note_tags (
+                            note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+                            tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                            PRIMARY KEY (note_id, tag_id)
+                        )""",
+
+                        // v6: notifications table
+                        """CREATE TABLE IF NOT EXISTS notifications (
+                            id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            type       TEXT NOT NULL,
+                            title      TEXT NOT NULL,
+                            body       TEXT,
+                            data       JSONB NOT NULL DEFAULT '{}',
+                            is_read    BOOLEAN NOT NULL DEFAULT false,
+                            read_at    TIMESTAMPTZ,
+                            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // v6: digest_preferences table
+                        """CREATE TABLE IF NOT EXISTS digest_preferences (
+                            id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            enabled        BOOLEAN NOT NULL DEFAULT true,
+                            frequency      TEXT NOT NULL DEFAULT 'daily',
+                            delivery_hour  INTEGER NOT NULL DEFAULT 9,
+                            delivery_minute INTEGER NOT NULL DEFAULT 0,
+                            created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            UNIQUE(user_id)
+                        )""",
+
+                        // v6: sync_state table
+                        """CREATE TABLE IF NOT EXISTS sync_state (
+                            user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                            last_sync_at TIMESTAMPTZ,
+                            last_pull_at TIMESTAMPTZ,
+                            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
                         // v6: notes table - matches DATABASE_SCHEMA_v6.0.0_UNIFIED_PRODUCTION.sql
                         """CREATE TABLE IF NOT EXISTS notes (
                             id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,6 +154,7 @@ private fun runMigrations(ds: DataSource) {
                             is_pinned       BOOLEAN NOT NULL DEFAULT false,
                             is_favorite     BOOLEAN NOT NULL DEFAULT false,
                             metadata        JSONB NOT NULL DEFAULT '{}',
+                            word_count      INTEGER GENERATED ALWAYS AS (char_length(content)) STORED,
                             created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
                             updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
                             deleted_at      TIMESTAMPTZ
@@ -212,6 +287,50 @@ private fun runMigrations(ds: DataSource) {
                             notification_sent BOOLEAN NOT NULL DEFAULT false,
                             calendar_event_id UUID,
                             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // v6: calendar_events table
+                        """CREATE TABLE IF NOT EXISTS calendar_events (
+                            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            title           TEXT NOT NULL,
+                            description     TEXT,
+                            start_time      TIMESTAMPTZ NOT NULL,
+                            end_time        TIMESTAMPTZ,
+                            is_all_day      BOOLEAN NOT NULL DEFAULT false,
+                            status          TEXT NOT NULL DEFAULT 'confirmed',
+                            visibility      TEXT NOT NULL DEFAULT 'private',
+                            reminders       JSONB NOT NULL DEFAULT '[]',
+                            attendees       JSONB NOT NULL DEFAULT '[]',
+                            location        TEXT,
+                            metadata        JSONB NOT NULL DEFAULT '{}',
+                            created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // v6: calendar_event_notes junction table
+                        """CREATE TABLE IF NOT EXISTS calendar_event_notes (
+                            event_id UUID NOT NULL REFERENCES calendar_events(id) ON DELETE CASCADE,
+                            note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+                            PRIMARY KEY (event_id, note_id)
+                        )""",
+
+                        // v6: reasoning_traces table
+                        """CREATE TABLE IF NOT EXISTS reasoning_traces (
+                            trace_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id      UUID NOT NULL,
+                            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            step_index      INTEGER NOT NULL,
+                            step_type       TEXT,
+                            title           TEXT,
+                            content         TEXT,
+                            input_data      JSONB,
+                            output_data     JSONB,
+                            error_message   TEXT,
+                            duration_ms     BIGINT,
+                            token_usage     JSONB,
+                            metadata        JSONB NOT NULL DEFAULT '{}',
+                            created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
 
                         // Agent checkpoints table

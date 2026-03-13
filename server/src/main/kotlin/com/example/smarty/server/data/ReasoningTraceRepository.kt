@@ -21,19 +21,19 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
         val traceId = trace.traceId ?: UUID.randomUUID()
         
         dataSource.connection.use { conn ->
+            // Schema uses 'id' as primary key, not 'trace_id'
             val sql = """
                 INSERT INTO reasoning_traces (
-                    trace_id, session_id, message_id, user_id,
-                    step_index, step_type, title, content, content_hash,
+                    id, session_id, message_id, user_id,
+                    step_index, step_type, title, content,
                     confidence_score, importance_score, is_final, was_revised,
-                    revised_by_trace_id, token_count, duration_ms
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (trace_id) DO UPDATE SET
+                    revised_by_trace_id, token_count, duration_ms, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now())
+                ON CONFLICT (id) DO UPDATE SET
                     content = EXCLUDED.content,
                     confidence_score = EXCLUDED.confidence_score,
                     importance_score = EXCLUDED.importance_score,
-                    duration_ms = EXCLUDED.duration_ms,
-                    updated_at = NOW()
+                    duration_ms = EXCLUDED.duration_ms
             """.trimIndent()
             
             conn.prepareStatement(sql).use { stmt ->
@@ -45,9 +45,8 @@ class ReasoningTraceRepository(private val dataSource: javax.sql.DataSource) {
                 stmt.setString(6, trace.stepType.name)
                 stmt.setString(7, trace.title)
                 stmt.setString(8, trace.content)
-                stmt.setString(9, generateContentHash(trace.content))
-                stmt.setDouble(10, trace.confidenceScore)
-                stmt.setDouble(11, trace.importanceScore)
+                stmt.setDouble(9, trace.confidenceScore)
+                stmt.setDouble(10, trace.importanceScore)
                 stmt.setBoolean(12, trace.isFinal)
                 stmt.setBoolean(13, trace.wasRevised)
                 trace.revisedByTraceId?.let { stmt.setObject(14, UUID.fromString(it)) } ?: stmt.setNull(14, java.sql.Types.OTHER)
