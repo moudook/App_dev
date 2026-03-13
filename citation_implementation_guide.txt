@@ -1,0 +1,906 @@
+================================================================
+WEB SEARCH CITATION IMPLEMENTATION GUIDE v3.0
+Full Stack: UI + Python Backend + Server + Database
+Technical Research Specialist Advanced Edition — 2026
+================================================================
+Last updated: March 2026
+Target: Claude web_search tool citations with 2026 intelligence methodologies
+
+This guide implements:
+- Source credibility hierarchy (Tier 1-5)
+- ALCOA verification framework
+- Rule of Three (3+ independent Tier 1-2 sources for high confidence)
+- Confidence level calibration (High/Moderate/Low)
+- ACH matrix integration
+- BLUF report generation support
+
+================================================================
+PART 1 — CITATION OBJECT SPECIFICATION v3.0
+================================================================
+
+Every web search result must be captured as a structured citation object
+before it touches your UI or DB. This is the 2026 enhanced specification.
+
+{
+  "citation_id": "uuid-v4",
+  "index": 1,                          // display number shown to user
+  "url": "https://example.com/page",
+  "title": "Page Title Here",
+  "domain": "example.com",
+  "snippet": "The specific sentence or passage that was used.",
+  "full_text": "Full retrieved page content...",
+  "retrieved_at": "2026-03-13T11:43:00Z",
+  
+  // 2026 METHODOLOGY FIELDS
+  "trust_tier": 1,                     // 1-5 per the tier taxonomy (REQUIRED)
+  "tier_justification": "NIST government publication",  // Why this tier?
+  
+  // ALCOA VERIFICATION
+  "alcoa_verified": true,              // Has ALCOA standard been applied?
+  "alcoa_attributes": {                // Which ALCOA attributes verified
+    "attributable": true,              // Who created this? Clear authorship
+    "legible": true,                   // Readable, decodable
+    "contemporaneous": true,           // Timestamp matches event
+    "original": true,                  // First record from source system
+    "accurate": true                   // Corroborated by independent evidence
+  },
+  
+  // SOURCE INDEPENDENCE TRACKING
+  "independent_confirmation_count": 2, // How many other sources confirm this?
+  "independent_sources": [             // List of confirming source URLs
+    "https://other-source-1.gov/...",
+    "https://other-source-2.edu/..."
+  ],
+  
+  // RULE OF THREE STATUS
+  "rule_of_three_satisfied": true,     // 3+ independent Tier 1-2 sources?
+  
+  // CLAIM MAPPING
+  "used_in_claims": ["claim_id_1"],    // which output claims cite this
+  "used_in_ach_matrix": true,          // Used in Analysis of Competing Hypotheses?
+  "ach_hypothesis_support": ["H1"],    // Which hypotheses does this support?
+  "ach_evidence_judgment": "CONSISTENT", // CONSISTENT/INCONSISTENT/NOT_APPLICABLE
+  
+  // SEARCH METADATA
+  "search_query": "the query that found this source",
+  "query_type": "PRIMARY_DOCUMENTATION", // Type of query engineering used
+  "doc_index": 0,                      // position in search results array
+  "sentence_index": 2,                 // which sentence in doc was cited
+  
+  // CONFIDENCE & DIAGNOSTICITY
+  "credibility_score": 0.95,           // 0-1 source credibility
+  "relevance_score": 0.88,             // 0-1 relevance to research question
+  "diagnosticity_score": 0.75,         // 0-1 how well this distinguishes hypotheses
+  
+  // TEMPORAL ATTRIBUTES
+  "publication_date": "2025-11-15",    // When was this published?
+  "freshness_flag": "CURRENT",         // CURRENT / STALE (>180 days) / HISTORICAL
+  "errata_checked": true,              // For specs: was errata consulted?
+  
+  // COGNITIVE BIAS FLAGS
+  "bias_flags": [],                    // CONFIRMATION_BIAS / ANCHORING / RECENCY_BIAS
+  "bias_mitigation_applied": ""        // What was done to mitigate detected bias
+}
+
+================================================================
+PART 2 — TIER CLASSIFICATION ENGINE
+================================================================
+
+--- 2.1 Enhanced Tier Map with 2026 Methodology ---
+
+TIER_MAP = {
+    # ==================== TIER 1: PRIMARY AUTHORITY ====================
+    ".gov": 1,
+    ".mil": 1,
+    "nist.gov": 1,
+    "cisa.gov": 1,
+    "nsa.gov": 1,
+    "nvd.nist.gov": 1,
+    "csrc.nist.gov": 1,
+    "ietf.org": 1,
+    "rfc-editor.org": 1,
+    "ieee.org": 1,
+    "doi.org": 1,
+    "arxiv.org": 1,              # With DOI registration
+    "pubmed.gov": 1,
+    "ncbi.nlm.nih.gov": 1,
+    
+    # ==================== TIER 2: VERIFIED SECONDARY ====================
+    "crowdstrike.com": 2,
+    "mandiant.com": 2,
+    "google.com/tag": 2,
+    "usenix.org": 2,
+    "ieee-security.org": 2,
+    "acm.org": 2,
+    "springer.com": 2,
+    "nature.com": 2,
+    "sciencedirect.com": 2,
+    "ieee.org/publications": 2,
+    
+    # ==================== TIER 3: EXPERT COMMUNITY ====================
+    "lists.ietf.org": 3,
+    "openwall.com": 3,
+    "seclists.org": 3,
+    "hackerone.com": 3,
+    "bugcrowd.com": 3,
+    "github.com/security-advisories": 3,
+    "twitter.com": 3,            # Verified experts only
+    
+    # ==================== TIER 4: GENERAL OPEN SOURCE ====================
+    "github.com": 4,             # Non-security advisories
+    "stackoverflow.com": 4,
+    "reddit.com": 4,
+    "medium.com": 4,
+    "blogspot.com": 4,
+    "news.ycombinator.com": 4,
+    "wikipedia.org": 4,
+    
+    # ==================== TIER 5: UNVERIFIED ====================
+    "pastebin.com": 5,
+    "telegra.ph": 5,
+    "anonymous": 5,
+}
+
+def get_trust_tier(url: str) -> tuple[int, str]:
+    """
+    Returns (tier, justification) for a given URL.
+    Enhanced with tier justification for audit trail.
+    """
+    from urllib.parse import urlparse
+    
+    parsed = urlparse(url)
+    domain = parsed.netloc.lower().replace("www.", "")
+    
+    # Check exact domain matches first
+    for key, tier in TIER_MAP.items():
+        if domain == key or domain.endswith("." + key):
+            justification = get_tier_justification(tier, domain)
+            return tier, justification
+    
+    # Check .edu domains (Tier 2)
+    if domain.endswith(".edu"):
+        return 2, "Academic institution (.edu domain)"
+    
+    # Default to Tier 4 for unknown domains
+    return 4, "Unknown domain - defaulting to general open source"
+
+
+def get_tier_justification(tier: int, domain: str) -> str:
+    """Generate human-readable justification for tier assignment."""
+    justifications = {
+        1: f"Primary authority: {domain}",
+        2: f"Verified secondary source: {domain}",
+        3: f"Expert community source: {domain}",
+        4: f"General open source: {domain}",
+        5: f"Unverified source: {domain}"
+    }
+    return justifications.get(tier, "Unknown tier")
+
+
+--- 2.2 ALCOA Verification Function ---
+
+def verify_alcoa(citation: Dict) -> Dict[str, bool]:
+    """
+    Apply ALCOA standard for data integrity.
+    Returns dict of ALCOA attribute verification results.
+    """
+    return {
+        "attributable": bool(
+            citation.get("author") or 
+            citation.get("organization") or
+            citation.get("domain", "").endswith(".gov")
+        ),
+        "legible": bool(
+            citation.get("snippet") and 
+            len(citation.get("snippet", "")) > 0
+        ),
+        "contemporaneous": bool(
+            citation.get("publication_date") or
+            citation.get("retrieved_at")
+        ),
+        "original": bool(
+            # Check if this is the primary source URL
+            citation.get("domain", "").endswith(".gov") or
+            citation.get("domain", "").endswith(".mil") or
+            "rfc-editor.org" in citation.get("domain", "")
+        ),
+        "accurate": bool(
+            # Requires independent confirmation
+            citation.get("independent_confirmation_count", 0) >= 2
+        )
+    }
+
+
+--- 2.3 Rule of Three Checker ---
+
+def check_rule_of_three(citations: List[Dict]) -> Dict[str, Any]:
+    """
+    Apply Rule of Three verification.
+    Returns verification state with confidence recommendation.
+    """
+    tier1_sources = [c for c in citations if c.get("trust_tier") == 1]
+    tier2_sources = [c for c in citations if c.get("trust_tier") == 2]
+    
+    # Count independent confirmations
+    independent_count = len(set(c.get("domain") for c in citations))
+    
+    # Check if Rule of Three is satisfied
+    rule_of_three_satisfied = len(tier1_sources) >= 3 or \
+                              (len(tier1_sources) >= 2 and len(tier2_sources) >= 1)
+    
+    # Determine confidence level
+    if rule_of_three_satisfied and independent_count >= 3:
+        confidence_level = "HIGH"
+    elif len(tier1_sources) >= 2 or (len(tier1_sources) >= 1 and len(tier2_sources) >= 1):
+        confidence_level = "MODERATE"
+    else:
+        confidence_level = "LOW"
+    
+    return {
+        "rule_of_three_satisfied": rule_of_three_satisfied,
+        "tier1_count": len(tier1_sources),
+        "tier2_count": len(tier2_sources),
+        "independent_source_count": independent_count,
+        "confidence_level": confidence_level,
+        "single_source_claims": [
+            c for c in citations 
+            if c.get("independent_confirmation_count", 0) == 0
+        ]
+    }
+
+
+================================================================
+PART 3 — ENHANCED CITATION EXTRACTOR
+================================================================
+
+--- 3.1 Enhanced Citation Object Builder ---
+
+def extract_citations_from_search_results(
+    search_results: List[Dict],
+    query: str,
+    query_type: str = "GENERAL"
+) -> List[Dict[str, Any]]:
+    """
+    Takes raw results from Claude web_search tool and returns
+    normalized citation objects with 2026 methodology fields.
+    """
+    import uuid
+    from datetime import datetime, timezone
+    
+    citations = []
+    for i, result in enumerate(search_results):
+        url = result.get("url", "")
+        domain = urlparse(url).netloc.replace("www.", "")
+        tier, tier_justification = get_trust_tier(url)
+        
+        # Determine freshness flag
+        pub_date = result.get("publication_date")
+        freshness_flag = determine_freshness(pub_date)
+        
+        citations.append({
+            "citation_id": str(uuid.uuid4()),
+            "index": i + 1,
+            "url": url,
+            "title": result.get("title", ""),
+            "domain": domain,
+            "snippet": result.get("snippet", ""),
+            "full_text": result.get("content", ""),
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            
+            # 2026 Methodology Fields
+            "trust_tier": tier,
+            "tier_justification": tier_justification,
+            "alcoa_verified": False,  # Will be verified later
+            "alcoa_attributes": {},
+            "independent_confirmation_count": 0,
+            "independent_sources": [],
+            "rule_of_three_satisfied": False,
+            
+            # Claim mapping (populated during analysis)
+            "used_in_claims": [],
+            "used_in_ach_matrix": False,
+            "ach_hypothesis_support": [],
+            "ach_evidence_judgment": "NOT_APPLICABLE",
+            
+            # Search metadata
+            "search_query": query,
+            "query_type": query_type,
+            "doc_index": i,
+            "sentence_index": 0,
+            
+            # Scoring
+            "credibility_score": calculate_credibility_score(tier),
+            "relevance_score": result.get("relevance_score", 0.5),
+            "diagnosticity_score": 0.5,  # Will be calculated during ACH
+            
+            # Temporal
+            "publication_date": pub_date,
+            "freshness_flag": freshness_flag,
+            "errata_checked": False,
+            
+            # Bias flags
+            "bias_flags": [],
+            "bias_mitigation_applied": ""
+        })
+    
+    return citations
+
+
+def determine_freshness(pub_date: Optional[str]) -> str:
+    """Determine freshness flag based on publication date."""
+    if not pub_date:
+        return "UNKNOWN"
+    
+    from datetime import datetime, timedelta
+    
+    try:
+        pub = datetime.fromisoformat(pub_date.replace("Z", "+00:00"))
+        days_old = (datetime.now(pub.tzinfo) - pub).days
+        
+        if days_old <= 180:
+            return "CURRENT"
+        elif days_old <= 730:  # 2 years
+            return "STALE"
+        else:
+            return "HISTORICAL"
+    except:
+        return "UNKNOWN"
+
+
+def calculate_credibility_score(tier: int) -> float:
+    """Calculate base credibility score from tier."""
+    scores = {
+        1: 0.95,
+        2: 0.85,
+        3: 0.70,
+        4: 0.50,
+        5: 0.25
+    }
+    return scores.get(tier, 0.5)
+
+
+================================================================
+PART 4 — ACH MATRIX INTEGRATION
+================================================================
+
+--- 4.1 Evidence Judgment Mapper ---
+
+def map_evidence_to_hypotheses(
+    citations: List[Dict],
+    hypotheses: List[Dict]
+) -> Dict[str, Dict[str, str]]:
+    """
+    Map each citation (evidence item) to hypotheses using ACH methodology.
+    Returns matrix: {hypothesis_id: {evidence_id: judgment}}
+    
+    Judgments: CONSISTENT, INCONSISTENT, NOT_APPLICABLE, LOW_DIAGNOSTICITY
+    """
+    matrix = {}
+    
+    for hypothesis in hypotheses:
+        h_id = hypothesis["id"]
+        matrix[h_id] = {}
+        
+        for citation in citations:
+            c_id = citation["citation_id"]
+            
+            # Determine judgment based on content analysis
+            # This would use LLM analysis in practice
+            judgment = determine_evidence_judgment(
+                hypothesis=hypothesis,
+                evidence=citation
+            )
+            
+            matrix[h_id][c_id] = judgment
+            
+            # Update citation's ACH fields
+            citation["used_in_ach_matrix"] = True
+            if judgment == "CONSISTENT":
+                citation["ach_hypothesis_support"].append(h_id)
+            citation["ach_evidence_judgment"] = judgment
+    
+    return matrix
+
+
+def determine_evidence_judgment(
+    hypothesis: Dict,
+    evidence: Dict
+) -> str:
+    """
+    Determine if evidence is CONSISTENT, INCONSISTENT, NOT_APPLICABLE,
+    or LOW_DIAGNOSTICITY for a given hypothesis.
+    
+    In production, this uses LLM analysis with structured prompting.
+    """
+    # Placeholder logic - replace with LLM analysis
+    if not evidence.get("snippet"):
+        return "LOW_DIAGNOSTICITY"
+    
+    # Simple keyword matching as placeholder
+    snippet_lower = evidence.get("snippet", "").lower()
+    hypothesis_lower = hypothesis.get("description", "").lower()
+    
+    # Check for contradictory language
+    contradicting_words = ["not", "false", "incorrect", "disproves", "refutes"]
+    supporting_words = ["confirms", "supports", "validates", "proves", "demonstrates"]
+    
+    has_contradiction = any(w in snippet_lower for w in contradicting_words)
+    has_support = any(w in snippet_lower for w in supporting_words)
+    
+    if has_contradiction:
+        return "INCONSISTENT"
+    elif has_support:
+        return "CONSISTENT"
+    else:
+        return "NOT_APPLICABLE"
+
+
+--- 4.2 ACH Matrix State Calculator ---
+
+def calculate_ach_matrix_state(
+    matrix: Dict[str, Dict[str, str]],
+    hypotheses: List[Dict]
+) -> List[Dict]:
+    """
+    Calculate hypothesis statistics from ACH matrix.
+    Returns updated hypotheses with confidence scores.
+    """
+    updated_hypotheses = []
+    
+    for hypothesis in hypotheses:
+        h_id = hypothesis["id"]
+        judgments = matrix.get(h_id, {}).values()
+        
+        consistent_count = sum(1 for j in judgments if j == "CONSISTENT")
+        inconsistent_count = sum(1 for j in judgments if j == "INCONSISTENT")
+        
+        # Calculate confidence based on inconsistencies (ACH methodology)
+        # Fewer inconsistencies = higher confidence
+        total = consistent_count + inconsistent_count
+        if total == 0:
+            confidence = 50.0
+        else:
+            # ACH: focus on disconfirming evidence
+            confidence = max(0, 100 - (inconsistent_count * 20))
+        
+        # Determine status
+        if inconsistent_count > consistent_count * 2:
+            status = "eliminated"
+        elif consistent_count > inconsistent_count * 2:
+            status = "leading"
+        else:
+            status = "active"
+        
+        updated_hypotheses.append({
+            **hypothesis,
+            "confidence": confidence,
+            "consistent_count": consistent_count,
+            "inconsistent_count": inconsistent_count,
+            "status": status
+        })
+    
+    return updated_hypotheses
+
+
+================================================================
+PART 5 — DATABASE SCHEMA v3.0 (2026 Methodology)
+================================================================
+
+-- Add 2026 methodology fields to existing research_citations table
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS trust_tier INTEGER CHECK (trust_tier BETWEEN 1 AND 5);
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS tier_justification TEXT;
+
+-- ALCOA verification fields
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS alcoa_verified BOOLEAN DEFAULT FALSE;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS alcoa_attributable BOOLEAN DEFAULT FALSE;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS alcoa_legible BOOLEAN DEFAULT FALSE;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS alcoa_contemporaneous BOOLEAN DEFAULT FALSE;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS alcoa_original BOOLEAN DEFAULT FALSE;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS alcoa_accurate BOOLEAN DEFAULT FALSE;
+
+-- Source independence tracking
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS independent_confirmation_count INTEGER DEFAULT 0;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS rule_of_three_satisfied BOOLEAN DEFAULT FALSE;
+
+-- ACH matrix integration
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS used_in_ach_matrix BOOLEAN DEFAULT FALSE;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS ach_evidence_judgment TEXT CHECK (
+    ach_evidence_judgment IN ('CONSISTENT', 'INCONSISTENT', 'NOT_APPLICABLE', 'LOW_DIAGNOSTICITY')
+);
+
+-- Confidence and diagnosticity scores
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS credibility_score DECIMAL(3,2) DEFAULT 0.5;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS relevance_score DECIMAL(3,2) DEFAULT 0.5;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS diagnosticity_score DECIMAL(3,2) DEFAULT 0.5;
+
+-- Temporal attributes
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS publication_date DATE;
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS freshness_flag TEXT CHECK (
+    freshness_flag IN ('CURRENT', 'STALE', 'HISTORICAL', 'UNKNOWN')
+);
+ALTER TABLE research_citations ADD COLUMN IF NOT EXISTS errata_checked BOOLEAN DEFAULT FALSE;
+
+-- Query engineering
+ALTER TABLE research_searches ADD COLUMN IF NOT EXISTS query_type TEXT DEFAULT 'GENERAL';
+
+-- Create new ACH hypotheses table
+CREATE TABLE IF NOT EXISTS research_ach_hypotheses (
+    hypothesis_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'eliminated', 'leading', 'confirmed')),
+    confidence_percent DECIMAL(5,2) DEFAULT 50.0,
+    consistent_count INTEGER DEFAULT 0,
+    inconsistent_count INTEGER DEFAULT 0,
+    rejection_reason TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ach_hypotheses_session ON research_ach_hypotheses(session_id);
+CREATE INDEX IF NOT EXISTS idx_ach_hypotheses_status ON research_ach_hypotheses(status);
+
+-- Create ACH evidence judgment mapping table
+CREATE TABLE IF NOT EXISTS research_ach_evidence_map (
+    hypothesis_id UUID REFERENCES research_ach_hypotheses(hypothesis_id) ON DELETE CASCADE,
+    citation_id UUID REFERENCES research_citations(citation_id) ON DELETE CASCADE,
+    judgment TEXT NOT NULL CHECK (judgment IN ('CONSISTENT', 'INCONSISTENT', 'NOT_APPLICABLE', 'LOW_DIAGNOSTICITY')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (hypothesis_id, citation_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ach_evidence_hypothesis ON research_ach_evidence_map(hypothesis_id);
+CREATE INDEX IF NOT EXISTS idx_ach_evidence_citation ON research_ach_evidence_map(citation_id);
+
+-- Create cognitive bias checks table
+CREATE TABLE IF NOT EXISTS research_bias_checks (
+    check_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+    bias_type TEXT NOT NULL CHECK (bias_type IN (
+        'CONFIRMATION_BIAS', 'RECENCY_BIAS', 'ANCHORING', 
+        'MIRROR_IMAGING', 'GROUPTHINK', 'AVAILABILITY_HEURISTIC'
+    )),
+    detected BOOLEAN DEFAULT FALSE,
+    mitigation_applied TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bias_checks_session ON research_bias_checks(session_id);
+CREATE INDEX IF NOT EXISTS idx_bias_checks_type ON research_bias_checks(bias_type);
+
+-- Create source verification state table
+CREATE TABLE IF NOT EXISTS research_verification_state (
+    session_id UUID PRIMARY KEY REFERENCES research_sessions(id) ON DELETE CASCADE,
+    independent_source_count INTEGER DEFAULT 0,
+    tier1_source_count INTEGER DEFAULT 0,
+    tier2_source_count INTEGER DEFAULT 0,
+    alcoa_checks_performed TEXT[] DEFAULT '{}',
+    rule_of_three_satisfied BOOLEAN DEFAULT FALSE,
+    human_review_required BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Create confidence calibration table for final judgments
+CREATE TABLE IF NOT EXISTS research_confidence_levels (
+    judgment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+    judgment_text TEXT NOT NULL,
+    confidence_level TEXT NOT NULL CHECK (confidence_level IN ('HIGH', 'MODERATE', 'LOW')),
+    source_count INTEGER DEFAULT 0,
+    tier1_count INTEGER DEFAULT 0,
+    inconsistencies_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_confidence_session ON research_confidence_levels(session_id);
+CREATE INDEX IF NOT EXISTS idx_confidence_level ON research_confidence_levels(confidence_level);
+
+
+================================================================
+PART 6 — COGNITIVE BIAS DETECTION
+================================================================
+
+--- 6.1 Bias Detection Engine ---
+
+def detect_cognitive_biases(
+    citations: List[Dict],
+    research_state: Dict
+) -> List[Dict]:
+    """
+    Detect cognitive biases in research process.
+    Returns list of bias checks with mitigation recommendations.
+    """
+    bias_checks = []
+    
+    # Check for Confirmation Bias
+    all_high_credibility = all(c.get("credibility_score", 0) > 0.7 for c in citations)
+    if all_high_credibility and len(citations) > 3:
+        bias_checks.append({
+            "bias_type": "CONFIRMATION_BIAS",
+            "detected": True,
+            "mitigation_applied": "Actively searching for contradictory sources",
+            "description": "All sources have high credibility - may indicate cherry-picking"
+        })
+    else:
+        bias_checks.append({
+            "bias_type": "CONFIRMATION_BIAS",
+            "detected": False,
+            "mitigation_applied": "None required"
+        })
+    
+    # Check for Anchoring Bias
+    if citations:
+        first_source_tier = citations[0].get("trust_tier", 4)
+        if first_source_tier in [4, 5]:
+            bias_checks.append({
+                "bias_type": "ANCHORING",
+                "detected": True,
+                "mitigation_applied": "Re-evaluating with Tier 1 sources",
+                "description": "First source was low tier - risk of anchoring"
+            })
+        else:
+            bias_checks.append({
+                "bias_type": "ANCHORING",
+                "detected": False,
+                "mitigation_applied": "None required"
+            })
+    
+    # Check for Recency Bias
+    recent_sources = [
+        c for c in citations 
+        if c.get("freshness_flag") == "CURRENT"
+    ]
+    if len(recent_sources) == len(citations) and len(citations) > 5:
+        bias_checks.append({
+            "bias_type": "RECENCY_BIAS",
+            "detected": True,
+            "mitigation_applied": "Including historical context sources",
+            "description": "All sources are recent - may miss historical context"
+        })
+    
+    return bias_checks
+
+
+================================================================
+PART 7 — BLUF REPORT GENERATION
+================================================================
+
+--- 7.1 BLUF Report Builder ---
+
+def generate_bluf_report(
+    research_state: Dict,
+    citations: List[Dict],
+    hypotheses: List[Dict],
+    bias_checks: List[Dict]
+) -> Dict:
+    """
+    Generate BLUF-style intelligence report per 2026 methodology.
+    """
+    # Determine leading hypothesis
+    leading_hypothesis = max(
+        hypotheses, 
+        key=lambda h: h.get("confidence", 0),
+        default=None
+    )
+    
+    # Calculate verification state
+    verification = check_rule_of_three(citations)
+    
+    # Build BLUF summary
+    bluf_summary = generate_bluf_summary(leading_hypothesis, verification)
+    
+    # Build key judgments with confidence levels
+    key_judgments = []
+    for hypothesis in hypotheses:
+        if hypothesis.get("status") != "eliminated":
+            confidence_level = map_confidence_to_level(
+                hypothesis.get("confidence", 50),
+                verification["tier1_count"],
+                verification["independent_source_count"]
+            )
+            key_judgments.append({
+                "statement": hypothesis.get("description"),
+                "confidence_level": confidence_level,
+                "source_count": hypothesis.get("consistent_count", 0),
+                "tier1_count": verification["tier1_count"]
+            })
+    
+    # Build recommendations
+    recommendations = []
+    if not verification["rule_of_three_satisfied"]:
+        recommendations.append({
+            "action": "Conduct additional research with Tier 1 sources",
+            "priority": "HIGH",
+            "time_bound": "Before final decision",
+            "risk_mitigated": "Low confidence in conclusions"
+        })
+    
+    return {
+        "bluf_summary": bluf_summary,
+        "key_judgments": key_judgments,
+        "supporting_evidence": build_evidence_summary(citations),
+        "confidence_levels": {
+            j["statement"]: j["confidence_level"] for j in key_judgments
+        },
+        "methodology": "Technical Research Specialist Advanced Edition 2026",
+        "recommendations": recommendations,
+        "caveats_and_limitations": build_limitations(
+            verification, bias_checks, hypotheses
+        ),
+        "full_report": build_full_report_text(
+            bluf_summary, key_judgments, citations, hypotheses
+        )
+    }
+
+
+def map_confidence_to_level(
+    confidence: float,
+    tier1_count: int,
+    independent_count: int
+) -> str:
+    """Map numeric confidence to calibrated confidence level."""
+    if confidence >= 80 and tier1_count >= 3 and independent_count >= 3:
+        return "HIGH"
+    elif confidence >= 60 and tier1_count >= 2 and independent_count >= 2:
+        return "MODERATE"
+    else:
+        return "LOW"
+
+
+================================================================
+PART 8 — UI RENDERING WITH 2026 METHODOLOGY
+================================================================
+
+--- 8.1 Enhanced Citation Badge with Tier Colors ---
+
+function CitationBadge({ citation }) {
+  const tierColors = {
+    1: { bg: '#d1fae5', text: '#065f46', label: 'Primary Authority' },
+    2: { bg: '#dbeafe', text: '#1e40af', label: 'Verified Secondary' },
+    3: { bg: '#ede9fe', text: '#5b21b6', label: 'Expert Community' },
+    4: { bg: '#fef3c7', text: '#92400e', label: 'General Open Source' },
+    5: { bg: '#fee2e2', text: '#991b1b', label: 'Unverified' }
+  }
+  
+  const colors = tierColors[citation.trust_tier] || tierColors[4]
+  
+  return (
+    <span
+      className="citation-badge"
+      style={{
+        background: colors.bg,
+        color: colors.text,
+        padding: '2px 6px',
+        borderRadius: '4px',
+        fontSize: '10px',
+        fontWeight: '600'
+      }}
+      title={`${colors.label} - ${citation.tier_justification}`}
+    >
+      [{citation.index}]
+      {citation.rule_of_three_satisfied && ' ✓'}
+      {citation.alcoa_verified && ' 🛡️'}
+    </span>
+  )
+}
+
+
+--- 8.2 Single Source Warning Banner ---
+
+function SingleSourceWarning({ citations }) {
+  const singleSourceClaims = citations.filter(
+    c => c.independent_confirmation_count === 0
+  )
+  
+  if (singleSourceClaims.length === 0) return null
+  
+  return (
+    <div className="single-source-warning" style={{
+      background: '#fffbeb',
+      borderLeft: '3px solid #f59e0b',
+      padding: '12px',
+      margin: '12px 0',
+      fontSize: '13px',
+      color: '#92400e'
+    }}>
+      <strong>⚠️ Single-Source Claims Detected</strong>
+      <p>
+        {singleSourceClaims.length} claim(s) rely on a single source without 
+        independent confirmation. Treat with caution per Rule of Three.
+      </p>
+      <ul>
+        {singleSourceClaims.map(c => (
+          <li key={c.citation_id}>
+            Claim {c.index}: {c.snippet?.substring(0, 100)}...
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+
+--- 8.3 Rule of Three Status Indicator ---
+
+function RuleOfThreeIndicator({ citations }) {
+  const verification = check_rule_of_three(citations)
+  
+  const statusColors = {
+    'HIGH': { bg: '#d1fae5', text: '#065f46', icon: '✅' },
+    'MODERATE': { bg: '#fef3c7', text: '#92400e', icon: '⚠️' },
+    'LOW': { bg: '#fee2e2', text: '#991b1b', icon: '❌' }
+  }
+  
+  const status = statusColors[verification.confidence_level]
+  
+  return (
+    <div className="rule-of-three-indicator" style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 12px',
+      background: status.bg,
+      color: status.text,
+      borderRadius: '6px',
+      fontSize: '12px',
+      fontWeight: '500'
+    }}>
+      <span>{status.icon}</span>
+      <span>Confidence: {verification.confidence_level}</span>
+      <span>|</span>
+      <span>Tier 1: {verification.tier1_count}</span>
+      <span>|</span>
+      <span>Independent: {verification.independent_source_count}</span>
+      {verification.rule_of_three_satisfied && (
+        <>
+          <span>|</span>
+          <span>✓ Rule of Three Satisfied</span>
+        </>
+      )}
+    </div>
+  )
+}
+
+
+================================================================
+PART 9 — END-TO-END FLOW SUMMARY v3.0
+================================================================
+
+1. USER SUBMITS QUERY
+   ↓
+2. QUERY DECOMPOSITION (Phase 1)
+   - Break into 3-5 sub-topics
+   - Generate 3+ hypotheses
+   ↓
+3. BREADTH SEARCH (Phase 2)
+   - Execute parallel searches with query engineering
+   - Tag each result with trust tier
+   ↓
+4. DEPTH PIVOT (Phase 3)
+   - Follow specific threads
+   - Apply ALCOA verification
+   ↓
+5. ACH MATRIX ANALYSIS (Phase 4)
+   - Map evidence to hypotheses
+   - Focus on disconfirming evidence
+   - Calculate confidence scores
+   ↓
+6. SOURCE VERIFICATION
+   - Apply Rule of Three
+   - Detect cognitive biases
+   - Flag single-source claims
+   ↓
+7. BLUF REPORT GENERATION (Phase 5)
+   - Bottom Line Up Front summary
+   - Key judgments with confidence levels
+   - Limitations and caveats
+   ↓
+8. UI RENDERING
+   - Inline citation badges with tier colors
+   - Rule of Three status indicator
+   - Single-source warnings
+   - ACH hypothesis tracker
+
+================================================================
+END OF GUIDE v3.0
+================================================================
