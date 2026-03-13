@@ -320,33 +320,38 @@ class DigestScheduler(
 
     private suspend fun getUsersWithDigestPreferences(): List<UserDigestPreferences> = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            // Use createStatement to avoid prepared statement conflicts in connection pool
-            conn.createStatement().use { stmt ->
-                val sql = """
-                    SELECT user_id, enabled, delivery_time, frequency,
-                           push_notification, include_calendar, include_notes, include_chat,
-                           timezone
-                    FROM digest_preferences
-                    WHERE enabled = TRUE
-                """.trimIndent()
-                stmt.executeQuery(sql).use { rs ->
-                    val prefs = mutableListOf<UserDigestPreferences>()
-                    while (rs.next()) {
-                        val frequency = rs.getString("frequency") ?: "daily"
-                        prefs.add(UserDigestPreferences(
-                            userId = rs.getString("user_id"),
-                            dailyEnabled = frequency == "daily",
-                            dailyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
-                            weeklyEnabled = frequency == "weekly",
-                            weeklyDay = 1, // Default to Monday
-                            weeklyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
-                            pushNotification = rs.getBoolean("push_notification"),
-                            calendarLogging = rs.getBoolean("include_calendar"),
-                            timezone = rs.getString("timezone") ?: "UTC"
-                        ))
+            try {
+                // Use createStatement to avoid prepared statement conflicts in connection pool
+                conn.createStatement().use { stmt ->
+                    val sql = """
+                        SELECT user_id, enabled, delivery_time, frequency,
+                               timezone
+                        FROM digest_preferences
+                        WHERE enabled = TRUE
+                    """.trimIndent()
+                    stmt.executeQuery(sql).use { rs ->
+                        val prefs = mutableListOf<UserDigestPreferences>()
+                        while (rs.next()) {
+                            val frequency = rs.getString("frequency") ?: "daily"
+                            prefs.add(UserDigestPreferences(
+                                userId = rs.getString("user_id"),
+                                dailyEnabled = frequency == "daily",
+                                dailyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
+                                weeklyEnabled = frequency == "weekly",
+                                weeklyDay = 1, // Default to Monday
+                                weeklyTime = rs.getTime("delivery_time")?.toLocalTime() ?: LocalTime.of(8, 0),
+                                pushNotification = false, // Default
+                                calendarLogging = false, // Default
+                                timezone = rs.getString("timezone") ?: "UTC"
+                            ))
+                        }
+                        prefs
                     }
-                    prefs
                 }
+            } catch (e: Exception) {
+                // Table doesn't exist yet - return empty list
+                logger.warn("digest_preferences table not available: ${e.message}")
+                emptyList()
             }
         }
     }
