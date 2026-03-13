@@ -23,10 +23,10 @@ import java.util.UUID
 
 // DTOs for Create/Update requests
 @Serializable
-data class CreateNoteRequest(val title: String, val content: String, val category: String? = null)
+data class CreateNoteRequest(val title: String, val content: String, val categoryId: String? = null)
 
 @Serializable
-data class UpdateNoteRequest(val title: String? = null, val content: String? = null, val category: String? = null)
+data class UpdateNoteRequest(val title: String? = null, val content: String? = null, val categoryId: String? = null)
 
 @Serializable
 data class CreateEventRequest(val title: String, val startTime: Long, val endTime: Long, val description: String? = null, val reminderMinutes: Int = 15)
@@ -75,7 +75,7 @@ fun Application.configureDataRoutes() {
                         
                         try {
                             val request = call.receive<CreateNoteRequest>()
-                            val id = noteRepository.create(user.userId, request.title, request.content, request.category)
+                            val id = noteRepository.create(user.userId, request.title, request.content, request.categoryId)
                             call.respond(HttpStatusCode.Created, mapOf("id" to id))
                         } catch (e: Exception) {
                             call.application.log.error("Failed to create note", e)
@@ -91,7 +91,7 @@ fun Application.configureDataRoutes() {
                             val id = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
                             try {
                                 val request = call.receive<UpdateNoteRequest>()
-                                val updated = noteRepository.update(user.userId, id, request.title, request.content, request.category)
+                                val updated = noteRepository.update(user.userId, id, request.title, request.content, request.categoryId)
                                 if (updated) call.respond(HttpStatusCode.OK)
                                 else call.respond(HttpStatusCode.NotFound)
                             } catch (e: Exception) {

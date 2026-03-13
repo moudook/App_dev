@@ -172,6 +172,13 @@ private fun runMigrations(ds: DataSource) {
                             updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
 
+                        // Chat message to notes junction table
+                        """CREATE TABLE IF NOT EXISTS chat_message_notes (
+                            message_id UUID NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+                            note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+                            PRIMARY KEY (message_id, note_id)
+                        )""",
+
                         // Indexes for performance
                         "CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL",
                         "CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, created_at ASC)",

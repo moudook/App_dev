@@ -1244,7 +1244,7 @@ ${goalMemoryManager.getProgressContext()}
             when (toolName) {
                 "memory_save" -> {
                     if (noteRepository != null && args.title != null && args.content != null) {
-                        val noteId = noteRepository.create(userId, args.title, args.content, args.category)
+                        val noteId = noteRepository.create(userId, args.title, args.content, null)  // categoryId null - handled by Android
                         emitStateSync("note_created", """{"id":"$noteId","title":"${args.title}""")
                         "Saved: '${args.title}' (ID: $noteId)"
                     } else {

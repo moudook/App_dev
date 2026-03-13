@@ -59,7 +59,7 @@ data class NotePushItem(
     val id: String? = null,
     val title: String,
     val content: String,
-    val category: String? = null,
+    val categoryId: String? = null,
     val updatedAt: Long
 )
 
@@ -184,13 +184,13 @@ fun Application.configureSyncRoutes() {
                         request.notes?.forEach { noteItem ->
                             try {
                                 if (noteItem.id != null) {
-                                    val updated = noteRepository.update(userId, noteItem.id, noteItem.title, noteItem.content, noteItem.category)
+                                    val updated = noteRepository.update(userId, noteItem.id, noteItem.title, noteItem.content, noteItem.categoryId)
                                     if (!updated) {
-                                        val id = noteRepository.create(userId, noteItem.title, noteItem.content, noteItem.category)
+                                        val id = noteRepository.create(userId, noteItem.title, noteItem.content, noteItem.categoryId)
                                         createdNotes.add(id)
                                     }
                                 } else {
-                                    val id = noteRepository.create(userId, noteItem.title, noteItem.content, noteItem.category)
+                                    val id = noteRepository.create(userId, noteItem.title, noteItem.content, noteItem.categoryId)
                                     createdNotes.add(id)
                                 }
                             } catch (e: Exception) {
