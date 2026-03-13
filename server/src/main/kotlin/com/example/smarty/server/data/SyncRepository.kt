@@ -16,7 +16,7 @@ class SyncRepository(private val dataSource: DataSource) {
 
     suspend fun getSyncStatus(userId: String): SyncStatusRecord? = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            val sql = "SELECT user_id, last_sync_at, last_pull_at FROM sync_tokens WHERE user_id = ?"
+            val sql = "SELECT user_id, last_sync_at, last_pull_at FROM sync_state WHERE user_id = ?"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setString(1, userId)
                 stmt.executeQuery().use { rs ->
@@ -36,7 +36,7 @@ class SyncRepository(private val dataSource: DataSource) {
         dataSource.connection.use { conn ->
             val now = System.currentTimeMillis()
             val sql = """
-                INSERT INTO sync_tokens (user_id, last_sync_at, last_pull_at)
+                INSERT INTO sync_state (user_id, last_sync_at, last_pull_at)
                 VALUES (?, ?, ?)
                 ON CONFLICT (user_id) DO UPDATE SET
                     last_sync_at = EXCLUDED.last_sync_at,
@@ -55,7 +55,7 @@ class SyncRepository(private val dataSource: DataSource) {
         dataSource.connection.use { conn ->
             val now = System.currentTimeMillis()
             val sql = """
-                INSERT INTO sync_tokens (user_id, last_pull_at)
+                INSERT INTO sync_state (user_id, last_pull_at)
                 VALUES (?, ?)
                 ON CONFLICT (user_id) DO UPDATE SET last_pull_at = EXCLUDED.last_pull_at
             """.trimIndent()

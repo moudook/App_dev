@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS app_state (
 
 CREATE TABLE IF NOT EXISTS sync_state (
     user_id TEXT PRIMARY KEY REFERENCES users(firebase_uid) ON DELETE CASCADE,
-    last_sync_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    last_pull_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    last_push_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_sync_at BIGINT,
+    last_pull_at BIGINT,
+    last_push_at BIGINT,
     sync_tokens JSONB DEFAULT '{}',
     sync_status TEXT DEFAULT 'idle',
     sync_error TEXT,
@@ -354,17 +354,13 @@ CREATE TABLE IF NOT EXISTS ai_memories (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS ai_context (
+CREATE TABLE IF NOT EXISTS agent_context (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
-    context_type TEXT NOT NULL,
     content TEXT NOT NULL,
     embedding vector(1536),
-    is_active BOOLEAN DEFAULT true,
-    priority INTEGER DEFAULT 0,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS agent_checkpoints (
@@ -536,7 +532,7 @@ CREATE INDEX IF NOT EXISTS idx_file_uploads_user_status ON file_uploads(user_id,
 
 -- Vector indexing
 CREATE INDEX IF NOT EXISTS idx_ai_memories_embedding ON ai_memories USING ivfflat (embedding vector_cosine_ops);
-CREATE INDEX IF NOT EXISTS idx_ai_context_embedding ON ai_context USING ivfflat (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_agent_context_embedding ON agent_context USING ivfflat (embedding vector_cosine_ops);
 
 -- JSONB indexing (New: drastically speeds up JSON queries)
 CREATE INDEX IF NOT EXISTS idx_users_feature_flags_gin ON users USING GIN (feature_flags);

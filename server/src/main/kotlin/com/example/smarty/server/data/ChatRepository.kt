@@ -76,9 +76,9 @@ class ChatRepository(
                 }
             }
 
-            // Insert the message - handle citations_json column that may not exist yet
+            // Insert the message - use citations column (JSONB)
             try {
-                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations_json) VALUES (?, ?, ?, ?, ?, ?)"
+                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations) VALUES (?, ?, ?, ?, ?, ?)"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(sessionId))
                     stmt.setString(2, userId)
@@ -89,8 +89,8 @@ class ChatRepository(
                     stmt.executeUpdate()
                 }
             } catch (e: Exception) {
-                // Fallback: citations_json column doesn't exist yet, save without it
-                logger.warn("citations_json column not available, saving without citations: ${e.message}")
+                // Fallback: citations column doesn't exist yet, save without it
+                logger.warn("citations column not available, saving without citations: ${e.message}")
                 val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking) VALUES (?, ?, ?, ?, ?)"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setObject(1, UUID.fromString(sessionId))
