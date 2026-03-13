@@ -196,7 +196,7 @@ class SyncCoordinator(
                                 id = note.id,
                                 title = note.title,
                                 content = note.content,
-                                category = note.categoryName,
+                                categoryId = null, // TODO: resolve category name to ID
                                 updatedAt = note.updatedAt
                             ))
                         }
@@ -269,7 +269,7 @@ class SyncCoordinator(
             id = info.id,
             title = info.title,
             content = info.content,
-            categoryName = info.category,
+            categoryName = null, // TODO: resolve categoryId to name
             isArchived = info.isArchived,
             createdAt = info.createdAt,
             updatedAt = info.updatedAt,

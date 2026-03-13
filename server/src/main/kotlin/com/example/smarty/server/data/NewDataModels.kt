@@ -1,11 +1,11 @@
 package com.example.smarty.server.data
 
 import kotlinx.serialization.Serializable
-import java.time.Instant
 import java.util.UUID
 
 /**
- * Task data model (v6.0.0)
+ * Task data model (v6.0.0 schema)
+ * Matches: tasks table
  */
 @Serializable
 data class Task(
@@ -15,28 +15,22 @@ data class Task(
     val noteId: String? = null,
     val title: String,
     val description: String? = null,
-    val status: TaskStatus = TaskStatus.TODO,
+    val status: String = "todo",  // todo, in_progress, done, cancelled
     val priority: Int = 2,  // 0-4 scale
-    val dueDate: String? = null,  // ISO 8601 format
-    val completedAt: String? = null,
+    val dueDate: String? = null,  // TIMESTAMPTZ
+    val completedAt: String? = null,  // TIMESTAMPTZ
     val sortOrder: Int = 0,
     val isRecurring: Boolean = false,
     val recurrenceRule: String? = null,
-    val createdAt: String = Instant.now().toString(),
-    val updatedAt: String = Instant.now().toString(),
-    val deletedAt: String? = null
+    val metadata: String = "{}",  // JSONB
+    val createdAt: String? = null,  // TIMESTAMPTZ
+    val updatedAt: String? = null,  // TIMESTAMPTZ
+    val deletedAt: String? = null   // TIMESTAMPTZ (soft delete)
 )
 
-@Serializable
-enum class TaskStatus {
-    TODO,
-    IN_PROGRESS,
-    DONE,
-    CANCELLED
-}
-
 /**
- * Tag data model (v6.0.0)
+ * Tag data model (v6.0.0 schema)
+ * Matches: tags table
  */
 @Serializable
 data class Tag(
@@ -45,11 +39,12 @@ data class Tag(
     val name: String,
     val color: String = "#6200EE",
     val usageCount: Int = 0,
-    val createdAt: String = Instant.now().toString()
+    val createdAt: String? = null  // TIMESTAMPTZ
 )
 
 /**
- * Notification data model (v6.0.0)
+ * Notification data model (v6.0.0 schema)
+ * Matches: notifications table
  */
 @Serializable
 data class Notification(
@@ -58,13 +53,15 @@ data class Notification(
     val type: String,
     val title: String,
     val body: String? = null,
+    val data: String = "{}",  // JSONB
     val isRead: Boolean = false,
-    val readAt: String? = null,
-    val createdAt: String = Instant.now().toString()
+    val readAt: String? = null,  // TIMESTAMPTZ
+    val createdAt: String? = null  // TIMESTAMPTZ
 )
 
 /**
- * Chat Folder data model (v6.0.0)
+ * Chat Folder data model (v6.0.0 schema)
+ * Matches: chat_folders table
  */
 @Serializable
 data class ChatFolder(
@@ -73,28 +70,103 @@ data class ChatFolder(
     val name: String,
     val color: String = "#6200EE",
     val sortOrder: Int = 0,
-    val createdAt: String = Instant.now().toString(),
-    val updatedAt: String = Instant.now().toString()
+    val createdAt: String? = null,
+    val updatedAt: String? = null
 )
 
 /**
- * Search History data model (v6.0.0)
+ * User Device data model (v6.0.0 schema)
+ * Matches: user_devices table
+ */
+@Serializable
+data class UserDevice(
+    val id: String = UUID.randomUUID().toString(),
+    val userId: String,
+    val deviceName: String? = null,
+    val deviceType: String? = null,  // ios, android, web, desktop, other
+    val pushToken: String? = null,
+    val lastActiveAt: String? = null,
+    val appVersion: String? = null,
+    val metadata: String = "{}",
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
+/**
+ * Search History data model (v6.0.0 schema)
+ * Matches: search_history table
  */
 @Serializable
 data class SearchHistory(
     val id: String = UUID.randomUUID().toString(),
     val userId: String,
     val query: String,
-    val searchScope: SearchScope = SearchScope.ALL,
+    val searchScope: String = "all",  // all, notes, chat, research, tasks
     val resultCount: Int = 0,
-    val createdAt: String = Instant.now().toString()
+    val createdAt: String? = null
 )
 
+/**
+ * Shared Item data model (v6.0.0 schema)
+ * Matches: shared_items table
+ */
 @Serializable
-enum class SearchScope {
-    ALL,
-    NOTES,
-    CHAT,
-    RESEARCH,
-    TASKS
-}
+data class SharedItem(
+    val id: String = UUID.randomUUID().toString(),
+    val ownerId: String,
+    val sharedWithId: String? = null,
+    val itemType: String,  // note, chat_session, research_session, task
+    val itemId: String,
+    val permission: String = "view",  // view, comment, edit
+    val shareToken: String? = null,
+    val expiresAt: String? = null,
+    val createdAt: String? = null
+)
+
+/**
+ * Note Tag join model (v6.0.0 schema)
+ * Matches: note_tags table
+ */
+@Serializable
+data class NoteTag(
+    val noteId: String,
+    val tagId: String
+)
+
+/**
+ * Note Version data model (v6.0.0 schema)
+ * Matches: note_versions table
+ */
+@Serializable
+data class NoteVersion(
+    val id: String = UUID.randomUUID().toString(),
+    val noteId: String,
+    val userId: String,
+    val title: String,
+    val content: String,
+    val versionNo: Int,
+    val createdAt: String? = null
+)
+
+/**
+ * Chat Attachment data model (v6.0.0 schema)
+ * Matches: chat_attachments table
+ */
+@Serializable
+data class ChatAttachment(
+    val id: String = UUID.randomUUID().toString(),
+    val messageId: String,
+    val fileId: String,
+    val userId: String,
+    val createdAt: String? = null
+)
+
+/**
+ * Note Attachment data model (v6.0.0 schema)
+ * Matches: note_attachments table
+ */
+@Serializable
+data class NoteAttachment(
+    val noteId: String,
+    val fileId: String
+)

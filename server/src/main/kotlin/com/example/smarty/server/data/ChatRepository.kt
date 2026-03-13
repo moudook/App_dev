@@ -25,16 +25,16 @@ class ChatRepository(
     /**
      * Creates a new chat session for a specific user and returns its UUID.
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param title Optional session title
      */
     suspend fun createSession(userId: String, title: String? = null): String = withContext(Dispatchers.IO) {
         val id = UUID.randomUUID()
         dataSource.connection.use { conn ->
-            val sql = "INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?)"
+            val sql = "INSERT INTO chat_sessions (id, user_id, title, is_active, is_archived, is_pinned, temperature, max_tokens, token_count, message_count, metadata, created_at, updated_at) VALUES (?, ?, ?, true, false, false, 0.7, 4096, 0, 0, '{}', now(), now())"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, id)
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.setString(3, title)
                 stmt.executeUpdate()
             }
@@ -48,12 +48,14 @@ class ChatRepository(
      * Validates that the session belongs to the user before saving.
      * Updates the session's message count and last message preview.
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param sessionId The session UUID
-     * @param role The message role (USER, SMARTY, TOOL, etc.)
+     * @param role The message role (user, assistant, system, tool)
      * @param content The message content
      * @param thinking Optional thinking/reasoning content
-     * @param citationsJson Optional JSON-serialized citations list
+     * @param toolCalls Optional JSON-serialized tool calls
+     * @param toolCallId Optional tool call ID
+     * @param tokenCount Optional token count
      */
     suspend fun saveMessage(
         userId: String,
@@ -61,14 +63,16 @@ class ChatRepository(
         role: String,
         content: String,
         thinking: String? = null,
-        citationsJson: String? = null
+        toolCalls: String? = null,
+        toolCallId: String? = null,
+        tokenCount: Int = 0
     ) = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             // Verify session belongs to user before inserting message
             val verifySql = "SELECT 1 FROM chat_sessions WHERE id = ? AND user_id = ?"
             conn.prepareStatement(verifySql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 val exists = stmt.executeQuery().next()
                 if (!exists) {
                     logger.warn("Session {} does not belong to user {}", sessionId, userId)
@@ -76,43 +80,17 @@ class ChatRepository(
                 }
             }
 
-            // Insert the message - use citations column (JSONB)
-            try {
-                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, citations) VALUES (?, ?, ?, ?, ?, ?::jsonb)"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(sessionId))
-                    stmt.setString(2, userId)
-                    stmt.setString(3, role)
-                    stmt.setString(4, content)
-                    stmt.setString(5, thinking)
-                    stmt.setString(6, citationsJson ?: "[]")
-                    stmt.executeUpdate()
-                }
-            } catch (e: Exception) {
-                // Fallback: citations column doesn't exist yet, save without it
-                logger.warn("citations column not available, saving without citations: ${e.message}")
-                val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking) VALUES (?, ?, ?, ?, ?)"
-                conn.prepareStatement(sql).use { stmt ->
-                    stmt.setObject(1, UUID.fromString(sessionId))
-                    stmt.setString(2, userId)
-                    stmt.setString(3, role)
-                    stmt.setString(4, content)
-                    stmt.setString(5, thinking)
-                    stmt.executeUpdate()
-                }
-            }
-
-            // Update session stats (message count, last preview, updated_at)
-            val updateSessionSql = """
-                UPDATE chat_sessions
-                SET message_count = message_count + 1,
-                    last_message_preview = ?,
-                    updated_at = NOW()
-                WHERE id = ?
-            """.trimIndent()
-            conn.prepareStatement(updateSessionSql).use { stmt ->
-                stmt.setString(1, content.take(100)) // Preview limited to 100 chars
-                stmt.setObject(2, UUID.fromString(sessionId))
+            // Insert the message
+            val sql = "INSERT INTO chat_messages (session_id, user_id, role, content, thinking, tool_calls, tool_call_id, token_count, is_edited, is_starred, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, false, false, '{}', now(), now())"
+            conn.prepareStatement(sql).use { stmt ->
+                stmt.setObject(1, UUID.fromString(sessionId))
+                stmt.setObject(2, UUID.fromString(userId))
+                stmt.setString(3, role)
+                stmt.setString(4, content)
+                stmt.setString(5, thinking)
+                stmt.setString(6, toolCalls ?: "null")
+                stmt.setString(7, toolCallId)
+                stmt.setInt(8, tokenCount)
                 stmt.executeUpdate()
             }
         }
@@ -122,7 +100,7 @@ class ChatRepository(
      * Retrieves the conversation history for a session, ordered by creation time.
      * Only returns messages for sessions owned by the specified user.
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param sessionId The session UUID
      * @param limit Maximum number of messages to return
      */
@@ -130,7 +108,7 @@ class ChatRepository(
         val history = mutableListOf<LlmMessage>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT cm.role, cm.content, cm.thinking
+                SELECT cm.role, cm.content, cm.thinking, cm.tool_calls, cm.tool_call_id
                 FROM chat_messages cm
                 JOIN chat_sessions cs ON cm.session_id = cs.id
                 WHERE cm.session_id = ? AND cs.user_id = ?
@@ -140,7 +118,7 @@ class ChatRepository(
 
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.setInt(3, limit)
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
@@ -155,15 +133,15 @@ class ChatRepository(
     /**
      * Lists all sessions for a user.
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param limit Maximum number of sessions to return
      */
     suspend fun listSessions(userId: String, limit: Int = 20): List<SessionInfo> = withContext(Dispatchers.IO) {
         val sessions = mutableListOf<SessionInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, created_at, updated_at, message_count, 
-                       last_message_preview, is_active, summary, summary_generated_at
+                SELECT id, title, created_at, updated_at, message_count,
+                       is_active, is_archived, is_pinned, model_used, temperature, max_tokens
                 FROM chat_sessions
                 WHERE user_id = ?
                 ORDER BY updated_at DESC
@@ -171,7 +149,7 @@ class ChatRepository(
             """.trimIndent()
 
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))
                 stmt.setInt(2, limit)
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
@@ -179,13 +157,13 @@ class ChatRepository(
                             SessionInfo(
                                 id = rs.getString("id"),
                                 title = rs.getString("title"),
-                                createdAt = rs.getTimestamp("created_at").time,
-                                updatedAt = rs.getTimestamp("updated_at")?.time ?: System.currentTimeMillis(),
+                                createdAt = rs.getTimestamp("created_at")?.time ?: 0,
+                                updatedAt = rs.getTimestamp("updated_at")?.time ?: 0,
                                 messageCount = rs.getInt("message_count"),
-                                lastMessagePreview = rs.getString("last_message_preview") ?: "",
+                                lastMessagePreview = "",  // Not available in new schema
                                 isActive = rs.getBoolean("is_active"),
-                                summary = rs.getString("summary"),
-                                summaryGeneratedAt = rs.getLong("summary_generated_at")
+                                summary = null,  // Not available in new schema
+                                summaryGeneratedAt = null  // Not available in new schema
                             )
                         )
                     }
@@ -207,7 +185,7 @@ class ChatRepository(
         val messages = mutableListOf<MessageRecord>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT cm.id, cm.role, cm.content, cm.thinking, cm.created_at
+                SELECT cm.id, cm.role, cm.content, cm.thinking, cm.tool_calls, cm.tool_call_id, cm.created_at
                 FROM chat_messages cm
                 JOIN chat_sessions cs ON cm.session_id = cs.id
                 WHERE cm.session_id = ? AND cs.user_id = ?
@@ -216,7 +194,7 @@ class ChatRepository(
 
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         messages.add(MessageRecord(
@@ -237,7 +215,7 @@ class ChatRepository(
      * Deletes a session and all its messages.
      * Only deletes if the session belongs to the user.
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param sessionId The session UUID to delete
      * @return true if deleted, false if not found or not owned
      */
@@ -246,7 +224,7 @@ class ChatRepository(
             val sql = "DELETE FROM chat_sessions WHERE id = ? AND user_id = ?"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.executeUpdate() > 0
             }
         }
@@ -256,17 +234,17 @@ class ChatRepository(
      * Creates a session with a specific ID (for client-provided session IDs).
      * Uses ON CONFLICT DO NOTHING to handle race conditions.
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param sessionId The session UUID to use
      * @param title Optional session title
      * @return true if created, false if already exists
      */
     suspend fun createSessionWithId(userId: String, sessionId: String, title: String? = null): Boolean = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
-            val sql = "INSERT INTO chat_sessions (id, user_id, title) VALUES (?, ?, ?) ON CONFLICT (id) DO NOTHING"
+            val sql = "INSERT INTO chat_sessions (id, user_id, title, is_active, is_archived, is_pinned, temperature, max_tokens, token_count, message_count, metadata, created_at, updated_at) VALUES (?, ?, ?, true, false, false, 0.7, 4096, 0, 0, '{}', now(), now()) ON CONFLICT (id) DO NOTHING"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.setString(3, title)
                 stmt.executeUpdate() > 0
             }
@@ -276,7 +254,7 @@ class ChatRepository(
     /**
      * Gets a session if it exists and belongs to the user.
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param sessionId The session UUID
      * @return SessionInfo if found and owned by user, null otherwise
      */
@@ -284,13 +262,13 @@ class ChatRepository(
         dataSource.connection.use { conn ->
             val sql = """
                 SELECT id, title, created_at, updated_at, message_count,
-                       last_message_preview, is_active, summary, summary_generated_at
+                       is_active, is_archived, is_pinned, model_used
                 FROM chat_sessions
                 WHERE id = ? AND user_id = ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(sessionId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.executeQuery().use { rs ->
                     if (rs.next()) {
                         SessionInfo(
@@ -299,10 +277,10 @@ class ChatRepository(
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at")?.time ?: System.currentTimeMillis(),
                             messageCount = rs.getInt("message_count"),
-                            lastMessagePreview = rs.getString("last_message_preview") ?: "",
+                            lastMessagePreview = "",  // Not in new schema
                             isActive = rs.getBoolean("is_active"),
-                            summary = rs.getString("summary"),
-                            summaryGeneratedAt = rs.getLong("summary_generated_at")
+                            summary = null,  // Not in new schema
+                            summaryGeneratedAt = null  // Not in new schema
                         )
                     } else null
                 }
@@ -328,7 +306,7 @@ class ChatRepository(
             """.trimIndent()
             conn.prepareStatement(verifySql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(messageId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 val exists = stmt.executeQuery().next()
                 if (!exists) {
                     logger.warn("Message {} does not belong to user {}", messageId, userId)
@@ -354,7 +332,7 @@ class ChatRepository(
             """.trimIndent()
             conn.prepareStatement(verifySql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(messageId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 val exists = stmt.executeQuery().next()
                 if (!exists) {
                     logger.warn("Message {} does not belong to user {}", messageId, userId)
@@ -379,7 +357,7 @@ class ChatRepository(
             """.trimIndent()
             conn.prepareStatement(verifySql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(messageId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 val exists = stmt.executeQuery().next()
                 if (!exists) {
                     logger.warn("Message {} does not belong to user {}", messageId, userId)

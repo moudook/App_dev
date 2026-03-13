@@ -37,17 +37,21 @@ class CalendarRepository(
         // Check for duplicate event (same title, startTime, endTime within 1 minute tolerance)
         dataSource.connection.use { conn ->
             val checkSql = """
-                SELECT id FROM calendar_events 
-                WHERE user_id = ? AND title = ? 
-                AND ABS(start_time - ?) < 60000 
-                AND ABS(end_time - ?) < 60000
+                SELECT id FROM calendar_events
+                WHERE user_id = ? AND title = ?
+                AND start_time >= to_timestamp(? / 1000) - INTERVAL '1 minute'
+                AND start_time <= to_timestamp(? / 1000) + INTERVAL '1 minute'
+                AND end_time >= to_timestamp(? / 1000) - INTERVAL '1 minute'
+                AND end_time <= to_timestamp(? / 1000) + INTERVAL '1 minute'
                 LIMIT 1
             """.trimIndent()
             conn.prepareStatement(checkSql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))
                 stmt.setString(2, title)
                 stmt.setLong(3, startTime)
-                stmt.setLong(4, endTime)
+                stmt.setLong(4, startTime)
+                stmt.setLong(5, endTime)
+                stmt.setLong(6, endTime)
                 stmt.executeQuery().use { rs ->
                     if (rs.next()) {
                         val existingId = rs.getString("id")
@@ -60,17 +64,16 @@ class CalendarRepository(
             // No duplicate found, create new event
             val id = UUID.randomUUID()
             val sql = """
-                INSERT INTO calendar_events (id, user_id, title, start_time, end_time, description, reminder_minutes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO calendar_events (id, user_id, title, start_time, end_time, description, is_all_day, status, visibility, reminders, attendees, metadata, created_at, updated_at)
+                VALUES (?, ?, ?, to_timestamp(? / 1000), to_timestamp(? / 1000), ?, false, 'confirmed', 'private', '[]', '[]', '{}', now(), now())
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, id)
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.setString(3, title)
                 stmt.setLong(4, startTime)
                 stmt.setLong(5, endTime)
                 stmt.setString(6, description)
-                stmt.setInt(7, reminderMinutes)
                 stmt.executeUpdate()
             }
             logger.info("Calendar event created: id={}, user={}, title={}", id, userId, title)
@@ -85,25 +88,24 @@ class CalendarRepository(
         val results = mutableListOf<CalendarEventInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, start_time, end_time, description, reminder_minutes, created_at
+                SELECT id, title, start_time, end_time, description, created_at
                 FROM calendar_events
-                WHERE user_id = ? AND end_time >= ?
+                WHERE user_id = ? AND status <> 'cancelled' AND start_time >= now()
                 ORDER BY start_time ASC
                 LIMIT ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
-                stmt.setLong(2, System.currentTimeMillis())
-                stmt.setInt(3, limit)
+                stmt.setObject(1, UUID.fromString(userId))
+                stmt.setInt(2, limit)
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         results.add(CalendarEventInfo(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
-                            startTime = rs.getLong("start_time"),
-                            endTime = rs.getLong("end_time"),
+                            startTime = rs.getTimestamp("start_time").time,
+                            endTime = rs.getTimestamp("end_time").time,
                             description = rs.getString("description"),
-                            reminderMinutes = rs.getInt("reminder_minutes"),
+                            reminderMinutes = 15, // Default since not in schema
                             createdAt = rs.getTimestamp("created_at").time
                         ))
                     }
@@ -120,24 +122,24 @@ class CalendarRepository(
         val results = mutableListOf<CalendarEventInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, start_time, end_time, description, reminder_minutes, created_at
+                SELECT id, title, start_time, end_time, description, created_at
                 FROM calendar_events
                 WHERE user_id = ?
                 ORDER BY start_time DESC
                 LIMIT ?
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
-                stmt.setString(1, userId)
+                stmt.setObject(1, UUID.fromString(userId))
                 stmt.setInt(2, limit)
                 stmt.executeQuery().use { rs ->
                     while (rs.next()) {
                         results.add(CalendarEventInfo(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
-                            startTime = rs.getLong("start_time"),
-                            endTime = rs.getLong("end_time"),
+                            startTime = rs.getTimestamp("start_time").time,
+                            endTime = rs.getTimestamp("end_time").time,
                             description = rs.getString("description"),
-                            reminderMinutes = rs.getInt("reminder_minutes"),
+                            reminderMinutes = 15, // Default
                             createdAt = rs.getTimestamp("created_at").time
                         ))
                     }
@@ -156,25 +158,23 @@ class CalendarRepository(
         title: String,
         startTime: Long,
         endTime: Long,
-        description: String? = null,
-        reminderMinutes: Int = 15
+        description: String? = null
     ): String = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                INSERT INTO calendar_events (id, user_id, title, start_time, end_time, description, reminder_minutes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO calendar_events (id, user_id, title, start_time, end_time, description, is_all_day, status, visibility, reminders, attendees, metadata, created_at, updated_at)
+                VALUES (?, ?, ?, to_timestamp(? / 1000), to_timestamp(? / 1000), ?, false, 'confirmed', 'private', '[]', '[]', '{}', now(), now())
                 ON CONFLICT (id) DO NOTHING
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(eventId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.setString(3, title)
                 stmt.setLong(4, startTime)
                 stmt.setLong(5, endTime)
                 stmt.setString(6, description)
-                stmt.setInt(7, reminderMinutes)
                 val rows = stmt.executeUpdate()
-                if (rows > 0) eventId else create(userId, title, startTime, endTime, description, reminderMinutes)
+                if (rows > 0) eventId else create(userId, title, startTime, endTime, description, 15)
             }
         }
     }
@@ -187,7 +187,7 @@ class CalendarRepository(
             val sql = "DELETE FROM calendar_events WHERE id = ? AND user_id = ?"
             conn.prepareStatement(sql).use { stmt ->
                 stmt.setObject(1, UUID.fromString(eventId))
-                stmt.setString(2, userId)
+                stmt.setObject(2, UUID.fromString(userId))
                 stmt.executeUpdate() > 0
             }
         }

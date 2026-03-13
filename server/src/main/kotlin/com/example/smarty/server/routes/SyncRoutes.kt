@@ -217,9 +217,9 @@ fun Application.configureSyncRoutes() {
                             try {
                                 if (eventItem.id != null) {
                                     val id = calendarRepository.createWithId(
-                                        userId, eventItem.id, eventItem.title, 
+                                        userId, eventItem.id, eventItem.title,
                                         eventItem.startTime, eventItem.endTime,
-                                        eventItem.description, eventItem.reminderMinutes
+                                        eventItem.description
                                     )
                                     if (id == eventItem.id) {
                                         createdEvents.add(id)

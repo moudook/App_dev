@@ -40,10 +40,12 @@ class ChatMessageNotesRepositoryTest {
         createTestTables()
 
         // Initialize repositories
-        val notesRepo = NoteRepository(dataSource)
+        val chatMessageNotesRepo = ChatMessageNotesRepository(dataSource)
+        val calendarEventNotesRepo = CalendarEventNotesRepository(dataSource)
+        val notesRepo = NoteRepository(dataSource, chatMessageNotesRepo, calendarEventNotesRepo)
         noteRepository = notesRepo
-        chatRepository = ChatRepository(dataSource, ChatMessageNotesRepository(dataSource))
-        repository = ChatMessageNotesRepository(dataSource)
+        chatRepository = ChatRepository(dataSource, chatMessageNotesRepo)
+        repository = chatMessageNotesRepo
     }
 
     @AfterAll

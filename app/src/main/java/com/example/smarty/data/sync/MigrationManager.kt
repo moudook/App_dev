@@ -42,7 +42,7 @@ class MigrationManager(
                     id = note.id,
                     title = note.title,
                     content = note.content,
-                    category = note.categoryName,
+                    categoryId = null, // TODO: resolve category name to ID
                     updatedAt = note.updatedAt
                 )
             }

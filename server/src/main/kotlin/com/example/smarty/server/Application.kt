@@ -32,6 +32,11 @@ import com.example.smarty.server.data.ChatMessageNotesRepository
 import com.example.smarty.server.data.CalendarEventNotesRepository
 import com.example.smarty.server.llm.LlmProviderFactory
 import com.example.smarty.server.routes.configureDigestRoutes
+import com.example.smarty.server.routes.configureNewFeaturesRoutes
+import com.example.smarty.server.data.TaskRepository
+import com.example.smarty.server.data.TagRepository
+import com.example.smarty.server.data.NotificationRepository
+import com.example.smarty.server.data.ChatFolderRepository
 import javax.sql.DataSource
 
 /**
@@ -195,6 +200,16 @@ fun Application.module() {
     configureProcessingRoutes()
     configureHandshakeRoutes()
     configureDataRoutes()
+    
+    // Configure v6.0.0 new features routes (Tasks, Tags, Notifications, Folders)
+    if (ds != null) {
+        val taskRepo = TaskRepository(ds)
+        val tagRepo = TagRepository(ds)
+        val notificationRepo = NotificationRepository(ds)
+        val chatFolderRepo = ChatFolderRepository(ds)
+        configureNewFeaturesRoutes(taskRepo, tagRepo, notificationRepo, chatFolderRepo)
+    }
+    
     configureResearchRoutes(com.example.smarty.server.agent.DeepResearchAgent(
         llmProvider = com.example.smarty.server.llm.LlmProviderFactory.create(io.ktor.client.HttpClient()),
         tavilyTool = com.example.smarty.server.tools.TavilySearchTool(),

@@ -609,13 +609,13 @@ is AgentCommand.GetSystemStatus -> "(no params)"
                     when (syncType) {
                         "note_created" -> {
                             val info = Json.decodeFromString<NoteInfo>(data)
-                            val category = info.category?.let { repository.getOrCreateCategory(it) }
+                            val category = null // TODO: resolve categoryId to Category object
                             val note = Note(
                                 id = info.id,
                                 title = info.title,
                                 content = info.content,
-                                categoryId = category?.id,
-                                categoryName = category?.name,
+                                categoryId = info.categoryId,
+                                categoryName = null, // TODO: resolve categoryId to name
                                 type = NoteType.BRAIN_DUMP,
                                 createdAt = info.createdAt,
                                 updatedAt = info.updatedAt,

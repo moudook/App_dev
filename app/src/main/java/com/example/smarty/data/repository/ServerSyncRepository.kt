@@ -209,7 +209,7 @@ class ServerSyncRepository(
             id = this.id,
             title = this.title,
             content = this.content,
-            categoryName = this.category,
+            categoryName = null, // TODO: resolve categoryId to name
             isArchived = this.isArchived,
             createdAt = this.createdAt,
             updatedAt = this.updatedAt,

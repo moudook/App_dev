@@ -7,8 +7,13 @@ data class NoteInfo(
     val id: String,
     val title: String,
     val content: String,
-    val category: String?,
+    val categoryId: String?,  // UUID reference to note_categories
+    val stackId: String?,     // UUID reference to note_stacks
+    val parentNoteId: String?, // UUID reference to notes
+    val wordCount: Int?,      // generated column
     val isArchived: Boolean,
+    val isPinned: Boolean,
+    val isFavorite: Boolean,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -78,7 +83,12 @@ data class NotePushItem(
     val id: String? = null,
     val title: String,
     val content: String,
-    val category: String? = null,
+    val categoryId: String? = null,
+    val stackId: String? = null,
+    val parentNoteId: String? = null,
+    val isArchived: Boolean = false,
+    val isPinned: Boolean = false,
+    val isFavorite: Boolean = false,
     val updatedAt: Long
 )
 

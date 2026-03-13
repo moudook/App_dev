@@ -420,19 +420,19 @@ fun Application.configureChatRoutes() {
                                 "[]"
                             }
                             
-                            // Save with citations
-                            chatRepository.saveMessage(
-                                userId = userId,
-                                sessionId = sessionId!!,
-                                role = LlmMessage.Role.SMARTY.name,
-                                content = cleanResponse,
-                                thinking = thinking,
-                                citationsJson = citationsJson
-                            )
-                            call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
-                        } catch (e: Exception) {
-                            call.application.log.error("Failed to save assistant response (non-fatal)", e)
-                        }
+                             // Save message
+                             chatRepository.saveMessage(
+                                 userId = userId,
+                                 sessionId = sessionId!!,
+                                 role = LlmMessage.Role.SMARTY.name,
+                                 content = cleanResponse,
+                                 thinking = thinking,
+                                 toolCalls = citationsJson  // Store citations as tool_calls JSON
+                             )
+                             call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
+                         } catch (e: Exception) {
+                             call.application.log.error("Failed to save assistant response (non-fatal)", e)
+                         }
                     }
                 } catch (e: Exception) {
                     call.application.log.error("Agent execution failed", e)
@@ -582,17 +582,17 @@ fun Application.configureChatRoutes() {
                                 "[]"
                             }
                             
-                            // Save with citations
-                            chatRepository.saveMessage(
-                                userId = userId,
-                                sessionId = sessionId!!,
-                                role = LlmMessage.Role.SMARTY.name,
-                                content = cleanResponse,
-                                thinking = thinking,
-                                citationsJson = citationsJson
-                            )
-                            call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
-                        }
+                             // Save message
+                             chatRepository.saveMessage(
+                                 userId = userId,
+                                 sessionId = sessionId!!,
+                                 role = LlmMessage.Role.SMARTY.name,
+                                 content = cleanResponse,
+                                 thinking = thinking,
+                                 toolCalls = citationsJson  // Store citations as tool_calls JSON
+                             )
+                             call.application.log.info("Saved assistant response with ${collectedCitations.size} citations")
+                         }
 
                         // Return all events
                         call.respond(HttpStatusCode.OK, mapOf(
