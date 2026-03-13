@@ -229,7 +229,15 @@ private fun runMigrations(ds: DataSource) {
                         // Indexes for performance
                         "CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL",
                         "CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, created_at ASC)",
-                        "CREATE INDEX IF NOT EXISTS idx_agent_traces_user ON agent_traces(user_id, created_at DESC)"
+                        "CREATE INDEX IF NOT EXISTS idx_agent_traces_user ON agent_traces(user_id, created_at DESC)",
+                        // Full-text search indexes for notes
+                        "CREATE INDEX IF NOT EXISTS idx_notes_fts ON notes USING gin (to_tsvector('english', coalesce(title,'') || ' ' || coalesce(content,'')))",
+                        // Optimized indexes for common queries
+                        "CREATE INDEX IF NOT EXISTS idx_notes_user_active ON notes(user_id, updated_at DESC) WHERE is_archived = false AND deleted_at IS NULL",
+                        "CREATE INDEX IF NOT EXISTS idx_notes_user_pinned ON notes(user_id, updated_at DESC) WHERE is_pinned = true AND deleted_at IS NULL",
+                        // Chat sessions indexes
+                        "CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_active ON chat_sessions(user_id, updated_at DESC) WHERE is_active = true AND is_archived = false",
+                        "CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_pinned ON chat_sessions(user_id) WHERE is_pinned = true"
                     )
 
                     for (sql in migrations) {
@@ -274,13 +282,16 @@ private fun runMigrations(ds: DataSource) {
                 username = dbUser
                 password = dbPassword
                 driverClassName = "org.postgresql.Driver"
-                maximumPoolSize = 4
-                minimumIdle = 1
+                maximumPoolSize = 10  // Increased from 4 for better concurrency
+                minimumIdle = 2
                 idleTimeout = 120000
-                connectionTimeout = 10000  // Reduced from 30s to 10s for faster startup
+                connectionTimeout = 10000
                 maxLifetime = 600000
                 leakDetectionThreshold = 60000
                 addDataSourceProperty("prepareThreshold", "0")
+                addDataSourceProperty("cachePrepStmts", "true")
+                addDataSourceProperty("prepStmtCacheSize", "250")
+                addDataSourceProperty("prepStmtCacheSqlLimit", "2048")
             }
 
             dataSource = try {

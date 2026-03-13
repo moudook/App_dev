@@ -1,12 +1,21 @@
 package com.example.smarty.server.llm
 
 import io.ktor.client.*
+import io.ktor.client.engine.okhttp.OkHttp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.slf4j.LoggerFactory
 
 object LlmProviderFactory {
     private val logger = LoggerFactory.getLogger(LlmProviderFactory::class.java)
+    
+    // Cached provider instance to avoid recreating on each request
+    @Volatile
+    private var cachedProvider: LlmProvider? = null
+    
+    // Cached HTTP client for reuse
+    @Volatile
+    private var cachedHttpClient: HttpClient? = null
 
     private fun parseApiKeys(envVar: String?): List<String> {
         if (envVar.isNullOrBlank()) return emptyList()
@@ -26,6 +35,25 @@ object LlmProviderFactory {
             "GITHUB" -> "GITHUB_TOKEN"
             "LOCAL", "LOCAL_PC" -> "LOCAL_LLM_KEY"
             else -> "${provider.uppercase()}_API_KEY"
+        }
+    }
+    
+    /**
+     * Get or create a cached HTTP client for reuse across requests
+     */
+    fun getOrCreateHttpClient(): HttpClient {
+        return cachedHttpClient ?: synchronized(this) {
+            cachedHttpClient ?: HttpClient(OkHttp).also { cachedHttpClient = it }
+        }
+    }
+
+    /**
+     * Get or create a cached LLM provider for reuse across requests
+     */
+    fun getOrCreateProvider(client: HttpClient = getOrCreateHttpClient()): LlmProvider {
+        cachedProvider?.let { return it }
+        return synchronized(this) {
+            cachedProvider ?: create(client).also { cachedProvider = it }
         }
     }
 

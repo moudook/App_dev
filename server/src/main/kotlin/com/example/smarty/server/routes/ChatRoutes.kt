@@ -97,27 +97,8 @@ fun Application.configureChatRoutes() {
         ignoreUnknownKeys = true
     }
 
-    // Initialize generic HTTP Client for LLM and Tools
-    val httpClient = HttpClient(OkHttp) {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                encodeDefaults = true
-                explicitNulls = false
-            })
-        }
-        install(io.ktor.client.plugins.HttpTimeout) {
-            requestTimeoutMillis = 300_000  // 5 minutes for full request (slow LLM responses)
-            connectTimeoutMillis = 30_000   // 30 seconds to connect
-            socketTimeoutMillis = 300_000   // 5 minutes for streaming responses
-        }
-        engine {
-            config {
-                // Disable connection pooling for fresh connections
-                retryOnConnectionFailure(true)
-            }
-        }
-    }
+    // Initialize generic HTTP Client for LLM and Tools (reused from factory)
+    val httpClient = LlmProviderFactory.getOrCreateHttpClient()
 
     // Initialize dependencies (Manual DI for now)
     // In production, use Koin or Dagger
@@ -125,8 +106,8 @@ fun Application.configureChatRoutes() {
     val tavilyTool = TavilySearchTool()
     val providerRouter = ProviderRouter(httpClient)
 
-    // Default provider (fallback to factory if router not used here yet)
-    val llmProvider = LlmProviderFactory.create(httpClient)
+    // Default provider - use cached instance for better performance
+    val llmProvider = LlmProviderFactory.getOrCreateProvider(httpClient)
     val summarizer = ConversationSummarizer(llmProvider)
 
     // Database and Repository

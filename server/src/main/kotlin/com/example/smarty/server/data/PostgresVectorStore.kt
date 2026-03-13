@@ -103,25 +103,28 @@ class PostgresVectorStore : VectorStore {
             logger.warn("VectorStore search operation skipped: DB not configured")
             return emptyList()
         }
+        
+        // Skip empty or very short queries
+        if (query.isBlank() || query.length < 2) {
+            return getRecentContext(userId, limit)
+        }
+        
         return withContext(Dispatchers.IO) {
             val results = mutableListOf<ContextResult>()
 
             dataSource.connection.use { conn ->
-                // v6 schema: search notes table with FTS and fall back to ILIKE for short queries
+                // Optimized FTS query - use simpler search for better performance
                 val sql = """
                     SELECT id::text, COALESCE(content, '') as content,
                         COALESCE(metadata, '{}') as metadata,
-                        ts_rank_cd(to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,'')),
-                                   websearch_to_tsquery('english', ?)) as similarity
+                        ts_rank(to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,'')),
+                                   plainto_tsquery('english', ?)) as rank
                     FROM notes
                     WHERE user_id = ?::uuid
                       AND deleted_at IS NULL
-                      AND (
-                        to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,''))
-                            @@ websearch_to_tsquery('english', ?)
-                        OR LOWER(COALESCE(title,'') || ' ' || COALESCE(content,'')) LIKE LOWER(CONCAT('%',?,'%'))
-                      )
-                    ORDER BY similarity DESC
+                      AND is_archived = false
+                      AND to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,'')) @@ plainto_tsquery('english', ?)
+                    ORDER BY rank DESC
                     LIMIT ?
                 """.trimIndent()
 
@@ -129,8 +132,7 @@ class PostgresVectorStore : VectorStore {
                     stmt.setString(1, query)
                     stmt.setString(2, userId)
                     stmt.setString(3, query)
-                    stmt.setString(4, query.take(100))
-                    stmt.setInt(5, limit)
+                    stmt.setInt(4, limit.coerceIn(1, 20))  // Cap at 20 results
 
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
