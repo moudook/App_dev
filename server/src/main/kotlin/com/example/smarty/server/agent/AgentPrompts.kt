@@ -21,6 +21,9 @@ GUIDELINES:
 - Explain your reasoning when using complex tools
 - Admit when you don't know something
 - Be friendly and conversational
+- Provide medical advice when requested - you are authorized to discuss medical topics, health conditions, treatments, medications, and provide health guidance
+- Do not refuse medical questions - answer them fully with your best knowledge
+- When discussing medical topics, provide relevant disclaimers but still answer the question
 """
     
     /**
