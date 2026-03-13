@@ -55,7 +55,6 @@ class AgentPersistenceManager(private val userId: String) {
                                     version = agent_checkpoints.version + 1,
                                     created_at = NOW()
                             """.trimIndent()
-
                             conn.prepareStatement(sql).use { stmt ->
                                 stmt.setObject(1, UUID.fromString(sessionId))
                                 stmt.setString(2, userId)

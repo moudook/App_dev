@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS notes (
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     content_preview TEXT,
-    category_id UUID REFERENCES note_categories(id) ON DELETE SET NULL,
+    category TEXT,
     stack_id UUID REFERENCES note_stacks(id) ON DELETE SET NULL,
     parent_note_id UUID REFERENCES notes(id) ON DELETE SET NULL,
     is_archived BOOLEAN DEFAULT false,
@@ -365,7 +365,7 @@ CREATE TABLE IF NOT EXISTS agent_context (
 
 CREATE TABLE IF NOT EXISTS agent_checkpoints (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    session_id UUID NOT NULL UNIQUE REFERENCES chat_sessions(id) ON DELETE CASCADE,
     user_id TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
     workflow_id UUID REFERENCES agent_workflows(id) ON DELETE CASCADE,
     state_json JSONB NOT NULL,
@@ -526,7 +526,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_app_state_composite ON app_state(user_id, state_type, state_key);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_active ON chat_sessions(user_id, is_active, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_created ON chat_messages(session_id, created_at ASC);
-CREATE INDEX IF NOT EXISTS idx_notes_user_category ON notes(user_id, category_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_user_category ON notes(user_id, category, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_user_time ON calendar_events(user_id, start_time, end_time);
 CREATE INDEX IF NOT EXISTS idx_file_uploads_user_status ON file_uploads(user_id, processing_status);
 
@@ -565,31 +565,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Category note counter
-CREATE OR REPLACE FUNCTION update_category_note_count()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF TG_OP = 'INSERT' AND NEW.category_id IS NOT NULL THEN
-        UPDATE note_categories SET note_count = note_count + 1 WHERE id = NEW.category_id;
-    ELSIF TG_OP = 'DELETE' AND OLD.category_id IS NOT NULL THEN
-        UPDATE note_categories SET note_count = note_count - 1 WHERE id = OLD.category_id;
-    ELSIF TG_OP = 'UPDATE' THEN
-        IF OLD.category_id IS DISTINCT FROM NEW.category_id THEN
-            IF OLD.category_id IS NOT NULL THEN
-                UPDATE note_categories SET note_count = note_count - 1 WHERE id = OLD.category_id;
-            END IF;
-            IF NEW.category_id IS NOT NULL THEN
-                UPDATE note_categories SET note_count = note_count + 1 WHERE id = NEW.category_id;
-            END IF;
-        END IF;
-    END IF;
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER update_category_note_count_trigger
-    AFTER INSERT OR DELETE OR UPDATE OF category_id ON notes
-    FOR EACH ROW EXECUTE FUNCTION update_category_note_count();
+-- Category is now stored as plain TEXT, no FK reference
+-- Category note counter removed (category is plain TEXT, not UUID FK)
 
 -- Stack note counter
 CREATE OR REPLACE FUNCTION update_stack_note_count()
@@ -616,6 +593,40 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER update_stack_note_count_trigger
     AFTER INSERT OR DELETE OR UPDATE OF stack_id ON notes
     FOR EACH ROW EXECUTE FUNCTION update_stack_note_count();
+
+-- =============================================================================
+-- MIGRATIONS: Add missing constraints to existing databases
+-- =============================================================================
+
+-- Add unique constraint to agent_checkpoints for ON CONFLICT to work
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'agent_checkpoints_session_id_key' 
+        AND table_name = 'agent_checkpoints'
+    ) THEN
+        ALTER TABLE agent_checkpoints ADD CONSTRAINT agent_checkpoints_session_id_key UNIQUE (session_id);
+    END IF;
+END $$;
+
+-- Add category column to notes if missing (migrating from category_id UUID to category TEXT)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name = 'notes' AND column_name = 'category') THEN
+        ALTER TABLE notes ADD COLUMN category TEXT;
+    END IF;
+    
+    -- If category_id exists and has data, migrate it
+    IF EXISTS (SELECT 1 FROM information_schema.columns 
+               WHERE table_name = 'notes' AND column_name = 'category_id') THEN
+        -- Try to migrate if there's data
+        UPDATE notes SET category = (
+            SELECT name FROM note_categories WHERE id = notes.category_id
+        ) WHERE notes.category_id IS NOT NULL;
+    END IF;
+END $$;
 
 -- =============================================================================
 -- SCHEMA COMPLETE - 28 TABLES, ALL SDE PRINCIPLES APPLIED

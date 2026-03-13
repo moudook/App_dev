@@ -50,7 +50,7 @@ class NoteRepository(
         val id = UUID.randomUUID()
         dataSource.connection.use { conn ->
             val sql = """
-                INSERT INTO notes (id, user_id, title, content, category_id)
+                INSERT INTO notes (id, user_id, title, content, category)
                 VALUES (?, ?, ?, ?, ?)
             """.trimIndent()
             conn.prepareStatement(sql).use { stmt ->
@@ -73,7 +73,7 @@ class NoteRepository(
         val results = mutableListOf<NoteInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category_id, is_archived, created_at, updated_at
+                SELECT id, title, content, category, is_archived, created_at, updated_at
                 FROM notes
                 WHERE user_id = ? AND is_pinned = true
                 ORDER BY updated_at DESC
@@ -89,7 +89,7 @@ class NoteRepository(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
                             content = rs.getString("content"),
-                            category = rs.getString("category_id"),
+                            category = rs.getString("category"),
                             isArchived = rs.getBoolean("is_archived"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time
@@ -105,7 +105,7 @@ class NoteRepository(
         val results = mutableListOf<NoteInfo>()
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category_id, is_archived, created_at, updated_at
+                SELECT id, title, content, category, is_archived, created_at, updated_at
                 FROM notes
                 WHERE user_id = ? AND NOT is_archived
                 ORDER BY updated_at DESC
@@ -120,7 +120,7 @@ class NoteRepository(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
                             content = rs.getString("content"),
-                            category = rs.getString("category_id"),
+                            category = rs.getString("category"),
                             isArchived = rs.getBoolean("is_archived"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time
@@ -138,7 +138,7 @@ class NoteRepository(
     suspend fun getById(userId: String, noteId: String): NoteInfo? = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category_id, is_archived, created_at, updated_at
+                SELECT id, title, content, category, is_archived, created_at, updated_at
                 FROM notes
                 WHERE id = ? AND user_id = ?
             """.trimIndent()
@@ -151,7 +151,7 @@ class NoteRepository(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
                             content = rs.getString("content"),
-                            category = rs.getString("category_id"),
+                            category = rs.getString("category"),
                             isArchived = rs.getBoolean("is_archived"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time
@@ -171,7 +171,7 @@ class NoteRepository(
             val setClauses = mutableListOf<String>()
             if (title != null) setClauses.add("title = ?")
             if (content != null) setClauses.add("content = ?")
-            if (category != null) setClauses.add("category_id = ?")
+            if (category != null) setClauses.add("category = ?")
             setClauses.add("updated_at = NOW()")
 
             if (setClauses.isEmpty()) return@withContext false
@@ -271,7 +271,7 @@ class NoteRepository(
     private suspend fun getNoteById(userId: String, noteId: String): NoteInfo? = withContext(Dispatchers.IO) {
         dataSource.connection.use { conn ->
             val sql = """
-                SELECT id, title, content, category_id, is_archived, created_at, updated_at
+                SELECT id, title, content, category, is_archived, created_at, updated_at
                 FROM notes
                 WHERE id = ? AND user_id = ?
             """.trimIndent()
@@ -284,7 +284,7 @@ class NoteRepository(
                             id = rs.getString("id"),
                             title = rs.getString("title"),
                             content = rs.getString("content"),
-                            category = rs.getString("category_id"),
+                            category = rs.getString("category"),
                             isArchived = rs.getBoolean("is_archived"),
                             createdAt = rs.getTimestamp("created_at").time,
                             updatedAt = rs.getTimestamp("updated_at").time

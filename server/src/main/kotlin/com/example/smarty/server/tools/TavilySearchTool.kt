@@ -3,11 +3,11 @@ package com.example.smarty.server.tools
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.okhttp.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -17,10 +17,17 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.max
 
 /**
  * Server-side tool for Web Search using Tavily API.
- * Returns clean Markdown/JSON results with API key rotation support.
+ * Returns clean Markdown/JSON results with robust API key rotation support.
+ * 
+ * Features:
+ * - Multiple API keys support (comma-separated in TAVILY_API_KEY env)
+ * - Parallel search with distributed key usage
+ * - Automatic key rotation on rate limiting
+ * - Graceful degradation when keys are exhausted
  */
 class TavilySearchTool {
     private val logger = LoggerFactory.getLogger(TavilySearchTool::class.java)
@@ -32,7 +39,12 @@ class TavilySearchTool {
         ?.filter { it.isNotBlank() }
         ?: emptyList()
 
-    private val currentIndex = AtomicInteger(0)
+    // Atomic counter for round-robin key selection
+    private val keyIndex = AtomicInteger(0)
+
+    // Track failed keys to avoid them temporarily
+    private val failedKeys = mutableMapOf<String, Long>()
+    private val keyFailureTimeout = 60_000L // 1 minute cooldown for failed keys
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {
@@ -40,6 +52,19 @@ class TavilySearchTool {
                 ignoreUnknownKeys = true
                 encodeDefaults = true
             })
+        }
+        engine {
+            config {
+                connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            }
+        }
+    }
+
+    init {
+        logger.info("TavilySearchTool initialized with ${apiKeys.size} API key(s)")
+        if (apiKeys.isEmpty()) {
+            logger.warn("No TAVILY_API_KEY configured - web search will not work")
         }
     }
 
@@ -53,18 +78,13 @@ class TavilySearchTool {
      *   SEARCH: query 1
      *   SEARCH: query 2
      *   SEARCH: query 3
-     * 
-     * Rotates through available API keys on each call and retries on failure.
      */
     suspend fun search(query: String): String {
-        // Check if this is a multi-query request
         val queries = parseMultiQuery(query)
         
         return if (queries.size > 1) {
-            // Multiple queries: run in parallel
             searchParallel(queries)
         } else {
-            // Single query: standard search
             searchSingle(queries.firstOrNull() ?: query)
         }
     }
@@ -87,67 +107,114 @@ class TavilySearchTool {
             }
         }
         
-        // If no SEARCH: prefixes found, treat entire input as single query
         return if (queries.isEmpty()) listOf(input) else queries
     }
 
     /**
-     * Perform a single search.
+     * Get next available API key with round-robin distribution.
+     * Skips keys that are currently in failure cooldown.
+     */
+    @Synchronized
+    private fun getNextApiKey(): String? {
+        if (apiKeys.isEmpty()) return null
+        
+        val now = System.currentTimeMillis()
+        
+        // Clean up expired failed keys
+        failedKeys.entries.removeIf { (_, timestamp) -> now - timestamp > keyFailureTimeout }
+        
+        // Try each key once
+        for (i in 0 until apiKeys.size) {
+            val index = keyIndex.getAndIncrement()
+            val key = apiKeys[index % apiKeys.size]
+            
+            // Skip keys in failure state
+            if (!failedKeys.containsKey(key)) {
+                return key
+            }
+        }
+        
+        // All keys failed, return first one anyway (for fallback)
+        return apiKeys.firstOrNull()
+    }
+
+    /**
+     * Mark a key as failed (rate limited or error)
+     */
+    @Synchronized
+    private fun markKeyFailed(apiKey: String) {
+        failedKeys[apiKey] = System.currentTimeMillis()
+        logger.warn("API key starting with ${apiKey.take(8)}... marked as failed, will retry in ${keyFailureTimeout/1000}s")
+    }
+
+    /**
+     * Perform a single search with automatic key rotation.
      */
     private suspend fun searchSingle(query: String): String {
-        if (apiKeys.isEmpty()) {
-            return "Error: Web search is not configured (missing TAVILY_API_KEY)."
-        }
+        val apiKey = getNextApiKey() ?: return "Error: Web search is not configured (missing TAVILY_API_KEY)."
 
-        val maxAttempts = apiKeys.size
+        val maxAttempts = max(apiKeys.size, 1)
         var lastErrorMessage = ""
+        var usedKeys = mutableSetOf<String>()
 
         for (attempt in 0 until maxAttempts) {
-            val index = Math.abs(currentIndex.getAndIncrement() % apiKeys.size)
-            val apiKey = apiKeys[index]
+            val currentKey = getNextApiKey() ?: break
+            usedKeys.add(currentKey)
 
-            logger.info("Performing Tavily search using key at index $index (attempt ${attempt + 1}/$maxAttempts)")
+            logger.info("Tavily search attempt ${attempt + 1}/$maxAttempts for query: ${query.take(50)}...")
 
             try {
                 val response = client.post("https://api.tavily.com/search") {
                     contentType(ContentType.Application.Json)
                     setBody(TavilyRequest(
-                        apiKey = apiKey,
+                        apiKey = currentKey,
                         query = query,
                         searchDepth = "basic",
                         maxResults = 5
                     ))
                 }
 
-                if (response.status.isSuccess()) {
-                    val tavilyResponse: TavilyResponse = response.body()
-                    return formatResults(tavilyResponse.results)
-                } else if (response.status == HttpStatusCode.TooManyRequests || response.status == HttpStatusCode.Unauthorized) {
-                    lastErrorMessage = "Key at index $index failed with ${response.status}"
-                    logger.warn("$lastErrorMessage. Trying next key...")
-                    continue
-                } else {
-                    val errorBody = response.status.description
-                    return "Error performing web search: $errorBody"
+                when {
+                    response.status.isSuccess() -> {
+                        val tavilyResponse: TavilyResponse = response.body()
+                        return formatResults(tavilyResponse.results)
+                    }
+                    response.status == HttpStatusCode.TooManyRequests -> {
+                        lastErrorMessage = "Rate limited (429)"
+                        markKeyFailed(currentKey)
+                        logger.warn("Rate limited on key ${currentKey.take(8)}..., trying next key")
+                    }
+                    response.status == HttpStatusCode.Unauthorized -> {
+                        lastErrorMessage = "Invalid API key (401)"
+                        markKeyFailed(currentKey)
+                        logger.warn("Invalid API key ${currentKey.take(8)}..., trying next key")
+                    }
+                    else -> {
+                        val errorBody = response.body<String>()
+                        lastErrorMessage = "${response.status}: $errorBody"
+                        logger.error("Tavily error: $lastErrorMessage")
+                        return "Error performing web search: $lastErrorMessage"
+                    }
                 }
             } catch (e: Exception) {
-                logger.error("Tavily search failed for key at index $index", e)
                 lastErrorMessage = e.message ?: "Unknown error"
-                if (attempt == maxAttempts - 1) break
+                logger.error("Tavily search exception for key ${currentKey.take(8)}...", e)
+                
+                // Only mark as failed if it's a network/error, not just retry
+                if (attempt == maxAttempts - 1) {
+                    break
+                }
             }
         }
 
-        return "Error performing web search: All configured keys failed. Last error: $lastErrorMessage"
+        return "Error performing web search: All ${usedKeys.size} available keys failed. Last error: $lastErrorMessage"
     }
 
     /**
-     * Perform MULTIPLE searches in PARALLEL and aggregate results.
-     * All queries run simultaneously, results combined and deduplicated.
-     * 
-     * @param queries List of search queries to run in parallel
-     * @return Combined search results from all queries
+     * Perform MULTIPLE searches in PARALLEL with distributed API keys.
+     * Each query gets its own API key for maximum throughput.
      */
-    suspend fun searchParallel(queries: List<String>): String = withContext(Dispatchers.IO) {
+    private suspend fun searchParallel(queries: List<String>): String = withContext(Dispatchers.IO) {
         if (queries.isEmpty()) {
             return@withContext "Error: No search queries provided."
         }
@@ -156,23 +223,35 @@ class TavilySearchTool {
             return@withContext "Error: Web search is not configured (missing TAVILY_API_KEY)."
         }
 
-        logger.info("Running ${queries.size} parallel searches")
+        logger.info("Running ${queries.size} parallel searches with ${apiKeys.size} API key(s)")
 
-        // Run all searches concurrently using coroutineScope
+        // Distribute keys across queries - each query gets its own key
         val results = kotlinx.coroutines.coroutineScope {
-            queries.map { query ->
+            queries.mapIndexed { index, query ->
                 async {
-                    val result = search(query)
+                    // Assign key based on index to distribute evenly
+                    val keyIndex = index % apiKeys.size
+                    val apiKey = apiKeys.getOrNull(keyIndex) ?: apiKeys.first()
+                    
+                    val result = executeSearchWithKey(query, apiKey)
                     query to result
                 }
             }.awaitAll()
         }
 
-        // Aggregate and deduplicate results
+        // Aggregate results
         val allResults = mutableListOf<String>()
         val seenUrls = mutableSetOf<String>()
+        var successCount = 0
+        var errorCount = 0
 
         results.forEach { (query, resultText) ->
+            if (resultText.startsWith("Error:")) {
+                errorCount++
+            } else {
+                successCount++
+            }
+            
             allResults.add("## Query: $query\n")
             allResults.add(resultText)
             allResults.add("\n")
@@ -185,10 +264,43 @@ class TavilySearchTool {
         }
 
         buildString {
-            appendLine("### Combined Search Results")
-            appendLine("Queries: ${queries.joinToString(", ")}")
-            appendLine("Unique sources: ${seenUrls.size}\n")
+            appendLine("### Parallel Search Results")
+            appendLine("**Queries:** ${queries.size}")
+            appendLine("**Successful:** $successCount")
+            if (errorCount > 0) appendLine("**Failed:** $errorCount")
+            appendLine("**Unique sources:** ${seenUrls.size}\n")
             append(allResults.joinToString("\n"))
+        }
+    }
+
+    /**
+     * Execute a single search with a specific API key (no retry logic, used for parallel).
+     */
+    private suspend fun executeSearchWithKey(query: String, apiKey: String): String {
+        try {
+            val response = client.post("https://api.tavily.com/search") {
+                contentType(ContentType.Application.Json)
+                setBody(TavilyRequest(
+                    apiKey = apiKey,
+                    query = query,
+                    searchDepth = "basic",
+                    maxResults = 5
+                ))
+            }
+
+            return try {
+                val tavilyResponse: TavilyResponse = response.body()
+                formatResults(tavilyResponse.results)
+            } catch (e: Exception) {
+                when (response.status) {
+                    HttpStatusCode.TooManyRequests -> "Error: Rate limited on all keys"
+                    HttpStatusCode.Unauthorized -> "Error: Invalid API key"
+                    else -> "Error: ${response.status.description}"
+                }
+            }
+        } catch (e: Exception) {
+            logger.error("Parallel search failed for query: ${query.take(30)}...", e)
+            return "Error: ${e.message ?: "Search failed"}"
         }
     }
 
@@ -199,10 +311,14 @@ class TavilySearchTool {
             appendLine("### Search Results")
             results.forEach { result ->
                 appendLine("- **[${result.title}](${result.url})**")
-                appendLine("  ${result.content}")
+                appendLine("  ${result.content.take(200)}")
                 appendLine()
             }
         }
+    }
+
+    fun close() {
+        client.close()
     }
 }
 
