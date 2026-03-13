@@ -751,58 +751,62 @@ ${goalMemoryManager.getProgressContext()}
                     }
 
                     // ═══════════════════════════════════════════════════════════
-                    // CONTENT WITH <think> TAGS
+                    // CONTENT WITH <think> TAGS — fixed state machine
                     // ═══════════════════════════════════════════════════════════
                     if (!chunk.content.isNullOrEmpty()) {
                         val newContent = chunk.content
 
                         val hadThinkStart = newContent.contains("<think>") || newContent.contains("<thought>")
-                        if (hadThinkStart) {
-                            inThinkingState = true
-                            inFinalState = false
-                        }
-                        
-                        val hadThinkEnd = newContent.contains("</final>") || newContent.contains("</think>") || newContent.contains("</thought>") || newContent.contains("<final>")
+                        val hadThinkEnd   = newContent.contains("</think>") || newContent.contains("</thought>")
+                        val hadFinalOpen  = newContent.contains("<final>")
+                        val hadFinalClose = newContent.contains("</final>")
 
                         var cleanContent = ""
                         var thinkingPart = ""
 
-                        if (inThinkingState && !inFinalState) {
-                            if (hadThinkStart) {
-                                // Transitioned to thinking in this chunk
-                                val parts = newContent.split(Regex("<(?:think|thought)>"))
-                                cleanContent = parts.firstOrNull() ?: ""
-                                thinkingPart = parts.drop(1).joinToString("")
-                            } else {
+                        when {
+                            // Case 1: Chunk opens a thinking block
+                            hadThinkStart -> {
+                                inThinkingState = true
+                                inFinalState = false
+                                val parts = newContent.split(Regex("<(?:think|thought)>"), limit = 2)
+                                cleanContent = parts.getOrElse(0) { "" }
+                                val afterOpen = parts.getOrElse(1) { "" }
+                                if (hadThinkEnd || hadFinalClose) {
+                                    val endParts = afterOpen.split(Regex("</(?:think|thought|final)>|<final>"), limit = 2)
+                                    thinkingPart = endParts.getOrElse(0) { "" }
+                                    cleanContent += endParts.getOrElse(1) { "" }
+                                    inThinkingState = false
+                                    inFinalState = true
+                                } else {
+                                    thinkingPart = afterOpen
+                                }
+                            }
+                            // Case 2: Inside thinking, chunk closes it
+                            inThinkingState && (hadThinkEnd || hadFinalClose) -> {
+                                val endParts = newContent.split(Regex("</(?:think|thought|final)>|<final>"), limit = 2)
+                                thinkingPart = endParts.getOrElse(0) { "" }
+                                cleanContent  = endParts.getOrElse(1) { "" }
+                                inThinkingState = false
+                                inFinalState = true
+                            }
+                            // Case 3: Pure reasoning mid-think
+                            inThinkingState -> {
                                 thinkingPart = newContent
                             }
-                        }
-                        
-                        if (hadThinkEnd) {
-                            inFinalState = true
-                            inThinkingState = false
-                            
-                            // Transitioned out of thinking in this chunk
-                            val parts = newContent.split(Regex("</(?:think|thought|final)>|<final>"))
-                            // If we also had a start in the same chunk, thinkingPart was already set
-                            if (hadThinkStart) {
-                                thinkingPart = thinkingPart.split(Regex("</(?:think|thought|final)>|<final>")).firstOrNull() ?: ""
-                                cleanContent += parts.drop(1).joinToString("")
-                            } else {
-                                thinkingPart = parts.firstOrNull() ?: ""
-                                cleanContent = parts.drop(1).joinToString("")
+                            // Case 4: Final answer chunk — either inFinalState already, or pre-think plain text
+                            else -> {
+                                cleanContent = newContent
+                                    .replace(Regex("<(?:think|thought|final)>"), "")
+                                    .replace(Regex("</(?:think|thought|final)>"), "")
+                                if (hadFinalOpen) inFinalState = true
                             }
-                        }
-                        
-                        if (!inThinkingState && !inFinalState && !hadThinkEnd && !hadThinkStart) {
-                            cleanContent = newContent
                         }
 
                         // Sanitize lingering tags
                         cleanContent = cleanContent
                             .replace(Regex("<(?:think|thought|final)>"), "")
                             .replace(Regex("</(?:think|thought|final)>"), "")
-
                         thinkingPart = thinkingPart
                             .replace(Regex("<(?:think|thought|final)>"), "")
                             .replace(Regex("</(?:think|thought|final)>"), "")
@@ -810,13 +814,12 @@ ${goalMemoryManager.getProgressContext()}
                         if (thinkingPart.isNotEmpty()) {
                             thinkingStorage.addReasoning(sessionId, thinkingPart)
                         }
-
-                        currentContent += cleanContent
+                        if (cleanContent.isNotEmpty()) {
+                            currentContent += cleanContent
+                        }
 
                         if (!isToolCallInProgress) {
-                            // Get current thinking for UI
                             val currentThinking = thinkingStorage.getCompleteThinking(sessionId)
-                            
                             emit(AgentEvent.Processing(
                                 eventId = UUID.randomUUID().toString(),
                                 timestamp = System.currentTimeMillis(),

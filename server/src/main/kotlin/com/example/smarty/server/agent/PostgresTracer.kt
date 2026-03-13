@@ -28,17 +28,26 @@ class PostgresTracer(private val userId: String) : AgentTracer {
                 withContext(Dispatchers.IO) {
                     try {
                         dataSource.connection.use { conn ->
+                            // v6 schema requires step_name NOT NULL: derive a human-readable name
+                            val stepName = when (event.stepType) {
+                                AgentStepType.THOUGHT     -> "thought"
+                                AgentStepType.TOOL_CALL   -> "tool_call:${event.metadata["tool"] ?: event.content.take(30)}"
+                                AgentStepType.TOOL_RESULT -> "tool_result:${event.metadata["tool"] ?: "unknown"}"
+                                AgentStepType.ERROR       -> "error"
+                                AgentStepType.FINAL       -> "final_response"
+                            }
                             val sql = """
-                                INSERT INTO agent_traces (session_id, user_id, step_type, content, metadata)
-                                VALUES (?, ?, ?, ?, ?::jsonb)
+                                INSERT INTO agent_traces (session_id, user_id, step_name, step_type, content, metadata)
+                                VALUES (?, ?, ?, ?, ?, ?::jsonb)
                             """.trimIndent()
 
                             conn.prepareStatement(sql).use { stmt ->
                                 stmt.setObject(1, UUID.fromString(event.sessionId))
                                 stmt.setObject(2, UUID.fromString(userId))
-                                stmt.setString(3, event.stepType.name)
-                                stmt.setString(4, event.content)
-                                stmt.setString(5, json.encodeToString(event.metadata))
+                                stmt.setString(3, stepName)
+                                stmt.setString(4, event.stepType.name)
+                                stmt.setString(5, event.content)
+                                stmt.setString(6, json.encodeToString(event.metadata))
                                 stmt.executeUpdate()
                             }
                         }

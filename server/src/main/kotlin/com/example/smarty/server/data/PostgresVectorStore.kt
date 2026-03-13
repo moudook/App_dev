@@ -22,11 +22,12 @@ class PostgresVectorStore : VectorStore {
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Stores content with metadata, scoped to a specific user.
+     * Stores a memory note for a specific user into the `notes` table (v6 schema).
+     * This is used by the `memory` tool (action=remember).
      *
-     * @param userId The authenticated user's ID
+     * @param userId The authenticated user's UUID (users.id)
      * @param content The text content to store
-     * @param metadata Additional metadata
+     * @param metadata Additional metadata (type, category, etc.)
      */
     override suspend fun store(userId: String, content: String, metadata: Map<String, String>) {
         if (dataSource == null) {
@@ -35,15 +36,21 @@ class PostgresVectorStore : VectorStore {
         }
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
+                // v6: store memories as notes with category='memory'
+                val category = metadata["type"] ?: metadata["category"] ?: "memory"
+                val title = metadata["title"] ?: content.take(50)
                 val sql = """
-                    INSERT INTO agent_context (user_id, content, metadata)
-                    VALUES (?, ?, ?::jsonb)
+                    INSERT INTO notes (user_id, title, content, category, metadata, created_at, updated_at)
+                    VALUES (?::uuid, ?, ?, ?, ?::jsonb, now(), now())
+                    ON CONFLICT DO NOTHING
                 """.trimIndent()
 
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, userId)
-                    stmt.setString(2, content)
-                    stmt.setString(3, json.encodeToString(metadata))
+                    stmt.setString(2, title)
+                    stmt.setString(3, content)
+                    stmt.setString(4, category)
+                    stmt.setString(5, json.encodeToString(metadata))
                     stmt.executeUpdate()
                 }
             }
@@ -51,13 +58,13 @@ class PostgresVectorStore : VectorStore {
     }
 
     /**
-     * Update existing context content.
+     * Update existing note content by ID (v6 schema).
      */
     suspend fun update(userId: String, contextId: String, content: String) {
         if (dataSource == null) return
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val sql = "UPDATE agent_context SET content = ?, updated_at = NOW() WHERE id = ?::uuid AND user_id = ?"
+                val sql = "UPDATE notes SET content = ?, updated_at = NOW() WHERE id = ?::uuid AND user_id = ?::uuid AND deleted_at IS NULL"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, content)
                     stmt.setString(2, contextId)
@@ -69,13 +76,13 @@ class PostgresVectorStore : VectorStore {
     }
 
     /**
-     * Delete context by ID.
+     * Soft-delete a note by ID (v6 schema uses deleted_at).
      */
     suspend fun delete(userId: String, contextId: String) {
         if (dataSource == null) return
         withContext(Dispatchers.IO) {
             dataSource.connection.use { conn ->
-                val sql = "DELETE FROM agent_context WHERE id = ?::uuid AND user_id = ?"
+                val sql = "UPDATE notes SET deleted_at = NOW() WHERE id = ?::uuid AND user_id = ?::uuid"
                 conn.prepareStatement(sql).use { stmt ->
                     stmt.setString(1, contextId)
                     stmt.setString(2, userId)
@@ -101,12 +108,20 @@ class PostgresVectorStore : VectorStore {
             val results = mutableListOf<ContextResult>()
 
             dataSource.connection.use { conn ->
+                // v6 schema: search notes table with FTS and fall back to ILIKE for short queries
                 val sql = """
-                    SELECT id, content, metadata,
-                        ts_rank_cd(to_tsvector('english', content), websearch_to_tsquery('english', ?)) as similarity
-                    FROM agent_context
-                    WHERE user_id = ?
-                      AND to_tsvector('english', content) @@ websearch_to_tsquery('english', ?)
+                    SELECT id::text, COALESCE(content, '') as content,
+                        COALESCE(metadata, '{}') as metadata,
+                        ts_rank_cd(to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,'')),
+                                   websearch_to_tsquery('english', ?)) as similarity
+                    FROM notes
+                    WHERE user_id = ?::uuid
+                      AND deleted_at IS NULL
+                      AND (
+                        to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,''))
+                            @@ websearch_to_tsquery('english', ?)
+                        OR LOWER(COALESCE(title,'') || ' ' || COALESCE(content,'')) LIKE LOWER(CONCAT('%',?,'%'))
+                      )
                     ORDER BY similarity DESC
                     LIMIT ?
                 """.trimIndent()
@@ -115,7 +130,8 @@ class PostgresVectorStore : VectorStore {
                     stmt.setString(1, query)
                     stmt.setString(2, userId)
                     stmt.setString(3, query)
-                    stmt.setInt(4, limit)
+                    stmt.setString(4, query.take(100))
+                    stmt.setInt(5, limit)
 
                     stmt.executeQuery().use { rs ->
                         while (rs.next()) {
@@ -146,8 +162,8 @@ class PostgresVectorStore : VectorStore {
     }
 
     /**
-     * Get recent user context entries (preferences, facts, episodic memories).
-     * This provides baseline context for the agent even without a specific query.
+     * Get recent user notes/memories for baseline agent context.
+     * v6 schema: reads from `notes`, ordered by category priority then recency.
      */
     override suspend fun getRecentContext(userId: String, limit: Int): List<ContextResult> {
         if (dataSource == null) {
@@ -158,17 +174,21 @@ class PostgresVectorStore : VectorStore {
             val results = mutableListOf<ContextResult>()
             dataSource.connection.use { conn ->
                 val sql = """
-                    SELECT id, content, metadata, 1.0 as similarity
-                    FROM agent_context
-                    WHERE user_id = ?
+                    SELECT id::text,
+                           COALESCE(content, '') as content,
+                           COALESCE(metadata, '{}') as metadata,
+                           1.0 as similarity
+                    FROM notes
+                    WHERE user_id = ?::uuid
+                      AND deleted_at IS NULL
                     ORDER BY
-                        CASE
-                            WHEN metadata->>'type' = 'preference' THEN 1
-                            WHEN metadata->>'type' = 'factual' THEN 2
-                            WHEN metadata->>'type' = 'episodic' THEN 3
+                        CASE category
+                            WHEN 'preference' THEN 1
+                            WHEN 'memory'     THEN 2
+                            WHEN 'factual'    THEN 3
                             ELSE 4
                         END,
-                        created_at DESC
+                        updated_at DESC
                     LIMIT ?
                 """.trimIndent()
 
@@ -188,8 +208,7 @@ class PostgresVectorStore : VectorStore {
     }
 
     /**
-     * Optional: Ensure indexes exist. The table itself is created by the SQL schema.
-     * This is idempotent and safe to call on startup.
+     * Ensure FTS indexes exist on the notes table (idempotent, safe at startup).
      */
     suspend fun initSchema() {
         if (dataSource == null) return
@@ -197,13 +216,13 @@ class PostgresVectorStore : VectorStore {
             try {
                 dataSource.connection.use { conn ->
                     conn.createStatement().use { stmt ->
-                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_agent_context_user ON agent_context(user_id);")
-                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_agent_context_fts ON agent_context USING GIN (to_tsvector('english', content));")
+                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_notes_user_updated ON notes(user_id, updated_at DESC) WHERE deleted_at IS NULL")
+                        stmt.execute("CREATE INDEX IF NOT EXISTS idx_notes_content_fts ON notes USING GIN (to_tsvector('english', COALESCE(title,'') || ' ' || COALESCE(content,''))) WHERE deleted_at IS NULL")
                     }
                 }
-                logger.info("agent_context indexes verified successfully")
+                logger.info("notes FTS indexes verified successfully")
             } catch (e: Exception) {
-                logger.warn("Could not verify agent_context indexes (non-fatal): ${e.message}")
+                logger.warn("Could not verify notes indexes (non-fatal): ${e.message}")
             }
         }
     }

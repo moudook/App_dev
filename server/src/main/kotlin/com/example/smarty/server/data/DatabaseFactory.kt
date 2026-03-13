@@ -35,11 +35,12 @@ private fun runMigrations(ds: DataSource) {
         try {
             ds.connection.use { conn ->
                 conn.createStatement().use { stmt ->
-                    // v4.2.0 MIGRATION: Minimal migrations for server startup
-                    // Full schema applied via DATABASE_SCHEMA_v4.2.0_OPTIMIZED.sql
-                    
+                    // ── v6.0.0 compatibility minimal migrations ──
+                    // Full schema lives in DATABASE_SCHEMA_v6.0.0_UNIFIED_PRODUCTION.sql
+                    // These are only safety nets in case the full schema hasn't been applied yet.
+
                     val migrations = listOf(
-                        // Verify users table exists (critical for v4.2.0 FKs)
+                        // Verify users table exists (critical for v6 FKs)
                         """CREATE TABLE IF NOT EXISTS users (
                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                             firebase_uid TEXT UNIQUE NOT NULL,
@@ -54,75 +55,84 @@ private fun runMigrations(ds: DataSource) {
                             updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                             last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                         )""",
-                        
-                        // Ensure chat_sessions table has user_id column and foreign key to users
-                        """DO $$
-                        BEGIN
-                            -- Add user_id column if it doesn't exist
-                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                                           WHERE table_name = 'chat_sessions' AND column_name = 'user_id') THEN
-                                ALTER TABLE chat_sessions ADD COLUMN user_id TEXT NOT NULL;
-                            END IF;
-                            
-                            -- Add foreign key constraint if it doesn't exist
-                            IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
-                                          WHERE constraint_name = 'chat_sessions_user_id_fkey' 
-                                          AND table_name = 'chat_sessions') THEN
-                                ALTER TABLE chat_sessions 
-                                ADD CONSTRAINT chat_sessions_user_id_fkey 
-                                FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE;
-                            END IF;
-                        END $$;""",
-                        
-                        // Ensure chat_messages table has user_id column and foreign key to users
-                        """DO $$
-                        BEGIN
-                            -- Add user_id column if it doesn't exist
-                            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                                           WHERE table_name = 'chat_messages' AND column_name = 'user_id') THEN
-                                ALTER TABLE chat_messages ADD COLUMN user_id TEXT NOT NULL;
-                            END IF;
-                            
-                            -- Add foreign key constraint if it doesn't exist
-                            IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints 
-                                          WHERE constraint_name = 'chat_messages_user_id_fkey' 
-                                          AND table_name = 'chat_messages') THEN
-                                ALTER TABLE chat_messages 
-                                ADD CONSTRAINT chat_messages_user_id_fkey 
-                                FOREIGN KEY (user_id) REFERENCES users(firebase_uid) ON DELETE CASCADE;
-                            END IF;
-                        END $$;""",
-                        
-                        // Verify junction tables exist (v4.2.0)
-                        """CREATE TABLE IF NOT EXISTS chat_message_notes (
-                            message_id UUID NOT NULL,
-                            note_id UUID NOT NULL,
-                            PRIMARY KEY (message_id, note_id)
+
+                        // v6: notes table replaces agent_context for user memory / RAG
+                        """CREATE TABLE IF NOT EXISTS notes (
+                            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            title       TEXT NOT NULL DEFAULT '',
+                            content     TEXT,
+                            category    TEXT DEFAULT 'general',
+                            is_pinned   BOOLEAN NOT NULL DEFAULT false,
+                            metadata    JSONB NOT NULL DEFAULT '{}',
+                            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            deleted_at  TIMESTAMPTZ
                         )""",
-                        
-                        """CREATE TABLE IF NOT EXISTS calendar_event_notes (
-                            event_id UUID NOT NULL,
-                            note_id UUID NOT NULL,
-                            PRIMARY KEY (event_id, note_id)
+
+                        // v6: agent_traces requires step_name NOT NULL
+                        """CREATE TABLE IF NOT EXISTS agent_traces (
+                            id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            workflow_id   UUID,
+                            session_id    UUID,
+                            user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            step_name     TEXT NOT NULL,
+                            step_type     TEXT,
+                            content       TEXT,
+                            input_data    JSONB,
+                            output_data   JSONB,
+                            error_message TEXT,
+                            duration_ms   BIGINT,
+                            token_usage   JSONB,
+                            metadata      JSONB NOT NULL DEFAULT '{}',
+                            created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
                         )""",
-                        
-                        // Create indexes for junction tables
-                        "CREATE INDEX IF NOT EXISTS idx_chat_message_notes_message ON chat_message_notes(message_id)",
-                        "CREATE INDEX IF NOT EXISTS idx_chat_message_notes_note ON chat_message_notes(note_id)",
-                        "CREATE INDEX IF NOT EXISTS idx_calendar_event_notes_event ON calendar_event_notes(event_id)",
-                        "CREATE INDEX IF NOT EXISTS idx_calendar_event_notes_note ON calendar_event_notes(note_id)"
+
+                        // v6: chat_sessions (minimal, without FKs that may not exist yet)
+                        """CREATE TABLE IF NOT EXISTS chat_sessions (
+                            id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            title           TEXT,
+                            is_active       BOOLEAN NOT NULL DEFAULT true,
+                            is_archived     BOOLEAN NOT NULL DEFAULT false,
+                            model_used      TEXT,
+                            token_count     INTEGER NOT NULL DEFAULT 0,
+                            message_count   INTEGER NOT NULL DEFAULT 0,
+                            metadata        JSONB NOT NULL DEFAULT '{}',
+                            created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // v6: chat_messages
+                        """CREATE TABLE IF NOT EXISTS chat_messages (
+                            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            session_id  UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+                            user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                            role        TEXT NOT NULL CHECK (role IN ('user','assistant','system','tool')),
+                            content     TEXT NOT NULL,
+                            thinking    TEXT,
+                            tool_calls  JSONB,
+                            metadata    JSONB NOT NULL DEFAULT '{}',
+                            created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+                            updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )""",
+
+                        // Indexes for performance
+                        "CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id) WHERE deleted_at IS NULL",
+                        "CREATE INDEX IF NOT EXISTS idx_messages_session ON chat_messages(session_id, created_at ASC)",
+                        "CREATE INDEX IF NOT EXISTS idx_agent_traces_user ON agent_traces(user_id, created_at DESC)"
                     )
-                    
+
                     for (sql in migrations) {
                         try {
                             stmt.execute(sql)
                         } catch (e: Exception) {
-                            logger.warn("Migration statement skipped (may already exist): ${e.message}")
+                            logger.warn("Migration statement skipped (may already exist): ${e.message?.take(120)}")
                         }
                     }
                 }
             }
-            logger.info("Database migrations applied successfully (v4.2.0 minimal)")
+            logger.info("Database migrations applied successfully (v6.0.0 minimal)")
         } catch (e: Exception) {
             logger.error("Failed to run database migrations", e)
         }
