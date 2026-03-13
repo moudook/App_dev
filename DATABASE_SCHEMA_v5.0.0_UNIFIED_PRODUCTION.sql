@@ -639,6 +639,97 @@ CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_composite ON audit_log(user_id, table_name, created_at DESC);
 
 -- =============================================================================
+-- PART 10B: REASONING & THINKING LOGS (UI Transparency & Optimization)
+-- =============================================================================
+
+-- Reasoning Traces (Step-by-step AI thinking process for UI display)
+CREATE TABLE IF NOT EXISTS reasoning_traces (
+    trace_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    message_id UUID REFERENCES chat_messages(id) ON DELETE SET NULL,
+    user_id TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
+    step_index INTEGER NOT NULL,
+    step_type TEXT NOT NULL CHECK (step_type IN (
+        'analysis', 'planning', 'hypothesis', 'research', 
+        'verification', 'synthesis', 'reflection', 'correction'
+    )),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_hash TEXT,
+    confidence_score DECIMAL(3,2) DEFAULT 0.5,
+    importance_score DECIMAL(3,2) DEFAULT 0.5,
+    is_final BOOLEAN DEFAULT false,
+    was_revised BOOLEAN DEFAULT false,
+    revised_by_trace_id UUID REFERENCES reasoning_traces(trace_id) ON DELETE SET NULL,
+    token_count INTEGER DEFAULT 0,
+    duration_ms BIGINT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_session ON reasoning_traces(session_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_message ON reasoning_traces(message_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_user ON reasoning_traces(user_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_step_type ON reasoning_traces(step_type);
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_step_index ON reasoning_traces(session_id, step_index);
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_final ON reasoning_traces(is_final);
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_created ON reasoning_traces(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reasoning_traces_content_fts ON reasoning_traces USING GIN (to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(content, '')));
+
+COMMENT ON TABLE reasoning_traces IS 'Step-by-step AI reasoning and thinking process for UI transparency';
+
+-- Reasoning Summaries (Pre-computed for efficient UI display with progressive disclosure)
+CREATE TABLE IF NOT EXISTS reasoning_summaries (
+    summary_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    message_id UUID REFERENCES chat_messages(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
+    one_liner TEXT,
+    brief_summary TEXT,
+    detailed_summary TEXT,
+    total_steps INTEGER DEFAULT 0,
+    total_duration_ms BIGINT DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    confidence_score DECIMAL(3,2) DEFAULT 0.5,
+    complexity_score DECIMAL(3,2) DEFAULT 0.5,
+    reasoning_type TEXT,
+    tags TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reasoning_summaries_session ON reasoning_summaries(session_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_summaries_message ON reasoning_summaries(message_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_summaries_user ON reasoning_summaries(user_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_summaries_type ON reasoning_summaries(reasoning_type);
+CREATE INDEX IF NOT EXISTS idx_reasoning_summaries_tags ON reasoning_summaries USING GIN (tags);
+
+COMMENT ON TABLE reasoning_summaries IS 'Pre-computed reasoning summaries for efficient UI display';
+
+-- Reasoning Metrics (Analytics & optimization)
+CREATE TABLE IF NOT EXISTS reasoning_metrics (
+    metric_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(firebase_uid) ON DELETE CASCADE,
+    total_steps INTEGER DEFAULT 0,
+    steps_by_type JSONB DEFAULT '{}',
+    avg_duration_per_step_ms BIGINT DEFAULT 0,
+    total_duration_ms BIGINT DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    confidence_score DECIMAL(3,2) DEFAULT 0.5,
+    revision_count INTEGER DEFAULT 0,
+    final_steps_ratio DECIMAL(3,2) DEFAULT 1.0,
+    user_helpful_rating INTEGER CHECK (user_helpful_rating BETWEEN 1 AND 5),
+    user_feedback TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reasoning_metrics_session ON reasoning_metrics(session_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_metrics_user ON reasoning_metrics(user_id);
+CREATE INDEX IF NOT EXISTS idx_reasoning_metrics_created ON reasoning_metrics(created_at DESC);
+
+COMMENT ON TABLE reasoning_metrics IS 'Analytics and optimization metrics for reasoning processes';
+
+-- =============================================================================
 -- PART 11: HELPER FUNCTIONS
 -- =============================================================================
 
@@ -768,6 +859,15 @@ BEGIN
     
     -- Delete expired file uploads
     DELETE FROM file_uploads WHERE expires_at IS NOT NULL AND expires_at < NOW();
+    
+    -- Delete old reasoning traces (30 days for inactive sessions)
+    DELETE FROM reasoning_traces 
+    WHERE created_at < NOW() - INTERVAL '30 days'
+      AND session_id NOT IN (SELECT id FROM chat_sessions WHERE is_active = true);
+    
+    -- Delete old reasoning summaries and metrics
+    DELETE FROM reasoning_summaries WHERE created_at < NOW() - INTERVAL '30 days';
+    DELETE FROM reasoning_metrics WHERE created_at < NOW() - INTERVAL '90 days';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -866,6 +966,49 @@ SELECT
     (SELECT COUNT(*) FROM agent_workflows WHERE status = 'completed') as completed_workflows,
     (SELECT SUM(file_size) FROM file_uploads) as total_storage_bytes;
 
+-- Reasoning trace timeline (for UI visualization)
+CREATE OR REPLACE VIEW reasoning_trace_timeline AS
+SELECT 
+    rt.trace_id, rt.session_id, rt.message_id, rt.user_id,
+    rt.step_index, rt.step_type, rt.title, rt.content,
+    rt.confidence_score, rt.importance_score,
+    rt.is_final, rt.was_revised, rt.duration_ms,
+    rt.created_at,
+    rs.one_liner, rs.brief_summary
+FROM reasoning_traces rt
+LEFT JOIN reasoning_summaries rs ON rt.session_id = rs.session_id 
+    AND (rt.message_id IS NULL OR rt.message_id = rs.message_id)
+ORDER BY rt.session_id, rt.step_index;
+
+-- Reasoning quality metrics
+CREATE OR REPLACE VIEW reasoning_quality_metrics AS
+SELECT 
+    rm.session_id, rm.user_id,
+    rm.total_steps, rm.steps_by_type,
+    rm.avg_duration_per_step_ms, rm.total_duration_ms,
+    rm.confidence_score, rm.revision_count,
+    rm.final_steps_ratio, rm.user_helpful_rating,
+    rs.one_liner, rs.brief_summary,
+    rm.created_at
+FROM reasoning_metrics rm
+LEFT JOIN reasoning_summaries rs ON rm.session_id = rs.session_id
+ORDER BY rm.created_at DESC;
+
+-- User reasoning analytics
+CREATE OR REPLACE VIEW user_reasoning_analytics AS
+SELECT 
+    u.id as user_id, u.email, u.display_name,
+    COUNT(DISTINCT rt.session_id) as total_reasoning_sessions,
+    COUNT(rt.trace_id) as total_reasoning_steps,
+    AVG(rt.confidence_score) as avg_confidence,
+    AVG(rt.duration_ms) as avg_step_duration_ms,
+    SUM(rt.duration_ms) as total_reasoning_time_ms,
+    MAX(rt.created_at) as last_reasoning_at
+FROM users u
+LEFT JOIN reasoning_traces rt ON u.firebase_uid = rt.user_id
+WHERE u.is_active = true
+GROUP BY u.id, u.email, u.display_name;
+
 -- =============================================================================
 -- PART 14: ROW LEVEL SECURITY (RLS) - Supabase Multi-tenant
 -- =============================================================================
@@ -907,13 +1050,33 @@ CREATE POLICY "Users can insert own notes" ON notes FOR INSERT WITH CHECK (user_
 CREATE POLICY "Users can update own notes" ON notes FOR UPDATE USING (user_id = current_setting('app.current_user_id', true));
 CREATE POLICY "Users can delete own notes" ON notes FOR DELETE USING (user_id = current_setting('app.current_user_id', true));
 
+-- Reasoning tables RLS policies
+ALTER TABLE reasoning_traces ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reasoning_summaries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reasoning_metrics ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own reasoning traces" ON reasoning_traces 
+    FOR SELECT USING (user_id = current_setting('app.current_user_id', true));
+CREATE POLICY "Users can insert own reasoning traces" ON reasoning_traces 
+    FOR INSERT WITH CHECK (user_id = current_setting('app.current_user_id', true));
+
+CREATE POLICY "Users can view own reasoning summaries" ON reasoning_summaries 
+    FOR SELECT USING (user_id = current_setting('app.current_user_id', true));
+CREATE POLICY "Users can insert own reasoning summaries" ON reasoning_summaries 
+    FOR INSERT WITH CHECK (user_id = current_setting('app.current_user_id', true));
+
+CREATE POLICY "Users can view own reasoning metrics" ON reasoning_metrics 
+    FOR SELECT USING (user_id = current_setting('app.current_user_id', true));
+
 -- =============================================================================
 -- PART 15: INITIAL DATA
 -- =============================================================================
 
 -- Insert schema version
 INSERT INTO schema_migrations (version, description)
-VALUES ('v5.0.0', 'Unified Production Schema 2026 - RLS, Vector, Research Agent 2026, Audit Logging')
+VALUES 
+    ('v5.1.0', 'Added reasoning traces and thinking logs for UI transparency'),
+    ('v5.0.0', 'Unified Production Schema 2026 - RLS, Vector, Research Agent 2026, Audit Logging')
 ON CONFLICT (version) DO NOTHING;
 
 -- =============================================================================
@@ -921,12 +1084,12 @@ ON CONFLICT (version) DO NOTHING;
 -- =============================================================================
 -- 
 -- STATISTICS:
--- - Tables: 28
--- - Indexes: 80+
+-- - Tables: 31 (28 core + 3 reasoning)
+-- - Indexes: 95+
 -- - Functions: 8
--- - Triggers: 7
--- - Views: 5
--- - RLS Policies: 10+
+-- - Triggers: 8
+-- - Views: 8 (5 core + 3 reasoning)
+-- - RLS Policies: 13+
 -- 
 -- FEATURES:
 -- ✓ Multi-tenant isolation with Row Level Security
@@ -934,6 +1097,9 @@ ON CONFLICT (version) DO NOTHING;
 -- ✓ Full-text search optimization (pg_trgm, GIN indexes)
 -- ✓ Research Agent 2026 (ACH, ALCOA, Rule of Three, BLUF)
 -- ✓ Comprehensive audit logging
+-- ✓ Reasoning traces for UI transparency (step-by-step thinking)
+-- ✓ Pre-computed reasoning summaries (progressive disclosure)
+-- ✓ Reasoning analytics and optimization metrics
 -- ✓ Automatic cleanup functions
 -- ✓ Connection pooling ready (pgBouncer)
 -- ✓ Partitioning-ready design
